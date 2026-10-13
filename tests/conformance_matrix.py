@@ -323,7 +323,7 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="harness architecture",
         reason="Destroys the project fixture that the sweep executes within.",
     ),
-    # owned_elsewhere (9):
+    # owned_elsewhere (2):
     "rename": Exemption(
         reason_kind="owned_elsewhere",
         citation="eeiytw",
@@ -333,41 +333,6 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="owned_elsewhere",
         citation="eeiytw",
         reason="Missing aw.agent/v1 machine payload; owned by open backlog eeiytw.",
-    ),
-    "ipd scaffold": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "research new": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "research new-comparison": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "storage move": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "backlog new": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "specs new": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
-    ),
-    "prompts new": Exemption(
-        reason_kind="owned_elsewhere",
-        citation="91pjax",
-        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
     ),
     # arg_fixture_needed (43):
     "commit": Exemption(

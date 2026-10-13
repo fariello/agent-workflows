@@ -1,5 +1,5 @@
 - Id: 91pjax
-- Status: graduated
+- Status: done
 - Graduated-To: 91pjax
 - Blocks-Release: next
 - Set: 91pjax
@@ -8,6 +8,7 @@
 - Summary: seven mutation leaves exit 2 with empty stdout under --agent when argparse refuses a missing required positional
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 0z7ds3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-91pjax-01-0z7ds3-emit-an-aw-agent-v1-cannot-run-record-when-argparse-or-an-ea.ipd.md); evidence .aw/records/plans/executed/20261012-91pjax-01-0z7ds3-emit-an-aw-agent-v1-cannot-run-record-when-argparse-or-an-ea.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: 0z7ds3
 - 2026-10-02 created (aw backlog): seven mutation leaves exit 2 with empty stdout under --agent when argparse refuses a missing required positional
 

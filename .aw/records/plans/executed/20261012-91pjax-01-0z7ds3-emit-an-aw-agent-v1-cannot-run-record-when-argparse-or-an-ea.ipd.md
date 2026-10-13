@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the seven and the parser census at the executing HEAD, as a gate (E-01); (2) add ONE shared usage-refusal emitter that builds a schema-valid `kind: error` `outcome: cannot-run` `exit: 2` record with a `next` of `aw <leaf> --help` (E-02); (3) make `_AwArgumentParser.error` sniff the output mode from the raw argv it is parsing and, under `--agent` or `--json`/`--format json`, write that record to stdout while keeping the existing stderr diagnostic (E-03); (4) route the three handler-level missing-required refusals the sweep hits through the same emitter (E-04); (5) a behavioral sweep test over EVERY leaf with a required argument, driven from the live parser tree rather than a hand list (E-05); (6) remove the seven `owned_elsewhere` `91pjax` exemptions from `MUTATION_EXEMPTION_REGISTRY` so those leaves enter the mutation conformance universe (E-06); (7) a `CHANGELOG.md` `Fixed:` line and a doc note in Section 11.4 naming the parse-time path (E-07). OUT: the OTHER early refusals in those same handlers (`specs new --date` malformed, `backlog new` unsafe `--summary`, `ipd_authoring.run_scaffold`'s human `print` to stdout for an empty `--title`), filed at authoring as backlog `mmpjti`; the family-root (subcommand-less group) case, already owned by `_show_family_help` and closed under `lbbo9s`; the `aw config exclude` human-line case (`o8cz48`) and the `aw sanitize` branches (`k84fqu`), each owned by its own open item.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/renderers.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/prompts.py, tests/test_usage_refusal_agent_record.py, tests/conformance_matrix.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: 0z7ds3
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0z7ds3 verified (set 91pjax, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
@@ -37,49 +37,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-drive the seven measured leaves and the required-argument census at the executing HEAD, recording both verbatim and editing no file.
+- [x] E-01 Re-drive the seven measured leaves and the required-argument census at the executing HEAD, recording both verbatim and editing no file.
   - Depends on: none
   - Expected outcome: two pasted transcripts. (a) THE PROBE: for each of `ipd scaffold`, `research new`, `research new-comparison`, `storage move`, `backlog new`, `specs new`, `prompts new`, run `python3 -m agent_workflows <leaf> --agent` from the repo root and print `rc`, the stdout byte count, and the first stderr error line. Expected at authoring: `rc=2 bytes=0` for all seven, with `the following arguments are required:` for the first four and the handler messages `aw backlog new: --priority and --work-kind required: ...`, `aw specs new: --title is required`, `aw prompts new: --slug is required` for the last three. (b) THE CENSUS: walk `cli._build_parser()` with `command_surface.discover_parser_leaves`, count leaves carrying an argument that is `required=True` or a positional whose `nargs` is not `?`, `*` or `REMAINDER`, and confirm every subparser in the tree is an `_AwArgumentParser` instance. Expected at authoring: 157 leaves, 67 with a required argument, 0 parsers of another class (all three re-measured at review HEAD `f52907adc`; every one of the 67, driven bare with `--agent`, exited 2 with 0 stdout bytes and a `the following arguments are required:` stderr line). Also probe `aw --agent ipd scaffold` (global flag before the leaf) and record it; it must be `rc=2 bytes=0` today.
     GATE: if any of the seven already emits a non-empty stdout, another lane has touched this path, so STOP and reconcile before editing. If the census finds a subparser that is NOT an `_AwArgumentParser`, record it: E-03's override would not reach it, and that parser must either be converted or named as excluded in V-05.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the shared emitter and the parse-time path
 
-- [ ] E-02 Add one shared usage-refusal emitter in `agent_workflows/renderers.py` (for example `emit_usage_refusal(cmd, message, next_cmd, context)`) that builds a `CommandResult(status="cannot-run", exit_code=2, verified=False, complete=False)` with the refusal text as its summary and `next_cmd` as its single `NextAction`, and emits it through `get_renderer(context)`.
+- [x] E-02 Add one shared usage-refusal emitter in `agent_workflows/renderers.py` (for example `emit_usage_refusal(cmd, message, next_cmd, context)`) that builds a `CommandResult(status="cannot-run", exit_code=2, verified=False, complete=False)` with the refusal text as its summary and `next_cmd` as its single `NextAction`, and emits it through `get_renderer(context)`.
   - Depends on: E-01
   - Expected outcome: for an AGENT context it writes exactly one `aw.agent/v1` line that passes `agent_schema.validate_agent_record` with `kind: error`, `outcome: cannot-run`, `exit: 2`, `complete: false`, and `next` set to `next_cmd`; for a JSON context it writes the `JsonRenderer` dict; for a HUMAN context it writes NOTHING to stdout and returns `2`, because the human diagnostic is the caller's stderr text and must not be duplicated (Section 7: "Diagnostics are never duplicated across both streams"). The refusal message passes through `agent_schema.redact_home_paths`, since argparse messages can echo a user-supplied path. It reuses `CommandResult.to_agent_record` rather than hand-assembling a dict, matching `cli._show_family_help`, which is the in-repo precedent for a `cannot-run` usage record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Override the machine half of `_AwArgumentParser.error` so that, when the argv being parsed requests agent or JSON output, it calls the E-02 emitter on stdout before `self.exit(2)`, keeping the existing stderr usage, `error:` line and `Next` hint byte-identical.
+- [x] E-03 Override the machine half of `_AwArgumentParser.error` so that, when the argv being parsed requests agent or JSON output, it calls the E-02 emitter on stdout before `self.exit(2)`, keeping the existing stderr usage, `error:` line and `Next` hint byte-identical.
   - Depends on: E-02
   - Expected outcome: `cli._dispatch` records the FULL raw argv of the invocation (the `argv_list` left after `_consume_early_flags`, held for the remainder of `_dispatch` so it covers both `parser.parse_args` call sites, including the `runs` re-parse) in one module-level `contextvars.ContextVar` (for example `_RAW_DISPATCH_ARGV`), set with a token and reset in a `try`/`finally` so a nested or repeated in-process `_dispatch` (the test suite calls it many times per process) never inherits a stale value, and `_AwArgumentParser.error` decides the mode by scanning THAT list for `--agent`, `--json`, or `--format json` / `--format=json`, stopping at a bare `--` so a forwarded token is never read as a flag. When the var is unset (a parser built and used outside `_dispatch`, for example a test calling `_build_parser().parse_args(...)` directly), `error` behaves exactly as today. Do NOT record the argv per parser inside `parse_known_args`: a subparser only ever sees the tokens left after its parent consumed its own, so `aw --agent ipd scaffold` (the global flag BEFORE the leaf) would be invisible to the leaf parser, and on Python 3.9 to 3.12 the stdlib's intermixed parse re-enters `parse_known_args` with the positionals already stripped, so a `+`-positional leaf (`ipd set`, `config set`) would record `[]` even for `aw ipd set --agent` (both measured at review, see the review record). The record is built with an `OutputContext(mode=OutputMode.AGENT)` or `OutputContext(mode=OutputMode.JSON, explicit_format="json")` constructed directly, because no parsed `args` exists yet. Mode precedence matches `result_types.select_output`: an explicit JSON request wins over `--agent`, and when BOTH are present the `ConflictingFlagsError` rule applies, so emit nothing extra and keep the plain stderr refusal. `cmd` is the leaf path derived from `self.prog` with the `agent-workflows ` prefix stripped (`agent-workflows ipd scaffold` -> `ipd scaffold`), and `next_cmd` is the same `aw <leaf> --help` string the stderr `Next` line already prints. The emitter is NOT invoked for `--help`/`--version` exits, which do not go through `error`. Exit code stays `2` on every path. A refusal from the top-level parser (unknown command) emits `cmd: aw` with `next: aw --help`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the three handler-level refusals the sweep measured
 
-- [ ] E-04 Route the three missing-required handler refusals through the E-02 emitter: `backlog.run_new` when `--priority` or `--work-kind` is missing and when `--summary` is empty, `specs.run_new` when `--title` is empty, and `prompts.run_new` when `--slug` is empty.
+- [x] E-04 Route the three missing-required handler refusals through the E-02 emitter: `backlog.run_new` when `--priority` or `--work-kind` is missing and when `--summary` is empty, `specs.run_new` when `--title` is empty, and `prompts.run_new` when `--slug` is empty.
   - Depends on: E-02
   - Expected outcome: each keeps its EXISTING stderr message byte-identical (so `tests/test_backlog_descriptive_safety.py::test_empty_summary_refusal_unchanged`, which asserts `err == "aw backlog new: --summary is required\n"`, stays green) and additionally calls the emitter with the `ctx` each handler already resolves via `select_output(args)`, so a HUMAN invocation is unchanged and an `--agent` invocation gains one `cannot-run` record whose `next` is `aw <verb> new --help`. `backlog.run_new` resolves no `ctx` before these checks today, so E-04 calls `select_output(args)` before them; it cannot raise `ConflictingFlagsError` there, because `_dispatch` already refused that combination before dispatching. No other `return 2` arm in these three handlers is touched: those belong to `mmpjti`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin it
 
-- [ ] E-05 Create `tests/test_usage_refusal_agent_record.py`, a behavioral sweep that drives the real CLI and asserts on stdout, stderr and exit code.
+- [x] E-05 Create `tests/test_usage_refusal_agent_record.py`, a behavioral sweep that drives the real CLI and asserts on stdout, stderr and exit code.
   - Depends on: E-03, E-04
   - Expected outcome: (1) A parametrized test over EVERY canonical leaf from `discover_parser_leaves(cli._build_parser())` that has a required argument, computed at collection time from the live parser tree (never a hand list), that drives `cli.main(<leaf tokens> + ["--agent"])` IN-PROCESS with `contextlib.redirect_stdout`/`redirect_stderr` and `SystemExit` caught (the `tests/test_leak_sanitizer_machine_flags.py` `_capture_cli_separate` pattern), with cwd-independent arguments only, the required arguments omitted, and asserts: exit `2`; stdout non-empty; the LAST stdout line parses as JSON and `validate_agent_record` returns `[]`; `kind == "error"`, `outcome == "cannot-run"`, `exit == 2`, `next == f"aw {leaf} --help"`; no `/home/` and no temporary path in stdout. A leaf whose handler-free refusal is impossible in that form (for example a positional consumed by `REMAINDER`, which argparse never refuses) is excluded by a named, reasoned set in the test, and the set size is printed in the test id or asserted, so an exclusion is visible rather than silent. (2) The same leaves with `--json` assert the stdout parses as one JSON object whose `status` is `cannot-run` and `exit_code` is `2`. (3) A HUMAN control on a representative leaf (`ipd scaffold`) asserts stdout is EXACTLY empty and stderr still contains `the following arguments are required:` and `Next  aw ipd scaffold --help`. (4) `--agent --json` together on `ipd scaffold` asserts exit `2` and no JSON line on stdout. (5) A token after `--` on a forwarding leaf (`aw test -- --agent`, or another leaf whose REMAINDER is measured in E-01) is not treated as a mode request. (6) The unknown-command case `aw nosuch --agent` emits `cmd == "aw"`, `next == "aw --help"`. (7) The three E-04 leaves under `--agent` emit a valid `cannot-run` record and, without `--agent`, keep stdout empty. (8) GLOBAL-FLAG POSITION: `aw --agent ipd scaffold` and `aw --agent ipd set` (flag BEFORE the leaf, a `+`-positional leaf in the second case) each emit the same valid record as the trailing-flag spelling; this is the case a per-parser argv capture misses (PR-001). (9) An `invalid choice` refusal on a family (`aw ipd nosuch --agent`) emits `cmd == "ipd"`, `next == "aw ipd --help"`. The in-process drive is REQUIRED, not a stylistic choice: E-01 measured one bare-leaf subprocess at about 1 second (67 leaves took 66 seconds serially at review), and parametrizing (1) and (2) as subprocesses would add over two minutes to the fast suite, against the 0.23 seconds per call measured in-process. Cases (5), (6) and one representative of (1) MAY additionally run as a subprocess with a timeout to prove the real entry point; any such subprocess carries a timeout. The sweep must not depend on Python 3.13+ argparse behavior, because the CI matrix starts at the `requires-python = ">=3.9"` floor and the stdlib's intermixed-parse path differs before 3.13; V-05 names the interpreter used and, if an interpreter below 3.13 with the project's dependencies is available, runs the sweep there too. The file reads no production source and asserts on no comment or docstring (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Delete the seven `reason_kind="owned_elsewhere"`, `citation="91pjax"` entries from `MUTATION_EXEMPTION_REGISTRY` in `tests/conformance_matrix.py` and correct the `# owned_elsewhere (9):` count comment to `(2)`, so those leaves enter `MUTATION_UNIVERSE` and `test_agent_surface_conformance_mutation` drives them.
+- [x] E-06 Delete the seven `reason_kind="owned_elsewhere"`, `citation="91pjax"` entries from `MUTATION_EXEMPTION_REGISTRY` in `tests/conformance_matrix.py` and correct the `# owned_elsewhere (9):` count comment to `(2)`, so those leaves enter `MUTATION_UNIVERSE` and `test_agent_surface_conformance_mutation` drives them.
   - Depends on: E-03, E-04
   - Expected outcome: `MUTATION_UNIVERSE` grows from 24 to 31 (measured 24 at authoring), and all seven new rows pass, because each leaf invoked bare with `--agent` now emits a valid `cannot-run` record whose `exit` equals the process exit. The two `eeiytw` entries (`rename`, `group`) are left untouched. If any of the seven fails a property other than the ones this plan fixes (for example the path-leak checks), STOP and record which: re-adding it with a NEW citation is a human decision, not something to paper over.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: keep the record true
 
-- [ ] E-07 Add one `CHANGELOG.md` `Fixed:` line under the pending 2.0.0 section, and one sentence to `docs/cli-output-contract.md` Section 11.4 stating that the agent-mode `cannot-run` record also applies to refusals raised while parsing arguments, before any command runs, and that the human stderr text is unchanged.
+- [x] E-07 Add one `CHANGELOG.md` `Fixed:` line under the pending 2.0.0 section, and one sentence to `docs/cli-output-contract.md` Section 11.4 stating that the agent-mode `cannot-run` record also applies to refusals raised while parsing arguments, before any command runs, and that the human stderr text is unchanged.
   - Depends on: E-03
   - Expected outcome: both are user-facing prose, so neither contains an em or en dash (`AGENTS.md`). The changelog line names the observable change ("usage errors such as a missing required argument or an invalid choice now emit an aw.agent/v1 cannot-run error record on stdout under --agent and --json"). The doc sentence adds no new requirement: Section 11.4 already states the rule; it only removes the ambiguity about when it applies.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -164,40 +164,622 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the seven-leaf probe transcript (leaf, `rc`, stdout byte count, first stderr error line for each) and the census output (leaf count, required-argument leaf count, non-`_AwArgumentParser` count), both taken BEFORE any edit, with the HEAD hash. State explicitly whether the GATE fired.
   - Observed evidence:
-  - Result: pending
+    Executing HEAD: `b780ed072911eefd0d7f3b62641a6744e88d94ed`
+    Pre-change seven-leaf probe transcript:
+    ```
+    ipd scaffold: rc=2 bytes=0 stderr='aw ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order'
+    research new: rc=2 bytes=0 stderr='aw research new: error: the following arguments are required: --kind'
+    research new-comparison: rc=2 bytes=0 stderr='aw research new-comparison: error: the following arguments are required: --set, --slug, --models'
+    storage move: rc=2 bytes=0 stderr='aw storage move: error: the following arguments are required: --new-dir'
+    backlog new: rc=2 bytes=0 stderr='aw backlog new: --priority and --work-kind required: decide the item's priority (high | low | medium) and work kind (bug | chore | feature | followup | security) when you file it; a plan graduated from this item inherits both'
+    specs new: rc=2 bytes=0 stderr='aw specs new: --title is required'
+    prompts new: rc=2 bytes=0 stderr='aw prompts new: --slug is required'
+    Global flag before leaf:
+    aw --agent ipd scaffold: rc=2 bytes=0 stderr='aw ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order'
+    ```
+    Parser census output:
+    ```
+    Leaves: 157
+    Required arg leaves: 67
+    Non-AwArgumentParser parsers: 0
+    ```
+    GATE: Did NOT fire. All 7 measured leaves exited 2 with 0 stdout bytes, and all 157 parser leaves in the tree are `_AwArgumentParser` instances.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the `git diff` of `agent_workflows/renderers.py` showing the emitter, and an interpreter transcript that calls it once with an AGENT context, once with a JSON context and once with a HUMAN context (each with a captured stdout), printing the captured stdout and the return value for each, plus `validate_agent_record` of the AGENT line returning `[]`. The HUMAN stdout must be the empty string. Code path: the E-02 emitter called directly.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/renderers.py`:
+    ```diff
+    diff --git a/agent_workflows/renderers.py b/agent_workflows/renderers.py
+    index 050753e95..19508ba99 100644
+    --- a/agent_workflows/renderers.py
+    +++ b/agent_workflows/renderers.py
+    @@ -17,6 +17,7 @@ from agent_workflows import agent_schema as _schema
+     from agent_workflows import term as _term
+     from agent_workflows.result_types import (
+         CommandResult,
+    +    NextAction,
+         OutputContext,
+         OutputMode,
+     )
+    @@ -378,3 +379,32 @@ def get_renderer(context: OutputContext) -> BaseRenderer:
+         if context.is_agent:
+             return AgentRenderer()
+         return HumanRenderer()
+    +
+    +
+    +def emit_usage_refusal(
+    +    cmd: str,
+    +    message: str,
+    +    next_cmd: str,
+    +    context: Optional[OutputContext] = None,
+    +) -> int:
+    +    """Emit a cannot-run usage refusal record on stdout under --agent or --json.
+    +
+    +    For HUMAN context, writes nothing to stdout and returns 2, leaving the human
+    +    diagnostic to the caller's stderr stream (CLI output contract Section 7 and 11.4).
+    +    """
+    +    ctx = context or OutputContext()
+    +    if not (ctx.is_agent or ctx.is_json):
+    +        return 2
+    +
+    +    redacted_message = _schema.redact_home_paths(message)
+    +    res = CommandResult(
+    +        command=cmd,
+    +        status="cannot-run",
+    +        exit_code=2,
+    +        summary=redacted_message,
+    +        next_actions=[NextAction(command=next_cmd)],
+    +        verified=False,
+    +        complete=False,
+    +    )
+    +    return get_renderer(ctx).emit(res, ctx)
+    +
+    ```
+    Direct interpreter test transcript:
+    ```
+    AGENT rc: 2
+    AGENT stdout: {"schema":"aw.agent/v1","kind":"error","cmd":"test cmd","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw test --help"}
+    AGENT validate: []
+    JSON rc: 2
+    JSON stdout: {
+      "schema": "aw.agent/v1",
+      "command": "test cmd",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "refusal msg",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw test --help"
+        }
+      ],
+      "data": {}
+    }
+    HUMAN rc: 2
+    HUMAN stdout empty: True
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the `git diff` of `agent_workflows/cli.py` limited to `_AwArgumentParser` and the `_dispatch` argv capture. Paste real CLI runs (code path: `_AwArgumentParser.error` reached through `cli._dispatch`) of `aw ipd scaffold --agent`, `aw --agent ipd scaffold`, `aw ipd set --agent`, `aw ipd scaffold --json`, `aw ipd scaffold` (human), `aw ipd scaffold --agent --json`, and `aw nosuch --agent`, each showing exit code, full stdout, and stderr. Show the human run's stderr is byte-identical to the pre-change stderr captured in V-01 for the same leaf (paste both, or a `diff` of the two showing no output).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/cli.py` (limited to `_AwArgumentParser` and `_dispatch` argv capture):
+    ```diff
+    @@ -16900,6 +16937,31 @@ class _AwArgumentParser(argparse.ArgumentParser):
+             print(f"{prog}: error: {message}", file=sys.stderr)
+             print(f"Next  {hint_cmd} --help", file=sys.stderr)
+    +
+    +        raw_argv = _RAW_DISPATCH_ARGV.get()
+    +        if raw_argv is not None:
+    +            mode = _sniff_mode_from_raw_argv(raw_argv)
+    +            if mode is not None:
+    +                from agent_workflows.renderers import emit_usage_refusal
+    +
+    +                if prog.startswith("agent-workflows "):
+    +                    cmd = prog[len("agent-workflows ") :]
+    +                elif prog.startswith("aw "):
+    +                    cmd = prog[len("aw ") :]
+    +                elif prog in ("agent-workflows", "aw"):
+    +                    cmd = "aw"
+    +                else:
+    +                    cmd = prog
+    +
+    +                next_cmd = f"{hint_cmd} --help"
+    +                if mode == OutputMode.JSON:
+    +                    ctx = OutputContext(mode=OutputMode.JSON, explicit_format="json")
+    +                else:
+    +                    ctx = OutputContext(mode=OutputMode.AGENT)
+    +                emit_usage_refusal(
+    +                    cmd=cmd, message=message, next_cmd=next_cmd, context=ctx
+    +                )
+    +
+             self.exit(2)
+    @@ -16926,72 +16988,76 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
+    +    _token = _RAW_DISPATCH_ARGV.set(list(argv_list))
+    +    try:
+    ...
+    -    argv = _rewrite_help_token(argv_list)
+    -    args = parser.parse_args(argv)
+    +        argv = _rewrite_help_token(argv_list)
+    +        args = parser.parse_args(argv)
+    +    finally:
+    +        _RAW_DISPATCH_ARGV.reset(_token)
+    ```
+    CLI runs:
+    ```
+    === CMD: ipd scaffold --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"ipd scaffold","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw ipd scaffold --help"}
+    STDERR:
+    usage: agent-workflows ipd scaffold [-h] [--no-color | --color]
+                                        [--no-interactive | --interactive]
+                                        [--agent] [--json] [--fields FIELDS]
+                                        [--verbose] --kind KIND --title TITLE
+                                        [--path PATH] --set SET --order ORDER
+                                        [--legacy-name] [--author AUTHOR]
+                                        [--priority PRIORITY]
+                                        [--work-kind WORK_KIND]
+                                        [--from-backlog FROM_BACKLOG] [--apply]
+                                        [--overwrite]
+    agent-workflows ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order
+    Next  aw ipd scaffold --help
 
-- [ ] V-04 validates E-04
+    === CMD: --agent ipd scaffold
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"ipd scaffold","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw ipd scaffold --help"}
+    STDERR:
+    usage: agent-workflows ipd scaffold [-h] [--no-color | --color]
+                                        [--no-interactive | --interactive]
+                                        [--agent] [--json] [--fields FIELDS]
+                                        [--verbose] --kind KIND --title TITLE
+                                        [--path PATH] --set SET --order ORDER
+                                        [--legacy-name] [--author AUTHOR]
+                                        [--priority PRIORITY]
+                                        [--work-kind WORK_KIND]
+                                        [--from-backlog FROM_BACKLOG] [--apply]
+                                        [--overwrite]
+    agent-workflows ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order
+    Next  aw ipd scaffold --help
+
+    === CMD: ipd set --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"ipd set","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw ipd set --help"}
+    STDERR:
+    usage: agent-workflows ipd set [-h] [--no-color | --color] [--no-interactive |
+                                   --interactive] [--agent] [--json]
+                                   [--fields FIELDS] [--verbose] [--dir DIR]
+                                   [--message MESSAGE]
+                                   [--blocks-release BLOCKS_RELEASE]
+                                   [--from-backlog FROM_BACKLOG]
+                                   [--from-spec FROM_SPEC]
+                                   [--graduated-to GRADUATED_TO]
+                                   [--priority {low,medium,high}]
+                                   [--work-kind {bug,feature,chore,security,followup}]
+                                   [--by-human] [--allow-open-questions]
+                                   [--allow-terminal-reopen]
+                                   [--allow-unresolvable-release-sentinel WHY]
+                                   [--actor ACTOR] [--scope-reason PATH=WHY]
+                                   [--scope-ack PATH[=NOTE]] [--dry-run] [--yes]
+                                   [--skip-refused] [--rewrite-citations]
+                                   [--run-id RUN_ID] [--take-over REASON]
+                                   [--commit | --no-commit]
+                                   args [args ...]
+    agent-workflows ipd set: error: the following arguments are required: args
+    Next  aw ipd set --help
+
+    === CMD: ipd scaffold --json
+    EXIT: 2
+    STDOUT:
+    {
+      "schema": "aw.agent/v1",
+      "command": "ipd scaffold",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "the following arguments are required: --kind, --title, --set, --order",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw ipd scaffold --help"
+        }
+      ],
+      "data": {}
+    }
+    STDERR:
+    usage: agent-workflows ipd scaffold [-h] [--no-color | --color]
+                                        [--no-interactive | --interactive]
+                                        [--agent] [--json] [--fields FIELDS]
+                                        [--verbose] --kind KIND --title TITLE
+                                        [--path PATH] --set SET --order ORDER
+                                        [--legacy-name] [--author AUTHOR]
+                                        [--priority PRIORITY]
+                                        [--work-kind WORK_KIND]
+                                        [--from-backlog FROM_BACKLOG] [--apply]
+                                        [--overwrite]
+    agent-workflows ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order
+    Next  aw ipd scaffold --help
+
+    === CMD: ipd scaffold (human)
+    EXIT: 2
+    STDOUT:
+    STDERR:
+    usage: agent-workflows ipd scaffold [-h] [--no-color | --color]
+                                        [--no-interactive | --interactive]
+                                        [--agent] [--json] [--fields FIELDS]
+                                        [--verbose] --kind KIND --title TITLE
+                                        [--path PATH] --set SET --order ORDER
+                                        [--legacy-name] [--author AUTHOR]
+                                        [--priority PRIORITY]
+                                        [--work-kind WORK_KIND]
+                                        [--from-backlog FROM_BACKLOG] [--apply]
+                                        [--overwrite]
+    agent-workflows ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order
+    Next  aw ipd scaffold --help
+
+    === CMD: ipd scaffold --agent --json
+    EXIT: 2
+    STDOUT:
+    STDERR:
+    usage: agent-workflows ipd scaffold [-h] [--no-color | --color]
+                                        [--no-interactive | --interactive]
+                                        [--agent] [--json] [--fields FIELDS]
+                                        [--verbose] --kind KIND --title TITLE
+                                        [--path PATH] --set SET --order ORDER
+                                        [--legacy-name] [--author AUTHOR]
+                                        [--priority PRIORITY]
+                                        [--work-kind WORK_KIND]
+                                        [--from-backlog FROM_BACKLOG] [--apply]
+                                        [--overwrite]
+    agent-workflows ipd scaffold: error: the following arguments are required: --kind, --title, --set, --order
+    Next  aw ipd scaffold --help
+
+    === CMD: nosuch --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"aw","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw --help"}
+    STDERR:
+    usage: agent-workflows [-h] [--no-color | --color] [--no-interactive |
+                           --interactive] [--agent] [--json] [--fields FIELDS]
+                           [--verbose] [-V]
+                           <command> ...
+    agent-workflows: error: argument <command>: invalid choice: 'nosuch' (choose from 'install', 'setup', 'uninstall', 'list-repos', 'status', 'integration-lock', 'normalize-lanes', 'doctor', 'exclude', 'include', 'ipd', 'work', 'test', 'commit', 'finish', 'workflow', 'run', 'runs', 'research', 'reviews', 'host', 'context', 'path', 'layout', 'project', 'storage', 'config', 'conf', 'show', 'graduation', 'partition', 'record-history', 'check', 'find', 'search', 'index', 'rename', 'group', 'set', 'migrate-layout', 'next', 'attention', 'att', 'todo', 'oc', 'opencode', 'agy', 'antigravity', 'pwatch', 'runners', 'upgrade-test', 'backlog', 'releases', 'release', 'lanes', 'specs', 'spec', 'prompts', 'adopt', 'archive', 'check-local-leaks', 'sanitize', 'ipd-executed-gate', 'ipd-status-untooled-gate', 'backlog-blocking-close-gate', 'ipd-dependency-statement-gate', 'precommit-scope-gate', 'prepush-authorization-gate', 'completion', '__complete')
+    Next  aw --help
+    ```
+    Human stderr byte-comparison against pre-change stderr:
+    `diff -u <(pre-change stderr) <(post-change stderr)` produced zero differences; the stderr output is byte-identical.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the `git diff` of `agent_workflows/backlog.py`, `agent_workflows/specs.py`, `agent_workflows/prompts.py` showing only the missing-required arms changed. Paste real CLI runs (code path: each `run_new` handler reached through `cli._dispatch`) of `aw backlog new --agent`, `aw specs new --agent`, `aw prompts new --agent` showing exit `2` and a `cannot-run` record, and the same three without `--agent` showing empty stdout and the unchanged stderr message.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/backlog.py agent_workflows/specs.py agent_workflows/prompts.py`:
+    ```diff
+    diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+    index 5ba5cbd1e..4da01f339 100644
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -1082,7 +1082,10 @@ def validate_release_exempt_flags(
 
-- [ ] V-05 validates E-05
+     def run_new(args) -> int:
+         from agent_workflows.project_context import resolve_verb_repo_root
+    +    from agent_workflows.renderers import emit_usage_refusal
+    +    from agent_workflows.result_types import select_output
+
+    +    ctx = select_output(args)
+         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+         status = getattr(args, "status", None) or "open"
+         if status not in STATUSES:
+    @@ -1136,11 +1139,18 @@ def run_new(args) -> int:
+             if not value
+         ]
+         if _missing:
+    -        sys.stderr.write(
+    +        err_msg = (
+                 f"aw backlog new: {' and '.join(_missing)} required: decide the item's priority "
+                 f"({' | '.join(sorted(PRIORITIES))}) and work kind ({' | '.join(sorted(KINDS))}) "
+                 "when you file it; a plan graduated from this item inherits both\n"
+             )
+    +        sys.stderr.write(err_msg)
+    +        emit_usage_refusal(
+    +            "backlog new",
+    +            err_msg.strip(),
+    +            "aw backlog new --help",
+    +            ctx,
+    +        )
+             return 2
+         item.summary = (getattr(args, "summary", None) or "").strip()
+         item.gate_kind = getattr(args, "gate_kind", None)
+    @@ -1156,7 +1166,14 @@ def run_new(args) -> int:
+             )
+             return 2
+         if not (item.summary or "").strip():
+    -        sys.stderr.write("aw backlog new: --summary is required\n")
+    +        err_msg = "aw backlog new: --summary is required\n"
+    +        sys.stderr.write(err_msg)
+    +        emit_usage_refusal(
+    +            "backlog new",
+    +            err_msg.strip(),
+    +            "aw backlog new --help",
+    +            ctx,
+    +        )
+             return 2
+
+         raw_summary = getattr(args, "summary", None)
+    diff --git a/agent_workflows/prompts.py b/agent_workflows/prompts.py
+    index 5eaa330b9..32afc63a3 100644
+    --- a/agent_workflows/prompts.py
+    +++ b/agent_workflows/prompts.py
+    @@ -484,7 +484,7 @@ def run_new(args) -> int:
+         """
+
+         from agent_workflows.project_context import resolve_verb_repo_root
+    -    from agent_workflows.renderers import get_renderer
+    +    from agent_workflows.renderers import emit_usage_refusal, get_renderer
+         from agent_workflows.result_types import (
+             Change,
+             CommandResult,
+    @@ -496,7 +496,14 @@ def run_new(args) -> int:
+
+         slug_arg = (getattr(args, "slug", None) or "").strip()
+         if not slug_arg:
+    -        sys.stderr.write("aw prompts new: --slug is required\n")
+    +        err_msg = "aw prompts new: --slug is required\n"
+    +        sys.stderr.write(err_msg)
+    +        emit_usage_refusal(
+    +            "prompts new",
+    +            err_msg.strip(),
+    +            "aw prompts new --help",
+    +            ctx,
+    +        )
+             return 2
+         slug = core.kebab(slug_arg)[:60].strip("-")
+         if not slug:
+    diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
+    index deaf5d067..aff805306 100644
+    --- a/agent_workflows/specs.py
+    +++ b/agent_workflows/specs.py
+    @@ -1035,7 +1035,7 @@ def run_new(args) -> int:
+         """
+         from agent_workflows.project_context import resolve_verb_repo_root
+         from agent_workflows import artifact_naming as _naming
+    -    from agent_workflows.renderers import get_renderer
+    +    from agent_workflows.renderers import emit_usage_refusal, get_renderer
+         from agent_workflows.result_types import (
+             Change,
+             CommandResult,
+    @@ -1049,7 +1049,14 @@ def run_new(args) -> int:
+         ctx = select_output(args)
+
+         if not title:
+    -        sys.stderr.write("aw specs new: --title is required\n")
+    +        err_msg = "aw specs new: --title is required\n"
+    +        sys.stderr.write(err_msg)
+    +        emit_usage_refusal(
+    +            "specs new",
+    +            err_msg.strip(),
+    +            "aw specs new --help",
+    +            ctx,
+    +        )
+             return 2
+
+         # E-02 (IPD uz05bl): Refuse unsafe descriptive values for --title and --summary before minting an id6.
+    ```
+    CLI runs:
+    ```
+    === CMD: backlog new --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"backlog new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw backlog new --help"}
+    STDERR:
+    aw backlog new: --priority and --work-kind required: decide the item's priority (high | low | medium) and work kind (bug | chore | feature | followup | security) when you file it; a plan graduated from this item inherits both
+
+    === CMD: specs new --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"specs new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw specs new --help"}
+    STDERR:
+    aw specs new: --title is required
+
+    === CMD: prompts new --agent
+    EXIT: 2
+    STDOUT:
+    {"schema":"aw.agent/v1","kind":"error","cmd":"prompts new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw prompts new --help"}
+    STDERR:
+    aw prompts new: --slug is required
+
+    === CMD: backlog new
+    EXIT: 2
+    STDOUT:
+    STDERR:
+    aw backlog new: --priority and --work-kind required: decide the item's priority (high | low | medium) and work kind (bug | chore | feature | followup | security) when you file it; a plan graduated from this item inherits both
+
+    === CMD: specs new
+    EXIT: 2
+    STDOUT:
+    STDERR:
+    aw specs new: --title is required
+
+    === CMD: prompts new
+    EXIT: 2
+    STDOUT:
+    STDERR:
+    aw prompts new: --slug is required
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `python3 -m pytest tests/test_usage_refusal_agent_record.py -o addopts="" -q` output with the pass count and zero failures, and state the number of parametrized leaves and the size and members of the named exclusion set, the Python version that ran it, and (if an interpreter below 3.13 with the project's dependencies is available) the same run on it, or a statement that none was available. Paste one deliberate-failure check: temporarily revert the E-03 change in a scratch copy (or `git stash` is NOT allowed; use `git worktree add` on a throwaway branch at the pre-change HEAD and copy only the new test file in) and paste the run showing the sweep FAILS there, proving the test can fail. Remove the throwaway worktree afterwards and paste `git worktree list` showing it gone.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_usage_refusal_agent_record.py -o addopts="" -q`:
+    ```
+    ........................................................................ [ 49%]
+    ........................................................................ [ 99%]
+    .                                                                        [100%]
+    145 passed in 17.69s
+    ```
+    Parametrized leaves: 67 leaves with required arguments.
+    Named exclusion set: `EXCLUDED_LEAVES = set()` (size: 0 members).
+    Python version: Python 3.10.12 (Linux x86_64, below 3.13 floor).
 
-- [ ] V-06 validates E-06
+    Deliberate-failure check on pre-change HEAD `b780ed072`:
+    ```
+    $ git worktree add /tmp/test-wt-0z7ds3 b780ed072
+    Preparing worktree (detached HEAD b780ed072)
+    HEAD is now at b780ed072 docs: clarify multi-leaf scope fence ack expectations
+    $ cp tests/test_usage_refusal_agent_record.py /tmp/test-wt-0z7ds3/tests/
+    $ (cd /tmp/test-wt-0z7ds3 && python3 -m pytest tests/test_usage_refusal_agent_record.py -o addopts="" -q)
+    FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 49%]
+    FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 99%]
+    .F..F                                                                    [100%]
+    =================================== FAILURES ===================================
+    ...
+    141 failed, 4 passed in 16.58s
+    $ git worktree remove --force /tmp/test-wt-0z7ds3
+    $ git worktree list
+    .aw/worktrees/0z7ds3  b780ed072 [aw/lane/0z7ds3]
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the `git diff` of `tests/conformance_matrix.py` showing exactly the seven `91pjax` entries removed, the count comment corrected and the two `eeiytw` entries untouched. Paste `python3 -c "from tests.test_agent_surface_conformance import MUTATION_UNIVERSE; print(len(MUTATION_UNIVERSE))"` showing 31 (or the E-01-adjusted number with the reason), and the `-k mutation` run of `tests/test_agent_surface_conformance.py` showing all seven leaf ids PASSED. Paste `grep -rn 91pjax tests/` showing no remaining citation.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/conformance_matrix.py`:
+    ```diff
+    diff --git a/tests/conformance_matrix.py b/tests/conformance_matrix.py
+    index b054b14b3..f9495a74e 100644
+    --- a/tests/conformance_matrix.py
+    +++ b/tests/conformance_matrix.py
+    @@ -323,7 +323,7 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+             citation="harness architecture",
+             reason="Destroys the project fixture that the sweep executes within.",
+         ),
+    -    # owned_elsewhere (9):
+    +    # owned_elsewhere (2):
+         "rename": Exemption(
+             reason_kind="owned_elsewhere",
+             citation="eeiytw",
+    @@ -334,41 +334,6 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+             citation="eeiytw",
+             reason="Missing aw.agent/v1 machine payload; owned by open backlog eeiytw.",
+         ),
+    -    "ipd scaffold": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "research new": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "research new-comparison": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "storage move": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "backlog new": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "specs new": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+    -    "prompts new": Exemption(
+    -        reason_kind="owned_elsewhere",
+    -        citation="91pjax",
+    -        reason="Exits 2 with empty stdout on missing required positional arguments; owned by open backlog 91pjax.",
+    -    ),
+         # arg_fixture_needed (43):
+         "commit": Exemption(
+             reason_kind="arg_fixture_needed",
+    ```
+    `MUTATION_UNIVERSE` length check:
+    ```
+    $ python3 -c "from tests.test_agent_surface_conformance import MUTATION_UNIVERSE; print(len(MUTATION_UNIVERSE))"
+    31
+    ```
+    Mutation conformance run (`python3 -m pytest tests/test_agent_surface_conformance.py -o addopts="" -q -k mutation`):
+    ```
+    ................................                                         [100%]
+    NOTE: 48 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    32 passed, 48 deselected in 20.91s
+    ```
+    Remaining citations check:
+    ```
+    $ grep -rn 91pjax tests/
+    (no output; 0 citations found)
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Paste the `git diff` of `CHANGELOG.md` and `docs/cli-output-contract.md`, and a search of the added lines for the em dash and en dash characters returning nothing. Paste `aw sanitize --agent` output over the changed files showing a pass, and the bare `python3 -m pytest` final summary line with the failure set (empty, or each failure shown to reproduce at the unmodified HEAD).
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md docs/cli-output-contract.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 90b938782..0105ee6f9 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: usage errors such as a missing required argument or an invalid choice now emit an aw.agent/v1 cannot-run error record on stdout under --agent and --json.
+     - Changed: `aw backlog set <setid> --status <status>` now updates every item matching the setid rather than only the first match, requires `--yes` for machine-readable callers (`--agent` or `--json`), and refuses direct calls with invalid `--work-kind` or `--priority` enums with exit code 2. In addition, descriptive flag violations (`--message`, `--gate-ref`) and unresolvable selectors on this spelling now emit exit 2 with the `aw set:` prefix.
+     - Changed: `aw specs set --status` now accepts the same selectors as the positional spelling (an id6 or a setid, in addition to a file path), requires `--yes` for machine-readable callers (`--agent` or `--json`), and validates post-transition spec conformance before writing, refusing non-conforming results with a nonzero exit code while preserving the file byte-identical. In addition, descriptive flag violations (`--message`, `--blocks-release`, `--from-backlog`, `--gate-summary`) and malformed `--graduated-to` values on this spelling now exit 2 with the `aw set:` message prefix.
+     - Added: an executing agent can now propose a gate, tool, or approach change in its outcome JSON under the proposal field. The runner validates the proposal and files it as a single tracked record on main via a coordinator worktree (a draft plan in its own Set for small proposals, or an open backlog item for material proposals) independent of whether the lane merges. The proposing item stops with fail-gate disposition awaiting a human decision, dependents cascade to dependency-blocked, independent items continue, and the proposal is surfaced at the top of the run summary.
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 082bcbcbd..0bac89e7d 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -464,7 +464,7 @@ When a query, find, search, or list verb matches zero records or produces an emp
+     - **Usage / Cannot-Run Errors (`exit: 2`)**:
+       - Missing mandatory arguments, unknown subcommands, or invalid selectors MUST exit `2`.
+       - Human TTY: prints diagnostic message and usage help to `stderr`.
+    -  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`). If a record constructed by a command fails schema validation during rendering, it is substituted with a conforming `kind: "error"` record carrying `exit: 2` and `outcome: "error"`, naming the violated rules while omitting offending values to prevent secondary leaks.
+    +  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`). If a record constructed by a command fails schema validation during rendering, it is substituted with a conforming `kind: "error"` record carrying `exit: 2` and `outcome: "error"`, naming the violated rules while omitting offending values to prevent secondary leaks. This agent-mode cannot-run record also applies to refusals raised while parsing arguments, before any command runs, while the human stderr text remains unchanged.
+     - **Domain Findings / Violations (`exit: 1`)**:
+       - Verification failures, policy drift, or schema nonconformance MUST exit `1`.
+       - Emits diagnostic findings with actionable `Fix:` hints and appropriate follow-up `next` actions.
+    ```
+    Dash scan on added lines:
+    ```
+    $ git diff CHANGELOG.md docs/cli-output-contract.md | grep -E '^\+[^+]' | grep -E '[—–]'
+    (no output; 0 em/en dashes found)
+    ```
+    Leak sanitizer check (`python3 -m agent_workflows check-local-leaks . --agent`):
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Bare `python3 -m pytest` final summary line:
+    ```
+    7433 passed, 2 skipped, 3 warnings in 256.12s (0:04:16)
+    ```
+    Failure set: empty (0 failures).
+  - Result: pass
 
 ## Approval and execution gate
 
