@@ -4,13 +4,15 @@ Asserts the four properties underlying the decision not to backfill the optional
 `- Readiness:` front-matter field onto pending plans:
 1. Corpus partition: no tracked plan under `.aw/records/plans/` at `draft` or `to-review`
    carries a `- Readiness:` field.
-2. Linter refusal: inserting `- Readiness: go-pending-approval` onto a field-absent pending
-   plan yields a blocking IPD-M107 diagnostic.
+2. Linter refusal: inserting `- Readiness: go-pending-approval` onto the module's synthetic
+   field-absent pending plan yields a blocking IPD-M107 diagnostic.
 3. Auto-approve predicate: `is_plan_review_approved` returns False both before and after
    a backfill without history, and returns True on a field-absent plan only when an approving
    review record possessing review provenance (`is_review_history_entry`) is the newest
    history record (fallback arm).
 4. Recheck verb: `recheck_conditions` reports `may_write=False` refusing an absent field.
+
+Only property 1 reads the live corpus, which is why only it carries `livecorpus`.
 """
 
 from __future__ import annotations
@@ -154,26 +156,8 @@ Gate prose.
 """
 
 
-def find_field_absent_pending_plan(repo_root: Path) -> Optional[Path]:
-    """Scan .aw/records/plans/pending/ for a pending plan lacking a - Readiness: field and review history."""
-    pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
-    if not pending_dir.exists():
-        return None
-    for p in sorted(pending_dir.glob("*.ipd.md")):
-        text = p.read_text(encoding="utf-8")
-        if not plan_readiness._READINESS_FIELD_PRESENT_RE.search(text):
-            if not re.search(
-                r"^\s*-\s*.*(?:/plan-review|reviewed\b).*$", text, re.MULTILINE
-            ):
-                return p
-    return None
-
-
-def get_field_absent_pending_plan_fixture(repo_root: Path) -> tuple[str, str]:
-    """Return (filename, content) of a field-absent pending plan, falling back to a synthetic plan."""
-    subject = find_field_absent_pending_plan(repo_root)
-    if subject is not None:
-        return subject.name, subject.read_text(encoding="utf-8")
+def get_field_absent_pending_plan_fixture() -> tuple[str, str]:
+    """Return (filename, content) of a field-absent pending plan fixture."""
     return "20260803-sample-01-abc123-sample.ipd.md", _SYNTHETIC_PENDING_PLAN
 
 
@@ -191,7 +175,7 @@ def test_corpus_partition_pre_review_plans_lack_readiness_field():
 
 def test_linter_refuses_backfilled_readiness_field_with_m107():
     """Property 2: lint_text yields a blocking IPD-M107 diagnostic upon simulated backfill."""
-    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    subject_name, orig_text = get_field_absent_pending_plan_fixture()
     res_orig = ipd_lint.lint_text(orig_text, checkpoint="author", directory="pending")
     assert res_orig.disposition == "conforming", (
         f"Expected unmodified subject {subject_name} to be conforming, got {res_orig.disposition}: "
@@ -228,7 +212,7 @@ def test_linter_refuses_backfilled_readiness_field_with_m107():
 def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path: Path):
     """Property 3: is_plan_review_approved returns False before/after backfill, and True with approving review history."""
     # tmp_path is required because is_plan_review_approved takes a Path rather than text.
-    _subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    _subject_name, orig_text = get_field_absent_pending_plan_fixture()
 
     # 1. Unmodified field-absent plan -> False
     f_orig = tmp_path / "orig.ipd.md"
@@ -357,7 +341,7 @@ def test_fallback_arm_forgery_shapes_and_surviving_fallback(
 def test_recheck_verb_refuses_field_absent_plan(tmp_path: Path):
     """Property 4: recheck_conditions reports may_write=False with an absent-field refusal."""
     # tmp_path and a temporary git repo are required because recheck_conditions takes (repo_root, plan_path).
-    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    subject_name, orig_text = get_field_absent_pending_plan_fixture()
 
     subprocess.check_call(["git", "init", "-q"], cwd=tmp_path)
     pending_dir = tmp_path / ".aw" / "records" / "plans" / "pending"

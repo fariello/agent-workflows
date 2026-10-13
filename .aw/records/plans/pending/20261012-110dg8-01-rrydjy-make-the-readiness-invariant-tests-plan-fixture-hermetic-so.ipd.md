@@ -36,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline and reproduction
 
-- [ ] E-01 Capture the baseline: run `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m ""` and the bare `python3 -m pytest` at the executing HEAD before any edit, recording the per-test result of this file and the bare run's FAILING-NODE-ID SET. Then reproduce the defect: write an UNTRACKED scratch plan into `.aw/records/plans/pending/` named so it sorts first (`00000000-zzrepro-01-zzz000-demoted.ipd.md`), built from the module's `_SYNTHETIC_PENDING_PLAN` with `- Status: draft`, `- Id: zzz000`, and a history of `- 2026-08-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring` above `- 2026-08-05 approved (maintainer): APPROVE for execution` above the original `created.` line (the exact shape measured in F-03). Run this file again and record that `test_linter_refuses_backfilled_readiness_field_with_m107` FAILS with `Expected backfilled text to produce error disposition, got conforming`. Leave the scratch file in place for E-03's re-run.
+- [x] E-01 Capture the baseline: run `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m ""` and the bare `python3 -m pytest` at the executing HEAD before any edit, recording the per-test result of this file and the bare run's FAILING-NODE-ID SET. Then reproduce the defect: write an UNTRACKED scratch plan into `.aw/records/plans/pending/` named so it sorts first (`00000000-zzrepro-01-zzz000-demoted.ipd.md`), built from the module's `_SYNTHETIC_PENDING_PLAN` with `- Status: draft`, `- Id: zzz000`, and a history of `- 2026-08-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring` above `- 2026-08-05 approved (maintainer): APPROVE for execution` above the original `created.` line (the exact shape measured in F-03). Run this file again and record that `test_linter_refuses_backfilled_readiness_field_with_m107` FAILS with `Expected backfilled text to produce error disposition, got conforming`. Leave the scratch file in place for E-03's re-run.
   - Depends on: none
   - Expected outcome: a recorded green baseline for this file, a recorded bare-suite failing-node set, and a recorded red run of property 2 caused only by the planted untracked plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Hermetic subject
 
-- [ ] E-02 In `tests/test_readiness_absence_invariant.py`, make `get_field_absent_pending_plan_fixture` return the synthetic subject (`"20260803-sample-01-abc123-sample.ipd.md"`, `_SYNTHETIC_PENDING_PLAN`) unconditionally, taking no repository argument, and delete `find_field_absent_pending_plan` together with its now-unused live-tree scan. Update the three callers (properties 2, 3 and 4) to the new signature. Do NOT change any assertion, the synthetic plan's text, `check_corpus_partition`, `get_tracked_or_all_plans`, property 1, or `test_fallback_arm_forgery_shapes_and_surviving_fallback`. Amend the module docstring's property-2 line to say the backfill is inserted onto the module's synthetic field-absent pending plan (not a live one) and add one sentence stating that only property 1 reads the live corpus, which is why only it carries `livecorpus`. Remove an import only if it becomes unused (`re` and `Optional` remain used elsewhere in the module; check before removing).
+- [x] E-02 In `tests/test_readiness_absence_invariant.py`, make `get_field_absent_pending_plan_fixture` return the synthetic subject (`"20260803-sample-01-abc123-sample.ipd.md"`, `_SYNTHETIC_PENDING_PLAN`) unconditionally, taking no repository argument, and delete `find_field_absent_pending_plan` together with its now-unused live-tree scan. Update the three callers (properties 2, 3 and 4) to the new signature. Do NOT change any assertion, the synthetic plan's text, `check_corpus_partition`, `get_tracked_or_all_plans`, property 1, or `test_fallback_arm_forgery_shapes_and_surviving_fallback`. Amend the module docstring's property-2 line to say the backfill is inserted onto the module's synthetic field-absent pending plan (not a live one) and add one sentence stating that only property 1 reads the live corpus, which is why only it carries `livecorpus`. Remove an import only if it becomes unused (`re` and `Optional` remain used elsewhere in the module; check before removing).
   - Depends on: E-01
   - Expected outcome: properties 2-4 no longer read `.aw/records/plans/pending/`; the module's collected node-id set is identical to E-01's baseline set (re-derived at execution, not a fixed count); no assertion text changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Prove the fix
 
-- [ ] E-03 With E-01's untracked scratch plan STILL planted, re-run `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" -v` and record that every test except possibly property 1 passes (property 1 must also pass, since the scratch plan carries no `- Readiness:`). Then delete the scratch plan, confirm `git status --short .aw/records/plans/` shows nothing from this plan, and run the bare `python3 -m pytest`, comparing its failing-node-id set with E-01's. Finally run `aw ipd lint --phase pre-transition` on this plan.
+- [x] E-03 With E-01's untracked scratch plan STILL planted, re-run `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" -v` and record that every test except possibly property 1 passes (property 1 must also pass, since the scratch plan carries no `- Readiness:`). Then delete the scratch plan, confirm `git status --short .aw/records/plans/` shows nothing from this plan, and run the bare `python3 -m pytest`, comparing its failing-node-id set with E-01's. Finally run `aw ipd lint --phase pre-transition` on this plan.
   - Depends on: E-02
   - Expected outcome: the planted demoted plan no longer turns any test red; the scratch file is gone; the bare suite introduces no new failing node id; the plan lints conforming.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,20 +117,347 @@ N/A. No spec or user-facing document describes how this test picks its subject. 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste (a) the pre-edit `-o addopts="" -m "" -v` output for this file listing every collected node id with its result, every one PASSED (this node-id list is the baseline set; the count is whatever is collected at the executing HEAD), (b) the pre-edit bare `python3 -m pytest` summary line and its list of FAILED node ids, (c) the planted scratch file's full text, and (d) the pre-edit run with it planted showing `FAILED tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107` and the assertion message `got conforming`. If (d) does not fail, the reproduction is wrong, so stop and record it rather than proceeding.
   - Observed evidence:
-  - Result: pending
+    (a) Pre-edit `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" -v`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3632623794
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 10 items
 
-- [ ] V-02 validates E-02
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[predecessor_narrated_approve] PASSED [ 10%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[reject_then_newer_non_review_approve] PASSED [ 20%]
+    tests/test_readiness_absence_invariant.py::test_corpus_partition_pre_review_plans_lack_readiness_field PASSED [ 30%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[draft_approve] PASSED [ 40%]
+    tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback PASSED [ 50%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[field_present_with_review] PASSED [ 60%]
+    tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107 PASSED [ 70%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[genuine_review_fallback] PASSED [ 80%]
+    tests/test_readiness_absence_invariant.py::test_recheck_verb_refuses_field_absent_plan PASSED [ 90%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[to_review_approve] PASSED [100%]
+
+    ============================== 10 passed in 5.12s ==============================
+    ```
+
+    (b) Pre-edit bare `python3 -m pytest` summary line and list of FAILED node ids:
+    Summary line:
+    `1 failed, 8113 passed, 4 skipped, 18 xfailed, 3 warnings in 870.99s (0:14:30)`
+    FAILED node ids:
+    `FAILED tests/test_host_capability_extension.py::InspectionVerbTests::test_the_verbs_write_nothing_to_the_repository`
+
+    (c) Planted scratch file `.aw/records/plans/pending/00000000-zzrepro-01-zzz000-demoted.ipd.md` full text:
+    ```markdown
+    # IPD: sample (Set x, Order 1)
+
+    - Date: 2026-08-03
+    - Kind: child
+    - Concern: sample.
+    - Scope: sample.
+    - Status: draft
+    - Work-Kind: chore
+    - Priority: medium
+    - Set: x
+    - Order: 1
+    - Highest E allocated: 01
+    - Author: tester
+    - Id: zzz000
+
+    ## Workflow history
+
+    - 2026-08-06 draft (aw set): demoted approved -> draft: APPROVAL WITHDRAWN: returned to authoring
+    - 2026-08-05 approved (maintainer): APPROVE for execution
+    - 2026-08-03 to-review (tester): created.
+
+    ## Goal
+
+    Sample goal.
+
+    ## Detailed Implementation Checklist (TODO)
+
+    Execution-state rule: mark performed only after doing it.
+
+    ### Task group 1: t
+
+    - [ ] E-01 do a thing.
+      - Depends on: none
+      - Expected outcome: the thing exists.
+      - Execution state: pending
+
+    ## Project conventions discovered (Step 0)
+
+    - x
+
+    ## Findings
+
+    - x
+
+    ## Proposed changes (ordered, validatable)
+
+    - x
+
+    ## Deferred / out of scope (with reason)
+
+    - x
+
+    ## Scope check
+
+    - x
+
+    ## Required tests / validation
+
+    - x
+
+    ## Spec / documentation sync
+
+    - x
+
+    ## Open questions
+
+    ### OQ-01: a question
+
+    - Blocking: no
+    - Status: open
+    - Owner: none
+    - Resolution or deferral rationale: n/a
+
+    ## Validation and cross-check (verify before reporting done)
+
+    Validation-state rule: inspect evidence separately.
+
+    - [ ] V-01 validates E-01
+      - Required evidence: the thing is present at path X.
+      - Observed evidence:
+      - Result: pending
+
+    ## Approval and execution gate
+
+    - Size assessment: standard
+    - Cohesion rationale: not required
+
+    Gate prose.
+    ```
+
+    (d) Pre-edit run with planted scratch file:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2866886566
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 10 items
+
+    tests/test_readiness_absence_invariant.py::test_corpus_partition_pre_review_plans_lack_readiness_field PASSED [ 10%]
+    tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback PASSED [ 20%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[field_present_with_review] PASSED [ 30%]
+    tests/test_readiness_absence_invariant.py::test_recheck_verb_refuses_field_absent_plan PASSED [ 40%]
+    tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107 FAILED [ 50%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[genuine_review_fallback] PASSED [ 60%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[draft_approve] PASSED [ 70%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[predecessor_narrated_approve] PASSED [ 80%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[reject_then_newer_non_review_approve] PASSED [ 90%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[to_review_approve] PASSED [100%]
+
+    =================================== FAILURES ===================================
+    ___________ test_linter_refuses_backfilled_readiness_field_with_m107 ___________
+
+        def test_linter_refuses_backfilled_readiness_field_with_m107():
+            """Property 2: lint_text yields a blocking IPD-M107 diagnostic upon simulated backfill."""
+            subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+            res_orig = ipd_lint.lint_text(orig_text, checkpoint="author", directory="pending")
+            assert res_orig.disposition == "conforming", (
+                f"Expected unmodified subject {subject_name} to be conforming, got {res_orig.disposition}: "
+                f"{[d.code for d in res_orig.diagnostics]}"
+            )
+            assert not any(
+                d.code == ipd_lint.C_READINESS_UNATTESTED for d in res_orig.diagnostics
+            )
+
+            backfilled_text = re.sub(
+                r"(^-\s*Status:\s*.*$)",
+                r"\1\n- Readiness: go-pending-approval",
+                orig_text,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            res_backfilled = ipd_lint.lint_text(
+                backfilled_text, checkpoint="author", directory="pending"
+            )
+    >       assert (
+                res_backfilled.disposition == "error"
+            ), f"Expected backfilled text to produce error disposition, got {res_backfilled.disposition}"
+    E       AssertionError: Expected backfilled text to produce error disposition, got conforming
+    E       assert 'conforming' == 'error'
+    E
+    E         - error
+    E         + conforming
+
+    tests/test_readiness_absence_invariant.py:214: AssertionError
+    ------------------------------- LIVE-CORPUS NOTE -------------------------------
+    This test read 2 distinct live-corpus path(s) under .aw/records/ during its call phase:
+      - .aw/records/plans/pending/
+      - .aw/records/plans/pending/00000000-zzrepro-01-zzz000-demoted.ipd.md
+
+    Note: .aw/records/ is a LIVE tree that any agent or concurrent run may write to. A failure here may be caused by another party's artifact rather than by this lane's change. If this test genuinely asserts a whole-corpus property across all artifacts in .aw/records/, mark it with @pytest.mark.livecorpus (defined in pyproject.toml's pytest.ini_options) so it does not block default lanes or CI.
+    =========================== short test summary info ============================
+    FAILED tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107
+    ========================= 1 failed, 9 passed in 5.76s ==========================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff tests/test_readiness_absence_invariant.py`, showing that `find_field_absent_pending_plan` is removed, `get_field_absent_pending_plan_fixture` returns the synthetic subject with no repository argument, the three callers are updated, the docstring is amended, and NO `assert` line or `_SYNTHETIC_PENDING_PLAN` text changed. Paste `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" --collect-only -q` listing exactly the node-id set recorded in V-01 (a), compared by name.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_readiness_absence_invariant.py`:
+    ```diff
+    diff --git a/tests/test_readiness_absence_invariant.py b/tests/test_readiness_absence_invariant.py
+    index b8a77692d..96e47b1cd 100644
+    --- a/tests/test_readiness_absence_invariant.py
+    +++ b/tests/test_readiness_absence_invariant.py
+    @@ -4,13 +4,15 @@ Asserts the four properties underlying the decision not to backfill the optional
+     `- Readiness:` front-matter field onto pending plans:
+     1. Corpus partition: no tracked plan under `.aw/records/plans/` at `draft` or `to-review`
+        carries a `- Readiness:` field.
+    -2. Linter refusal: inserting `- Readiness: go-pending-approval` onto a field-absent pending
+    -   plan yields a blocking IPD-M107 diagnostic.
+    +2. Linter refusal: inserting `- Readiness: go-pending-approval` onto the module's synthetic
+    +   field-absent pending plan yields a blocking IPD-M107 diagnostic.
+     3. Auto-approve predicate: `is_plan_review_approved` returns False both before and after
+        a backfill without history, and returns True on a field-absent plan only when an approving
+        review record possessing review provenance (`is_review_history_entry`) is the newest
+        history record (fallback arm).
+     4. Recheck verb: `recheck_conditions` reports `may_write=False` refusing an absent field.
+    +
+    +Only property 1 reads the live corpus, which is why only it carries `livecorpus`.
+     """
 
-- [ ] V-03 validates E-03
+     from __future__ import annotations
+    @@ -154,26 +156,8 @@ Gate prose.
+     """
+
+
+    -def find_field_absent_pending_plan(repo_root: Path) -> Optional[Path]:
+    -    """Scan .aw/records/plans/pending/ for a pending plan lacking a - Readiness: field and review history."""
+    -    pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
+    -    if not pending_dir.exists():
+    -        return None
+    -    for p in sorted(pending_dir.glob("*.ipd.md")):
+    -        text = p.read_text(encoding="utf-8")
+    -        if not plan_readiness._READINESS_FIELD_PRESENT_RE.search(text):
+    -            if not re.search(
+-                r"^\s*-\s*.*(?:/plan-review|reviewed\b).*$", text, re.MULTILINE
+    -            ):
+    -                return p
+    -    return None
+    -
+    -
+    -def get_field_absent_pending_plan_fixture(repo_root: Path) -> tuple[str, str]:
+    -    """Return (filename, content) of a field-absent pending plan, falling back to a synthetic plan."""
+    -    subject = find_field_absent_pending_plan(repo_root)
+    -    if subject is not None:
+    -        return subject.name, subject.read_text(encoding="utf-8")
+    +def get_field_absent_pending_plan_fixture() -> tuple[str, str]:
+    +    """Return (filename, content) of a field-absent pending plan fixture."""
+         return "20260803-sample-01-abc123-sample.ipd.md", _SYNTHETIC_PENDING_PLAN
+
+
+    @@ -191,7 +175,7 @@ def test_corpus_partition_pre_review_plans_lack_readiness_field():
+
+     def test_linter_refuses_backfilled_readiness_field_with_m107():
+         """Property 2: lint_text yields a blocking IPD-M107 diagnostic upon simulated backfill."""
+    -    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    +    subject_name, orig_text = get_field_absent_pending_plan_fixture()
+         res_orig = ipd_lint.lint_text(orig_text, checkpoint="author", directory="pending")
+         assert res_orig.disposition == "conforming", (
+             f"Expected unmodified subject {subject_name} to be conforming, got {res_orig.disposition}: "
+    @@ -228,7 +212,7 @@ def test_linter_refuses_backfilled_readiness_field_with_m107():
+     def test_auto_approve_predicate_refuses_backfill_and_exercises_fallback(tmp_path: Path):
+         """Property 3: is_plan_review_approved returns False before/after backfill, and True with approving review history."""
+         # tmp_path is required because is_plan_review_approved takes a Path rather than text.
+    -    _subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    +    _subject_name, orig_text = get_field_absent_pending_plan_fixture()
+
+         # 1. Unmodified field-absent plan -> False
+         f_orig = tmp_path / "orig.ipd.md"
+    @@ -357,7 +341,7 @@ def test_fallback_arm_forgery_shapes_and_surviving_fallback(
+     def test_recheck_verb_refuses_field_absent_plan(tmp_path: Path):
+         """Property 4: recheck_conditions reports may_write=False with an absent-field refusal."""
+         # tmp_path and a temporary git repo are required because recheck_conditions takes (repo_root, plan_path).
+    -    subject_name, orig_text = get_field_absent_pending_plan_fixture(REPO_ROOT)
+    +    subject_name, orig_text = get_field_absent_pending_plan_fixture()
+
+         subprocess.check_call(["git", "init", "-q"], cwd=tmp_path)
+         pending_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
+    ```
+    No `assert` line or `_SYNTHETIC_PENDING_PLAN` text was changed.
+
+    `python3 -m pytest tests/test_readiness_absence_invariant.py -o addopts="" -m "" --collect-only -q`:
+    ```
+    tests/test_readiness_absence_invariant.py::test_corpus_partition_pre_review_plans_lack_readiness_field
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[to_review_approve]
+    tests/test_readiness_absence_invariant.py::test_recheck_verb_refuses_field_absent_plan
+    tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[reject_then_newer_non_review_approve]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[genuine_review_fallback]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[draft_approve]
+    tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[predecessor_narrated_approve]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[field_present_with_review]
+
+    10 tests collected in 0.50s
+    ```
+    The collected node-id set is identical to V-01 (a) by name.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste (a) the post-edit `-o addopts="" -m "" -v` run with the scratch plan STILL planted, showing every node id from V-01 (a) PASSED, including `test_linter_refuses_backfilled_readiness_field_with_m107` that V-01 (d) showed FAILED with the same plant (the regression proof), (b) `git status --short .aw/records/plans/` after deleting it, showing no `zzrepro` entry, (c) the post-edit bare `python3 -m pytest` summary line and FAILED node-id list, stating which ids, if any, differ from V-01 (b) and that none is in this module or caused by this change, and (d) the `aw ipd lint --phase pre-transition` output for this plan reporting conforming.
   - Observed evidence:
-  - Result: pending
+    (a) Post-edit `-o addopts="" -m "" -v` run with scratch plan still planted:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=415992797
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 10 items
+
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[reject_then_newer_non_review_approve] PASSED [ 10%]
+    tests/test_readiness_absence_invariant.py::test_recheck_verb_refuses_field_absent_plan PASSED [ 20%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[genuine_review_fallback] PASSED [ 30%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[field_present_with_review] PASSED [ 40%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[to_review_approve] PASSED [ 50%]
+    tests/test_readiness_absence_invariant.py::test_linter_refuses_backfilled_readiness_field_with_m107 PASSED [ 60%]
+    tests/test_readiness_absence_invariant.py::test_corpus_partition_pre_review_plans_lack_readiness_field PASSED [ 70%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[predecessor_narrated_approve] PASSED [ 80%]
+    tests/test_readiness_absence_invariant.py::test_auto_approve_predicate_refuses_backfill_and_exercises_fallback PASSED [ 90%]
+    tests/test_readiness_absence_invariant.py::test_fallback_arm_forgery_shapes_and_surviving_fallback[draft_approve] PASSED [100%]
+
+    ============================== 10 passed in 6.76s ==============================
+    ```
+    All 10 tests passed, including `test_linter_refuses_backfilled_readiness_field_with_m107` which previously failed with the planted demoted plan.
+
+    (b) `git status --short .aw/records/plans/` after deleting scratch file:
+    Clean output (no output, no `zzrepro` entry).
+
+    (c) Post-edit bare `python3 -m pytest` summary line and FAILED node-id list:
+    Summary line:
+    `8114 passed, 4 skipped, 18 xfailed, 3 warnings in 852.54s (0:14:12)`
+    FAILED node ids: None (0 failed). Differs from V-01 (b) in that the single flake in `test_host_capability_extension.py` passed in this run; none in this module or caused by this change.
+
+    (d) `aw ipd lint --phase pre-transition` output for this plan:
+    ```
+    - >  ◕  approved     plan        20261012-110dg8-01-rrydjy  [medium]  [blocking]  conforming
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
