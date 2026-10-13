@@ -1,5 +1,5 @@
 - Id: wkpcop
-- Status: graduated
+- Status: done
 - Graduated-To: histdedup
 - Set: histdedup
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: backlog._prior_history_records and attention._history_section_lines bound the history block by different rules, so a dedup predicate answer can disagree with the restorable prior records
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD v5m5y8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-histdedup-03-v5m5y8-refuse-a-backlog-item-whose-workflow-history-block-holds-no.ipd.md); evidence .aw/records/plans/executed/20261012-histdedup-03-v5m5y8-refuse-a-backlog-item-whose-workflow-history-block-holds-no.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 6iab2o, kgv213, v5m5y8
 - 2026-10-02 created (aw backlog): Measured while authoring plan evbx9s from backlog r74211: the two readers disagree on whether an INDENTED history-shaped line is a record, which lets a suppressed write empty the history block with no validation finding.
 
