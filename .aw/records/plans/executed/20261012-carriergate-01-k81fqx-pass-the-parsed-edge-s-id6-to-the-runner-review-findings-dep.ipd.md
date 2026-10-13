@@ -6,7 +6,7 @@
 - Scope: Fix the one call site so the gate receives `edge.id6`, correct the comment that describes it, and add behavioral regression tests that drive `dependency_status_detailed` against a temp repo carrying a real `.review.md` record.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_findings_dependency_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k81fqx
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: k81fqx verified (set carriergate, attempt 1).
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
