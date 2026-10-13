@@ -28,6 +28,13 @@ from agent_workflows import oc_runipd, runner_shared
 class HostCapGateDescriptorFreezeTests(unittest.TestCase):
     """Falsifiable behavior tests for the host capability descriptor freeze (bqtgmo)."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_concurrent_launches_succeed_during_probe(self) -> None:
         """Property (a): concurrent thread ordinary launches succeed during detect_host_capabilities."""
         worker_successes = 0

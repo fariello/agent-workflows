@@ -180,6 +180,13 @@ class ThirdHostAttributionTests(unittest.TestCase):
 class ThirdHostCapabilitiesTests(unittest.TestCase):
     """E-06: Visibility in aw host capabilities."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_scripted_host_is_in_default_hosts(self) -> None:
         self.assertIn("scripted", host_cmd.DEFAULT_HOSTS)
 
@@ -196,6 +203,13 @@ class ThirdHostCapabilitiesTests(unittest.TestCase):
 
 class ThirdHostInitializationAndLimitTests(unittest.TestCase):
     """E-03 / E-06: Prove initialize_run works for third host, and pin the turn execution LIMIT."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()

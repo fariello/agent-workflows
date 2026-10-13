@@ -494,6 +494,13 @@ class RequirementMapTests(unittest.TestCase):
 class CheckerTests(unittest.TestCase):
     """E-04: the checker names EVERY missing capability, not just the first."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_it_names_multiple_missing_capabilities_in_one_verdict(self):
         caps = HostSandboxCapabilities(platform="linux")  # both unsupported
         with synthetic_gated_action():
@@ -549,6 +556,13 @@ class CheckerTests(unittest.TestCase):
 
 class FailClosedPreflightTests(unittest.TestCase):
     """E-05: the `RUN-HOST-CAPABILITY` refusal, verbatim, item-local, and two-sided."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_the_finding_code_string_is_exact(self):
         self.assertEqual(RUN_HOST_CAPABILITY, "RUN-HOST-CAPABILITY")
@@ -668,6 +682,13 @@ class FailClosedPreflightTests(unittest.TestCase):
 
 class InspectionVerbTests(unittest.TestCase):
     """E-06: the two read-only verbs, in-process (no subprocess needed)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def _args(self, **kwargs):
         ns = argparse.Namespace(
@@ -797,6 +818,13 @@ class DenyPushRemovedTests(unittest.TestCase):
     CAP_DENY_PUSH remain absent and were not reintroduced or worked around.
     """
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
+
     def test_supports_deny_push_and_unenforced_action_verdicts_removed(self):
         self.assertNotIn(
             "supports_deny_push",
@@ -825,6 +853,13 @@ class DenyPushRemovedTests(unittest.TestCase):
 
 class SessionResumeArgvTrackingTests(unittest.TestCase):
     """qul11h E-05: verify supports_session_resume tracks the real argv rather than a table."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_verdict_tracks_argv_and_not_a_table(self):
         from agent_workflows import oc_runipd, agy_runipd
@@ -866,6 +901,13 @@ class SessionResumeArgvTrackingTests(unittest.TestCase):
 
 class StructuredToolEventsRendererTrackingTests(unittest.TestCase):
     """dwbm7a: verify emits_structured_tool_events tracks the real renderer and argv."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_verdict_tracks_renderer_and_not_a_name(self):
         from agent_workflows import agy_runipd, render_stream
@@ -952,6 +994,13 @@ class CommitGatewayClaimConsistencyTests(unittest.TestCase):
     test_the_production_path_is_unchanged_with_no_mock_supplied, and a form of leg (3)
     is tested in test_requirement_map_structure_and_coverage. Leg (2) is asserted nowhere else.
     """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cm = hsp.memoized_runner_safety_verdicts()
+        cm.__enter__()
+        cls.addClassCleanup(cm.__exit__, None, None, None)
 
     def test_commit_gateway_claim_consistency(self):
         # Leg 1: host capability descriptor is unsupported and declared unprobed

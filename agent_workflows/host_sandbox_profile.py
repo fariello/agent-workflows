@@ -191,6 +191,7 @@ __all__ = [
     "UNREPRESENTED_SPEC_CAPABILITIES",
     "probe_runner_safety_capabilities",
     "forced_runner_safety_verdicts",
+    "memoized_runner_safety_verdicts",
     "ACTION_READ_ONLY",
     "ACTION_EXECUTE",
     "ACTION_CLASSES",
@@ -1123,15 +1124,54 @@ class forced_runner_safety_verdicts:
         _FORCED_RUNNER_SAFETY = self._saved
 
 
-def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]:
-    """Decide the two runner-safety capabilities, returning (verdicts, notes).
+#: Opt-in test seam memo for runner-safety probe verdicts: `{(capability, probe_fn): (supported, note)}`.
+#:
+#: Default is None (disabled). Enabled inside `memoized_runner_safety_verdicts` context manager.
+_RUNNER_SAFETY_MEMO: Optional[
+    Dict[Tuple[str, Callable[..., Any]], Tuple[bool, str]]
+] = None
 
-    Deliberately NOT cached. The sandbox ladder is memoized because it spawns jail
-    subprocesses whose answer cannot change mid-process; these probes are in-process and
+
+class memoized_runner_safety_verdicts:
+    """Context manager enabling memoization of runner-safety probe verdicts, restoring on exit.
+
+    Exists to eliminate redundant probe executions in test suites that exercise host capability
+    consumers without testing the probes themselves. Off by default. Restoring in `__exit__`
+    makes leaks impossible even when the body raises.
+    """
+
+    def __init__(
+        self,
+        memo: Optional[Dict[Tuple[str, Callable[..., Any]], Tuple[bool, str]]] = None,
+    ) -> None:
+        self._memo = {} if memo is None else memo
+        self._saved: Any = None
+
+    def __enter__(self) -> Dict[Tuple[str, Callable[..., Any]], Tuple[bool, str]]:
+        global _RUNNER_SAFETY_MEMO
+        self._saved = _RUNNER_SAFETY_MEMO
+        _RUNNER_SAFETY_MEMO = self._memo
+        return _RUNNER_SAFETY_MEMO
+
+    def __exit__(self, *exc_info: Any) -> None:
+        global _RUNNER_SAFETY_MEMO
+        _RUNNER_SAFETY_MEMO = self._saved
+
+
+def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]:
+    """Decide runner-safety capabilities, returning (verdicts, notes).
+
+    Deliberately NOT cached in production. The sandbox ladder is memoized because it spawns
+    jail subprocesses whose answer cannot change mid-process; these probes are in-process and
     cheap, and a stale memo here would be a way for one turn's verdict to outlive the state
     it was measured against. (Note the shipped `_SANDBOX_PROBE_CACHE` is a plain per-process
     memo with NO staleness/TTL notion; the expiry model in `host_capability_registry` belongs
     to a different concern and is deliberately not imported by implication.)
+
+    For test processes that call `detect_host_capabilities` repeatedly without testing the
+    probes themselves, an opt-in memo seam is available via `memoized_runner_safety_verdicts`.
+    Production behavior remains uncached for the staleness reason stated above; the memo
+    is off unless entered.
 
     A capability with no probe reports not-supported with the reason recorded, never
     supported-by-assumption.
@@ -1139,6 +1179,7 @@ def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]
     verdicts: Dict[str, bool] = {}
     notes: Dict[str, str] = {}
     forced = _FORCED_RUNNER_SAFETY
+    memo = _RUNNER_SAFETY_MEMO
     for name in RUNNER_SAFETY_CAPABILITIES:
         if forced is not None and name in forced:
             ok, note = forced[name]
@@ -1152,10 +1193,18 @@ def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]
                 name, "declared but not probed; not supported (fail-closed)"
             )
             continue
+        memo_key = (name, probe)
+        if memo is not None and memo_key in memo:
+            ok, note = memo[memo_key]
+            verdicts[name] = bool(ok)
+            notes[name] = note
+            continue
         try:
             ok, note = probe()
         except Exception as exc:  # a probe must never propagate; unknown => False
             ok, note = False, f"probe raised {type(exc).__name__}: {exc}"
+        if memo is not None:
+            memo[memo_key] = (ok, note)
         verdicts[name] = bool(ok)
         notes[name] = note
     return verdicts, notes
