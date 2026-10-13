@@ -231,6 +231,77 @@ class LostGuardCensusSyntheticRepoTests(unittest.TestCase):
             "REACH PARTITION", proc.stdout, "Summary must print reach partition"
         )
 
+    def test_acknowledged_non_citations_and_placeholders(self) -> None:
+        """Assert keyed acknowledged non-citations and placeholders behave correctly."""
+        repo, before_sha, trim_sha = self._setup_repo()
+
+        # Write a carrier at a carrying-file path that is a key of ACKNOWLEDGED_NON_CITATIONS
+        (repo / "tests/test_verifier_evidence.py").write_text(
+            "# Mentions tests/test_two.py\n",
+            encoding="utf-8",
+        )
+        # Write a carrier citing placeholder tests/test_foo.py
+        (repo / "agent_workflows/demo.py").write_text(
+            "# Mentions placeholder tests/test_foo.py\n",
+            encoding="utf-8",
+        )
+        # Note: tests/test_unrelated_missing.py citation in agent_workflows/worker.py is preserved from _setup_repo
+
+        axis_a = scan_axis_a(repo, [trim_sha])
+
+        # Assert keyed path is absent from dangling_paths/attr_neither and present in acknowledged_hits
+        self.assertIn(
+            ("tests/test_verifier_evidence.py", "tests/test_two.py"),
+            axis_a.acknowledged_hits,
+            "Keyed non-citation must be recorded in acknowledged_hits",
+        )
+        self.assertNotIn(
+            "tests/test_two.py",
+            axis_a.dangling_paths,
+            "Keyed non-citation must be absent from dangling_paths",
+        )
+        self.assertNotIn(
+            "tests/test_two.py",
+            axis_a.attr_neither,
+            "Keyed non-citation must be absent from attr_neither",
+        )
+
+        # Assert placeholder is absent from cited_paths
+        self.assertNotIn(
+            "tests/test_foo.py",
+            axis_a.cited_paths,
+            "Placeholder path must be absent from cited_paths",
+        )
+
+        # Assert unkeyed citation in worker.py is STILL in attr_neither (keyed, not global exemption)
+        self.assertIn(
+            "tests/test_unrelated_missing.py",
+            axis_a.attr_neither,
+            "Unkeyed citation must remain in attr_neither",
+        )
+
+        # Assert CLI --axis a output contains the acknowledged line
+        tool_path = (
+            pathlib.Path(__file__).resolve().parent.parent
+            / "tools"
+            / "lost_guard_census.py"
+        )
+        proc = subprocess.run(
+            [sys.executable, str(tool_path), "--axis", "a", trim_sha],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            proc.returncode, 0, f"CLI exited with {proc.returncode}: {proc.stderr}"
+        )
+        self.assertIn(
+            "Acknowledged non-citations (keyed exemptions):",
+            proc.stdout,
+            "Axis A CLI output must contain acknowledged line",
+        )
+
     def _setup_inventory_repo(self) -> tuple[pathlib.Path, str, str]:
         repo = self.temp_dir
         subprocess.run(
