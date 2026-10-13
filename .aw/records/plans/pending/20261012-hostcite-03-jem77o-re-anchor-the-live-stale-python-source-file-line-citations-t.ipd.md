@@ -88,6 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: not mechanically decidable (spec `ipd-structure-and-linting` Section 10.2: "an offset stays syntactically valid while becoming semantically wrong"); a manual sweep has no bounded scope and nobody has asked for one.
 - THE SPEC-ANCHOR COMMENTS in `agy_runipd.py`/`oc_runipd.py`.
   - Carrier: fz3i3m
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-sbh1o1-03-fz3i3m-make-the-spec-anchor-detector-honest-enough-to-gate-fix-the.ipd.md
 
 ## Scope check
 
