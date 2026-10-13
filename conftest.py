@@ -53,6 +53,7 @@ pytest_plugins = [
     "tests.git_config_guard",
 ]
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
+_IS_CI = bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
 
 # --------------------------------------------------------------------------------------
 # Pytest traceback formatting guard: prevent worker crash when tb_lineno is None.
@@ -83,10 +84,12 @@ def _available_cpus() -> int:
     return os.cpu_count() or 2
 
 
-@pytest.hookimpl
+@pytest.hookimpl(optionalhook=True)
 def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
-    """Cap -n auto to half the available CPU count to prevent CPU thrashing.
+    """Resolve -n auto worker count.
 
+    In CI, use all available CPUs on the dedicated runner.
+    Locally: use all CPUs if fewer than 4 cores; otherwise at least 4 or half CPUs.
     Respects PYTEST_XDIST_AUTO_NUM_WORKERS if explicitly set in the environment.
     """
     env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
@@ -95,8 +98,15 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
             return max(1, int(env_var))
         except ValueError:
             pass
+
     cpus = _available_cpus()
-    return max(1, cpus // 2)
+
+    if _IS_CI or os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
+        return max(1, cpus)
+
+    if cpus < 4:
+        return max(1, cpus)
+    return max(4, cpus // 2)
 
 
 # --------------------------------------------------------------------------------------
