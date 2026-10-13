@@ -46,7 +46,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Optional, Protocol
 
 from agent_workflows import runner_shared
 
@@ -1215,7 +1215,7 @@ def bound_expiry_reaper(
     run_dir: Path,
     item: dict[str, Any],
     *,
-    reap: _ReapCallable | None = None,
+    reap: Optional[_ReapCallable] = None,
 ) -> Callable[[str, float], None]:
     """The `TurnBoundWatch` reap callback: RECORD WHICH BOUND FIRED, then reap. HOST-NEUTRAL.
 
