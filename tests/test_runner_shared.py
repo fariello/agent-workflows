@@ -45,6 +45,8 @@ import unittest
 from typing import Any
 from unittest import mock
 
+import pytest
+
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -5912,6 +5914,11 @@ class DanglingCommitSearchTests(unittest.TestCase):
                 subjects,
             )
 
+    # Deselected from the default fast suite via @pytest.mark.livecorpus because it reads
+    # this repository's live git objects and history via pathlib.Path.cwd().
+    # Its behavioral contract is covered in the fast suite by the hermetic tests 01-06 in the
+    # same class. Still run in make test-all.
+    @pytest.mark.livecorpus
     def test_07_real_corpus_arm_conditional(self):
         """(7) Conditional real-corpus search: if 0abc01d9 resolves and is unreachable, 8u6770 search finds it."""
         import subprocess

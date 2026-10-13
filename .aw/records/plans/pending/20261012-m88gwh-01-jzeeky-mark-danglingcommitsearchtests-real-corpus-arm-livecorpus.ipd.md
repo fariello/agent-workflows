@@ -36,17 +36,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Mark the test
 
-- [ ] E-01 In `tests/test_runner_shared.py`, add `import pytest` if it is not already imported, as its own third-party group after `from unittest import mock` and before `from agent_workflows import ...` (the grouping `tests/test_verbose_flag_reach.py` uses), and decorate `DanglingCommitSearchTests.test_07_real_corpus_arm_conditional` with `@pytest.mark.livecorpus`, preceded by a short comment stating why (it reads this repository's live git objects and history via `pathlib.Path.cwd()`), mirroring the comment style used beside `@pytest.mark.livecorpus` in `tests/test_verbose_flag_reach.py`. The comment must also name what keeps the fast suite covered (the hermetic tests 01-06 in the same class) and that it still runs in `make test-all`. Do not change the test body, its skip conditions, or any other test.
+- [x] E-01 In `tests/test_runner_shared.py`, add `import pytest` if it is not already imported, as its own third-party group after `from unittest import mock` and before `from agent_workflows import ...` (the grouping `tests/test_verbose_flag_reach.py` uses), and decorate `DanglingCommitSearchTests.test_07_real_corpus_arm_conditional` with `@pytest.mark.livecorpus`, preceded by a short comment stating why (it reads this repository's live git objects and history via `pathlib.Path.cwd()`), mirroring the comment style used beside `@pytest.mark.livecorpus` in `tests/test_verbose_flag_reach.py`. The comment must also name what keeps the fast suite covered (the hermetic tests 01-06 in the same class) and that it still runs in `make test-all`. Do not change the test body, its skip conditions, or any other test.
   - Depends on: none
   - Expected outcome: the test method carries the `livecorpus` marker; no other test or production file changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Verify selection behavior
 
-- [ ] E-02 Run the bare default suite (`python3 -m pytest`) once BEFORE E-01 as a baseline and once after it, and a marker-selected run (`python3 -m pytest -o addopts="" -m livecorpus tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional -rs -v`) and record both outputs.
+- [x] E-02 Run the bare default suite (`python3 -m pytest`) once BEFORE E-01 as a baseline and once after it, and a marker-selected run (`python3 -m pytest -o addopts="" -m livecorpus tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional -rs -v`) and record both outputs.
   - Depends on: E-01
   - Expected outcome: the default run deselects the test and shows the same failing-test set as a bare baseline run taken on the tree as found before E-01 (re-derive it; do not fix, skip, or deselect other parties' failures); the marker-selected run collects exactly that one test, which passes or skips by its own conditional logic.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -105,15 +105,91 @@ N/A: no spec or user-facing doc describes this individual test's marker; the `li
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff -- tests/test_runner_shared.py` showing `import pytest` (if newly added) and `@pytest.mark.livecorpus` directly above `def test_07_real_corpus_arm_conditional`, plus pasted `git diff --name-only` output listing only `tests/test_runner_shared.py`.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_runner_shared.py`:
+    ```diff
+    diff --git a/tests/test_runner_shared.py b/tests/test_runner_shared.py
+    index 73280d7ad..38dd5c694 100644
+    --- a/tests/test_runner_shared.py
+    +++ b/tests/test_runner_shared.py
+    @@ -45,6 +45,8 @@ import unittest
+     from typing import Any
+     from unittest import mock
 
-- [ ] V-02 validates E-02
+    +import pytest
+    +
+     from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    @@ -5912,6 +5914,11 @@ class DanglingCommitSearchTests(unittest.TestCase):
+                     subjects,
+                 )
+
+    +    # Deselected from the default fast suite via @pytest.mark.livecorpus because it reads
+    +    # this repository's live git objects and history via pathlib.Path.cwd().
+    +    # Its behavioral contract is covered in the fast suite by the hermetic tests 01-06 in the
+    +    # same class. Still run in make test-all.
+    +    @pytest.mark.livecorpus
+         def test_07_real_corpus_arm_conditional(self):
+             """(7) Conditional real-corpus search: if 0abc01d9 resolves and is unreachable, 8u6770 search finds it."""
+             import subprocess
+    ```
+    `git diff --name-only`:
+    ```
+    tests/test_runner_shared.py
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted summary lines of the bare `python3 -m pytest` baseline (before E-01) and post-edit runs, with the failing-test set identical by name (none expected) and the passed count not lower except by the one deselected test, and pasted output of the `-m livecorpus ... -k test_07_real_corpus_arm_conditional -rs -v` run showing exactly one collected test with PASSED or SKIPPED (with skip reason); plus pasted `python3 -m pytest -o addopts="" -m "not slow and not livecorpus" tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional` output showing 1 deselected and 0 selected (pytest exit code 5, `no tests ran`, is the expected outcome and is pasted).
   - Observed evidence:
-  - Result: pending
+    1. Bare baseline run summary (`python3 -m pytest`):
+    ```
+    NOTE: 291 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    8053 passed, 4 skipped, 18 xfailed, 3 warnings in 747.86s (0:12:27)
+    ```
+    2. Bare post-edit run summary (`python3 -m pytest`):
+    ```
+    NOTE: 292 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    8052 passed, 4 skipped, 18 xfailed, 3 warnings in 1019.03s (0:16:59)
+    ```
+    Both runs had 0 failures. The passed count decreased by exactly 1 (8053 -> 8052) and deselected count increased by exactly 1 (291 -> 292).
+
+    3. Marker-selected run (`python3 -m pytest -o addopts="" -m livecorpus tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional -rs -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3277860873
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 136 items / 135 deselected / 1 selected
+
+    tests/test_runner_shared.py::DanglingCommitSearchTests::test_07_real_corpus_arm_conditional PASSED [100%]
+
+    NOTE: 135 tests were deselected by -m/-k and did not run (filtered by marker expression: 'livecorpus', and -k/--deselect also contributed)
+    ====================== 1 passed, 135 deselected in 6.17s =======================
+    ```
+    Exactly one collected test was run and PASSED.
+
+    4. Deselection check (`python3 -m pytest -o addopts="" -m "not slow and not livecorpus" tests/test_runner_shared.py -k test_07_real_corpus_arm_conditional`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3333543047
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 136 items / 136 deselected / 0 selected
+
+    NOTE: 136 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+    =========================== 136 deselected in 1.05s ============================
+    ```
+    Exit code 5 (`no tests ran`), 136 deselected, 0 selected.
+  - Result: pass
 
 ## Approval and execution gate
 
