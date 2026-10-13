@@ -959,3 +959,107 @@ def emit_index_check_result(
     )
     # Rely on get_renderer(ctx).emit(result, ctx), which returns result.exit_code (identically drift_exit_code(drift))
     return get_renderer(ctx).emit(result, ctx)
+
+
+def emit_index_write_result(
+    args: Any,
+    repo_root: Path,
+    index_dir: Path,
+    *,
+    target: str,
+    noun: str,
+    count: int,
+    json_changed: bool,
+    md_changed: bool,
+    json_existed: bool,
+    md_existed: bool,
+    drift: List[Drift],
+    refused: bool = False,
+) -> int:
+    """Emit the typed CommandResult for an index write invocation under --agent or --json."""
+    from agent_workflows import check_engine as _ce
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        select_output,
+    )
+
+    ctx = select_output(args)
+    try:
+        rel_dir = index_dir.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel_dir = index_dir.as_posix()
+    dir_prefix = f"{rel_dir}/" if rel_dir and not rel_dir.endswith("/") else rel_dir
+
+    changes: List[Change] = []
+    if not refused:
+        if json_changed:
+            changes.append(
+                Change(
+                    path=f"{dir_prefix}INDEX.json",
+                    kind="update" if json_existed else "create",
+                    applied=True,
+                )
+            )
+        if md_changed:
+            changes.append(
+                Change(
+                    path=f"{dir_prefix}INDEX.md",
+                    kind="update" if md_existed else "create",
+                    applied=True,
+                )
+            )
+
+    applied = (json_changed or md_changed) if not refused else False
+
+    diagnostics = [
+        Diagnostic(
+            location=d.location,
+            rule=d.rule,
+            detail=d.detail,
+            severity=(_ce.enrich_drift(d).severity or "error"),
+            fix=d.recovery or None,
+        )
+        for d in drift
+    ]
+
+    if refused:
+        summary = f"refusing to regenerate index: {len(drift)} drift finding(s)"
+    elif not json_changed and not md_changed:
+        summary = f"up to date: {dir_prefix}INDEX.json, INDEX.md ({count} {noun})"
+    elif json_changed and md_changed:
+        summary = f"wrote {dir_prefix}INDEX.json, INDEX.md ({count} {noun})"
+    elif md_changed:
+        summary = (
+            f"updated {dir_prefix}INDEX.md (INDEX.json up to date; {count} {noun})"
+        )
+    else:
+        summary = (
+            f"updated {dir_prefix}INDEX.json (INDEX.md up to date; {count} {noun})"
+        )
+
+    data = {
+        "target": target,
+        "count": count,
+        "noun": noun,
+        "json_changed": json_changed,
+        "md_changed": md_changed,
+        "index_dir": rel_dir,
+    }
+
+    result = CommandResult(
+        command="index",
+        target=target,
+        status="findings" if refused else "ok",
+        exit_code=1 if refused else 0,
+        summary=summary,
+        applied=applied,
+        changes=changes,
+        diagnostics=diagnostics,
+        data=data,
+        verified=True,
+        complete=not refused,
+    )
+    return get_renderer(ctx).emit(result, ctx)

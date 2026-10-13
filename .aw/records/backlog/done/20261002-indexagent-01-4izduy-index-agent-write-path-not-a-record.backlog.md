@@ -1,5 +1,5 @@
 - Id: 4izduy
-- Status: graduated
+- Status: done
 - Graduated-To: indexagent
 - Blocks-Release: next
 - Set: indexagent
@@ -8,6 +8,7 @@
 - Summary: aw index --agent emits bare human text instead of an aw.agent/v1 record on its write path, for every type
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD sn2svz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-indexagent-01-sn2svz-aw-index-write-path-emits-an-aw-agent-v1-record-under-agent.ipd.md); evidence .aw/records/plans/executed/20261011-indexagent-01-sn2svz-aw-index-write-path-emits-an-aw-agent-v1-record-under-agent.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: sn2svz
 - 2026-10-02 created (aw backlog): aw index --agent emits bare human text instead of an aw.agent/v1 record on its write path, for every type
 
