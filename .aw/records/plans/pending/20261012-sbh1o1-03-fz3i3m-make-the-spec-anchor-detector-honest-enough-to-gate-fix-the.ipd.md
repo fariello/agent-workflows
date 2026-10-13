@@ -20,6 +20,7 @@
 - Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-12 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): carrier repointed, no other change: Deferred row 1's carrier l85xvi was retired as superseded by mnwkqu (Set cihealth, maintainer decision 2026-10-12), so the row now names mnwkqu. Approved scope, steps and evidence demands unchanged.
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -94,8 +95,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- PROMOTING THE SEVERITY AND WIRING CI. That is the decision Order 04 (`l85xvi`) carries and asks the maintainer to approve; this plan is worth executing either way, because it fixes a crash and makes the report true.
-  - Carrier: l85xvi
+- PROMOTING THE SEVERITY AND WIRING CI. That is the decision Order 04 (`l85xvi`) carried; the maintainer decided it on 2026-10-12 (gate at the runner merge check, not in CI), and `l85xvi` was retired as superseded by plan `mnwkqu` (Set `cihealth`), which now carries it. This plan is worth executing either way, because it fixes a crash and makes the report true.
+  - Carrier: mnwkqu
 - DETECTOR SPEED (about 4.2s user CPU on the real tree, against about 1.1s for bare `aw check specs`, measured three times at authoring). Not fixed here because Order 04 keeps the detector out of every default command and runs it only as a CI step, where nobody waits on it interactively.
   - Carrier-Declined: no user-perceptible cost while the detector runs only behind an opt-in flag and in CI (AGENTS.md: inefficiency users cannot notice is not a defect); a plan that proposes making it default must measure and fix speed itself.
 - SECTION-TOKEN VALIDITY (whether a cited `Section N.N` still exists). Recorded as `mt54wr` OQ-02; not needed for the offset gate.
