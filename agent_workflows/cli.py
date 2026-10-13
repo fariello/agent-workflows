@@ -10703,9 +10703,21 @@ def _run_config_is(args: argparse.Namespace, term: Term) -> int:
         return 1
 
 
-def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
+def _run_config_exclude(
+    args: argparse.Namespace,
+    term: Term,
+    parser: Optional[argparse.ArgumentParser] = None,
+    context: Optional[Any] = None,
+) -> int:
     """Manage the never-install exclude blocklist (clianx-01 E-04): add/list/rm."""
     from agent_workflows.result_types import NextAction
+
+    if parser is None:
+        parser = _build_parser()
+    if context is None:
+        from agent_workflows.result_types import select_output
+
+        context = select_output(args)
 
     sub = getattr(args, "exclude_command", None)
     cfg = config.load()
@@ -10714,15 +10726,97 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
     if sub == "add":
         entry = config._preserve_home(str(args.path))
         if entry in current:
+            if getattr(args, "json", False) or getattr(args, "as_json", False):
+                print(
+                    json.dumps(
+                        {
+                            "added": False,
+                            "applied": False,
+                            "entries": current,
+                            "entry": entry,
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                return 0
+            if getattr(args, "agent", False):
+                return _emit_config_agent_record(
+                    cmd="config-exclude-add",
+                    outcome="clean",
+                    exit_code=0,
+                    verified=True,
+                    complete=True,
+                    extra={
+                        "added": False,
+                        "applied": False,
+                        "entries": current,
+                        "entry": entry,
+                    },
+                    args=args,
+                )
             term.status("ok", f"Already excluded: {entry}")
             return 0
         current.append(entry)
         config.set_repo_setting(cfg, "exclude", current)
         config.save(cfg)
+        if getattr(args, "json", False) or getattr(args, "as_json", False):
+            print(
+                json.dumps(
+                    {
+                        "added": True,
+                        "applied": True,
+                        "entries": current,
+                        "entry": entry,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if getattr(args, "agent", False):
+            return _emit_config_agent_record(
+                cmd="config-exclude-add",
+                outcome="clean",
+                exit_code=0,
+                verified=True,
+                complete=True,
+                extra={
+                    "added": True,
+                    "applied": True,
+                    "entries": current,
+                    "entry": entry,
+                },
+                args=args,
+            )
         term.status("ok", f"Added to the never-install exclude list: {entry}")
         return 0
 
     if sub == "list":
+        if getattr(args, "json", False) or getattr(args, "as_json", False):
+            print(
+                json.dumps(
+                    {"count": len(current), "entries": current},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if getattr(args, "agent", False):
+            extra = {
+                "entries": current,
+                "count": len(current),
+                **({"next": "aw config exclude add <path>"} if not current else {}),
+            }
+            return _emit_config_agent_record(
+                cmd="config-exclude-list",
+                outcome="clean",
+                exit_code=0,
+                verified=True,
+                complete=True,
+                extra=extra,
+                args=args,
+            )
         if not current:
             term.empty_result(
                 summary="never-install exclude list is empty",
@@ -10750,15 +10844,107 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
             else:
                 kept.append(e)
         if not removed:
+            if getattr(args, "json", False) or getattr(args, "as_json", False):
+                print(
+                    json.dumps(
+                        {
+                            "applied": False,
+                            "entries": current,
+                            "path": want,
+                            "removed": [],
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                return 1
+            if getattr(args, "agent", False):
+                return _emit_config_agent_record(
+                    cmd="config-exclude-rm",
+                    outcome="findings",
+                    exit_code=1,
+                    verified=False,
+                    complete=True,
+                    extra={
+                        "applied": False,
+                        "entries": current,
+                        "path": want,
+                        "removed": [],
+                    },
+                    args=args,
+                )
             term.status("warn", f"No exclude entry matched: {args.path}")
             return 1
         config.set_repo_setting(cfg, "exclude", kept)
         config.save(cfg)
+        if getattr(args, "json", False) or getattr(args, "as_json", False):
+            print(
+                json.dumps(
+                    {
+                        "applied": True,
+                        "entries": kept,
+                        "path": want,
+                        "removed": removed,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if getattr(args, "agent", False):
+            return _emit_config_agent_record(
+                cmd="config-exclude-rm",
+                outcome="clean",
+                exit_code=0,
+                verified=True,
+                complete=True,
+                extra={
+                    "applied": True,
+                    "entries": kept,
+                    "path": want,
+                    "removed": removed,
+                },
+                args=args,
+            )
         for e in removed:
             term.status("ok", f"Removed from the exclude list: {e}")
         return 0
 
-    term.status("fail", "Usage: aw config exclude {add|list|rm} ...")
+    if context is not None and getattr(context, "is_agent", False):
+        return _show_family_help(
+            parser, "config exclude", "aw config exclude list", term, context
+        )
+
+    subparser = None
+    if parser is not None:
+        subparsers_action = next(
+            (a for a in parser._actions if isinstance(a, argparse._SubParsersAction)),
+            None,
+        )
+        config_parser = (
+            subparsers_action.choices.get("config") if subparsers_action else None
+        )
+        if config_parser:
+            cfg_subparsers = next(
+                (
+                    a
+                    for a in config_parser._actions
+                    if isinstance(a, argparse._SubParsersAction)
+                ),
+                None,
+            )
+            subparser = (
+                cfg_subparsers.choices.get("exclude") if cfg_subparsers else None
+            )
+    if subparser:
+        help_text = subparser.format_help()
+    elif parser:
+        help_text = parser.format_help()
+    else:
+        help_text = ""
+    print(help_text.rstrip())
+    print()
+    print(term.format_next_action("aw config exclude list"))
     return 2
 
 
@@ -17152,7 +17338,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if subcmd == "is":
             return _run_config_is(args, term)
         if subcmd == "exclude":
-            return _run_config_exclude(args, term)
+            return _run_config_exclude(args, term, parser, context)
         return _show_family_help(parser, "config", "aw config show", term, context)
     # worksequence i6015i E-01: the `args.command == "todo"` special-case was DELETED. `todo` is now
     # a real argparse alias of `next`, so argparse sets `args.command` to the spelling the user typed
