@@ -5,8 +5,9 @@
 - Concern: Backlog `rolswj` (the F-7 sweep filed by executed plan `121j2r`) records that four check commands, `aw backlog check`, `aw attention --check`, `aw research check-refs` and `aw sanitize` (alias of `aw check-local-leaks`), hand-write their human output and print a clean verdict with NO examined count, so a clean result over zero artifacts is indistinguishable from a clean result over thousands. This is the same defect `121j2r` fixed for `aw specs check`, and it violates `docs/cli-output-contract.md` Section 2 ("Both renderers expose identical facts (counts, paths, evidence, exit code) with zero domain drift"). Two of the four (`research check-refs`, `sanitize`) do not even COMPUTE an examined count today, so their machine surfaces lack it too.
 - Scope: IN: (1) `backlog.run_check` human branch prints the already-computed `items_count` on clean and drift paths; (2) `attention.run`'s `--check` human branch prints the already-computed `len(items)` on clean and drift paths, including the no-project climb branch; (3) `research_refs.run_check_refs` gains an examined-file count from a counted variant of `artifact_core.find_dangling_citations`, reported on all three surfaces; (4) `leak_sanitizer.main` gains a scanned-unit count from a counted variant of `leak_sanitizer.run`, reported on all three surfaces; (5) behavioral regression tests for each command at zero and nonzero; (6) one CHANGELOG line. OUT: adopting `HumanRenderer` for any of the four (OQ-01); `--fix` output of `sanitize`; `plans_index`'s use of the dangling detector; any change to which artifacts or files are examined; any exit code.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/attention.py, agent_workflows/research_refs.py, agent_workflows/artifact_core.py, agent_workflows/leak_sanitizer.py, tests/test_agent_checked_count.py, tests/test_validator_nonsurveyable_dir.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261012-5tj8g4-01-5tj8g4-suite-tests-assuming-tempdirs-are-outside-any-aw-p.backlog.md (follow-up defect the executor found and filed instead of fixing out of scope)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +17,9 @@
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: akhwp7
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (opencode its_direct/pt3-claude-opus-5.5-1m-us): finalized during stranded-lane recovery 2026-10-12: the lane's suite_check failed only on host-environment tests later traced to a stray /tmp/.aw (backlog 5tj8g4); the merge of this lane onto current main re-ran green (69pxm5: 7296 passed; akhwp7: 7295 passed) [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261012-5tj8g4-01-5tj8g4-suite-tests-assuming-tempdirs-are-outside-any-aw-p.backlog.md: follow-up defect the executor found and filed instead of fixing out of scope]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
