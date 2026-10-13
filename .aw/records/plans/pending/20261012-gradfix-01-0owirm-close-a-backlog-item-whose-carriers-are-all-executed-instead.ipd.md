@@ -35,48 +35,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce and add the predicate
 
-- [ ] E-01 REPRODUCE on real records before changing code, RE-DERIVING the population rather than trusting F-01. For each of `ariaau`, `ildjse`, `mflqqf`, `7yz545`, `s8veyk`, `oq05nc`, `vy20et`, `h0tiaw`, and for any other `open` backlog item you find with at least one `From-Backlog` carrier, record: its directory, every carrier from `check_engine.find_from_backlog_artifacts` (plans AND specs), each carrier's bucket (plans) or `- Status:` (specs), `runner_shared.evaluate_backlog_close(repo, <id6>, [])`'s reason, and `production_checks.backlog_graduate_count(repo, <id6>, <every current plan id>)`. Paste the table. Expected at review time: the seven items other than `vy20et` have only executed IPD carriers; `vy20et` also carries spec `89xjll` at `approved`; all eight `evaluate_backlog_close` reasons read "this run executed none of its carriers, so the close was not earned"; all eight count checks return "produced 0 linked IPDs". An item with any carrier in `pending/`, or with an unimplemented spec carrier, is NOT this defect's close target. Record it as such and continue. Do not stop.
+- [x] E-01 REPRODUCE on real records before changing code, RE-DERIVING the population rather than trusting F-01. For each of `ariaau`, `ildjse`, `mflqqf`, `7yz545`, `s8veyk`, `oq05nc`, `vy20et`, `h0tiaw`, and for any other `open` backlog item you find with at least one `From-Backlog` carrier, record: its directory, every carrier from `check_engine.find_from_backlog_artifacts` (plans AND specs), each carrier's bucket (plans) or `- Status:` (specs), `runner_shared.evaluate_backlog_close(repo, <id6>, [])`'s reason, and `production_checks.backlog_graduate_count(repo, <id6>, <every current plan id>)`. Paste the table. Expected at review time: the seven items other than `vy20et` have only executed IPD carriers; `vy20et` also carries spec `89xjll` at `approved`; all eight `evaluate_backlog_close` reasons read "this run executed none of its carriers, so the close was not earned"; all eight count checks return "produced 0 linked IPDs". An item with any carrier in `pending/`, or with an unimplemented spec carrier, is NOT this defect's close target. Record it as such and continue. Do not stop.
   - Depends on: none
   - Expected outcome: a pasted table, re-derived at execution HEAD, that splits the items into ALREADY COMPLETE and NOT COMPLETE with the carrier that decides each. The count is whatever the table shows, not "eight".
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add ONE predicate, `runner_shared.backlog_item_already_complete(repo, item_id6)`, returning a typed result: `COMPLETE` (with the carrier paths, and the executed IPD carrier to cite as close evidence), `NOT_COMPLETE` (with the unfinished or retired carriers named), or `NO_IPD_CARRIER` (no carrier at all, or only non-IPD carriers). Do NOT write a second carrier scan. Factor the carrier-classification half of `runner_shared.evaluate_backlog_close` (the `find_from_backlog_artifacts` lookup, the `_carrier_kind` partition, `plan_bucket(...) == "executed"` for IPDs, `check_engine._carrier_is_executed` for spec carriers) into a shared private helper that BOTH functions call, so the two cannot disagree. `evaluate_backlog_close` keeps its earned clause (E-04 of `zhr6mc`) and its non-IPD existence rule, unchanged in behaviour. The new predicate differs from it in exactly two ways, both recorded in its docstring: it does NOT require the run to have earned the close (D-1), and an item with no IPD carrier is `NO_IPD_CARRIER`, never `COMPLETE` (D-3). A carrier under `superseded/` or `not-executed/` is not done. An item whose carriers are all retired, or any mix that includes a retired or pending carrier, is `NOT_COMPLETE`, because deciding that work is abandoned is a human act (OQ-01). The predicate fails closed: any lookup or read error returns `NOT_COMPLETE` with the error as its reason, never `COMPLETE`.
+- [x] E-02 Add ONE predicate, `runner_shared.backlog_item_already_complete(repo, item_id6)`, returning a typed result: `COMPLETE` (with the carrier paths, and the executed IPD carrier to cite as close evidence), `NOT_COMPLETE` (with the unfinished or retired carriers named), or `NO_IPD_CARRIER` (no carrier at all, or only non-IPD carriers). Do NOT write a second carrier scan. Factor the carrier-classification half of `runner_shared.evaluate_backlog_close` (the `find_from_backlog_artifacts` lookup, the `_carrier_kind` partition, `plan_bucket(...) == "executed"` for IPDs, `check_engine._carrier_is_executed` for spec carriers) into a shared private helper that BOTH functions call, so the two cannot disagree. `evaluate_backlog_close` keeps its earned clause (E-04 of `zhr6mc`) and its non-IPD existence rule, unchanged in behaviour. The new predicate differs from it in exactly two ways, both recorded in its docstring: it does NOT require the run to have earned the close (D-1), and an item with no IPD carrier is `NO_IPD_CARRIER`, never `COMPLETE` (D-3). A carrier under `superseded/` or `not-executed/` is not done. An item whose carriers are all retired, or any mix that includes a retired or pending carrier, is `NOT_COMPLETE`, because deciding that work is abandoned is a human act (OQ-01). The predicate fails closed: any lookup or read error returns `NOT_COMPLETE` with the error as its reason, never `COMPLETE`.
   - Depends on: E-01
   - Expected outcome: a function that returns `COMPLETE` for exactly the E-01 rows classed ALREADY COMPLETE and `NOT_COMPLETE` for `vy20et` (spec `89xjll` not implemented) and for any row with a pending or retired carrier, with `evaluate_backlog_close`'s verdicts unchanged for every E-01 item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stop the wasted turn and the false failure
 
-- [ ] E-03 Close instead of dispatch, at the one place every route converges on. In `runner_shared.execute_item_core`, on the `is_backlog_production` path, evaluate E-02 against MAIN (`repo`) BEFORE `build_prompt`/`write_prompt` (the placement the `planstale` refusal uses, so no orphan prompt file is written) and before any agent spawn. On `COMPLETE`:
+- [x] E-03 Close instead of dispatch, at the one place every route converges on. In `runner_shared.execute_item_core`, on the `is_backlog_production` path, evaluate E-02 against MAIN (`repo`) BEFORE `build_prompt`/`write_prompt` (the placement the `planstale` refusal uses, so no orphan prompt file is written) and before any agent spawn. On `COMPLETE`:
   (i) close the item in the item's own isolated lane when isolation is on: allocate it with `allocate_isolation_worktree` as the production path already does, call `close_backlog_item(lane, item_path_in_lane, id6, evidence=<cited executed carrier>, message=..., gate_root=repo, run_checked=...)` so `check_engine.evaluate_blocking_close` decides any `Blocks-Release` item against main, commit the move in the lane with `commit_backlog_transition_output(lane, id6, status_label="done", run_id=...)`, and publish it through `integrate_under_repository_lock` with the same `integrate_review_lane_branch` integrate callable the graduation success path uses. Under `--no-isolate-worktree`, close in `repo` and commit with `commit_backlog_close`, the existing non-isolated route. Never write the shared checkout mid-run on the isolated path (the measured `dirtygates-03` `9iq461` harm).
   (ii) append a `backlog-already-complete` event to `events.jsonl` naming the item, every carrier and the evidence, set the queue item `executed`, record `item["backlog_close"]` with `closed: True` and the predicate's reason so `unclosed_backlog_items` does not report it, and spawn no agent session.
   (iii) If the close or its integration REFUSES (for example a release gate the cited evidence does not satisfy, or a refused fast-forward), do NOT fall through to an agent turn, since an agent can author nothing for finished work: set the queue status `fail-gate`, set `item[NEEDS_INPUT_KEY] = True`, record the refusal with `record_refusal` carrying the setter's or integrator's message and a remedy, and preserve the lane with `lane_containment.record_lane_preserved`. `needs-input` is NOT written as a queue status: it is in neither `TERMINAL_STATES` nor `runner_shutdown.KNOWN_ITEM_STATUSES`, so writing it would make the R3 ledger-coherence check refuse the run's own resume. The `fail-gate` + `NEEDS_INPUT_KEY` pair is the shipped precedent for "a human decision is missing".
   On `NOT_COMPLETE` or `NO_IPD_CARRIER`, dispatch exactly as today.
   - Depends on: E-02
   - Expected outcome: an `open` backlog item whose carriers are all finished is closed `done` with no agent session started, via the lane and the integration lock on the isolated path; a refused close ends `fail-gate` with `needs_input` and no agent session.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the post-turn path tell "already done" from "failed to plan". (a) In `production_checks.backlog_graduate_count`, before the "produced 0 linked IPDs" refusal, when no linked plan is active AND no new plan was produced, return no finding if `runner_shared.backlog_item_already_complete` is `COMPLETE` (lazy import, as `production_checks` already does for `runner_shared` elsewhere). Keep every other refusal: an item with no carriers that produced nothing still fails, `NOT_COMPLETE` still fails, and an unlinked new plan still fails. (b) In `execute_item_core`'s backlog-production success branch, BEFORE the `aw backlog set ... --status graduated` setter, if the predicate is `COMPLETE` and the turn produced no plan, perform the E-03 close through the SAME helper instead of graduating. Without (b), (a) alone would let the run reach the `graduated` setter with an empty produced list and mark a finished item `graduated`. This is the safety net for an item that reaches the check by another path (a queue built before E-03 shipped, a resume, or a correction turn).
+- [x] E-04 Make the post-turn path tell "already done" from "failed to plan". (a) In `production_checks.backlog_graduate_count`, before the "produced 0 linked IPDs" refusal, when no linked plan is active AND no new plan was produced, return no finding if `runner_shared.backlog_item_already_complete` is `COMPLETE` (lazy import, as `production_checks` already does for `runner_shared` elsewhere). Keep every other refusal: an item with no carriers that produced nothing still fails, `NOT_COMPLETE` still fails, and an unlinked new plan still fails. (b) In `execute_item_core`'s backlog-production success branch, BEFORE the `aw backlog set ... --status graduated` setter, if the predicate is `COMPLETE` and the turn produced no plan, perform the E-03 close through the SAME helper instead of graduating. Without (b), (a) alone would let the run reach the `graduated` setter with an empty produced list and mark a finished item `graduated`. This is the safety net for an item that reaches the check by another path (a queue built before E-03 shipped, a resume, or a correction turn).
   - Depends on: E-03
   - Expected outcome: the count check returns no finding for an ALREADY COMPLETE item and still refuses a genuinely empty graduation; a production turn on an ALREADY COMPLETE item ends with the item in `done/`, never `graduated/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove, document, and clear today's stranded items
 
-- [ ] E-05 Add `tests/test_backlog_already_complete.py` (P16: drive real fixture repos and the real runner, assert on queue status, `events.jsonl`, the backlog file's directory and the agent fake's call count, never on source text). Reuse the shape of `tests/test_backlog_production.py` (`_make_test_repo`, `_write_backlog_item`, `_patch_host_agent`, and its `_HOSTS` loop so BOTH `oc_runipd` and `agy_runipd` are driven), with a fake agent that records whether it was called. Cases: (a) every IPD carrier executed: item closed `done`, agent never called, `backlog-already-complete` event present, queue `executed`; run once with `--no-isolate-worktree` and once with isolation on, and for the isolated run assert the shared checkout's `git status --porcelain` is empty before integration and the close arrives on `main` as a commit; (b) one carrier pending: agent called and the item graduates or fails exactly as today; (c) every carrier retired (`superseded/`): item NOT closed, dispatched as today; (d) one executed and one superseded carrier: NOT closed; (e) one executed IPD carrier plus an `approved` (not `implemented`) spec carrier: NOT closed; (f) `Blocks-Release: rel001` item whose executed carrier carries the same gate: closed through the predicate; (g) `Blocks-Release` item whose executed carrier carries NO gate and no other route satisfies it: not closed, agent never called, queue `fail-gate` with `needs_input` true and the setter's refusal recorded; (h) `backlog_graduate_count` returns no finding for (a)'s tree and still refuses an item with zero carriers that produced nothing; (i) the post-turn route of E-04 (b), driven by bypassing the dispatch-time check (for example a fake agent invoked on a queue whose item becomes COMPLETE during the turn): item ends in `done/`, never `graduated/`. Cases (a), (h) and (i) must FAIL on the base commit; show it.
+- [x] E-05 Add `tests/test_backlog_already_complete.py` (P16: drive real fixture repos and the real runner, assert on queue status, `events.jsonl`, the backlog file's directory and the agent fake's call count, never on source text). Reuse the shape of `tests/test_backlog_production.py` (`_make_test_repo`, `_write_backlog_item`, `_patch_host_agent`, and its `_HOSTS` loop so BOTH `oc_runipd` and `agy_runipd` are driven), with a fake agent that records whether it was called. Cases: (a) every IPD carrier executed: item closed `done`, agent never called, `backlog-already-complete` event present, queue `executed`; run once with `--no-isolate-worktree` and once with isolation on, and for the isolated run assert the shared checkout's `git status --porcelain` is empty before integration and the close arrives on `main` as a commit; (b) one carrier pending: agent called and the item graduates or fails exactly as today; (c) every carrier retired (`superseded/`): item NOT closed, dispatched as today; (d) one executed and one superseded carrier: NOT closed; (e) one executed IPD carrier plus an `approved` (not `implemented`) spec carrier: NOT closed; (f) `Blocks-Release: rel001` item whose executed carrier carries the same gate: closed through the predicate; (g) `Blocks-Release` item whose executed carrier carries NO gate and no other route satisfies it: not closed, agent never called, queue `fail-gate` with `needs_input` true and the setter's refusal recorded; (h) `backlog_graduate_count` returns no finding for (a)'s tree and still refuses an item with zero carriers that produced nothing; (i) the post-turn route of E-04 (b), driven by bypassing the dispatch-time check (for example a fake agent invoked on a queue whose item becomes COMPLETE during the turn): item ends in `done/`, never `graduated/`. Cases (a), (h) and (i) must FAIL on the base commit; show it.
   - Depends on: E-03, E-04
   - Expected outcome: the new module passes on both hosts, and (a), (h), (i) are shown failing on the base commit with their actual failure lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Amend the specs this changes, in the same change. (1) Spec `25kzda` 3.4, `open` row, Interactive action: add one sentence stating that an `open` item whose carriers are already complete (at least one IPD carrier, every IPD carrier `executed`, every spec carrier `implemented`) is CLOSED `done` through the release-gate predicate with no agent turn, and that a refused close needs a human, rather than being re-graduated. (2) Spec `llbr2b` 3.4 (the catalog of automated transitions): add the new route as its own row or paragraph, naming `runner_shared.backlog_item_already_complete` and the dispatch site, and state that it is the ONE automated close that does not require the run to have earned it, with the reason (D-1). Also correct the plan's stale claim that a runner event list documents `backlog-item-closed`: no such doc list exists, so the event is documented in `llbr2b` 3.4 beside `backlog-item-left-open`.
+- [x] E-06 Amend the specs this changes, in the same change. (1) Spec `25kzda` 3.4, `open` row, Interactive action: add one sentence stating that an `open` item whose carriers are already complete (at least one IPD carrier, every IPD carrier `executed`, every spec carrier `implemented`) is CLOSED `done` through the release-gate predicate with no agent turn, and that a refused close needs a human, rather than being re-graduated. (2) Spec `llbr2b` 3.4 (the catalog of automated transitions): add the new route as its own row or paragraph, naming `runner_shared.backlog_item_already_complete` and the dispatch site, and state that it is the ONE automated close that does not require the run to have earned it, with the reason (D-1). Also correct the plan's stale claim that a runner event list documents `backlog-item-closed`: no such doc list exists, so the event is documented in `llbr2b` 3.4 beside `backlog-item-left-open`.
   - Depends on: E-03
   - Expected outcome: `git diff` of both spec files showing exactly those additions, and `aw specs check` (or `aw check all`) reporting no new finding for either spec.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Close the stranded items that E-02 reports `COMPLETE` at execution HEAD, re-running E-02 on each immediately before closing it. For each: `aw backlog set done <id6> --evidence <executed IPD carrier path> --message "closed by 0owirm: every carrier executed (<carriers>)"`, paste each result. Do NOT close an item E-02 reports `NOT_COMPLETE` (at review time `vy20et`, whose spec `89xjll` is `approved`, not `implemented`); list each such item with its reason in the evidence. Commit the moves through `aw commit 0owirm -- <each moved backlog path>`. Then run the bare suite `python3 -m pytest` and paste its summary line, against a pre-edit bare-suite baseline taken at the start of execution: the failing-test set after the change must be a subset of the baseline's, compared by name.
+- [x] E-07 Close the stranded items that E-02 reports `COMPLETE` at execution HEAD, re-running E-02 on each immediately before closing it. For each: `aw backlog set done <id6> --evidence <executed IPD carrier path> --message "closed by 0owirm: every carrier executed (<carriers>)"`, paste each result. Do NOT close an item E-02 reports `NOT_COMPLETE` (at review time `vy20et`, whose spec `89xjll` is `approved`, not `implemented`); list each such item with its reason in the evidence. Commit the moves through `aw commit 0owirm -- <each moved backlog path>`. Then run the bare suite `python3 -m pytest` and paste its summary line, against a pre-edit bare-suite baseline taken at the start of execution: the failing-test set after the change must be a subset of the baseline's, compared by name.
   - Depends on: E-05, E-06
   - Expected outcome: every item E-02 reports `COMPLETE` is under `backlog/done/` with a resolvable evidence citation; every `NOT_COMPLETE` item is untouched and listed with its reason; bare suite shows no newly failing test against the baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -113,9 +113,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Teaching orchestrator retirement to close its source backlog item: the dispatch-time check (E-03) covers every route by which an item ends up `open` with finished carriers (a reopen like `52opph`, a close that never fired because the work finished in another run, a retirement that skipped the close), so a second close site is unnecessary.
+  - Carrier-Declined: Covered by this plan's dispatch-time check (E-03), so a retirement close site is unneeded.
 - An item stranded in `graduated` (not `open`) with finished carriers: NOT covered here, because `_BACKLOG_ACTIONS["graduated"]` is `skip`, so it is never dispatched. That case is owned by pending plan `isnqja` (Set `wfswdb`), which surfaces such items in `aw attention`. None of today's eight is `graduated`.
+  - Carrier: isnqja
 - Closing `vy20et`: its spec carrier `89xjll` is not `implemented`, so the item is not provably finished. It needs the spec to reach `implemented` or a human close.
+  - Carrier: vy20et
 - Changing what `52opph` did: it is executed history.
+  - Carrier-Declined: Executed history; not an active obligation.
 
 ## Scope check
 
@@ -152,40 +156,186 @@ Required, done by E-06. Spec `25kzda` 3.4 (approved) defines the `open` action a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted table re-derived at execution HEAD, with each item's carriers, carrier buckets/statuses, `evaluate_backlog_close` reason and `backlog_graduate_count` result, and the ALREADY COMPLETE / NOT COMPLETE split it implies.
   - Observed evidence:
-  - Result: pending
+    Re-derived population table at execution HEAD:
 
-- [ ] V-02 validates E-02
+    | Item | Directory | From-Backlog Carriers | Carrier Bucket / Status | evaluate_backlog_close Reason | backlog_graduate_count Result | Classification |
+    |---|---|---|---|---|---|---|
+    | `ariaau` | `open/` | `qtz0us`, `bec7ee`, `38pxaz`, `dmjp0u` | all 4 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `ildjse` | `open/` | `i18yaz`, `32jpl1`, `eow7p4` | all 3 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `mflqqf` | `open/` | `u57rfv`, `gqyold`, `d0lg63` | all 3 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `7yz545` | `open/` | `1u4olp`, `czut8j`, `ov2c9n`, `r5fk4k` | all 4 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `s8veyk` | `open/` | `4qv834`, `bqtgmo`, `y9m1ya` | all 3 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `oq05nc` | `open/` | `l4vw9o`, `x2dwu5`, `pi3bk8`, `wzhe4n` | all 4 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `h0tiaw` | `open/` | `l8wvv3`, `dq9bj9`, `9i2hge` | all 3 `executed` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | ALREADY COMPLETE |
+    | `vy20et` | `open/` | plans `9wzlou`, `jjh4aj`, `rtvdak` + spec `89xjll` | plans `executed`, spec `approved` | "this run executed none of its carriers, so the close was not earned" | "produced 0 linked IPDs" | NOT COMPLETE (`89xjll` not implemented) |
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the predicate's pasted output for every E-01 row (matching the split), for a fixture with one pending carrier, an all-retired fixture, a mixed executed+superseded fixture, and a spec-only fixture (`NO_IPD_CARRIER`); plus `evaluate_backlog_close` reasons for the E-01 items unchanged from V-01.
   - Observed evidence:
-  - Result: pending
+    Observed output from `runner_shared.backlog_item_already_complete`:
+    ```
+    ariaau: status=COMPLETE evidence=.aw/records/plans/executed/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md carriers=('.aw/records/plans/executed/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md', '.aw/records/plans/executed/20260930-malgate-01-bec7ee-record-the-p15-gate-audit-every-anti-malice-mechanism-with-i.ipd.md', '.aw/records/plans/executed/20260930-malgate-02-38pxaz-delete-the-five-unowned-raising-predicates-in-wtiso-gate-and.ipd.md', '.aw/records/plans/executed/20260930-malgate-03-dmjp0u-reframe-every-determined-same-user-and-malicious-agent-justi.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    ildjse: status=COMPLETE evidence=.aw/records/plans/executed/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md carriers=('.aw/records/plans/executed/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md', '.aw/records/plans/executed/20260930-runwire-01-32jpl1-map-the-driver-item-status-vocabulary-onto-run-state-through.ipd.md', '.aw/records/plans/executed/20260930-runwire-02-eow7p4-enforce-verifier-session-independence-and-verifier-state-aut.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    mflqqf: status=COMPLETE evidence=.aw/records/plans/executed/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md carriers=('.aw/records/plans/executed/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md', '.aw/records/plans/executed/20261002-mflqqf-01-gqyold-restore-the-security-hardening-boundary-coverage-as-outcome.ipd.md', '.aw/records/plans/executed/20261002-mflqqf-02-d0lg63-restore-the-packaging-boundary-coverage-the-wheel-guard-does.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    7yz545: status=COMPLETE evidence=.aw/records/plans/executed/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md carriers=('.aw/records/plans/executed/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md', '.aw/records/plans/executed/20260930-attmodel-01-czut8j-record-the-frozen-launch-model-on-every-attempt-so-a-per-att.ipd.md', '.aw/records/plans/executed/20260930-attmodel-02-ov2c9n-observe-the-model-the-opencode-host-actually-used-for-a-turn.ipd.md', '.aw/records/plans/executed/20260930-attmodel-03-r5fk4k-read-the-per-attempt-model-in-analytics-and-the-dashboard-so.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    s8veyk: status=COMPLETE evidence=.aw/records/plans/executed/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md carriers=('.aw/records/plans/executed/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md', '.aw/records/plans/executed/20261002-hostcapgate-01-bqtgmo-freeze-one-host-capability-descriptor-per-run-and-stop-re-pr.ipd.md', '.aw/records/plans/executed/20261002-hostcapgate-02-y9m1ya-require-the-probed-fresh-verifier-capability-for-the-execute.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    oq05nc: status=COMPLETE evidence=.aw/records/plans/executed/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md carriers=('.aw/records/plans/executed/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md', '.aw/records/plans/executed/20260929-denypush-01-x2dwu5-record-the-measured-landlock-feasibility-and-amend-spec-25kz.ipd.md', '.aw/records/plans/executed/20260929-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.ipd.md', '.aw/records/plans/executed/20260929-denypush-03-wzhe4n-file-the-carrier-for-host-granular-network-filtering-and-clo.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    vy20et: status=NOT_COMPLETE evidence=None carriers=('.aw/records/plans/executed/20260930-reqids-00-9wzlou-decide-and-build-the-spec-requirement-id-convention-that-spe.ipd.md', '.aw/records/plans/executed/20260930-reqids-01-jjh4aj-specify-the-spec-requirement-id-addressing-convention-and-th.ipd.md', '.aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md', '.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md') reason=spec carrier(s) not implemented: .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md
+    h0tiaw: status=COMPLETE evidence=.aw/records/plans/executed/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md carriers=('.aw/records/plans/executed/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md', '.aw/records/plans/executed/20261001-h0tiaw-01-dq9bj9-revive-the-dormant-conformance-matrix-as-a-live-structural-g.ipd.md', '.aw/records/plans/executed/20261001-h0tiaw-02-9i2hge-restore-the-renderer-level-output-quality-gates-so-the-four.ipd.md') reason=every IPD carrier is executed and every spec carrier is implemented
+    ```
+    Synthetic fixtures (verified in `tests/test_backlog_already_complete.py`):
+    * Pending carrier fixture: `status=NOT_COMPLETE` with reason naming pending carrier
+    * All-retired fixture (`superseded/`): `status=NOT_COMPLETE` with reason naming superseded carrier
+    * Mixed executed+superseded: `status=NOT_COMPLETE` with reason naming superseded carrier
+    * Spec-only carrier: `status=NO_IPD_CARRIER` with reason "item carries no From-Backlog IPD carrier"
+    * `evaluate_backlog_close` reasons for all 8 items unchanged from V-01 ("this run executed none of its carriers, so the close was not earned").
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: E-05 cases (a) (both isolation modes), (f) and (g) passing on both hosts, with the pasted test output, showing the `backlog-already-complete` event, the backlog file in `done/` (or untouched for (g)), the agent fake's zero call count and, for (g), `fail-gate` with `needs_input`. Observation produced by `execute_item_core`'s backlog-production path through the E-03 branch, driven by `run_queue`.
   - Observed evidence:
-  - Result: pending
+    Driven by `tests/test_backlog_already_complete.py` test cases (a) (both isolation modes), (f), and (g) across both `oc` and `agy` runner hosts:
+    * `test_case_a_with_no_isolate_worktree`: passed on oc and agy. Agent call count: 0. Item moved to `done/`. `backlog-already-complete` event present in `events.jsonl`.
+    * `test_case_a_with_isolate_worktree`: passed on oc and agy. Shared checkout porcelain status empty before integration (`""`). Item moved to `done/` via commit on main. Agent call count: 0.
+    * `test_case_f_blocks_release_with_matching_gate`: passed on oc and agy. Item closed `done` through release-gate predicate citing executed carrier.
+    * `test_case_g_blocks_release_without_gate`: passed on oc and agy. Item not closed (remains in `open/`), agent not called (call count 0), queue item ended `fail-gate` with `needs_input=True` and setter refusal recorded.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: E-05 (h) passing, both halves, and (i) passing, showing the item in `done/` and absent from `graduated/`, with the pasted test output. Observation for (i) produced by the E-04 (b) branch before the `graduated` setter.
   - Observed evidence:
-  - Result: pending
+    Driven by `tests/test_backlog_already_complete.py` cases (h) and (i) across both `oc` and `agy` runner hosts:
+    * `test_case_h_backlog_graduate_count`: passed. Both halves verified: returns no finding (`[]`) for an already complete item when 0 plans were produced; still refuses and returns `['produced 0 linked IPDs']` when an item with zero carriers produces nothing.
+    * `test_case_i_post_turn_already_complete_route`: passed on both oc and agy. Observation produced by E-04 (b) branch before the `graduated` setter: turn produces 0 plans on item that becomes COMPLETE during turn; item is routed to `_close_already_complete_backlog_item`, ends in `done/`, and is absent from `graduated/`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the new module's pasted pass output on both hosts, and the pasted failure lines for (a), (h) and (i) on the base commit.
   - Observed evidence:
-  - Result: pending
+    Base commit failures captured on base commit `bd4c7874ea79ea52b5c8136d6605b8702eaf6dda`:
+    Case (a) failure on base commit:
+    `AssertionError: 1 != 0 : Fake agent should not have been called for already complete item`
+    Case (h) failure on base commit:
+    `AssertionError: Lists differ: ['produced 0 linked IPDs'] != []`
+    Case (i) failure on base commit:
+    `AssertionError: Destination not in done: .../done/20261009-bkli01-fixture.md`
 
-- [ ] V-06 validates E-06
+    Pass output for `tests/test_backlog_already_complete.py` on current HEAD:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1899634805
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 11 items
+
+    tests/test_backlog_already_complete.py ...........                       [100%]
+
+    ============================= 11 passed in 28.43s ==============================
+    ```
+    (Both `oc` and `agy` runner hosts parameterized via `_HOSTS` loop; all 11 integration tests pass across both hosts).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the pasted `git diff` of both spec files, and the pasted spec check output showing no new finding for either.
   - Observed evidence:
-  - Result: pending
+    `git diff` of both spec files (committed in `c59ad329a`):
+    ```
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index 8fe40743f..de8d91b35 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -741,7 +741,7 @@ A status setter that refuses under Section 2.5d is a state gate, not a retryable
 
-- [ ] V-07 validates E-07
+     | Status | Interactive action | Unattended action | Forbidden unattended |
+     | --- | --- | --- | --- |
+    -| `open` | Author the artifacts the item needs: any spec it requires (created and approved under the authority of this request, not deferred to a separate round trip) plus one or more conformant IPDs, each carrying `From-Backlog` and inheriting `Blocks-Release`; set the backlog item to `graduated` using the handoff receipt; verify. Every produced orchestrator plan must pass Section 2.5d before the source is tool-set (`SPEC-PLAN-SET` / `BACKLOG-GRADUATE-SET`); when it does not, the source stays where it was. A source whose previously produced plans are unfinished is CONTINUED, not re-produced: the action is handed the existing plans and their findings, and `SPEC-PLAN-COUNT` / `BACKLOG-GRADUATE-COUNT` count them as this action's output. | Same. Report generated IPDs as next actions; do not run them in the same run. | Setting the item `graduated` before a conformant handoff exists, or setting it `done` (which would claim implementation that has not happened). |
+    +| `open` | Author the artifacts the item needs: any spec it requires (created and approved under the authority of this request, not deferred to a separate round trip) plus one or more conformant IPDs, each carrying `From-Backlog` and inheriting `Blocks-Release`; set the backlog item to `graduated` using the handoff receipt; verify. Every produced orchestrator plan must pass Section 2.5d before the source is tool-set (`SPEC-PLAN-SET` / `BACKLOG-GRADUATE-SET`); when it does not, the source stays where it was. A source whose previously produced plans are unfinished is CONTINUED, not re-produced: the action is handed the existing plans and their findings, and `SPEC-PLAN-COUNT` / `BACKLOG-GRADUATE-COUNT` count them as this action's output. An `open` item whose carriers are already complete (at least one IPD carrier, every IPD carrier `executed`, every spec carrier `implemented`) is CLOSED `done` through the release-gate predicate with no agent turn, and a refused close needs a human, rather than being re-graduated. | Same. Report generated IPDs as next actions; do not run them in the same run. | Setting the item `graduated` before a conformant handoff exists, or setting it `done` (which would claim implementation that has not happened). |
+     | `blocked` | Yellow skip; print `Gate-Kind` and `Gate-Ref`. | Same. | Ignoring or clearing the gate. |
+     | `parked` | Yellow skip. | Same. | Graduating or executing it. |
+     | `graduated` | Yellow skip; validate that its handoff artifacts exist and still carry `From-Backlog` plus any inherited `Blocks-Release`. | Same. | Re-graduating it (producing duplicate IPDs for an item whose design is already handed off). |
+    diff --git a/.aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md b/.aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    index f937b459a..81a61dd65 100644
+    --- a/.aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    +++ b/.aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md
+    @@ -158,6 +158,20 @@ NOTE the `isolated` parameter selects WHICH baseline condition (6) measures, and
+     | On failure | Records `backlog-item-left-open` WITH THE REASON and proceeds. Every lookup is wrapped to fail closed: "a missing item, an unreadable tree, or a raising helper yields `close=False` plus a recorded reason" (`oc_runipd.py:1484-1487`) |
+     | Automated actor may perform it | YES, via the GATED `aw backlog set <id6> --status done` spelling, chosen deliberately over the positional one, which "cannot even accept `--evidence`" (`oc_runipd.py:1718-1725`) |
+
+    +DISPATCH-TIME AND POST-TURN CLOSE FOR ALREADY-COMPLETE ITEMS (IPD `0owirm`, Set `gradfix`).
+    +A second automated close route operates at dispatch time in `runner_shared.execute_item_core` (before
+    +`build_prompt`/`write_prompt` and agent spawn) and on the post-turn success branch when a turn produced no
+    +new plans. Decided by `runner_shared.backlog_item_already_complete(repo, item_id6)`.
+    +Conditions: the item is `open`, has at least one IPD carrier, every IPD carrier is `executed`, every spec
+    +carrier is `implemented`, and the release-gate predicate clears.
+    +This is the ONE automated close that does NOT require the run to have earned it: the runner has already
+    +selected the item to act on, all work is provably finished on disk, and demanding an earned carrier from
+    +the current run would strand finished items and fail correct agents indefinitely (review decision D-1).
+    +On success, it closes the item `done` through the gated setter without an agent turn (writing in the lane
+    +and integrating under the repository lock when isolated) and appends a `backlog-already-complete` event to
+    +`events.jsonl` (beside `backlog-item-left-open`). On refusal (such as an unsatisfied release gate), it records
+    +a refusal with `fail-gate` and `needs_input=True`.
+    ```
+    Spec check output:
+    ```
+    $ python3 -m agent_workflows specs check
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: each `aw backlog set done` output pasted, each closed item's new `done/` path, the list of items left open with their predicate reason, the `aw commit` output, and the bare-suite summary line beside the baseline's failing-test set compared by name.
   - Observed evidence:
-  - Result: pending
+    Each `aw backlog set done` output:
+    ```
+    $ aw backlog set done ariaau --evidence .aw/records/plans/executed/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md --message "closed by 0owirm: every carrier executed (qtz0us, bec7ee, 38pxaz, dmjp0u)" --no-commit
+    *    backlog     20260926-malgate-01-ariaau  [medium]  open → ✓  done
+
+    $ aw backlog set done ildjse --evidence .aw/records/plans/executed/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md --message "closed by 0owirm: every carrier executed (i18yaz, 32jpl1, eow7p4)" --no-commit
+    *    backlog     20260922-runverdict-01-ildjse  [medium]  open → ✓  done
+
+    $ aw backlog set done mflqqf --evidence .aw/records/plans/executed/20261002-mflqqf-00-u57rfv-restore-the-security-hardening-and-packaging-boundary-covera.ipd.md --message "closed by 0owirm: every carrier executed (u57rfv, gqyold, d0lg63)" --no-commit
+    *    backlog     20261001-mflqqf-01-mflqqf  [high]  open → ✓  done
+
+    $ aw backlog set done 7yz545 --evidence .aw/records/plans/executed/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md --message "closed by 0owirm: every carrier executed (1u4olp, czut8j, ov2c9n, r5fk4k)" --no-commit
+    *    backlog     20260927-runsdash-01-7yz545  [medium]  open → ✓  done
+
+    $ aw backlog set done s8veyk --evidence .aw/records/plans/executed/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md --message "closed by 0owirm: every carrier executed (4qv834, bqtgmo, y9m1ya)" --no-commit
+    *    backlog     20260930-runwire-01-s8veyk  [medium]  open → ✓  done
+
+    $ aw backlog set done oq05nc --evidence .aw/records/plans/executed/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md --message "closed by 0owirm: every carrier executed (l4vw9o, x2dwu5, pi3bk8, wzhe4n)" --no-commit
+    *    backlog     20260921-oq05nc-01-oq05nc  [low]  open → ✓  done
+
+    $ aw backlog set done h0tiaw --evidence .aw/records/plans/executed/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md --message "closed by 0owirm: every carrier executed (l8wvv3, dq9bj9, 9i2hge)" --no-commit
+    *    backlog     20260930-h0tiaw-01-h0tiaw  [low]  open → ✓  done
+    ```
+
+    Each closed item's new `done/` path:
+    * `.aw/records/backlog/done/20260926-malgate-01-ariaau-audit-anti-malice-gates.backlog.md`
+    * `.aw/records/backlog/done/20260922-runverdict-01-ildjse-wire-run-state-machine-into-the-host-runners.backlog.md`
+    * `.aw/records/backlog/done/20261001-mflqqf-01-mflqqf-restore-test-coverage-for-security-hardening-check.backlog.md`
+    * `.aw/records/backlog/done/20260927-runsdash-01-7yz545-record-model-per-attempt.backlog.md`
+    * `.aw/records/backlog/done/20260930-runwire-01-s8veyk-fresh-verifier-capability-probed-but-gates-nothing.backlog.md`
+    * `.aw/records/backlog/done/20260921-oq05nc-01-oq05nc-os-level-push-denial-boundary.backlog.md`
+    * `.aw/records/backlog/done/20260930-h0tiaw-01-h0tiaw-conformance-matrix-driver-missing.backlog.md`
+
+    List of items left open:
+    * `vy20et`: reason: `spec carrier(s) not implemented: .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`
+
+    `aw commit` output:
+    ```
+    aw commit: committed 14 path(s): b04e8c7083bcd705ae2a3020570b7da98dc6cde1
+    ```
+
+    Bare suite summary line beside baseline:
+    * Baseline: `7456 passed, 2 skipped, 3 warnings in 1011.70s` (failing-test set: empty set `set()`, 0 failing tests)
+    * Post-change: `7467 passed, 2 skipped, 3 warnings in 961.23s (0:16:01)` (failing-test set: empty set `set()`, 0 newly failing tests, +11 tests from `tests/test_backlog_already_complete.py`)
+  - Result: pass
 
 ## Approval and execution gate
 
