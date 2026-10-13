@@ -28,6 +28,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.
 - Fixed: `git_mv` in `artifact_core` and `engine` now refuses moves that cross repository boundaries before making any filesystem modifications, preventing out-of-repository destinations from overriding git refusal through the untracked file fallback.
 - Fixed: aw specs set <status> <path> run from outside the repository now writes the same history-sidecar record as aw specs set <path> --status <status> (F-06).
+- Fixed: aw find --limit <N> now bounds the human row listing and the --paths listing to the first N matches instead of silently ignoring the flag. When rows are omitted, the human surface prints an informational notice and runnable continuation, --paths reports the notice on stderr while keeping stdout pure, and --json remains the full unbounded dictionary.
 
 - Fixed: aw sanitize and aw check-local-leaks under --agent and --json now emit structured records on stdout for the --fix branch and for cannot-run errors, and refuse un-attested machine --fix calls with an error record instead of prompting on stdout.
 - Fixed: usage errors such as a missing required argument or an invalid choice now emit an aw.agent/v1 cannot-run error record on stdout under --agent and --json.
