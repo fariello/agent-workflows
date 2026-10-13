@@ -4,20 +4,24 @@
 - Kind: child
 - Concern: Full suites run with no memory of identical prior runs and at `-n auto` regardless of how many other suites are running. Measured over October: 1,258 agent full-suite invocations (median 216s, p90 622s, 91.5h total); of the 322 runner baselines, 61 (19%) were at a code tree (`agent_workflows`, `tests`, `conftest.py`, `pyproject.toml`, `tools`) already seen; and three handoffs are exact repeats BY CONSTRUCTION: a fast-forward integration leaves `main`'s tree equal to the lane's last-tested tree, the next item's baseline is taken at the tip the integration gate just measured, and lanes dispatched from one base share it. The runner has three suite seams that each spawn their own pytest: `runner_shared.run_suite_check` (argv `SUITE_CHECK_ARGV`), `start_suite_baseline` (same argv in a detached checkout), and post-merge revalidation (`make_integration_validation_runner` -> injected `suite_check` in the materialized merge result). Agents are told only "e.g. `python3 -m pytest <test_file> -v`" (`runner_shared` execute/verify prompt templates, "Run the required tests and validation commands for this IPD").
 - Scope: IN: a new `agent_workflows/suite_cache.py` (key computation, store, lookup) and a new `aw suite` command that runs the repository's bare full suite through it with a bounded worker count; route the three runner seams through the same library function; update the execute and verify prompt templates to direct full-suite runs to `aw suite`; docs and CHANGELOG. OUT: narrowed runs (`aw suite` refuses a test selection and points at plain pytest, so quick checks stay fast and uncached); the machine-wide lock (Order 03); test selection (Order 04); changing `pyproject.toml` `addopts` for humans.
-- Scope-Paths: agent_workflows/suite_cache.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, tests/test_suite_cache.py, docs/cli-human-guide.md, CHANGELOG.md
+- Scope-Paths: agent_workflows/suite_cache.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, tests/test_suite_cache.py, tests/conformance_matrix.py, docs/cli-human-guide.md, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:9ec94f
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: 58x9mw
 - Blocks-Release: next
 - Set: suiteeff
 - Order: 2
-- Highest E allocated: 08
+- Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0o0wt2
 
 ## Workflow history
+
+- 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-011 (record `.aw/records/reviews/20261012-suiteeff-02-0o0wt2-add-aw-suite-one-full-suite-entry-point-with-a-tree-keyed-re.review.md`)
+- 2026-10-13 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored as Order 02 of Set `suiteeff` from backlog `58x9mw`.
@@ -37,43 +41,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a recorded summary line and failing-node-id list.
   - Execution state: pending
 
-- [ ] E-02 Create `agent_workflows/suite_cache.py` with `suite_key(checkout: Path, argv: Sequence[str]) -> SuiteKey`. The key is a SHA-256 over: (1) the WORKING-TREE tree id, computed without touching the real index by `git add -A` into a temporary index (`GIT_INDEX_FILE=<tmp>`, seeded from `HEAD`) followed by `git write-tree`, so tracked edits AND untracked non-ignored files are both covered; (2) the argv after the interpreter, plus the effective `addopts` read from `pyproject.toml`; (3) `sys.version` and `sys.executable`; (4) a digest of the sorted `name==version` list of installed distributions (`importlib.metadata.distributions()`); (5) the sorted values of environment variables that change what the suite does (`PYTEST_ADDOPTS`, `PYTHONPATH`, `AW_NO_REEXEC`, `NO_COLOR`, `FORCE_COLOR`, `TERM`). Return the components alongside the digest so a miss can say WHICH component changed. Fail open: any git or metadata error yields `SuiteKey(None, reason)`, meaning "uncacheable", never a guess.
+- [ ] E-02 Create `agent_workflows/suite_cache.py` with `suite_key(checkout: Path, argv: Sequence[str]) -> SuiteKey`. The key is a SHA-256 over: (1) the WORKING-TREE tree id, computed by `git add -A` then `git write-tree` against a TEMPORARY index (`GIT_INDEX_FILE=<tmp>`, seeded by COPYING the checkout's real index file, `git rev-parse --git-path index`, which makes the add incremental: measured at review on this 4,882-file checkout, 0.03s copied versus 0.65s seeded by `git read-tree HEAD`) AND a TEMPORARY object directory (`GIT_OBJECT_DIRECTORY=<tmpdir>` with `GIT_ALTERNATE_OBJECT_DIRECTORIES=<the repo's real objects dir>`), both deleted afterwards. The object-directory redirect is REQUIRED, not an optimization: a plain `git add -A` writes a loose blob for every modified or untracked file into the SHARED object store of the git common dir, which (a) the hardened sandbox profile keeps READ-ONLY for a worker (`host_sandbox_profile`, "the GIT COMMON DIRECTORY is READ-ONLY"), so the key would fail in exactly the lanes that need it, and (b) leaves unreferenced objects behind on every call. Measured at review in a scratch repo with one tracked edit and one untracked file: the redirected form produced the same tree id as the plain form and left the real object count at 3 (plain form: 3 -> 6); `git status --short` was unchanged. Tracked edits AND untracked non-ignored files are both covered; (2) the argv after the interpreter EXCLUDING the worker count `run_full_suite` adds (E-04), so a suite measured at `-n 4` and one at `-n 6` share a key: parallelism does not change what is measured (Project conventions). The repo's `addopts` is NOT a separate component, because `pyproject.toml` is already in the tree id; (3) `sys.version` and `sys.executable`; (4) a digest of the sorted `name==version` list of installed distributions (`importlib.metadata.distributions()`); (5) the sorted `name=value` pairs, absent recorded as absent, of environment variables that change what the suite does: `PYTEST_ADDOPTS` as the CALLER set it (before E-04's own addition), `PYTHONPATH`, `AW_NO_REEXEC`, `NO_COLOR`, `FORCE_COLOR`, `TERM`, and `AW_EXECUTION_ROLE` (an agent turn exports `worker`; `conftest.py` scrubs it today, but a stored PASS must not outlive that scrub silently). Values are hashed into the key and NOT stored in plain text in `components` beyond the variable NAMES and a per-variable short digest, so a cache record never persists an environment value. Return the components alongside the digest so a miss can say WHICH component changed. Fail open: any git or metadata error yields `SuiteKey(None, reason)`, meaning "uncacheable", never a guess.
   - Depends on: E-01
   - Expected outcome: two checkouts at the same commit with no edits produce the same digest; a one-byte edit to a tracked file, a new untracked `tests/test_x.py`, a changed `PYTEST_ADDOPTS` or a different interpreter each produce a different one; an ignored file (`.aw/state/x`) does not.
   - Execution state: pending
 
-- [ ] E-03 Add the store in `suite_cache.py`: records live under `<git-common-dir>/aw-suite-cache/<digest>.json` (shared by every linked worktree of the repo, never inside a lane, never tracked), written atomically, holding `{digest, components, passed, exit_code, summary, failures, duration_seconds, recorded_at, worker_count}`. Store a PASS directly. Store a FAILURE only after one confirming re-run of the failing node ids reproduces it (`python -m pytest <ids> -o addopts="" -q -p no:randomly` is NOT used; re-run with the same addopts minus the marker filter, restricted to the ids), recording `confirmed: true`; an unconfirmed failure is returned but not stored, so a flake is never replayed. Prune records older than 14 days on write. Lookups never raise.
+- [ ] E-03 Add the store in `suite_cache.py`: records live under `<git-common-dir>/aw-suite-cache/<digest>.json` (shared by every linked worktree of the repo, never inside a lane, never tracked), written atomically, holding `{digest, components, passed, exit_code, summary, failures, duration_seconds, recorded_at, worker_count}`. Store a PASS directly. Store a FAILURE only after one confirming re-run reproduces it: re-run the SAME argv and environment restricted to the failing node ids taken from `extract_suite_failures` (the ids passed as positional arguments; the configured `addopts` stays in force, and the marker filter cannot drop an id that the full run just selected), and store with `confirmed: true` only when at least one of those ids fails again. An unconfirmed failure is returned but not stored, so a flake is never replayed. A suite that produced NO parseable failing ids (timeout 124, unrunnable 127, collection error) is NEVER stored. A served FAILURE is ADVISORY ONLY for `aw suite` itself: the runner's seams never serve a cached failure (E-06), because a failure answer re-litigated from cache would bypass spec `25kzda` Section 5.1's rule that a repair claim releases only on an OBSERVED PASSING RE-RUN. Prune records older than 14 days on write. Lookups never raise, and a store write that fails (for example the git common dir is READ-ONLY to a worker under the hardened sandbox profile) is skipped with one stderr note and never fails or alters the suite result. Trust model: a record is an attestation by a same-user process, which is the same trust the run's own per-run `REVALIDATION_CACHE_KEY` cache and the outcome files already carry (GUIDING_PRINCIPLES P15: guard against honest mistakes, not a malicious agent); a cross-machine cache stays out of scope for that reason.
   - Depends on: E-02
-  - Expected outcome: a pass is stored and served; a failure that does not reproduce is not stored; a corrupt record is ignored and overwritten.
+  - Expected outcome: a pass is stored and served; a failure that does not reproduce is not stored; a failure with no parseable ids is not stored; a corrupt record is ignored and overwritten; nothing is ever written under the checkout's working tree.
   - Execution state: pending
 
 ### Task group 2: the command and the worker bound
 
-- [ ] E-04 Add `run_full_suite(checkout, *, argv=SUITE_CHECK_ARGV, use_cache=True, timeout) -> SuiteRunResult` in `suite_cache.py`: compute the key; on a hit print `aw suite: cached result for tree <short> (recorded <when>, <duration>s): <summary>` and return it with `cached: true`; on a miss run the suite with `-n <workers>` where `workers = max(2, os.cpu_count() // slots)` and `slots` is read from `AW_SUITE_SLOTS` (default `max(1, os.cpu_count() // 6)`, the same default Order 03's lock uses), passing it through `PYTEST_ADDOPTS` appended so the repo's own `addopts` (`-n auto`) is overridden without editing `pyproject.toml`; stream the suite's output unchanged so a human sees progress; store per E-03. Reuse `parse_suite_summary` and `extract_suite_failures` from `runner_shared` (move them into `suite_cache` and re-export from `runner_shared` under the same names if that avoids an import cycle).
+- [ ] E-04 Add `run_full_suite(checkout, *, argv=SUITE_CHECK_ARGV, use_cache=True, timeout) -> SuiteRunResult` in `suite_cache.py`: compute the key; on a hit print `aw suite: cached result for tree <short> (recorded <when>, <duration>s): <summary>` and return it with `cached: true`; on a miss run the suite with `-n <workers>` where `workers = max(2, cpus // slots)`, `cpus = os.cpu_count() or 2`, and `slots` is read from `AW_SUITE_SLOTS` (a positive integer; anything else falls back to the default with one stderr warning; default `max(1, cpus // 6)`, the same default Order 03's lock uses). The bound is APPENDED to `PYTEST_ADDOPTS` in the child's environment, which overrides the repo's own `addopts` `-n auto` without editing `pyproject.toml` (measured at review with xdist 3.8.0: an `addopts = -n auto` ini plus `PYTEST_ADDOPTS="-n 3"` printed `created: 3/3 workers`; `PYTEST_XDIST_AUTO_NUM_WORKERS` was rejected as the mechanism because an explicit `-n 5` in `addopts` ignored it). Because the repo's `addopts` carries `-q`, pytest prints NO header line, so the bound is evidenced by xdist's `created: N/N workers` line and by the recorded `worker_count`, not by a header. `timeout` defaults to `runner_shared.SUITE_CHECK_TIMEOUT_SECONDS`; an expiry returns exit 124 and is a failure, never stored. Output: in the CLI (E-05) stream the suite's output live to the terminal AND keep a bounded copy (512,000 bytes per stream, the bound `run_suite_check` already uses) for `parse_suite_summary`/`extract_suite_failures`; the library entry point used by the seams captures without streaming, so the seams' existing records are unchanged. Store per E-03. Reuse `parse_suite_summary` and `extract_suite_failures` from `runner_shared` (move them into `suite_cache` and re-export from `runner_shared` under the same names if that avoids an import cycle).
   - Depends on: E-03
-  - Expected outcome: a miss runs pytest with the bounded `-n` visible in its header line; an immediate second call returns the cached result in under 5 seconds.
+  - Expected outcome: a miss runs pytest with xdist reporting `created: N/N workers` for the bounded N; an immediate second call on the unchanged tree returns the cached result without spawning pytest.
   - Execution state: pending
 
-- [ ] E-05 Register `aw suite` in `cli.py` and `command_surface.py` (class read-only for the cache-hit path is false because it runs a suite; declare it `mutation` like `integration-lock`, `exit_contract=(0, 1, 2)`): flags `--no-cache` (always run, still store), `--json`/`--agent` (the structured `SuiteRunResult`), `--explain` (print the key components and, on a miss, which component differs from the most recent record for the same HEAD). It refuses positional test selections, `-k` or `::` with exit 2 and the message "aw suite runs the FULL suite only; run a narrowed selection with plain python3 -m pytest", so it never becomes a slower path for quick checks. Exit code mirrors the suite (0 pass, 1 fail), 2 for refusal or an unrunnable suite.
+- [ ] E-05 Register `aw suite` in `cli.py` and `command_surface.py` as `command_class="mutation"` (it runs a suite and writes the cache; same declaration shape as `integration-lock`, `exit_contract=(0, 1, 2)`) with flags `--no-cache` (always run, still store), `--json`/`--agent` (an `aw.agent/v1` `result` record carrying the structured `SuiteRunResult`), and `--explain` (print the key component NAMES and digests and, on a miss, which component differs from the most recent record for the same HEAD). Exit code: 0 when the suite passed, 1 when it ran and did not pass (including timeout 124 and spawn failure 127, reported with the reason), 2 for a usage refusal (E-09) or a checkout that is not a git repository. The mutation conformance sweep in `tests/test_agent_surface_conformance.py` runs every `mutation` leaf with bare `--agent` in an isolated project, so `aw suite` must emit a valid record there too; ONLY if that cell cannot pass without running a real suite, add a `MUTATION_EXEMPTION_REGISTRY` entry in `tests/conformance_matrix.py` with a kind from that registry's contract and a concrete reason.
   - Depends on: E-04
-  - Expected outcome: `aw suite` runs or serves the full suite; `aw suite tests/x.py` exits 2 with the refusal text.
+  - Expected outcome: `aw suite` runs or serves the full suite; `aw suite --agent` emits one valid `aw.agent/v1` `result` record; `python3 -m pytest tests/test_command_surface_declarations.py tests/test_agent_surface_conformance.py tests/test_conformance_matrix_structure.py` passes.
   - Execution state: pending
 
 ### Task group 3: adoption by the runner and the agents
 
-- [ ] E-06 Route the runner's three seams through `run_full_suite`: `run_suite_check` (primary checkout), `start_suite_baseline`'s spawned argv (the detached baseline checkout: run `python -m agent_workflows suite --agent` there instead of bare pytest, keeping the existing `extract_failures`/`parse_summary` consumption working on its JSON), and the post-merge revalidation `suite_check` call. Each keeps its existing fail-closed semantics: a cache hit on a PASS counts as the measured verdict; a FAILURE (cached-confirmed or fresh) is still a failure; an uncacheable key just runs. Do NOT change which tree each seam measures. Record `cached: true|false` and the digest on the existing records (`attempt["suite_check"]`, the baseline record, the revalidation record) so a reader can see the reuse.
+- [ ] E-09 `aw suite` refuses a narrowed selection: any positional argument, `-k`, `-m`, or an argument containing `::` exits 2 with the message "aw suite runs the FULL suite only; run a narrowed selection with plain python3 -m pytest", runs nothing and writes no cache record, so it never becomes a slower path for quick checks.
+  - Depends on: E-05
+  - Expected outcome: `aw suite tests/x.py`, `aw suite -k x` and `aw suite t.py::test_a` each exit 2 with that text and the cache directory listing is unchanged.
+  - Execution state: pending
+
+- [ ] E-06 Route the runner's three seams through `run_full_suite`: `run_suite_check` (primary checkout), `start_suite_baseline`'s spawned argv (the detached baseline checkout: run `python -m agent_workflows suite --agent` there instead of bare pytest, keeping the existing `extract_failures`/`parse_summary` consumption working on its JSON), and the post-merge revalidation `suite_check` call. Each keeps its existing fail-closed semantics: a cache hit on a PASS counts as the measured verdict; a FAILURE is never served from cache to a seam (each seam calls `run_full_suite` with `serve_failures=False`, which treats a cached failure as a miss and RUNS), so every failure a gate acts on, and every `rerun_suite` re-check in the gate-answer follow-up, is an observed run; an uncacheable key just runs. For the baseline, the detached checkout's child prints the `--agent` record on stdout; give `SuiteBaselineRun` a small adapter so `extract_failures`/`parse_summary` receive the record's `summary` and `failures` (or, if simpler, pass the suite's own captured stdout through in the record as `output_tail`) and say which in V-06. Post-merge revalidation keeps its per-run `REVALIDATION_CACHE_KEY` tree cache in front; `run_full_suite` is the measurement behind it. Do NOT change which tree each seam measures. Record `cached: true|false` and the digest on the existing records (`attempt["suite_check"]`, the baseline record, the revalidation record) so a reader can see the reuse.
   - Depends on: E-05
   - Expected outcome: after a fast-forward integration, the next item's baseline at the new tip is served from cache (same tree), visible as `cached: true` on its record.
   - Execution state: pending
 
-- [ ] E-07 Update the execute and verify prompt templates in `runner_shared.py` (the two "Run the required tests and validation commands for this IPD" lines and the verifier's "Run and Verify Test Suite" step) to say: run narrowed checks with `python3 -m pytest <test_file>`; run the FULL suite with `aw suite` (cached when the tree has not changed, bounded worker count); paste its output. Keep the existing `{test_tool}` substitution.
+- [ ] E-07 Update the agent prompts in `runner_shared.py`: (a) the two "Run the required tests and validation commands for this IPD{test_tool}" lines, which live in `build_verifier_prompt` and `_build_audit_prompt` (each under "3. **Run and Verify Test Suite**"), and (b) the execute prompt `build_prompt`, which today carries NO test-command line (its only suite guidance is the "Run every command you need the RESULT of in the FOREGROUND" paragraph), by adding one sentence beside that paragraph. Each says: run narrowed checks with `python3 -m pytest <test_file>`; run the FULL suite with `aw suite` (cached when the tree has not changed, bounded worker count); paste its output. Keep the existing `{test_tool}` substitution.
   - Depends on: E-05
-  - Expected outcome: a rendered execute prompt and a rendered verify prompt both contain `aw suite`.
+  - Expected outcome: a rendered execute prompt (`build_prompt`), verify prompt (`build_verifier_prompt`) and audit prompt (`_build_audit_prompt`) each contain `aw suite`.
   - Execution state: pending
 
-- [ ] E-08 Tests and docs. Add `tests/test_suite_cache.py` (behavioral, P16; real `git init` fixture repos with a tiny pytest suite, `AW_NO_REEXEC=1`, `PYTHONPATH` at this checkout): key stability and sensitivity cells per E-02's expected outcome; pass stored and served (second `python -m agent_workflows suite --agent` reports `cached: true` and does not create the fixture's run-marker file the test writes from inside its test); flaky failure (a test that fails once then passes, via a marker file) is NOT stored; reproducible failure IS stored with `confirmed: true`; refusal of `tests/x.py` exits 2; worker bound (`AW_SUITE_SLOTS=3` on a stubbed `os.cpu_count()` of 12 yields `-n 4` in the recorded `worker_count`); a rendered execute prompt contains `aw suite`. Add an `aw suite` paragraph to `docs/cli-human-guide.md` and a `- Changed:` bullet to `CHANGELOG.md`; no em or en dashes.
+- [ ] E-08 Add `tests/test_suite_cache.py` (behavioral, P16; real `git init` fixture repos with a tiny pytest suite and their own `pytest.ini`, `AW_NO_REEXEC=1`, `PYTHONPATH` at this checkout, and the cache under the FIXTURE's git common dir, never this checkout's): key stability and sensitivity cells per E-02's expected outcome, including the real object count unchanged; pass stored and served (second `python -m agent_workflows suite --agent` reports `cached: true` and does not create the fixture's run-marker file the test writes from inside its test); flaky failure (a test that fails once then passes, via a marker file) is NOT stored; reproducible failure IS stored with `confirmed: true` and is NOT served to a seam call (`serve_failures=False` runs again, the marker proves it); refusal of `tests/x.py`, `-k x` and `t.py::test_a` each exit 2; worker bound (`AW_SUITE_SLOTS=3` with `os.cpu_count` patched to 12 yields `worker_count == 4`, and `-n 4` reaches the child's `PYTEST_ADDOPTS`); the rendered execute, verify and audit prompts contain `aw suite`.
   - Depends on: E-06, E-07
   - Expected outcome: the new test file passes; the stored-and-served cell fails with E-04's lookup disabled.
+  - Execution state: pending
+
+- [ ] E-10 Docs, CHANGELOG and spec sync: an `aw suite` paragraph in `docs/cli-human-guide.md` (what it caches, the key, `--no-cache`, `AW_SUITE_SLOTS`, the 14-day expiry, that a cached failure is advisory and never reaches a gate); a `- Changed:` bullet in `CHANGELOG.md`'s `## 2.0.0 (pending)` list; and a dated `aw specs note` on spec `25kzda` recording that a driver-run full suite (Section 5.1's per-lane signal and GATE 2's revalidation) may be satisfied by an exact-key cached PASS and never by a cached failure. No em or en dashes in the docs and CHANGELOG text.
+  - Depends on: E-08
+  - Expected outcome: the doc paragraph and CHANGELOG bullet exist; the spec's `## Workflow history` carries the note.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -115,11 +129,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-New `tests/test_suite_cache.py` (E-08); existing `tests/test_suite_baseline.py` and the runner suites covering `run_suite_check` and revalidation must still pass; bare suite against E-01.
+New `tests/test_suite_cache.py` (E-08); the existing seam tests must still pass: `tests/test_capture_command_contract.py` (`test_run_suite_check_consumer_contract`), `tests/test_oc_runipd.py` (including `WorktreeIsolationTests.test_integration_gate_suite_check_runs_in_primary_checkout`), `tests/test_deferred_reattempt_revalidation.py`, `tests/test_hook_and_suite_fix_it.py`, `tests/test_suite_baseline_direction.py`, `tests/test_suite_baseline_mode_gate.py` (from Order 01), and the CLI surface tests named in E-05; bare suite against E-01. (`tests/test_suite_baseline.py`, named here before review, was deleted by `19313eed7`.) Invariants: (I1) a seam never acts on a cached failure; (I2) a cached PASS needs an exact key over tree, argv, interpreter, distributions and env; (I3) the key computation writes nothing to the real index or object store; (I4) `run_suite_check` still runs in the PRIMARY checkout.
 
 ## Spec / documentation sync
 
-`docs/cli-human-guide.md` and `CHANGELOG.md` (E-08). No spec amendment: no spec governs how the suite is invoked beyond the bare-argv contract, which is preserved (worker count is not selection).
+`docs/cli-human-guide.md` and `CHANGELOG.md` (the docs E-item). Spec `25kzda` is declared in Scope-Paths and gets a dated `aw specs note` (no normative text rewritten) because Section 5.1 and GATE 2 speak of the driver "re-running the full suite"; letting an exact-key cached PASS answer that question is a change to how that contract is met, and it must be visible in the spec's history rather than discovered from code. The bare-argv contract is preserved (worker count is not selection).
 
 ## Open questions
 
@@ -127,15 +141,15 @@ New `tests/test_suite_cache.py` (E-08); existing `tests/test_suite_baseline.py` 
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: RESOLVED yes, for an exact key only. The gate's question is "is this tree green"; the key covers the tree (tracked plus untracked), the command, the interpreter, the installed packages and the behavior-changing env. The existing per-run `REVALIDATION_CACHE_KEY` already serves one measurement per tree within a run; this extends the same identity across runs. Failures are never served unless confirmed.
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED yes, for an exact key and a PASS only (a seam never acts on a cached failure, E-06). The gate's question is "is this tree green"; the key covers the tree (tracked plus untracked), the command, the interpreter, the installed packages and the behavior-changing env. The existing per-run `REVALIDATION_CACHE_KEY` already serves one measurement per tree within a run; this extends the same identity across runs. Failures are never served unless confirmed.
 
 ### OQ-02: What about tests that read state outside the key (time, network, `.aw/state`)?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: RESOLVED as an accepted, documented limit: the default selection deselects `slow` and `livecorpus`; conftest sandboxes `AW_HOME`/`XDG_CONFIG_HOME` per test; and a time-dependent test that passes once and fails later would be a flaky test regardless. `--no-cache` is the escape hatch, and stored records expire after 14 days.
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED as an accepted, documented limit (documented in the docs E-item): the default selection deselects `slow` and `livecorpus`; conftest sandboxes `AW_HOME`/`XDG_CONFIG_HOME` per test; and a time-dependent test that passes once and fails later would be a flaky test regardless. `--no-cache` is the escape hatch, and stored records expire after 14 days.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -147,7 +161,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted output of a snippet printing `suite_key(...).digest` for: a clean fixture, the same after a one-byte tracked edit, after adding an untracked test file, after adding an ignored file, and with `PYTEST_ADDOPTS` set, showing exactly the expected equal/different pattern; plus `git -C <fixture> status --short` before and after showing the real index untouched.
+  - Required evidence: pasted output of a snippet printing `suite_key(...).digest` for: a clean fixture, a second clean checkout of the same commit, the same after a one-byte tracked edit, after adding an untracked test file, after adding an ignored file, and with `PYTEST_ADDOPTS` set, showing exactly the expected equal/different pattern; plus `git -C <fixture> status --short` and the count of files under `$(git -C <fixture> rev-parse --git-path objects)` before and after, showing the real index and object store untouched.
   - Observed evidence:
   - Result: pending
 
@@ -157,33 +171,42 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted terminal output of `aw suite` twice in this checkout on an unchanged tree: the first showing pytest's header with the bounded `-n` value and its summary, the second showing the `aw suite: cached result` line, with `/usr/bin/time` elapsed for each.
+  - Required evidence: pasted terminal output of `aw suite` twice in this checkout on an unchanged tree: the first showing xdist's `created: N/N workers` line with the bounded N and the suite summary, the second showing the `aw suite: cached result` line, with `/usr/bin/time` elapsed for each (code path: `run_full_suite` lookup hit).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: pasted `aw suite --help`, `aw suite tests/test_cli.py; echo rc=$?` (refusal, rc=2), and `aw suite --explain --agent` output.
+  - Required evidence: pasted `aw suite --help`, `aw suite --explain --agent` output (one valid `aw.agent/v1` record), and the pasted passing run of the three CLI surface test files named in E-05.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: the `git diff` of the three seams, plus a test or scripted run (code path: `run_suite_check` / `start_suite_baseline` / `make_integration_validation_runner` -> `run_full_suite`) showing a record with `cached: true` for a seam measuring an already-measured tree and `cached: false` otherwise; existing seam tests passing (pasted).
+  - Required evidence: the `git diff` of the three seams, plus a test or scripted run (code path: `run_suite_check` / `start_suite_baseline` / `make_integration_validation_runner` -> `run_full_suite`) showing a record with `cached: true` for a seam measuring an already-measured PASSING tree, `cached: false` otherwise, and a seam measuring a tree with a stored confirmed FAILURE running again (`cached: false`); which baseline-consumption option was chosen; the existing seam tests named in Required tests passing (pasted).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: pasted excerpts of a rendered execute prompt and a rendered verify prompt showing the `aw suite` instruction.
+  - Required evidence: pasted excerpts of a rendered execute (`build_prompt`), verify (`build_verifier_prompt`) and audit (`_build_audit_prompt`) prompt each showing the `aw suite` instruction.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: pasted passing `python3 -m pytest tests/test_suite_cache.py`; pasted failing stored-and-served cell with the lookup disabled (then restored); pasted post-change bare suite summary with no new failing node id versus V-01; `git diff docs/cli-human-guide.md CHANGELOG.md` with no em/en dash.
+  - Required evidence: pasted passing `python3 -m pytest tests/test_suite_cache.py`; pasted failing stored-and-served cell with the lookup disabled (then restored); pasted post-change bare suite summary with no new failing node id versus V-01.
   - Observed evidence:
   - Result: pending
+- [ ] V-09 validates E-09
+  - Required evidence: pasted `aw suite tests/test_cli.py; echo rc=$?`, `aw suite -k x; echo rc=$?` and `aw suite tests/test_cli.py::x; echo rc=$?` each showing the refusal text and `rc=2`, plus `ls <git-common-dir>/aw-suite-cache/ | wc -l` before and after showing no new record; and the matching E-08 refusal cells passing.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-10 validates E-10
+  - Required evidence: `git diff docs/cli-human-guide.md CHANGELOG.md` pasted with no em/en dash (`grep -nP '[\x{2013}\x{2014}]'` over the added lines returns nothing), and the pasted new `## Workflow history` line of spec `25kzda` plus `aw specs check` output.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Ready for `/plan-review` then human approval. Depends on `9ec94f` executed. Commit only Scope-Paths via `aw commit 0o0wt2 -- <paths>`; never push; paste real output into each `V-*`.
+This plan requires explicit human approval before execution. Its open questions (OQ-01, OQ-02) are resolved. Depends on `9ec94f` executed. Run `aw ipd begin 0o0wt2` before the first edit. Scope fence: `- Scope-Paths:` declares every path this plan expects to change, including the spec it annotates; an out-of-scope edit is made and then JUSTIFIED at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`; `tests/conformance_matrix.py` may legitimately be unmodified, per E-05). Every `V-*` MUST carry the ACTUAL pasted runner output; never claim a pass that was not run. Commit only Scope-Paths via `aw commit 0o0wt2 -- <paths>`; never push. Lifecycle: under `aw oc run` / `aw agy run` the runner owns the terminal transition and the executor does NOT run `aw ipd finalize`; run by hand, finish with `aw ipd finalize 0o0wt2` once `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status: executed` and never `git mv` the file.
