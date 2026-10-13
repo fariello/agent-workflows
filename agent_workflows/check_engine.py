@@ -4969,11 +4969,11 @@ _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
 def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
-    """Shared evidence resolver (bklggrad orb9zb E-03): a resolvable close-evidence citation is a
-    SAFE, in-tree, existing artifact path under the repo's records tree (an executed IPD, a records
-    file, or another committed doc). Generalizes the specs `_evidence_resolvable` (which is
-    executed-IPD-only) so a non-IPD backlog item (README/research/prompt/check work) can be closed
-    `done` with a cited artifact. Path-traversal-safe: the resolved path must stay inside the repo.
+    """Shared evidence resolver (bklggrad orb9zb E-03): checks safety, containment,
+    existence, and records-tree location only for a close-evidence citation.
+    The backlog close predicate adds the executed-plan rule (plan ncmugb) while
+    specs._evidence_resolvable adds its own stricter executed-IPD rule.
+    Path-traversal-safe: the resolved path must stay inside the repo.
 
     NOTE: this is intentionally MORE permissive than the specs predicate (any in-tree records
     artifact, not only executed IPDs). specs' `implementing -> implemented` keeps its own stricter
@@ -4997,6 +4997,43 @@ def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
     # Accept the post-migration `.aw/records/` tree and the legacy `.agents/` records tree (plans,
     # docs, specs, etc.) so an executed IPD under either layout resolves.
     return (".aw/records/" in norm) or ("/.agents/" in norm)
+
+
+def _evidence_plan_unshipped(repo_root: Path, evidence: str) -> bool:
+    """Return True iff candidate evidence resolves inside a plans tree and is NOT an executed plan.
+
+    Computed relative to the resolved repo root:
+      - .aw/records/plans/<disposition>/... (prefix len 3)
+      - .agents/plans/<disposition>/... (prefix len 2)
+    A file whose disposition is 'executed' has shipped (including sharded archives);
+    any other disposition or a non-file (e.g. plans directory itself) is unshipped.
+    """
+    repo_root = Path(repo_root).resolve()
+    candidate = (repo_root / evidence).resolve()
+    try:
+        rel = candidate.relative_to(repo_root).parts
+    except ValueError:
+        return False
+
+    prefix_len: Optional[int] = None
+    if len(rel) >= 3 and rel[:3] == (".aw", "records", "plans"):
+        prefix_len = 3
+    elif len(rel) >= 2 and rel[:2] == (".agents", "plans"):
+        prefix_len = 2
+
+    if prefix_len is None:
+        return False
+
+    # A non-file (such as a plans directory itself) is unshipped
+    if not candidate.is_file():
+        return True
+
+    # If there is no disposition component under the plans root
+    if len(rel) <= prefix_len:
+        return True
+
+    disposition = rel[prefix_len]
+    return disposition != "executed"
 
 
 def _iter_plan_ipds(repo_root: Path):
@@ -5751,6 +5788,23 @@ def evaluate_blocking_close(
         if effective_evidence and resolve_evidence_artifact(
             repo_root, effective_evidence
         ):
+            if _evidence_plan_unshipped(repo_root, effective_evidence):
+                return CloseVerdict(
+                    False,
+                    "error",
+                    (
+                        f"cited evidence {effective_evidence!r} names a plan that has not shipped "
+                        f"(is not in executed/)"
+                    ),
+                    (
+                        "cite the plan once it is executed",
+                        "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
+                        "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
+                        "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
+                        "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
+                    ),
+                    None,
+                )
             return CloseVerdict(
                 True,
                 "ok",
@@ -5773,7 +5827,7 @@ def evaluate_blocking_close(
                 ),
                 (
                     f"aw backlog set {item_id6 or '<item>'} --status graduated (keep the item as a release blocker until the plan executes)",
-                    "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`",
+                    "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
                     "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
                 ),
                 None,
@@ -5789,7 +5843,7 @@ def evaluate_blocking_close(
             (
                 "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
                 "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
-                "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`",
+                "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
                 "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
             ),
             None,
