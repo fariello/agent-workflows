@@ -1,5 +1,5 @@
 - Id: 2wkzf7
-- Status: graduated
+- Status: done
 - Graduated-To: 2wkzf7
 - Set: 2wkzf7
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Give an implementing spec with uncited non-deferred requirement ids a plan-writing turn before running its children
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 2hgxi1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-2wkzf7-01-2hgxi1-give-an-implementing-spec-with-uncited-non-deferred-trace-id.ipd.md); evidence .aw/records/plans/executed/20261012-2wkzf7-01-2hgxi1-give-an-implementing-spec-with-uncited-non-deferred-trace-id.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 2hgxi1
 - 2026-10-09 created (aw backlog): Give an implementing spec with uncited non-deferred requirement ids a plan-writing turn before running its children
 
