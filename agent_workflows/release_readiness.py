@@ -237,17 +237,91 @@ def gate_full_suite(
     )
 
 
-def gate_generated_drift(drift_files: Sequence[str] = ()) -> GateResult:
-    """No generated/compiler drift: the drift set must be empty."""
-    drift = list(drift_files)
-    return GateResult(
-        name="generated_drift",
-        passed=not drift,
-        detail="no generated/compiler drift"
-        if not drift
-        else f"{len(drift)} drifted file(s)",
-        evidence={"drift_files": drift},
-    )
+def gate_generated_drift(
+    drift_files: Optional[Sequence[str]] = None,
+    repo_root: Optional[Path] = None,
+) -> GateResult:
+    """No generated/compiler drift: the drift set must be empty.
+
+    When ``drift_files`` is None (the default), computes drift across canonical
+    workflow packages under ``.aw/system/workflows`` via :mod:`workflow_loader`,
+    :mod:`workflow_compiler`, and :func:`workflow_cli._compute_drift`. Explicit
+    injection (including an empty sequence) bypasses filesystem inspection.
+    """
+    if drift_files is not None:
+        drift = [str(f) for f in drift_files]
+        return GateResult(
+            name="generated_drift",
+            passed=not drift,
+            detail="no generated/compiler drift"
+            if not drift
+            else f"{len(drift)} drifted file(s)",
+            evidence={"drift_files": drift},
+        )
+
+    root = repo_root or _repo_root()
+    wf_rel = ".aw/system/workflows"
+    wf_dir = root / ".aw" / "system" / "workflows"
+    if not wf_dir.is_dir():
+        return GateResult(
+            name="generated_drift",
+            passed=False,
+            detail=f"workflow packages tree missing or not a directory: {wf_rel}",
+            evidence={"missing": True, "path": wf_rel, "drift_files": []},
+        )
+
+    try:
+        from agent_workflows import workflow_compiler, workflow_loader
+        from agent_workflows.workflow_cli import _compute_drift
+
+        yaml_paths = sorted(wf_dir.glob("*/workflow.yaml"))
+        packages_checked = len(yaml_paths)
+        if packages_checked == 0:
+            return GateResult(
+                name="generated_drift",
+                passed=True,
+                detail="no canonical workflow packages to check",
+                evidence={"packages_checked": 0, "drift_files": []},
+            )
+
+        drift: List[str] = []
+        for yp in yaml_paths:
+            pkg_dir = yp.parent
+            pkg_name = pkg_dir.name
+            res = workflow_loader.load_package(pkg_dir)
+            if not res.ok or res.ir is None:
+                if res.findings:
+                    for f in res.findings:
+                        drift.append(f"{pkg_name}: load failed: {f.code}")
+                else:
+                    drift.append(f"{pkg_name}: load failed: unknown")
+                continue
+
+            compiled = workflow_compiler.compile_workflow(res.ir)
+            expected = workflow_compiler.render_generated_files(compiled)
+            diffs = _compute_drift(Path(res.ir["source_root"]), expected)
+            for kind, rel in diffs:
+                drift.append(f"{pkg_name}/{rel}: {kind}")
+
+        passed = not drift
+        return GateResult(
+            name="generated_drift",
+            passed=passed,
+            detail="no generated/compiler drift"
+            if passed
+            else f"{len(drift)} drifted file(s)",
+            evidence={
+                "packages_checked": packages_checked,
+                "drift_files": drift,
+            },
+        )
+    except Exception as exc:
+        return GateResult(
+            name="generated_drift",
+            passed=False,
+            detail=f"generated drift check could not run: {type(exc).__name__}",
+            evidence={"error": type(exc).__name__, "drift_files": []},
+        )
 
 
 def gate_docs_checks(
@@ -302,34 +376,161 @@ def gate_docs_checks(
     )
 
 
-def gate_workflow_disposition(undispositioned: Sequence[str] = ()) -> GateResult:
-    """Every workflow has a complete disposition: none left undispositioned."""
-    undone = list(undispositioned)
-    return GateResult(
-        name="workflow_disposition",
-        passed=not undone,
-        detail="all workflows dispositioned"
-        if not undone
-        else f"{len(undone)} undispositioned",
-        evidence={"undispositioned": undone},
-    )
+def gate_workflow_disposition(
+    undispositioned: Optional[Sequence[str]] = None,
+    repo_root: Optional[Path] = None,
+) -> GateResult:
+    """Every workflow has a complete disposition: none left undispositioned.
+
+    When ``undispositioned`` is None (the default), computes the undispositioned
+    set from :func:`migration_inventory.build_inventory` against ``.aw/system/workflows``.
+    Explicit injection (including an empty sequence) bypasses filesystem inspection.
+    """
+    if undispositioned is not None:
+        undone = [str(f) for f in undispositioned]
+        return GateResult(
+            name="workflow_disposition",
+            passed=not undone,
+            detail="all workflows dispositioned"
+            if not undone
+            else f"{len(undone)} undispositioned",
+            evidence={"undispositioned": undone},
+        )
+
+    root = repo_root or _repo_root()
+    wf_rel = ".aw/system/workflows"
+    wf_dir = root / ".aw" / "system" / "workflows"
+    if not wf_dir.is_dir():
+        return GateResult(
+            name="workflow_disposition",
+            passed=False,
+            detail=f"workflow packages tree missing or not a directory: {wf_rel}",
+            evidence={"missing": True, "path": wf_rel, "undispositioned": []},
+        )
+
+    try:
+        from agent_workflows import migration_inventory
+
+        try:
+            result = migration_inventory.build_inventory(wf_dir)
+        except migration_inventory.InventoryError as err:
+            undone = [str(err)]
+            return GateResult(
+                name="workflow_disposition",
+                passed=False,
+                detail=f"{len(undone)} undispositioned",
+                evidence={"undispositioned": undone},
+            )
+
+        undone = [str(f) for f in result.findings]
+        passed = not undone
+        return GateResult(
+            name="workflow_disposition",
+            passed=passed,
+            detail="all workflows dispositioned"
+            if passed
+            else f"{len(undone)} undispositioned",
+            evidence={
+                "undispositioned": undone,
+                "dispositions": len(result.dispositions),
+            },
+        )
+    except (SystemExit, Exception) as exc:
+        return GateResult(
+            name="workflow_disposition",
+            passed=False,
+            detail=f"workflow disposition check could not run: {type(exc).__name__}",
+            evidence={"error": type(exc).__name__, "undispositioned": []},
+        )
 
 
-def gate_capability_freshness(stale_claims: Sequence[str] = ()) -> GateResult:
+def gate_capability_freshness(
+    stale_claims: Optional[Sequence[str]] = None,
+    repo_root: Optional[Path] = None,
+) -> GateResult:
     """Capability evidence is fresh: no expired/stale supported claim.
 
-    A stale supported claim is a release blocker (documented support must render only proven,
-    unexpired evidence). An empty stale set passes.
+    When ``stale_claims`` is None (the default), loads the host matrix from
+    ``.aw/system/workflows/conformance/tools/host_matrix.json`` under ``repo_root``,
+    evaluating every claimed support boolean via :class:`HostCapabilityRegistry`.
+    Explicit injection (including an empty sequence) bypasses filesystem inspection.
     """
-    stale = list(stale_claims)
-    return GateResult(
-        name="capability_freshness",
-        passed=not stale,
-        detail="no stale capability claims"
-        if not stale
-        else f"{len(stale)} stale claim(s)",
-        evidence={"stale_claims": stale},
+    if stale_claims is not None:
+        stale = [str(f) for f in stale_claims]
+        return GateResult(
+            name="capability_freshness",
+            passed=not stale,
+            detail="no stale capability claims"
+            if not stale
+            else f"{len(stale)} stale claim(s)",
+            evidence={"stale_claims": stale},
+        )
+
+    root = repo_root or _repo_root()
+    matrix_rel = ".aw/system/workflows/conformance/tools/host_matrix.json"
+    matrix_file = (
+        root
+        / ".aw"
+        / "system"
+        / "workflows"
+        / "conformance"
+        / "tools"
+        / "host_matrix.json"
     )
+    if not matrix_file.is_file():
+        return GateResult(
+            name="capability_freshness",
+            passed=False,
+            detail=f"capability matrix missing: {matrix_rel}",
+            evidence={"missing": True, "path": matrix_rel, "stale_claims": []},
+        )
+
+    try:
+        from agent_workflows import host_capability_registry as hcr
+
+        data = hcr.load_host_matrix(matrix_file)
+        reg = hcr.HostCapabilityRegistry()
+        reg.migrate_from_static_matrix(data)
+
+        stale: List[str] = []
+        claims_checked = 0
+        hosts_dict = data.get("hosts", {}) if isinstance(data, dict) else {}
+        for host in sorted(hosts_dict.keys()):
+            host_info = hosts_dict[host]
+            if not isinstance(host_info, dict):
+                continue
+            for feat in sorted(host_info.keys()):
+                feat_val = host_info[feat]
+                if isinstance(feat_val, dict) and feat_val.get("supported") is True:
+                    claims_checked += 1
+                    eval_res = reg.query_capability(
+                        host=host, exact_version="1.0.0", feature=feat
+                    )
+                    if not eval_res.is_supported:
+                        reason = (
+                            eval_res.reasons[0] if eval_res.reasons else "unverified"
+                        )
+                        stale.append(f"{host}:{feat}: {reason}")
+
+        passed = not stale
+        return GateResult(
+            name="capability_freshness",
+            passed=passed,
+            detail="no stale capability claims"
+            if passed
+            else f"{len(stale)} stale claim(s)",
+            evidence={
+                "stale_claims": stale,
+                "claims_checked": claims_checked,
+            },
+        )
+    except Exception as exc:
+        return GateResult(
+            name="capability_freshness",
+            passed=False,
+            detail=f"capability freshness check could not run: {type(exc).__name__}",
+            evidence={"error": type(exc).__name__, "stale_claims": []},
+        )
 
 
 def gate_benchmark_thresholds(
@@ -431,10 +632,10 @@ def build_report(
     *,
     suite_passed: bool,
     suite_counts: Optional[Dict[str, int]] = None,
-    drift_files: Sequence[str] = (),
+    drift_files: Optional[Sequence[str]] = None,
     doc_findings: Optional[Sequence[str]] = None,
-    undispositioned: Sequence[str] = (),
-    stale_claims: Sequence[str] = (),
+    undispositioned: Optional[Sequence[str]] = None,
+    stale_claims: Optional[Sequence[str]] = None,
     threshold_policy: Optional[bt.ThresholdPolicy] = None,
     manifest_present: bool = True,
     manifest_consistent: bool = True,
@@ -457,10 +658,10 @@ def build_report(
         gates.append(gate_ipd_lint(repo_root))
     gates.extend(
         [
-            gate_generated_drift(drift_files),
+            gate_generated_drift(drift_files, repo_root=repo_root),
             gate_docs_checks(doc_findings, repo_root=repo_root),
-            gate_workflow_disposition(undispositioned),
-            gate_capability_freshness(stale_claims),
+            gate_workflow_disposition(undispositioned, repo_root=repo_root),
+            gate_capability_freshness(stale_claims, repo_root=repo_root),
             gate_benchmark_thresholds(threshold_policy),
             gate_changelog_versioning(repo_root),
             gate_artifact_manifest(manifest_present, manifest_consistent),

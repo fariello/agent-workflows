@@ -15,6 +15,7 @@ import pytest
 
 from agent_workflows import benchmark_thresholds as bt
 from agent_workflows import release_readiness as rr
+from tests.test_release_readiness_producers import setup_minimal_workflows_tree
 
 
 # ==================================================================================================
@@ -324,6 +325,7 @@ def _build_synthetic_root(tmp_path: Path) -> Path:
     vdir.mkdir(parents=True, exist_ok=True)
     (vdir / "VERSION").write_text("1.0.0\n", encoding="utf-8")
     (root / "docs").mkdir(parents=True, exist_ok=True)
+    setup_minimal_workflows_tree(root)
     return root
 
 
