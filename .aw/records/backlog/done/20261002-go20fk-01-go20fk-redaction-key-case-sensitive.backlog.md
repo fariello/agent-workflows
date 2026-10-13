@@ -1,5 +1,5 @@
 - Id: go20fk
-- Status: graduated
+- Status: done
 - Graduated-To: go20fk
 - Set: go20fk
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: RedactionPolicy sensitive-key match is case-sensitive, so an uppercase secret key is never masked
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD pbl020 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-go20fk-01-pbl020-case-fold-redactionpolicy-sensitive-key-matching.ipd.md); evidence .aw/records/plans/executed/20261012-go20fk-01-pbl020-case-fold-redactionpolicy-sensitive-key-matching.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: pbl020
 - 2026-10-02 created (aw backlog): filed from mflqqf plan authoring; measured at HEAD 4fbbc8386
 
