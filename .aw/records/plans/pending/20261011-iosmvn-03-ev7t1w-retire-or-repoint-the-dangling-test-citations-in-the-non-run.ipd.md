@@ -277,21 +277,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-04 validates E-04
   - Required evidence: pasted `AST-DIFFER []` with the `<rev>` used, and the bare `python3 -m pytest` summary line (stated run with no added flags); for any failure, the pasted pre-existence re-run at E-01 HEAD.
   - Observed evidence:
-    AST check against starting HEAD `7a99736fc6a6f94f185db517355f8beb3b2933a2`:
+    AST-equivalence command against starting HEAD `7a99736fc6a6f94f185db517355f8beb3b2933a2` (canonical command from Step 0 Project conventions with docstrings blanked):
     ```sh
-    python3 -c "
-    import ast, sys, subprocess
-    from pathlib import Path
-    rev = sys.argv[1]
-    differ = []
-    for p in sys.argv[2:]:
-        head_src = subprocess.check_output(['git', 'show', f'{rev}:{p}'], text=True)
-        head_ast = ast.dump(ast.parse(head_src))
-        cur_ast = ast.dump(ast.parse(Path(p).read_text()))
-        if head_ast != cur_ast:
-            differ.append(p)
-    print(f'AST-DIFFER {differ}')
-    " 7a99736fc6a6f94f185db517355f8beb3b2933a2 agent_workflows/artifact_core.py agent_workflows/artifact_naming.py agent_workflows/artifact_types.py agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/cli.py agent_workflows/ipd_lifecycle.py agent_workflows/lane_containment.py agent_workflows/plan_readiness.py agent_workflows/plans.py agent_workflows/prompts.py agent_workflows/pwatch.py agent_workflows/render_stream.py agent_workflows/run_cli.py agent_workflows/runner_profile_wizard.py agent_workflows/selectors.py agent_workflows/work_cmd.py
+    python3 -c "import ast,subprocess,sys
+    def norm(src):
+     t=ast.parse(src)
+     for n in ast.walk(t):
+      b=getattr(n,'body',None)
+      if isinstance(b,list) and b and isinstance(b[0],ast.Expr) and isinstance(getattr(b[0],'value',None),ast.Constant) and isinstance(b[0].value.value,str): b[0].value.value=''
+     return ast.dump(t)
+    r=sys.argv[1];bad=[f for f in sys.argv[2:] if norm(subprocess.check_output(['git','show',r+':'+f],text=True))!=norm(open(f).read())];print('AST-DIFFER',bad)" 7a99736fc6a6f94f185db517355f8beb3b2933a2 agent_workflows/artifact_core.py agent_workflows/artifact_naming.py agent_workflows/artifact_types.py agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/cli.py agent_workflows/ipd_lifecycle.py agent_workflows/lane_containment.py agent_workflows/plan_readiness.py agent_workflows/plans.py agent_workflows/prompts.py agent_workflows/pwatch.py agent_workflows/render_stream.py agent_workflows/run_cli.py agent_workflows/runner_profile_wizard.py agent_workflows/selectors.py agent_workflows/work_cmd.py
     ```
     Output:
     ```
@@ -300,7 +295,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Bare suite run:
     ```
     $ python3 -m pytest
-    8242 passed, 4 skipped, 18 xfailed, 3 warnings in 668.84s (0:11:08)
+    8242 passed, 4 skipped, 18 xfailed, 3 warnings in 666.98s (0:11:06)
     ```
     (Zero test failures; 292 slow/livecorpus tests deselected by default marker filter).
   - Result: pass
