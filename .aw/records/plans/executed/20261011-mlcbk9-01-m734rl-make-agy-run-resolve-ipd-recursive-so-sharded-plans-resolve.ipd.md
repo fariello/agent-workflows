@@ -6,7 +6,7 @@
 - Scope: Give plans ONE canonical "which files are plans" enumerator, `plans_index.plan_files(plans_dir)`, extracted from the recursive, ignored-path-filtered, `_EXCLUDE_NAMES`-skipping walk `plans_index.scan_plans` already performs, make `scan_plans` consume it (behavior unchanged), and make `agy_run._candidate_plans` delegate to it, keeping only files whose top-level disposition is in the requested states and that lie inside the repository root. Add a collected behavioral test module under `tests/`. Does NOT change the matching semantics, either error message, the `direct.is_file()` early return, the function signatures, any caller, or `resolve_spec`.
 - Scope-Paths: agent_workflows/agy_run.py, agent_workflows/plans_index.py, tests/test_agy_run_resolve_ipd_recursive.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: m734rl
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: m734rl verified (set mlcbk9, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD 7e9129224. Duplicate id6 across a shard measured to silently misresolve at base, so E-02 (8) split into red (8a) with its own id6 and green (8b); ambiguity renderer fixed to relative_to(root.resolve()); plan_files takes optional ignored_dirs; exclude written before first resolver call (lru_cache); base bare-suite run moved into E-01. Record: .aw/records/reviews/20261011-mlcbk9-01-m734rl-make-agy-run-resolve-ipd-recursive-so-sharded-plans-resolve.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
