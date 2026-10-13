@@ -6,7 +6,8 @@
 - Scope: Fix the one call site so the gate receives `edge.id6`, correct the comment that describes it, and add behavioral regression tests that drive `dependency_status_detailed` against a temp repo carrying a real `.review.md` record.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_findings_dependency_gate.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: bs850k
@@ -18,7 +19,9 @@
 - Id: k81fqx
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Re-measured at HEAD 559173a5c: defect reproduces for executed:<id6> out of queue and in queue (both admitted with a HIGH OPEN finding), the fix blocks both; bare-id6 already blocked pre-fix, so case (b) is now characterization; fixture must carry ### Findings or it passes vacuously; corpus 10 gating subjects, 0 pending dependents; Deferred rows carry Carrier-Declined.
 - 2026-10-12 draft (opencode/its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `bs850k`; defect reproduced end to end on this lane's HEAD before writing.
 
@@ -39,16 +42,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Behavioral regression tests
 
-- [ ] E-02 Add `tests/test_runner_findings_dependency_gate.py` that builds a temp repo (a `.aw/records/plans/executed/` IPD `- Id: dep001`, `- Status: executed`, plus a `.aw/records/reviews/` record `- Subject-Id: dep001` carrying one finding) and calls `runner_shared.dependency_status_detailed` directly, asserting on its returned `(satisfied, unsatisfied, reasons)`. Cases: (a) OUT-OF-QUEUE execute item, dependency `executed:dep001`, HIGH finding decided OPEN -> `satisfied` False, `unsatisfied == ['executed:dep001']`, and the reason names `dep001` and the finding id; (b) the same with the dependency declared as the bare id6 `dep001` -> blocked identically; (c) IN-QUEUE dependency (queue entry `dep001` with run status `executed`) -> blocked identically, proving the gate is not evadable by queue membership; (d) the same finding decided FIXED -> satisfied; (e) the dependent's `action` is `review` -> satisfied (review items are deliberately not findings-gated); (f) a LOW finding OPEN under the default `high` threshold -> satisfied; (g) no review record at all -> satisfied. Every case asserts on returned values only; no test reads source, inspects AST, or pins comment text.
+- [ ] E-02 Add `tests/test_runner_findings_dependency_gate.py` that builds a temp repo (a `.aw/records/plans/executed/` IPD `- Id: dep001`, `- Status: executed`, plus a `.aw/records/reviews/` record `- Subject-Id: dep001` whose `## Round 1` carries a `### Findings` heading above the findings table, because `review_findings.parse_review_text` attributes table rows to Findings only under that heading and a table without it parses to ZERO findings, which would make every blocked case vacuously pass as satisfied; prefer writing the record through `review_findings.render_review`/`write_review` so the fixture cannot drift from the parser) and calls `runner_shared.dependency_status_detailed` directly, asserting on its returned `(satisfied, unsatisfied, reasons)`. Test names are non-binding pointers; the bar is the behavior each case pins. Cases: (a) OUT-OF-QUEUE execute item, dependency `executed:dep001`, HIGH finding decided OPEN -> `satisfied` False, `unsatisfied == ['executed:dep001']`, and the reason names `dep001` and the finding id; (b) the same with the dependency declared as the bare id6 `dep001` -> blocked, with `unsatisfied == ['dep001']` (a CHARACTERIZATION case: it already blocks before E-01, because the `or dep` fallback hands over the raw token, which for a bare id6 IS the id6; it pins that E-01 does not regress the bare form); (c) IN-QUEUE dependency (queue entry `dep001` with run status `executed`) -> blocked identically, proving the gate is not evadable by queue membership; (d) the same finding decided FIXED -> satisfied; (e) the dependent's `action` is `review` -> satisfied (review items are deliberately not findings-gated); (f) a LOW finding OPEN under the default `high` threshold -> satisfied; (g) no review record at all -> satisfied. Every case asserts on returned values only; no test reads source, inspects AST, or pins comment text.
   - Depends on: E-01
-  - Expected outcome: the module exists, cases (a) (b) (c) FAIL on the pre-fix code (shown by running them against a checkout without E-01, or by reverting E-01 locally and re-running before restoring it) and all seven PASS with E-01 applied.
+  - Expected outcome: the module exists, cases (a) and (c) FAIL on the pre-fix code (shown by reverting E-01 locally and re-running before restoring it) while (b) passes both before and after, and all seven PASS with E-01 applied. A fixture sanity assertion (`review_findings.subject_gating_blocks(repo, 'dep001')` non-empty in the blocked cases) guards against the vacuous-pass trap described above.
   - Execution state: pending
 
 ### Task group 3: Corpus impact check
 
 - [ ] E-03 Re-measure on this repository, after E-01, how many pending/approved plans the now-live gate newly blocks: enumerate every `.review.md` subject with a non-empty `review_findings.subject_gating_blocks(repo, id6)` and every pending plan whose `- Item-Dependencies:` names one of them. Record both counts and the list in the plan's Findings drift note. If the plan list is non-empty, do not weaken the gate: record the affected plans by id6 so the maintainer sees which dependents are now (correctly) held.
   - Depends on: E-01
-  - Expected outcome: a pasted count of gating subjects and of newly blocked pending dependents (authoring measurement: 10 and 0, see F-05).
+  - Expected outcome: a pasted count of gating subjects and of newly blocked pending dependents, re-derived at execution (authoring and review measurement: 10 and 0, see F-05; that number is context, not the bar).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -70,6 +73,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | **ONE DEFINITION, BOTH HOSTS.** `rg "def dependency_status_detailed" agent_workflows` finds only `runner_shared.py`; `oc_runipd` and `agy_runipd` import it as `dependency_status_detailed as dependency_status_detailed`. Other `dependency_target_id6` callers in the module pass `str(dep)` and are correct. | `rg -n "dependency_target_id6\(" agent_workflows/runner_shared.py` lists the faulty call plus two `dependency_target_id6(str(dep))` calls. |
 | F-05 | **BLAST RADIUS IS SMALL TODAY.** Of 927 `.review.md` records (923 distinct subjects), 10 subjects currently return a non-empty `subject_gating_blocks` (`2j4pd0`, `32ij2j`, `62pkkg`, `9iiqmm`, `a6i03f`, `d5ntkj`, `g1w58u`, `obyhrm`, `p47qfu`, `xtklpd`), and 0 pending plans declare an `- Item-Dependencies:` edge to any of them. Turning the gate on therefore newly blocks nothing in the current queue; E-03 re-measures at execution time because the corpus moves. | Script over `review_findings.iter_review_files(repo)` and `.aw/records/plans/pending/*.ipd.md` on this lane at authoring time. |
 | F-06 | **NO EXISTING TEST COVERS THE FIRING CASE.** `rg "_findings_block_reason\|subject_gating_blocks" tests/*.py` finds only `tests/test_spec_review_attestation.py` (the empty-repo case) and render tests in `tests/test_dependency_block_reporting.py` that synthesize a `GatingBlock` reason directly rather than producing one through `dependency_status_detailed`. That is why the dead gate went unnoticed. | The `rg` named, run on this lane. |
+| F-08 | **ADDED AT REVIEW: THE BARE-ID6 FORM ALREADY BLOCKS, AND A HEADING-LESS FIXTURE PASSES VACUOUSLY.** Re-driven at review HEAD `559173a5c` against a temp repo: with a review record lacking `### Findings`, `subject_gating_blocks(repo, 'dep001')` returned `()` and every case read satisfied. With the heading: `subject_gating_blocks(repo,'dep001')` -> one `GatingBlock(finding_id='PR-001', severity='high', decision='open')`; pre-fix `dependency_status_detailed` returned `(True, [], {})` for `executed:dep001` out of queue AND in queue, but `(False, ['dep001'], {'dep001': 'dep001: review finding PR-001 is high/open and unresolved'})` for bare `dep001`; with `edge.id6` substituted all three block and a `review` item stays `(True, [], {})`. | Review probe in this lane, monkeypatching `dependency_target_id6` to return `edge.id6`. |
 | F-07 | **NO AST-PINNING FIXTURE BLOCKS THE EDIT.** `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json` contains a fingerprint for `dependency_status_detailed`, but no test or module references that fixture by name (`rg -n "runnerlayer_rehomed_premove" agent_workflows tests --glob '!*.json'` is empty), so it is a retained historical record and not a live assertion. | The `rg` named, run on this lane. |
 
 ## Proposed changes (ordered, validatable)
@@ -81,8 +85,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Hardening `dependency_target_id6` to accept an `ItemDependency` as well as a string: not needed once the only mis-typed caller passes `edge.id6`, and widening a typed helper to paper over a caller error would hide the next such mistake. Out of scope.
+  - Carrier-Declined: deliberately rejected; the caller fix removes the only mis-typed call (F-04).
 - `_findings_block_reason`'s fail-open-on-exception posture: deliberate per revgate `7nkcgp` ("a crashing gate is a disabled gate"); unchanged.
+  - Carrier-Declined: settled by revgate `7nkcgp`; no change wanted.
 - Any change to `review_findings.subject_gating_blocks` or the threshold config: they behave correctly (F-02); the defect is solely in the caller.
+  - Carrier-Declined: no defect exists there (F-02, F-08).
 
 ## Scope check
 
@@ -91,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v`, showing all seven cases by name passing, plus evidence that cases (a)-(c) fail without E-01.
+- `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v`, showing all seven cases by name passing, plus evidence that cases (a) and (c) fail without E-01 while (b) passes either way.
 - `python3 -m pytest -o addopts="" tests/test_dependency_block_reporting.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_orchestrator_retirement.py tests/test_hostcapgate_execute_requirement.py` (the existing consumers of `dependency_status_detailed`), passing.
 - The bare full suite `python3 -m pytest`, with the executor re-deriving the pre-change baseline on its own HEAD and showing no new failures.
 - `aw ipd lint <this plan> --phase pre-transition` conforming.
@@ -114,7 +121,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v` showing all seven cases (a)-(g) passing by name; pasted output of the same run with E-01 reverted showing cases (a), (b), (c) FAILING; pasted output of the existing-consumer test files listed under Required tests passing; and the pasted summary line of a bare `python3 -m pytest` with no failures beyond the executor's re-derived baseline.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_runner_findings_dependency_gate.py -v` showing all seven cases (a)-(g) passing by name; pasted output of the same run with E-01 reverted showing cases (a) and (c) FAILING and (b) passing, then `git diff --stat` after restoring E-01 showing no residue; pasted output of the existing-consumer test files listed under Required tests passing; and the pasted summary line of a bare `python3 -m pytest` with no failures beyond the executor's re-derived baseline.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -127,6 +134,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is NOT approved for execution by its authoring. It carries `- Status: to-review` and requires `/plan-review` and then explicit human approval before any execution turn; no `- Readiness:` field is written, because that field is an output of review.
+This plan is NOT approved for execution by its authoring or its review: it requires explicit human approval before any execution turn. Open questions: none.
 
 An executor must: honor the two declared `- Scope-Paths:` exactly; commit only the paths it changed, through `aw commit <plan> -- <paths>`, and never push; run the validation plan above and PASTE ACTUAL OUTPUT rather than claiming success; and not weaken the gate if E-03 finds newly blocked dependents. Under `aw oc run` / `aw agy run` the RUNNER owns `aw ipd begin`/`aw ipd finalize` and the executor must NOT run them; it leaves every `V-*` at `Result: pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforming. Executed by hand with no runner, the executor performs the terminal transition through `aw ipd finalize`, never a hand-rolled `git mv`, and only once that same bar is met. SCOPE FENCE: an out-of-scope edit that proves necessary is justified with `--scope-reason` at finalize, and a declared path left unmodified needs `--scope-ack`.
