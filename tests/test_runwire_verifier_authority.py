@@ -20,6 +20,7 @@ import pytest
 from agent_workflows import (
     agy_runipd,
     agy_verifier,
+    host_sandbox_profile,
     oc_runipd,
     render_stream,
     run_selection_policy,
@@ -97,8 +98,8 @@ def _drive_execute_turn(
         "_test_spawns": spawns,
     }
     if freeze_host_capabilities:
-        # Backlog qkzet8: frozen descriptor keeps the preflight from re-probing
-        # on demand under a mutated guard.
+        # Backlogs qkzet8 and 4dktme: frozen descriptor keeps the preflight
+        # from re-probing on demand under a mutated guard.
         state["host_capabilities"] = {
             "descriptor": {
                 "supports_fresh_verifier_session": True,
@@ -443,33 +444,54 @@ def test_collision_guard_bites_by_mutation(
     """E-04 / V-04: Mutation check - removing distinct session check causes collision test to fail."""
     _setup_test_repo(tmp_path)
 
-    # 1. Normal run with collision -> refuses
-    _, item_normal, _ = _drive_execute_turn(
-        tmp_path,
-        driver_module=oc_runipd,
-        host_labels=runner_shared.OC_HOST_LABELS,
-        exec_session="mut-sess",
-        verify_session="mut-sess",
-    )
-    assert item_normal["verification_status"] == runner_shared.VERIFY_DISP_UNVERIFIED
+    forced = {
+        host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION: (
+            True,
+            "4dktme: isolate verify-site guard from probe",
+        )
+    }
+    with host_sandbox_profile.forced_runner_safety_verdicts(forced):
+        # 1. Normal run with collision -> refuses
+        _, item_normal, _ = _drive_execute_turn(
+            tmp_path,
+            driver_module=oc_runipd,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            exec_session="mut-sess",
+            verify_session="mut-sess",
+        )
+        assert (
+            item_normal["verification_status"] == runner_shared.VERIFY_DISP_UNVERIFIED
+        )
 
-    # 2. Mutated run: disable assert_distinct_sessions
-    from agent_workflows import agy_verifier
+        # 2. Mutated run: disable assert_distinct_sessions
+        monkeypatch.setattr(
+            agy_verifier, "assert_distinct_sessions", lambda exec_s, verif_s: None
+        )
 
-    monkeypatch.setattr(
-        agy_verifier, "assert_distinct_sessions", lambda exec_s, verif_s: None
-    )
+        _, item_mutated, _ = _drive_execute_turn(
+            tmp_path,
+            driver_module=oc_runipd,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            exec_session="mut-sess",
+            verify_session="mut-sess",
+        )
 
-    _, item_mutated, _ = _drive_execute_turn(
-        tmp_path,
-        driver_module=oc_runipd,
-        host_labels=runner_shared.OC_HOST_LABELS,
-        exec_session="mut-sess",
-        verify_session="mut-sess",
-    )
-    # Under mutation, the guard does NOT bite and the item incorrectly passes as verified!
-    assert item_mutated["verification_status"] == runner_shared.VERIFY_DISP_VERIFIED
-    assert item_mutated["attempts"][-1].get("verification_refused") is None
+        for attempt in item_mutated.get("attempts", []):
+            assert (
+                "host_capability_unavailable" not in attempt
+            ), "4dktme: mutated item unexpectedly refused by host capability preflight"
+        refusal = render_stream.refusal_of_item(item_mutated)
+        assert (
+            refusal is None
+            or refusal.code != run_selection_policy.SKIP_HOST_CAPABILITY_UNAVAILABLE
+        ), f"4dktme: mutated item refused by preflight: {refusal}"
+
+        # Under mutation, the guard does NOT bite and the item incorrectly passes as verified!
+        assert (
+            item_mutated.get("verification_status")
+            == runner_shared.VERIFY_DISP_VERIFIED
+        )
+        assert item_mutated["attempts"][-1].get("verification_refused") is None
 
 
 def test_host_verifier_gating_defaults_measured():
@@ -533,6 +555,29 @@ def test_disabled_distinct_session_guard_unmutated_control(tmp_path: Path):
     assert (
         state["host_capabilities"]["descriptor"]["supports_fresh_verifier_session"]
         is True
+    )
+
+
+# ==============================================================================
+# IPD jo55oo (backlog 4dktme): Probe detects disabled distinct session guard
+# ==============================================================================
+
+
+def test_fresh_verifier_probe_detects_disabled_distinct_session_guard(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Backlog 4dktme: Probe fails closed when distinct-session guard is disabled."""
+    # 1. Unmutated control: unforced probe reports fresh-verifier capability True
+    verdicts, _ = host_sandbox_profile.probe_runner_safety_capabilities()
+    assert verdicts[host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION] is True
+
+    # 2. Mutated run: disabled distinct session guard makes probe report False
+    monkeypatch.setattr(agy_verifier, "assert_distinct_sessions", lambda e, v: None)
+    verdicts_mut, notes_mut = host_sandbox_profile.probe_runner_safety_capabilities()
+    assert verdicts_mut[host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION] is False
+    assert (
+        "ACCEPTED a reused session identity"
+        in notes_mut[host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION]
     )
 
 
