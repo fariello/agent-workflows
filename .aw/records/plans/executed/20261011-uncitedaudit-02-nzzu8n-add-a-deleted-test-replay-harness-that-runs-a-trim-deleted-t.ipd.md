@@ -6,7 +6,7 @@
 - Scope: IN: a new `tools/deleted_test_replay.py` that, given a commit and one or more deleted test paths, materializes each blob from `<commit>^:<path>` at `<path>` inside a fresh detached worktree of `HEAD` under `tempfile.mkdtemp()` (never inside the invoking checkout's tree), runs it with `python3 -m pytest -o addopts="" -q -p no:cacheprovider -p no:randomly` with `cwd` = the worktree and `PYTHONPATH=<worktree>`, a per-file timeout that kills the whole process group, and reports per file one of `pass` / `fail` / `error-import` / `error-collect` / `no-tests` / `timeout` / `error`, plus per-test outcomes (parsed from a `--junitxml` written into the temp dir), as text and JSON; behavioral tests over a synthesized `tmp_path` git repository; a `tools/README.md` section. OUT: interpreting results (Order 05); mutation (Order 03); restoring any test into `tests/`.
 - Scope-Paths: tools/deleted_test_replay.py, tests/test_deleted_test_replay.py, tools/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nzzu8n
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nzzu8n verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Reviewed at HEAD d2bbf1ded. Replay moved from a bare temp dir to a detached worktree of HEAD with the blob at its original path (demonstrated 6 spurious failures and no home sandbox otherwise; --rootdir cost ~65s/file); verdict set gains no-tests and error; process-group timeout kill; seven-case fixture plus CLI --from-json subprocess test; live count re-derived; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-02-nzzu8n-add-a-deleted-test-replay-harness-that-runs-a-trim-deleted-t.review.md.
