@@ -374,6 +374,10 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
+    # isnqja E-03: advisory for graduated backlog items whose carriers are all terminal.
+    "check.graduated-item-closable": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # nobugship rgaasb E-02 / gatekinds kxawm4: a LIVE item in the repository's gating set (default
     # `bug`) carrying NO `- Blocks-Release:`. The enforcement half of the maintainer's standing rule
     # "we don't ship known bugs", written down by sibling plan `zqs0px` in AGENTS.md ("Every live bug
@@ -6821,6 +6825,70 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
                         ),
                     )
                 )
+    return warnings
+
+
+def graduated_closable_warnings(repo_root: Path) -> List[_core.Drift]:
+    """isnqja E-03: advisory findings for the attention human view.
+
+    Surfaces graduated backlog items whose From-Backlog carriers are ALL terminal
+    (plans executed, specs implemented), advising to close the item done with an
+    in-tree terminal carrier cited as --evidence.
+    """
+    repo_root = Path(repo_root)
+    from agent_workflows import backlog as _backlog
+
+    carrier_index = _from_backlog_carrier_index(repo_root)
+    warnings: List[_core.Drift] = []
+
+    for item_path in _backlog._iter_items(repo_root):
+        try:
+            text = item_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            if _status_meta(text) != "graduated":
+                continue
+            item_id6 = _read_item_id(text)
+            if not item_id6:
+                continue
+            carrier_entries = carrier_index.get(item_id6)
+            if not carrier_entries:
+                continue
+            carrier_paths = [c[0] for c in carrier_entries]
+            if not all(_carrier_is_executed(p) for p in carrier_paths):
+                continue
+
+            plans = [p for p in carrier_paths if p.name.endswith(".ipd.md")]
+            specs = [p for p in carrier_paths if p.name.endswith(".spec.md")]
+            other = [
+                p
+                for p in carrier_paths
+                if not p.name.endswith(".ipd.md") and not p.name.endswith(".spec.md")
+            ]
+            first_carrier = (plans + specs + other)[0]
+
+            try:
+                rel_carrier = (
+                    first_carrier.resolve().relative_to(repo_root.resolve()).as_posix()
+                )
+            except ValueError:
+                rel_carrier = str(first_carrier).replace("\\", "/")
+
+            detail = (
+                "a graduated item's carriers are all terminal (plans executed, specs implemented); close it done.\n"
+                f"    Fix: aw backlog set {item_id6} --status done --evidence {rel_carrier}"
+            )
+            warnings.append(
+                _core.Drift(
+                    str(item_path),
+                    "check.graduated-item-closable",
+                    detail,
+                )
+            )
+        except Exception:
+            continue
+
     return warnings
 
 
