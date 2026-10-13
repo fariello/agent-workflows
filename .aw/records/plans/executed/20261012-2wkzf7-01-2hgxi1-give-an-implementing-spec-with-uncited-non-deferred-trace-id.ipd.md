@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the dispatch path and the live `implementing` population at the executing HEAD, as a gate (E-01); (2) one shared predicate in `production_checks` that returns the mandatory, non-deferred, declared TRACE ids no pooled plan cites, computed by the SAME coverage code `spec_plan_trace` uses (E-02); (3) a runner-only refinement in `run_selection_policy.runner_action` that turns spec `implementing` into `plan` when, and only when, that predicate is non-empty, fed by ONE content reader that every runner call site and the mixed-selection preview use (E-03); (4) make the existing spec production arm of `runner_shared.execute_item_core` run for an `implementing` source: a prompt naming the uncited ids and requiring qualified citations, the same five post-turn checks, and on success a history note plus a path-scoped commit instead of the illegal same-status `-> implementing` set (E-04); (5) amend `25kzda` 3.3 and 2.6 and `89xjll` 3.3 and 6.1 so the contract matches the behavior (E-05); (6) behavioral tests on both hosts (E-06); (7) a `CHANGELOG.md` line and a docs sentence (E-07). OUT: the OTHER half of `25kzda` 3.3's `implementing` row (resolving and dispatching an implementing spec's `From-Spec` children, then setting `implemented`), which is unimplemented today and stays exactly as it is (F-03); any change to `SPEC-PLAN-TRACE`'s pass criterion or message; any change to backlog production.
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/run_selection_policy.py, agent_workflows/runner_shared.py, tests/test_implementing_spec_replan.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, docs/artifact-lifecycles.md, CHANGELOG.md
 - Item-Dependencies: executed:rtvdak
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode model=claude-opus
 - Id: 2hgxi1
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2hgxi1 verified (set 2wkzf7, attempt 2).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 
