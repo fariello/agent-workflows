@@ -86,16 +86,166 @@ EXTENSION_ALLOWLIST: tuple[str, ...] = (
 HIT_COUNTING_RULE = "raw hits"
 
 EXCLUDED_PLACEHOLDER_PATHS: frozenset[str] = frozenset(
-    {"tests/test_x.py", "tests/test_extra.py"}
+    {
+        "tests/test_x.py",
+        "tests/test_extra.py",
+        "tests/test_foo.py",
+        "tests/test_secret.py",
+        "tests/test_demo.py",
+    }
 )
 
 OUT_OF_SCOPE_HISTORY_FILES: frozenset[str] = frozenset({"CHANGELOG.md", "DECISIONS.md"})
 
 EXCLUDED_CLASSES: dict[str, str] = {
     "records": ".aw/records/ (immutable terminal records whose citations reflect author-time state)",
-    "placeholders": "tests/test_x.py and tests/test_extra.py (illustrative docstring/comment examples)",
+    "placeholders": "tests/test_x.py, tests/test_extra.py, tests/test_foo.py, tests/test_secret.py, and tests/test_demo.py (illustrative docstring/comment examples)",
     "tmp_path": "temporary directory fixture paths constructed under tmp_path",
+    "acknowledged": "acknowledged non-citations (keyed carrier-target exemptions with recorded rationale)",
     "append_only_history": "CHANGELOG.md and DECISIONS.md (append-only dated history records; reported separately out of scope)",
+}
+
+ACKNOWLEDGED_NON_CITATIONS: dict[tuple[str, str], str] = {
+    (
+        "docs/wtiso-state-taxonomy.md",
+        "tests/test_wtiso_characterization.py",
+    ): "deliberate past-tense historical mention already exempted by tests/test_docs_test_citations.py",
+    (
+        "tests/test_docs_test_citations.py",
+        "tests/test_wtiso_characterization.py",
+    ): "deliberate historical mention in HISTORICAL_EXEMPTIONS table",
+    (
+        "tests/test_finalize_sendback.py",
+        "tests/test_rununify_initialize_run_characterization.py",
+    ): "synthetic fixture string in REDUCTION_REFUSAL_SINGULAR",
+    (
+        "tests/test_finalize_sendback.py",
+        "tests/test_1.py",
+    ): "synthetic fixture path in sendback reduction test",
+    (
+        "tests/test_finalize_sendback.py",
+        "tests/test_2.py",
+    ): "synthetic fixture path in sendback reduction test",
+    (
+        "tests/test_scope_match.py",
+        "tests/test_a.py",
+    ): "synthetic fixture path in scope matching test",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_deleted_a.py",
+    ): "synthetic fixture path in census test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_deleted_b.py",
+    ): "synthetic fixture path in census test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_mixed.py",
+    ): "synthetic fixture path in census test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_modified_c.py",
+    ): "synthetic fixture path in census test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_unrelated_missing.py",
+    ): "synthetic fixture path in census test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_cited.py",
+    ): "synthetic fixture path in uncited inventory test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_gone.py",
+    ): "synthetic fixture path in uncited inventory test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_present.py",
+    ): "synthetic fixture path in uncited inventory test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_recreated.py",
+    ): "synthetic fixture path in uncited inventory test synthetic repo",
+    (
+        "tests/test_lost_guard_census.py",
+        "tests/test_two.py",
+    ): "synthetic fixture path in census test synthetic repo for keyed exemption",
+    (
+        "tests/test_check_engine_test_citation.py",
+        "tests/test_deleted_suite.py",
+    ): "synthetic fixture path in check engine test",
+    (
+        "tests/test_check_engine_test_citation.py",
+        "tests/test_e2e_nonexistent.py",
+    ): "synthetic fixture path in check engine test",
+    (
+        "tests/test_check_engine_test_citation.py",
+        "tests/test_missing_file.py",
+    ): "synthetic fixture path in check engine test",
+    (
+        "tests/test_check_engine_test_citation.py",
+        "tests/test_real_file.py",
+    ): "synthetic fixture path in check engine test",
+    (
+        "tests/test_scope_path_target_stale.py",
+        "tests/test_new.py",
+    ): "synthetic fixture path in scope path test",
+    (
+        "tests/test_verifier_corroboration.py",
+        "tests/test_release_gate.py",
+    ): "synthetic fixture command string in claimed_command",
+    (
+        "tests/test_agy_runipd_cli.py",
+        "tests/test_spec.py",
+    ): "synthetic fixture path in mock TargetFile",
+    (
+        "tests/test_verifier_evidence.py",
+        "tests/test_two.py",
+    ): "synthetic fixture path in evidence verification test",
+    (
+        "tests/test_verifier_evidence.py",
+        "tests/test_three.py",
+    ): "synthetic fixture path in evidence verification test",
+    (
+        "tests/test_verifier_evidence.py",
+        "tests/test_verify.py",
+    ): "synthetic fixture path in evidence verification test",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_always_fails_extra.py",
+    ): "synthetic fixture path in mutation probe test repo",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_flaky.py",
+    ): "synthetic fixture path in mutation probe test repo",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_m.py",
+    ): "synthetic fixture path in mutation probe test repo",
+    (
+        "tools/README.md",
+        "tests/test_m.py",
+    ): "illustrative example path in mutation probe CLI documentation",
+    (
+        "tests/test_uncollected_test_modules.py",
+        "tests/test_now_collected.py",
+    ): "synthetic test candidate fixture in uncollected test modules test",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_other.py",
+    ): "synthetic fixture path in mutation probe test repo",
+    (
+        "tests/test_uncollected_test_modules.py",
+        "tests/test_regular.py",
+    ): "synthetic test candidate fixture in uncollected test modules test",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_sleep.py",
+    ): "synthetic fixture path in mutation probe test repo",
+    (
+        "tests/test_mutation_probe.py",
+        "tests/test_unused.py",
+    ): "synthetic fixture path in mutation probe test repo",
 }
 
 BASE_PIN_SIGNALS: frozenset[str] = frozenset(
@@ -294,6 +444,8 @@ class AxisAResult(NamedTuple):
     attr_neither: list[str]
     history_hits: list[tuple[str, str]]
     history_distinct_dangling: set[str]
+    acknowledged_hits: list[tuple[str, str]]
+    unused_acknowledgements: list[tuple[str, str]]
 
 
 def scan_axis_a(repo_root: Path, trim_commits: Sequence[str]) -> AxisAResult:
@@ -303,6 +455,11 @@ def scan_axis_a(repo_root: Path, trim_commits: Sequence[str]) -> AxisAResult:
     cited_paths: set[str] = set()
     hits: list[tuple[str, str]] = []
     carrying_files: set[str] = set()
+    acknowledged_hits: list[tuple[str, str]] = []
+    matched_table_keys: set[tuple[str, str]] = set()
+
+    table_targets = {t for _, t in ACKNOWLEDGED_NON_CITATIONS}
+    census_rel_path = "tools/lost_guard_census.py"
 
     for rel_path in target_files:
         full_path = repo_root / rel_path
@@ -315,8 +472,19 @@ def scan_axis_a(repo_root: Path, trim_commits: Sequence[str]) -> AxisAResult:
             target = m.group(1)
             if target in EXCLUDED_PLACEHOLDER_PATHS:
                 continue
+
+            pair = (rel_path, target)
+            if pair in ACKNOWLEDGED_NON_CITATIONS:
+                acknowledged_hits.append(pair)
+                matched_table_keys.add(pair)
+                continue
+
+            if rel_path == census_rel_path and target in table_targets:
+                acknowledged_hits.append(pair)
+                continue
+
             cited_paths.add(target)
-            hits.append((rel_path, target))
+            hits.append(pair)
             carrying_files.add(rel_path)
 
     dangling_paths = {p for p in cited_paths if not (repo_root / p).is_file()}
@@ -340,6 +508,10 @@ def scan_axis_a(repo_root: Path, trim_commits: Sequence[str]) -> AxisAResult:
     attr_19 = sorted([p for p in dangling_paths if p in c19])
     attr_80 = sorted([p for p in dangling_paths if p in c80])
     neither = sorted([p for p in dangling_paths if p not in c19 and p not in c80])
+
+    unused_acknowledgements = [
+        k for k in ACKNOWLEDGED_NON_CITATIONS if k not in matched_table_keys
+    ]
 
     # Out-of-scope history scan (CHANGELOG.md, DECISIONS.md)
     history_hits: list[tuple[str, str]] = []
@@ -368,6 +540,8 @@ def scan_axis_a(repo_root: Path, trim_commits: Sequence[str]) -> AxisAResult:
         attr_neither=neither,
         history_hits=history_hits,
         history_distinct_dangling=history_dangling,
+        acknowledged_hits=acknowledged_hits,
+        unused_acknowledgements=unused_acknowledgements,
     )
 
 
@@ -794,6 +968,9 @@ def print_axis_a(repo_root: Path, axis_a_res: AxisAResult) -> None:
     print(f"  Distinct dangling test paths: {len(axis_a_res.dangling_paths)}")
     print(f"  Total dangling path hits:     {len(axis_a_res.hits)}")
     print(f"  Carrying files:               {len(axis_a_res.carrying_files)}")
+    print(
+        f"  Acknowledged non-citations (keyed exemptions): {len(axis_a_res.acknowledged_hits)} hits [Unused acknowledgements: {len(axis_a_res.unused_acknowledgements)} keys]"
+    )
 
     print("\nTRIM ATTRIBUTION:")
     print(

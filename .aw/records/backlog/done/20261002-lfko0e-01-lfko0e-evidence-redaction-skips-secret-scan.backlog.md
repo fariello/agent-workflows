@@ -1,5 +1,5 @@
 - Id: lfko0e
-- Status: graduated
+- Status: done
 - Graduated-To: lfko0e
 - Set: lfko0e
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: check_evidence_redaction and host_runner.run_task admit a credential in worker stdout: stage 2 runs only the leak sanitizer, never the secret scanner
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD n09qoq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-lfko0e-01-n09qoq-gate-worker-output-evidence-on-the-canonical-secret-scanner.ipd.md); evidence .aw/records/plans/executed/20261012-lfko0e-01-n09qoq-gate-worker-output-evidence-on-the-canonical-secret-scanner.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: n09qoq
 - 2026-10-02 created (aw backlog): filed from /plan-review of gqyold (finding PR-003)
 

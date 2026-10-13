@@ -1,5 +1,5 @@
 - Id: gte0pd
-- Status: graduated
+- Status: done
 - Graduated-To: gte0pd
 - Set: gte0pd
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: tools/ipdrunner/ is outside testpaths, so its tests rot unnoticed (10 failures live there today)
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD g0u7f9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-gte0pd-01-g0u7f9-repair-and-collect-the-tools-ipdrunner-shim-tests.ipd.md); evidence .aw/records/plans/executed/20261011-gte0pd-01-g0u7f9-repair-and-collect-the-tools-ipdrunner-shim-tests.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: g0u7f9
 - 2026-09-30 created (aw backlog): tools/ipdrunner/ is outside testpaths, so its tests rot unnoticed (10 failures live there today)
 

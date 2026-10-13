@@ -75,18 +75,13 @@ from agent_workflows.run_selection_policy import (
 # Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
 # but `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), so noqa F401 remains the
 # mechanism keeping the re-export alive.
-# The re-export has one live reader in the tree: `tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
+# The re-export has one live reader in the tree: `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
 # which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
 # `vars(agy_runipd)` wholesale into its own globals.
-# Two disclosures make this retention honest rather than superstitious:
-# 1. The cited test file is OUTSIDE the bare suite (`pyproject.toml` sets `testpaths = ["tests"]`,
-#    so `python3 -m pytest` never collects `tools/`, and a green bare run is not evidence about this name).
-# 2. That test historically failed at a later assertion for an unrelated missing reader (`_read_status`,
-#    dropped in h0zk2g), and `tools/ipdrunner/test_runagy.py` carries pre-existing suite failures.
 # In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
 # `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
 # (Note: _read_status is exposed on neither host; status reading is done via selectors.)
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tools/ipdrunner/test_runagy.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
+from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
 
 from agent_workflows.render_stream import (
     Statusline,

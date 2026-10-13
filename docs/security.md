@@ -24,9 +24,11 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
 3. Skills are least privilege. `check_skill_least_privilege` refuses a skill entry point that
    inlines the canonical authoritative body or fails package validation.
 4. Evidence is redacted. `check_evidence_redaction` applies the ledger redaction policy (masking
-   sensitive keys) and then runs the CANONICAL leak sanitizer over the payload; maintainer or machine
-   identifying info (such as a home path) fails closed with findings in evidence, while credential
-   detection in free text is not evaluated by this boundary today (backlog lfko0e).
+   sensitive keys), runs the CANONICAL leak sanitizer over the payload, and runs the canonical
+   secret scanner's credential rules. Maintainer or machine identifying info (such as a home path)
+   and credentials fail closed with findings in evidence. The entropy and PII heuristics are
+   deliberately not part of this gate because they would refuse routine output such as commit hashes.
+   An unavailable secret scanner also fails closed.
 5. The real HOME is excluded from probes. `check_real_home_excluded` reuses
    `assert_isolated_base`, which refuses a base equal to or containing the real home.
 6. Untrusted text is isolated as data. `check_untrusted_text_isolated` refuses any path that

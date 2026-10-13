@@ -13,13 +13,12 @@ posture is pinned:
   * BOUNDED TIMEOUT + CANCELLATION are net-new: a hung worker is killed and recorded as a FAILURE
     (never completion); a cancelled worker terminates. `capture_command` maps a timeout to exit 124.
   * REDACTION: all captured stdout/stderr/diff pass through `security_hardening.check_evidence_
-    redaction` (RedactionPolicy + canonical leak sanitizer) BEFORE anything enters the ledger. A
-    planted home path is DETECTED by the canonical leak sanitizer, which makes the boundary fail
+    redaction` (RedactionPolicy + canonical leak/secret scanners) BEFORE anything enters the ledger. A
+    planted home path or credential is DETECTED by the canonical scanners, which makes the boundary fail
     closed (`BoundaryResult.ok=False`), and `run_task` then REFUSES the raw text (records
     `[REDACTED-LEAK]` and a `failed_final` worker state) rather than admitting it. The
     `RedactionPolicy` masks only sensitive KEYS, so the `stdout`/`stderr`/`diff` values are not
-    masked in place. Free-text credential detection is not evaluated by this boundary today
-    (backlog `lfko0e`).
+    masked in place; a credential in free text is now also detected and refused by `run_task`.
   * A host exit 0 is NEVER treated as success. The terminal envelope is a `run_packet.
     StepOutcomeEnvelope` validated by `run_packet.validate_outcome_envelope` + gated by
     `run_evidence.validate_evidence` (EV-FAILED-EXIT / EV-MISSING-OUTPUT / EV-FABRICATED-TEXT /

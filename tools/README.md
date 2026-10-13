@@ -279,6 +279,24 @@ python3 tools/ipdrunner/runipd.py status --repo /path/to/repo <run-id>
 
 The tool provides an audit that distinguishes between deliberate code-pin test retirements (tests pinning AST or internal implementation details, which must never be restored per GUIDING_PRINCIPLES P16) and genuine behavioral coverage gaps. It measures test removals across both deleted and modified files using multiset difference, computes reach bounds, and cross-references live backlog items to deduplicate known issues.
 
+### Exclusions and Acknowledged Non-Citations
+
+Axis A scans repository files for test path citations and flags dangling references. To prevent false positives while keeping the audit strict, the scanner defines two non-defect categories:
+
+1. **Placeholders:** Generic illustrative paths used in docstrings, schema examples, and comments. The recognized placeholder set comprises `tests/test_x.py`, `tests/test_extra.py`, `tests/test_foo.py`, `tests/test_secret.py`, and `tests/test_demo.py`.
+2. **Acknowledged non-citations (keyed exemptions):** Explicit, reviewed table entries in `ACKNOWLEDGED_NON_CITATIONS` keyed by `(carrying_file, cited_path)` mapping to an explanatory rationale.
+
+What qualifies for an acknowledgement:
+- Synthetic fixture literals inside test data or mock objects that construct non-existent test paths to test harness behavior.
+- Illustrative placeholders in tool or library documentation.
+- Deliberate past-tense historical mentions where surrounding prose already explains that the suite was retired or deleted (and which are already exempted by `tests/test_docs_test_citations.py`).
+
+What does NOT qualify:
+- Any present-tense pointer a reader or maintainer is invited to follow or run.
+
+Rule for new exemptions:
+A new acknowledgement must always be an explicit, reviewed table entry with a specific carrying file, target path, and reason. Blanket file-level exclusions or regex pattern exemptions are strictly prohibited to ensure every exemption remains auditable and visible.
+
 ### Usage
 
 ```bash

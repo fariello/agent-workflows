@@ -6,7 +6,7 @@
 - Scope: Orchestrate the Set that builds destination-granular egress filtering as a PROBED, per-host, fail-closed capability: a two-sided hermetic probe, a parent-owned policy and broker, worker confinement that survives an agent's teardown attempt, and the contract amendments plus an audited honest capability report. The Set must not produce any artifact claiming push denial beyond what it measures, and gates no action.
 - Scope-Paths: .aw/records/plans/pending/20261001-netnsfilter-00-m0kl28-build-host-granular-outbound-egress-filtering-as-a-probed-no.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 3ba064065d63a65c687fb254166bcfc9d102c1805e9cb3969416e8d2d0e3d08e
@@ -20,9 +20,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: m0kl28
-- Approval: 2026-10-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set netnsfilter reached executed, so the runner (run run-20261013T012806Z-1261662) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: nxh5s4, rozdkp, 2j4pd0, wn956n.
 - 2026-10-12 coverage pass (aw oc run): fingerprint 3ba064065d63, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-11 coverage fail (aw oc run): fingerprint 0873f75ad43c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-11 coverage fail (aw oc run): fingerprint b46b0ab10a6a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -50,6 +50,9 @@ reachable, proven BY ATTEMPT per host, non-evadable by the confined agent, and r
 capability note that states exactly what it does and does not cover.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 

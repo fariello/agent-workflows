@@ -1809,9 +1809,12 @@ class StallWatchdogTests(unittest.TestCase):
                     executed.parent.mkdir(parents=True, exist_ok=True)
                     plan.rename(executed)
 
-                    for i in range(3):
+                    # Total activity (8 * 0.5s = 4.0s) exceeds the 3.0s stall timeout,
+                    # proving the watchdog resets on stdout activity; if the watchdog
+                    # ignored activity, the child would be terminated before finishing.
+                    for i in range(8):
                         print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':f'step {i}'}}), flush=True)
-                        time.sleep(0.05)
+                        time.sleep(0.5)
 
                     outcome.write_text(json.dumps({'schema_version':1,'id6':'activ1','disposition':'executed','pushed':False}))
                     print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':'done'}}), flush=True)
@@ -1827,8 +1830,10 @@ class StallWatchdogTests(unittest.TestCase):
                     "--no-self-finalize",
                     "--repo",
                     os.fspath(repo),
+                    # The watchdog window includes child interpreter startup, which is slow
+                    # under parallel suite load (backlog ncpc8z); 3.0s provides roughly 6x margin.
                     "--stall-timeout",
-                    "0.5",
+                    "3.0",
                     "--opencode",
                     os.fspath(active_child),
                 ],

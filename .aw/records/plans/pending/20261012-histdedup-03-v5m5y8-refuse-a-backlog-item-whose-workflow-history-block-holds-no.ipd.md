@@ -95,6 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: neither tree was measured with an empty history block and each has its own validator
 - Write-time refusal: the writer-side fix is `kgv213`; this plan is the read-side backstop the item asked for.
   - Carrier: kgv213
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-histdedup-02-kgv213-bound-the-workflow-history-block-by-one-shared-rule.ipd.md
 - Fixer/migration: F-02 shows nothing to fix.
   - Carrier-Declined: F-02 measures zero violating tracked items
 
