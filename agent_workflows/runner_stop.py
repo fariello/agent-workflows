@@ -99,7 +99,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Container, Iterable, Iterator, Sequence, TextIO, Tuple
 
-from agent_workflows import platform_lock, runner_shutdown
+from agent_workflows import platform_lock, runner_shutdown, verifier_corroboration
 
 __all__ = [
     "STOP_REQUEST_FILENAME",
@@ -940,11 +940,7 @@ def event_label(line: str) -> str:
             return f"{event_type}:{tool}"
     step = event.get(AGY_STEP_EVENT_TYPE)
     if isinstance(step, dict):
-        info = step.get("tool_info")
-        name = None
-        if isinstance(info, dict):
-            name = info.get("name")
-        name = name or step.get("tool_name") or step.get("step_type")
+        name = verifier_corroboration.agy_tool_name(step) or step.get("step_type")
         if isinstance(name, str) and name:
             return f"{event_type}:{name}"
     return event_type
