@@ -35,20 +35,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure the declarations and the test
 
-- [ ] E-01 Confirm each of the five leaves has a `CommandDeclaration` in `command_surface.COMMAND_INVENTORY` by running `python3 -c "from agent_workflows import command_surface as c; d={x.command for x in c.get_all_declarations()}; print(sorted(k for k in d if k.startswith('oc profile')))"` and recording the printed list. If any of the five is missing, restore it following the field judgements recorded in executed plan `0yrtne` (Findings F-7) and record the restoration.
+- [x] E-01 Confirm each of the five leaves has a `CommandDeclaration` in `command_surface.COMMAND_INVENTORY` by running `python3 -c "from agent_workflows import command_surface as c; d={x.command for x in c.get_all_declarations()}; print(sorted(k for k in d if k.startswith('oc profile')))"` and recording the printed list. If any of the five is missing, restore it following the field judgements recorded in executed plan `0yrtne` (Findings F-7) and record the restoration.
   - Depends on: none
   - Expected outcome: printed list contains `oc profile add`, `oc profile default`, `oc profile list`, `oc profile remove`, `oc profile show`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Run the whole-CLI declaration module ALONE: `python3 -m pytest -o addopts="" tests/test_command_surface_declarations.py -v`, and record the output.
+- [x] E-02 Run the whole-CLI declaration module ALONE: `python3 -m pytest -o addopts="" tests/test_command_surface_declarations.py -v`, and record the output.
   - Depends on: E-01
   - Expected outcome: `test_zero_undeclared_parser_leaves` and `test_zero_unreachable_command_declarations` both PASSED; zero undeclared leaves.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Confirm enforcement outside the isolated run: run the bare suite `python3 -m pytest` and record the summary line, and confirm `.github/workflows/tests.yml` job `output-conformance` step "Run the output-conformance harness" invokes `tests/test_command_surface_declarations.py` by running that step's command `python -m pytest tests/test_command_surface_declarations.py` locally.
+- [x] E-03 Confirm enforcement outside the isolated run: run the bare suite `python3 -m pytest` and record the summary line, and confirm `.github/workflows/tests.yml` job `output-conformance` step "Run the output-conformance harness" invokes `tests/test_command_surface_declarations.py` by running that step's command `python -m pytest tests/test_command_surface_declarations.py` locally.
   - Depends on: E-02
   - Expected outcome: in the bare suite, the module is COLLECTED under the default `addopts` (not deselected by the `slow`/`livecorpus` markers; shown with `python3 -m pytest --collect-only -q tests/test_command_surface_declarations.py`, which must list both tests), and no node id in `tests/test_command_surface_declarations.py` appears among the bare run's failures. Failures elsewhere in the suite are recorded by node id but are not this plan's bar. The CI step's command exits 0 with `test_zero_undeclared_parser_leaves` and `test_zero_unreachable_command_declarations` both passing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -102,20 +102,65 @@ N/A: no behavior or contract changes; verification only.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted printed list of `oc profile` declarations containing all five leaves named by `vxqtqm`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Confirmed all five leaves plus `oc profile validate-default` are declared in `command_surface.COMMAND_INVENTORY`:
+    ```
+    $ python3 -c "from agent_workflows import command_surface as c; d={x.command for x in c.get_all_declarations()}; print(sorted(k for k in d if k.startswith('oc profile')))"
+    ['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show', 'oc profile validate-default']
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `pytest -v` output showing `test_zero_undeclared_parser_leaves PASSED` and `test_zero_unreachable_command_declarations PASSED`, with exit code 0, re-derived at execution HEAD (the passing named tests are the bar, not the count).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Executed isolated test module run; both tests passed with exit code 0:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_command_surface_declarations.py -v
+    ============================= test session starts ==============================
+    collected 2 items
 
-- [ ] V-03 validates E-03
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves PASSED [ 50%]
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_unreachable_command_declarations PASSED [100%]
+
+    ============================== 2 passed in 8.11s ===============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted `--collect-only` output listing both tests under default `addopts`; the pasted bare-suite summary line plus its failing node ids (if any), showing none from `tests/test_command_surface_declarations.py`; the pasted `sed -n` (or equivalent) excerpt of `.github/workflows/tests.yml`'s `output-conformance` step showing it runs that module; and the pasted output and exit code of that step's command run locally, both named tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Confirmed collection under default addopts, clean bare suite run, and local CI command pass:
+    1. Collect-only output:
+    ```
+    $ python3 -m pytest --collect-only tests/test_command_surface_declarations.py
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_unreachable_command_declarations
+    tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves
+
+    2 tests collected in 0.95s
+    ```
+    2. Bare suite summary line and failure check:
+    ```
+    $ python3 -m pytest
+    7595 passed, 2 skipped, 3 warnings in 948.73s (0:15:48)
+    ```
+    Failing node ids: none (0 failures; none from tests/test_command_surface_declarations.py).
+
+    3. CI workflow excerpt (.github/workflows/tests.yml lines 267-272):
+    ```
+    $ sed -n '267,272p' .github/workflows/tests.yml
+          - name: Run the output-conformance harness (E-01 matrix + E-02 gates + E-03 docs)
+            shell: bash
+            run: |
+              python -m pytest \
+                tests/test_command_surface_declarations.py
+    ```
+    4. CI step command local execution:
+    ```
+    $ python -m pytest tests/test_command_surface_declarations.py; echo "EXIT_CODE=$?"
+    ..                                                                       [100%]
+    2 passed in 6.92s
+    EXIT_CODE=0
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
