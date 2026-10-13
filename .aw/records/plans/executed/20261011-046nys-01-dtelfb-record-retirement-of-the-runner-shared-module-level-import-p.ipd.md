@@ -6,7 +6,7 @@
 - Scope: Comment and docstring prose only, in the two production files that cite the retired pin. Each site is rewritten to state that the pin was a code pin retired under `GUIDING_PRINCIPLES` P16 (`80db6750c`) and will not return, while preserving the import-discipline convention and its real reason (a module-level import changes the import graph for both host drivers). No executable statement, constant, signature, or test changes.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lint.py, .aw/records/plans/pending/20261011-046nys-01-dtelfb-record-retirement-of-the-runner-shared-module-level-import-p.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: dtelfb
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dtelfb verified (set 046nys, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Re-verified at HEAD 63464df34: 7+1 sites, guard absent, 80db6750c retiring commit, AST import set {render_stream, runner_profiles}, RUN_TYPE_CHOICES equality True with no test.
 
