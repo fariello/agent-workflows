@@ -1261,8 +1261,8 @@ def _iter_type_files(
 
 
 def _load_normalizer():
-    """Load the shipped plan-name normalizer layout-agnostically (source checkout AND installed
-    wheel), mirroring cli.py:2890. Returns the module or None if it cannot be located."""
+    """Single loader for the shipped plan-name normalizer layout-agnostically (source checkout
+    AND installed wheel). Returns the module or None if it cannot be located."""
     try:
         root = _engine.resolve_source_root(None)
     except SystemExit:

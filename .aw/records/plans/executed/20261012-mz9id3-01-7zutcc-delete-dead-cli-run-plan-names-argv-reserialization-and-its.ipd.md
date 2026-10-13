@@ -6,7 +6,7 @@
 - Scope: Delete `cli._run_plan_names` and `cli._load_normalizer` (its sole caller is `_run_plan_names`), and repoint the stale "mirroring cli" docstring pointer in `check_engine._load_normalizer`, which becomes the only loader. No behavior change: nothing dispatches to either function.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7zutcc
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7zutcc verified (set mz9id3, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
@@ -35,25 +35,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-derive and delete
 
-- [ ] E-01 At execution HEAD, record the HEAD sha. Re-derive the dead-code facts, and do not trust this plan's numbers. (1) `grep -rn "_run_plan_names" --include=*.py .` (excluding `.aw/worktrees`) matches only the `def _run_plan_names` line in `agent_workflows/cli.py`. (2) `grep -rn "_load_normalizer" --include=*.py .` shows that `cli._load_normalizer` is called only from `_run_plan_names`, and every other caller resolves `check_engine._load_normalizer`. (3) `grep -rn "plan-names\|plan_names" agent_workflows/cli.py` shows no argparse parser or `args.command` dispatch for `plan-names`, only the two "awcmdsurf Order 05 (hard cutover)" comments. (4) Nothing reaches the names dynamically or by mock: `grep -rn "getattr(cli\|\"_run_plan_names\"\|'_run_plan_names'\|\"_load_normalizer\"\|'_load_normalizer'\|cli\._run_plan_names\|cli\._load_normalizer" agent_workflows tests` finds no hit that targets `cli` (the string-literal alternatives also catch `mock.patch.object(cli, "_load_normalizer", ...)`, the pattern `tests/test_cli.py` uses for other private `cli` helpers). IF ANY FACT HAS CHANGED, meaning a live caller now exists, STOP AND REPORT instead of deleting.
+- [x] E-01 At execution HEAD, record the HEAD sha. Re-derive the dead-code facts, and do not trust this plan's numbers. (1) `grep -rn "_run_plan_names" --include=*.py .` (excluding `.aw/worktrees`) matches only the `def _run_plan_names` line in `agent_workflows/cli.py`. (2) `grep -rn "_load_normalizer" --include=*.py .` shows that `cli._load_normalizer` is called only from `_run_plan_names`, and every other caller resolves `check_engine._load_normalizer`. (3) `grep -rn "plan-names\|plan_names" agent_workflows/cli.py` shows no argparse parser or `args.command` dispatch for `plan-names`, only the two "awcmdsurf Order 05 (hard cutover)" comments. (4) Nothing reaches the names dynamically or by mock: `grep -rn "getattr(cli\|\"_run_plan_names\"\|'_run_plan_names'\|\"_load_normalizer\"\|'_load_normalizer'\|cli\._run_plan_names\|cli\._load_normalizer" agent_workflows tests` finds no hit that targets `cli` (the string-literal alternatives also catch `mock.patch.object(cli, "_load_normalizer", ...)`, the pattern `tests/test_cli.py` uses for other private `cli` helpers). IF ANY FACT HAS CHANGED, meaning a live caller now exists, STOP AND REPORT instead of deleting.
   - Depends on: none
   - Expected outcome: HEAD sha and the four grep outputs are recorded, and each one confirms the function pair is unreachable.
-  - Execution state: pending
-- [ ] E-02 Delete `def _load_normalizer()` and `def _run_plan_names(args, term)` from `agent_workflows/cli.py`, including their docstrings and bodies, as one contiguous block. It sits between the end of `_run_plans`'s board rendering (`return 0`) and `def _run_leaks_configure`. Leave the two "awcmdsurf Order 05 (hard cutover)" comments in place, because they document the verb removal and not the deleted functions. If removing the block leaves an import in `cli.py` with no remaining use, remove that import too. `importlib.util` is imported locally inside `_load_normalizer`, so it is expected to leave with the block.
+  - Execution state: performed
+- [x] E-02 Delete `def _load_normalizer()` and `def _run_plan_names(args, term)` from `agent_workflows/cli.py`, including their docstrings and bodies, as one contiguous block. It sits between the end of `_run_plans`'s board rendering (`return 0`) and `def _run_leaks_configure`. Leave the two "awcmdsurf Order 05 (hard cutover)" comments in place, because they document the verb removal and not the deleted functions. If removing the block leaves an import in `cli.py` with no remaining use, remove that import too. `importlib.util` is imported locally inside `_load_normalizer`, so it is expected to leave with the block.
   - Depends on: E-01
   - Expected outcome: neither symbol exists in `cli.py`, and `python3 -c "import agent_workflows.cli as c; print(hasattr(c,'_run_plan_names'), hasattr(c,'_load_normalizer'))"` prints `False False`.
-  - Execution state: pending
-- [ ] E-03 In `agent_workflows/check_engine.py`, edit the docstring of `check_engine._load_normalizer`, whose sentence "mirroring cli.py:2890" points at a bare line offset in `cli.py` (stale twice over: `cli._load_normalizer` sits near `def _run_plans`'s end, not line 2890). That pointer now names deleted code, so reword it to say that this is the single loader for the shipped plan-name normalizer. Do not change the function body.
+  - Execution state: performed
+- [x] E-03 In `agent_workflows/check_engine.py`, edit the docstring of `check_engine._load_normalizer`, whose sentence "mirroring cli.py:2890" points at a bare line offset in `cli.py` (stale twice over: `cli._load_normalizer` sits near `def _run_plans`'s end, not line 2890). That pointer now names deleted code, so reword it to say that this is the single loader for the shipped plan-name normalizer. Do not change the function body.
   - Depends on: E-02
   - Expected outcome: `grep -n "mirroring cli" agent_workflows/check_engine.py` returns nothing, and the function body is byte-identical apart from the docstring.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Verify
 
-- [ ] E-04 Validate the deletion by running the existing behavioral surfaces: the full fast suite BARE as `python3 -m pytest` (it includes the normalizer-loading tests `tests/test_spec_id6_filenames.py`, `tests/test_walkthrough_id6.py`, `tests/test_releases.py` and the CLI surface tests), plus `python3 -m agent_workflows check plans names` and `aw ipd lint <this plan>` to drive the surviving loader end-to-end. If anything fails, re-run the same selection at the base commit before blaming this change, and report the comparison.
+- [x] E-04 Validate the deletion by running the existing behavioral surfaces: the full fast suite BARE as `python3 -m pytest` (it includes the normalizer-loading tests `tests/test_spec_id6_filenames.py`, `tests/test_walkthrough_id6.py`, `tests/test_releases.py` and the CLI surface tests), plus `python3 -m agent_workflows check plans names` and `aw ipd lint <this plan>` to drive the surviving loader end-to-end. If anything fails, re-run the same selection at the base commit before blaming this change, and report the comparison.
   - Depends on: E-03
   - Expected outcome: the suite passes, and `check plans names` exits as it did at base.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,22 +109,167 @@ None. Repository evidence answered reachability (F-01, F-02).
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the execution HEAD sha and the verbatim output of all four E-01 greps. (1) must show exactly one `def _run_plan_names` hit. (2) must show that the only `cli.py` call to `_load_normalizer` is inside `_run_plan_names`. (3) must show no `add_parser("plan-names"` and no `args.command == "plan-names"` (hits inside `cli._load_normalizer`'s body on the `normalize_plan_names.py` path are expected and are removed with it). (4) must show no dynamic reference to `cli`. Any additional live caller makes this FAIL.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Execution HEAD sha: a8c8e79f19eeaeb13c6ad0a600cb59f6e54c3755
+
+    Grep 1:
+    $ grep -rn --exclude-dir=".aw/worktrees" --exclude-dir=".git" "_run_plan_names" --include="*.py" .
+    ./agent_workflows/cli.py:11199:def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
+
+    Grep 2:
+    $ grep -rn --exclude-dir=".aw/worktrees" --exclude-dir=".git" "_load_normalizer" --include="*.py" .
+    ./tests/test_spec_id6_filenames.py:26:    return ce._load_normalizer()
+    ./tests/test_walkthrough_id6.py:121:        npn = ce._load_normalizer()
+    ./agent_workflows/ipd_lint.py:140:        npn = _ce._load_normalizer()
+    ./agent_workflows/cli.py:11169:def _load_normalizer():
+    ./agent_workflows/cli.py:11200:    normalizer = _load_normalizer()
+    ./agent_workflows/check_engine.py:1271:def _load_normalizer():
+    ./agent_workflows/check_engine.py:1301:    npn = _load_normalizer()
+
+    Grep 3:
+    $ grep -rn "plan-names\|plan_names" agent_workflows/cli.py
+    7166:    # awcmdsurf Order 05 (hard cutover): the old `plan-names` verb was REMOVED; name conformance is
+    11188:    script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
+    11191:    spec = importlib.util.spec_from_file_location("aw_normalize_plan_names", script)
+    11199:def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
+    17502:    # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was
+
+    Grep 4:
+    $ grep -rn "getattr(cli\|"_run_plan_names"\|'_run_plan_names'\|"_load_normalizer"\|'_load_normalizer'\|cli\._run_plan_names\|cli\._load_normalizer" agent_workflows tests
+    (exit 1, no matches)
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff --stat -- agent_workflows/cli.py`, which shows deletions only, and the `cli.py` hunk showing that both `def` blocks were removed. Also paste the output of `python3 -c "import agent_workflows.cli as c; print(hasattr(c,'_run_plan_names'), hasattr(c,'_load_normalizer'))"`, which must be `False False`, and of `grep -n "_run_plan_names\|_load_normalizer" agent_workflows/cli.py`, which must be empty.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    $ git diff --stat -- agent_workflows/cli.py
+     agent_workflows/cli.py | 59 --------------------------------------------------
+     1 file changed, 59 deletions(-)
+
+    $ git diff -U3 agent_workflows/cli.py
+    @@ -11166,65 +11166,6 @@ def _run_plans(
+         return 0
+
+
+    -def _load_normalizer():
+    -    """Import the plan-name normalizer script (it lives under the bundled workflow tree).
+    -
+    -    Resolves the `.agents/workflows/` root via `_compat.packaged_source_root()` (installed
+    -    wheel) or the repo root (source checkout / editable install), then loads the standalone
+    -    script by path (it is a script, not an importable package module). Returns the module or
+    -    None if it cannot be located/loaded.
+    -    """
+    -
+    -    import importlib.util
+    -
+    -    # Resolve the workflow bundle root layout-agnostically: engine.resolve_source_root prefers
+    -    # the packaged/nested .aw/system (descending into workflows/) and falls back to the legacy
+    -    # .agents/workflows source checkout. This works before AND after the physical-layout move,
+    -    # where the bundle relocated from .agents/workflows/ to .aw/system/workflows/.
+    -    try:
+    -        root = engine.resolve_source_root(None)
+    -    except SystemExit:
+    -        return None
+    -    script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
+    -    if not script.is_file():
+    -        return None
+    -    spec = importlib.util.spec_from_file_location("aw_normalize_plan_names", script)
+    -    if spec is None or spec.loader is None:
+    -        return None
+    -    module = importlib.util.module_from_spec(spec)
+    -    spec.loader.exec_module(module)
+    -    return module
+    -
+    -
+    -def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
+    -    normalizer = _load_normalizer()
+    -    if normalizer is None:
+    -        term.status("fail", "Could not locate the plan-name normalizer script.")
+    -        return 1
+    -
+    -    root = Path(args.dir).expanduser() if getattr(args, "dir", None) else Path.cwd()
+    -    passthrough = ["--repo", str(root), "--format", getattr(args, "fmt", "text")]
+    -    if getattr(args, "apply", False):
+    -        passthrough.append("--apply")
+    -    if getattr(args, "all_areas", False):
+    -        passthrough.append("--all")
+    -    for area in getattr(args, "area", None) or []:
+    -        passthrough += ["--area", area]
+    -    for glob in getattr(args, "exclude", None) or []:
+    -        passthrough += ["--exclude", glob]
+    -    if getattr(args, "no_default_excludes", False):
+    -        passthrough.append("--no-default-excludes")
+    -    if getattr(args, "include_nested", False):
+    -        passthrough.append("--include-nested")
+    -    if getattr(args, "rename_non_numeric", False):
+    -        passthrough.append("--rename-non-numeric")
+    -    if getattr(args, "assume_dates", False):
+    -        passthrough.append("--assume-dates")
+    -
+    -    # Delegate to the script's own main(argv); it prints its report and returns its exit code.
+    -    return normalizer.main(passthrough)
+    -
+    -
+     def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
+         """Interactive leak-sanitizer config wizard (`--configure`, D98). Reads/writes the
+         tracked allowlist + the gitignored user hints; never scans."""
+
+    $ python3 -c "import agent_workflows.cli as c; print(hasattr(c,'_run_plan_names'), hasattr(c,'_load_normalizer'))"
+    False False
+
+    $ grep -n "_run_plan_names\|_load_normalizer" agent_workflows/cli.py
+    (exit 1, no matches)
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the `check_engine.py` diff hunk, which must touch only the `_load_normalizer` docstring lines, and the empty output of `grep -n "mirroring cli" agent_workflows/check_engine.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    $ git diff -U3 agent_workflows/check_engine.py
+    diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+    index ee6397714..1d9270e96 100644
+    --- a/agent_workflows/check_engine.py
+    +++ b/agent_workflows/check_engine.py
+    @@ -1269,8 +1269,8 @@ def _iter_type_files(
+
+
+     def _load_normalizer():
+    -    """Load the shipped plan-name normalizer layout-agnostically (source checkout AND installed
+    -    wheel), mirroring cli.py:2890. Returns the module or None if it cannot be located."""
+    +    """Single loader for the shipped plan-name normalizer layout-agnostically (source checkout
+    +    AND installed wheel). Returns the module or None if it cannot be located."""
+         try:
+             root = _engine.resolve_source_root(None)
+         except SystemExit:
+
+    $ grep -n "mirroring cli" agent_workflows/check_engine.py
+    (exit 1, no matches)
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the actual final summary line of a bare `python3 -m pytest` run (`N passed`), with zero failures attributable to this change. If a failure appears, paste the base-commit comparison. Also paste the exit code and the last lines of `python3 -m agent_workflows check plans names` and of `aw ipd lint` on this plan. Both must run without an import or loader error, which demonstrates that `check_engine._load_normalizer` is still reached through `check_engine.check_names` and `ipd_lint`.
   - Observed evidence:
-  - Result: pending
+    $ python3 -m pytest
+    7681 passed, 4 skipped, 3 warnings in 923.53s (0:15:23)
+
+    $ python3 -m agent_workflows check plans names
+    exit code: 0
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run [INFO]
+      - <collisions>
+        1. <collisions> [INFO]
+        Fix: aw check all
+
+
+    Evidence
+      pending  110   reusable  1   terminal  1355
+      errors  0   warnings  0   info  1
+
+    Next  aw ipd board
+    Agent output: --agent
+
+    $ aw ipd lint .aw/records/plans/pending/20261012-mz9id3-01-7zutcc-delete-dead-cli-run-plan-names-argv-reserialization-and-its.ipd.md
+    exit code: 0
+    -    ◕  approved     plan        20261012-mz9id3-01-7zutcc  [low]  conforming
+  - Result: pass
 
 ## Approval and execution gate
 
