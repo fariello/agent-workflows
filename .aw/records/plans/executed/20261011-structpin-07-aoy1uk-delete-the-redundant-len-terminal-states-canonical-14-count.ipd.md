@@ -6,7 +6,7 @@
 - Scope: Delete exactly ONE source line, `self.assertEqual(len(runner_shared.TERMINAL_STATES_CANONICAL), 14)`, from that one test, adding no replacement. KEEP the preceding name-level equality and every other line of the file, including the `EXPECTED_CANONICAL_STATES` table and the test's docstring. EXCLUDES the three bare count literals in `tests/test_runwire_verifier_authority.py::test_set_level_checks` part (c), which are a DIFFERENT shape (no name-level equality beside them) filed separately as backlog `2n9y3f`; EXCLUDES the module docstring's stale "12 canonical terminal states" prose count; EXCLUDES any production change and any new test.
 - Scope-Paths: tests/test_terminal_status_vocabulary.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 01
 - Author: opencode/its_direct-pt3-claude-opus-5.5-1m-us
 - Id: aoy1uk
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: aoy1uk verified (set structpin, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Re-verified at HEAD ff5f9937d: target and table as F-01 states, 16 passed, F-02 mutation reproduced (growth 'probe-15th-state' 1 failed; shrink 'retired' 1 failed), F-04 site present, F-06 no other pending plan declares the file. Gate rewritten into a full execution contract.
 
