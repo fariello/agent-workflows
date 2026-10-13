@@ -6,7 +6,7 @@
 - Scope: IN: a new `tools/mutation_probe.py` that, given a production target `agent_workflows/<module>.py::<qualname>`, a mutation operator, and a test selection (pytest args; default the bare suite's own selection, `-m 'not slow and not livecorpus'`), creates a detached worktree of `HEAD` under a temp dir, runs the selection UNMUTATED to record the baseline failing node set, applies the mutant, reruns, confirms each newly failing node against the unmutated tree (flaky nodes excluded), and reports `killed` (a non-collection node that passed at baseline now fails or errors), `killed-by-import` (only collection errors are new: the mutant broke import, not counted as a guard), `survived` (no such node), `invalid` (mutant did not apply), `timeout`, or `error` (baseline unusable, or the worktree copy is not what the interpreter imports); optional `--extra-test <commit>:<path>` writes the blob at `<commit>^` into the worktree so a replayed deleted test can serve as the POSITIVE CONTROL; always removes the worktree (`git worktree remove --force` plus `git worktree prune`). Operators: `return-none`, `return-true`, `return-false`, `negate-return` (wrap each `return <expr>` of the function itself as `return not (<expr>)`), `raise` (body becomes `raise RuntimeError("mutant")`). Behavioral tests over a synthesized repo. `tools/README.md` section. OUT: choosing which targets to mutate (Order 07); a general mutation framework; any change to production code.
 - Scope-Paths: tools/mutation_probe.py, tests/test_mutation_probe.py, tools/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g55j1e
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g55j1e verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009. Reviewed at HEAD 131f01291. Added --continue-on-collection-errors (import-break no longer aborts the session) and flaky-kill confirmation; new E-04 pure apply_operator splice; isolation preflight; status-change warns not refuses; V-01 gains a demonstrated positive control; noop dropped; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-03-g55j1e-add-a-worktree-isolated-mutation-probe-that-reports-whether.review.md.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -34,7 +34,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Probe
 
-- [ ] E-04 (do FIRST; E-01 depends on it) In `tools/mutation_probe.py`, add the pure splice function `apply_operator(source: str, qualname: str, operator: str) -> str | None` plus the `OPERATORS` tuple. It returns the mutated module source, or `None` when the mutant does not apply, and it touches no file. This is the TOOL editing a disposable copy, not a test reading production source.
+- [x] E-04 (do FIRST; E-01 depends on it) In `tools/mutation_probe.py`, add the pure splice function `apply_operator(source: str, qualname: str, operator: str) -> str | None` plus the `OPERATORS` tuple. It returns the mutated module source, or `None` when the mutant does not apply, and it touches no file. This is the TOOL editing a disposable copy, not a test reading production source.
   - Resolution: parse with `ast`. `qualname` is dotted through `ClassDef`/`FunctionDef`/`AsyncFunctionDef` nodes (`Cls.meth`, `outer.inner`). If it is absent, return `None`.
   - Operators, applied to that function node only:
     - `return-none`, `return-true`, `return-false`: the whole body becomes the single statement `return None|True|False`.
@@ -44,9 +44,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Scope note: `noop` is DROPPED from the operator list. "Body becomes `pass`/`return None`" means the same as `return-none`, so the tool would be carrying an alias with no use of its own.
   - Depends on: none
   - Expected outcome: `apply_operator` returns compilable, mutated source for each operator on functions, methods and one-line defs, and returns `None` for a missing qualname and for `negate-return` on a function that has no `return <expr>`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-01 In `tools/mutation_probe.py`, add `probe(repo_root, target, operator, pytest_args=None, extra_tests=(), timeout_s=1800) -> ProbeResult` and `main(argv)` with the signature `<path.py>::<qualname> --op <operator> [--extra-test COMMIT:PATH ...] [--timeout N] [--format text|json] [-- <pytest args>]`.
+- [x] E-01 In `tools/mutation_probe.py`, add `probe(repo_root, target, operator, pytest_args=None, extra_tests=(), timeout_s=1800) -> ProbeResult` and `main(argv)` with the signature `<path.py>::<qualname> --op <operator> [--extra-test COMMIT:PATH ...] [--timeout N] [--format text|json] [-- <pytest args>]`.
   - Worktree: `tmp = tempfile.mkdtemp()`, then `git -C <repo_root> worktree add --detach <tmp>/wt HEAD`. The probe tests COMMITTED `HEAD`; uncommitted edits in the invoking checkout are not seen, and `ProbeResult.head` records the sha.
   - Extra tests: each `--extra-test COMMIT:PATH` writes the blob `git show COMMIT^:PATH` to `<wt>/PATH`. The blob is the PARENT's, so a trim commit can be named directly. Overwriting a path that exists at `HEAD` is recorded in `extra_tests_overwrote`. Extra tests are written BEFORE the baseline, so an extra test that already fails at baseline can never count as a kill.
   - Applicability first: read the target file in `<wt>` and call `apply_operator`. If it returns `None`, return `invalid` before any pytest run, with `baseline_failing` and `mutant_failing` set to `null`.
@@ -71,11 +71,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Shared-checkout check: snapshot `git status --porcelain` of `repo_root` before and after. If it changed, set `checkout_status_changed` to the differing lines and print a stderr warning. Do not refuse: in a shared checkout a co-worker's concurrent edit legitimately changes it, and the probe writes nothing there except git's own worktree metadata.
   - Depends on: E-04
   - Expected outcome: on the real tree, the live run V-01 names reports a verdict with `head`, baseline and mutant counts. The positive control (`--extra-test 19313eed:tests/test_run_freeze.py -- tests/test_run_freeze.py`) reports `killed`: at review, the hand-applied `raise` mutant of `freeze_requirements` failed all 12 of that file's tests (`12 failed in 0.20s`), and the unmutated file passes (`12 passed`). Afterwards, `git worktree list` of the invoking checkout is identical to before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Tests and docs
 
-- [ ] E-02 Create `tests/test_mutation_probe.py`, two test classes.
+- [x] E-02 Create `tests/test_mutation_probe.py`, two test classes.
   - (a) `apply_operator` unit tests, on fixture SOURCE STRINGS authored inside the test (not repo source). For each operator, assert the result compiles. `exec` the result and call the mutated function to check its observable return or raise: `return-true` gives `True`, `raise` raises `RuntimeError("mutant")`, and `negate-return` on `is_even` gives `is_even(2) is False`. Cover a method (`C.m`), a decorated function, a one-line def, a nested function whose inner `return` must be left alone by `negate-return`, a missing qualname (`None`), and `negate-return` on a body with no `return <expr>` (`None`).
   - (b) `probe` tests on a throwaway git repo. The suite's existing tests use `tempfile.TemporaryDirectory()` in `setUp`, which is equivalent to `tmp_path`.
     - Fixture: `agent_workflows/__init__.py` (empty), `agent_workflows/m.py` with `def is_even(n): return n % 2 == 0`, `def unused(): return 1`, `def boot(): return 1` and module-level `BOOT = boot()`. Tests: `tests/test_m.py` asserting `is_even(2)` and `not is_even(3)`, one test that always fails, and `tests/test_other.py` with one trivial passing test that imports nothing from `m`. A second commit deletes `tests/test_unused.py`, a file that asserted `unused() == 1` in the first commit, so `--extra-test <second sha>:tests/test_unused.py` restores it from the parent.
@@ -91,12 +91,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - No `livecorpus` marker; no real trim sha; nothing under `.aw/records/` is read.
   - Depends on: E-01, E-04
   - Expected outcome: the new file passes in the default bare run and asserts every verdict class except `timeout` and `error`. Those two are covered by one test each: `timeout_s=1` against a fixture test that sleeps 5 s, and a forced isolation failure via a fixture whose committed `agent_workflows/__init__.py` raises `ImportError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a `mutation_probe.py` section to `tools/README.md`: purpose, the disposable-worktree isolation rule and why in-memory patching is insufficient for subprocess-driven tests, the operator list, the verdict classes including baseline subtraction, the positive-control use of `--extra-test` (blob read from `<COMMIT>^`), that the probe tests committed `HEAD` only, and the measured cost (one default-selection run is about 200 s here, and a probe does at least two). `tools/README.md` is user-facing prose: no em or en dashes.
+- [x] E-03 Add a `mutation_probe.py` section to `tools/README.md`: purpose, the disposable-worktree isolation rule and why in-memory patching is insufficient for subprocess-driven tests, the operator list, the verdict classes including baseline subtraction, the positive-control use of `--extra-test` (blob read from `<COMMIT>^`), that the probe tests committed `HEAD` only, and the measured cost (one default-selection run is about 200 s here, and a probe does at least two). `tools/README.md` is user-facing prose: no em or en dashes.
   - Depends on: E-01
   - Expected outcome: README section with those points.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -168,31 +168,31 @@ N/A for specs: no `.spec.md` governs `tools/` audit scripts. `tools/README.md` g
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git worktree list` and `git status --short` of the invoking checkout before and after two live runs, both produced by E-01's `main`. Paste each run's JSON.
     - (a) Positive control: `python3 tools/mutation_probe.py agent_workflows/run_freeze.py::freeze_requirements --op raise --extra-test 19313eed:tests/test_run_freeze.py --format json -- tests/test_run_freeze.py`. Its JSON must show `verdict: killed`, `baseline_failing: 0` and a non-empty `newly_failing`.
     - (b) Survivor: the same target and operator with `--format json -- -n auto tests/test_agy_runipd_cli.py`. This is the one surviving test file that names `run_freeze` (`git grep -ln run_freeze -- tests`, re-derived at execution). Its JSON must show a `killed` or `survived` verdict with `head` and both counts.
     - Required outcome: `git worktree list` is identical after both runs, and no `/tmp` probe directory is left. Any `checkout_status_changed` lines must be explained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Live runs executed cleanly and left git worktree list and git status --short identical before and after with no /tmp probe directories remaining. (a) Positive control JSON: {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "7b23e627b0970e082dd4797b8e12dde48c004c40", "mutant_failing": 12, "newly_failing": ["tests.test_run_freeze.FreezeDeterminismTest::test_binds_every_category_id", "tests.test_run_freeze.FreezeDeterminismTest::test_dict_order_does_not_change_set_digest", "tests.test_run_freeze.FreezeDeterminismTest::test_same_input_same_ids_and_digests", "tests.test_run_freeze.MalformedInputTest::test_empty_item_refused_before_set_emitted", "tests.test_run_freeze.MalformedInputTest::test_non_mapping_refused", "tests.test_run_freeze.MalformedInputTest::test_non_string_item_refused", "tests.test_run_freeze.RequirementSetRecordTest::test_record_is_schema_valid_and_binds_scope", "tests.test_run_freeze.RevisionTest::test_addition_after_approval_allowed", "tests.test_run_freeze.RevisionTest::test_cosmetic_edit_is_a_digest_noop", "tests.test_run_freeze.RevisionTest::test_drop_after_approval_refused", "tests.test_run_freeze.RevisionTest::test_redefine_after_approval_refused", "tests.test_run_freeze.RevisionTest::test_semantic_edit_yields_revision_and_invalidates_evidence"], "newly_failing_total": 12, "operator": "raise", "reason": null, "selection": ["tests/test_run_freeze.py"], "target": "agent_workflows/run_freeze.py::freeze_requirements", "verdict": "killed", "wall_s": 8.13}. (b) Survivor JSON: {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "7b23e627b0970e082dd4797b8e12dde48c004c40", "mutant_failing": 10, "newly_failing": ["tests.test_agy_runipd_cli.AgyFailClosedIntegrationGuardTests::test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict", "tests.test_agy_runipd_cli.AgyFailClosedIntegrationGuardTests::test_deferred_reattempt_backlog_close_reaches_coordinator_worktree_performer", "tests.test_agy_runipd_cli.AgyFailClosedIntegrationGuardTests::test_dirty_overlapping_base_refuses_integration", "tests.test_agy_runipd_cli.AgyFailClosedIntegrationGuardTests::test_non_passing_gate_records_merge_conflict_main_pristine", "tests.test_agy_runipd_cli.AgyFailClosedIntegrationGuardTests::test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate", "tests.test_agy_runipd_cli.AgySelfFinalizeTests::test_begin_writes_receipt_then_finalize_moves_to_executed", "tests.test_agy_runipd_cli.AgySelfFinalizeTests::test_execute_item_spec_edits_report_parity_with_oc", "tests.test_agy_runipd_cli.AgyWorktreeIsolationTests::test_main_tree_clean_during_turn_and_receipt_under_main", "tests.test_agy_runipd_cli.AgyWorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed", "tests.test_agy_runipd_cli.AgyWorktreeIsolationTests::test_verified_child_integrates_to_main_and_worktree_removed"], "newly_failing_total": 10, "operator": "raise", "reason": null, "selection": ["-n", "auto", "tests/test_agy_runipd_cli.py"], "target": "agent_workflows/run_freeze.py::freeze_requirements", "verdict": "killed", "wall_s": 105.0}. Worktree list before and after: <repo-root> b63617180 [main], <repo-root>/.aw/worktrees/g55j1e 7b23e627b [aw/lane/g55j1e], and concurrent lane checkouts; identical before and after. Status before and after: ?? tests/test_mutation_probe.py, ?? tools/mutation_probe.py; identical.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence:
     - The pasted `python3 -m pytest -o addopts="" tests/test_mutation_probe.py` summary line.
     - A table mapping each verdict class (`killed`, `survived`, `invalid`, `killed-by-import`, `timeout`, `error`, the positive control, the not-credited baseline-failing extra test, and flaky exclusion if tested) to the test node that asserts it, re-derived from the file as written.
     - One pasted sensitivity run in a scratch copy under `/tmp/opencode/`, never the tracked file: change the copy of `tools/mutation_probe.py` so that `newly_failing` is `mut_fail` (no baseline subtraction). Run `PYTHONPATH=<scratch> python3 -m pytest -o addopts="" -p no:cacheprovider --rootdir <scratch> <scratch>/tests/test_mutation_probe.py` from `<scratch>` and show that at least one test fails.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest summary line: "22 passed in 30.55s". Test nodes mapping: killed -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_killed_is_even_negate_return; survived -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_survived_unused_return_none; invalid -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_invalid_qualname_no_pytest_run; killed-by-import -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_killed_by_import_boot_raise; timeout -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_timeout; error -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_error_isolation_preflight; positive control -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_positive_control_extra_test_kills_unused; not-credited baseline-failing extra test -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_always_failing_extra_test_not_credited_as_kill; flaky exclusion -> tests/test_mutation_probe.py::ProbeGitFixtureTests::test_flaky_test_excluded_from_kill. Sensitivity run under /tmp/opencode/scratch_sensitivity with candidate_newly_failing = mut_fail: FAILED tests/test_mutation_probe.py::ProbeGitFixtureTests::test_verdict_killed_is_even_negate_return - AssertionError: True is not false (1 failed, 21 passed in 29.94s).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff tools/README.md` showing every point E-03 lists, with zero em or en dashes in the added lines (`git diff tools/README.md | grep '^+' | grep -c $'\u2014\|\u2013'` prints 0). Also the pasted bare `python3 -m pytest` summary line, and the failing node ids after the change minus the execution-start baseline failing node ids, which must be empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Dash check: git diff tools/README.md | grep '^+' | grep -c $'\u2014\|\u2013' returned 0 (zero em or en dashes in added lines). git diff tools/README.md adds the mutation_probe.py section covering purpose, worktree isolation, 5 operators, verdict classes with baseline subtraction and flaky confirmation, --extra-test positive controls, committed HEAD only, and measured cost (~200s per pass). Bare post-change pytest suite summary: "7762 passed, 4 skipped, 3 warnings in 611.84s (0:10:11)". Execution-start baseline failing node ids (tests/test_host_capability_extension.py::InspectionVerbTests::test_the_verbs_write_nothing_to_the_repository) minus post-change failures (0) is empty.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the pasted `apply_operator` test node ids and their pass lines from the V-02 run, one per operator plus each `None` case. Also a pasted one-shot demonstration, `python3 -c 'from tools.mutation_probe import apply_operator; s = apply_operator(open("agent_workflows/run_freeze.py").read(), "freeze_requirements", "raise"); i = s.index("def freeze_requirements"); print(s[i:i+300])'`, printing the mutated `def freeze_requirements` block. The demonstration only reads the file and writes nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 12 apply_operator unit tests passed in V-02: ApplyOperatorUnitTests::test_return_none PASSED, test_return_true PASSED, test_return_false PASSED, test_raise PASSED, test_negate_return PASSED, test_method_c_m PASSED, test_decorated_function PASSED, test_one_line_def PASSED, test_nested_function_negate_return_inner_preserved PASSED, test_missing_qualname_returns_none PASSED, test_negate_return_no_return_expr_returns_none PASSED, test_unknown_operator_returns_none PASSED. Demonstration command: python3 -c 'from tools.mutation_probe import apply_operator; s = apply_operator(open("agent_workflows/run_freeze.py").read(), "freeze_requirements", "raise"); i = s.index("def freeze_requirements"); print(s[i:i+300])' prints: 'def freeze_requirements(requirements: Mapping[str, Sequence[str]]) -> RequirementSet:\n    raise RuntimeError(\x27mutant\x27)\n\n\ndef requirement_set_record(\n    run_id: str,\n    seq: int,\n    actor: str,\n    timestamp: str,\n    parent: str,\n    frozen: RequirementSet,\n) -> Dict[str, Any]:\n    \"\"\"Build a `re'.
+  - Result: pass
 
 ## Approval and execution gate
 

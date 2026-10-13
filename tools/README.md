@@ -306,3 +306,58 @@ python3 tools/lost_guard_census.py --uncited
 # Output uncited inventory as JSON for --from-json consumers:
 python3 tools/lost_guard_census.py --uncited --format json
 ```
+
+## `mutation_probe.py`
+
+`tools/mutation_probe.py` tests whether a test selection fails when a named production function is mutated.
+
+### Purpose and Isolation
+
+In-memory mutation via pytest plugins cannot reach behavior exercised through subprocess invocations, such as CLI runs that spawn a fresh Python interpreter. Conversely, mutating tracked files in a shared checkout risks polluting concurrent work. To satisfy both constraints, `mutation_probe.py` creates a disposable detached git worktree in a temporary directory outside the repository. The mutant is applied directly to the worktree disk copy, making it visible to both in-process and subprocess tests, while leaving the invoking checkout untouched. The probe always removes and prunes the worktree when finished.
+
+The probe tests committed `HEAD` only. Uncommitted edits in the invoking checkout are not seen.
+
+### Operators
+
+The tool supports five explicit mutation operators:
+- `return-none`: replaces the function body with `return None`.
+- `return-true`: replaces the function body with `return True`.
+- `return-false`: replaces the function body with `return False`.
+- `negate-return`: wraps every `return <expr>` of the function in `not (...)`, leaving nested functions untouched.
+- `raise`: replaces the function body with `raise RuntimeError("mutant")`.
+
+### Verdict Classes and Baseline Subtraction
+
+Because test suites may have pre-existing failures, raw failure is not a kill signal. The probe runs the test selection on the unmutated tree to record baseline failures, applies the mutant, and then subtracts baseline failing nodes (`newly_failing = mut_fail - base_fail`). To prevent flaky tests from being counted as kills, newly failing nodes are re-tested against the restored unmutated tree; any node that fails again unmutated is moved to `flaky` and dropped from `newly_failing`.
+
+The tool emits one of six verdicts:
+- `killed`: newly failing nodes contain at least one non-collection test.
+- `killed-by-import`: all newly failing nodes are collection errors, indicating an import-time call broke.
+- `survived`: newly failing set is empty.
+- `invalid`: the target qualname is absent, or the operator cannot apply.
+- `timeout`: a test run exceeded the configured timeout.
+- `error`: baseline XML was missing, or the isolation preflight check failed.
+
+### Positive Controls via `--extra-test`
+
+The `--extra-test COMMIT:PATH` option extracts a test blob from `<COMMIT>^:<PATH>` and writes it into the worktree before running baseline tests. This allows deleted or historical tests to be replayed as positive controls to demonstrate that the test selection is capable of killing the mutant. Overwriting a path at `HEAD` is tracked and reported.
+
+### Measured Cost
+
+A default-selection test run on the full suite takes approximately 200 seconds here. Because a probe runs at least two full passes (baseline and mutant, plus an optional rerun for flaky confirmation), running against the full suite requires roughly 7 minutes. Narrowing the test selection with `-- <pytest args>` is recommended for fast feedback.
+
+### Usage
+
+```bash
+# Run a positive control with an extra test:
+python3 tools/mutation_probe.py agent_workflows/run_freeze.py::freeze_requirements \
+    --op raise \
+    --extra-test 19313eed:tests/test_run_freeze.py \
+    --format json \
+    -- tests/test_run_freeze.py
+
+# Run a probe with targeted test selection:
+python3 tools/mutation_probe.py agent_workflows/m.py::is_even \
+    --op negate-return \
+    -- tests/test_m.py
+```
