@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 Run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and the bare suite `python3 -m pytest` at the execution base BEFORE editing, recording the narrowed summary line and the bare-suite `FAILED` node-id set (this is the base set E-03 compares against), and confirm (by reading the plans arm of `test_must_not_refuse_matrix`, the block after the comment `# Plans: id6, relpath, and abspath selectors succeed`) that all three plans assertions expect `rc == 0 and "would rename" in out`. If the assertions at your base instead still expect `rc == 2`, ALSO flip those two assertions to `rc == 0 and "would rename" in out` in E-02 (the original reconciliation the backlog item asked for).
+- [x] E-01 Run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and the bare suite `python3 -m pytest` at the execution base BEFORE editing, recording the narrowed summary line and the bare-suite `FAILED` node-id set (this is the base set E-03 compares against), and confirm (by reading the plans arm of `test_must_not_refuse_matrix`, the block after the comment `# Plans: id6, relpath, and abspath selectors succeed`) that all three plans assertions expect `rc == 0 and "would rename" in out`. If the assertions at your base instead still expect `rc == 2`, ALSO flip those two assertions to `rc == 0 and "would rename" in out` in E-02 (the original reconciliation the backlog item asked for).
   - Depends on: none
   - Expected outcome: pasted pre-edit narrowed pytest summary line, the pre-edit bare-suite summary line plus its `FAILED` node-id set, and a statement of which form the plans assertions are in.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Reconcile the docstring
 
-- [ ] E-02 Edit the docstring of `test_must_not_refuse_matrix` in `tests/test_selector_type_containment.py`: replace the three plans lines (`(c) id6 reaches rename preview (rc=0)`, `(a) repo-relative path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)`, `(b) absolute path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)`) with lines stating that for plans (a) repo-relative path, (b) absolute path and (c) id6 all reach rename preview (rc=0), now that Order 02 (`87m438`) routes plans through the shared selector resolver. Do not change any other test or any assertion other than the conditional flip from E-01.
+- [x] E-02 Edit the docstring of `test_must_not_refuse_matrix` in `tests/test_selector_type_containment.py`: replace the three plans lines (`(c) id6 reaches rename preview (rc=0)`, `(a) repo-relative path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)`, `(b) absolute path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)`) with lines stating that for plans (a) repo-relative path, (b) absolute path and (c) id6 all reach rename preview (rc=0), now that Order 02 (`87m438`) routes plans through the shared selector resolver. Do not change any other test or any assertion other than the conditional flip from E-01.
   - Depends on: E-01
   - Expected outcome: `rg -n "no plan has Id|pins pre-existing refusal" tests/test_selector_type_containment.py` returns no match; the docstring's plans section names rc=0 for all three selector forms.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Verify
 
-- [ ] E-03 Re-run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and then the bare suite `python3 -m pytest`, and compare the bare-suite failing node-id SET against the base set E-01 measured on the unmodified base (not against any count in this plan). A node id failing in both runs is pre-existing and not this plan's concern; a node failing only after the edit must be investigated (a docstring edit cannot plausibly cause it, so re-run it once to rule out flakiness and record the outcome).
+- [x] E-03 Re-run `python3 -m pytest -o addopts="" -q tests/test_selector_type_containment.py` and then the bare suite `python3 -m pytest`, and compare the bare-suite failing node-id SET against the base set E-01 measured on the unmodified base (not against any count in this plan). A node id failing in both runs is pre-existing and not this plan's concern; a node failing only after the edit must be investigated (a docstring edit cannot plausibly cause it, so re-run it once to rule out flakiness and record the outcome).
   - Depends on: E-02
   - Expected outcome: the containment file passes in full; the bare suite introduces no newly failing node id, and `test_must_not_refuse_matrix` is absent from the failure list.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -105,20 +105,80 @@ None. The only candidate question (whether the assertions still need flipping) i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted pre-edit pytest summary line for `tests/test_selector_type_containment.py`, the pasted pre-edit bare-suite summary line and `FAILED` node-id set, and the pasted plans-arm assertion lines from the base.
   - Observed evidence:
-  - Result: pending
+    Pre-edit narrowed pytest summary line:
+    ```
+    10 passed in 18.83s
+    ```
+    Pre-edit bare-suite summary line:
+    ```
+    7515 passed, 2 skipped, 3 warnings in 1250.79s (0:20:50)
+    ```
+    Pre-edit bare-suite FAILED node-id set:
+    `set()` (0 failed tests).
+    Base plans-arm assertions in `tests/test_selector_type_containment.py` (lines 388-396):
+    ```python
+        # Plans: id6, relpath, and abspath selectors succeed
+        rc, out = run_cli("rename", "plans", "pl0001", "--slug", "newslug")
+        assert rc == 0 and "would rename" in out, f"plans id6 failed: rc={rc}, {out}"
+        rc, out = run_cli(
+            "rename", "plans", str(plan.relative_to(repo)), "--slug", "newslug"
+        )
+        assert rc == 0 and "would rename" in out, f"plans relpath failed: rc={rc}, {out}"
+        rc, out = run_cli("rename", "plans", str(plan.resolve()), "--slug", "newslug")
+        assert rc == 0 and "would rename" in out, f"plans abspath failed: rc={rc}, {out}"
+    ```
+    Confirmed all three plans assertions already expect `rc == 0 and "would rename" in out`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff -- tests/test_selector_type_containment.py` showing only docstring lines changed (plus assertion lines only if E-01 found the rc=2 form), and pasted empty output of `rg -n "no plan has Id|pins pre-existing refusal" tests/test_selector_type_containment.py`.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff -- tests/test_selector_type_containment.py`:
+    ```diff
+    diff --git a/tests/test_selector_type_containment.py b/tests/test_selector_type_containment.py
+    index dd5f1fe24..5ff423e57 100644
+    --- a/tests/test_selector_type_containment.py
+    +++ b/tests/test_selector_type_containment.py
+    @@ -287,9 +287,10 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
+           In selectors.resolve_for_mutation: (a) repo-relative path, (b) absolute path, (c) id6 all resolve.
+           In CLI aw rename research: (c) id6 reaches rename preview (rc=0).
+         For plans:
+    +      (a) repo-relative path reaches rename preview (rc=0)
+    +      (b) absolute path reaches rename preview (rc=0)
+           (c) id6 reaches rename preview (rc=0)
+    -      (a) repo-relative path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)
+    -      (b) absolute path -> rc=2, 'no plan has Id' (pins pre-existing refusal for Order 02)
+    +      (now that Order 02 (87m438) routes plans through the shared selector resolver)
+         """
+         repo = temp_git_repo
+    ```
+    Pasted output of `rg -n "no plan has Id|pins pre-existing refusal" tests/test_selector_type_containment.py`:
+    ```
+    (exit code 1, empty output)
+    ```
+    Only docstring lines changed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted post-edit summary line of the narrowed run showing all tests in the file passed, and the pasted bare-suite summary plus `FAILED` lines alongside the E-01 base failing set, showing no new node id and `test_must_not_refuse_matrix` absent.
   - Observed evidence:
-  - Result: pending
+    Post-edit narrowed pytest run:
+    ```
+    10 passed in 2.26s
+    ```
+    Post-edit bare-suite run:
+    ```
+    7515 passed, 2 skipped, 3 warnings in 1133.32s (0:18:53)
+    ```
+    Comparison of failing node-id sets:
+    Pre-edit failing set (E-01): `set()`
+    Post-edit failing set (E-03): `set()`
+    Newly failing node IDs: none (0)
+    `test_must_not_refuse_matrix` passed and absent from failure list.
+  - Result: pass
 
 ## Approval and execution gate
 
