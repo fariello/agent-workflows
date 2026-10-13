@@ -115,8 +115,9 @@ def runner_owns_lifecycle_notice(
     outcomes mention this token, 22 items never reached `executed`. So this states OWNERSHIP and the
     agent's own terminal OBLIGATION, and promises nothing about the result.
 
-    Pure and ASCII-only: the prompts that embed it are asserted pure ASCII
-    (`tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii`).
+    Pure and ASCII-only: the prompts that embed it were asserted pure ASCII by
+    `tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii`
+    (deleted in `19313eed`; no live guard currently asserts this).
     """
     if not driver_owns_transition:
         run_flag = f" --run-id {run_id}" if run_id else " --run-id <run-id>"

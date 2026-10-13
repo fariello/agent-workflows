@@ -16,7 +16,8 @@ and no user configuration on disk. A wizard that could only be tested by hand is
 cancel path is never tested, and the cancel path is exactly where a wizard corrupts a config.
 
 FIVE BEHAVIORS THIS FILE EXISTS TO GUARANTEE. Each one is a way a plausible implementation would
-have been wrong, and each has a named falsifier in `tests/test_runner_profile_wizard.py`:
+have been wrong, and each had a named falsifier in `tests/test_runner_profile_wizard.py` (deleted
+in `19313eed`; no live guard currently asserts these five behaviors):
 
 1. DISCOVERY FAILURE IS NEVER GREEN-WASHED, AND NEVER FATAL. `oc_models.discover_models` reports
    an unavailable catalog with a NAMED reason (missing binary, timeout, nonzero exit, unparseable,

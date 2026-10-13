@@ -860,8 +860,9 @@ def _emit_error(
     against one; `run_cli` imports `agent_schema` zero times. Converting them is a real gap on a
     different contract, across every `_emit_machine`/`_emit_error` site, and doing it here would
     silently change what every existing `aw run`/`aw runs --agent` consumer parses. So `extra`
-    EXTENDS the shape that exists, and `tests/test_run_cli_ledger_message.py` still pins the
-    unknown-target payload's key set exactly, which is what keeps this from drifting into a rewrite.
+    EXTENDS the shape that exists, and `tests/test_run_cli_ledger_message.py` (deleted in
+    `19313eed`; no live guard currently asserts this) formerly pinned the unknown-target payload's key
+    set exactly, which is what kept this from drifting into a rewrite.
     """
     if _machine(args):
         payload: Dict[str, Any] = {

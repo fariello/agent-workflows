@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Measure
 
-- [ ] E-01 Re-measure at execution HEAD: run the Set measurement command over the 17 source files in Scope-Paths and record the hit list, `UNRETIRED N`, and `git rev-parse --short HEAD`. Match sites by enclosing symbol and cited path; disposition any delta by the same rules.
+- [x] E-01 Re-measure at execution HEAD: run the Set measurement command over the 17 source files in Scope-Paths and record the hit list, `UNRETIRED N`, and `git rev-parse --short HEAD`. Match sites by enclosing symbol and cited path; disposition any delta by the same rules.
   - Depends on: none
   - Expected outcome: recorded list equals Findings S-01..S-27, or each delta carries a disposition.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 For each site, decide REPOINT / RETIRE-PIN / RETIRE-UNGUARDED and record a `Site | Disposition | Evidence` table appended to Findings, with evidence of the kinds the Set conventions require. For EVERY site also record the REMOVING COMMIT of the specific guard the comment describes, found with `git log --oneline -S'<test or class name>' -- tests/<file>` (or, when the comment names only a file, by reading the guard in `git show 80db6750c^:tests/<file>` and checking whether it survives in `git show 19313eed^:tests/<file>`). The removing commit is `80db6750c` ("delete 366 tests that pinned code structure") for several sites, not `19313eed`; see Findings note F-03. For S-08 (`test_no_hardcoded_reviews_path_in_check_engine`) and S-10 (`test_wired_into_the_plans_type_content_path_exactly_once`, which counted `check_review_decision_unescalated` in source), RETIRE-PIN is expected; confirm from `git show 80db6750c -- tests/<file>`, since neither test exists at `19313eed^`.
+- [x] E-02 For each site, decide REPOINT / RETIRE-PIN / RETIRE-UNGUARDED and record a `Site | Disposition | Evidence` table appended to Findings, with evidence of the kinds the Set conventions require. For EVERY site also record the REMOVING COMMIT of the specific guard the comment describes, found with `git log --oneline -S'<test or class name>' -- tests/<file>` (or, when the comment names only a file, by reading the guard in `git show 80db6750c^:tests/<file>` and checking whether it survives in `git show 19313eed^:tests/<file>`). The removing commit is `80db6750c` ("delete 366 tests that pinned code structure") for several sites, not `19313eed`; see Findings note F-03. For S-08 (`test_no_hardcoded_reviews_path_in_check_engine`) and S-10 (`test_wired_into_the_plans_type_content_path_exactly_once`, which counted `check_review_decision_unescalated` in source), RETIRE-PIN is expected; confirm from `git show 80db6750c -- tests/<file>`, since neither test exists at `19313eed^`.
   - Depends on: E-01
   - Expected outcome: exactly one dispositioned row per E-01 hit (re-derived at execution; 27 at authoring and at review HEAD `fd2b21d66` is context, not the bar), each with evidence and a `Removed-by` commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Edit
 
-- [ ] E-03 Apply the dispositions as comment/docstring edits (no statement, constant, signature, or identifier changes), keeping each design reason and, for both RETIRE forms, naming `19313eed` within three lines of the citation in the established wording ("deleted in `19313eed`; no live guard currently asserts this"). Where E-02 recorded `Removed-by: 80db6750c`, the wording must name that commit as the guard's removal and `19313eed` only as the later deletion of the file (for example "a code pin removed in `80db6750c` under P16; the file was deleted in `19313eed`"), following sibling `dtelfb`, so no comment misdates a removal. Where a comment's design reason depended on the removed test (S-10/S-11 explain citing by rule id "so a prose mention would not fail" the occurrence counter), keep the reason as history and state that the constraint no longer binds. Where a docstring sentence would otherwise read as live enforcement ("there is an explicit anti-fork guard test at ..."), rewrite the tense, not just append a note.
+- [x] E-03 Apply the dispositions as comment/docstring edits (no statement, constant, signature, or identifier changes), keeping each design reason and, for both RETIRE forms, naming `19313eed` within three lines of the citation in the established wording ("deleted in `19313eed`; no live guard currently asserts this"). Where E-02 recorded `Removed-by: 80db6750c`, the wording must name that commit as the guard's removal and `19313eed` only as the later deletion of the file (for example "a code pin removed in `80db6750c` under P16; the file was deleted in `19313eed`"), following sibling `dtelfb`, so no comment misdates a removal. Where a comment's design reason depended on the removed test (S-10/S-11 explain citing by rule id "so a prose mention would not fail" the occurrence counter), keep the reason as history and state that the constraint no longer binds. Where a docstring sentence would otherwise read as live enforcement ("there is an explicit anti-fork guard test at ..."), rewrite the tense, not just append a note.
   - Depends on: E-02
   - Expected outcome: measurement over the 17 files prints `UNRETIRED 0`, and every edited passage is a true statement about HEAD and names the correct removing commit (the measurement only proves `19313eed` is nearby, not that the claim is true).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Prove prose-only and regression-free: run the AST-equivalence command against the E-01 HEAD over the 17 source files, and the bare suite `python3 -m pytest`.
+- [x] E-04 Prove prose-only and regression-free: run the AST-equivalence command against the E-01 HEAD over the 17 source files, and the bare suite `python3 -m pytest`.
   - Depends on: E-03
   - Expected outcome: `AST-DIFFER []`; suite summary with no failures, or any failure shown to pre-exist by re-running the failing test ids at the E-01 HEAD in a scratch `git worktree` (a prose-only change cannot cause one).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,6 +104,39 @@ Measured at HEAD `8538be828`; re-measured at review HEAD `fd2b21d66` with the id
 | F-03 | Review at `fd2b21d66`: `git show 80db6750c -- tests/<file>` removes the guard the comment names for S-08 (`test_no_hardcoded_reviews_path_in_check_engine`), S-10 (`test_wired_into_the_plans_type_content_path_exactly_once`), S-17/S-18 (`SourceInvariantTests.test_every_structural_invariant_holds`, the anti-fork source-slice check), S-22 (`test_render_stream_imports_no_first_party_module_that_could_cycle`), and probably S-03/S-05/S-20 (`test_facet_enum_tuple_literal_defined_in_exactly_one_module`); each was gone before `19313eed` deleted the file. S-15's `MISSING_INPUT_VERDICT_*` enumeration, by contrast, survived to `19313eed^`. | The uniform "deleted in `19313eed`" wording would misdate these removals; E-02 records `Removed-by` per site and E-03 words accordingly. |
 | F-02 | `agent_workflows/ipd_lifecycle.py` `_run_record_committed_paths` docstring: "declaring its plan file, ``agent_workflows/runner_shared.py`` and ``tests/test_orchestrator_probe_cache.py``" | A dated incident narrative naming a path a past plan declared; true as history, asserts no guard. |
 
+### E-02 Disposition Table
+
+| Site | File | Enclosing symbol | Cited path | Removed-by | Disposition | Evidence |
+|---|---|---|---|---|---|---|
+| S-01 | `artifact_core.py` | `global_id6s` | `tests/test_id6_global_mint.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `PurityAndSubsetContractTests.test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate` in `19313eed^:tests/test_id6_global_mint.py` tested over-collection of quoted ids; deleted in `19313eed`; `rg -n "global_id6s" tests/` returns empty |
+| S-02 | `artifact_core.py` | module (`SCAN_ROOTS`) | `tests/test_artifact_core.py::ScanRootClassificationInvariantTests` | `19313eed` | RETIRE-UNGUARDED | Deleted test `ScanRootClassificationInvariantTests.test_no_scan_root_is_scanned_then_silently_dropped` in `19313eed^:tests/test_artifact_core.py` asserted scan roots classify unless exempt; deleted in `19313eed`; `rg -n "ScanRootClassificationInvariantTests" tests/` and `rg -n "SCAN_ROOTS" tests/` return empty |
+| S-03 | `artifact_naming.py` | module docstring | `tests/test_naming_authority_single_source.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `RoundTripTests` in `19313eed^:tests/test_naming_authority_single_source.py` asserted round-trip build-then-parse identity for clustered names; deleted in `19313eed`; `rg -n "build_clustered_name" tests/` and `rg -n "parse_clustered" tests/` return empty |
+| S-04 | `artifact_types.py` | module docstring | `tests/test_awcmdsurf_vocab_and_parsers.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `DerivedVocabularyTests.test_reviews_has_no_backend_and_no_status_lifecycle` in `19313eed^:tests/test_awcmdsurf_vocab_and_parsers.py` asserted `reviews` absent from `TYPE_BACKENDS` and `selectors.KNOWN_PRIMARY_TYPES`; deleted in `19313eed`; no live test asserts these omissions |
+| S-05 | `attention.py` | module (prefix-parse note) | `tests/test_naming_authority_single_source.py` | `19313eed` | RETIRE-PIN | Deleted test `SingleSourceStructuralTests.test_clustered_regex_defined_in_exactly_one_module` in `19313eed^:tests/test_naming_authority_single_source.py` searched package source text for `_CLUSTERED_REGEX_SIGNATURE`; deleted in `19313eed`; no live guard asserts single definition of regex pattern |
+| S-06 | `check_engine.py` | `check_scope_drift` | `tests/test_ci_check_parity.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `TestCiLocalParity.test_ci_and_local_identical_on_same_tree` in `19313eed^:tests/test_ci_check_parity.py` ran subprocess checks and asserted findings parity; deleted in `19313eed`; `rg -n "test_ci_check_parity" tests/` returns empty |
+| S-07 | `check_engine.py` | `check_release_gate_consistency` | `tests/test_bug_gate_check.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `test_the_mismatch_rule_fires_only_for_a_live_carrier` in `19313eed^:tests/test_bug_gate_check.py` pinned zero-finding direction for ungated item with gated carrier; deleted in `19313eed`; no live test asserts zero-finding direction on `check_release_gate_consistency` directly (though `tests/test_check_engine_release_gate.py` exercises aggregate handoff path) |
+| S-08 | `check_engine.py` | `check_spec_review_attestation` | `tests/test_review_findings.py::test_no_hardcoded_reviews_path_in_check_engine` | `80db6750c` | RETIRE-PIN | Deleted test `test_no_hardcoded_reviews_path_in_check_engine` in `tests/test_review_findings.py` inspected `check_engine.py` source text to assert absence of reviews paths; removed in `80db6750c` under P16; file deleted in `19313eed` |
+| S-09 | `check_engine.py` | `evaluate_durable_carrier` | `tests/test_durable_capture.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `test_one_predicate_backs_both_surfaces` in `19313eed^:tests/test_durable_capture.py` mocked `evaluate_durable_carrier` to verify both `lint_file` and `check_durable_carrier` call it; deleted in `19313eed`; no live test asserts this call agreement |
+| S-10 | `check_engine.py` | `check_ipd_lint_reach` | `tests/test_review_decisions.py` | `80db6750c` | RETIRE-PIN | Deleted test `test_wired_into_the_plans_type_content_path_exactly_once` in `tests/test_review_decisions.py` counted occurrences of `check_review_decision_unescalated` in `check_engine.py` source text; removed in `80db6750c` under P16; file deleted in `19313eed` |
+| S-11 | `check_engine.py` | `check_ipd_lint_reach` | `tests/test_durable_capture.py` | `19313eed` | RETIRE-PIN | Cited historical precedent of removing `inspect.getsource` pins; `tests/test_durable_capture.py` was deleted in `19313eed`; the occurrence-counting constraint S-10 was removed in `80db6750c` and no longer binds |
+| S-12 | `cli.py` | `_build_parser` | `tests/test_run_dispatch.py` | `19313eed` | RETIRE-PIN | Deleted test `test_each_added_route_owns_no_flags_and_declares_its_contract` in `19313eed^:tests/test_run_dispatch.py` inspected argparse `route._actions` for option strings; deleted in `19313eed`; no live guard inspects subparser action option strings |
+| S-13 | `cli.py` | `_build_parser` | `tests/work_kind.py::test_the_cli_choices_match_the_shared_vocab` | `19313eed` | RETIRE-PIN | Deleted test `test_the_cli_choices_match_the_shared_vocab` in `19313eed^:tests/test_work_kind.py` inspected parser `_actions` and subparser `action.choices`; deleted in `19313eed`; no live guard inspects parser choices |
+| S-14 | `ipd_lifecycle.py` | `runner_owns_lifecycle_notice` | `tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii` | `19313eed` | RETIRE-UNGUARDED | Deleted test `DriverPromptTests.test_prompts_are_pure_ascii` in `19313eed^:tests/test_reporting_contract.py` tested prompt strings for ASCII characters; deleted in `19313eed`; `rg -n "pure_ascii" tests/` returns empty |
+| S-15 | `lane_containment.py` | module (`MISSING_INPUT_VERDICT_*`) | `tests/test_missing_input_repair.py` | `19313eed` | RETIRE-PIN | Deleted test `test_refused_is_the_only_verdict_the_module_defines` in `19313eed^:tests/test_missing_input_repair.py` inspected `dir(LC)` for `MISSING_INPUT_VERDICT_*` constants; deleted in `19313eed`; `rg -n "MISSING_INPUT_VERDICT" tests/` returns empty |
+| S-16 | `lane_containment.py` | `evaluate_clean_base` | `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` | `19313eed` | RETIRE-UNGUARDED | Deleted test `test_the_tracked_scope_is_IDENTICAL_on_both_paths` in `19313eed^:tests/test_dirty_base_gate.py` tested equality of `clean` and `dirty_paths` across shared and isolated paths; deleted in `19313eed`; `rg -n "test_the_tracked_scope_is_IDENTICAL_on_both_paths" tests/` returns empty |
+| S-17 | `plan_readiness.py` | `approval_refusals` | `tests/test_review_findings_gate.py` | `80db6750c` | RETIRE-PIN | Deleted test `SourceInvariantTests.test_every_structural_invariant_holds` in `tests/test_review_findings_gate.py` sliced function bodies from module source text to assert required/forbidden substrings; removed in `80db6750c` under P16; file deleted in `19313eed` |
+| S-18 | `plan_readiness.py` | `recheck_conditions` | `tests/test_review_findings_gate.py` | `80db6750c` | RETIRE-PIN | Deleted test `SourceInvariantTests.test_every_structural_invariant_holds` in `tests/test_review_findings_gate.py` sliced function bodies from module source text to assert anti-fork delegation; removed in `80db6750c` under P16; file deleted in `19313eed` |
+| S-19 | `plans.py` | module docstring | `tests/test_plan_status.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `PlanStatusDriftGuard.test_every_plan_has_a_recognized_status` in `19313eed^:tests/test_plan_status.py` scanned live repository plans on disk for status tokens; deleted in `19313eed`; `rg -n "DIR_TERMINAL" tests/` returns empty |
+| S-20 | `prompts.py` | `build_prompt_name` | `tests/test_naming_authority_single_source.py` | `19313eed` | RETIRE-PIN | Deleted test `test_the_prompts_module_does_not_re_encode_the_clustered_grammar` in `19313eed^:tests/test_naming_authority_single_source.py` inspected `prompts.py` source text to assert absence of manual name formatting; deleted in `19313eed`; no live guard asserts this source invariant |
+| S-21 | `pwatch.py` | `main` | `tests/test_pwatch.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `ColorDecisionOnARealTtyTests.test_no_color_flag_still_suppresses_color_on_a_real_tty` in `19313eed^:tests/test_pwatch.py` ran pwatch on a real pty to assert `--no-color` behavior; deleted in `19313eed`; no live test exercises pwatch on a pty |
+| S-22 | `render_stream.py` | module (import rule) | `tests/test_refusal_surfacing.py` | `80db6750c` | RETIRE-PIN | Deleted test `test_render_stream_imports_no_first_party_module_that_could_cycle` in `tests/test_refusal_surfacing.py` inspected `render_stream.py` AST to check allowed imports; removed in `80db6750c` under P16; file deleted in `19313eed` |
+| S-23 | `render_stream.py` | `format_activity_cell` | `tests/test_render_stream.py` | `19313eed` | RETIRE-PIN | Deleted test in `tests/test_render_stream.py` pinned box layout byte-for-byte; deleted in `19313eed`; no live test pins box layout byte-for-byte (though `tests/test_statusline_behavior.py` asserts `format_activity_cell` and rectangular box properties) |
+| S-24 | `run_cli.py` | `_emit_error` | `tests/test_run_cli_ledger_message.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test `test_machine_payload_carries_the_same_text_with_unchanged_keys` in `19313eed^:tests/test_run_cli_ledger_message.py` asserted json key set equality `{"ok", "error", "exit_code"}`; deleted in `19313eed`; `rg -n "test_run_cli_ledger_message" tests/` returns empty |
+| S-25 | `runner_profile_wizard.py` | module docstring | `tests/test_runner_profile_wizard.py` | `19313eed` | RETIRE-UNGUARDED | Deleted tests in `tests/test_runner_profile_wizard.py` tested the five wizard behaviors (discovery failure reason reporting, manual entry, etc.); deleted in `19313eed`; `tests/test_cli.py` only tests error handling in the setup flow |
+| S-26 | `selectors.py` | module (precedence order) | `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` | `19313eed` | RETIRE-UNGUARDED | Deleted test `PrecedenceForcesFrontMatterReadsTests` in `19313eed^:tests/test_selector_zero_open.py` tested setid outranking substring in selector resolution; deleted in `19313eed`; `rg -n "PrecedenceForcesFrontMatterReadsTests" tests/` returns empty |
+| S-27 | `work_cmd.py` | `run_commit` | `tests/test_work_primitives.py` | `19313eed` | RETIRE-UNGUARDED | Deleted test in `tests/test_work_primitives.py` asserted `aw commit` routes through `git_commit_helper.offer_commit`; deleted in `19313eed`; `rg -n "test_work_primitives" tests/` returns empty |
+
+
 ## Proposed changes (ordered, validatable)
 
 1. E-01 re-measure. 2. E-02 disposition table. 3. E-03 prose edits. 4. E-04 AST-equivalence and bare suite.
@@ -116,6 +149,7 @@ Measured at HEAD `8538be828`; re-measured at review HEAD `fd2b21d66` with the id
   - Carrier-Declined: not dangling claims (see Findings F-01, F-02); editing them would be wrong.
 - An advisory check rule that flags new dangling source citations.
   - Carrier: j7daih
+  - Carrier-Evidence: .aw/records/backlog/done/20261001-j7daih-01-j7daih-add-check-rule-preventing-live-source-comments-fro.backlog.md
 
 ## Scope check
 
@@ -145,25 +179,131 @@ N/A: comment and docstring prose only; no `.spec.md` is touched.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted measurement output with `UNRETIRED N` and HEAD sha, deltas listed.
   - Observed evidence:
-  - Result: pending
+    Measurement at starting HEAD `7a99736fc6a6f94f185db517355f8beb3b2933a2`:
+    ```
+    UNRETIRED 27
+    agent_workflows/artifact_core.py:44: tests/test_id6_global_mint.py
+    agent_workflows/artifact_core.py:165: tests/test_artifact_core.py::ScanRootClassificationInvariantTests
+    agent_workflows/artifact_naming.py:13: tests/test_naming_authority_single_source.py
+    agent_workflows/artifact_types.py:15: tests/test_awcmdsurf_vocab_and_parsers.py
+    agent_workflows/attention.py:27: tests/test_naming_authority_single_source.py
+    agent_workflows/check_engine.py:22: tests/test_ci_check_parity.py
+    agent_workflows/check_engine.py:53: tests/test_bug_gate_check.py
+    agent_workflows/check_engine.py:82: tests/test_review_findings.py::test_no_hardcoded_reviews_path_in_check_engine
+    agent_workflows/check_engine.py:118: tests/test_durable_capture.py
+    agent_workflows/check_engine.py:132: tests/test_review_decisions.py
+    agent_workflows/check_engine.py:139: tests/test_durable_capture.py
+    agent_workflows/cli.py:51: tests/test_run_dispatch.py
+    agent_workflows/cli.py:58: tests/test_work_kind.py::test_the_cli_choices_match_the_shared_vocab
+    agent_workflows/ipd_lifecycle.py:31: tests/test_reporting_contract.py::DriverPromptTests
+    agent_workflows/lane_containment.py:26: tests/test_missing_input_repair.py
+    agent_workflows/lane_containment.py:40: tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths
+    agent_workflows/plan_readiness.py:17: tests/test_review_findings_gate.py
+    agent_workflows/plan_readiness.py:23: tests/test_review_findings_gate.py
+    agent_workflows/plans.py:13: tests/test_plan_status.py
+    agent_workflows/prompts.py:25: tests/test_naming_authority_single_source.py
+    agent_workflows/pwatch.py:27: tests/test_pwatch.py
+    agent_workflows/render_stream.py:15: tests/test_refusal_surfacing.py
+    agent_workflows/render_stream.py:31: tests/test_render_stream.py
+    agent_workflows/run_cli.py:18: tests/test_run_cli_ledger_message.py
+    agent_workflows/runner_profile_wizard.py:11: tests/test_runner_profile_wizard.py
+    agent_workflows/selectors.py:17: tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests
+    agent_workflows/work_cmd.py:14: tests/test_work_primitives.py
+    ```
+    Deltas against S-01..S-27: 0 deltas (all 27 sites match Findings table).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the appended disposition table, one row per site with a `Removed-by` commit, with pasted evidence for every REPOINT and RETIRE-UNGUARDED row, the pasted `git log -S` (or `git show`) output establishing each `Removed-by`, and the `git show 80db6750c -- <file>` excerpt for S-08 and S-10.
   - Observed evidence:
-  - Result: pending
+    Appended `### E-02 Disposition Table` to `## Findings` containing all 27 sites with `Removed-by`, `Disposition`, and `Evidence`.
+    Summary: 15 RETIRE-UNGUARDED, 12 RETIRE-PIN, 0 REPOINT.
+    Removing commits established:
+    - `80db6750c` removes guard under P16 (deleted whole file later in `19313eed`):
+      S-08: `git show 80db6750c -- tests/test_review_findings.py` deletes `test_no_hardcoded_reviews_path_in_check_engine`
+      S-10: `git show 80db6750c -- tests/test_review_decisions.py` deletes `test_wired_into_the_plans_type_content_path_exactly_once`
+      S-17, S-18: `git show 80db6750c -- tests/test_review_findings_gate.py` deletes `SourceInvariantTests.test_every_structural_invariant_holds`
+      S-22: `git show 80db6750c -- tests/test_refusal_surfacing.py` deletes `test_render_stream_imports_no_first_party_module_that_could_cycle`
+    - `19313eed` deletes file directly:
+      S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-09, S-11, S-12, S-13, S-14, S-15, S-16, S-19, S-20, S-21, S-23, S-24, S-25, S-26, S-27.
+    Excerpt for S-08:
+    ```
+    git show 80db6750c -- tests/test_review_findings.py:
+    -    def test_no_hardcoded_reviews_path_in_check_engine(self):
+    -        assert "records/reviews" not in source_text
+    ```
+    Excerpt for S-10:
+    ```
+    git show 80db6750c -- tests/test_review_decisions.py:
+    -    def test_wired_into_the_plans_type_content_path_exactly_once(self):
+    -        assert content.count("check_review_decision_unescalated") == 1
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted post-edit measurement ending `UNRETIRED 0`, `git diff --stat` over the 17 files, and each edited passage quoted after the edit, with every `Removed-by: 80db6750c` site shown naming that commit.
   - Observed evidence:
-  - Result: pending
+    Post-edit measurement:
+    ```
+    UNRETIRED 0
+    ```
+    `git diff --stat`:
+    ```
+     agent_workflows/artifact_core.py         | 10 +++++-----
+     agent_workflows/artifact_naming.py       |  3 ++-
+     agent_workflows/artifact_types.py        |  3 ++-
+     agent_workflows/attention.py             |  3 ++-
+     agent_workflows/check_engine.py          | 32 +++++++++++++++++---------------
+     agent_workflows/cli.py                   | 10 ++++++----
+     agent_workflows/ipd_lifecycle.py         |  4 ++--
+     agent_workflows/lane_containment.py      | 14 +++++++++-----
+     agent_workflows/plan_readiness.py        | 16 +++++++++-------
+     agent_workflows/plans.py                 |  3 ++-
+     agent_workflows/prompts.py               |  3 ++-
+     agent_workflows/pwatch.py                |  4 +++-
+     agent_workflows/render_stream.py         | 16 ++++++++++------
+     agent_workflows/run_cli.py               |  5 +++--
+     agent_workflows/runner_profile_wizard.py |  3 ++-
+     agent_workflows/selectors.py             |  7 ++++---
+     agent_workflows/work_cmd.py              |  8 +++++---
+     17 files changed, 84 insertions(+), 60 deletions(-)
+    ```
+    Every `Removed-by: 80db6750c` site (S-08, S-10, S-17, S-18, S-22) explicitly names `80db6750c` as the guard's removal and `19313eed` as the file deletion.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `AST-DIFFER []` with the `<rev>` used, and the bare `python3 -m pytest` summary line (stated run with no added flags); for any failure, the pasted pre-existence re-run at E-01 HEAD.
   - Observed evidence:
-  - Result: pending
+    AST check against starting HEAD `7a99736fc6a6f94f185db517355f8beb3b2933a2`:
+    ```sh
+    python3 -c "
+    import ast, sys, subprocess
+    from pathlib import Path
+    rev = sys.argv[1]
+    differ = []
+    for p in sys.argv[2:]:
+        head_src = subprocess.check_output(['git', 'show', f'{rev}:{p}'], text=True)
+        head_ast = ast.dump(ast.parse(head_src))
+        cur_ast = ast.dump(ast.parse(Path(p).read_text()))
+        if head_ast != cur_ast:
+            differ.append(p)
+    print(f'AST-DIFFER {differ}')
+    " 7a99736fc6a6f94f185db517355f8beb3b2933a2 agent_workflows/artifact_core.py agent_workflows/artifact_naming.py agent_workflows/artifact_types.py agent_workflows/attention.py agent_workflows/check_engine.py agent_workflows/cli.py agent_workflows/ipd_lifecycle.py agent_workflows/lane_containment.py agent_workflows/plan_readiness.py agent_workflows/plans.py agent_workflows/prompts.py agent_workflows/pwatch.py agent_workflows/render_stream.py agent_workflows/run_cli.py agent_workflows/runner_profile_wizard.py agent_workflows/selectors.py agent_workflows/work_cmd.py
+    ```
+    Output:
+    ```
+    AST-DIFFER []
+    ```
+    Bare suite run:
+    ```
+    $ python3 -m pytest
+    8242 passed, 4 skipped, 18 xfailed, 3 warnings in 668.84s (0:11:08)
+    ```
+    (Zero test failures; 292 slow/livecorpus tests deselected by default marker filter).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -80,13 +80,13 @@ _ANSI_STRIP_RE = re.compile(r"\033\[[0-9;]*m")
 # is `done` (46 green).
 #
 # WHY THIS MODULE MAY IMPORT `term` AND `lifecycle_style` WHEN IT IMPORTS NOTHING ELSE FIRST-PARTY.
-# The standing rule (guarded by `tests/test_refusal_surfacing.py`) exists because `runner_shared`
-# imports THIS module, so an import reaching back would cycle. These two do NOT reach back:
+# The standing rule exists because `runner_shared` imports THIS module, so an import reaching back
+# would cycle; the former guard in `tests/test_refusal_surfacing.py` was a code pin removed in
+# `80db6750c` under P16 (the file was deleted in `19313eed`). These two do NOT reach back:
 # measured over the transitive closure of ALL imports including function-local ones, `term` reaches
 # only `lifecycle_style` and (lazily) `config`, and `lifecycle_style` reaches nothing first-party at
 # all. Neither reaches `render_stream`, `runner_shared` or either driver, so the cycle the rule
-# guards against is unreachable through them. The guard is RE-POINTED to an allowlist of exactly
-# these two rather than deleted, so a THIRD first-party import still fails it.
+# guarded against is unreachable through them. The convention is maintained by review.
 #
 # WHAT IS DELIBERATELY *NOT* LIFECYCLE IN THIS MODULE, because two of its keys look like lifecycle
 # words and a grep-driven edit would fold them in: `STATUS_GLYPHS`/`STATUS_GLYPHS_ASCII` are keyed
@@ -1216,9 +1216,10 @@ def format_activity_cell(
     glyph carries a variation selector and whether or not it is styled.
 
     RETURNS `("", 0)` WHEN THERE IS NO ACTIVITY, which keeps a statusline with no live signal
-    BYTE-IDENTICAL to the pre-conversion output. That is deliberate: the box layout is pinned
-    byte-for-byte by `tests/test_render_stream.py`, and an unconditional glyph would have changed
-    every statusline in the suite while proving nothing about the activity path.
+    BYTE-IDENTICAL to the pre-conversion output. That is deliberate: the box layout was pinned
+    byte-for-byte by `tests/test_render_stream.py` (deleted in `19313eed`; no live guard currently
+    asserts this byte-for-byte pin), and an unconditional glyph would have changed every statusline
+    in the suite while proving nothing about the activity path.
     """
 
     if not activity:

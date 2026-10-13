@@ -250,8 +250,9 @@ def build_prompt_name(
 
     `YYYYMMDD-<setid>-NN-<id6>-<slug>.prompt.md`. Delegates to
     ``artifact_naming.build_clustered_name`` rather than formatting the grammar here, so this module
-    cannot emit a name the checker rejects (the single-source property pinned by
-    ``tests/test_naming_authority_single_source.py``).
+    cannot emit a name the checker rejects (the single-source property formerly pinned by
+    ``tests/test_naming_authority_single_source.py``, deleted in ``19313eed``; no live guard
+    currently asserts this).
     """
 
     return _naming.build_clustered_name(

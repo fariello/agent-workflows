@@ -1525,9 +1525,10 @@ MISSING_INPUT_SOURCE_PERMISSION = (
 #:
 #: There is deliberately NO `GRANTED`/`PERMITTED` sibling constant, and adding one is how R3.6's
 #: guarantee would die: the requirement is that the decision TYPE cannot represent a live grant, not
-#: that a boolean happens to be False. `tests/test_missing_input_repair.py` enumerates this module's
-#: `MISSING_INPUT_VERDICT_*` names and `MissingInputDecision._fields`, so introducing either a second
-#: verdict or a grant-shaped field FAILS the suite rather than silently widening the rule.
+#: that a boolean happens to be False. `tests/test_missing_input_repair.py` (deleted in `19313eed`;
+#: no live guard currently asserts this) enumerated this module's `MISSING_INPUT_VERDICT_*` names and
+#: `MissingInputDecision._fields`, so introducing either a second verdict or a grant-shaped field
+#: would have failed the suite rather than silently widening the rule.
 MISSING_INPUT_VERDICT_REFUSED = "refused"
 
 #: Why a request was refused. EVERY request is refused (R3.3a), so these distinguish the RULE that
@@ -3066,9 +3067,10 @@ def evaluate_clean_base(
     `3i0aaz` E-03, amended by dirtygates `d7qoxv` E-03). The tracked/untracked SCOPE is identical on
     both paths - untracked content is reported once per run by
     `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - and `clean` /
-    `dirty_paths` are computed identically for both, which is asserted in
-    `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths`. What DOES
-    differ is what the caller then does, and `CleanBaseResult.refuses` is where that lives: a dirty
+    `dirty_paths` are computed identically for both, which was asserted in
+    `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` (deleted in
+    `19313eed`; no live guard currently asserts this). What DOES differ is what the caller then
+    does, and `CleanBaseResult.refuses` is where that lives: a dirty
     SHARED tree REFUSES, a dirty ISOLATED base is REPORTED and proceeds.
 
     THIS FUNCTION STILL CLASSIFIES A DIRTY ISOLATED TREE AS `clean=False`, and that is deliberate
