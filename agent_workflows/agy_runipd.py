@@ -3311,11 +3311,11 @@ def run_queue(
             # reference, because the line above REBOUND `state` to a fresh dict. Without this, a
             # SIGINT arriving after a deferred integration re-attempt reports the PRE-reload
             # snapshot: the item shows as still `integration-deferred` when it has in fact just
-            # integrated. `oc_runipd`'s counterpart has always had this call (`oc_runipd.py:8766`)
-            # and states the invariant in its own comment at `oc_runipd.py:8645`: "called again
-            # after each state reload so the report never runs off a stale snapshot". This host
-            # omitted it at BOTH ladder reload points; that omission was a DEFECT, not a host
-            # difference, and no test covered it.
+            # integrated. `oc_runipd.run_queue`'s counterpart has always had this call
+            # and states the invariant in the comment above its first `register_signal_report(run_dir, state)`
+            # call: "`register_signal_report` is called again after each state reload so the report
+            # never runs off a stale snapshot". This host omitted it at BOTH ladder reload points;
+            # that omission was a DEFECT, not a host difference, and no test covered it.
             register_signal_report(run_dir, state)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued and not runner_shared.deferred_integration_items(state):
@@ -3367,7 +3367,9 @@ def run_queue(
                 save_state(run_dir, state)
                 state = load_state(run_dir)
                 # rununify Order 08 (`ty3cj6`) E-03: the SECOND of the two ladder reloads this host
-                # was missing, matching `oc_runipd.py:8834`. Rungs 2/3 can BLOCK for a long time (a
+                # was missing, matching the `register_signal_report` call after
+                # `retry_deferred_integrations(run_dir, state, poll=True, ask=True)` in
+                # `oc_runipd.run_queue`. Rungs 2/3 can BLOCK for a long time (a
                 # bounded poll plus a timeout-bounded ask), so this is precisely the window in which
                 # an operator is most likely to interrupt, and reporting a pre-reload snapshot here
                 # would describe the run as it was before the poll rather than as it is.

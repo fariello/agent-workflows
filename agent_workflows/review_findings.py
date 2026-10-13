@@ -954,7 +954,7 @@ def subject_gating_blocks(
 # spellings of the same operation - already import from here for the GATING predicate, so putting
 # the attestation beside it means one import and, critically, ONE COPY. Installing this in only one
 # of the two setters would be bypassed by choosing the other spelling, which is the exact defect
-# `apprvguard` d7bnhc documented at `status_set.py:532-538`.
+# `apprvguard` d7bnhc documented in `status_set.validate_transition_allowed`.
 #
 # WHAT IT IS AND IS NOT, stated plainly because overselling it is the failure mode. It is the
 # `evidence` KIND of authority that `attention_contract.APPROVAL_FLOOR` already describes: presence,

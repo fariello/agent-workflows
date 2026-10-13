@@ -4349,8 +4349,8 @@ class ReintegrationVerbTests(unittest.TestCase):
         `reintegrate_lane` must supply its OWN suite-backed runner rather than reaching for the factory.
         """
         # THE MODE IS STATED EXPLICITLY, exactly as a real run's frozen state states it
-        # (`oc_runipd.py:3477-3478` writes `validate` and `no_audit`; `agy_runipd.py:2190` writes
-        # `no_verify`). It matters here: revalidation is the SUITE-EARNED mode's step, and an options
+        # (`oc_runipd`'s frozen run options write "validate" and "no_audit"; `agy_runipd`'s write
+        # "no_verify"). It matters here: revalidation is the SUITE-EARNED mode's step, and an options
         # mapping carrying none of those keys resolves to the VERIFIER mode, whose trust signal is the
         # verifier's verdict rather than a suite. This case is about the suite-earned mode.
         shipped = runner_shared.make_integration_validation_runner(

@@ -13318,7 +13318,8 @@ def plan_audit_target(
       * ``operator``  - a ``--base`` revision the operator named, which wins because they said it;
       * ``receipt``   - a surviving `aw ipd begin` receipt's ``base_head``, correct but RARE (measured
                         2026-09-20: 17 of 561 executed plans, because a clean finalize consumes the
-                        receipt at `ipd_lifecycle.py:3989`);
+                        receipt at the "Consume the begin receipt" step in
+                        `ipd_lifecycle._complete_after_commit`);
       * ``none``      - no baseline at all, which is the COMMON case and is NOT an error.
 
     ``none`` IS A FIRST-CLASS ANSWER, not a degraded one, and that is the design decision this
@@ -14131,7 +14132,7 @@ def discover_plans(
 # reviews path. A second "where do specs live" mechanism is the drift GUIDING_PRINCIPLES P8 forbids.
 #
 # WHY NOT `aw find specs --status` (`5slbpi` DECISION D4). Because it is BROKEN and silently so:
-# `cli._find_type_records`'s "All other types" branch (`cli.py:8487-8512`) never consults
+# `cli._find_type_records`'s "All other types" branch never consults
 # `explicit_flags.status`, unlike the `plans` and `research` branches which both call a `query(...)`
 # helper. Re-verified at implementation: `aw find specs --status draft`, `--status to-review`, and
 # unfiltered `aw find specs` each return all 27 specs. This plan AVOIDS the filter rather than fixing
