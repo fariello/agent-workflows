@@ -1,6 +1,6 @@
 # IPD: clean-delta contribution and artifact-tracking modes (evidence-grounded DESIGN SPEC, no build)
 
-- Date: 2026-07-23 (fleshed 2026-07-26 from research)
+- Date: 2026-07-23
 - Concern: let a developer use agent-workflows in a repo they do NOT own and will PR upstream, leaving the upstream repo a clean delta with their own artifacts tracked elsewhere; and, more generally, choose how much agent-workflows footprint a repo carries (tracked, per-class opt-out, or clean-delta)
 - Scope: produce the SPEC and phased plan for the two coherent modes (tracked; clean-delta) grounded in the committed research bundle. This IPD produces a DESIGN DOCUMENT ONLY - no product code. It defines the architecture, the per-host delivery decisions, the state/ownership model, migration, the same-version-reinstall behavior, downgrade-preservation, and a phased plan whose Phase 0 (a conformance harness) and later build phases become their OWN separate IPDs. It ABSORBS and records the resolution of IPD 05's deferred open questions. DEPENDS ON / references IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked convention), IPD 04 (conservative uninstall), IPD 05 (external-delivery spec + host-probe).
 - Status: executed

@@ -6,7 +6,7 @@
 - Scope: IN: correct the plan's malformed `- Date:` to the parseable `2026-07-23` so the tooled rename can read it (measured mandatory, F-04); rename the record to `20260723-instsafe-07-qrokie-...` through `aw group plans --rename --apply`; rewrite the FOUR tool-reachable live citations the preview names; HAND-correct the THREE citations the rewriter structurally cannot reach (F-06); (REVIEW 2026-10-02: the fixture entry no longer needs re-keying, because `rlcq7g` EXECUTED and the fixture is now keyed by id6 (`"qrokie": "executed"`), so a rename cannot drop it; and the tooled `aw group plans --rename` route NO LONGER EXISTS, because `949enf` EXECUTED and its filename-first `plans_refs._preserved_date` reproduces `20260101` from the current name. The rename is therefore a `git mv` plus the shipped rewriter `artifact_refs.plan_reference_rewrites_with_warnings`/`apply_reference_rewrites` driven from Python, per OQ-03's pre-authorized fallback.) OUT: every code path (`plans_refs._plan_date` is `949enf`; `plans_archive._plan_date` is `dkfthf`; the lint gap is `fqcax0`/`5h8u3z`; filename-versus-metadata detection is `mt6j1p`); the facet-less-stem blindness in `artifact_refs` this plan WORKS AROUND BY HAND rather than fixes (F-06, OQ-02); any other record's name, date, or body; the `20260101` constant itself; and every citation this plan classifies LEAVE (fenced evidence transcripts and historical `.agents/` paths).
 - Scope-Paths: .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, .aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, DECISIONS.md, .aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md, .aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md, .aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: j7dsci
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: j7dsci verified (set tf4jz5, attempt 1).
 - 2026-10-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): path-only correction: the spec this plan edits was renamed by h8e3sm (49db00887) from `20260726-1239-01-...` to `20260726-or061f-01-or061f-...`; 3 references updated (Scope-Paths, E-05, the spec-sync note). The rename-destination dispatch refusal it hit (backlog dparot) is fixed separately.
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
@@ -41,53 +41,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and the enabling metadata correction
 
-- [ ] E-01 CAPTURE THE PRE-CHANGE BASELINE, so every later claim is a comparison and not an assertion. Save under `/tmp/opencode/tf4jz5-baseline/`: the full citation census `git grep -n '20260101-instsafe-07-qrokie'` (31 occurrences across 20 files at authoring); the rewriter PREVIEW, i.e. `artifact_refs.plan_reference_rewrites_with_warnings(Path('.'), {old: new}, Path('.aw/records/plans'))` for the exact old/new filename pair, printing each `RefEdit`'s `file`, `kind`, `old`, `new` and `hits` (10 files / 20 edits at review HEAD `6830882b5`); the dead-citation census `artifact_refs.dead_filename_citations(Path('.'), 'plans')` (its total, and every entry whose `id6` contains `qrokie`); `python3 -m agent_workflows check plans --agent`; `python3 -m agent_workflows ipd lint` on the target file; and `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` with its `Compared N paths` line. The census counts are CONTEXT, re-derived at execution; at review they were 48 occurrences across 23 files.
+- [x] E-01 CAPTURE THE PRE-CHANGE BASELINE, so every later claim is a comparison and not an assertion. Save under `/tmp/opencode/tf4jz5-baseline/`: the full citation census `git grep -n '20260101-instsafe-07-qrokie'` (31 occurrences across 20 files at authoring); the rewriter PREVIEW, i.e. `artifact_refs.plan_reference_rewrites_with_warnings(Path('.'), {old: new}, Path('.aw/records/plans'))` for the exact old/new filename pair, printing each `RefEdit`'s `file`, `kind`, `old`, `new` and `hits` (10 files / 20 edits at review HEAD `6830882b5`); the dead-citation census `artifact_refs.dead_filename_citations(Path('.'), 'plans')` (its total, and every entry whose `id6` contains `qrokie`); `python3 -m agent_workflows check plans --agent`; `python3 -m agent_workflows ipd lint` on the target file; and `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` with its `Compared N paths` line. The census counts are CONTEXT, re-derived at execution; at review they were 48 occurrences across 23 files.
   RECORD THE REAL DATE'S PROVENANCE IN THE SAME PASS, because it is the single fact the whole repair rests on and it lives only in git: `git log --diff-filter=R --follow --name-status -- <the target path>` shows `R099` from `.agents/plans/executed/20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md` in `05c4deb1` (2026-08-08, "back-fill Id + cluster the plan corpus"). Save that output. If it does NOT show `20260723`, STOP: the premise of this plan is the old filename, and without it there is no evidence for the date to restore.
   - Depends on: none
   - Expected outcome: Baseline files written; the citation census, the rewriter preview and the dead-citation census recorded with their execution-time counts; the `Compared N paths` number recorded; the `R099` rename record from `05c4deb1` saved showing the `20260723` source name.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CORRECT THE MALFORMED `- Date:` LINE IN THE TARGET PLAN, from `- Date: 2026-07-23 (fleshed 2026-07-26 from research)` to `- Date: 2026-07-23`. REVIEW CORRECTION (2026-10-02): this edit no longer ENABLES a tooled rename (F-04 is superseded: after `949enf`, `plans_refs._preserved_date` reads the FILENAME first, so `aw group plans qrokie --set instsafe --rename --order 7` previews only `would set Set=instsafe Order=07` with or without this edit, measured in a throwaway repo at review HEAD `6830882b5`). It is still REQUIRED, for a different reason: once the file is renamed to `20260723-...`, a malformed `- Date:` would leave the plan's own metadata unparseable (the subject of executed `fqcax0`) and the filename-vs-metadata check proposed by pending plan `wyk11f` (`check.plan-date-filename-mismatch`) could not confirm the two agree. Correcting it makes the renamed name and the parsed `- Date:` agree, which is the repair's whole point.
+- [x] E-02 CORRECT THE MALFORMED `- Date:` LINE IN THE TARGET PLAN, from `- Date: 2026-07-23 (fleshed 2026-07-26 from research)` to `- Date: 2026-07-23`. REVIEW CORRECTION (2026-10-02): this edit no longer ENABLES a tooled rename (F-04 is superseded: after `949enf`, `plans_refs._preserved_date` reads the FILENAME first, so `aw group plans qrokie --set instsafe --rename --order 7` previews only `would set Set=instsafe Order=07` with or without this edit, measured in a throwaway repo at review HEAD `6830882b5`). It is still REQUIRED, for a different reason: once the file is renamed to `20260723-...`, a malformed `- Date:` would leave the plan's own metadata unparseable (the subject of executed `fqcax0`) and the filename-vs-metadata check proposed by pending plan `wyk11f` (`check.plan-date-filename-mismatch`) could not confirm the two agree. Correcting it makes the renamed name and the parsed `- Date:` agree, which is the repair's whole point.
   PRESERVE THE DISPLACED FACT RATHER THAN DELETING IT. The parenthetical records real history (the stub was authored 2026-07-23 and fleshed into a spec 2026-07-26) and that history is ALREADY recorded, verbatim and in more detail, in the plan's own `## Workflow history` ("2026-07-26 fleshed to a design spec from research"). So the information is not lost by this edit; confirm that history line is present before making it, and if it is absent, STOP and report rather than discarding the only copy of a fact.
   THIS IS THE ONLY BYTE OF THE EXECUTED PLAN'S BODY THIS PLAN MAY CHANGE. Do not touch its `## Workflow history`, its items, its evidence, its `- Status:`, its `- Set:` line, or any other metadata value. AGENTS.md forbids changing what an executed plan RECORDS; a malformed metadata VALUE that contradicts the plan's own history is not a record of anything. Do not append a history line to this plan either: the record of this repair belongs in THIS plan's history.
   - Depends on: E-01
   - Expected outcome: The target plan's `- Date:` reads exactly `- Date: 2026-07-23`; its `## Workflow history` is byte-unchanged and still carries the 2026-07-26 fleshing record; `git diff` on that file shows exactly one changed line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the rename and the rewriter
 
-- [ ] E-03 COMPUTE AND CLASSIFY THE REWRITE SET BEFORE APPLYING ANYTHING, using the shipped rewriter directly because no CLI verb will perform this rename any more (Scope; F-11). Call `artifact_refs.plan_reference_rewrites_with_warnings(Path('.'), {'20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md': '20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md'}, Path('.aw/records/plans'))` and save every returned `RefEdit` (`file`, `kind`, `old`, `new`, `hits`) plus the warnings list. At review HEAD it returned 20 edits over 10 files, no warnings: `tk1gqo`, `5h8u3z`, `jhrao5`, `tf4jz5`, `mt6j1p` (backlog items), executed `949enf` and `fqcax0`, pending `dkfthf`/`6i8knl`, pending `wyk11f`, and THIS plan. Re-derive at execution; the set is a live population.
+- [x] E-03 COMPUTE AND CLASSIFY THE REWRITE SET BEFORE APPLYING ANYTHING, using the shipped rewriter directly because no CLI verb will perform this rename any more (Scope; F-11). Call `artifact_refs.plan_reference_rewrites_with_warnings(Path('.'), {'20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md': '20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md'}, Path('.aw/records/plans'))` and save every returned `RefEdit` (`file`, `kind`, `old`, `new`, `hits`) plus the warnings list. At review HEAD it returned 20 edits over 10 files, no warnings: `tk1gqo`, `5h8u3z`, `jhrao5`, `tf4jz5`, `mt6j1p` (backlog items), executed `949enf` and `fqcax0`, pending `dkfthf`/`6i8knl`, pending `wyk11f`, and THIS plan. Re-derive at execution; the set is a live population.
   CLASSIFY EACH FILE, BY OPENING IT, AS KEEP OR LEAVE. KEEP when the text names THIS plan's file as a pointer a reader would follow; LEAVE when the old name is the SUBJECT of a defect description or a measurement that was true when recorded (rewriting it would falsify the measurement). At review the classification is: KEEP `tk1gqo` only (a lifecycle example citing the file as a record). LEAVE: `5h8u3z`, `jhrao5`, `tf4jz5`, `mt6j1p` (each names the old name AS the defect or as a measured example); executed `949enf` and `fqcax0` (EXECUTED plans: their recorded findings must not be edited at all, per AGENTS.md); pending `dkfthf`/`6i8knl` and pending `wyk11f` (findings and fixtures describing the defect); and THIS plan (its own text is the defect description). Re-justify each against its actual text at execution; if a file's text reads as a pointer rather than as a subject, classify KEEP and say why.
   - Depends on: E-02
   - Expected outcome: A saved list of every `RefEdit` and a written KEEP/LEAVE classification per file with a quoted occurrence and the reason; the KEEP set filtered to its own list of `RefEdit`s.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RENAME THE FILE WITH `git mv` AND APPLY ONLY THE KEEP EDITS. Run `git mv .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md .aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md`, then call `artifact_refs.apply_reference_rewrites(keep_edits)` with ONLY the KEEP subset from E-03. Applying only KEEP edits means no LEAVE file is ever touched, which removes the restore step the authored route needed and the risk of a missed restore. Then regenerate the plan manifests with `python3 -m agent_workflows index plans` (generated and gitignored; do not stage them).
+- [x] E-04 RENAME THE FILE WITH `git mv` AND APPLY ONLY THE KEEP EDITS. Run `git mv .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md .aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md`, then call `artifact_refs.apply_reference_rewrites(keep_edits)` with ONLY the KEEP subset from E-03. Applying only KEEP edits means no LEAVE file is ever touched, which removes the restore step the authored route needed and the risk of a missed restore. Then regenerate the plan manifests with `python3 -m agent_workflows index plans` (generated and gitignored; do not stage them).
   WHY NOT THE VERB, stated so an executor does not waste a turn: `aw group plans ... --rename` and `aw rename plans --id qrokie ...` both preview only `would set Set=instsafe Order=07` because `plans_refs._preserved_date` (from `949enf`) takes the date from the current filename, and neither verb accepts `--date` (measured at review). This is the fallback OQ-03 pre-authorized; record in the execution report that the route switched and why.
   `git mv` OF AN EXECUTED PLAN IS PERMITTED HERE: F-03 measured `ipd-executed-gate` returning rc 0 on this exact staged rename (same `- Id:`, already `executed` at HEAD). If the hook now refuses, STOP and report; never `--no-verify`.
   - Depends on: E-03
   - Expected outcome: The file is at `.aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` with `- Id: qrokie`, `- Set:` and `- Order:` byte-unchanged; the KEEP file(s) cite the new name; every LEAVE file has an empty `git diff`; no manifest file is staged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the three citations the tool cannot reach, and the fourth it cannot see
 
-- [ ] E-05 HAND-CORRECT THE THREE FACET-LESS CITATIONS, which are exactly the damage the backlog item names and exactly what the rewriter structurally cannot reach (F-06). In `DECISIONS.md` (D109's `**Applied:**` line, "Executed per IPD 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec"), in `.aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md` (its `2026-08-08 migrated (aw specs)` history line, "produced by IPD `20260101-instsafe-07-qrokie-...-design-spec`"), and in `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md` (line 5, "IPD `20260101-instsafe-07-qrokie-...-design-spec`"), replace the `20260101` date segment with `20260723`. One occurrence each, measured.
+- [x] E-05 HAND-CORRECT THE THREE FACET-LESS CITATIONS, which are exactly the damage the backlog item names and exactly what the rewriter structurally cannot reach (F-06). In `DECISIONS.md` (D109's `**Applied:**` line, "Executed per IPD 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec"), in `.aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md` (its `2026-08-08 migrated (aw specs)` history line, "produced by IPD `20260101-instsafe-07-qrokie-...-design-spec`"), and in `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md` (line 5, "IPD `20260101-instsafe-07-qrokie-...-design-spec`"), replace the `20260101` date segment with `20260723`. One occurrence each, measured.
   WHY THE TOOL MISSES THESE, so the hand edit is understood as a workaround and not as sloppiness: `artifact_refs.plan_reference_rewrites_with_warnings` builds exactly two keys from the name pair, the FULL filename (`...-design-spec.ipd.md`) and the whole stem INCLUDING the type facet (`...-design-spec.ipd`). All three citations end at `-design-spec`, with no `.ipd` and no `.md`, so neither key matches and `_boundaried` finds nothing. Verified directly: the facet-less citation string contains neither key.
   CORRECTING A SPEC'S AND A DECISION'S HISTORY LINE IS THE CORRECT ACT HERE, not a violation of their immutability. Each line's claim is "this spec was produced by the IPD named X"; X is a FILENAME, the filename is changing in this same commit, and leaving it would make all three dangle. This edits an identifier, not a recorded fact or a date either record asserts about itself. Do NOT change either record's `- Status:`, and do NOT append a history line to the spec: its own history is not what this plan did.
   - Depends on: E-04
   - Expected outcome: Three files each showing exactly one changed line, `20260101` -> `20260723` inside the cited plan name; no other byte changed in any of the three; `git grep -c` confirming zero remaining facet-less `20260101-instsafe-07-qrokie` citations in them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 CONFIRM THE BASELINE FIXTURE NEEDS NO EDIT, rather than re-keying it. REVIEW CORRECTION (2026-10-02): `rlcq7g` EXECUTED and re-keyed `tests/fixtures/derive_plan_status_baseline.json` by id6, so it now holds `"qrokie": "executed"` and no path; a rename cannot drop it, and editing the fixture would be out of scope. This item exists to PROVE that instead of assuming it, because the authored item was correct against the fixture it saw.
+- [x] E-06 CONFIRM THE BASELINE FIXTURE NEEDS NO EDIT, rather than re-keying it. REVIEW CORRECTION (2026-10-02): `rlcq7g` EXECUTED and re-keyed `tests/fixtures/derive_plan_status_baseline.json` by id6, so it now holds `"qrokie": "executed"` and no path; a rename cannot drop it, and editing the fixture would be out of scope. This item exists to PROVE that instead of assuming it, because the authored item was correct against the fixture it saw.
   - Depends on: E-04
   - Expected outcome: `tests/fixtures/derive_plan_status_baseline.json` is byte-unchanged by this plan; it carries the key `qrokie` with value `executed`; the Derivation test's `Compared N paths` after the rename EQUALS E-01's baseline N.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECONCILE THE WHOLE CITATION CENSUS AND PROVE NOTHING DANGLES, as a separate pass from the edits, because this plan touches nine paths through three different mechanisms (tooled rewrite, hand edit, fixture edit) and a missed occurrence is invisible without a whole-tree re-census. Re-run E-01's `git grep -n '20260101-instsafe-07-qrokie'` and account for EVERY surviving occurrence as a deliberate LEAVE, naming its file and reason. Re-run `artifact_refs.dead_filename_citations(Path('.'), 'plans')` and show that every entry naming the OLD filename is in a LEAVE file (or `STATUS.md`, regenerated), and that no KEEP file or hand-edited file appears. Also run `python3 -m agent_workflows check plans --all --agent` and `python3 -m agent_workflows sanitize --agent`, and compare the findings against E-01's baseline.
+- [x] E-07 RECONCILE THE WHOLE CITATION CENSUS AND PROVE NOTHING DANGLES, as a separate pass from the edits, because this plan touches nine paths through three different mechanisms (tooled rewrite, hand edit, fixture edit) and a missed occurrence is invisible without a whole-tree re-census. Re-run E-01's `git grep -n '20260101-instsafe-07-qrokie'` and account for EVERY surviving occurrence as a deliberate LEAVE, naming its file and reason. Re-run `artifact_refs.dead_filename_citations(Path('.'), 'plans')` and show that every entry naming the OLD filename is in a LEAVE file (or `STATUS.md`, regenerated), and that no KEEP file or hand-edited file appears. Also run `python3 -m agent_workflows check plans --all --agent` and `python3 -m agent_workflows sanitize --agent`, and compare the findings against E-01's baseline.
   THE EXPECTED SURVIVING SET IS NON-EMPTY AND THAT IS CORRECT, so do not drive this to zero. It is every LEAVE file from E-03 plus files the rewriter does not reach and whose occurrence is evidence (at review: executed `ribg85`, `rlcq7g`, `63h054` (fenced), `9zvl2w` (fenced), pending `h8e3sm` and its review, the `wslayout` and `dkfthf` reviews, backlog `xp6o3v`), and the regenerated `STATUS.md`. State the execution-time set and any divergence from this list.
   - Depends on: E-05, E-06
   - Expected outcome: A written census reconciliation accounting for every surviving occurrence; `check plans --all` showing no NEW finding versus baseline; `sanitize --agent` clean; zero dangling citations of the old name in any record that was meant to point at the file.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,40 +184,213 @@ No spec is amended and no `.spec.md` is declared for a CONTRACT change, because 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the `git log --diff-filter=R --follow --name-status` output showing the `R099` record in `05c4deb1` with `20260723-1100-07-...` as the source name. Paste the census counts (occurrences and files) as MEASURED at execution, the rewriter preview (`RefEdit` list and warnings), the dead-citation entries naming `qrokie`, and the `Compared N paths` line from the Derivation test.
   - Observed evidence:
-  - Result: pending
+    1. Provenance git log showing R099 from 20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md in commit 05c4deb1:
+    ```
+    commit 05c4deb1edb5581dabe5ed2643baf6ccf3b567ce
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Sat Aug 8 16:37:56 2026 -0400
 
-- [ ] V-02 validates E-02
+        migrate(plans): back-fill Id + cluster the plan corpus onto the new grammar (plans-adopter Order 06)
+
+    R099	.agents/plans/executed/20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md	.agents/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.md
+    ```
+    2. Citation census counts measured at execution: 56 occurrences across 26 files (git grep -n 20260101-instsafe-07-qrokie).
+    3. Rewriter preview: 22 RefEdits across 11 files, 0 warnings.
+    4. Dead-citation census: total 110 dead citations, 23 entries containing qrokie.
+    5. Derivation test output: `tests/test_history_order.py Compared 732 plans`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff -- <target path>` (before the `git mv`, or `git diff -M` after) showing EXACTLY ONE changed line in the body, the `- Date:` correction, and paste `grep -c 'fleshed to a design spec from research' <target>` returning 1 to prove the displaced fact still exists in the plan's own history. Paste `aw ipd lint --agent` on the target before and after showing no regression.
   - Observed evidence:
-  - Result: pending
+    1. git diff on target before git mv showing single-line metadata change:
+    ```diff
+    --- a/.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
+    +++ b/.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
+    @@ -1,6 +1,6 @@
+     # IPD: clean-delta contribution and artifact-tracking modes (evidence-grounded DESIGN SPEC, no build)
 
-- [ ] V-03 validates E-03
+    -- Date: 2026-07-23 (fleshed 2026-07-26 from research)
+    +- Date: 2026-07-23
+     - Concern: let a developer use agent-workflows in a repo they do NOT own and will PR upstream, leaving the upstream repo a clean delta with their own artifacts tracked elsewhere; and, more generally, choose how much agent-workflows footprint a repo carries (tracked, per-class opt-out, or clean-delta)
+     - Scope: produce the SPEC and phased plan for the two coherent modes (tracked; clean-delta) grounded in the committed research bundle. This IPD produces a DESIGN DOCUMENT ONLY - no product code. It defines the architecture, the per-host delivery decisions, the state/ownership model, migration, the same-version-reinstall behavior, downgrade-preservation, and a phased plan whose Phase 0 (a conformance harness) and later build phases become their OWN separate IPDs. It ABSORBS and records the resolution of IPD 05's deferred open questions. DEPENDS ON / references IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked convention), IPD 04 (conservative uninstall), IPD 05 (external-delivery spec + host-probe).
+     - Status: executed
+    ```
+    2. grep -c 'fleshed to a design spec from research' on target returned 1, proving displaced history is preserved in ## Workflow history.
+    3. ipd lint output before and after:
+    Before: `-    ✓  executed     plan        20260101-instsafe-07-qrokie  legacy/not evaluated`
+    After: `-    ✓  executed     plan        20260723-instsafe-07-qrokie  legacy/not evaluated`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full `RefEdit` list and the written KEEP/LEAVE classification naming every file it returned, each with one quoted occurrence and the reason. For every LEAVE file, the quote must show the old name used AS THE DEFECT'S SUBJECT or inside an executed plan's recorded findings. For every KEEP file, the quote must show the old name used as a pointer to the file.
   - Observed evidence:
-  - Result: pending
+    Full RefEdit list: 22 edits over 11 files (0 warnings).
+    Classification of each file:
+    * .aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md: KEEP
+      Quoted occurrence: `Sampled from executed/ (i.e. a plan that completed the whole lifecycle), 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md records 2026-07-23 draft -> 2026-07-25 reframed -> 2026-07-26 executed, oldest first.`
+      Reason: Cites the plan file as an attributable executed record demonstrating lifecycle ordering conventions.
+    * .aw/records/backlog/done/20260922-historder-01-jhrao5-oldest-first-legacy-history-misreported.backlog.md: LEAVE
+      Quoted occurrence: `Examples: 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, 20260712-aw-install-00-ysuonq, .aw/records/specs/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md. This is a DATA problem, not a reader problem...`
+      Reason: Old name is cited as an observed data example of an artifact storing history oldest-first on disk.
+    * .aw/records/backlog/done/20260929-5h8u3z-01-5h8u3z-malformed-date-escapes-ipd-lint.backlog.md: LEAVE
+      Quoted occurrence: `IT IS NOT HYPOTHETICAL: .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md carries exactly that malformed line, and its filename now records the fabricated 20260101 instead of its real 20260723`
+      Reason: Old name is cited as the subject of the defect.
+    * .aw/records/backlog/done/20260930-mt6j1p-01-mt6j1p-filename-date-disagrees-with-metadata-unreported.backlog.md: LEAVE
+      Quoted occurrence: `The corpus contains exactly one such file today, '\.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md\, whose real date is 20260723`
+      Reason: Old name is cited as the defect subject / measured casualty.
+    * .aw/records/backlog/graduated/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md: LEAVE
+      Quoted occurrence: `- Summary: The executed plan 20260101-instsafe-07-qrokie carries a fabricated filename date; its real 20260723 survives only in git`
+      Reason: Backlog carrier for this repair; the old name is the defect subject.
+    * .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md: LEAVE
+      Quoted occurrence: `| F-06 | IT ALREADY COST THIS REPOSITORY A DATE. .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md was renamed from 20260723-1100-07-...`
+      Reason: Executed plan; findings are immutable per AGENTS.md, and old name is the defect subject.
+    * .aw/records/plans/executed/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md: LEAVE
+      Quoted occurrence: `- FOUR FILES THE TOOL WOULD REWRITE ARE NOT DECLARED... 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md`
+      Reason: Executed plan; findings are immutable per AGENTS.md.
+    * .aw/records/plans/executed/20260930-5h8u3z-01-fqcax0-flag-a-present-but-unparseable-date-instead-of-letting-it-re.ipd.md: LEAVE
+      Quoted occurrence: `| F-05 | IT ALREADY COST THIS REPOSITORY A DATE. .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md carries - Date: 2026-07-23 (fleshed...`
+      Reason: Executed plan; findings are immutable per AGENTS.md.
+    * .aw/records/plans/executed/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.ipd.md: LEAVE
+      Quoted occurrence: `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md is NOT repaired by this plan and cannot be: its filename carries the fabricated 20260101 date too`
+      Reason: Executed plan; validation records are immutable per AGENTS.md.
+    * .aw/records/plans/executed/20261002-mt6j1p-01-wyk11f-report-a-plan-filename-date-that-disagrees-with-its-own-date.ipd.md: LEAVE
+      Quoted occurrence: `| F-08 | THE DEFECT CLASS IS REAL AND EXPENSIVE... The qrokie plan's name has asserted a fabricated 20260101 since commit 05c4deb1 while its real date is 20260723`
+      Reason: Executed plan; findings are immutable per AGENTS.md.
+    * .aw/records/plans/pending/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md: LEAVE
+      Quoted occurrence: `Concern: Exactly one record in the corpus carries a filename date that is a FABRICATED CONSTANT rather than its own date. .aw/records/plans/executed/20260101-instsafe-07-qrokie-...`
+      Reason: This plan's own text describing the defect and scope.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste `git diff --cached --name-status -M` showing the `R` record for the rename to `20260723-...` (R100 or R099 with the one-line Date change), and the `ipd-executed-gate` hook outcome on that staged rename. Paste `grep -n '^- Id:\|^- Set:\|^- Order:' <new path>` showing `qrokie`, the Set line and `7` unchanged. Paste `git diff` for each KEEP file showing only the old->new name, and `git diff --stat` over every LEAVE file showing nothing. Paste `git check-ignore -v` for `INDEX.json`, `INDEX.md` and `STATUS.md` together with proof none is staged. State that the verb route was not used and why.
   - Observed evidence:
-  - Result: pending
+    1. git diff --cached --name-status -M showing rename record:
+    ```
+    R099	.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md	.aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
+    ```
+    2. Hook gate outcomes on staged rename:
+    `python3 -m agent_workflows ipd-executed-gate` returned 0.
+    `python3 -m agent_workflows ipd-status-untooled-gate` returned 0.
+    3. `grep -n '^- Id:\|^- Set:\|^- Order:'` on renamed path:
+    ```
+    7:- Set: instsafe (install safety and ownership)
+    8:- Order: 7
+    10:- Id: qrokie
+    ```
+    4. git diff on KEEP file (`.aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md`):
+    ```diff
+    --- a/.aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md
+    +++ b/.aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md
+    @@ -42,7 +42,7 @@ transition runs backwards. Measured on the wslayout orchestrator:
 
-- [ ] V-05 validates E-05
+     THE PLANS ARE NOT AT FAULT; THE ASSUMPTION IS THE SUSPECT PART. The repositorys ACTUAL practice is
+     OLDEST-FIRST. Sampled from `executed/` (i.e. a plan that completed the whole lifecycle),
+    -`20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` records
+    +`20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` records
+     2026-07-23 draft -> 2026-07-25 reframed -> 2026-07-26 executed, oldest first. The `wslayout` plans follow
+     that same order. So they conform to practice and fail only against the parsers undocumented
+    ```
+    5. git diff --stat over every LEAVE file: empty (0 lines changed).
+    6. git check-ignore -v for INDEX.json and INDEX.md:
+    ```
+    .aw/.gitignore:48:records/plans/INDEX.json	.aw/records/plans/INDEX.json
+    .aw/.gitignore:49:records/plans/INDEX.md	.aw/records/plans/INDEX.md
+    ```
+    STATUS.md is tracked and unedited; `git status` confirms neither INDEX.json, INDEX.md, nor STATUS.md is staged.
+    7. Route statement: The CLI verb route (`aw group plans ... --rename`) was not used because `949enf` executed and its filename-first date tier in `plans_refs._preserved_date` derives `20260101` from the current filename. As pre-authorized by OQ-03, `git mv` followed by `apply_reference_rewrites` was used.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `git diff` for each of the three hand-edited files showing exactly one changed line each, old `20260101` segment to `20260723`. Then paste `git grep -n '20260101-instsafe-07-qrokie' -- DECISIONS.md '.aw/records/specs' '.aw/records/research'` returning NOTHING, which is the falsifiable proof the facet-less class is cleared. Confirm the spec's `- Status:` line is unchanged by pasting it.
   - Observed evidence:
-  - Result: pending
+    1. git diff on DECISIONS.md:
+    ```diff
+    --- a/DECISIONS.md
+    +++ b/DECISIONS.md
+    @@ -2279,3 +2279,3 @@
+    - - **Applied:** `.agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md` (the design spec: modes, clean-delta definition, per-host delivery, state/ownership, resolver + conditional-commit rule, reinstall state table + downgrade record, cloud boundary, migration both directions, skill taxonomy, and the build decomposition into gated per-phase IPDs); `CHANGELOG.md`. Documents only - no product code, no build. DEPENDS ON / references IPD 01 (D103) / 02 (D104) / 03 (D105) / 04 (D106) / 05, and the research bundle. Executed per IPD 20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec (plan-review APPROVE WITH REVISIONS APPLIED, findings C1-C10 + PR-001..PR-003, split assessed - spec kept atomic, build decomposed; human-approved). Build gated on a Phase 0 conformance harness (its own next IPD). Full suite unchanged (documents only): 425 passed, 1 skipped.
+    + - **Applied:** `.agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md` (the design spec: modes, clean-delta definition, per-host delivery, state/ownership, resolver + conditional-commit rule, reinstall state table + downgrade record, cloud boundary, migration both directions, skill taxonomy, and the build decomposition into gated per-phase IPDs); `CHANGELOG.md`. Documents only - no product code, no build. DEPENDS ON / references IPD 01 (D103) / 02 (D104) / 03 (D105) / 04 (D106) / 05, and the research bundle. Executed per IPD 20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec (plan-review APPROVE WITH REVISIONS APPLIED, findings C1-C10 + PR-001..PR-003, split assessed - spec kept atomic, build decomposed; human-approved). Build gated on a Phase 0 conformance harness (its own next IPD). Full suite unchanged (documents only): 425 passed, 1 skipped.
+    ```
+    git diff on spec (.aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md):
+    ```diff
+    --- a/.aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+    +++ b/.aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md
+    @@ -139,3 +139,3 @@
+    -- 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)
+    +- 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)
+    ```
+    git diff on research README (.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md):
+    ```diff
+    --- a/.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md
+    +++ b/.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md
+    @@ -5,3 +5,3 @@
+    -(external / out-of-repo delivery) and IPD `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec` (clean-delta / per-class tracking
+    +(external / out-of-repo delivery) and IPD `20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec` (clean-delta / per-class tracking
+    ```
+    2. `git grep -n '20260101-instsafe-07-qrokie' -- DECISIONS.md '.aw/records/specs' '.aw/records/research'` returned nothing (0 matches).
+    3. `grep -n '^- Status:' .aw/records/specs/deferred/20260726-or061f-01-or061f-clean-delta-and-tracking-modes.spec.md`:
+    ```
+    4:- Status: deferred
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Paste `git diff --stat -- tests/fixtures/derive_plan_status_baseline.json` showing NO change, and `python3 -c` output showing the fixture's `qrokie` value is `executed`. Paste `python3 -m pytest -o addopts="" tests/test_history_order.py -q -k Derivation` PASSING with its `Compared N paths` line after the rename, and state explicitly that N EQUALS E-01's baseline N.
   - Observed evidence:
-  - Result: pending
+    1. `git diff --stat -- tests/fixtures/derive_plan_status_baseline.json` returned empty (0 files changed).
+    2. python3 -c showing qrokie value in fixture:
+    ```
+    qrokie: executed
+    ```
+    3. pytest output with stdout:
+    ```
+    tests/test_history_order.py .Compared 732 plans
+    .
+    2 passed, 5 deselected in 1.25s
+    ```
+    4. Post-rename compared paths count N = 732 EQUALS E-01 baseline N = 732.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Paste the final census reconciliation accounting for every surviving occurrence by file with its LEAVE reason, and state any divergence from F-08's table in either direction. Paste `check plans --all --agent` and `sanitize --agent` outputs compared against the E-01 baseline, naming any new finding. Paste the dead-citation re-run entries naming the old filename, each attributed to a LEAVE file or `STATUS.md`. Paste the BARE `python3 -m pytest` summary line for both the same-session pre-change and post-change runs, comparing failures by name.
   - Observed evidence:
-  - Result: pending
+    1. Final census reconciliation: 52 occurrences across 22 surviving files (reduced from 56 across 26 files by the 4 KEEP/hand-edited files: tk1gqo, DECISIONS.md, clean-delta spec, research README).
+    Accounting for all 22 surviving files:
+    * .aw/records/backlog/done/20260922-historder-01-jhrao5-oldest-first-legacy-history-misreported.backlog.md: LEAVE (old name cited as data example)
+    * .aw/records/backlog/done/20260929-5h8u3z-01-5h8u3z-malformed-date-escapes-ipd-lint.backlog.md: LEAVE (names old name as defect subject)
+    * .aw/records/backlog/done/20260930-mt6j1p-01-mt6j1p-filename-date-disagrees-with-metadata-unreported.backlog.md: LEAVE (names old name as defect subject)
+    * .aw/records/backlog/done/20261008-dparot-01-dparot-scope-gate-refuses-rename-destination.backlog.md: LEAVE (backlog item describing scope gate dispatch refusal with rename destination)
+    * .aw/records/backlog/graduated/20260929-tf4jz5-01-tf4jz5-repair-qrokie-fabricated-filename-date.backlog.md: LEAVE (backlog carrier describing defect)
+    * .aw/records/backlog/graduated/20261001-xp6o3v-01-xp6o3v-rename-misses-facet-less-stem-citations.backlog.md: LEAVE (backlog item tracking rewriter facet-less limitation)
+    * .aw/records/plans/STATUS.md: LEAVE (generated snapshot view, unedited)
+    * .aw/records/plans/executed/20260919-lifeglyph-06-9zvl2w-convert-indexes-status-commands-lint-views-and-run-viewers-t.ipd.md: LEAVE (fenced terminal output in executed plan)
+    * .aw/records/plans/executed/20260924-historder-01-63h054-stop-inferring-workflow-history-order-from-line-position-in.ipd.md: LEAVE (fenced pasted evidence in executed plan)
+    * .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md: LEAVE (executed plan findings/evidence)
+    * .aw/records/plans/executed/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.ipd.md: LEAVE (executed plan findings)
+    * .aw/records/plans/executed/20260929-qbz8i1-02-ribg85-confine-the-derived-filename-so-a-specs-date-cannot-write-ou.ipd.md: LEAVE (executed plan findings)
+    * .aw/records/plans/executed/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md: LEAVE (executed plan findings)
+    * .aw/records/plans/executed/20260930-5h8u3z-01-fqcax0-flag-a-present-but-unparseable-date-instead-of-letting-it-re.ipd.md: LEAVE (executed plan findings/evidence)
+    * .aw/records/plans/executed/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.ipd.md: LEAVE (executed plan findings/evidence)
+    * .aw/records/plans/executed/20261002-mt6j1p-01-wyk11f-report-a-plan-filename-date-that-disagrees-with-its-own-date.ipd.md: LEAVE (executed plan findings)
+    * .aw/records/plans/pending/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md: LEAVE (this plan's own text)
+    * .aw/records/reviews/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.review.md: LEAVE (review finding citing old name as history data example)
+    * .aw/records/reviews/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.review.md: LEAVE (review finding citing old name as historical citer)
+    * .aw/records/reviews/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.review.md: LEAVE (review finding mentioning casualty)
+    * .aw/records/reviews/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.review.md: LEAVE (review finding for this plan)
+    * tests/test_scope_path_target_stale.py: LEAVE (synthetic test fixture path in unit test)
+    Divergence from review census: dparot and test_scope_path_target_stale.py were added after review as subject/fixture; both are legitimately LEAVE.
+    2. `check plans --all --agent`: 50 baseline diagnostics -> 48 post-change diagnostics (0 new findings; 2 stale-index-missing removed).
+    `sanitize --agent`: clean (4958 files checked, 0 findings).
+    3. Dead-citations re-run: every entry naming the old filename is in a LEAVE file or STATUS.md.
+    4. Full bare pytest summary lines:
+    Pre-change: `8245 passed, 4 skipped, 18 xfailed, 3 warnings in 864.27s (0:14:24)`
+    Post-change: `8245 passed, 4 skipped, 18 xfailed, 3 warnings in 750.12s (0:12:30)`
+    Failures: 0 pre-change, 0 post-change.
+  - Result: pass
 
 ## Approval and execution gate
 

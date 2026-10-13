@@ -106,6 +106,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 0u0ako
 - Hand-repairing the existing qrokie facet-less citations; that is the approved repair plan.
   - Carrier: j7dsci
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md
 
 ## Scope check
 

@@ -1,5 +1,5 @@
 - Id: tf4jz5
-- Status: graduated
+- Status: done
 - Graduated-To: tf4jz5
 - Set: tf4jz5
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The executed plan 20260101-instsafe-07-qrokie carries a fabricated filename date; its real 20260723 survives only in git and the wrong date propagated into DECISIONS.md and a spec
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD j7dsci executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md); evidence .aw/records/plans/executed/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: j7dsci
 - 2026-09-29 created (aw backlog): Filed while authoring plan 949enf (graduating j84jg3): the already-materialized casualty of that defect, deferred to the maintainer as 949enf OQ-03.
 
