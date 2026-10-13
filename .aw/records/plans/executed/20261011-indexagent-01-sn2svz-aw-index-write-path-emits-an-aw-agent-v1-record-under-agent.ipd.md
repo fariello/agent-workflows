@@ -6,7 +6,7 @@
 - Scope: IN: one shared write-result emitter in `artifact_core` (sibling of `emit_index_check_result`) that builds a `CommandResult` carrying the outcome as `applied` plus per-file `changes`, the scan drift as `diagnostics`, and repo-relative facts in `data`; routing the `--agent`/`--json` branch of `plans_index.run_index`, `prompts_index.run_index` and `research_index.run_index` (both its success and its drift-refusal branch) through it; removing the now-false `index` entry from `tests/conformance_matrix.EXEMPTION_REGISTRY` so the shared conformance sweep covers the leaf; a new behavior test module; a CHANGELOG bullet. OUT, each with a carrier below: the human output of all three verbs (kept byte-identical, including the prompts verb's unconditional `wrote` wording, `vcqobe`); the `FileNotFoundError` traceback when a records directory does not exist yet (`o6cbp7`); `index all`'s one-record-per-type exit-parity violation (`hu2wka`); the absolute `data.repo_root` on the `--check --json` path (`aavf6a`); the unsupported-type case, which already emits a cannot-run record (F-04).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/research_index.py, tests/test_index_write_agent_records.py, tests/conformance_matrix.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: sn2svz
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: sn2svz verified (set indexagent, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (silence probe made non-vacuous with --apply; emitter signature carries pre-write existence; scope-fence stop wording replaced with justify-at-finalize; research fixture details pinned)
