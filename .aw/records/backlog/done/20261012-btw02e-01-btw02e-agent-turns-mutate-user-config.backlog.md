@@ -1,5 +1,5 @@
 - Id: btw02e
-- Status: graduated
+- Status: done
 - Graduated-To: 9y27t2
 - Blocks-Release: next
 - Set: btw02e
@@ -8,6 +8,7 @@
 - Summary: aw oc run agent turns write the operator's real user config (an agent set color_depth none and silently decolored every command)
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD 9y27t2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-btw02e-01-9y27t2-contain-agent-turn-writes-to-the-operator-s-user-config.ipd.md); evidence .aw/records/plans/executed/20261012-btw02e-01-9y27t2-contain-agent-turn-writes-to-the-operator-s-user-config.ipd.md
 - 2026-10-12 graduated (aw set): graduated to plan 9y27t2 (to-review, lint clean)
 - 2026-10-12 created (aw backlog): Filed from operator diagnosis 2026-10-12: lane cvtg9u agent left color_depth=none in ~/.config/agent-workflows/config.json
 
