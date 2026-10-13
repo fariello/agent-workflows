@@ -55,9 +55,15 @@ def _state_and_item(repo: Path, plan: Path) -> tuple[dict, dict]:
     return state, item
 
 
-def _fake_agent_retires_in_lane(run_dir: Path, *, verdict: str = "VERIFIED"):
+def _fake_agent_retires_in_lane(
+    run_dir: Path, *, verdict: str = "VERIFIED", tooled: bool = True
+):
     """Execute turn: `git mv` the plan to superseded/ (status bumped) and commit in the LANE, then
-    self-report `blocked` exactly as the real agent did. Verify turn: record `verdict`."""
+    self-report `blocked` exactly as the real agent did. Verify turn: record `verdict`.
+
+    `tooled=True` appends a matching `## Workflow history` line for superseded (aw ipd set superseded),
+    while `tooled=False` simulates a hand-edited retirement without history line (IPD 62sdwr).
+    """
 
     def fake_run(state, rd, item, *_args, **kwargs):
         # oc: run_opencode(state, rd, item, plan_path, prompt_path, attempt_no, fresh_session=...)
@@ -79,6 +85,11 @@ def _fake_agent_retires_in_lane(run_dir: Path, *, verdict: str = "VERIFIED"):
         text = pending.read_text(encoding="utf-8").replace(
             "- Status: approved", "- Status: superseded"
         )
+        if tooled:
+            text = text.replace(
+                "## Workflow history\n",
+                "## Workflow history\n- 2026-09-27 superseded (aw set): premise spent\n",
+            )
         pending.write_text(
             "RETIRED 2026-09-27: premise spent.\n\n" + text, encoding="utf-8"
         )
@@ -173,6 +184,33 @@ class InLaneRetirementLandsTests(unittest.TestCase):
             runner_shared.outcome_precedence_disposition("not-executed", None),
             runner_shared.RETIRED_STATUS,
         )
+
+    def test_hand_retirement_receives_fix_it_turn(self):
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                temp = tempfile.TemporaryDirectory()
+                self.addCleanup(temp.cleanup)
+                repo = Path(temp.name) / "repo"
+                plan = _init_repo_with_conforming_plan(repo, "ret001")
+                run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+                (run_dir / "outcomes").mkdir(parents=True)
+                (run_dir / "prompts").mkdir(parents=True)
+                state, item = _state_and_item(repo, plan)
+
+                with mock.patch.object(
+                    mod, spawn, _fake_agent_retires_in_lane(run_dir, tooled=False)
+                ):
+                    mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertEqual(item["status"], "queued")
+                self.assertTrue(item.get("recovery_next"))
+                self.assertEqual(
+                    item.get("refusal", {}).get("code"),
+                    runner_shared.UNTOOLED_STATUS_REFUSAL_CODE,
+                )
+                self.assertIn(
+                    "Workflow history", str(item.get("untooled_status_refusal") or "")
+                )
 
 
 class RetiredLaneReintegrationTests(unittest.TestCase):

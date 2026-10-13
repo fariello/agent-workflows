@@ -1653,7 +1653,10 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
             "driver CHOOSES to call, not a boundary an agent cannot evade, and "
             "`host_sandbox_profile` declares `supports_commit_gateway` False-by-default and NEVER "
             "PROBED for exactly that reason; `m73aet`'s executed receipt states this code "
-            "'remains wholly unbuilt'"
+            "'remains wholly unbuilt'. Plan 62sdwr added `runner_shared.check_lane_hook_bypass` as "
+            "a partial detector that re-runs configured hooks over the lane's net change in a "
+            "disposable worktree, which catches content-refused bypasses and sends them back as fix-it "
+            "turns, but does not observe the commit argv or detect bypasses whose content passes hooks"
         ),
     ),
     # `RUN-NO-PUSH` WAS HERE AND IS RETIRED, not lost. Removed 2026-09-08 by maintainer decision
