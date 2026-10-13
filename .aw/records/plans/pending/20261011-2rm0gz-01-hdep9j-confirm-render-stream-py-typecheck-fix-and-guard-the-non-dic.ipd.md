@@ -6,7 +6,7 @@
 - Scope: Confirm the error is gone at HEAD, keep the narrowing fix (`reasons_map = reasons if isinstance(reasons, dict) else {}`) in `render_stream.render_run_summary_table`, and add a behavioral regression test proving the non-dict fallback renders bare dependency tokens instead of crashing or mis-rendering.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: hdep9j
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (aw set): plan-review done
 
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005

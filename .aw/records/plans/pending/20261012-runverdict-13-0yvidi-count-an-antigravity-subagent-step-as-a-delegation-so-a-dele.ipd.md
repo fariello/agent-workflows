@@ -6,7 +6,7 @@
 - Scope: IN: add a `step_type == "subagent"` arm to `tool_call_from_event`'s Antigravity branch that returns a delegation `ToolCall` (`tool="subagent"`, `delegation=True`, no command, no path) for the SAME terminal-state tuple the `"tool"` arm accepts (the shared `verifier_corroboration.AGY_TERMINAL_STATES` / `AGY_ERROR_STATES` that sibling `u3enlv` defines, which this plan depends on); document it as a numbered DESIGN DECISION; refresh the module docstring's `delegation-present` description and its `iuhx9d` reference; add a `step_type == "subagent"` branch to `run_dashboard._agy_line` that records the call through the same primitive; bump `run_dashboard.DASHBOARD_SCHEMA_VERSION` by one and rename its version test; add a committed fixture for the shape plus verdict-level and dashboard-level outcome tests; record a `DECISIONS.md` entry and a `CHANGELOG.md` Fixed line. OUT (reasons in Deferred): Antigravity tool-name precedence (`n8we3u` / backlog `1kebul`), any change to what a verdict DOES (D160), and any change to the live renderer.
 - Scope-Paths: agent_workflows/verifier_corroboration.py, agent_workflows/run_dashboard.py, tests/test_verifier_corroboration.py, tests/test_run_dashboard.py, tests/fixtures/verifier_corroboration/agy_session_subagent_step.jsonl, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:e08ssu, executed:n8we3u, executed:u3enlv
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0yvidi
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured at HEAD 3e328494b: F-01 reproduces (MIXED uncorroborated uncorroborated, SUB-ONLY indeterminate missing-command-text, dashboard 1 {'run_command': 1} {'shell': 1}). Added F-07 and edges executed:n8we3u, executed:u3enlv so the subagent arm consumes u3enlv's AGY_TERMINAL_STATES (OQ-01 re-resolved); Deferred rows carry Carrier/Carrier-Declined; version-test rename moved into E-03; stale-cache case specified and revert-proved.
 - 2026-10-12 to-review (aw set): Graduated from backlog iuhx9d. Re-measured at HEAD 649280be1: mixed log (non-test run_command + step_type subagent DONE) gives delegation_count=0 and verdict uncorroborated; dashboard drops the step. Narrow baseline 63 passed.

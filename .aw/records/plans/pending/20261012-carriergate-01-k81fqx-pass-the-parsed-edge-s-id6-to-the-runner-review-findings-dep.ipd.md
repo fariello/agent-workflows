@@ -6,7 +6,7 @@
 - Scope: Fix the one call site so the gate receives `edge.id6`, correct the comment that describes it, and add behavioral regression tests that drive `dependency_status_detailed` against a temp repo carrying a real `.review.md` record.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_findings_dependency_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k81fqx
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Re-measured at HEAD 559173a5c: defect reproduces for executed:<id6> out of queue and in queue (both admitted with a HIGH OPEN finding), the fix blocks both; bare-id6 already blocked pre-fix, so case (b) is now characterization; fixture must carry ### Findings or it passes vacuously; corpus 10 gating subjects, 0 pending dependents; Deferred rows carry Carrier-Declined.

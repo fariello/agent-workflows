@@ -6,7 +6,7 @@
 - Scope: At the runner's lane-integration step (where `orchestrate_isolation.execute_merge_and_revalidate_gate` already re-validates a lane before it is merged), run `spec_citations.stale_spec_anchors` on the lane tree and on the lane's base commit, and refuse the merge only when the lane has stale pointers that its base did not (new findings, keyed by file, spec id6 and the cited construct, not by line number, so moved lines do not count as new). The refusal goes back to the agent as a fix-it turn through the existing correction path, naming each new stale pointer. Pre-existing stale pointers never block; Order 02's checkup reports them. The detector's accuracy fixes are plan `fz3i3m`'s (Set `sbh1o1`); this plan depends on it.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/orchestrate_isolation.py, agent_workflows/spec_citations.py, tests/test_merge_gate_spec_anchors.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:fz3i3m
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mnwkqu
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix; replaces plan l85xvi's CI step per the maintainer's 2026-10-12 ruling.
 - 2026-10-12 draft (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): created.

@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the four children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261011-iosmvn-00-6jp1ox-retire-or-repoint-the-residual-unowned-19313eed-dangling-tes.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: b2fb2458390bef2156739ead961888309141780fe4c3b3a611caf577e30565a3
@@ -19,8 +19,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 6jp1ox
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Re-measured at HEAD 95763c6cf: UNRETIRED 88 split 41/19/27/1 as stated; children and dependency edges match the table; aw ipd coverage ready. Deferred sibling row split into per-owner carriers; gate states iosmvn is still open and adds the honesty rule; OQ-01 owner set.

@@ -6,7 +6,7 @@
 - Scope: IN: comment and docstring prose at the 27 sites in Findings, each dispositioned REPOINT, RETIRE-PIN or RETIRE-UNGUARDED (definitions in sibling `9rthek` Project conventions), preserving each comment's design reason. Three sites (S-02, S-03, S-07) already describe their test in the past tense without naming the commit; they are brought to the same form by naming `19313eed`. OUT: any executable change; restoring any test; `tools/lost_guard_census.py` (its two hits are classifier fixtures that read deleted blobs via `git show 19313eed^:...`/`80db6750c^:...`, which is correct usage and not a citation, see F-01); the `ipd_lifecycle._run_record_committed_paths` incident narrative naming `tests/test_orchestrator_probe_cache.py` as a path a past plan declared (F-02: accurate history, not a guard claim); filing backlog (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/artifact_naming.py, agent_workflows/artifact_types.py, agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/ipd_lifecycle.py, agent_workflows/lane_containment.py, agent_workflows/plan_readiness.py, agent_workflows/plans.py, agent_workflows/prompts.py, agent_workflows/pwatch.py, agent_workflows/render_stream.py, agent_workflows/run_cli.py, agent_workflows/runner_profile_wizard.py, agent_workflows/selectors.py, agent_workflows/work_cmd.py, .aw/records/plans/pending/20261011-iosmvn-03-ev7t1w-retire-or-repoint-the-dangling-test-citations-in-the-non-run.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ev7t1w
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

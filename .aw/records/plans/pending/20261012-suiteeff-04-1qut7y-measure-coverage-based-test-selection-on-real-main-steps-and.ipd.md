@@ -6,7 +6,7 @@
 - Scope: IN: a measurement, recorded as a research findings artifact, replaying at least 20 consecutive real `main` steps from October through pytest-testmon in a scratch clone, reporting per step the selected-test fraction, wall time versus the full suite, and selection RECALL (does the selected set include every test that fails at that step; checked by also running the full suite at each step); a stated adoption threshold; and ONLY IF the threshold is met, an opt-in `aw suite --select` path for agent iteration that never feeds the integration gate. OUT: using selection for the runner's integration gate or baseline (the full suite stays the authority); adding `pytest-testmon` as a hard dependency (it becomes an optional `[test]` extra only on adoption).
 - Scope-Paths: .aw/records/research/, agent_workflows/suite_cache.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, pyproject.toml, tests/test_suite_select.py, docs/cli-human-guide.md, CHANGELOG.md
 - Item-Dependencies: executed:0o0wt2, executed:xvm6no
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1qut7y
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-010 (record `.aw/records/reviews/20261012-suiteeff-04-1qut7y-measure-coverage-based-test-selection-on-real-main-steps-and.review.md`)
 - 2026-10-13 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010

@@ -6,7 +6,7 @@
 - Scope: (1) At run start, after Order 02's checkup step, read the saved checkup record (never GitHub). If it says CI's last pass is more than N first-parent commits behind main (N = `ci_checkup_interval_commits`, the same setting), refuse to start before any agent turn, with a message naming the last passing commit, the count, and the two ways forward. (2) `--allow-red-ci "<why>"` on `aw oc run` and `aw agy run` overrides it; the reason is required and is recorded in the run's events and summary. (3) Always allowed with no flag: a run whose every selected item belongs to a Set listed in the project setting `ci_red_exempt_sets` (default empty; this repository sets `["cihealth"]`), so the stop cannot block its own fix. Any other CI repair uses `--allow-red-ci`, which the refusal names. (4) UNKNOWN CI state (no `gh`, no network, no record) never stops a run; it warns. (5) Interval `0` disables the stop.
 - Scope-Paths: .aw/config/project.json, agent_workflows/config.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_red_ci_stop.py, CHANGELOG.md, README.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:n7xlhm, executed:ezyb4a
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s4z5n8
+- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (aw set): plan-review done
 - 2026-10-12 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix from the maintainer's 2026-10-12 ruling ("hard stop that can be overridden").
