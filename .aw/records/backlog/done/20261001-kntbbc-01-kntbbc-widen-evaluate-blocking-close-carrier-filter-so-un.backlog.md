@@ -1,5 +1,5 @@
 - Id: kntbbc
-- Status: graduated
+- Status: done
 - Graduated-To: kntbbc
 - Set: kntbbc
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Widen evaluate_blocking_close carrier filter so ungated sibling carriers block close
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD jykyqb executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-kntbbc-01-jykyqb-widen-the-handoff-arm-so-every-from-backlog-carrier-gated-or.ipd.md); evidence .aw/records/plans/executed/20261011-kntbbc-01-jykyqb-widen-the-handoff-arm-so-every-from-backlog-carrier-gated-or.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: jykyqb
 - 2026-10-01 created (aw backlog): Widen evaluate_blocking_close carrier filter so ungated sibling carriers block close
 

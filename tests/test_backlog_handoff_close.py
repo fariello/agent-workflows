@@ -25,6 +25,7 @@ from typing import Optional
 
 from agent_workflows import check_engine
 from agent_workflows import cli
+from agent_workflows import runner_shared
 
 
 def _make_scratch_repo(root: Path) -> Path:
@@ -1339,6 +1340,409 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             )
         self.assertEqual(rc_b, 1)
         self.assertTrue(item_path_b.exists())
+
+    def test_kntbbc_case_1_executed_same_gate_pending_ungated_refused(self) -> None:
+        """kntbbc E-02 case 1: executed same-gate plan + pending ungated plan -> refused rc 1.
+
+        Deliberately tightens the 2o5wka same-gate rule: every From-Backlog carrier,
+        gated or not, must be executed/implemented. Runner evaluate_backlog_close
+        also refuses (close=False), pinning convergence.
+        """
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        runner_verdict = runner_shared.evaluate_backlog_close(self.repo, "item01", [])
+        self.assertFalse(runner_verdict.close)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        self.assertIn("plan02", stderr_buf.getvalue())
+
+    def test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed(self) -> None:
+        """kntbbc E-02 case 2: executed same-gate plan + executed ungated plan -> allowed rc 0."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertTrue(verdict.legitimate)
+        self.assertEqual(verdict.path, "HANDOFF")
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertFalse(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+
+    def test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused(
+        self,
+    ) -> None:
+        """kntbbc E-02 case 3: executed same-gate plan + pending plan gated differently -> refused.
+
+        Deliberately tightens the 2o5wka same-gate rule: every From-Backlog carrier,
+        gated or not, must be executed/implemented.
+        """
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="other",
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        self.assertIn("plan02", stderr_buf.getvalue())
+
+    def test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec(
+        self,
+    ) -> None:
+        """kntbbc E-02 case 4 (refused): executed same-gate plan + ungated spec approved -> refused rc 1.
+
+        Deliberately tightens the 2o5wka same-gate rule: every From-Backlog carrier,
+        gated or not, must be executed/implemented.
+        """
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_spec(
+            self.repo,
+            "spec01",
+            subdir="approved",
+            status="approved",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        self.assertIn("spec01", stderr_buf.getvalue())
+
+    def test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec(
+        self,
+    ) -> None:
+        """kntbbc E-02 case 4 (allowed): executed same-gate plan + ungated spec implemented -> allowed rc 0."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_spec(
+            self.repo,
+            "spec01",
+            subdir="implemented",
+            status="implemented",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertTrue(verdict.legitimate)
+        self.assertEqual(verdict.path, "HANDOFF")
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertFalse(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+
+    def test_kntbbc_case_5_only_executed_ungated_plan_refused(self) -> None:
+        """kntbbc E-02 case 5: only executed ungated plan, no same-gate carrier -> refused (unchanged entry condition)."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+
+    def test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan(
+        self,
+    ) -> None:
+        """kntbbc E-02 case 6 (refused): executed same-gate plan + superseded ungated plan -> refused rc 1.
+
+        Deliberately tightens the 2o5wka same-gate rule: every From-Backlog carrier,
+        gated or not, must be executed/implemented. A retired sibling counts as unfinished.
+        """
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="superseded",
+            status="superseded",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, item_path, "done")
+        self.assertFalse(verdict.legitimate)
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 1)
+        self.assertTrue(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertFalse(done_path.exists())
+        self.assertIn("plan02", stderr_buf.getvalue())
+
+    def test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed(
+        self,
+    ) -> None:
+        """kntbbc E-02 case 6 (DE-GATED): executed same-gate plan + superseded ungated plan, --blocks-release - -> allowed rc 0."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="executed",
+            status="executed",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.repo,
+            "plan02",
+            bucket="superseded",
+            status="superseded",
+            from_backlog="item01",
+            blocks_release=None,
+        )
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--blocks-release",
+                    "-",
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        self.assertFalse(item_path.exists())
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
 
 
 class BacklogGateDirSplitTests(unittest.TestCase):
