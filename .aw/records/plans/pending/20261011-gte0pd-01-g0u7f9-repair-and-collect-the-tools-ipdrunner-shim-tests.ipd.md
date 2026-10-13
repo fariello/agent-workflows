@@ -114,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `tools/test_agy_run.py` and `tools/awphysical/test_awphysical_tools.py` collection, and any guard that fails when a `test_*.py` sits outside `testpaths`.
   - Carrier: n8adhb
+  - Carrier-Evidence: .aw/records/backlog/done/20261001-n8adhb-01-n8adhb-tools-test-agy-run-not-collected.backlog.md
 - Adding `tools/` to `testpaths`, `Makefile` or CI. Rejected (OQ-01): relocation reaches every gate with no shared-gate edit.
   - Carrier-Declined: a rejected alternative, not owed work.
 - Any change to runner behavior. Every failure is test drift (F-3..F-9); the runner is the authority being tested.
