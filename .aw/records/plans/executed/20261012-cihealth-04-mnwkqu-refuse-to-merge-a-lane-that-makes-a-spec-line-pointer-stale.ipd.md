@@ -5,8 +5,9 @@
 - Concern: Code comments point into specs by line number ("spec `25kzda` :744"). When a spec is edited the line moves and the pointer goes stale. The detector (`spec_citations.stale_spec_anchors`, rule `check.spec-anchor-stale`) is opt-in and runs only on `aw check --source-anchors`, so stale pointers pile up until a plan sweeps them (`mt54wr`, `atpvao`). Plan `l85xvi` proposed failing CI on them, but CI is not watched (red for 1,623 main commits at review), so the maintainer chose to catch them where the change is made: at the runner's merge check, before a lane reaches main.
 - Scope: At the runner's lane-integration step (where `orchestrate_isolation.execute_merge_and_revalidate_gate` already re-validates a lane before it is merged), run `spec_citations.stale_spec_anchors` on the lane tree and on the lane's base commit, and refuse the merge only when the lane has stale pointers that its base did not (new findings, keyed by file, spec id6 and the cited construct, not by line number, so moved lines do not count as new). The refusal goes back to the agent as a fix-it turn through the existing correction path, naming each new stale pointer. Pre-existing stale pointers never block; Order 02's checkup reports them. The detector's accuracy fixes are plan `fz3i3m`'s (Set `sbh1o1`); this plan depends on it.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/orchestrate_isolation.py, agent_workflows/spec_citations.py, tests/test_merge_gate_spec_anchors.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+- Scope-Exceeded: agent_workflows/cli.py (Factored scan roots helper called from CLI per E-01)
 - Item-Dependencies: executed:fz3i3m
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mnwkqu
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mnwkqu verified (set cihealth, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: Factored scan roots helper called from CLI per E-01; in-scope-unmodified agent_workflows/orchestrate_isolation.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored during /plan-review of Set gradfix; replaces plan l85xvi's CI step per the maintainer's 2026-10-12 ruling.
