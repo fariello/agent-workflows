@@ -536,8 +536,7 @@ class TestMechanismAndDetectionBlindness(_ResearchSetAssignContainmentTestCase):
     def test_mechanism_git_mv_refusal_and_shutil_fallback(self):
         """Pin F-04: git mv itself refuses out-of-tree destinations (exit 128); shutil.move swallows it.
 
-        The artifact_core.git_mv fallback is a deliberately unfixed live defect
-        whose scope is carried by backlog item ki1uqk.
+        The artifact_core.git_mv fallback defect was addressed under IPD 7sy2gm (backlog ki1uqk).
         """
         # 1. Drive git mv directly to prove it refuses exit 128
         res = subprocess.run(

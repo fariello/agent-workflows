@@ -37,32 +37,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Guard the shared helper
 
-- [ ] E-01 In `agent_workflows/artifact_core.py`, add `class MoveOutsideRepositoryError(ValueError)` and, at the top of `git_mv` (before the `mkdir` and before the `git mv` subprocess), resolve `repo_root`, `repo_root / src_rel` and `repo_root / dst_rel` with `Path.resolve()` and classify each path as inside (`.relative_to(resolved_root)` succeeds and the path is not the root itself) or outside. Raise `MoveOutsideRepositoryError` naming both paths and the root when the source is inside and the destination is outside, when the source is outside and the destination is inside, or when the destination resolves to the root itself. When BOTH are outside, do NOT raise: that is the companion/home records backend, where `status_set._apply_transition` deliberately passes absolute record paths outside `repo_root` (F-07) and `aw set` works today; leave that path exactly as it is. Leave the existing `git mv` then `shutil.move` fallback unchanged for every non-refused move, and update the docstring to state the boundary contract and why the both-outside case is allowed.
+- [x] E-01 In `agent_workflows/artifact_core.py`, add `class MoveOutsideRepositoryError(ValueError)` and, at the top of `git_mv` (before the `mkdir` and before the `git mv` subprocess), resolve `repo_root`, `repo_root / src_rel` and `repo_root / dst_rel` with `Path.resolve()` and classify each path as inside (`.relative_to(resolved_root)` succeeds and the path is not the root itself) or outside. Raise `MoveOutsideRepositoryError` naming both paths and the root when the source is inside and the destination is outside, when the source is outside and the destination is inside, or when the destination resolves to the root itself. When BOTH are outside, do NOT raise: that is the companion/home records backend, where `status_set._apply_transition` deliberately passes absolute record paths outside `repo_root` (F-07) and `aw set` works today; leave that path exactly as it is. Leave the existing `git mv` then `shutil.move` fallback unchanged for every non-refused move, and update the docstring to state the boundary contract and why the both-outside case is allowed.
   - Depends on: none
   - Expected outcome: a move from inside the repository to outside it, or from outside into it (relative `../` traversal, absolute path, or a symlinked parent that resolves outside), raises before anything on disk changes; an in-repository untracked source is still moved by the fallback; a both-outside move (companion records) still succeeds. A review prototype of exactly this rule refused an escaping tracked move with the source intact and no directory created, moved an untracked in-repo file, and let `aw set to-review` succeed on a companion-backend spec, while the authored "both must be inside" rule made the same `aw set` die with an uncaught `ValueError` ("is not in the subpath of").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/engine.py`, replace the body of `engine._git_mv` with a delegation to `artifact_core.git_mv` (import locally or at module top; `artifact_core` imports nothing from `agent_workflows`, so no cycle), keeping the `_git_mv` name and signature so its two installer call sites are unchanged.
+- [x] E-02 In `agent_workflows/engine.py`, replace the body of `engine._git_mv` with a delegation to `artifact_core.git_mv` (import locally or at module top; `artifact_core` imports nothing from `agent_workflows`, so no cycle), keeping the `_git_mv` name and signature so its two installer call sites are unchanged.
   - Depends on: E-01
   - Expected outcome: there is a single implementation of the fallback; installer moves get the guard.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Tests and records
 
-- [ ] E-03 Add `tests/test_artifact_core_git_mv_containment.py`, using a scratch git repo nested at least three directories below a `tempfile` base (so an escape lands somewhere writable, per the item's measurement note), exercising `artifact_core.git_mv` and `engine._git_mv` directly. Cases: (a) tracked source with `../` escaping destination raises `MoveOutsideRepositoryError`, the source is still on disk, `git status --short` is empty, and no file or directory was created anywhere under the temp base outside the repo; (b) absolute destination outside the repo raises the same way; (c) source outside the repo with an in-repo destination raises; (c2) source AND destination both outside the repo (a sibling `<repo>.aw/records` directory, the companion layout) do NOT raise and the file is moved; (d) destination under an in-repo symlink pointing outside raises (skip on platforms without symlink support); (e) untracked in-repo source is still moved into a new in-repo subdirectory (fallback preserved); (f) tracked in-repo move is staged as a rename (`git status --short` shows `R`); (g) END-TO-END: in a scratch repo whose `.aw/config/project.json` sets `{"records_backend": "companion"}` (with `HOME` and `XDG_CONFIG_HOME` pinned to the temp base), `aw specs new --title T --slug t --apply` then `aw set to-review <spec> --no-commit` driven through `cli.main` exits 0 and the spec lands under the companion `specs/to-review/` directory, pinning F-07 so a future tightening of the guard cannot silently break companion repos.
+- [x] E-03 Add `tests/test_artifact_core_git_mv_containment.py`, using a scratch git repo nested at least three directories below a `tempfile` base (so an escape lands somewhere writable, per the item's measurement note), exercising `artifact_core.git_mv` and `engine._git_mv` directly. Cases: (a) tracked source with `../` escaping destination raises `MoveOutsideRepositoryError`, the source is still on disk, `git status --short` is empty, and no file or directory was created anywhere under the temp base outside the repo; (b) absolute destination outside the repo raises the same way; (c) source outside the repo with an in-repo destination raises; (c2) source AND destination both outside the repo (a sibling `<repo>.aw/records` directory, the companion layout) do NOT raise and the file is moved; (d) destination under an in-repo symlink pointing outside raises (skip on platforms without symlink support); (e) untracked in-repo source is still moved into a new in-repo subdirectory (fallback preserved); (f) tracked in-repo move is staged as a rename (`git status --short` shows `R`); (g) END-TO-END: in a scratch repo whose `.aw/config/project.json` sets `{"records_backend": "companion"}` (with `HOME` and `XDG_CONFIG_HOME` pinned to the temp base), `aw specs new --title T --slug t --apply` then `aw set to-review <spec> --no-commit` driven through `cli.main` exits 0 and the spec lands under the companion `specs/to-review/` directory, pinning F-07 so a future tightening of the guard cannot silently break companion repos.
   - Depends on: E-01, E-02
   - Expected outcome: every case passes; cases (a), (b), (c) and (d) fail against the pre-change helper, and (c2), (e), (f) and (g) pass both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_research_set_assign_date_containment.py`, update the docstring of `test_mechanism_git_mv_refusal_and_shutil_fallback` that calls the fallback "a deliberately unfixed live defect whose scope is carried by backlog item ki1uqk" so it no longer claims the defect is unfixed; the test body (driving raw `git mv` and asserting exit 128) is unchanged and still valid.
+- [x] E-04 In `tests/test_research_set_assign_date_containment.py`, update the docstring of `test_mechanism_git_mv_refusal_and_shutil_fallback` that calls the fallback "a deliberately unfixed live defect whose scope is carried by backlog item ki1uqk" so it no longer claims the defect is unfixed; the test body (driving raw `git mv` and asserting exit 128) is unchanged and still valid.
   - Depends on: E-01
   - Expected outcome: no test text claims the helper still swallows the refusal.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a `CHANGELOG.md` entry under the pending 2.0.0 section describing the fix in user-facing terms (no em or en dashes).
+- [x] E-05 Add a `CHANGELOG.md` entry under the pending 2.0.0 section describing the fix in user-facing terms (no em or en dashes).
   - Depends on: E-01
   - Expected outcome: the change is recorded for release notes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,30 +133,197 @@ N/A for specs: no spec describes the `git_mv` fallback contract (the helper's do
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` of `agent_workflows/artifact_core.py` showing the guard precedes both the `mkdir` and the `git mv` subprocess, plus pasted output of a direct `python3 -c` call of `artifact_core.git_mv` against a nested scratch repo with an escaping destination showing the `MoveOutsideRepositoryError` message and that the source file still exists (code path: `artifact_core.git_mv`, created by E-01).
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+    index 8bf1e4f9c..44cd35985 100644
+    --- a/agent_workflows/artifact_core.py
+    +++ b/agent_workflows/artifact_core.py
+    @@ -412,19 +412,55 @@ def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
+             raise
 
-- [ ] V-02 validates E-02
+
+    +class MoveOutsideRepositoryError(ValueError):
+    +    """Raised when a move crosses the repository boundary or targets the repository root."""
+    +
+    +
+     def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
+    -    """git mv (staged, not committed), with a filesystem fallback for untracked files."""
+    +    """git mv (staged, not committed), with a filesystem fallback for untracked files.
+    +
+    +    Enforces repository containment: refuses moves that cross the repository boundary
+    +    (source inside and destination outside, or source outside and destination inside,
+    +    or destination resolving to the repository root itself). Moves where both source
+    +    and destination resolve outside the repository are permitted without raising,
+    +    supporting out-of-tree record backends (companion or home records).
+    +    """
+    +    resolved_root = Path(repo_root).resolve()
+    +    resolved_src = (resolved_root / src_rel).resolve()
+    +    resolved_dst = (resolved_root / dst_rel).resolve()
+    +
+    +    def _is_inside(p: Path) -> bool:
+    +        try:
+    +            p.relative_to(resolved_root)
+    +            return p != resolved_root
+    +        except ValueError:
+    +            return False
+    +
+    +    src_inside = _is_inside(resolved_src)
+    +    dst_inside = _is_inside(resolved_dst)
+    +
+    +    if resolved_dst == resolved_root:
+    +        raise MoveOutsideRepositoryError(
+    +            f"destination resolves to repository root itself: "
+    +            f"src={src_rel} ({resolved_src}), dst={dst_rel} ({resolved_dst}), root={repo_root} ({resolved_root})"
+    +        )
+    +
+    +    if src_inside != dst_inside:
+    +        raise MoveOutsideRepositoryError(
+    +            f"boundary-crossing move refused: src={src_rel} ({resolved_src}, inside={src_inside}), "
+    +            f"dst={dst_rel} ({resolved_dst}, inside={dst_inside}), root={repo_root} ({resolved_root})"
+    +        )
+
+    -    (repo_root / dst_rel).parent.mkdir(parents=True, exist_ok=True)
+    +    (Path(repo_root) / dst_rel).parent.mkdir(parents=True, exist_ok=True)
+         result = subprocess.run(
+    -        ["git", "-C", str(repo_root), "mv", "--", src_rel, dst_rel],
+    +        ["git", "-C", str(repo_root), "mv", "--", str(src_rel), str(dst_rel)],
+             capture_output=True,
+             text=True,
+         )
+         if result.returncode != 0:
+             import shutil
+
+    -        shutil.move(str(repo_root / src_rel), str(repo_root / dst_rel))
+    +        shutil.move(str(Path(repo_root) / src_rel), str(Path(repo_root) / dst_rel))
+    ```
+    Direct python3 -c call output:
+    ```
+    [master (root-commit) ddd96bd] add t.md
+     1 file changed, 1 insertion(+)
+     create mode 100644 a/t.md
+    CAUGHT MoveOutsideRepositoryError: boundary-crossing move refused: src=a/t.md (/tmp/tmp1bvoqah3/n1/n2/n3/repo/a/t.md, inside=True), dst=a/../../ESC.md (/tmp/tmp1bvoqah3/n1/n2/n3/ESC.md, inside=False), root=/tmp/tmp1bvoqah3/n1/n2/n3/repo (/tmp/tmp1bvoqah3/n1/n2/n3/repo)
+    Source file exists: True
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` of `engine._git_mv` showing delegation to `artifact_core.git_mv`, and the pasted passing output of the E-03 test case that calls `engine._git_mv` with an escaping destination.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
+    index 739f334b4..86a3915c8 100755
+    --- a/agent_workflows/engine.py
+    +++ b/agent_workflows/engine.py
+    @@ -82,6 +82,7 @@ from datetime import datetime
+     from pathlib import Path
+     from typing import Callable, NamedTuple, Optional
 
-- [ ] V-03 validates E-03
+    +from . import artifact_core
+     from . import versioning as _VERSIONING
+     from . import manifest as manifest_mod
+     from . import reporting_contract
+    @@ -2850,16 +2851,7 @@ def update_agents_pointer(
+
+     def _git_mv(repo_root: Path, src: str, dst: str) -> None:
+         """git mv with parent creation; falls back to filesystem move if needed."""
+    -
+    -    (repo_root / dst).parent.mkdir(parents=True, exist_ok=True)
+    -    result = subprocess.run(
+    -        ["git", "-C", str(repo_root), "mv", "--", src, dst],
+    -        capture_output=True,
+    -        text=True,
+    -    )
+    -    if result.returncode != 0:
+    -        # untracked or partially-tracked: fall back to filesystem move + stage
+    -        shutil.move(str(repo_root / src), str(repo_root / dst))
+    +    artifact_core.git_mv(repo_root, src, dst)
+    ```
+    Runner output of test case calling `engine._git_mv` with an escaping destination:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_artifact_core_git_mv_containment.py -k test_case_a_engine_git_mv_delegation_refuses_escape
+    .                                                                        [100%]
+    NOTE: 9 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 9 deselected in 0.51s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the actual runner output of `python3 -m pytest -o addopts="" -q tests/test_artifact_core_git_mv_containment.py` showing all cases passed, AND pasted output showing cases (a), (b), (c) and (d) FAIL, and cases (c2), (e), (f) and (g) PASS, when E-01's guard is temporarily reverted (by copying the new test file into a scratch `git worktree add` of the pre-change commit and running it there; never stash or revert the working checkout), proving the tests discriminate.
   - Observed evidence:
-  - Result: pending
+    Post-change runner output (all passed):
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_artifact_core_git_mv_containment.py
+    ..........                                                               [100%]
+    10 passed in 2.39s
+    ```
+    Discriminator run against pre-change worktree (0ae8900c18ddc841a9f94e9217829ec5dd88e1bb):
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_artifact_core_git_mv_containment.py
+    =========================== short test summary info ============================
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_case_d_symlink_destination_pointing_outside_refused
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_case_b_absolute_destination_outside_repo_refused
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_destination_resolves_to_repo_root_refused
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_case_a_tracked_escape_relative_destination_refused
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_case_a_engine_git_mv_delegation_refuses_escape
+    FAILED tests/test_artifact_core_git_mv_containment.py::TestArtifactCoreGitMvContainment::test_case_c_source_outside_repo_refused
+    6 failed, 4 passed in 6.82s
+    ```
+    Cases (a), (b), (c), and (d) fail as expected without the guard, while cases (c2), (e), (f), and (g) pass both before and after.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` of `tests/test_research_set_assign_date_containment.py` (docstring only) and the passing runner output of that file.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/tests/test_research_set_assign_date_containment.py b/tests/test_research_set_assign_date_containment.py
+index 43741eda4..168293e2f 100644
+--- a/tests/test_research_set_assign_date_containment.py
++++ b/tests/test_research_set_assign_date_containment.py
+@@ -536,8 +536,7 @@ class TestMechanismAndDetectionBlindness(_ResearchSetAssignContainmentTestCase):
+     def test_mechanism_git_mv_refusal_and_shutil_fallback(self):
+         """Pin F-04: git mv itself refuses out-of-tree destinations (exit 128); shutil.move swallows it.
 
-- [ ] V-05 validates E-05
+-        The artifact_core.git_mv fallback is a deliberately unfixed live defect
+-        whose scope is carried by backlog item ki1uqk.
++        The artifact_core.git_mv fallback defect was addressed under IPD 7sy2gm (backlog ki1uqk).
+         """
+         # 1. Drive git mv directly to prove it refuses exit 128
+         res = subprocess.run(
+```
+Runner output:
+```
+$ python3 -m pytest -o addopts="" -q tests/test_research_set_assign_date_containment.py
+.....................                                                    [100%]
+21 passed in 6.94s
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `git diff` of `CHANGELOG.md` and the output of a search confirming the added lines contain no em or en dash characters.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ad41401cf..a2f4c5037 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: `git_mv` in `artifact_core` and `engine` now refuses moves that cross repository boundaries before making any filesystem modifications, preventing out-of-repository destinations from overriding git refusal through the untracked file fallback.
+ - Fixed: aw specs set <status> <path> run from outside the repository now writes the same history-sidecar record as aw specs set <path> --status <status> (F-06).
+
+ - Fixed: aw sanitize and aw check-local-leaks under --agent and --json now emit structured records on stdout for the --fix branch and for cannot-run errors, and refuse un-attested machine --fix calls with an error record instead of prompting on stdout.
+```
+Search confirming absence of em and en dashes in added lines:
+```
+Em dash present: False
+En dash present: False
+```
+  - Result: pass
 
 ## Approval and execution gate
 

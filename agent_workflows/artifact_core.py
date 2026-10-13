@@ -412,19 +412,55 @@ def atomic_write(path: Path, text: str, *, prefix: str = ".aw-tmp-") -> None:
         raise
 
 
-def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
-    """git mv (staged, not committed), with a filesystem fallback for untracked files."""
+class MoveOutsideRepositoryError(ValueError):
+    """Raised when a move crosses the repository boundary or targets the repository root."""
 
-    (repo_root / dst_rel).parent.mkdir(parents=True, exist_ok=True)
+
+def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
+    """git mv (staged, not committed), with a filesystem fallback for untracked files.
+
+    Enforces repository containment: refuses moves that cross the repository boundary
+    (source inside and destination outside, or source outside and destination inside,
+    or destination resolving to the repository root itself). Moves where both source
+    and destination resolve outside the repository are permitted without raising,
+    supporting out-of-tree record backends (companion or home records).
+    """
+    resolved_root = Path(repo_root).resolve()
+    resolved_src = (resolved_root / src_rel).resolve()
+    resolved_dst = (resolved_root / dst_rel).resolve()
+
+    def _is_inside(p: Path) -> bool:
+        try:
+            p.relative_to(resolved_root)
+            return p != resolved_root
+        except ValueError:
+            return False
+
+    src_inside = _is_inside(resolved_src)
+    dst_inside = _is_inside(resolved_dst)
+
+    if resolved_dst == resolved_root:
+        raise MoveOutsideRepositoryError(
+            f"destination resolves to repository root itself: "
+            f"src={src_rel} ({resolved_src}), dst={dst_rel} ({resolved_dst}), root={repo_root} ({resolved_root})"
+        )
+
+    if src_inside != dst_inside:
+        raise MoveOutsideRepositoryError(
+            f"boundary-crossing move refused: src={src_rel} ({resolved_src}, inside={src_inside}), "
+            f"dst={dst_rel} ({resolved_dst}, inside={dst_inside}), root={repo_root} ({resolved_root})"
+        )
+
+    (Path(repo_root) / dst_rel).parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        ["git", "-C", str(repo_root), "mv", "--", src_rel, dst_rel],
+        ["git", "-C", str(repo_root), "mv", "--", str(src_rel), str(dst_rel)],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         import shutil
 
-        shutil.move(str(repo_root / src_rel), str(repo_root / dst_rel))
+        shutil.move(str(Path(repo_root) / src_rel), str(Path(repo_root) / dst_rel))
 
 
 # --------------------------------------------------------------------------------------
