@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the root census and per-root behavior at the executing HEAD, as a gate (E-01); (2) add `command_surface.discover_parser_roots`, the alias-excluding inversion of `discover_parser_leaves`, beside it (E-02); (3) add a typed, citation-required `FAMILY_ROOT_EXEMPTION_REGISTRY` in `tests/conformance_matrix.py` holding ONLY roots still non-conforming at execution, each citing its live backlog item (E-03); (4) a new behavioral test module sweeping every non-exempt root as a real subprocess, plus a registry contract test that refuses stale or unresolvable entries (E-04); (5) run the full suite (E-05). OUT: fixing `aw runs` (owned by `l5dq92`) or `aw config exclude` (owned by `o8cz48`); any change to `cli.py`, `_show_family_help`, `agent_schema`, or any production emit path; any change to `tests/test_agent_surface_conformance.py` or its `UNIVERSE`; `--json` parity for roots; adding roots to `COMMAND_INVENTORY` (which declares leaves only, per `7pnneh` F-rows).
 - Scope-Paths: agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_family_root_agent_conformance.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 0qdl9e
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0qdl9e verified (set o7wwop, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open/: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD 9ff0658da: 23 roots, BAD = config exclude, runs; cited items now graduated.
 
@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure, then add the census
 
-- [ ] E-01 RE-MEASURE the root census and each root's bare `--agent` behavior at the executing HEAD, before writing code. Run the authoring probe (recurse `cli._build_parser()` for nodes with an `_SubParsersAction`, alias-excluded by object identity, run `python3 -m agent_workflows <root> --agent` for each, parse the last `result`/`summary`/`error` stdout record, check `validate_agent_record == []` and `exit == returncode`). Record the root count, the list of non-conforming roots, and the open/done status of `l5dq92` and `o8cz48` via `aw find backlog <id6>`. This list, NOT the authoring-time list, decides E-03's registry contents.
+- [x] E-01 RE-MEASURE the root census and each root's bare `--agent` behavior at the executing HEAD, before writing code. Run the authoring probe (recurse `cli._build_parser()` for nodes with an `_SubParsersAction`, alias-excluded by object identity, run `python3 -m agent_workflows <root> --agent` for each, parse the last `result`/`summary`/`error` stdout record, check `validate_agent_record == []` and `exit == returncode`). Record the root count, the list of non-conforming roots, and the open/done status of `l5dq92` and `o8cz48` via `aw find backlog <id6>`. This list, NOT the authoring-time list, decides E-03's registry contents.
   - Depends on: none
   - Expected outcome: A pasted census (count plus per-root OK/BAD line) and the two items' current status. At authoring HEAD `fc3877544` it read 23 roots, BAD = `config exclude` (stdout `FAIL     Usage: aw config exclude {add|list|rm} ...`, rc 2, no record) and `runs` (stdout `{"runs": []}`, rc 0, no record); every other root OK. If a root outside `{runs, config exclude}` is BAD at execution, do not admit it to the sweep: file a backlog item for it with `aw backlog new` (Work-Kind `bug`, gated per the repository bug rule) and exempt it under E-03 citing that new id6, recording the decision in the plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ADD `discover_parser_roots(parser, prefix="") -> Set[str]` to `agent_workflows/command_surface.py`, directly after `discover_parser_leaves`. It returns the canonical command path of every node that HAS at least one `argparse._SubParsersAction`, excluding the top-level parser itself (empty prefix), and excludes aliases with the SAME first-key-by-identity rule `discover_parser_leaves` documents (`any(subparser is prior ...)`). Docstring states it is the inversion of `discover_parser_leaves` and that the two sets are disjoint by construction.
+- [x] E-02 ADD `discover_parser_roots(parser, prefix="") -> Set[str]` to `agent_workflows/command_surface.py`, directly after `discover_parser_leaves`. It returns the canonical command path of every node that HAS at least one `argparse._SubParsersAction`, excluding the top-level parser itself (empty prefix), and excludes aliases with the SAME first-key-by-identity rule `discover_parser_leaves` documents (`any(subparser is prior ...)`). Docstring states it is the inversion of `discover_parser_leaves` and that the two sets are disjoint by construction.
   - Depends on: E-01
   - Expected outcome: `discover_parser_roots(cli._build_parser())` returns exactly the E-01 census (23 at authoring, containing `backlog`, `config exclude`, `ipd dependencies`, `oc profile`, `runs`; containing no alias spelling such as `conf` or `opencode`), and its intersection with `discover_parser_leaves(cli._build_parser())` is empty. No existing function changes behavior.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: registry and gate
 
-- [ ] E-03 ADD `FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption]` to `tests/conformance_matrix.py`, after `MUTATION_EXEMPTION_REGISTRY`, reusing the existing `Exemption` dataclass, with a module comment repeating the ceiling rule ("adding an entry to silence a red sweep is the prohibited failure mode"). Allowed `reason_kind` is `known_broken` ONLY, and `citation` must be an id6 of a LIVE backlog item, meaning one under `backlog/open/`, `backlog/graduated/` or `backlog/blocked/` (not `done/` or `parked/`). Both cited items were `graduated` at review (plans `t76qdk` and `2va0jb` carry them), so an open-only rule would reject the two legitimate entries on day one. Populate it with exactly the roots E-01 measured BAD: at authoring that is `"runs"` citing `l5dq92` and `"config exclude"` citing `o8cz48`. If E-01 shows either already conforming, OMIT its entry.
+- [x] E-03 ADD `FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption]` to `tests/conformance_matrix.py`, after `MUTATION_EXEMPTION_REGISTRY`, reusing the existing `Exemption` dataclass, with a module comment repeating the ceiling rule ("adding an entry to silence a red sweep is the prohibited failure mode"). Allowed `reason_kind` is `known_broken` ONLY, and `citation` must be an id6 of a LIVE backlog item, meaning one under `backlog/open/`, `backlog/graduated/` or `backlog/blocked/` (not `done/` or `parked/`). Both cited items were `graduated` at review (plans `t76qdk` and `2va0jb` carry them), so an open-only rule would reject the two legitimate entries on day one. Populate it with exactly the roots E-01 measured BAD: at authoring that is `"runs"` citing `l5dq92` and `"config exclude"` citing `o8cz48`. If E-01 shows either already conforming, OMIT its entry.
   - Depends on: E-01
   - Expected outcome: The registry exists with one entry per E-01 BAD root and no others; each entry's `reason` names the observed defect in one line (e.g. "bare payload {\"runs\": []} with no aw.agent/v1 envelope").
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CREATE `tests/test_family_root_agent_conformance.py` (no `slow` marker; every subprocess goes through `conformance_matrix.run_cli`, which pins env and cwd to `REPO_ROOT`). It reads no production source and asserts on no docstring or comment (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Contents:
+- [x] E-04 CREATE `tests/test_family_root_agent_conformance.py` (no `slow` marker; every subprocess goes through `conformance_matrix.run_cli`, which pins env and cwd to `REPO_ROOT`). It reads no production source and asserts on no docstring or comment (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Contents:
   (a) `ROOTS = sorted(discover_parser_roots(cli._build_parser()))` computed at collection time from the live parser, never a hand list; a census test asserting `ROOTS` is non-empty, disjoint from `discover_parser_leaves(...)`, and that every `FAMILY_ROOT_EXEMPTION_REGISTRY` key is in `ROOTS`.
   (b) a unit test of `discover_parser_roots` on a SYNTHETIC `argparse` tree built in the test (one root with an alias, one nested root, one leaf), asserting the alias is excluded, the nested root is reported with its full path, and the leaf is not reported.
   (c) `test_family_root_agent_conformance`, parametrized over `ROOTS` minus the registry, running `<root> --agent` and asserting: stdout non-empty; a terminal `result`/`summary`/`error` record parses (last one wins); `validate_agent_record(rec) == []`; `rec["exit"] == returncode`; `"next" in rec`. Then the OUTCOME SHAPE, which is deliberately not uniform: if `returncode == 0` the root dispatched to a default view (measured: `ipd` -> `cmd "ipd board"`, `releases` -> `cmd "releases list"`) and the record's `outcome` must not be `cannot-run`/`error`; otherwise the record must be `kind == "error"`, `outcome == "cannot-run"`, `exit == 2`, with a non-empty `next`. No root name is special-cased in the test.
@@ -60,14 +60,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   (e) `test_exempted_family_root_still_nonconforming`, parametrized over the registry: re-runs the root and asserts it STILL fails at least one of the (c) properties, with a failure message telling the executor of the cited item to delete the entry. This makes the registry self-pruning, as the backlog item requires ("entries must cite a live item and be deleted by its executor").
   - Depends on: E-02, E-03
   - Expected outcome: The new module passes; temporarily deleting one registry entry makes (c) fail for that root with the root name and stdout in the message (demonstrated in V-04, then reverted).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: regression
 
-- [ ] E-05 RUN the full suite bare (`python3 -m pytest`) and the narrowed new module, and `aw ipd lint` on this plan.
+- [x] E-05 RUN the full suite bare (`python3 -m pytest`) and the narrowed new module, and `aw ipd lint` on this plan.
   - Depends on: E-04
   - Expected outcome: Full suite green apart from any failure demonstrably pre-existing at the base HEAD (shown by re-running that test at base); new module green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -102,9 +102,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Fixing `aw runs` / `aw runs list` envelope: owned by `l5dq92` (different fix site).
+  - Carrier: l5dq92
 - Fixing `aw config exclude` bare refusal: owned by `o8cz48`.
+  - Carrier: o8cz48
 - `--json` mode parity for roots: not requested by `o7wwop`; the item names the `--agent` properties only.
+  - Carrier-Declined: Not requested by o7wwop; item scopes only the --agent properties.
 - Changing `tests/test_agent_surface_conformance.py` `UNIVERSE`: leaves and roots are disjoint populations with different expectations; a separate module avoids conflicting with pending plans that edit that file.
+  - Carrier-Declined: Leaves and roots are disjoint populations; separate module avoids conflicts.
 
 ## Scope check
 
@@ -142,30 +146,200 @@ N/A: no spec governs the conformance test harness's universe, and `docs/cli-outp
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the actual probe output at the executing HEAD (`git rev-parse --short HEAD` plus root count plus every per-root OK/BAD line) and the `aw find backlog l5dq92` and `aw find backlog o8cz48` output lines. Code path: `cli._dispatch` per root, reached via `python3 -m agent_workflows <root> --agent`.
   - Observed evidence:
-  - Result: pending
+```
+Executing HEAD: 965ba8bda
+Root count: 23
+OK  agy rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"agy","outcome"
+OK  agy profile rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"agy","outcome"
+OK  backlog rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"backlog","outc
+OK  config rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"config","outco
+BAD  config exclude rc=2 kind=None outcome=None valid=False parity=False stdout=FAIL     Usage: aw config exclude {add|list|rm} ...
+OK  host rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"host","outcome
+OK  ipd rc=0 kind=result outcome=clean valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"result","cmd":"ipd board","o
+OK  ipd dependencies rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"ipd dependenci
+OK  lanes rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"lanes","outcom
+OK  oc rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"oc","outcome":
+OK  oc profile rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"oc","outcome":
+OK  project rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"project","outc
+OK  prompts rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"prompts","outc
+OK  releases rc=0 kind=result outcome=clean valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"result","cmd":"releases list
+OK  research rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"research","out
+OK  reviews rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"reviews","outc
+OK  run rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"run","outcome"
+BAD  runs rc=0 kind=None outcome=None valid=False parity=False stdout={"runs": []}
+OK  specs rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"specs","outcom
+OK  storage rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"storage","outc
+OK  upgrade-test rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"upgrade-test",
+OK  work rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"work","outcome
+OK  workflow rc=2 kind=error outcome=cannot-run valid=True parity=True stdout={"schema":"aw.agent/v1","kind":"error","cmd":"workflow","out
+```
+`aw find backlog l5dq92` and `aw find backlog o8cz48`:
+```
+●  graduated     l5dq92  .aw/records/backlog/graduated/20261002-l5dq92-01-l5dq92-runs-viewer-bare-payload-no-envelope.backlog.md
+●  graduated     o8cz48  .aw/records/backlog/graduated/20261002-o8cz48-01-o8cz48-config-exclude-human-refusal-on-agent-surface.backlog.md
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/command_surface.py` showing only the added function, and the output of `python3 -c` printing `len(discover_parser_roots(cli._build_parser()))`, the sorted list, and `discover_parser_roots(p) & discover_parser_leaves(p)` (must print `set()`). The count and list must equal V-01's census.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/command_surface.py`:
+```diff
+diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+index b722061bf..1ac85b5ea 100644
+--- a/agent_workflows/command_surface.py
++++ b/agent_workflows/command_surface.py
+@@ -2522,6 +2522,43 @@ def discover_parser_leaves(
+     return leaves
 
-- [ ] V-03 validates E-03
+
++def discover_parser_roots(
++    parser: argparse.ArgumentParser, prefix: str = ""
++) -> Set[str]:
++    """Recursively extract all CANONICAL root command paths from an argparse parser tree.
++
++    A parser root is any parser node that HAS at least one ``argparse._SubParsersAction``,
++    excluding the top-level parser itself (empty prefix).
++
++    This is the inversion of ``discover_parser_leaves``: the two sets partition the non-empty
++    nodes of the canonical parser tree and are disjoint by construction.
++
++    ALIASES ARE EXCLUDED using the same first-key-by-identity rule as
++    ``discover_parser_leaves``: only the first choice mapping to a given subparser object
++    is traversed or reported.
++    """
++    roots: Set[str] = set()
++    subparsers_actions = [
++        a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
++    ]
++    if not subparsers_actions:
++        return roots
++
++    name = prefix.strip()
++    if name:
++        roots.add(name)
++
++    for sa in subparsers_actions:
++        seen_subparsers: list[tuple[str, argparse.ArgumentParser]] = []
++        for choice_name, subparser in sa.choices.items():
++            if any(subparser is prior for _, prior in seen_subparsers):
++                continue
++            seen_subparsers.append((choice_name, subparser))
++            full_name = f"{prefix} {choice_name}".strip()
++            roots.update(discover_parser_roots(subparser, full_name))
++    return roots
++
++
+ def find_undeclared_leaves(parser: argparse.ArgumentParser) -> Set[str]:
+     """Return any parser leaves that lack a contract declaration in COMMAND_INVENTORY."""
+     parser_leaves = discover_parser_leaves(parser)
+```
+Output of python validation:
+```
+len: 23
+sorted: ['agy', 'agy profile', 'backlog', 'config', 'config exclude', 'host', 'ipd', 'ipd dependencies', 'lanes', 'oc', 'oc profile', 'project', 'prompts', 'releases', 'research', 'reviews', 'run', 'runs', 'specs', 'storage', 'upgrade-test', 'work', 'workflow']
+intersection: set()
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff tests/conformance_matrix.py` showing the new registry, and show its keys equal V-01's BAD set exactly (paste both).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff tests/conformance_matrix.py`:
+```diff
+diff --git a/tests/conformance_matrix.py b/tests/conformance_matrix.py
+index f9495a74e..34e07ab6f 100644
+--- a/tests/conformance_matrix.py
++++ b/tests/conformance_matrix.py
+@@ -552,6 +552,29 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+     ),
+ }
 
-- [ ] V-04 validates E-04
++# --------------------------------------------------------------------------------------------------
++# Family-root exemption registry (0qdl9e E-03)
++# --------------------------------------------------------------------------------------------------
++# THE REGISTRY IS A CEILING, NOT A CONVENIENCE. Adding an entry to silence a red
++# sweep is the prohibited failure mode that this harness exists to prevent, and a
++# known_broken entry REQUIRES a filed item id. There is no catch-all, wildcard, or
++# default-skip permitted; every exempted root must be individually enumerated with
++# a valid typed reason and resolvable citation.
++# Allowed reason_kind is "known_broken" only. Citations must resolve to a live backlog item.
++
++FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
++    "config exclude": Exemption(
++        reason_kind="known_broken",
++        citation="o8cz48",
++        reason="human refusal 'FAIL     Usage: aw config exclude {add|list|rm} ...' with no aw.agent/v1 envelope",
++    ),
++    "runs": Exemption(
++        reason_kind="known_broken",
++        citation="l5dq92",
++        reason='bare payload {"runs": []} with no aw.agent/v1 envelope',
++    ),
++}
++
+ # --------------------------------------------------------------------------------------------------
+ # Declared unreachable command allow-set (declabsent Order 01 gm9baj E-02)
+ # --------------------------------------------------------------------------------------------------
+```
+Keys: `['config exclude', 'runs']`
+V-01 BAD set: `['config exclude', 'runs']`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the actual runner output of `python3 -m pytest -o addopts="" -q tests/test_family_root_agent_conformance.py` showing the `N passed` line, where N covers the census test, the synthetic unit test, one sweep case per non-exempt root, the registry contract test, and one still-broken case per exempt entry. Then paste the output of the same run with one registry entry (e.g. `runs`) temporarily removed, showing the sweep case for that root FAILED with its stdout in the message, and `git diff --stat` after restoring it showing the entry is back.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Runner output:
+```
+..........................                                               [100%]
+26 passed in 49.49s
+```
+Negative demonstration with `runs` removed from registry:
+```
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_family_root_agent_conformance[runs] ___________________
 
-- [ ] V-05 validates E-05
+root = 'runs'
+
+    @pytest.mark.parametrize("root", NON_EXEMPT_ROOTS)
+    def test_family_root_agent_conformance(root: str) -> None:
+        """Assert non-exempt family root satisfies --agent output and schema contract."""
+        conforming, diagnostic = _evaluate_root(root)
+>       assert conforming, diagnostic
+E       AssertionError: No terminal result/summary/error record found for 'runs'.
+E         Returncode: 0
+E         Stdout:
+E         {"runs": []}
+E
+E         Stderr:
+E
+E       assert False
+
+tests/test_family_root_agent_conformance.py:186: AssertionError
+NOTE: 25 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+=========================== short test summary info ============================
+FAILED tests/test_family_root_agent_conformance.py::test_family_root_agent_conformance[runs]
+1 failed, 25 deselected in 3.41s
+```
+`git diff --stat tests/conformance_matrix.py` after restore:
+```
+ tests/conformance_matrix.py | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the tail of the actual bare `python3 -m pytest` output including the summary line, and the `aw ipd lint` result for this plan. Any failure must be shown pre-existing by re-running it at the base HEAD.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare `python3 -m pytest` output tail:
+```
+7486 passed, 2 skipped, 3 warnings in 916.47s (0:15:16)
+```
+`aw ipd lint` output:
+```
+-    ◕  approved     plan        20261012-o7wwop-01-0qdl9e  [low]  conforming
+```
+  - Result: pass
 
 ## Approval and execution gate
 
