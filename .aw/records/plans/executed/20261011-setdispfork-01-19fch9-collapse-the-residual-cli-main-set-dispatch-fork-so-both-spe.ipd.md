@@ -6,7 +6,7 @@
 - Scope: IN: (1) route `aw backlog set` and `aw specs set` through their adapter (`backlog.run_set`, `specs.run_set`) for BOTH spellings, deleting the `--status`-is-absent branch in `cli.main` for those two verbs; (2) make each adapter preserve today's positional behavior exactly when no `--status` was passed: the history ACTOR and output `_verb_label` defaults stay as the engine's today (`aw set` actor on the positional spelling, per `jbipfa`'s ruling that the actor is deliberate attribution and `wy9aru` 4.6, which declines to decide it), and repo-root derivation never treats the STATUS token as a path, which deliberately CONVERGES the one measured outcome divergence (F-06: `aw specs set <status> <abs-path>` from outside the repo drops the advisory sidecar record that the flag spelling writes) onto the flag spelling's behavior, as spec `wy9aru` 4.3 requires; (3) extend `tests/test_set_dispatch_parity.py` with an entry-convergence class that drives both spellings through `cli.main` and proves a behavior added at the adapter is reached by both; (4) a dated note in spec `wy9aru` Section 6a recording that the entry fork is closed. OUT: `aw set`, `aw ipd set`, `aw prompts set` and `aw finish` (single-entry already); the actor string (deliberate, `jbipfa`); the `aw set:` prefix the engine prints for descriptive-field refusals on every spelling (identical on both spellings, measured below, so it is not a fork defect); any status vocabulary or transition table.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_set_dispatch_parity.py, .aw/records/specs/approved/20261001-wy9aru-01-wy9aru-canonical-set-dispatch.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 19fch9
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 19fch9 verified (set setdispfork, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (all fixed; F-06 measured at review: positional `aw specs set` from outside the repo skips the sidecar, now the single intended change; record `.aw/records/reviews/20261011-setdispfork-01-19fch9-collapse-the-residual-cli-main-set-dispatch-fork-so-both-spe.review.md`)
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
