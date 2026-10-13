@@ -6,9 +6,10 @@
 - Scope: Orchestration only: sequence the four children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261011-iosmvn-00-6jp1ox-retire-or-repoint-the-residual-unowned-19313eed-dangling-tes.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 84011c27212eb81c51aad9c5cc36f454789671742e3a7375a6f75aa498cbb03d
+- Coverage-Fingerprint: b2fb2458390bef2156739ead961888309141780fe4c3b3a611caf577e30565a3
 - Coverage-Checked: 2026-10-12 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
@@ -20,7 +21,10 @@
 - Id: 6jp1ox
 
 ## Workflow history
+- 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
+- 2026-10-13 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Re-measured at HEAD 95763c6cf: UNRETIRED 88 split 41/19/27/1 as stated; children and dependency edges match the table; aw ipd coverage ready. Deferred sibling row split into per-owner carriers; gate states iosmvn is still open and adds the honesty rule; OQ-01 owner set.
+- 2026-10-12 coverage pass (aw oc run): fingerprint b2fb2458390b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 coverage pass (aw oc run): fingerprint 84011c27212e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog `iosmvn`.
@@ -82,9 +86,15 @@ Orders 01, 02 and 03 touch disjoint files and are mutually independent.
 
 ## Deferred / out of scope (with reason)
 
-- The sibling-owned clusters named in Concern.
-  - Carrier: 3tov52
-- Restoring behavioral coverage for each lost guard.
+- The sibling-owned `test_orchestrator_probe_cache.py`, `test_review_findings_cascade.py` and `test_runner_stop_triggers.py` citations named in Concern.
+  - Carrier: 65d5zf
+- The sibling-owned `runner_shared` module-level import-pin citation of `test_orchestrator_probe_cache.py` named in Concern.
+  - Carrier: dtelfb
+- The sibling-owned `test_runner_backlog_close.py` and `test_runner_layering.py` citations named in Concern.
+  - Carrier: z2ugxc
+- The `test_run_flag_surface.py` citations named in Concern.
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md
+- Restoring behavioral coverage for each lost guard: `ellenm` E-03 files one backlog carrier per RETIRE-UNGUARDED group; the restoration itself belongs to those items.
   - Carrier: ellenm
 - Restoring any source-reading guard.
   - Carrier-Declined: forbidden by `AGENTS.md` and `GUIDING_PRINCIPLES` P16.
@@ -92,7 +102,7 @@ Orders 01, 02 and 03 touch disjoint files and are mutually independent.
 ## Scope check
 
 - Over-scope: none. This plan contributes no code, test or record of its own.
-- Under-scope: none; all 88 measured sites are assigned to a child.
+- Under-scope: none; all 88 measured sites are assigned to a child. Re-measured at review HEAD `95763c6cf` with `yuhl6o`'s measurement command over `git ls-files 'agent_workflows/*.py' 'tools/*'`: `UNRETIRED 88`, split `runner_shared.py` 41, the six driver and peripheral files 19 (`agy_runipd` 8, `oc_runipd` 7, `artifact_audit`, `ipd_lint`, `run_viewer`, `runner_shutdown` 1 each), 17 other modules 27, and `tools/lost_guard_census.py` 1.
 
 ## Required tests / validation
 
@@ -104,7 +114,7 @@ This plan runs no tests. Orders `yuhl6o`, `9rthek` and `ev7t1w` each run the bar
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Edits are per production file; splitting by file keeps each child's Scope-Paths disjoint, so the three can run independently, and keeps each one-pass. Grouping by deleted test file is used where it matters, for filing carriers (`ellenm`).
 
 ## Validation and cross-check (verify before reporting the Set complete)
@@ -136,4 +146,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires explicit human approval of each child before execution. The runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child in Order and finish with `aw ipd finalize`, never a hand `git mv`. This plan writes no code; never push. Backlog `iosmvn` is set `graduated` by the runner when the Set is authored.
+Requires explicit human approval of each child before execution. The runner retires this orchestrator once every child is `executed`; executing by hand, confirm each child in Order and finish with `aw ipd finalize`, never a hand `git mv`. This plan writes no code; never push. Paste the ACTUAL `aw find plans` output for every `V-*` item; never claim a child executed from memory. Open questions: OQ-01 is `resolved` and not blocking. Backlog `iosmvn` is still `open` at review HEAD `95763c6cf`; it moves to `graduated` through the graduation handoff once every plan in the Set is `to-review` or later (true at review) and this orchestrator passes `aw ipd coverage 6jp1ox` (passed at review, cached), and it closes `done` through the `From-Backlog` handoff once the Set is executed.
