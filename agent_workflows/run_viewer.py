@@ -538,8 +538,8 @@ def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
 # `aw runs` and `aw doctor` must not compute artifact location/status drift two different ways, which
 # is the same reason `render_stream` and `evaluate_review_finding_escalation` exist. These names are
 # re-exported for the run viewer's own call sites (and its tests) and are the SAME OBJECTS as the
-# owner's - asserted by object identity in `tests/test_artifact_audit.py`, following the
-# `tests/test_runner_refork_guard.py` pattern, because a behavioral comparison passes against a copy.
+# owner's (`tests/test_runner_refork_guard.py` and the object-identity test in `tests/test_artifact_audit.py`
+# were deleted in `19313eed`; no live guard currently asserts this object identity).
 #
 # `StepArtifactAudit` is an ALIAS of `artifact_audit.ArtifactAudit`, whose `id6` field replaced the
 # run-specific name `step_id6`; `find_artifact_file` is a thin path-returning shim over the shared

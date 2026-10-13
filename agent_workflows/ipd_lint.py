@@ -1264,8 +1264,9 @@ def check_citation_anchors(
 # and its queue action to `execute` in the same run (the host drivers' auto-approve sites, which call
 # the shared predicate), so a hand-typed field could have carried unreviewed plans into execution.
 # NOTE this module deliberately does NOT name or import any driver module: an anti-divergence guard
-# (`tests/test_runner_item_dependencies.py::AntiDivergenceGuardTests`) requires the shared rule
-# modules to stay ignorant of the runner, and it correctly caught an earlier draft of this comment.
+# (`tests/test_runner_item_dependencies.py::AntiDivergenceGuardTests` was deleted in `19313eed`; no live
+# guard currently asserts this) required the shared rule modules to stay ignorant of the runner, and it
+# correctly caught an earlier draft of this comment.
 #
 # WHY THE EXISTING CHECKS DID NOT CATCH IT: `ipd_schema.validate_metadata` validates the VOCABULARY
 # (an out-of-enum value is IPD-M104) and `aw ipd scaffold` correctly omits the field entirely, so a

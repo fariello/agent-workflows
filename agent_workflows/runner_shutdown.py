@@ -60,8 +60,8 @@ INVARIANT_TREE = "tree_observed"
 
 # Every queue-item status the drivers can legitimately persist. R3 coherence means each item
 # carries one of these; an unknown value means the ledger was left in an undefined state.
-# `tests/test_runner_shutdown.py` asserts this set covers BOTH drivers' `TERMINAL_STATES`, so a
-# driver adding a state without updating this set is caught instead of silently passing.
+# `tests/test_runner_shutdown.py` was deleted in `19313eed`; no live guard currently asserts this
+# set covers both drivers' `TERMINAL_STATES`.
 KNOWN_ITEM_STATUSES = frozenset(
     {
         # terminal

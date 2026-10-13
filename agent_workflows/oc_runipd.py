@@ -131,11 +131,9 @@ from agent_workflows.render_stream import (
     # measured `ruff` deletion rather than a precaution (runnerlayer Order 02 `1f7xno`). This entry was
     # a PLAIN import while `announce_run_order` was defined here and called it; the moment that
     # function moved to `runner_shared`, the name became unused in this file and `ruff --fix` DELETED
-    # it on the batch's first commit. `tests/test_run_order_announcement.py` then failed with
-    # `AttributeError: module 'agent_workflows.oc_runipd' has no attribute
-    # 'format_run_order_announcement'`, because that test asserts both drivers bind the SAME formatter
-    # object. The redundant alias is what marks the import as an intentional re-export and is the only
-    # form the formatter leaves alone.
+    # it on the batch's first commit (`tests/test_run_order_announcement.py` was deleted in `19313eed`;
+    # no live guard currently asserts this property). The redundant alias is what marks the import
+    # as an intentional re-export and is the only form the formatter leaves alone.
     format_run_order_announcement as format_run_order_announcement,
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
@@ -269,9 +267,10 @@ from agent_workflows.runner_shared import (
 
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, bound HERE rather than reached through
 # `runner_shared.` at the call site, because the cross-driver symmetry guard
-# (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests`) requires each driver to CARRY
-# the attribute and asserts it is the SAME OBJECT on both. That guard is what caught agy running its own
-# copy of `dependency_status_detailed` for months, so a new shared dependency rule joins it by name.
+# (`tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests` was deleted in `19313eed`; no live
+# guard currently asserts this) required each driver to CARRY the attribute and asserted it was the
+# SAME OBJECT on both. That guard is what caught agy running its own copy of `dependency_status_detailed`
+# for months, so a new shared dependency rule joins it by name.
 from agent_workflows.runner_shared import (
     classify_drain_block as classify_drain_block,
 )
@@ -933,8 +932,8 @@ LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 # queue item froze with `dependencies: []`. The canonical field NAME comes from
 # `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`
 # (see `_read_item_dependencies`). Spec 25kzda 2.10: "All surfaces call this evaluator; none
-# reimplement the rules." Re-adding a dependency regex here is a regression guarded by
-# tests/test_runner_item_dependencies.py.
+# reimplement the rules." Re-adding a dependency regex here was guarded by
+# `tests/test_runner_item_dependencies.py` (deleted in `19313eed`; no live guard currently asserts this).
 
 
 # `StallTimeout` and `EmptyStatusSelection` are IMPORTED from `runner_shared` (rununify 03 `i3d6ml`
@@ -1141,10 +1140,11 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
     with :func:`driver_actor`. Its actor used to read ``aw oc run (orchestrator rollup)``, which is the
     exact string the actor-parenthesis defect was first diagnosed from, and which the setter guard now
     REFUSES (plan fn2l1u E-07). It was FIXED rather than deleted, deliberately: the function is the one
-    documented `oc`-only module-launch site that `tests/test_lane_tool_identity.py:585-609` asserts as
-    an expected asymmetry against `agy`, so deleting it would quietly erase a discussed design point,
-    while leaving the old string would leave a call site the guard refuses as a trap for whoever next
-    wires it up. Do NOT add an `agy` twin; that same test forbids it.
+    documented `oc`-only module-launch site that `tests/test_lane_tool_identity.py` (deleted in
+    `19313eed`; no live guard currently asserts this) asserted as an expected asymmetry against
+    `agy`, so deleting it would quietly erase a discussed design point, while leaving the old string
+    would leave a call site the guard refuses as a trap for whoever next wires it up. Do NOT add
+    an `agy` twin; the deleted test forbade it.
     """
     # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
     cmd = pinned_module_argv(
@@ -2331,7 +2331,8 @@ def terminate_process(process: subprocess.Popen) -> None:
     caller or test that tunes ``_SIGINT_GRACE_SECONDS`` / ``_SIGTERM_GRACE_SECONDS`` on THIS module
     still takes effect. That is the reason the shared function takes them as no-default parameters
     rather than reading constants of its own: a shared read would have left this tuning seam silently
-    inert (`tests/test_runner_shutdown.py` tunes exactly this and would have passed anyway).
+    inert (`tests/test_runner_shutdown.py` was deleted in `19313eed`; no live guard currently asserts
+    this passthrough tuning).
     """
 
     runner_shared.terminate_process(
@@ -3917,9 +3918,10 @@ def run_queue(
     # very `state` dict this function holds and persists it through the injected `save_state`, so the
     # in-memory view is already current and the published reporter reference is still the same object; a
     # reload would rebind `state` to an equal dict for no gain, and would add a sixth
-    # `register_signal_report` site to a function whose five sites are pinned as a measured invariant
-    # (`tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned`). The loop below reloads
-    # on its own first iteration regardless.
+    # `register_signal_report` site to a function whose five sites were pinned as a measured invariant
+    # (`tests/test_rununify_run_queue.py::TheSignalReportRefreshSitesArePinned` was deleted in
+    # `19313eed`; no live guard currently asserts this). The loop below reloads on its own first
+    # iteration regardless.
     _integrate_stranded_lanes(run_dir, state)
     tracker = StreamTracker()
     state["_tracker"] = tracker
@@ -5607,7 +5609,8 @@ def main(argv: list[str] | None = None) -> int:
         #
         # AFTER THE BRANCH, NOT INSIDE EITHER, for two reasons. It is true on BOTH exits, and keeping
         # it out of the branch bodies leaves each existing sentence byte-identical and contiguous,
-        # which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserts.
+        # which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted
+        # (deleted in `19313eed`; no live guard currently asserts this).
         #
         # PHRASED AS WHAT IS AVAILABLE NEXT TIME, because this handler cannot know which R12 path or
         # which ladder rung produced the exit, so naming a level would risk describing the wrong one.

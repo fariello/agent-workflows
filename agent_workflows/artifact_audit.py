@@ -7,8 +7,9 @@ docstring exists for the same reason: an audit VERDICT that two tools compute se
 two tools will eventually disagree about. Before IPD `6ltz1y` this predicate lived privately in
 `run_viewer.py`, so `aw runs` could tell an operator that a step's plan was in the wrong directory
 while `aw doctor`, the tool a human actually reaches for, could not see it at all. The in-repo
-precedent for the failure this prevents is `render_stream` plus `tests/test_runner_refork_guard.py`,
-which pins 28 (runner, symbol) pairs because two host drivers had already re-forked the same helpers.
+precedent for the failure this prevents is `render_stream` plus `tests/test_runner_refork_guard.py`
+(deleted in `19313eed`; no live guard currently asserts this), which pinned 28 (runner, symbol) pairs
+because two host drivers had already re-forked the same helpers.
 
 WHY THE FILE LOOKUP RESOLVES THROUGH ``selectors`` RATHER THAN A PRIVATE DIRECTORY LIST.
 The extracted implementation hardcoded nine directories and returned the FIRST filename containing
