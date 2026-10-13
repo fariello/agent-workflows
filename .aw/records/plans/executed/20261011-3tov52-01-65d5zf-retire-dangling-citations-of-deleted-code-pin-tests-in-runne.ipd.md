@@ -6,7 +6,7 @@
 - Scope: Comment, docstring, and test-docstring prose only. Each cited deleted test is rewritten into a retirement statement (what it asserted, that it was deleted in which commit, that the source-reading form is a code pin that will not return under `GUIDING_PRINCIPLES` P16, and that the property is now held by review). The design reasoning each comment carries is preserved. No executable statement, constant, signature, import, or test assertion changes.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_agy_runipd_cli.py, .aw/records/plans/pending/20261011-3tov52-01-65d5zf-retire-dangling-citations-of-deleted-code-pin-tests-in-runne.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: 65d5zf
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 65d5zf verified (set 3tov52, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
