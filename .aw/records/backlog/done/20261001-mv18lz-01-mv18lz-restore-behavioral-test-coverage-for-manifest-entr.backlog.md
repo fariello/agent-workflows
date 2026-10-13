@@ -1,5 +1,5 @@
 - Id: mv18lz
-- Status: graduated
+- Status: done
 - Graduated-To: mv18lz
 - Set: mv18lz
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for manifest_entry_is_selectable preserving executed entries
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD df486j executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-mv18lz-01-df486j-restore-behavioral-test-coverage-for-manifest-entry-is-selec.ipd.md); evidence .aw/records/plans/executed/20261012-mv18lz-01-df486j-restore-behavioral-test-coverage-for-manifest-entry-is-selec.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: df486j
 - 2026-10-01 created (aw backlog): Restore behavioral test coverage for manifest_entry_is_selectable preserving executed entries
 

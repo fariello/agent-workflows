@@ -1,5 +1,5 @@
 - Id: 38hwvk
-- Status: graduated
+- Status: done
 - Graduated-To: 38hwvk
 - Set: 38hwvk
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Add global fix-it turn caps per artifact, per Set, and per run on top of the per-kind retry budget
 
 ## Workflow history
+- 2026-10-13 done (aw backlog): closed by aw agy run: IPD c0oysi executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-38hwvk-01-c0oysi-add-global-fix-it-turn-caps-per-artifact-per-set-and-per-run.ipd.md); evidence .aw/records/plans/executed/20261012-38hwvk-01-c0oysi-add-global-fix-it-turn-caps-per-artifact-per-set-and-per-run.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: c0oysi
 - 2026-10-07 created (aw backlog): Maintainer request 2026-10-07 while scoping the correct-first retry policy
 

@@ -34,7 +34,24 @@ import threading as _threading
 
 import pytest
 
-pytest_plugins = ["tests.deselect_notice", "tests.livecorpus_notice"]
+# --------------------------------------------------------------------------------------
+# Git config identity guard: prevent tests from leaking identity keys into .git/config
+# (IPD `lp1zkb`, backlog `8o7gco`).
+# --------------------------------------------------------------------------------------
+#
+# WHAT WENT WRONG. Between 2026-10-08 01:31:49 and 2026-10-09 09:06:05, 322 runner and
+# agent commits carried `Test <test@example.com>` because a test wrote identity keys into
+# the repository's shared `.git/config` (the common dir every worktree reads).
+#
+# WHY IDENTITY KEYS ONLY. Worktrees share the common dir config, and concurrent agents or
+# runners legitimately mutate other keys (worktrees, branch tracking, remotes) during a
+# run. Guarding only identity-bearing keys (`user.*`, `author.*`, `committer.*`) prevents
+# false failures while strictly containing provenance corruption (decision D-1).
+pytest_plugins = [
+    "tests.deselect_notice",
+    "tests.livecorpus_notice",
+    "tests.git_config_guard",
+]
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
 
 

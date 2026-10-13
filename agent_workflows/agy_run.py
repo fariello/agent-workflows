@@ -326,15 +326,34 @@ def repository_root(start: Path) -> Path:
 
 
 def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
-    found: list[Path] = []
-    for state in set(states):
-        for plans_base in (
-            root / ".agents" / "plans" / state,
-            root / ".aw" / "records" / "plans" / state,
-        ):
-            if plans_base.is_dir():
-                found.extend(plans_base.glob("*.md"))
-    return sorted(set(found))
+    # Backlog mlcbk9 / IPD m734rl: Delegate enumeration to plans_index.plan_files rather
+    # than re-implementing a recursive walk. Non-recursion in the previous glob masked
+    # the lack of an ignored-path filter; plans_index.plan_files couples the recursive walk,
+    # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
+    # of non-plan files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
+    # We import locally to avoid introducing top-level package imports in agy_run.
+    from agent_workflows import plans_index
+
+    resolved_root = root.resolve()
+    target_states = set(states)
+    candidates: list[Path] = []
+    for plans_base in (
+        root / ".agents" / "plans",
+        root / ".aw" / "records" / "plans",
+    ):
+        if not plans_base.is_dir():
+            continue
+        for p in plans_index.plan_files(plans_base):
+            try:
+                rel = p.relative_to(plans_base)
+                if rel.parts and rel.parts[0] in target_states:
+                    candidates.append(p)
+            except ValueError:
+                continue
+
+    return sorted(
+        {p.resolve() for p in candidates if p.resolve().is_relative_to(resolved_root)}
+    )
 
 
 def _is_id6(value: str) -> bool:
@@ -368,6 +387,8 @@ def resolve_ipd(root: Path, value: str, states: Iterable[str]) -> Path:
             )
         return resolved
 
+    # Backlog mlcbk9: Matching branches, error messages, and direct.is_file()
+    # are preserved unchanged. Ambiguity rendering uses root.resolve().
     candidates = _candidate_plans(root, states)
     if value.endswith(".md") or "/" in value or "\\" in value:
         matches = [p for p in candidates if p.name == supplied.name]
@@ -382,7 +403,7 @@ def resolve_ipd(root: Path, value: str, states: Iterable[str]) -> Path:
             f"No IPD matching {value!r} found in plan states: {state_text}."
         )
     if len(matches) > 1:
-        rendered = "\n".join(f"  - {p.relative_to(root)}" for p in matches)
+        rendered = "\n".join(f"  - {p.relative_to(root.resolve())}" for p in matches)
         raise ScriptError(f"IPD reference {value!r} is ambiguous:\n{rendered}")
     return matches[0].resolve()
 

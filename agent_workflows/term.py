@@ -805,6 +805,85 @@ def color_16_for_stage(stage: str) -> int:
     return STAGE_COLOR_16[stage]
 
 
+_XTERM_SYSTEM_RGB: Tuple[Tuple[int, int, int], ...] = (
+    (0, 0, 0),
+    (205, 0, 0),
+    (0, 205, 0),
+    (205, 205, 0),
+    (0, 0, 238),
+    (205, 0, 205),
+    (0, 205, 205),
+    (229, 229, 229),
+    (127, 127, 127),
+    (255, 0, 0),
+    (0, 255, 0),
+    (255, 255, 0),
+    (92, 92, 255),
+    (255, 0, 255),
+    (0, 255, 255),
+    (255, 255, 255),
+)
+
+_XTERM_CUBE_LEVELS: Tuple[int, ...] = (0, 95, 135, 175, 215, 255)
+
+_CANDIDATE_16_RGB: Tuple[Tuple[int, Tuple[int, int, int]], ...] = (
+    (_SGR_RED, (205, 0, 0)),
+    (_SGR_GREEN, (0, 205, 0)),
+    (_SGR_YELLOW, (205, 205, 0)),
+    (_SGR_BLUE, (0, 0, 238)),
+    (_SGR_MAGENTA, (205, 0, 205)),
+    (_SGR_CYAN, (0, 205, 205)),
+    (_SGR_WHITE, (229, 229, 229)),
+    (_SGR_BRIGHT_BLACK, (127, 127, 127)),
+    (_SGR_BRIGHT_GREEN, (0, 255, 0)),
+    (_SGR_BRIGHT_YELLOW, (255, 255, 0)),
+    (_SGR_BRIGHT_MAGENTA, (255, 0, 255)),
+    (_SGR_BRIGHT_CYAN, (0, 255, 255)),
+)
+
+
+def color_16_for_index(code: int) -> int:
+    """Map an xterm-256 palette index to an authored 16-color SGR foreground code.
+
+    A derived mapping is acceptable here although R9.3a.3 forbids one for lifecycle stages:
+    the generic role palette carries no ready/done-style separations that a merge could destroy,
+    every generic outcome already prints a WORD (docs/cli-human-guide.md "Color and accessibility"),
+    and the authored-table obligation is scoped by spec `uonrjg` to the twenty lifecycle stages.
+
+    Deterministic reduction:
+    1. Convert the index to RGB using standard xterm definitions:
+       0-15 standard system colors, 16-231 the 6x6x6 color cube (levels 0, 95, 135, 175, 215, 255),
+       and 232-255 the gray ramp (8 + 10 * (i - 232)).
+    2. Candidates are the twelve named module SGR codes (_SGR_RED.._SGR_BRIGHT_CYAN and _SGR_BRIGHT_BLACK).
+    3. Chroma guard: when source max(RGB) - min(RGB) >= 64, drop neutrals (37, 90) so saturated colors never map to gray.
+    4. Pick minimum squared RGB distance, breaking ties by lower SGR code.
+    """
+    n = max(0, min(255, int(code)))
+    if n < 16:
+        r, g, b = _XTERM_SYSTEM_RGB[n]
+    elif n < 232:
+        c = n - 16
+        r = _XTERM_CUBE_LEVELS[c // 36]
+        g = _XTERM_CUBE_LEVELS[(c % 36) // 6]
+        b = _XTERM_CUBE_LEVELS[c % 6]
+    else:
+        r = g = b = 8 + 10 * (n - 232)
+
+    chroma_saturated = (max(r, g, b) - min(r, g, b)) >= 64
+
+    best_sgr = _SGR_BRIGHT_BLACK
+    min_dist = float("inf")
+    for sgr, (cr, cg, cb) in _CANDIDATE_16_RGB:
+        if chroma_saturated and sgr in (_SGR_WHITE, _SGR_BRIGHT_BLACK):
+            continue
+        dist = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+        if dist < min_dist:
+            min_dist = dist
+            best_sgr = sgr
+
+    return best_sgr
+
+
 # ======================================================================================
 # The GENERIC command-outcome and formatting role palette (NOT lifecycle)
 # ======================================================================================
@@ -1046,9 +1125,11 @@ class Term:
         return ASCII_GLYPHS.get(k, k)
 
     def colorize(self, text: str, *styles: str) -> str:
-        """Wrap ``text`` in the named styles when color is enabled, else return it plain."""
+        """Wrap ``text`` in the named styles when color is enabled and depth is not none, else return it plain."""
 
         if not self.color or not styles:
+            return text
+        if self.lifecycle_depth() == DEPTH_NONE:
             return text
         codes = ";".join(_CODES[s] for s in styles if s in _CODES)
         if not codes:
@@ -1056,18 +1137,24 @@ class Term:
         return f"\033[{codes}m{text}{_RESET}"
 
     def color256(self, text: str, code: int, *, bold: bool = False) -> str:
-        """Wrap ``text`` in an xterm-256 foreground color (SGR 38;5;N) when color is on.
+        """Wrap ``text`` in an xterm-256 foreground color (SGR 38;5;N) or 16-color SGR when color is on.
 
-        ``code`` is a 0-255 xterm-256 palette index. Returns plain text when color is
-        disabled (NO_COLOR / non-TTY / TERM=dumb), so meaning must never depend on it.
-        Every 256-color virtually all terminals of the last two decades support; the
-        NO_COLOR/isatty/TERM gating in ``should_color`` still fully applies.
+        ``code`` is a 0-255 xterm-256 palette index. Gated by color capability and the
+        resolved color depth rung (DEPTH_256 emits 38;5;N, DEPTH_16 maps to a basic ANSI SGR code
+        via color_16_for_index, and DEPTH_NONE returns plain text). Returns plain text when color is
+        disabled (NO_COLOR / non-TTY / TERM=dumb / color_depth=none), so meaning must never depend on it.
         """
 
         if not self.color:
             return text
+        tier = self.lifecycle_depth()
+        if tier == DEPTH_NONE:
+            return text
         n = max(0, min(255, int(code)))
         prefix = "1;" if bold else ""
+        if tier == DEPTH_16:
+            sgr = color_16_for_index(n)
+            return f"\033[{prefix}{sgr}m{text}{_RESET}"
         return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
 
     def status_256(self, status: str, *, width: int = 0) -> str:
