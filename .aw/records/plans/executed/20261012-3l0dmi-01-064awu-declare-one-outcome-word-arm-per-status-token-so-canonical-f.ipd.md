@@ -6,7 +6,7 @@
 - Scope: IN: (1) replace the ladder's two hand-listed literal status tuples (and its success tuple and `interrupted` test) with ONE declared, total table mapping every runner terminal status token to the outcome class it contributes, preserving every currently rendered word byte-for-byte; (2) record, beside that table, each legacy alias whose word DELIBERATELY differs from its canonical token's word, each with its reason and citation; (3) a behavioral test module that renders every token through the real function and asserts the declared words, that the table covers `runner_shared.TERMINAL_STATES`, and that every alias either agrees with its canonical token or is a declared divergence; (4) two backlog items for the two adjacent defects found while measuring that this plan deliberately does not fix. OUT: changing any rendered word (see OQ-01), the run exit code, the per-row Status cell, the diagnostics block, `run_dashboard._outcome`, and any writer of a status token.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_outcome_word_ladder.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: agent
 - Id: 064awu
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 064awu verified (set 3l0dmi, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Re-measured F-02 at HEAD 04ba026c0 (24 tokens, 10 aliases, words reproduce), F-04/F-05 citations, scanner Total flagged sites: 0 (1 exempt).
 
