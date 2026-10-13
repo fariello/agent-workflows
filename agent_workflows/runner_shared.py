@@ -8214,6 +8214,12 @@ FINALIZE_RETRY_COUNT_KEY: str = "finalize_retry_attempts"
 HOOK_FINALIZE_RETRY_COUNT_KEY: str = "hook_finalize_retry_attempts"
 HOOK_INTEGRATION_RETRY_COUNT_KEY: str = "hook_integration_retry_attempts"
 COMBINED_RED_RETRY_COUNT_KEY: str = "combined_red_retry_attempts"
+#: fixfirst Order 07 (`62sdwr`) E-02/E-03: per-kind retry counters against frozen_retry_budget.
+UNTOOLED_STATUS_RETRY_COUNT_KEY: str = "untooled_status_retry_attempts"
+HOOK_BYPASS_RETRY_COUNT_KEY: str = "hook_bypass_retry_attempts"
+UNTOOLED_STATUS_REFUSAL_CODE: str = "untooled-status-change"
+HOOK_BYPASS_REFUSAL_CODE: str = "hook-bypass"
+
 
 #: The terminal status an item reaches when its retry budget is EXHAUSTED. Spec 4.6's action is
 #: `RETRY, then FAIL ITEM`, and the FAIL half is what makes the loop safe: without it an exhausted
@@ -9599,6 +9605,208 @@ def build_hook_finalize_notice(item: Mapping[str, Any], recovery: bool) -> str:
         recovery=recovery,
         include_rule=False,
     )
+
+
+def build_untooled_status_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending untooled-status-change notice into the next turn's prompt, or "" when none (62sdwr E-02)."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    target_attempt: Mapping[str, Any] | None = None
+    for a in reversed(attempts):
+        if a.get("untooled_status_refused"):
+            target_attempt = a
+            break
+    refused = ""
+    if target_attempt is not None:
+        refused = str(target_attempt.get("untooled_status_refused") or "")
+    elif item.get("untooled_status_refusal"):
+        refused = str(item.get("untooled_status_refusal") or "")
+
+    if not refused:
+        return ""
+
+    att_num = 1
+    budget = 2
+    if target_attempt is not None:
+        att_num = int(
+            target_attempt.get("attempt")
+            or target_attempt.get("number")
+            or len(attempts)
+        )
+        budget = int(target_attempt.get("budget") or (att_num + 1))
+    elif attempts:
+        att_num = len(attempts)
+        budget = att_num + 1
+
+    instruction = (
+        "revert the hand edit or move, then use `aw ipd set <status> <id6>` for an intermediate "
+        "status or a retirement; for `executed`, leave the plan in `pending/` and let the runner finalize it"
+    )
+    evidence = f"{refused}\n\n{instruction}" if refused else instruction
+    return build_fix_it_notice(
+        "untooled-status-change",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
+
+
+def build_hook_bypass_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending hook-bypass notice into the next turn's prompt, or "" when none (62sdwr E-03)."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    target_attempt: Mapping[str, Any] | None = None
+    for a in reversed(attempts):
+        if a.get("hook_bypass_refused"):
+            target_attempt = a
+            break
+    refused = ""
+    if target_attempt is not None:
+        refused = str(target_attempt.get("hook_bypass_refused") or "")
+    elif item.get("hook_bypass_refusal"):
+        refused = str(item.get("hook_bypass_refusal") or "")
+
+    if not refused:
+        return ""
+
+    att_num = 1
+    budget = 2
+    if target_attempt is not None:
+        att_num = int(
+            target_attempt.get("attempt")
+            or target_attempt.get("number")
+            or len(attempts)
+        )
+        budget = int(target_attempt.get("budget") or (att_num + 1))
+    elif attempts:
+        att_num = len(attempts)
+        budget = att_num + 1
+
+    instruction = (
+        "your lane's changes since the turn began do not pass the hooks; "
+        "fix what they report and commit the fix through `aw commit` (do not use --no-verify)"
+    )
+    evidence = f"{refused}\n\n{instruction}" if refused else instruction
+    return build_fix_it_notice(
+        "hook-bypass",
+        evidence,
+        att_num,
+        budget,
+        recovery=recovery,
+        include_rule=False,
+    )
+
+
+def check_lane_hook_bypass(lane_dir: Path, base: str, head: str) -> tuple[bool, str]:
+    """Re-run configured pre-commit hooks over lane net changes in a disposable worktree (62sdwr E-03).
+
+    Checks the net delta in `base..head` staged in a disposable detached worktree at `base`,
+    leaving the lane's working tree completely untouched.
+    Returns `(passed, message)`. If pre-commit is missing, config is absent, or hook environment
+    cannot be installed (exit code 3), returns `(True, "hook checking unavailable: <reason>")`.
+    If hooks refuse the net change, returns `(False, <hook output>)`.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    lane_dir = Path(lane_dir)
+    config_file = lane_dir / ".pre-commit-config.yaml"
+    if not config_file.is_file():
+        return True, "hook checking unavailable: .pre-commit-config.yaml absent"
+
+    pre_commit_bin = shutil.which("pre-commit")
+    if not pre_commit_bin:
+        return True, "hook checking unavailable: pre-commit not installed"
+
+    if base == head:
+        return True, ""
+
+    temp_dir = tempfile.mkdtemp(prefix="aw_hook_check_")
+    wt_dir = Path(temp_dir) / "wt"
+    try:
+        proc_add = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(wt_dir), base],
+            cwd=str(lane_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc_add.returncode != 0:
+            err = proc_add.stderr.strip() or proc_add.stdout.strip()
+            return True, f"hook checking unavailable: git worktree add failed: {err}"
+
+        proc_co = subprocess.run(
+            ["git", "checkout", head, "--", "."],
+            cwd=str(wt_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc_co.returncode != 0:
+            err = proc_co.stderr.strip() or proc_co.stdout.strip()
+            return True, f"hook checking unavailable: git checkout failed: {err}"
+
+        proc_diff = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=D", base, head],
+            cwd=str(wt_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc_diff.returncode == 0 and proc_diff.stdout.strip():
+            deleted = [p.strip() for p in proc_diff.stdout.splitlines() if p.strip()]
+            if deleted:
+                subprocess.run(
+                    ["git", "rm", "-q", "--ignore-unmatch", "--", *deleted],
+                    cwd=str(wt_dir),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+
+        env = dict(os.environ)
+        proc_pc = subprocess.run(
+            [pre_commit_bin, "run"],
+            cwd=str(wt_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        if proc_pc.returncode == 0:
+            return True, ""
+        elif proc_pc.returncode == 3:
+            err = proc_pc.stderr.strip() or proc_pc.stdout.strip()
+            return (
+                True,
+                f"hook checking unavailable: pre-commit environment error (exit 3): {err}",
+            )
+        else:
+            output = (proc_pc.stdout or "") + (
+                "\n" + proc_pc.stderr if proc_pc.stderr else ""
+            )
+            return False, output.strip()
+    finally:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(wt_dir)],
+            cwd=str(lane_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        subprocess.run(
+            ["git", "worktree", "prune"],
+            cwd=str(lane_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def turn_retry_remedy(labels: "HostLabels | None", id6: str, retry: bool) -> str:
@@ -29567,6 +29775,10 @@ def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
     finalized", which leaves the existing refusal in place. That direction is the safe one: a false
     False costs the pre-fix behavior (a preserved lane a human can merge), while a false True would
     integrate work that never earned a transition.
+
+    Gated in the execute path before `driver_finalize`: an untooled move into `executed/` in the lane
+    is caught by `check_status_untooled_range` and sent back as a fix-it turn, so `finalize_already_done`
+    does not see an untooled `executed` arrival (IPD `62sdwr` E-02).
     """
     try:
         from agent_workflows import ipd_lifecycle
@@ -30741,6 +30953,8 @@ def build_prompt(
         + build_verification_refusal_notice(item, recovery)
         + build_out_of_scope_notice(item, recovery)
         + build_hook_finalize_notice(item, recovery)
+        + build_untooled_status_notice(item, recovery)
+        + build_hook_bypass_notice(item, recovery)
     )
     # fixfirst Order 03 (mcbph5) E-02: append FIX_IT_RULE_TEXT once to the concatenated notice block
     if raw_notices:
@@ -33787,6 +34001,11 @@ def outcome_precedence_disposition(
     helper carrying either would force one caller to accept the other's answer, which is exactly the
     design PR-701 measured and rejected: routing the crash path through `reconcile_disposition`
     itself flips a crashed step to `failed-safely` on every one of the four no-answer branches.
+
+    Gated in the execute path before `reconcile_disposition`: an untooled plan status change or move
+    in the lane is caught by `check_status_untooled_range` and sent back as a fix-it turn, so
+    `outcome_precedence_disposition` is only reached when in-lane transitions are verified tooled
+    (IPD `62sdwr` E-02).
     """
 
     if bucket == "executed":
@@ -36556,6 +36775,193 @@ def execute_item_core(
                         "failed": collection.get("failed"),
                     },
                 )
+
+        # fixfirst-07 (62sdwr) E-02 & E-03: detect untooled status changes and hook-skipping commits in lane
+        if not is_review and not is_production:
+            lane_path = Path(work_dir) if work_dir else repo
+            lane_base = attempt.get("lane_starting_head") or attempt.get(
+                "starting_head"
+            )
+            lane_head = attempt.get("lane_ending_head") or attempt.get("ending_head")
+            if not lane_head:
+                try:
+                    lane_head = git_head(lane_path)
+                except Exception:
+                    lane_head = None
+            if lane_base and lane_head and lane_base != lane_head:
+                from agent_workflows import check_engine
+
+                untooled_drift = check_engine.check_status_untooled_range(
+                    lane_path, lane_base, lane_head
+                )
+                if untooled_drift:
+                    used = int(item.get(UNTOOLED_STATUS_RETRY_COUNT_KEY) or 0)
+                    budget = frozen_retry_budget(state)
+                    findings_lines = [
+                        f"- {d.location}: {d.detail}" for d in untooled_drift
+                    ]
+                    refused_msg = "\n".join(findings_lines)
+                    attempt["untooled_status_refused"] = refused_msg
+                    item["untooled_status_refusal"] = refused_msg
+
+                    if used < budget:
+                        item[UNTOOLED_STATUS_RETRY_COUNT_KEY] = used + 1
+                        item["status"] = "queued"
+                        item["recovery_next"] = True
+                        attempt["disposition"] = "queued"
+                        disposition = "queued"
+                        remedy = (
+                            "revert the hand edit or move in your lane and use `aw ipd set <status> <id6>` "
+                            "for an intermediate status or a retirement; for `executed`, leave the plan "
+                            "in `pending/` and let the runner finalize it"
+                        )
+                        record_refusal(
+                            item,
+                            code=UNTOOLED_STATUS_REFUSAL_CODE,
+                            reason=f"untooled plan status change or move detected in lane:\n{refused_msg}",
+                            remedy=remedy,
+                        )
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "ipd-untooled-status-sent-back",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "used": used + 1,
+                                "budget": budget,
+                                "findings": [d.location for d in untooled_drift],
+                            },
+                        )
+                        print(
+                            pal(
+                                f"  \u2192 IPD {item['id6']} untooled status change in lane; "
+                                f"sending back for correction (attempt {used + 1} of {budget})",
+                                "cyan",
+                            ),
+                            file=sys.stderr,
+                        )
+                        return
+                    else:
+                        item["status"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        item.pop("recovery_next", None)
+                        attempt["disposition"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        disposition = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        record_refusal(
+                            item,
+                            code=UNTOOLED_STATUS_REFUSAL_CODE,
+                            reason=(
+                                f"untooled plan status change detected in lane and correction budget is exhausted "
+                                f"({used} of {budget} spent):\n{refused_msg}"
+                            ),
+                            remedy="inspect the lane history and correct untooled status transitions",
+                        )
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "ipd-untooled-status-exhausted",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "used": used,
+                                "budget": budget,
+                            },
+                        )
+                        print(
+                            pal(
+                                f"  ! IPD {item['id6']} FAILED: untooled status correction budget exhausted "
+                                f"({used} of {budget} spent)",
+                                "red",
+                            ),
+                            file=sys.stderr,
+                        )
+                        return
+
+                hook_passed, hook_msg = check_lane_hook_bypass(
+                    lane_path, lane_base, lane_head
+                )
+                if not hook_passed:
+                    used = int(item.get(HOOK_BYPASS_RETRY_COUNT_KEY) or 0)
+                    budget = frozen_retry_budget(state)
+                    attempt["hook_bypass_refused"] = hook_msg
+                    item["hook_bypass_refusal"] = hook_msg
+
+                    if used < budget:
+                        item[HOOK_BYPASS_RETRY_COUNT_KEY] = used + 1
+                        item["status"] = "queued"
+                        item["recovery_next"] = True
+                        attempt["disposition"] = "queued"
+                        disposition = "queued"
+                        remedy = (
+                            "your lane's changes since the turn began do not pass the hooks; "
+                            "fix what they report and commit the fix through `aw commit` (do not use --no-verify)"
+                        )
+                        record_refusal(
+                            item,
+                            code=HOOK_BYPASS_REFUSAL_CODE,
+                            reason=f"hooks refused lane net changes (hook bypass):\n{hook_msg[:300]}",
+                            remedy=remedy,
+                        )
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "ipd-hook-bypass-sent-back",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "used": used + 1,
+                                "budget": budget,
+                            },
+                        )
+                        print(
+                            pal(
+                                f"  \u2192 IPD {item['id6']} hook bypass detected in lane; "
+                                f"sending back for correction (attempt {used + 1} of {budget})",
+                                "cyan",
+                            ),
+                            file=sys.stderr,
+                        )
+                        return
+                    else:
+                        item["status"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        item.pop("recovery_next", None)
+                        attempt["disposition"] = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        disposition = FINALIZE_RETRY_EXHAUSTED_STATUS
+                        record_refusal(
+                            item,
+                            code=HOOK_BYPASS_REFUSAL_CODE,
+                            reason=(
+                                f"hook failures in lane and correction budget is exhausted "
+                                f"({used} of {budget} spent):\n{hook_msg[:300]}"
+                            ),
+                            remedy="fix the hook failures and commit without bypassing hooks",
+                        )
+                        save_state(run_dir, state)
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "ipd-hook-bypass-exhausted",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "used": used,
+                                "budget": budget,
+                            },
+                        )
+                        print(
+                            pal(
+                                f"  ! IPD {item['id6']} FAILED: hook bypass correction budget exhausted "
+                                f"({used} of {budget} spent)",
+                                "red",
+                            ),
+                            file=sys.stderr,
+                        )
+                        return
+                elif hook_msg and "unavailable" in hook_msg:
+                    attempt["hook_check"] = hook_msg
 
         disposition, outcome = reconcile_disposition(
             repo,

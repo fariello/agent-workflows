@@ -3248,6 +3248,114 @@ def _has_matching_history_line(text: str | None, status: str) -> bool:
     return False
 
 
+def _plan_lifecycle_bucket(path: str) -> str | None:
+    """Extract the first directory under .aw/records/plans/ (e.g. 'pending', 'executed', 'superseded')."""
+    p = path.strip().replace("\\", "/")
+    if not p.startswith(_PLANS_PREFIX):
+        return None
+    rel = p[len(_PLANS_PREFIX) :]
+    parts = rel.split("/")
+    return parts[0] if parts else None
+
+
+def _check_untooled_plan_transition(
+    old_path: Optional[str],
+    old_text: Optional[str],
+    new_path: str,
+    new_text: Optional[str],
+    commit_subjects: Optional[Sequence[str]] = None,
+    scope_label: str = "this commit",
+) -> Optional[_core.Drift]:
+    """Check a single plan transition between old and new state for untooled changes.
+
+    Shared core between commit-scoped `check_status_untooled` (comparing :0: against HEAD)
+    and range-scoped `check_status_untooled_range` (comparing base..head across lane commits).
+    """
+    if not _is_plan_ipd_path(new_path) or not new_text:
+        return None
+
+    new_status = _status_meta(new_text)
+    old_status = _status_meta(old_text) if old_text else None
+
+    is_in_executed = _EXECUTED_SEGMENT in ("/" + new_path.replace("\\", "/"))
+    was_in_executed = bool(
+        old_path and _EXECUTED_SEGMENT in ("/" + old_path.replace("\\", "/"))
+    )
+    status_is_executed = bool(new_status in ("executed", "done"))
+    status_was_executed = bool(old_status in ("executed", "done"))
+
+    if commit_subjects is None:
+        # Commit-scoped check (check_status_untooled caller).
+        # Exclude records already terminal in executed/ (executed_transition_gate handles staged transitions).
+        if is_in_executed:
+            return None
+    else:
+        # Range-scoped check. An arrival in executed/ or gaining executed status requires
+        # a matching finalize commit in the range.
+        arrived_in_executed = (is_in_executed and not was_in_executed) or (
+            status_is_executed and not status_was_executed
+        )
+        if arrived_in_executed:
+            plan_id = _read_declared_id(new_text)
+            if not plan_id:
+                from agent_workflows import artifact_naming as _an
+
+                m = _an.parse_clustered_prefix(Path(new_path).name)
+                if m:
+                    plan_id = m.group("id6")
+            tooled = False
+            if plan_id:
+                from agent_workflows import artifact_core as _ac
+
+                wanted_prefix = _ac.finalize_commit_subject(plan_id)
+                for subj in commit_subjects:
+                    if subj.strip().startswith(wanted_prefix):
+                        tooled = True
+                        break
+            if not tooled:
+                return _core.Drift(
+                    new_path,
+                    "check.status-untooled",
+                    (
+                        f"Plan entered 'executed/' in {scope_label} with no matching finalize commit; "
+                        f"leave the plan in 'pending/' and let the runner finalize it"
+                    ),
+                )
+            return None
+
+    if is_in_executed:
+        return None
+
+    if new_status is None:
+        return None
+
+    old_bucket = _plan_lifecycle_bucket(old_path) if old_path else None
+    new_bucket = _plan_lifecycle_bucket(new_path)
+    bucket_changed = bool(old_bucket and new_bucket and old_bucket != new_bucket)
+    status_changed = new_status != old_status
+
+    if not status_changed and not bucket_changed:
+        return None
+
+    # Status or lifecycle bucket changed (or newly added plan): require a matching
+    # tool-authored history line for the NEW status. Missing -> looks hand-edited.
+    # For retirement (superseded or not-executed), the matching history line is required
+    # (aw ipd set superseded writes one; hand retirement does not).
+    wanted_history_status = new_status
+    if not _has_matching_history_line(new_text, wanted_history_status):
+        return _core.Drift(
+            new_path,
+            "check.status-untooled",
+            (
+                f"'- Status:' changed to '{new_status}' in {scope_label} with no matching "
+                f"tool-authored '## Workflow history' line; apply it via "
+                f"`aw set {new_status} <id6>` (or `aw ipd set {new_status} <id6>`) so "
+                f"the transition is attributed"
+            ),
+        )
+    return None
+
+
 def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
     """COMMIT-SCOPED detector for the careless UNTOOLED intermediate status change (proclint 79li67).
 
@@ -3290,33 +3398,79 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
             continue
         if not _is_plan_ipd_path(new_path):
             continue
-        # Exclude records already terminal in executed/. A move OUT of executed/ has a non-executed
-        # new_path (so this guard passes) and IS checked; a plan inside executed/ is skipped.
-        if _EXECUTED_SEGMENT in ("/" + new_path):
-            continue
         staged_text = _blob_text(repo_root, ":0:", new_path)
-        staged_status = _status_meta(staged_text)
-        if staged_status is None:
-            continue  # no status metadata staged -> nothing to attribute
         head_text = _blob_text(repo_root, "HEAD", old_path) if old_path else None
-        head_status = _status_meta(head_text)
-        if staged_status == head_status:
-            continue  # status did not change in this commit
-        # The status changed (or a new plan was added with a status): require a matching
-        # tool-authored history line for the NEW status. Missing -> looks hand-edited.
-        if not _has_matching_history_line(staged_text, staged_status):
-            drift.append(
-                _core.Drift(
-                    new_path,
-                    "check.status-untooled",
-                    (
-                        f"'- Status:' changed to '{staged_status}' in this commit with no matching "
-                        f"tool-authored '## Workflow history' line; apply it via "
-                        f"`aw set {staged_status} <id6>` (or `aw ipd set {staged_status} <id6>`) so "
-                        f"the transition is attributed"
-                    ),
-                )
-            )
+        d = _check_untooled_plan_transition(
+            old_path,
+            head_text,
+            new_path,
+            staged_text,
+            commit_subjects=None,
+            scope_label="this commit",
+        )
+        if d is not None:
+            drift.append(d)
+    return drift
+
+
+def check_status_untooled_range(
+    repo_root: Path,
+    base: str,
+    head: str,
+) -> List[_core.Drift]:
+    """RANGE-SCOPED detector for untooled plan status transitions and moves in base..head.
+
+    Compares the net diff across `base..head` for plans under `.aw/records/plans/`:
+    - An arrival in `executed/` (or gaining `executed` status) requires a commit whose
+      subject starts with `lifecycle(<id6>): finalize` within `base..head`.
+    - Intermediate status transitions and retirements (`superseded`, `not-executed`)
+      require a matching tool-authored `## Workflow history` line for the new status.
+    - Clean plans or tooled transitions emit no drift.
+    """
+    repo_root = Path(repo_root)
+    rc, out, _err = _git_capture(repo_root, ["log", "--format=%s", f"{base}..{head}"])
+    if rc != 0:
+        return []
+    commit_subjects = [line.strip() for line in out.splitlines() if line.strip()]
+
+    rc, out, _err = _git_capture(
+        repo_root,
+        ["diff", "--name-status", "-M", base, head, "--", _PLANS_PREFIX],
+    )
+    if rc != 0 or not out.strip():
+        return []
+
+    drift: List[_core.Drift] = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if not parts:
+            continue
+        code = parts[0].strip()
+        if code.startswith("D"):
+            continue  # a pure deletion carries no new status to attribute
+        if code.startswith("R") and len(parts) >= 3:
+            old_path, new_path = parts[1].strip(), parts[2].strip()
+        elif len(parts) >= 2:
+            new_path = parts[-1].strip()
+            old_path = parts[1].strip() if code.startswith("C") else None
+            if code.startswith("M"):
+                old_path = new_path
+        else:
+            continue
+        if not _is_plan_ipd_path(new_path):
+            continue
+        new_text = _blob_text(repo_root, head, new_path)
+        old_text = _blob_text(repo_root, base, old_path) if old_path else None
+        d = _check_untooled_plan_transition(
+            old_path,
+            old_text,
+            new_path,
+            new_text,
+            commit_subjects=commit_subjects,
+            scope_label="this range",
+        )
+        if d is not None:
+            drift.append(d)
     return drift
 
 
