@@ -1137,6 +1137,35 @@ ACTIVITY_DISPLAY_MAP: dict[str, str] = {
     _LS.WAITING_INPUT: "Waiting",
 }
 
+#: Normalized statusline label for progress sources.
+#: Equal-sized labels (logs, task, chat, out) ensure the statusbar width stays invariant.
+PROGRESS_SOURCE_DISPLAY_MAP: dict[str, str] = {
+    "session": "logs",
+    "logs": "logs",
+    "task": "task",
+    "transcript": "chat",
+    "subagent": "chat",
+    "chat": "chat",
+    "stdout": "out",
+    "out": "out",
+}
+
+
+def format_progress_source_tag(source: str | None) -> str:
+    """Format the progress source into a fixed-width tag: (logs), (task), (chat), (out ).
+
+    Always returns exactly 6 visible characters.
+    """
+    if not source:
+        norm = "out"
+    else:
+        norm = PROGRESS_SOURCE_DISPLAY_MAP.get(str(source).strip().lower(), "out")
+    if norm == "out":
+        return "(out) "
+    if len(norm) < 4:
+        return f"({norm:<4})"
+    return f"({norm[:4]})"
+
 
 def format_action_label(action: str | None) -> str:
     """Format the workflow action into a compact statusline column label (max 7 chars).
@@ -1182,10 +1211,10 @@ def format_activity_cell(
     use_unicode = pal.use_unicode if pal is not None else True
     glyph = _LS.glyph_for(token, unicode=use_unicode)
     label = ACTIVITY_DISPLAY_MAP.get(token, token[:8].capitalize())
-    plain = f"{glyph} {label}"
+    plain = f"{glyph}{label}"
     if pal is None or not pal.enabled:
         return plain, _T.visible_width(plain)
-    styled = pal.lifecycle(resolved, glyph) + " " + pal.lifecycle(resolved, label)
+    styled = pal.lifecycle(resolved, glyph) + pal.lifecycle(resolved, label)
     return styled, _T.visible_width(plain)
 
 
@@ -1453,9 +1482,9 @@ def format_statusline_lines(
     run_elapsed = max(0, int(now_ts - run_start_ts))
     run_el_str = format_digital_duration(run_elapsed)
 
-    h0_plain = f"Time:    {t_str} "
-    v0_plain = f"Elapsed: {run_el_str} "
-    col0_w = max(18, _T.visible_width(h0_plain), _T.visible_width(v0_plain))
+    h0_plain = f"Time:   {t_str} "
+    v0_plain = f"Elapsed:{run_el_str} "
+    col0_w = max(17, _T.visible_width(h0_plain), _T.visible_width(v0_plain))
     pad_h0 = max(0, col0_w - _T.visible_width(h0_plain))
     pad_v0 = max(0, col0_w - _T.visible_width(v0_plain))
     h0 = f"{h0_plain}{' ' * pad_h0}"
@@ -1463,23 +1492,19 @@ def format_statusline_lines(
 
     # Col 1: Timeout & Last Activity
     idle = max(0, int(now_ts - last_act_ts))
-    idle_str = format_digital_duration(idle)
+    idle_str = format_mmss_duration(idle)
 
     if stall_remaining is not None:
-        t_rem_str = format_digital_duration(stall_remaining)
+        t_rem_str = format_mmss_duration(stall_remaining)
     else:
-        t_rem_str = "--:--:--"
+        t_rem_str = "--:--"
 
-    hdr1_plain = f" Timeout:  {t_rem_str} "
-    if progress_source and progress_source != "stdout":
-        src_tag = f"({progress_source}) "
-        val1_right_plain = f"Last:     {idle_str} {src_tag}"
-    else:
-        src_tag = ""
-        val1_right_plain = f"Last:     {idle_str} "
+    hdr1_plain = f" Timeout:{t_rem_str} "
+    src_tag = format_progress_source_tag(progress_source)
+    val1_right_plain = f"Last:   {idle_str} {src_tag}"
 
     col1_w = max(
-        20,
+        21,
         _T.visible_width(hdr1_plain),
         _T.visible_width(f" {val1_right_plain}"),
     )
@@ -1763,8 +1788,8 @@ def format_statusline_lines(
         + f"{bdr_color}{c_br}{reset}"
     )
 
-    c_h0 = f"{dim_hdr}Time:    {b_clock}{t_str}{reset} {' ' * pad_h0}"
-    c_v0 = f"{dim_hdr}Elapsed: {b_blue}{run_el_str}{reset} {' ' * pad_v0}"
+    c_h0 = f"{dim_hdr}Time:   {b_clock}{t_str}{reset} {' ' * pad_h0}"
+    c_v0 = f"{dim_hdr}Elapsed:{b_blue}{run_el_str}{reset} {' ' * pad_v0}"
 
     if stall_remaining is not None:
         t_color = (
@@ -1772,16 +1797,13 @@ def format_statusline_lines(
             if stall_remaining < 60
             else (b_warn if stall_remaining < 300 else b_clock)
         )
-        c_h1 = f" {dim_hdr}Timeout:  {t_color}{t_rem_str}{reset} {' ' * pad_h1}"
+        c_h1 = f" {dim_hdr}Timeout:{t_color}{t_rem_str}{reset} {' ' * pad_h1}"
     else:
-        c_h1 = f" {dim_hdr}Timeout:  {dim_hdr}--:--:--{reset} {' ' * pad_h1}"
+        c_h1 = f" {dim_hdr}Timeout:{dim_hdr}--:--{reset} {' ' * pad_h1}"
 
-    if progress_source and progress_source != "stdout":
-        val1_right_colored = (
-            f"{dim_hdr}Last:     {b_blue}{idle_str} {c_variant_color}{src_tag}{reset}"
-        )
-    else:
-        val1_right_colored = f"{dim_hdr}Last:     {b_blue}{idle_str}{reset} "
+    val1_right_colored = (
+        f"{dim_hdr}Last:   {b_blue}{idle_str}{reset} {c_variant_color}{src_tag}{reset}"
+    )
     c_v1 = f" {val1_right_colored}{' ' * pad_v1}"
 
     c_h2 = f"{b_target}{h2}"
@@ -2401,6 +2423,21 @@ def format_digital_duration(seconds: float | None) -> str:
     hrs, rem = divmod(total_secs, 3600)
     mins, rem_s = divmod(rem, 60)
     return f"{hrs:02d}:{mins:02d}:{rem_s:02d}"
+
+
+def format_mmss_duration(seconds: float | None) -> str:
+    """Format duration seconds into MM:SS format (or HH:MM:SS if >= 3600 seconds).
+
+    Examples: 0 -> '00:00', 900 -> '15:00', 3661 -> '01:01:01'.
+    """
+    if seconds is None or seconds < 0:
+        return "00:00"
+    total_secs = int(round(seconds))
+    hrs, rem = divmod(total_secs, 3600)
+    mins, rem_s = divmod(rem, 60)
+    if hrs > 0:
+        return f"{hrs:02d}:{mins:02d}:{rem_s:02d}"
+    return f"{mins:02d}:{rem_s:02d}"
 
 
 def format_compact_duration(seconds: float | None) -> str:
