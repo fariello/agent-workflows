@@ -1204,6 +1204,14 @@ def run_new(args) -> int:
         )
         return 2
 
+    if status == "blocked":
+        _gate_err = A.validate_gate_flags(
+            "aw backlog new", item.gate_kind, item.gate_ref
+        )
+        if _gate_err:
+            sys.stderr.write(f"{_gate_err}\n")
+            return 2
+
     rel_exempt_kind = getattr(args, "release_exempt_kind", None)
     rel_exempt_ref = getattr(args, "release_exempt_ref", None)
     _exempt_err = validate_release_exempt_flags(
