@@ -16,7 +16,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
@@ -156,27 +156,40 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
 _BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*[^\n]*$\n?")
 
 
+def _in_metadata_region(text: str, edit: Callable[[str], str]) -> str:
+    """Apply an edit function to the record's metadata region only, reattaching the remainder.
+
+    Bounding edits to selectors.metadata_region stops a QUOTED field bullet in a record's body
+    from being deleted during stripping or matched as an insertion anchor (b92m14 E-07, 7afjyu).
+    For YAML-fenced records, metadata_region is the leading fence so body bullets of research docs
+    are equally safe. A region containing no valid anchor yields the documented 'leave unchanged'
+    fallback without searching into the body.
+    """
+    region = _sel.metadata_region(text)
+    return edit(region) + text[len(region) :]
+
+
 def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
     existing malformed line is still replaced (matching precedent in `set_priority_line` and
     `set_work_kind_line`). Bounded to metadata_region so body lines are preserved."""
-    # Always strip any existing line from the metadata region first (idempotent replace).
-    region = _sel.metadata_region(text)
-    remainder = text[len(region) :]
-    region = _BLOCKS_RELEASE_LINE_RE.sub("", region)
-    text = region + remainder
-    if value in (None, "-"):
-        return text
-    new_line = f"- Blocks-Release: {value}\n"
-    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+
+    def _edit(region: str) -> str:
+        region = _BLOCKS_RELEASE_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- Blocks-Release: {value}\n"
+        # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
@@ -517,17 +530,22 @@ def set_priority_line(text: str, value: Optional[str]) -> str:
     '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
     to after `- Id:`, or leaving unchanged). xprio Order 1b45el; mirrors `set_from_backlog_line`. The
     ENUM check (value in backlog.PRIORITIES) is enforced by `aw check`, not here (this is a pure
-    idempotent line writer). Tolerates any value so an existing malformed line is still replaced."""
-    text = _PRIORITY_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- Priority: {value}\n"
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+    idempotent line writer). Tolerates any value so an existing malformed line is still replaced.
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _PRIORITY_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- Priority: {value}\n"
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 _WORK_KIND_LINE_RE = re.compile(r"(?m)^- Work-Kind:[ \t]*[^\n]*$\n?")
@@ -542,17 +560,22 @@ def set_work_kind_line(text: str, value: Optional[str]) -> str:
     pure idempotent line writer). Tolerates any value so an existing malformed line is still replaced.
 
     The pattern is FULL-LINE anchored on `- Work-Kind:` so it can never touch the unrelated
-    `- Gate-Kind:` field (backlog's typed gate) nor an IPD's REQUIRED structural `- Kind:`."""
-    text = _WORK_KIND_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- Work-Kind: {value}\n"
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+    `- Gate-Kind:` field (backlog's typed gate) nor an IPD's REQUIRED structural `- Kind:`.
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _WORK_KIND_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- Work-Kind: {value}\n"
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 _FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*[^\n]*$\n?")
@@ -567,19 +590,22 @@ def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     `set_work_kind_line`). Unlike the previous `\\S+` form (which could not strip what a previous
     call had written if it was multi-token or malformed, F-6), `_FROM_BACKLOG_LINE_RE` uses `[^\n]*`
     to match `_FROM_SPEC_LINE_RE` and `_GRADUATED_TO_LINE_RE` so any prior line is stripped cleanly
-    and idempotency holds on any text (fbcardinal okp2o4)."""
-    # Always strip any existing line first.
-    text = _FROM_BACKLOG_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- From-Backlog: {value}\n"
-    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+    and idempotency holds on any text (fbcardinal okp2o4).
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _FROM_BACKLOG_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- From-Backlog: {value}\n"
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 _FROM_SPEC_LINE_RE = re.compile(r"(?m)^- From-Spec:[ \t]*[^\n]*$\n?")
@@ -591,19 +617,22 @@ def set_from_spec_line(text: str, value: Optional[str]) -> str:
     (falling back to after `- Id:`, or leaving unchanged). Spec-side sibling of
     `set_from_backlog_line` (IPD 0ykozn). Tolerates any value in `_FROM_SPEC_LINE_RE` so an
     existing malformed or empty-valued line is still replaced (matching `set_priority_line`/
-    `set_work_kind_line`)."""
-    # Always strip any existing line first.
-    text = _FROM_SPEC_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- From-Spec: {value}\n"
-    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+    `set_work_kind_line`).
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _FROM_SPEC_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- From-Spec: {value}\n"
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 _ITEM_DEPENDENCIES_LINE_RE = re.compile(r"(?m)^- Item-Dependencies:[^\n]*\n?")
@@ -620,28 +649,32 @@ def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
     for this field. So anchor after `- Scope-Paths:`; when absent, fall back to inserting BEFORE
     `- Status:` (keeping the field ahead of Status/Set/Order), then after `- Id:`, then top of the
     bullet block. Unlike the release/backlog line regex (which requires a `\\S+` value), this regex
-    tolerates any value so an existing malformed line is still replaced idempotently."""
-    # Always strip any existing line first (idempotent replace).
-    text = _ITEM_DEPENDENCIES_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- Item-Dependencies: {value}\n"
-    # Preferred anchor: immediately AFTER `- Scope-Paths:` (spec 2.7 position).
-    m = re.search(r"(?m)^- Scope-Paths:[^\n]*\n", text)
-    if m:
-        i = m.end()
-        return text[:i] + new_line + text[i:]
-    # No Scope-Paths line: insert BEFORE `- Status:` so the field stays ahead of Status/Set/Order.
-    m = re.search(r"(?m)^- Status:[^\n]*\n", text)
-    if m:
-        i = m.start()
-        return text[:i] + new_line + text[i:]
-    # Fallbacks: after `- Id:`, else top of the bullet block (before the first blank/heading).
-    m = re.search(r"(?m)^- Id:[^\n]*\n", text)
-    if m:
-        i = m.end()
-        return text[:i] + new_line + text[i:]
-    return text
+    tolerates any value so an existing malformed line is still replaced idempotently.
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _ITEM_DEPENDENCIES_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- Item-Dependencies: {value}\n"
+        # Preferred anchor: immediately AFTER `- Scope-Paths:` (spec 2.7 position).
+        m = re.search(r"(?m)^- Scope-Paths:[^\n]*\n", region)
+        if m:
+            i = m.end()
+            return region[:i] + new_line + region[i:]
+        # No Scope-Paths line: insert BEFORE `- Status:` so the field stays ahead of Status/Set/Order.
+        m = re.search(r"(?m)^- Status:[^\n]*\n", region)
+        if m:
+            i = m.start()
+            return region[:i] + new_line + region[i:]
+        # Fallbacks: after `- Id:`, else top of the bullet block (before the first blank/heading).
+        m = re.search(r"(?m)^- Id:[^\n]*\n", region)
+        if m:
+            i = m.end()
+            return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
@@ -718,17 +751,22 @@ def set_graduated_to_line(text: str, value: Optional[str]) -> str:
     value is written VERBATIM (a comma-separated setid list is one line); the SHAPE check lives in the
     setter, which refuses a malformed token before calling this, and in `aw check`. Like
     `set_priority_line`, the line pattern tolerates any value so an existing malformed line is still
-    replaced rather than duplicated."""
-    text = _GRADUATED_TO_LINE_RE.sub("", text)
-    if value in (None, "-"):
-        return text
-    new_line = f"- Graduated-To: {value}\n"
-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
-        m = re.search(anchor, text)
-        if m:
-            i = m.end()
-            return text[:i] + new_line + text[i:]
-    return text
+    replaced rather than duplicated.
+    Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."""
+
+    def _edit(region: str) -> str:
+        region = _GRADUATED_TO_LINE_RE.sub("", region)
+        if value in (None, "-"):
+            return region
+        new_line = f"- Graduated-To: {value}\n"
+        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+            m = re.search(anchor, region)
+            if m:
+                i = m.end()
+                return region[:i] + new_line + region[i:]
+        return region
+
+    return _in_metadata_region(text, _edit)
 
 
 def canonicalize_graduated_to(

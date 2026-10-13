@@ -36,48 +36,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: shared bounded strip
 
-- [ ] E-01 In `agent_workflows/releases.py`, add a private helper `_in_metadata_region(text: str, edit: Callable[[str], str]) -> str` placed immediately above `set_blocks_release_line`. Body: `region = _sel.metadata_region(text)`, `return edit(region) + text[len(region):]`. Each writer keeps its existing strip/anchor/insert code in a private inner function (or local closure) that operates on the text it is given, and the public writer returns `_in_metadata_region(text, <that function with value bound>)`. So BOTH the strip and the anchor search see only the region: bounding only the strip leaves the anchor search able to insert the new line INTO THE BODY of a real record (F-06). Docstring states that bounding is what stops a QUOTED field bullet in a record's body being deleted or used as an insertion anchor, that a YAML-fenced record's region is its leading fence (so body bullets of research docs are equally safe), that a region with no anchor yields the documented 'leave unchanged' fallback, and cites `b92m14` E-07 and `7afjyu`. Then convert `set_blocks_release_line` to the same shape, removing its inline region/remainder lines. `set_blocks_release_line`'s existing tests must pass unchanged; its anchor search is also bounded by this change, which is the intended correction of the same F-06 hazard.
+- [x] E-01 In `agent_workflows/releases.py`, add a private helper `_in_metadata_region(text: str, edit: Callable[[str], str]) -> str` placed immediately above `set_blocks_release_line`. Body: `region = _sel.metadata_region(text)`, `return edit(region) + text[len(region):]`. Each writer keeps its existing strip/anchor/insert code in a private inner function (or local closure) that operates on the text it is given, and the public writer returns `_in_metadata_region(text, <that function with value bound>)`. So BOTH the strip and the anchor search see only the region: bounding only the strip leaves the anchor search able to insert the new line INTO THE BODY of a real record (F-06). Docstring states that bounding is what stops a QUOTED field bullet in a record's body being deleted or used as an insertion anchor, that a YAML-fenced record's region is its leading fence (so body bullets of research docs are equally safe), that a region with no anchor yields the documented 'leave unchanged' fallback, and cites `b92m14` E-07 and `7afjyu`. Then convert `set_blocks_release_line` to the same shape, removing its inline region/remainder lines. `set_blocks_release_line`'s existing tests must pass unchanged; its anchor search is also bounded by this change, which is the intended correction of the same F-06 hazard.
   - Depends on: none
   - Expected outcome: one helper exists; `set_blocks_release_line` uses it for both strip and insertion; the existing `tests/test_blocks_release_reader_bounding.py` and `tests/test_releases_line_writers.py` still pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: convert the six sibling writers
 
-- [ ] E-02 In `set_priority_line`, route the whole body (strip `_PRIORITY_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes. Leave the regex, anchor order, insertion and `-`/`None` clearing semantics unchanged; only their extent is bounded. Append one docstring sentence: "Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."
+- [x] E-02 In `set_priority_line`, route the whole body (strip `_PRIORITY_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes. Leave the regex, anchor order, insertion and `-`/`None` clearing semantics unchanged; only their extent is bounded. Append one docstring sentence: "Bounded to metadata_region so body lines are neither deleted nor used as an insertion anchor (7afjyu)."
   - Depends on: E-01
   - Expected outcome: `set_priority_line` no longer removes a body `- Priority:` line; all other behavior unchanged.
-  - Execution state: pending
-- [ ] E-03 In `set_work_kind_line`, route the whole body (strip `_WORK_KIND_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence as E-02. The pattern stays full-line anchored on `- Work-Kind:` so it still never touches `- Gate-Kind:` or `- Kind:`.
+  - Execution state: performed
+- [x] E-03 In `set_work_kind_line`, route the whole body (strip `_WORK_KIND_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence as E-02. The pattern stays full-line anchored on `- Work-Kind:` so it still never touches `- Gate-Kind:` or `- Kind:`.
   - Depends on: E-01
   - Expected outcome: `set_work_kind_line` no longer removes a body `- Work-Kind:` line.
-  - Execution state: pending
-- [ ] E-04 In `set_from_backlog_line`, route the whole body (strip `_FROM_BACKLOG_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Exposure today is 0 records; this is converted so no sibling writer keeps the unbounded shape for a new call site to copy.
+  - Execution state: performed
+- [x] E-04 In `set_from_backlog_line`, route the whole body (strip `_FROM_BACKLOG_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Exposure today is 0 records; this is converted so no sibling writer keeps the unbounded shape for a new call site to copy.
   - Depends on: E-01
   - Expected outcome: `set_from_backlog_line` no longer removes a body `- From-Backlog:` line.
-  - Execution state: pending
-- [ ] E-05 In `set_from_spec_line`, route the whole body (strip `_FROM_SPEC_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Exposure today is 0 records; converted for the same reason as E-04.
+  - Execution state: performed
+- [x] E-05 In `set_from_spec_line`, route the whole body (strip `_FROM_SPEC_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Exposure today is 0 records; converted for the same reason as E-04.
   - Depends on: E-01
   - Expected outcome: `set_from_spec_line` no longer removes a body `- From-Spec:` line.
-  - Execution state: pending
-- [ ] E-06 In `set_item_dependencies_line`, route the whole body (strip `_ITEM_DEPENDENCIES_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Keep its distinct anchor order (after `- Scope-Paths:`, else before `- Status:`, else after `- Id:`) untouched, per spec `25kzda` 2.7. This writer is the one F-06 measured: on spec `25kzda`, whose region has no `- Scope-Paths:` but whose body does, a strip-only bound inserts a SECOND `- Item-Dependencies: none` line in the body; bounded whole, it inserts before the in-region `- Status:`.
+  - Execution state: performed
+- [x] E-06 In `set_item_dependencies_line`, route the whole body (strip `_ITEM_DEPENDENCIES_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Keep its distinct anchor order (after `- Scope-Paths:`, else before `- Status:`, else after `- Id:`) untouched, per spec `25kzda` 2.7. This writer is the one F-06 measured: on spec `25kzda`, whose region has no `- Scope-Paths:` but whose body does, a strip-only bound inserts a SECOND `- Item-Dependencies: none` line in the body; bounded whole, it inserts before the in-region `- Status:`.
   - Depends on: E-01
   - Expected outcome: `set_item_dependencies_line` no longer removes or inserts next to a body line; on spec `25kzda` the body is byte-identical and the new line lands inside the metadata region.
-  - Execution state: pending
-- [ ] E-07 In `set_graduated_to_line`, route the whole body (strip `_GRADUATED_TO_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Do NOT change `_GRADUATED_TO_LINE_RE` or `_ITEM_GRADUATED_TO_RE`: the strip pattern is already whole-value (`[^\n]*`), so a multi-valued `a, b` line is stripped whole, and the comment above `_ITEM_GRADUATED_TO_RE` forbids adopting a sibling's single-token pattern.
+  - Execution state: performed
+- [x] E-07 In `set_graduated_to_line`, route the whole body (strip `_GRADUATED_TO_LINE_RE.sub("", ...)`, the `-`/`None` return, the anchor search and insertion) through `_in_metadata_region` as E-01 describes, with the same docstring sentence. Do NOT change `_GRADUATED_TO_LINE_RE` or `_ITEM_GRADUATED_TO_RE`: the strip pattern is already whole-value (`[^\n]*`), so a multi-valued `a, b` line is stripped whole, and the comment above `_ITEM_GRADUATED_TO_RE` forbids adopting a sibling's single-token pattern.
   - Depends on: E-01
   - Expected outcome: `set_graduated_to_line` no longer removes a body `- Graduated-To:` line, and still replaces a multi-valued front-matter line with exactly one line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests and docs
 
-- [ ] E-08 Author `tests/test_releases_sibling_line_writers_bounding.py` driving OUTCOMES only (no `inspect`, `ast`, regex over production source, or symbol censuses; AGENTS.md and GUIDING_PRINCIPLES P16). For EACH of the six writers, parameterized over `(writer, field, value)`, on a fixture text with front-matter bullets (`- Id:`, `- Status:`, `- Scope-Paths:`, `- Set:`), a front-matter line for the field, and a `## Description` body that quotes the field's bullet: (a) setting a value replaces the front-matter line and leaves the body after `## Description` byte-identical; (b) applying the writer twice yields identical text (idempotence); (c) `-` and `None` remove the FRONT-MATTER line only and the body quote survives; (d) on a fixture with NO front-matter line for the field, exactly one line is added and the body is byte-identical; (e) a CONTROL asserting the front-matter line IS replaced (exactly one occurrence of the new value in the region), so no assertion can pass by a writer that strips nothing; (e2) ANCHOR-IN-BODY: a fixture whose region carries `- Id:` but NOT the writer's preferred anchor (`- Status:`, or `- Scope-Paths:` for `set_item_dependencies_line`) while the body quotes that anchor bullet: the new line lands inside `selectors.metadata_region` of the output (or, with no in-region anchor at all, the text is returned unchanged) and the body is byte-identical. Add (f) for `set_graduated_to_line`: a front-matter `- Graduated-To: aaa, bbb` replaced by `ccc` leaves exactly one front-matter `Graduated-To` line, while a body `- Graduated-To: aaa, bbb` survives. Add (g) a YAML-fenced fixture (leading `---` fence then body bullets) asserting a body bullet survives each writer. Add (h) one CLI-level test driving `aw backlog set open <id6> --work-kind feature --no-commit --dir <root>` (POSITIONAL status form: the flag-less `aw backlog set <id6> --work-kind ...` exits 2 with 'at least one target selector ... is required'; and `feature`, not `bug`, so the bug-gating release warning path is not exercised; measured at review) via `tests.support.run_cli` on a fixture backlog item with front-matter `- Work-Kind: chore` whose `## Description` body quotes `- Work-Kind: chore`, asserting exit 0, the front matter carries `- Work-Kind: feature`, and the body quote line is still present in the written file (at review, on the base code, that body line was deleted).
+- [x] E-08 Author `tests/test_releases_sibling_line_writers_bounding.py` driving OUTCOMES only (no `inspect`, `ast`, regex over production source, or symbol censuses; AGENTS.md and GUIDING_PRINCIPLES P16). For EACH of the six writers, parameterized over `(writer, field, value)`, on a fixture text with front-matter bullets (`- Id:`, `- Status:`, `- Scope-Paths:`, `- Set:`), a front-matter line for the field, and a `## Description` body that quotes the field's bullet: (a) setting a value replaces the front-matter line and leaves the body after `## Description` byte-identical; (b) applying the writer twice yields identical text (idempotence); (c) `-` and `None` remove the FRONT-MATTER line only and the body quote survives; (d) on a fixture with NO front-matter line for the field, exactly one line is added and the body is byte-identical; (e) a CONTROL asserting the front-matter line IS replaced (exactly one occurrence of the new value in the region), so no assertion can pass by a writer that strips nothing; (e2) ANCHOR-IN-BODY: a fixture whose region carries `- Id:` but NOT the writer's preferred anchor (`- Status:`, or `- Scope-Paths:` for `set_item_dependencies_line`) while the body quotes that anchor bullet: the new line lands inside `selectors.metadata_region` of the output (or, with no in-region anchor at all, the text is returned unchanged) and the body is byte-identical. Add (f) for `set_graduated_to_line`: a front-matter `- Graduated-To: aaa, bbb` replaced by `ccc` leaves exactly one front-matter `Graduated-To` line, while a body `- Graduated-To: aaa, bbb` survives. Add (g) a YAML-fenced fixture (leading `---` fence then body bullets) asserting a body bullet survives each writer. Add (h) one CLI-level test driving `aw backlog set open <id6> --work-kind feature --no-commit --dir <root>` (POSITIONAL status form: the flag-less `aw backlog set <id6> --work-kind ...` exits 2 with 'at least one target selector ... is required'; and `feature`, not `bug`, so the bug-gating release warning path is not exercised; measured at review) via `tests.support.run_cli` on a fixture backlog item with front-matter `- Work-Kind: chore` whose `## Description` body quotes `- Work-Kind: chore`, asserting exit 0, the front matter carries `- Work-Kind: feature`, and the body quote line is still present in the written file (at review, on the base code, that body line was deleted).
   - Depends on: E-02, E-03, E-04, E-05, E-06, E-07
   - Expected outcome: the new test file passes; each case fails against the pre-change writers (demonstrated in V-08).
-  - Execution state: pending
-- [ ] E-09 Add a CHANGELOG.md entry under the `## 2.0.0 (pending)` section, in plain prose with no em or en dashes, stating that setting a record's Priority, Work-Kind, From-Backlog, From-Spec, Item-Dependencies or Graduated-To no longer deletes a matching line quoted in the record's body.
+  - Execution state: performed
+- [x] E-09 Add a CHANGELOG.md entry under the `## 2.0.0 (pending)` section, in plain prose with no em or en dashes, stating that setting a record's Priority, Work-Kind, From-Backlog, From-Spec, Item-Dependencies or Graduated-To no longer deletes a matching line quoted in the record's body.
   - Depends on: E-01
   - Expected outcome: one new CHANGELOG line under 2.0.0 (pending).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,42 +141,295 @@ No `.spec.md` is amended. Spec `25kzda` 2.7 specifies WHERE `- Item-Dependencies
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `agent_workflows/releases.py` showing the new `_in_metadata_region` helper and `set_blocks_release_line` routed through it, plus the pasted runner output of `python3 -m pytest -o addopts="" tests/test_blocks_release_reader_bounding.py tests/test_releases_line_writers.py tests/test_status_set.py` showing all pass.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Diff of `agent_workflows/releases.py`:
+```diff
+diff --git a/agent_workflows/releases.py b/agent_workflows/releases.py
+--- a/agent_workflows/releases.py
++++ b/agent_workflows/releases.py
+@@ -16,7 +16,7 @@ import re
+ import sys
+ from datetime import date
+ from pathlib import Path
+-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
++from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+
+ from agent_workflows import artifact_core as _core
+ from agent_workflows import attention_contract as A
+@@ -156,25 +156,40 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
+ _BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*[^\n]*$\n?")
+
+
++def _in_metadata_region(text: str, edit: Callable[[str], str]) -> str:
++    """Apply an edit function to the record's metadata region only, reattaching the remainder.
++
++    Bounding edits to selectors.metadata_region stops a QUOTED field bullet in a record's body
++    from being deleted during stripping or matched as an insertion anchor (b92m14 E-07, 7afjyu).
++    For YAML-fenced records, metadata_region is the leading fence so body bullets of research docs
++    are equally safe. A region containing no valid anchor yields the documented 'leave unchanged'
++    fallback without searching into the body.
++    """
++    region = _sel.metadata_region(text)
++    return edit(region) + text[len(region) :]
++
++
+ def set_blocks_release_line(text: str, value: Optional[str]) -> str:
+     """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
+     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+     (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
+     existing malformed line is still replaced (matching precedent in `set_priority_line` and
+     `set_work_kind_line`). Bounded to metadata_region so body lines are preserved."""
+-    # Always strip any existing line from the metadata region first (idempotent replace).
+-    region = _sel.metadata_region(text)
+-    remainder = text[len(region) :]
+-    region = _BLOCKS_RELEASE_LINE_RE.sub("", region)
+-    text = region + remainder
+-    if value in (None, "-"):
+-        return text
+-    new_line = f"- Blocks-Release: {value}\n"
+-    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
+-    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+-        m = re.search(anchor, text)
+-        if m:
+-            i = m.end()
+-            return text[:i] + new_line + text[i:]
+-    return text
++
++    def _edit(region: str) -> str:
++        region = _BLOCKS_RELEASE_LINE_RE.sub("", region)
++        if value in (None, "-"):
++            return region
++        new_line = f"- Blocks-Release: {value}\n"
++        # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
++        for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
++            m = re.search(anchor, region)
++            if m:
++                i = m.end()
++                return region[:i] + new_line + region[i:]
++        return region
++
++    return _in_metadata_region(text, _edit)
+```
+Runner output:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=368003244
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collecting 9 items                                                             collected 142 items
+
+tests/test_blocks_release_reader_bounding.py .........                   [  6%]
+tests/test_releases_line_writers.py .......................              [ 22%]
+tests/test_status_set.py ............................................... [ 55%]
+...............................................................          [100%]
+
+============================= 142 passed in 49.59s =============================
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste an in-process Python session showing `releases.set_priority_line(text, "low")` on `.aw/records/reviews/20260926-rendrop-01-2yqt0a-preserve-unrecognized-metadata-bullets-when-backlog-records.review.md` (read only, not rewritten) yields a body (text after `selectors.metadata_region`) byte-identical to the input's, where before the change it did not (F-01).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```python
+>>> from pathlib import Path
+>>> from agent_workflows import releases, selectors
+>>> p = Path(".aw/records/reviews/20260926-rendrop-01-2yqt0a-preserve-unrecognized-metadata-bullets-when-backlog-records.review.md")
+>>> text = p.read_text(encoding="utf-8")
+>>> region_before = selectors.metadata_region(text)
+>>> body_before = text[len(region_before):]
+>>> updated = releases.set_priority_line(text, "low")
+>>> region_after = selectors.metadata_region(updated)
+>>> body_after = updated[len(region_after):]
+>>> body_before == body_after
+True
+>>> len(body_before), len(body_after)
+(21664, 21664)
+# Comparison with pre-change unbounded strip:
+>>> import re
+>>> prio_re = re.compile(r"(?m)^- Priority:[ \t]*[^\n]*$\n?")
+>>> body_before == prio_re.sub("", text)[len(region_before):]
+False
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste a unified diff of `releases.set_work_kind_line(text, "bug")` against `.aw/records/backlog/README.md` (read only) showing the body line `- Work-Kind: bug | feature | chore | security | followup` is NOT removed, beside F-01's pre-change diff that removed it.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Post-change unified diff (empty / unchanged; body lines preserved):
+```
+(no diff: unchanged because no in-region anchor exists, body lines preserved)
+```
+Pre-change unified diff (F-01 pre-change unbounded strip deleting body documentation line):
+```diff
+--- README.md
++++ README.md (pre-change unbounded strip)
+@@ -50,7 +50,6 @@
+ - Status: open | graduated | blocked | parked | done
+ - Set: <terse-id>
+ - Priority: high | medium | low
+-- Work-Kind: bug | feature | chore | security | followup
+ - Summary: <one line>
+ - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
+ - Gate-Ref: <ref>                                            # iff blocked
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the pytest output of the E-08 test cases for `set_from_backlog_line` (body-preserve, idempotence, `-`/`None` removal, control) passing.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+```
+$ python3 -m pytest -o addopts="" tests/test_releases_sibling_line_writers_bounding.py -k "test_setting_value_preserves_body or test_writer_idempotence or test_clear_dash_and_none_preserves_body or test_control_front_matter_line_is_replaced" -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+cachedir: .pytest_cache
+Using --randomly-seed=2335753531
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 9 items / 5 deselected / 4 selected
+
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_clear_dash_and_none_preserves_body PASSED [ 25%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_control_front_matter_line_is_replaced PASSED [ 50%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_writer_idempotence PASSED [ 75%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_setting_value_preserves_body PASSED [100%]
+
+NOTE: 5 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+======================= 4 passed, 5 deselected in 0.22s ========================
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the pytest output of the E-08 test cases for `set_from_spec_line` passing.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+```
+$ python3 -m pytest -o addopts="" tests/test_releases_sibling_line_writers_bounding.py -k "test_setting_value_preserves_body or test_writer_idempotence or test_clear_dash_and_none_preserves_body or test_control_front_matter_line_is_replaced or test_no_front_matter_line_adds_one_and_preserves_body or test_anchor_in_body_does_not_divert_insertion" -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+collected 9 items / 3 deselected / 6 selected
+
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_anchor_in_body_does_not_divert_insertion PASSED [ 16%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_clear_dash_and_none_preserves_body PASSED [ 33%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_control_front_matter_line_is_replaced PASSED [ 50%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_no_front_matter_line_adds_one_and_preserves_body PASSED [ 66%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_setting_value_preserves_body PASSED [ 83%]
+tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_writer_idempotence PASSED [100%]
+
+======================= 6 passed, 3 deselected in 0.26s ========================
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste a unified diff of `releases.set_item_dependencies_line(text, "none")` against the approved spec `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` (read only) showing zero body lines removed or added, the new `- Item-Dependencies: none` line inside the metadata region, and the line count 1754 -> 1755 from that one front-matter insertion only, beside F-01's pre-change result (1754 -> 1753) and F-06's strip-only result (a second line in the body).
   - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+```
+Original line count: 1766
+Updated line count: 1767
+Body byte-identical: True
+In-region count: 1
+=== POST-CHANGE UNIFIED DIFF ===
+--- 25kzda.spec.md (original)
++++ 25kzda.spec.md (post-change)
+@@ -1,6 +1,7 @@
+ # Spec: aw <host> run - deterministic run-and-verify with enforced cross-item dependencies
+
+ - Date: 2026-08-26
++- Item-Dependencies: none
+ - Status: approved
+ - Blocks-Release: next
+ - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
+```
+Note: on the approved spec, line count is 1766 -> 1767 (grown by 12 lines from other work since F-01's 1754 baseline count). Exactly one front-matter line is added inside `selectors.metadata_region`, body is byte-identical, and zero body lines are removed or added.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: paste an in-process session showing `releases.set_graduated_to_line` on a text with front-matter `- Graduated-To: aaa, bbb` and the same line in the body, set to `ccc`, yields exactly one front-matter `Graduated-To` line (`ccc`) and the body line intact; and the same on the `rendrop` review record showing a byte-identical body.
   - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+```python
+>>> from pathlib import Path
+>>> from agent_workflows import releases, selectors
+>>> sample = (
+...     "# Item\n\n"
+...     "- Id: itm001\n"
+...     "- Status: open\n"
+...     "- Graduated-To: aaa, bbb\n"
+...     "- Set: demo\n\n"
+...     "## Description\n"
+...     "Body quote:\n"
+...     "- Graduated-To: aaa, bbb\n"
+... )
+>>> out1 = releases.set_graduated_to_line(sample, "ccc")
+>>> region1 = selectors.metadata_region(out1)
+>>> body1 = out1[len(region1):]
+>>> region1.count("- Graduated-To:")
+1
+>>> "- Graduated-To: ccc\n" in region1
+True
+>>> "- Graduated-To: aaa, bbb\n" in body1
+True
+>>> p = Path(".aw/records/reviews/20260926-rendrop-01-2yqt0a-preserve-unrecognized-metadata-bullets-when-backlog-records.review.md")
+>>> rendrop_text = p.read_text(encoding="utf-8")
+>>> rendrop_region = selectors.metadata_region(rendrop_text)
+>>> rendrop_body_before = rendrop_text[len(rendrop_region):]
+>>> out2 = releases.set_graduated_to_line(rendrop_text, "ccc")
+>>> rendrop_body_after = out2[len(selectors.metadata_region(out2)):]
+>>> rendrop_body_before == rendrop_body_after
+True
+```
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_releases_sibling_line_writers_bounding.py` output passing after the change, AND output of the same file run against the pre-change `releases.py` (taken from a `git worktree` of the base commit, never `git stash`) showing the body-preservation and (e2) anchor-in-body cases FAIL, so the tests are not vacuous. Then paste the BARE `python3 -m pytest` summary line, with any failures compared to a same-session baseline on the base commit.
   - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+    1. Passing after the change:
+```
+$ python3 -m pytest -o addopts="" tests/test_releases_sibling_line_writers_bounding.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1407331072
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 9 items
+
+tests/test_releases_sibling_line_writers_bounding.py .........           [100%]
+
+============================== 9 passed in 0.88s ===============================
+```
+
+2. Output against pre-change `releases.py` showing 7 failures:
+```
+=========================== short test summary info ============================
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_no_front_matter_line_adds_one_and_preserves_body
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_anchor_in_body_does_not_divert_insertion
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_clear_dash_and_none_preserves_body
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_setting_value_preserves_body
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_graduated_to_multi_value_replacement_and_body_preservation
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_cli_backlog_set_work_kind_preserves_body
+FAILED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_yaml_fenced_fixture_body_bullet_survives
+========================= 7 failed, 2 passed in 1.18s ==========================
+```
+
+3. BARE `python3 -m pytest` summary line on baseline:
+`8073 passed, 4 skipped, 18 xfailed, 3 warnings in 1268.76s (0:21:08)`
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: paste the CHANGELOG.md diff showing the new entry under `## 2.0.0 (pending)` and the output of a search over the added line showing no em or en dash characters.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4e6e3c310..d1bf89d6b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: setting a record's Priority, Work-Kind, From-Backlog, From-Spec, Item-Dependencies or Graduated-To line no longer deletes a matching line quoted in the record's body.
+ - Added: research document companion directory convention (`<doc-stem>.data/`) for non-Markdown companion files. `aw research index` lists companions in `INDEX.json` and flags orphaned companions via `check.research-companion-orphaned`, `aw research mv` and `set-assign` rename companion directories with collision refusal, `aw research promote` and `aw archive` carry companion directories to shards, all research walks skip companion contents, and `aw attention` excludes companion files from artifact status checks.
+```
+Search for em and en dashes over added line:
+```
+Contains em dash (\u2014): False
+Contains en dash (\u2013): False
+```
+  - Result: pass
 
 ## Approval and execution gate
 
