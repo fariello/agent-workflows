@@ -6,7 +6,7 @@
 - Scope: Change the two literal arguments at the single defective call site to the legal `actor="runtime"` and `evidence_kind="test_report"`, and add one behavior test that drives the real `run_suite_check` and validates the records `capture_command` actually returned. No schema vocabulary change, no ledger wiring, no change to `host_runner`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_capture_command_contract.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1rozt5
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-13 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1rozt5 verified (set runledger, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: suite bar by failing node id, not total), PR-002 (LOW, fixed: finalize ownership and mutation-revert guard in gate). F-01/F-02/F-03 re-measured at HEAD 7b8dde681; E-03's spy test shape demonstrated (HEAD args: RL-E014 / RL-E014+RL-E033; fixed args: clean; SuiteCheckResult unchanged). Record: .aw/records/reviews/20261011-runledger-02-1rozt5-make-run-suite-check-s-captured-ledger-records-schema-valid.review.md.
