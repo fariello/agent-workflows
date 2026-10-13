@@ -38,6 +38,7 @@ SPEC_PATH = next(
         "20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md"
     )
 )
+_GOLDEN_SCAN_ROOT = Path(__file__).resolve().parent
 
 # The five prompt LANES. Prompt status is carried by DIRECTORY, not by an enum: `prompts.py` defines
 # only `DEFAULT_STATUS` and `PROMPT_KINDS`, so there is no `prompts.STATUSES` to enumerate (plan
@@ -566,6 +567,34 @@ class CriterionA5VariationSelectorTests(unittest.TestCase):
                         styled_text,
                         f"style_lifecycle_text carries U+FE0F for {stage} (depth={depth}, unicode={unicode_mode})",
                     )
+
+    def test_committed_golden_fixtures_contain_no_emoji_variation_selector(
+        self,
+    ):
+        golden_files = sorted(_GOLDEN_SCAN_ROOT.glob("**/*.golden"))
+        self.assertTrue(
+            golden_files,
+            f"No *.golden fixture files found under {_GOLDEN_SCAN_ROOT}; corpus moved or vanished?",
+        )
+
+        banned_literal_sequences = ("\u26a0\ufe0f", "\u21a9\ufe0f")
+        banned_escaped_sequences = ("\\u26a0\\ufe0f", "\\u21a9\\ufe0f")
+
+        for golden_file in golden_files:
+            text = golden_file.read_text(encoding="utf-8")
+            for seq in banned_literal_sequences:
+                self.assertNotIn(
+                    seq,
+                    text,
+                    f"Committed golden fixture {golden_file.name} contains emoji presentation sequence {repr(seq)}",
+                )
+            text_lower = text.lower()
+            for esc in banned_escaped_sequences:
+                self.assertNotIn(
+                    esc,
+                    text_lower,
+                    f"Committed golden fixture {golden_file.name} contains JSON escaped emoji sequence {repr(esc)}",
+                )
 
 
 class CriterionA19WorkKindIndependenceTests(unittest.TestCase):

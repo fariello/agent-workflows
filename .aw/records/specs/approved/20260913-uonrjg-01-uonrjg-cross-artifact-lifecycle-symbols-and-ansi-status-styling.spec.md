@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-13 note (aw specs): AMENDED 2026-10-13 (plan mq715m / backlog 0rnvj6): A5 gained a definition of 'golden output' with two referents (the rendered output of shared lifecycle renderers across stages, depths, and modes, and every committed *.golden fixture under tests/ matched both as literal code points and JSON \uXXXX escapes); a committed-golden scan was added to tests/test_lifecycle_style.py CriterionA5VariationSelectorTests; no criterion requirement, stage, color, glyph, or mapping changed.
 - 2026-10-08 note (aw specs): AMENDED 2026-10-08 (plan xtensb / backlog nzqj6m): corrected stale citations and measurements in spec uonrjg without changing any criterion requirements or lifecycle presentation: re-pointed four line citations (S1 to symbol term.should_unicode, S2 and S6 to retracted contract doc section 9, S3 to normative 256->16->none ladder in accessibility lens); re-measured subcommand census at HEAD (253 leaves / 34 groups / 287 nodes, 29 accounted misses); marked Section 12a 25-of-219 census as pre-yaxr4i historical measurement; retired A13 former document-conflict warning as resolved with cli-output-contract agreeing with code; no criterion requirement, stage, color, glyph, or mapping changed.
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan nw088c / backlog p5qx91): Section 9.3 single-originating-definition citation amended: structural assertion in tests/test_term.py was deleted in 19313eed and not restored per maintainer ruling (2026-09-28 on p5qx91); property now rests on behavioral coverage in tests/test_term.py plus re-exports.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (mergeskip 8k0z40): added already-landed to Section 7.2 blocked row as a normative stage classification (needs human act: aw ipd finalize). Note this row is normative-but-unenforced (tests/test_lifecycle_style.py enforces Section 5 only).
@@ -810,6 +811,16 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
 - **A4** Blocked renders with text-form `⚠︎`; failed renders with `✘`; retry or recovery renders with
   text-form `↩︎`; reusable renders with `↻`.
 - **A5** `⚠️` and `↩️` do not occur in lifecycle constants or golden output.
+  "golden output" means (a) the output of the shared lifecycle renderers
+  `Term.format_lifecycle_marker` and `Term.style_lifecycle_text` for every stage in
+  `lifecycle_style.STAGE_ORDER` at all three color depths and both Unicode modes, and (b) every
+  committed golden fixture file (`*.golden`) under `tests/`, matched both as literal code points and
+  as their JSON `\uXXXX` escape form (the JSON goldens are written ASCII-escaped), which today is the
+  `tests/fixtures/conformance_goldens/` corpus and which automatically includes any lifecycle snapshot
+  corpus added later provided it uses the `.golden` suffix. Both referents are asserted by class
+  `CriterionA5VariationSelectorTests` in `tests/test_lifecycle_style.py`. This closes `xtensb` OQ-01 /
+  backlog `0rnvj6` so a later reader does not re-raise it, and a future snapshot corpus using a
+  different suffix must either adopt `.golden` or extend this clause.
 - **A6** In artifact-only views, plans display draft through approved as `○`, `◔`, `◑`, and `◕`, then
   executed as `✓`.
 - **A7** A live executing approved plan displays `▶` and the word `executing` without changing the plan's
