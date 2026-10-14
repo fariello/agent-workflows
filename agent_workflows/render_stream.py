@@ -4261,11 +4261,29 @@ def render_run_summary_table(
             noun = "file" if touched == 1 else "files"
             b_line2 += f"   Files touched: {touched} {noun}"
 
+    b_chk = None
+    chk_str = state.get("checkup_line")
+    if not chk_str and run_dir:
+        try:
+            from agent_workflows import checkup as _chk
+
+            _repo_val = state.get("repo")
+            if _repo_val:
+                _rec = _chk.read_checkup_record(Path(_repo_val))
+                if _rec is not None:
+                    chk_str = _chk.format_checkup_line(_rec, repo_root=Path(_repo_val))
+        except Exception:
+            pass
+    if chk_str:
+        b_chk = f"Checkup: {chk_str}"
+
     banner_plain = [
         b_title,
         b_line1,
         b_line2,
     ]
+    if b_chk:
+        banner_plain.append(b_chk)
     base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
     max_banner_w = max((_T.visible_width(t) for t in banner_plain), default=0) + 4
     if max_banner_w > base_table_width:
@@ -4312,6 +4330,9 @@ def render_run_summary_table(
     # Banner Line 2
     pad_2 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line2))
     lines.append(f"{vl} {b_line2}{pad_2} {vl}")
+    if b_chk:
+        pad_chk = " " * max(0, total_table_width - 4 - _T.visible_width(b_chk))
+        lines.append(f"{vl} {b_chk}{pad_chk} {vl}")
     lines.append(sep_banner_table)
 
     # Table Header

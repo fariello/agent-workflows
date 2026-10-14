@@ -1624,6 +1624,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also check PyPI for a newer published release (network; off by default).",
     )
 
+    # cihealth Order 02 (n7xlhm) E-03: Periodic health checkup
+    p_checkup = sub.add_parser(
+        "checkup",
+        parents=[common],
+        help="Run health checkup (CI status and slow checks) on demand and save record.",
+    )
+    p_checkup.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # aw exclude [repo|repos] repodir1 [repodir2 ...]
     p_exclude = sub.add_parser(
         "exclude",
@@ -17662,6 +17672,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import doctor as _doctor
 
         return _doctor.run(args, term, context=context)
+    if args.command == "checkup":
+        from agent_workflows import checkup as _checkup
+
+        return _checkup.run_checkup_cli(args, term, context=context)
     if args.command == "setup":
         return _run_setup(args, term)
     # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was

@@ -2426,3 +2426,173 @@ def validate_setid_length_for_authoring(
             f"(over {policy.max_length} is refused)",
         )
     return None, None
+
+
+# --------------------------------------------------------------------------------------
+# cihealth Order 02 (n7xlhm) E-01: Periodic checkup settings
+# --------------------------------------------------------------------------------------
+
+CI_CHECKUP_INTERVAL_COMMITS_KEY = "ci_checkup_interval_commits"
+CI_CHECKUP_INTERVAL_COMMITS_DEFAULT = 100
+
+CI_CHECKUP_WORKFLOW_KEY = "ci_checkup_workflow"
+CI_CHECKUP_WORKFLOW_DEFAULT = "tests.yml"
+
+CI_CHECKUP_BRANCH_KEY = "ci_checkup_branch"
+CI_CHECKUP_BRANCH_DEFAULT = "main"
+
+
+def ci_checkup_interval_commits(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+) -> int:
+    """Return the configured interval in main commits between checkups (default 100; 0 disables).
+
+    Reads `.aw/config/project.json` under `ci_checkup_interval_commits`.
+    A non-integer, bool, or negative value emits a warning naming the key, offending value,
+    and project file, and falls back to `CI_CHECKUP_INTERVAL_COMMITS_DEFAULT`.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+    if not isinstance(data, dict):
+        return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+
+    if CI_CHECKUP_INTERVAL_COMMITS_KEY not in data:
+        return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+
+    raw = data.get(CI_CHECKUP_INTERVAL_COMMITS_KEY)
+    if raw is None:
+        return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        if raw >= 0:
+            return raw
+        _emit(
+            f"WARNING: {CI_CHECKUP_INTERVAL_COMMITS_KEY} in {project_file} is {raw!r}, which is negative. "
+            f"Using default {CI_CHECKUP_INTERVAL_COMMITS_DEFAULT} instead."
+        )
+        return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+
+    _emit(
+        f"WARNING: {CI_CHECKUP_INTERVAL_COMMITS_KEY} in {project_file} is {raw!r}, which is not an integer. "
+        f"Using default {CI_CHECKUP_INTERVAL_COMMITS_DEFAULT} instead."
+    )
+    return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
+
+
+def ci_checkup_workflow(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+) -> str:
+    """Return the configured CI workflow filename (default 'tests.yml').
+
+    Reads `.aw/config/project.json` under `ci_checkup_workflow`.
+    A non-string or empty string emits a warning and falls back to `CI_CHECKUP_WORKFLOW_DEFAULT`.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return CI_CHECKUP_WORKFLOW_DEFAULT
+    if not isinstance(data, dict):
+        return CI_CHECKUP_WORKFLOW_DEFAULT
+
+    if CI_CHECKUP_WORKFLOW_KEY not in data:
+        return CI_CHECKUP_WORKFLOW_DEFAULT
+
+    raw = data.get(CI_CHECKUP_WORKFLOW_KEY)
+    if raw is None:
+        return CI_CHECKUP_WORKFLOW_DEFAULT
+
+    if isinstance(raw, str):
+        cleaned = raw.strip()
+        if cleaned:
+            return cleaned
+        _emit(
+            f"WARNING: {CI_CHECKUP_WORKFLOW_KEY} in {project_file} is empty string. "
+            f"Using default {CI_CHECKUP_WORKFLOW_DEFAULT!r} instead."
+        )
+        return CI_CHECKUP_WORKFLOW_DEFAULT
+
+    _emit(
+        f"WARNING: {CI_CHECKUP_WORKFLOW_KEY} in {project_file} is {raw!r}, which is not a string. "
+        f"Using default {CI_CHECKUP_WORKFLOW_DEFAULT!r} instead."
+    )
+    return CI_CHECKUP_WORKFLOW_DEFAULT
+
+
+def ci_checkup_branch(
+    repo_root: "os.PathLike[str] | str",
+    *,
+    warn: Any = None,
+) -> str:
+    """Return the configured target branch for CI checkup (default 'main').
+
+    Reads `.aw/config/project.json` under `ci_checkup_branch`.
+    A non-string or empty string emits a warning and falls back to `CI_CHECKUP_BRANCH_DEFAULT`.
+    """
+    import sys as _sys
+
+    def _emit(message: str) -> None:
+        if warn is None:
+            print(message, file=_sys.stderr)
+        else:
+            warn(message)
+
+    from agent_workflows.project_context import project_config_dir
+
+    project_file = project_config_dir(repo_root) / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return CI_CHECKUP_BRANCH_DEFAULT
+    if not isinstance(data, dict):
+        return CI_CHECKUP_BRANCH_DEFAULT
+
+    if CI_CHECKUP_BRANCH_KEY not in data:
+        return CI_CHECKUP_BRANCH_DEFAULT
+
+    raw = data.get(CI_CHECKUP_BRANCH_KEY)
+    if raw is None:
+        return CI_CHECKUP_BRANCH_DEFAULT
+
+    if isinstance(raw, str):
+        cleaned = raw.strip()
+        if cleaned:
+            return cleaned
+        _emit(
+            f"WARNING: {CI_CHECKUP_BRANCH_KEY} in {project_file} is empty string. "
+            f"Using default {CI_CHECKUP_BRANCH_DEFAULT!r} instead."
+        )
+        return CI_CHECKUP_BRANCH_DEFAULT
+
+    _emit(
+        f"WARNING: {CI_CHECKUP_BRANCH_KEY} in {project_file} is {raw!r}, which is not a string. "
+        f"Using default {CI_CHECKUP_BRANCH_DEFAULT!r} instead."
+    )
+    return CI_CHECKUP_BRANCH_DEFAULT

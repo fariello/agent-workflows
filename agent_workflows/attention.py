@@ -2751,7 +2751,7 @@ def _resolve_runs_repo_root(repo_root: Path) -> Path:
             if txt.startswith("gitdir:"):
                 gdir = Path(txt.split(":", 1)[1].strip()).resolve()
                 candidate = gdir.parent.parent.parent
-                if state_root(candidate).is_dir():
+                if state_root(candidate).is_dir() or (candidate / ".git").is_dir():
                     return candidate
         except Exception:
             pass
@@ -4655,6 +4655,32 @@ def run(args) -> int:
                     value=waiting,
                 )
             )
+        try:
+            from agent_workflows import checkup as _chk
+
+            _rec = _chk.read_checkup_record(repo_root)
+            if _rec is not None:
+                _chk_line = _chk.format_checkup_line(_rec, repo_root=repo_root)
+                _is_warn = _chk.is_checkup_warning(_rec, repo_root)
+                evidence.append(
+                    Evidence(
+                        key="checkup",
+                        value={"line": _chk_line, "record": _rec},
+                        status="warning" if _is_warn else "clean",
+                    )
+                )
+                if _is_warn:
+                    diagnostics.append(
+                        Diagnostic(
+                            location=str(repo_root),
+                            rule="attention.ci-checkup",
+                            detail=_chk_line,
+                            severity="warning",
+                        )
+                    )
+        except Exception:
+            pass
+
         res = CommandResult(
             command="attention",
             status=status,
@@ -4884,30 +4910,31 @@ def run(args) -> int:
                 board += f"- {notice}\n"
 
         footer_lines: list[str] = []
-        needs_setup = setup_needed(repo_root)
-        if needs_setup:
-            # The --all hint lives on the count line now; do not repeat it here.
-            footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+        try:
+            from agent_workflows import checkup as _chk
+
+            _rec = _chk.read_checkup_record(repo_root)
+            _chk_line = _chk.format_checkup_line(_rec, repo_root=repo_root)
+            _is_warn = _chk.is_checkup_warning(_rec, repo_root)
+            if _is_warn and colored:
+                footer_lines.append(term.color256(_chk_line, 214, bold=True))
+            else:
+                footer_lines.append(_chk_line)
+        except Exception:
+            pass
 
         # awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): the waiting-inbox-drops nudge.
-        # AN INDEPENDENT `if` appending to `footer_lines`, composing with today's single-`if`
-        # `setup_needed` notice above rather than competing with it. Do NOT convert either into
-        # an `elif`: a dropped-and-forgotten file is especially likely on a fresh checkout that
-        # also needs setup, so both lines must render when both conditions hold.
-        # ADVISORY ONLY, exactly like the `order_notices` and `release-gate-warnings` sections above:
-        # it constructs no `Drift` and therefore CANNOT affect the exit code (owned solely by
-        # `core.drift_exit_code(drift)`), invents no status, and creates no `Item` - a waiting local
-        # drop in a gitignored directory is not a repository defect, and failing `--check` on a file
-        # no other machine can even see would be wrong. It shows ALWAYS, not only under `--all`,
-        # because `--all` reveals hidden done/parked ARTIFACTS and an un-adopted drop is not one:
-        # it is outstanding work, which is what a nudge is for. It carries no mtime or other
-        # time-derived value, preserving the spec's byte-determinism invariant.
         waiting = inbox_waiting(repo_root)
         if waiting:
             noun = "file" if waiting == 1 else "files"
             footer_lines.append(
                 f"TODO: {waiting} {noun} waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one."
             )
+
+        needs_setup = setup_needed(repo_root)
+        if needs_setup:
+            # The --all hint lives on the count line now; do not repeat it here.
+            footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
 
         if footer_lines:
             board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"
