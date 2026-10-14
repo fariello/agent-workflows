@@ -6,7 +6,7 @@
 - Scope: Orchestrate eight children that together make the runner FIX FIRST: every agent-caused failure gets a bounded fix-it turn naming what failed; the agent may propose a gate, tool or approach change and that proposal lands durably while the item stops `needs-human`; only runner-state failures and human gates stop an item without a fix-it turn; only the abort set amended spec `25kzda` 4.1 names aborts the run: a corrupt ledger ONLY (maintainer ruling 2026-10-08, `tb6lw3` OQ-02 Option B). The shipped run abort on a runner tool-identity mismatch is NOT removed by this Set; backlog `03y5g6` carries that code change. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child. EXCLUDES, in every child: push detection (Set `denypush`, `l4vw9o`), global fix-it caps across kinds (backlog `38hwvk`), changing the per-kind retry budget default, and converting the tool-identity abort to an item failure (backlog `03y5g6`).
 - Scope-Paths: .aw/records/plans/pending/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: b8a8f9625139e3dfb2172702a8d354d127b376d25b53ceb787d2d765595697db
@@ -21,9 +21,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lxb1ew
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set fixfirst reached executed, so the runner (run run-20261014T055521Z-2108793) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: tb6lw3, tha7a6, mcbph5, ytas91, w9nvq4, psgyzw, 62sdwr, iksylm.
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (cleared: OQ-02 answered, Option B), PR-006, PR-007, PR-008. Reviewed at HEAD 4b191408f. Criteria 4 and 5 now name the shipped tool-identity abort as the one permitted divergence, carried by backlog 03y5g6; stale cross-IPD and gate prose re-measured. Record: .aw/records/reviews/20261007-fixfirst-00-lxb1ew-fix-first-send-agent-caused-run-failures-back-to-the-agent-i.review.md (round 2).
 - 2026-10-10 coverage pass (aw oc run): fingerprint b8a8f9625139, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -39,6 +39,9 @@
 When an unattended run hits a failure the agent caused, the agent is told what went wrong and fixes it, instead of the run stopping and waiting for a human to say "investigate and fix". A human is needed only when a gate, tool or approach genuinely has to change, and then the agent's proposal is waiting for them as a tracked record.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
