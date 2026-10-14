@@ -367,7 +367,7 @@ class TestScopeDriftLaneResolution(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
+            root = Path(td).resolve()
             repo = root / "repo"
             repo.mkdir()
             _init_repo(repo)

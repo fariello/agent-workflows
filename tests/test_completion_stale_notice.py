@@ -91,6 +91,10 @@ class NoticeStampTests(_NoticeBaseFixture):
         self.assertEqual(failures, [])
 
     def test_stamp_write_readonly_parent(self) -> None:
+        if os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0):
+            self.skipTest(
+                "Directory chmod 0o500 does not deny file creation on Windows or root"
+            )
         path = completion.notice_stamp_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         orig_mode = path.parent.stat().st_mode

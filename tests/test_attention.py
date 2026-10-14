@@ -1502,7 +1502,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         row1 = [ln for ln in lines_on if "111111" in ln][0]
         self.assertIn("approved ● running        plan", row1)
         row2 = [ln for ln in lines_on if "222222" in ln][0]
-        self.assertIn("to-revie ◕ queued         plan", row2)
+        self.assertIn("to-revie ⇪ queued         plan", row2)
         row3 = [ln for ln in lines_on if "333333" in ln][0]
         self.assertIn("draft    ✓ executed       plan", row3)
         row4 = [ln for ln in lines_on if "444444" in ln][0]
@@ -3739,9 +3739,9 @@ class AttentionRunColumnLifecycleTests(unittest.TestCase):
     """Tests for IPD r61br4: attention Run column shared lifecycle resolver and canonical vocabulary."""
 
     def test_active_runs_map_totality_over_known_and_legacy_statuses(self):
-        import fcntl
         from agent_workflows import (
             lifecycle_style as LS,
+            platform_lock,
             runner_shared,
             runner_shutdown,
         )
@@ -3753,10 +3753,7 @@ class AttentionRunColumnLifecycleTests(unittest.TestCase):
             live_dir = runs_dir / "run-20261001T000000Z-100"
             live_dir.mkdir()
             lock_file = live_dir / "driver.lock"
-            lock_file.write_text("pid=100\n", encoding="utf-8")
-            with open(lock_file, "r+") as lf:
-                fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
+            with platform_lock.held(lock_file):
                 all_statuses = sorted(
                     set(runner_shutdown.KNOWN_ITEM_STATUSES)
                     | set(runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES.keys())
@@ -3787,8 +3784,7 @@ class AttentionRunColumnLifecycleTests(unittest.TestCase):
                     )
 
     def test_active_runs_map_multi_run_priority_collapse(self):
-        import fcntl
-        from agent_workflows import runner_shared, runner_shutdown
+        from agent_workflows import platform_lock, runner_shared, runner_shutdown
 
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
@@ -3798,17 +3794,12 @@ class AttentionRunColumnLifecycleTests(unittest.TestCase):
             r1 = runs_dir / "run-20261001T000000Z-100"
             r1.mkdir()
             l1 = r1 / "driver.lock"
-            l1.write_text("pid=100\n", encoding="utf-8")
 
             r2 = runs_dir / "run-20261001T000000Z-200"
             r2.mkdir()
             l2 = r2 / "driver.lock"
-            l2.write_text("pid=200\n", encoding="utf-8")
 
-            with open(l1, "r+") as f1, open(l2, "r+") as f2:
-                fcntl.flock(f1, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(f2, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
+            with platform_lock.held(l1), platform_lock.held(l2):
                 pairs = [
                     ("pair01", "running", "executed", "running"),
                     ("pair02", "queued", "running", "running"),

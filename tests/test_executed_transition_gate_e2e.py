@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -599,7 +600,7 @@ class PreCommitExecutedGateTests(unittest.TestCase):
         hooks_dir = self.root / ".git" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
         (hooks_dir / "pre-commit").write_text(
-            "#!/bin/bash\nexec python3 -m agent_workflows ipd-executed-gate\n",
+            f'#!/bin/bash\nexec "{Path(sys.executable).as_posix()}" -m agent_workflows ipd-executed-gate\n',
             encoding="utf-8",
         )
         (hooks_dir / "pre-commit").chmod(0o755)
@@ -1121,7 +1122,7 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         for name in hook_names:
             script = hooks_dir / name
             script.write_text(
-                "#!/bin/bash\nexec python3 -m agent_workflows ipd-executed-gate\n",
+                f'#!/bin/bash\nexec "{Path(sys.executable).as_posix()}" -m agent_workflows ipd-executed-gate\n',
                 encoding="utf-8",
             )
             script.chmod(0o755)

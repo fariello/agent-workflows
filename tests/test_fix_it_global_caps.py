@@ -821,8 +821,8 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
                     "#!/usr/bin/env bash\n"
                     "branch=$(git branch --show-current 2>/dev/null || echo '')\n"
                     'if [[ "$branch" == aw/coordinator/* ]]; then\n'
-                    f'    cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
-                    f'    echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'    cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
+                    f'    echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     '    echo "HOOK_FAIL: whitespace error" >&2\n'
                     "    exit 1\n"
                     "fi\n"
@@ -973,8 +973,8 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
                     "#!/usr/bin/env bash\n"
                     "branch=$(git branch --show-current 2>/dev/null || echo '')\n"
                     'if [[ "$branch" == aw/coordinator/* ]]; then\n'
-                    f'    cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
-                    f'    echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'    cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
+                    f'    echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     '    if [ "$cnt" -eq 0 ]; then\n'
                     '        echo "HOOK_FAIL: item1 attempt 1 refusal" >&2\n'
                     "        exit 1\n"
@@ -1098,8 +1098,8 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
                     "#!/usr/bin/env bash\n"
                     "branch=$(git branch --show-current 2>/dev/null || echo '')\n"
                     'if [[ "$branch" == aw/coordinator/* ]]; then\n'
-                    f'    cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
-                    f'    echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'    cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
+                    f'    echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     '    if [ "$cnt" -eq 0 ]; then\n'
                     '        echo "HOOK_FAIL: item1 attempt 1 refusal" >&2\n'
                     "        exit 1\n"
@@ -1308,8 +1308,8 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
                     "#!/usr/bin/env bash\n"
                     "branch=$(git branch --show-current 2>/dev/null || echo '')\n"
                     'if [[ "$branch" == aw/coordinator/* ]]; then\n'
-                    f'    cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
-                    f'    echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'    cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
+                    f'    echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     '    if [ "$cnt" -eq 0 ]; then\n'
                     '        echo "HOOK_FAIL: once" >&2\n'
                     "        exit 1\n"

@@ -1791,6 +1791,8 @@ def resolve_launch_profile(args: argparse.Namespace) -> runner_profiles.Resolved
     """
 
     requested = getattr(args, "profile", None)
+    raw_agent = getattr(args, "agent", None)
+    eff_agent = raw_agent if isinstance(raw_agent, str) else None
     try:
         cfg = runner_profiles.load()
         return runner_profiles.resolve(
@@ -1799,7 +1801,7 @@ def resolve_launch_profile(args: argparse.Namespace) -> runner_profiles.Resolved
             profile=requested,
             model=getattr(args, "model", None),
             variant=getattr(args, "variant", None),
-            agent=getattr(args, "agent", None),
+            agent=eff_agent,
             verify_with=getattr(args, "verify_with", None),
         )
     except runner_profiles.RunnerProfileError as exc:
@@ -1830,6 +1832,8 @@ def resolve_launch_pair(
     run directory, event, or `state.json` exists (`3cm15q` F-13's guarantee, extended to this field).
     """
 
+    raw_agent = getattr(args, "agent", None)
+    eff_agent = raw_agent if isinstance(raw_agent, str) else None
     try:
         cfg = runner_profiles.load()
         executor = runner_profiles.resolve(
@@ -1838,7 +1842,7 @@ def resolve_launch_pair(
             profile=getattr(args, "profile", None),
             model=getattr(args, "model", None),
             variant=getattr(args, "variant", None),
-            agent=getattr(args, "agent", None),
+            agent=eff_agent,
             # hostdefault-02 (`ybkmzp`) E-03: the operator's TRI-STATE verification flag, threaded
             # into the EXECUTOR resolution so tier 1 registers as `explicit` and the stored
             # per-model choice reaches the run when the operator said nothing. `None` here means
@@ -3665,39 +3669,86 @@ def observe_host_model(
             except Exception:
                 fd = None
 
-        while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
-            rem = deadline - time.monotonic()
-            if rem <= 0:
-                timed_out = True
-                break
-            if fd is not None:
-                r, _, _ = select.select([fd], [], [], rem)
-                if not r:
-                    timed_out = True
-                    break
-                try:
-                    chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
-                except Exception:
-                    break
-                if not chunk:
-                    break
-                raw_bytes.extend(chunk)
-            else:
-                try:
-                    chunk = stdout_stream.read(HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
-                except (TimeoutError, Exception):
-                    timed_out = True
-                    break
-                if not chunk:
-                    break
-                raw_bytes.extend(chunk)
+        if os.name == "nt":
+            import queue
+            import threading
 
-            # Check if model object is already in the read prefix
-            if (
-                _extract_model_from_prefix(raw_bytes.decode("utf-8", errors="replace"))
-                is not None
-            ):
-                break
+            q: queue.Queue[bytes | None] = queue.Queue()
+
+            def _win_reader() -> None:
+                try:
+                    while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                        if fd is not None:
+                            chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES)
+                        else:
+                            chunk = stdout_stream.read(HOST_MODEL_PREFIX_BYTES)
+                        if not chunk:
+                            q.put(None)
+                            break
+                        q.put(chunk)
+                except Exception:
+                    q.put(None)
+
+            reader_thread = threading.Thread(target=_win_reader, daemon=True)
+            reader_thread.start()
+            while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                rem = deadline - time.monotonic()
+                if rem <= 0:
+                    timed_out = True
+                    break
+                try:
+                    item_chunk = q.get(timeout=rem)
+                except queue.Empty:
+                    timed_out = True
+                    break
+                if item_chunk is None:
+                    break
+                raw_bytes.extend(item_chunk[: HOST_MODEL_PREFIX_BYTES - len(raw_bytes)])
+                if (
+                    _extract_model_from_prefix(
+                        raw_bytes.decode("utf-8", errors="replace")
+                    )
+                    is not None
+                ):
+                    break
+        else:
+            while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                rem = deadline - time.monotonic()
+                if rem <= 0:
+                    timed_out = True
+                    break
+                if fd is not None:
+                    r, _, _ = select.select([fd], [], [], rem)
+                    if not r:
+                        timed_out = True
+                        break
+                    try:
+                        chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
+                    except Exception:
+                        break
+                    if not chunk:
+                        break
+                    raw_bytes.extend(chunk)
+                else:
+                    try:
+                        chunk = stdout_stream.read(
+                            HOST_MODEL_PREFIX_BYTES - len(raw_bytes)
+                        )
+                    except (TimeoutError, Exception):
+                        timed_out = True
+                        break
+                    if not chunk:
+                        break
+                    raw_bytes.extend(chunk)
+
+                # Check if model object is already in the read prefix
+                if (
+                    _extract_model_from_prefix(
+                        raw_bytes.decode("utf-8", errors="replace")
+                    )
+                    is not None
+                ):
+                    break
 
     except Exception:
         return None
@@ -3721,6 +3772,10 @@ def observe_host_model(
                         proc.wait(timeout=1.0)
         except Exception:
             pass
+        for s in (getattr(proc, "stdout", None), getattr(proc, "stderr", None)):
+            if s is not None and hasattr(s, "close"):
+                with contextlib.suppress(Exception):
+                    s.close()
 
     if timed_out:
         return None
@@ -4594,6 +4649,12 @@ AUTOMATIC STATUS ROUTING:
                together, as one merge, after its turn.
   - approved:  Executes the plan step-by-step according to the execution runbook.
 
+RED-CI GATE:
+  A new run refuses to start when the saved checkup record shows CI has not passed
+  in `ci_checkup_interval_commits` commits, unless every queued item belongs to an
+  exempt Set (`ci_red_exempt_sets`) or `--allow-red-ci "<why>"` is supplied on
+  `start` (see `start --help` for full policy flags).
+
 LAUNCH IDENTITY (model / variant / agent):
   Give it directly, or name a saved profile with the `as` clause:
 
@@ -4714,7 +4775,17 @@ LAUNCH IDENTITY (model / variant / agent):
     )
     start.add_argument(
         "--agent",
-        help="Primary OpenCode agent name. Overrides only the agent of a profile named with 'as'",
+        nargs="?",
+        const=True,
+        default=None,
+        help="Primary OpenCode agent name. Overrides only the agent of a profile named with 'as' (or emit aw.agent/v1 JSONL when passed bare)",
+    )
+    start.add_argument(
+        "--as-agent",
+        dest="as_agent",
+        action="store_true",
+        default=False,
+        help="Emit machine-readable output (aw.agent/v1 JSONL)",
     )
     # runprofile-06 (`kgpptv`) E-02: WHICH profile verifies, never WHETHER verification happens
     # (that is `--validate`). Takes a profile NAME, not a model: a reference reuses a whole
@@ -4864,6 +4935,14 @@ LAUNCH IDENTITY (model / variant / agent):
     # refusing it needs argparse to accept it first; otherwise the operator is told the flag does not
     # exist instead of being told the frozen value cannot change.
     runner_shared.register_run_policy_flags(resume, resume=True)
+    resume.add_argument(
+        "--agent",
+        "--as-agent",
+        dest="as_agent",
+        action="store_true",
+        default=False,
+        help="Emit machine-readable output (aw.agent/v1 JSONL)",
+    )
     resume.add_argument(
         "--validate",
         "--verify",
@@ -5441,6 +5520,24 @@ def main(argv: list[str] | None = None) -> int:
             # performs no lifecycle transition on the plan it audits.
             return handle_audit_command(args)
         if args.command == "start":
+            if runner_shared.is_agent_mode(args):
+                import contextlib as _contextlib
+
+                with _contextlib.redirect_stdout(sys.stderr):
+                    run_dir = initialize_run(args)
+                if args.prepare_only:
+                    runner_shared.emit_agent_run_start_record(
+                        run_dir, cmd="oc run", exit_code=0
+                    )
+                    return 0
+                with _contextlib.redirect_stdout(sys.stderr):
+                    install_stop_triggers(run_dir)
+                    with locked_run(run_dir):
+                        rc = run_queue(run_dir, retry_incomplete=False)
+                runner_shared.emit_agent_run_start_record(
+                    run_dir, cmd="oc run", exit_code=rc
+                )
+                return rc
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")
             print(f"State directory: {run_dir}")
@@ -5634,6 +5731,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Nothing awaiting review; no run started.")
         return 0
     except DriverError as exc:
+        if runner_shared.is_agent_mode(args):
+            runner_shared.emit_agent_run_refusal_record(
+                exc, cmd="oc run", run_dir=run_dir
+            )
+            print(f"runipd: {exc}", file=sys.stderr)
+            return 2
         if run_dir and (run_dir / "state.json").is_file():
             try:
                 state = load_state(run_dir)

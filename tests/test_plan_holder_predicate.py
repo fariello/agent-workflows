@@ -169,8 +169,10 @@ class PlanHolderPredicateTests(unittest.TestCase):
 
     def test_unreadable_lock_reports_undeterminable(self) -> None:
         """Unreadable lock arm: reports UNDETERMINABLE where permissions allow, skips if root."""
-        if os.getuid() == 0:
-            self.skipTest("Running as root bypasses file permission bits")
+        if os.name == "nt" or not hasattr(os, "getuid") or os.getuid() == 0:
+            self.skipTest(
+                "Running as root or Windows bypasses POSIX 000 permission bits"
+            )
         run_dir = self._create_run_dir(
             "run-20261009T010000Z-100008u", "urv008u", "running"
         )
@@ -234,8 +236,10 @@ class PlanHolderPredicateTests(unittest.TestCase):
         self,
     ) -> None:
         """Arm (11): A runs tree that cannot be read reports UNDETERMINABLE (discovery failure, F-12)."""
-        if os.getuid() == 0:
-            self.skipTest("Running as root bypasses directory permission bits")
+        if os.name == "nt" or not hasattr(os, "getuid") or os.getuid() == 0:
+            self.skipTest(
+                "Running as root or Windows bypasses directory permission bits"
+            )
         runs_dir = self.repo / ".aw" / "runs"
         runs_dir.mkdir(parents=True, exist_ok=True)
         runs_dir.chmod(0)

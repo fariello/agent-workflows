@@ -26,6 +26,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from agent_workflows import host_sandbox_profile as hsp
@@ -1289,8 +1290,11 @@ class EgressFilteringProbeTests(unittest.TestCase):
 
     def test_probe_egress_filtering_direct_execution(self):
         """Exercise _probe_egress_filtering directly; expected value decided by unshare -Urn true."""
-        proc = subprocess.run(["unshare", "-Urn", "true"], capture_output=True)
-        expected = proc.returncode == 0
+        if not sys.platform.startswith("linux") or not shutil.which("unshare"):
+            expected = False
+        else:
+            proc = subprocess.run(["unshare", "-Urn", "true"], capture_output=True)
+            expected = proc.returncode == 0
         ok, note = hsp._probe_egress_filtering()
         self.assertIs(ok, expected)
         if expected:
@@ -1329,7 +1333,8 @@ class EgressFilteringProbeTests(unittest.TestCase):
         saved = hsp._EGRESS_PROBE_NS_ARGV
         hsp._EGRESS_PROBE_NS_ARGV = ("nonexistent-binary-probe-test",)
         try:
-            ok, note = hsp._probe_egress_filtering()
+            with mock.patch.object(hsp.sys, "platform", "linux"):
+                ok, note = hsp._probe_egress_filtering()
         finally:
             hsp._EGRESS_PROBE_NS_ARGV = saved
         self.assertFalse(ok)
@@ -1337,6 +1342,8 @@ class EgressFilteringProbeTests(unittest.TestCase):
 
     def test_not_enforced_arrangement_yields_false(self):
         """Swapping _EGRESS_PROBE_NS_ARGV to ('unshare', '-Ur') makes denied TCP reachable and yields False."""
+        if not sys.platform.startswith("linux") or not shutil.which("unshare"):
+            self.skipTest("requires Linux unshare utility")
         saved = hsp._EGRESS_PROBE_NS_ARGV
         hsp._EGRESS_PROBE_NS_ARGV = ("unshare", "-Ur")
         try:

@@ -157,15 +157,16 @@ class CrossTreeSessionRefusalTests(unittest.TestCase):
 
             item = {"id6": "rev001", "action": "review", "setid": "set1", "position": 1}
             op_session = "ses_OP"
-            fake_bin = root / "fake_opencode"
-            fake_bin.write_text(
+            from tests import support
+
+            fake_bin = support.make_fake_executable(
+                root / "fake_opencode",
                 "#!/usr/bin/env python3\n"
                 "import json, sys\n"
                 "args = sys.argv[1:]\n"
                 "sess = args[args.index('--session') + 1] if '--session' in args else 'fresh_ses'\n"
-                "print(json.dumps({'type':'text','sessionID':sess,'part':{'text':'done'}}))\n"
+                "print(json.dumps({'type':'text','sessionID':sess,'part':{'text':'done'}}))\n",
             )
-            fake_bin.chmod(0o755)
 
             options = {
                 "session": op_session,

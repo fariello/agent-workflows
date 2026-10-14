@@ -724,15 +724,13 @@ class MigrationManager:
                 pid = data.get("pid")
                 # Check if pid is alive
                 if pid and pid != os.getpid():
-                    try:
-                        os.kill(pid, 0)
+                    from agent_workflows import platform_lock
+
+                    if platform_lock.pid_alive(pid) is True:
                         # Process exists, lock is held by another process
                         raise TransactionLockError(
                             f"Migration writer lock held by active PID {pid} (tx: {data.get('transaction_id')})"
                         )
-                    except OSError:
-                        # Process dead, stale lock can be reclaimed
-                        pass
             except (json.JSONDecodeError, TransactionLockError):
                 if self.lock_file.exists():
                     raise

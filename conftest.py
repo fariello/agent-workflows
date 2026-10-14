@@ -237,6 +237,9 @@ def _restore_home_sandbox():
     yield
     os.environ.update(_SANDBOX_ENV)
     os.environ.pop("AW_CONFIG_DIR", None)
+    _xdg_dir = _SANDBOX_ENV["XDG_CONFIG_HOME"]
+    if os.path.exists(_xdg_dir):
+        _shutil.rmtree(_xdg_dir, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------------------
@@ -384,6 +387,64 @@ def pytest_configure(config):
     )
 
 
+_WIN_ACTIVE_TEST: dict[str, object] | None = None
+_WIN_WATCHDOG_STARTED = False
+
+
+def _ensure_win_watchdog() -> None:
+    global _WIN_WATCHDOG_STARTED
+    if _WIN_WATCHDOG_STARTED:
+        return
+    _WIN_WATCHDOG_STARTED = True
+
+    import ctypes
+    import time
+
+    def _watchdog_loop() -> None:
+        while True:
+            time.sleep(0.5)
+            active = _WIN_ACTIVE_TEST
+            if active is None:
+                continue
+            deadline = float(active["deadline"])  # type: ignore[arg-type]
+            if time.monotonic() < deadline:
+                continue
+            nodeid = str(active["nodeid"])
+            wall_b = float(active["wall_budget"])  # type: ignore[arg-type]
+            tid = int(active["tid"])  # type: ignore[arg-type]
+            if not active.get("dumped"):
+                active["dumped"] = True
+                msg = (
+                    f"\n[conftest] TEST HANG GUARD: {nodeid} exceeded {wall_b:g}s wall ceiling; "
+                    "stacks of every thread at expiry follow.\n"
+                )
+                for stream in (sys.stderr, getattr(sys, "__stderr__", None)):
+                    if stream is not None:
+                        try:
+                            stream.write(msg)
+                            _faulthandler.dump_traceback(file=stream, all_threads=True)
+                            stream.flush()
+                        except Exception:
+                            pass
+            try:
+                from agent_workflows import runner_shutdown
+
+                for child in runner_shutdown.live_children():
+                    runner_shutdown.signal_process(child, _signal.SIGTERM)
+            except Exception:
+                pass
+            try:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_ulong(tid), ctypes.py_object(TestHangTimeout)
+                )
+            except Exception:
+                pass
+
+    _threading.Thread(
+        target=_watchdog_loop, name="conftest-win-hang-guard", daemon=True
+    ).start()
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
     cpu_budget, wall_budget = _test_timeout_budgets(item)
@@ -391,12 +452,40 @@ def pytest_runtest_call(item):
         yield
         return
 
-    # Guard runs only on POSIX main thread where SIGALRM is available
+    # Guard runs on POSIX main thread via SIGALRM/ITIMER_REAL, with a watchdog thread fallback on Windows
     if not (
         hasattr(_signal, "SIGALRM")
         and hasattr(_signal, "ITIMER_REAL")
         and _threading.current_thread() is _threading.main_thread()
     ):
+        if _threading.current_thread() is _threading.main_thread() and wall_budget > 0:
+            import time
+
+            _ensure_win_watchdog()
+            global _WIN_ACTIVE_TEST
+            tid = _threading.get_ident()
+            state: dict[str, object] = {
+                "nodeid": item.nodeid,
+                "wall_budget": wall_budget,
+                "deadline": time.monotonic() + wall_budget,
+                "tid": tid,
+                "dumped": False,
+            }
+            _WIN_ACTIVE_TEST = state
+            try:
+                yield
+            finally:
+                _WIN_ACTIVE_TEST = None
+                if state.get("dumped"):
+                    try:
+                        import ctypes
+
+                        ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                            ctypes.c_ulong(tid), None
+                        )
+                    except Exception:
+                        pass
+            return
         yield
         return
 

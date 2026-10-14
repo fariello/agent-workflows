@@ -25,9 +25,26 @@ class FakePipeProcess:
     """Mock process backed by an os.pipe for realistic POSIX stream behavior."""
 
     def __init__(self, data: bytes, exit_code: int = 0):
+        import threading
+
         r, w = os.pipe()
-        os.write(w, data)
-        os.close(w)
+        if len(data) <= 4096:
+            os.write(w, data)
+            os.close(w)
+        else:
+
+            def _writer() -> None:
+                try:
+                    os.write(w, data)
+                except OSError:
+                    pass
+                finally:
+                    try:
+                        os.close(w)
+                    except OSError:
+                        pass
+
+            threading.Thread(target=_writer, daemon=True).start()
         self.stdout = open(r, "rb", buffering=0)  # noqa: SIM115
         self.stderr = open(os.devnull, "rb")  # noqa: SIM115
         self.returncode = exit_code
@@ -39,9 +56,17 @@ class FakePipeProcess:
 
     def terminate(self) -> None:
         self.terminated = True
+        try:
+            self.stdout.close()
+        except OSError:
+            pass
 
     def kill(self) -> None:
         self.killed = True
+        try:
+            self.stdout.close()
+        except OSError:
+            pass
 
     def wait(self, timeout: float | None = None) -> int:
         return self.returncode

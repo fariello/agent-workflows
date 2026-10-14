@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import socket
 import stat
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -426,8 +427,8 @@ class TestEgressBrokerUnixSocket:
     """AF_UNIX socket broker listener integration test."""
 
     @pytest.mark.skipif(
-        not hasattr(socket, "AF_UNIX"),
-        reason="AF_UNIX sockets are not supported on this platform",
+        not hasattr(socket, "AF_UNIX") or sys.platform == "win32",
+        reason="POSIX AF_UNIX sockets and 0o700 directory permissions are not supported on this platform",
     )
     def test_af_unix_broker_lifecycle_and_directory_mode(self) -> None:
         with tempfile.TemporaryDirectory(dir="/tmp", prefix="eb_") as tmp_dir_str:

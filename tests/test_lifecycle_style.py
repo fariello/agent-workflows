@@ -150,11 +150,13 @@ class StageTableTests(unittest.TestCase):
         # Bold restraint and color separation
         expected_bold = {
             L.READY,
+            L.QUEUED,
             L.REVIEWING,
             L.EXECUTING,
             L.VERIFYING,
             L.INTEGRATING,
             L.RECOVERING,
+            L.INTERRUPTED,
             L.ACTIVE,
             L.WAITING_INPUT,
             L.BLOCKED,
@@ -283,7 +285,13 @@ class SpecSectionCoverageTests(unittest.TestCase):
             )
         self.assertNotEqual(L.STAGES[L.WAITING_INPUT].color, L.STAGES[L.BLOCKED].color)
 
-        # RECOVERING / FAILED / PARKED
+        # QUEUED / INTERRUPTED / RECOVERING / FAILED / PARKED
+        queued = L.resolve(L.FAMILY_RUNNER_ITEM, "queued")
+        self.assertEqual(queued.stage, L.QUEUED)
+        self.assertEqual(queued.style.unicode, "⇪")
+        interrupted = L.resolve(L.FAMILY_RUNNER_ITEM, "interrupted")
+        self.assertEqual(interrupted.stage, L.INTERRUPTED)
+        self.assertEqual(interrupted.style.unicode, "↯")
         self.assertEqual(L.resolve(L.FAMILY_RUNNER_ITEM, "ran").stage, L.RECOVERING)
         self.assertEqual(
             L.resolve(L.FAMILY_RUNNER_ITEM, "unknown_outcome").stage, L.FAILED

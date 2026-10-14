@@ -127,8 +127,8 @@ def find_active_runners(repo: Path) -> list[tuple[int, Path, str]]:
         pid = platform_lock.read_lock_record_pid(lock_path)
         if pid is None or pid in seen_pids:
             continue
-        # Verify process is truly alive in /proc
-        if not (Path("/proc") / str(pid)).is_dir():
+        # Verify process is truly alive
+        if not platform_lock.pid_alive(pid):
             continue
 
         seen_pids.add(pid)

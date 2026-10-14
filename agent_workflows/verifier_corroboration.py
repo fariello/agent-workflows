@@ -76,6 +76,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 __all__ = [
+    "AGY_ERROR_STATES",
+    "AGY_TERMINAL_STATES",
     "CORROBORATED",
     "INDETERMINATE_CLAIMS_EMPTY",
     "INDETERMINATE_DELEGATION",
@@ -184,6 +186,17 @@ SUBAGENT_TOOLS: frozenset[str] = frozenset(
         "invoke_subagent",
     }
 )
+
+# Antigravity terminal and error step states (u3enlv, OQ-01, D166):
+# A `FAILED` step is a terminal, errored observation (it ran and failed), equivalent to
+# `ERROR`. The live renderer (`agy_runipd.render_agy_event`) has always accepted
+# `("DONE", "ERROR", "FAILED")` and `agy_runipd._AGY_STATE_TO_STATUS` already maps
+# `FAILED` to `"error"`; `runner_stop.is_agy_safe_checkpoint` names `FAILED` a terminal
+# non-success state; and no live Antigravity log exists in this checkout to show `FAILED`
+# and `ERROR` differ in meaning. Defined once here so the renderer, `tool_call_from_event`,
+# and `run_dashboard._agy_line` share one state vocabulary.
+AGY_TERMINAL_STATES: tuple[str, ...] = ("DONE", "ERROR", "FAILED")
+AGY_ERROR_STATES: tuple[str, ...] = ("ERROR", "FAILED")
 
 
 # --- Data Structures ------------------------------------------------------------------
@@ -395,6 +408,17 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
        (b) A step where tool_info.name and tool_name conflict and one of them is
            a subagent is ambiguous; failing open prevents accusing a verifier of
            failing to run claimed tests.
+
+    5. Antigravity FAILED State as Terminal Errored Observation (u3enlv, resolving 8fiybc):
+       The Antigravity branch accepts `state in AGY_TERMINAL_STATES`
+       (`("DONE", "ERROR", "FAILED")`) and sets `error = state in AGY_ERROR_STATES`
+       (`("ERROR", "FAILED")`).
+       Rationale:
+       (a) `agy_runipd.render_agy_event` has always accepted `FAILED` alongside `DONE`
+           and `ERROR` and `_AGY_STATE_TO_STATUS` maps `FAILED` to `"error"`.
+       (b) Treating `FAILED` as a terminal errored observation reconciles `tool_call_from_event`,
+           `run_dashboard._agy_line`, and `agy_runipd.render_agy_event` onto one shared
+           vocabulary without hiding failed tool calls from the operator or analytics.
     """
     if not isinstance(obj, (dict, Mapping)):
         return None
@@ -405,10 +429,10 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
             return None
         state = su.get("state")
         stype = su.get("step_type")
-        if (state != "DONE" and state != "ERROR") or stype != "tool":
+        if state not in AGY_TERMINAL_STATES or stype != "tool":
             return None
         tool_name = agy_tool_name(su)
-        is_error = state == "ERROR"
+        is_error = state in AGY_ERROR_STATES
         info = su.get("tool_info")
         info_dict = info if isinstance(info, (dict, Mapping)) else {}
         raw_info_name = str(info_dict.get("name") or "").strip()

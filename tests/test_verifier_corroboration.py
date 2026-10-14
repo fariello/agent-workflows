@@ -1257,3 +1257,100 @@ class TestSharedToolCallExtraction:
             res = vc.corroborate_verifier_turn(f.name, ["python3 -m pytest tests/x.py"])
             assert res.verdict == vc.CORROBORATED
             assert res.reason_code == vc.CORROBORATED
+
+    def test_agy_failed_run_command_extracted_and_matches_error_verdict(self) -> None:
+        """E-06 (u3enlv): FAILED run_command log yields one observed command with error=True and matches ERROR verdict."""
+        failed_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "FAILED",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {"CommandLine": "python3 -m pytest"},
+                },
+            },
+        }
+        error_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "ERROR",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {"CommandLine": "python3 -m pytest"},
+                },
+            },
+        }
+        with (
+            tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f_failed,
+            tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f_error,
+        ):
+            f_failed.write(json.dumps(failed_ev) + "\n")
+            f_failed.flush()
+            f_error.write(json.dumps(error_ev) + "\n")
+            f_error.flush()
+
+            ext = vc.extract_session_commands(f_failed.name)
+            assert len(ext.commands) == 1
+            assert ext.commands[0].command == "python3 -m pytest"
+            assert ext.commands[0].error is True
+            assert ext.missing_command_count == 0
+
+            corr_failed = vc.corroborate_verifier_turn(
+                f_failed.name, ["python3 -m pytest"]
+            )
+            corr_error = vc.corroborate_verifier_turn(
+                f_error.name, ["python3 -m pytest"]
+            )
+            assert corr_failed.verdict == corr_error.verdict
+            assert corr_failed.reason_code == corr_error.reason_code
+            assert corr_failed.observed_count == 1
+
+    def test_agy_failed_then_done_pytest_corroborated_with_observed_count_two(
+        self,
+    ) -> None:
+        """E-06 (u3enlv): One FAILED then one DONE pytest call with matching claim yields corroborated with observed_count == 2."""
+        failed_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "tool",
+                "state": "FAILED",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {
+                        "CommandLine": "python3 -m pytest tests/test_fail.py"
+                    },
+                },
+            },
+        }
+        done_ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 2,
+                "step_type": "tool",
+                "state": "DONE",
+                "tool_name": "run_command",
+                "tool_info": {
+                    "name": "run_command",
+                    "parameters": {
+                        "CommandLine": "python3 -m pytest tests/test_pass.py"
+                    },
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(failed_ev) + "\n" + json.dumps(done_ev) + "\n")
+            f.flush()
+            res = vc.corroborate_verifier_turn(
+                f.name, ["python3 -m pytest tests/test_pass.py"]
+            )
+            assert res.verdict == vc.CORROBORATED
+            assert res.reason_code == vc.CORROBORATED
+            assert res.observed_count == 2

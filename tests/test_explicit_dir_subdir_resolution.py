@@ -35,8 +35,8 @@ class ExplicitDirSubdirResolutionTests(unittest.TestCase):
     def setUp(self):
         self.run_dir_obj = tempfile.TemporaryDirectory()
         self.fixtures_dir_obj = tempfile.TemporaryDirectory()
-        self.cwd = self.run_dir_obj.name
-        self.fix_root = Path(self.fixtures_dir_obj.name)
+        self.cwd = str(Path(self.run_dir_obj.name).resolve())
+        self.fix_root = Path(self.fixtures_dir_obj.name).resolve()
 
         self.env = dict(os.environ)
         self.env["PYTHONPATH"] = str(REPO_ROOT)

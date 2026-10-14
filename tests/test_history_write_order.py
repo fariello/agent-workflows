@@ -20,8 +20,10 @@ from agent_workflows import cli
 
 
 def _skip_if_root() -> None:
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        pytest.skip("Running as root; chmod does not deny write")
+    if os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0):
+        pytest.skip(
+            "Running as root or on Windows; directory chmod does not deny write"
+        )
 
 
 class HistoryWriteOrderTests(unittest.TestCase):

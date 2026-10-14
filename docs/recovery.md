@@ -47,18 +47,28 @@ no-op.
 The final release-readiness review aggregates the gates into a GO or NO-GO verdict
 (`agent_workflows/release_readiness.py`). It NEVER tags, publishes, deploys, or pushes; those are
 separately authorized actions (see `RELEASING.md` and the release-review workflow). The review
-runs the canonical leak scan and all IPD lint phases for real, checks the benchmark invariants,
-the changelog and versioning, and the residual-risk sign-off, then emits the verdict.
+runs the canonical leak scan and all IPD lint phases for real, checks generated workflow drift,
+documentation checks, workflow dispositions, capability freshness, benchmark invariants, the
+changelog and versioning, and the residual-risk sign-off, then emits the verdict.
 
-The full release-readiness test suite was deleted in commit 19313eed, so the aggregate review
-verdict, changelog and versioning check, and residual-risk gate currently lack dedicated test
-coverage (tracked in backlog item 3rmvik). A partial behavioral guard survives in
-`tests/test_release_readiness_child_pin.py`, covering only subprocess child pinning and
-stdin denial for `gate_leak_scan` and `gate_ipd_lint`:
+Run the read-only report from the CLI:
 
 ```
-python3 -m pytest tests/test_release_readiness_child_pin.py -q
+aw releases readiness --suite-passed --residual-risk-signer <name>
 ```
+
+The command never runs the full test suite itself and never invents human attestations:
+
+- `--suite-passed` / `--suite-failed` (mutually exclusive): attests the outcome of a real full
+  test suite run. If neither flag is passed, the `full_suite` gate fails with `full suite result
+  not supplied` rather than claiming a red suite that was not run.
+- `--residual-risk-signer NAME`: attests the human residual-risk sign-off. Without a signer, the
+  `residual_risk` gate fails with `residual-risk sign-off missing`.
+- `--agent` / `--json`: emits a canonical `aw.agent/v1` result record or structured JSON.
+
+Exit codes are `0` on `GO`, `1` on `NO-GO`, and `2` when the command cannot run (such as a
+non-project `--dir` or conflicting flags). Note that the `artifact_manifest` row is not yet
+computed from disk and currently defaults to passing (tracked in backlog item `3jkm7y`).
 
 ## Responsibility boundary
 

@@ -6534,21 +6534,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
-    # IPD w0ln4q: the releases owner verb, bringing `.aw/records/releases/` to parity with the other
-    # record classes. Subcommands are DELIBERATELY list/show/new only - there is no `releases check`,
-    # because `aw check releases` is the canonical validator (check_engine -> validate_release) and a
-    # second entry point could drift from it.
+    # IPD w0ln4q / wa64wz: the releases owner verb, bringing `.aw/records/releases/` to parity with
+    # the other record classes. Subcommands are DELIBERATELY list/show/new/readiness only - there is
+    # no `releases check`, because `aw check releases` is the canonical validator for release RECORDS
+    # (check_engine -> validate_release) and a second entry point could drift from it (`readiness` is
+    # not a second validator: it aggregates the repository-wide release gates).
     p_releases = sub.add_parser(
         "releases",
         aliases=["release"],
         parents=[common],
-        help="Owner verbs for release records (ship-gate anchors). 'list' shows every release; 'show' details one plus its blockers; 'new' scaffolds one.",
+        help="Owner verbs for release records (ship-gate anchors). 'list' shows every release; 'show' details one plus its blockers; 'new' scaffolds one; 'readiness' renders the GO/NO-GO report.",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw releases                  # list every release record (default)\n"
             "  aw releases show next        # the planned release + everything gating it\n"
             '  aw releases new --version 2.1.0 --summary "why" --apply\n'
+            "  aw releases readiness --suite-passed --residual-risk-signer qa\n"
             "\n"
             "SAFETY & DEFAULTS\n"
             "  'new' is dry-run by default; pass --apply to write.\n"
@@ -6556,14 +6558,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Validation lives in 'aw check releases' - there is no 'releases check'.\n"
             "\n"
             "OUTPUT & EXITS\n"
-            "  Exit codes: 0 clean, 2 cannot-run/usage error (e.g. an unresolvable selector).\n"
+            "  Exit codes: 0 clean, 1 NO-GO (readiness), 2 cannot-run/usage error (e.g. an unresolvable selector).\n"
             "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the release records in .aw/records/releases/ (the ship-gate anchors that "
             "'Blocks-Release: <id6|next>' resolves against): 'list' tabulates every release record, "
             "'show' details one release plus the LIVE items gating it (the same blocker set 'aw "
-            "attention' reports), and 'new' scaffolds a conformant record (preview by default). "
+            "attention' reports), 'new' scaffolds a conformant record (preview by default), and "
+            "'readiness' renders the read-only GO / NO-GO release-readiness report. "
             "Validate release records with 'aw check releases'."
         ),
     )
@@ -6633,6 +6636,44 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_releases_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+    p_releases_readiness = releases_sub.add_parser(
+        "readiness",
+        parents=[common],
+        description=(
+            "Render the read-only GO / NO-GO release-readiness report across every release gate. "
+            "Runs the leak scan and IPD lint live, never runs the test suite, never tags or "
+            "publishes, and exits 0 GO / 1 NO-GO / 2 cannot-run."
+        ),
+        help=(
+            "Render the read-only GO / NO-GO release-readiness report (runs leak scan and IPD "
+            "lint live, never runs the test suite, never tags or publishes; exits 0 GO / 1 NO-GO "
+            "/ 2 cannot-run)."
+        ),
+    )
+    p_releases_readiness.add_argument(
+        "--dir",
+        default=argparse.SUPPRESS,
+        help="Repo root (default: current directory).",
+    )
+    p_releases_readiness_suite = p_releases_readiness.add_mutually_exclusive_group()
+    p_releases_readiness_suite.add_argument(
+        "--suite-passed",
+        action="store_true",
+        default=False,
+        help="Attest that the full test suite passed in a real run.",
+    )
+    p_releases_readiness_suite.add_argument(
+        "--suite-failed",
+        action="store_true",
+        default=False,
+        help="Attest that the full test suite failed in a real run.",
+    )
+    p_releases_readiness.add_argument(
+        "--residual-risk-signer",
+        metavar="NAME",
+        default=None,
+        help="Signer name attesting the residual-risk sign-off.",
     )
 
     p_lanes = sub.add_parser(
@@ -18003,7 +18044,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
-            return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
+            forwarded = list(getattr(args, "runipd_args", []) or [])
+            if getattr(args, "agent", False) and "--as-agent" not in forwarded:
+                forwarded.append("--as-agent")
+            return oc_runipd.main(forwarded)
         # revsweep 76gsmv E-02: the alias's parsed-namespace path. `_dispatch` intercepts `oc review`
         # before `parse_args`, so this is not the live route today; it exists so the leaf cannot
         # silently fall through to family help if that interception is ever reordered, and it calls
@@ -18072,7 +18116,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
-            return agy_runipd.main(list(getattr(args, "runipd_args", []) or []))
+            forwarded = list(getattr(args, "runipd_args", []) or [])
+            if getattr(args, "agent", False) and "--as-agent" not in forwarded:
+                forwarded.append("--as-agent")
+            return agy_runipd.main(forwarded)
         # revsweep 76gsmv E-02: the alias's parsed-namespace path, the twin of the `oc` one above and
         # calling the SAME expansion function, so neither host's spelling can drift from the other's.
         if agy_cmd == "review":
@@ -18431,6 +18478,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return releases_mod.run_show(args)
         if releases_cmd == "new":
             return releases_mod.run_new(args)
+        if releases_cmd == "readiness":
+            from agent_workflows import release_readiness as release_readiness_mod
+
+            return release_readiness_mod.run_readiness(args)
         # Bare `aw releases` (and explicit `list`) both list: OQ-01 resolved to list, matching
         # `aw backlog`-family conventions, so the family help is NOT shown for a bare invocation.
         return releases_mod.run_list(args)

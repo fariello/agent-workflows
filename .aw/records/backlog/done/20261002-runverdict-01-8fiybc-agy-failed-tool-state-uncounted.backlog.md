@@ -1,5 +1,5 @@
 - Id: 8fiybc
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Set: runverdict
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: An agy tool step in state FAILED is rendered to the operator but contributes to no analytics count, because the three readers accept different state tuples
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD u3enlv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-runverdict-13-u3enlv-count-an-antigravity-failed-tool-step-as-an-errored-observat.ipd.md); evidence .aw/records/plans/executed/20261012-runverdict-13-u3enlv-count-an-antigravity-failed-tool-step-as-an-errored-observat.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: u3enlv
 - 2026-10-02 created (aw backlog): An agy tool step in state FAILED is rendered to the operator but contributes to no analytics count, because the three readers accept different state tuples
 

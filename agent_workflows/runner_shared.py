@@ -16224,6 +16224,24 @@ RUN_POLICY_FLAGS: tuple = (
         ),
         resume_rule=RESUME_REFUSE,
     ),
+    # cihealth-03 (`s4z5n8`) E-05, spec `25kzda` 2.5f: the red-CI run-start gate's override flag.
+    # Takes a non-empty justification string, waives ONLY the red-CI run-start gate (`--full-auto`
+    # does not imply it), and refuses on `resume` because a run-start gate cannot be changed on resume.
+    RunPolicyFlag(
+        flag="--allow-red-ci",
+        dest="allow_red_ci",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.enforce_red_ci_gate",
+        help=(
+            "Override the red-CI run-start stop when the saved checkup record shows CI has not "
+            "passed in `ci_checkup_interval_commits` commits, and RECORD THE SUPPLIED JUSTIFICATION "
+            "for having done so. Takes a non-empty reason string; it cannot be passed bare or "
+            "empty. It waives ONLY the red-CI run-start gate (`--full-auto` does not imply it), "
+            "and cannot be changed on --resume: the frozen value stands"
+        ),
+        resume_rule=RESUME_REFUSE,
+    ),
     RunPolicyFlag(
         flag="--on-integration-blocked",
         dest="on_integration_blocked",
@@ -16306,6 +16324,14 @@ def register_run_policy_flags(
     """
 
     import argparse as _argparse
+
+    def _non_empty_red_ci_reason(value: str) -> str:
+        cleaned = str(value).strip()
+        if not cleaned:
+            raise _argparse.ArgumentTypeError(
+                'requires a non-empty justification string (for example: --allow-red-ci "known flake")'
+            )
+        return cleaned
 
     skipped = set(skip)
     unknown = skipped - set(RUN_POLICY_FLAGS_BY_DEST)
@@ -16407,13 +16433,15 @@ def register_run_policy_flags(
             # `default=None` on BOTH parsers for the same reason a choice row uses it: `None` means
             # the operator said nothing. `metavar` is the operator-facing word for what the value IS,
             # which for the one row of this kind is the reason they are accepting a risk.
-            parser.add_argument(
-                row.flag,
-                dest=row.dest,
-                default=None,
-                metavar="JUSTIFICATION",
-                help=row.help,
-            )
+            str_kwargs: dict[str, Any] = {
+                "dest": row.dest,
+                "default": None,
+                "metavar": "JUSTIFICATION",
+                "help": row.help,
+            }
+            if row.dest == "allow_red_ci":
+                str_kwargs["type"] = _non_empty_red_ci_reason
+            parser.add_argument(row.flag, **str_kwargs)
         else:  # pragma: no cover - the table is closed; a new kind is a programming error
             raise ValueError(
                 f"unknown run policy flag kind {row.kind!r} for {row.flag}"
@@ -21270,6 +21298,603 @@ def enforce_spec_edit_ack_gate(
         refusal=refusal,
         message=f"{reason}. {remedy}",
     )
+
+
+# ==================================================================================================
+# cihealth-03 (`s4z5n8`): THE RED-CI RUN-START GATE (spec `25kzda` 2.5f)
+# ==================================================================================================
+
+RED_CI_ALLOW = "ALLOW"
+RED_CI_ALLOW_WITH_WARNING = "ALLOW-WITH-WARNING"
+RED_CI_REFUSE = "REFUSE"
+RED_CI_VERDICTS: tuple[str, ...] = (
+    RED_CI_ALLOW,
+    RED_CI_ALLOW_WITH_WARNING,
+    RED_CI_REFUSE,
+)
+RED_CI_REFUSAL_CODE = "red-ci"
+
+_UNSET_COUNT: Any = object()
+
+
+@dataclass(frozen=True)
+class RedCiGateDecision:
+    """Verdict of the red-CI run-start gate (`s4z5n8` E-01/E-02)."""
+
+    verdict: str
+    message: str = ""
+    remedy: str = ""
+    code: str = RED_CI_REFUSAL_CODE
+    status: str = "UNKNOWN"
+    last_passing_commit: str | None = None
+    commits_since_last_pass: int | None = None
+    interval: int = 0
+    override_reason: str | None = None
+    exempt: bool = False
+
+    @property
+    def proceed(self) -> bool:
+        return self.verdict != RED_CI_REFUSE
+
+    @property
+    def override(self) -> str | None:
+        return self.override_reason
+
+
+class RedCiRefusalError(DriverError):
+    """Raised when the red-CI run-start gate refuses a run (`s4z5n8` E-02)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        decision: RedCiGateDecision | None = None,
+        run_dir: Path | None = None,
+        state: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.decision = decision
+        self.run_dir = run_dir
+        self.state = state
+
+
+def recount_commits_since_last_pass(
+    repo: Path | str,
+    record: Mapping[str, Any] | None,
+    *,
+    branch: str | None = None,
+) -> int | None:
+    """Re-count first-parent commits from `last_passing_commit` to the current tip of `ci_checkup_branch`.
+
+    When the saved checkup record is older than the branch tip, re-counting against the current tip
+    of `ci_checkup_branch` (`git rev-list --count --first-parent <last-pass>..<branch>`) ensures a
+    stale record is not read as fresher than it is. A count that cannot be computed (missing
+    `last_passing_commit` or commit not in local history) returns `None`, which the predicate treats
+    as `UNKNOWN` (`ALLOW-WITH-WARNING`).
+    """
+    if not isinstance(record, Mapping):
+        return None
+    ci_raw = record.get("ci")
+    ci: Mapping[str, Any] = ci_raw if isinstance(ci_raw, Mapping) else record
+    status = str(ci.get("status") or ci.get("health") or "UNKNOWN").strip().upper()
+    if status == "UNKNOWN":
+        return None
+    raw_cnt = (
+        ci.get("commits_since_last_pass")
+        if ci.get("commits_since_last_pass") is not None
+        else ci.get("commits_since_pass")
+    )
+    saved_cnt: int | None = (
+        raw_cnt
+        if (isinstance(raw_cnt, int) and not isinstance(raw_cnt, bool))
+        else None
+    )
+    if saved_cnt is None and status == "PASSING":
+        saved_cnt = 0
+    last_pass = ci.get("last_passing_commit") or ci.get("last_pass_commit")
+    if not isinstance(last_pass, str) or not last_pass.strip():
+        return saved_cnt
+    last_pass_sha = last_pass.strip()
+
+    from agent_workflows import checkup as _checkup
+    from agent_workflows import config as _config
+
+    repo_path = Path(repo)
+    br = branch or _config.ci_checkup_branch(repo_path)
+
+    target_ref = br
+    tip_sha = ""
+    try:
+        chk = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{br}^{{commit}}"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        if chk.returncode == 0:
+            tip_sha = chk.stdout.strip()
+        else:
+            chk_head = subprocess.run(
+                ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+            if chk_head.returncode == 0:
+                target_ref = "HEAD"
+                tip_sha = chk_head.stdout.strip()
+            else:
+                return saved_cnt
+    except Exception:
+        return None
+
+    rec_commit = str(record.get("commit") or "").strip()
+    is_at_tip = bool(rec_commit and tip_sha and tip_sha.startswith(rec_commit))
+    recounted = _checkup._count_commits_since(repo_path, last_pass_sha, target_ref)
+    if not is_at_tip:
+        return recounted
+    if recounted is not None and saved_cnt is not None:
+        return max(saved_cnt, recounted)
+    return recounted if recounted is not None else saved_cnt
+
+
+def decide_red_ci_gate(
+    record: Mapping[str, Any] | None = None,
+    interval: int = 100,
+    exempt_sets: Iterable[str] = (),
+    queue: Sequence[Mapping[str, Any]] = (),
+    allow_red_ci: str | None = None,
+    commits_since_last_pass: Any = _UNSET_COUNT,
+    *,
+    checkup_record: Mapping[str, Any] | None = None,
+    ci_red_exempt_sets: Iterable[str] | None = None,
+    override_reason: str | None = None,
+) -> RedCiGateDecision:
+    """Pure red-CI gate predicate (`s4z5n8` E-01, spec `25kzda` 2.5f).
+
+    Rules:
+    - `interval <= 0` returns `ALLOW` silently.
+    - Missing record, `UNKNOWN` CI status, or uncomputable `commits_since_last_pass` (`None`)
+      returns `ALLOW-WITH-WARNING`.
+    - `commits_since_last_pass <= interval` returns `ALLOW`.
+    - `commits_since_last_pass > interval`:
+      - If every selected item in `queue` has its Set in `ci_red_exempt_sets`, returns `ALLOW`.
+      - If `allow_red_ci` is a non-empty string, returns `ALLOW-WITH-WARNING` naming the override.
+      - Otherwise returns `REFUSE` naming the last passing commit, the commit count, and the two
+        ways forward.
+    """
+    eff_record = checkup_record if checkup_record is not None else record
+    eff_exempt = ci_red_exempt_sets if ci_red_exempt_sets is not None else exempt_sets
+    eff_override = override_reason if override_reason is not None else allow_red_ci
+
+    if interval <= 0:
+        return RedCiGateDecision(
+            verdict=RED_CI_ALLOW,
+            message="",
+            interval=int(interval),
+        )
+
+    if eff_record is None or not isinstance(eff_record, Mapping):
+        return RedCiGateDecision(
+            verdict=RED_CI_ALLOW_WITH_WARNING,
+            message=(
+                "WARNING: red-CI gate: no saved CI checkup record found "
+                "(.aw/state/checkup/last.json); proceeding because CI status is UNKNOWN."
+            ),
+            status="UNKNOWN",
+            interval=int(interval),
+        )
+
+    ci_raw = eff_record.get("ci")
+    ci: Mapping[str, Any] = ci_raw if isinstance(ci_raw, Mapping) else eff_record
+
+    status = str(ci.get("status") or ci.get("health") or "UNKNOWN").strip().upper()
+    last_pass_raw = ci.get("last_passing_commit") or ci.get("last_pass_commit")
+    last_pass = (
+        str(last_pass_raw).strip()
+        if isinstance(last_pass_raw, str) and last_pass_raw.strip()
+        else None
+    )
+    reason_detail = str(
+        ci.get("reason")
+        or ci.get("detail")
+        or "CI status or commit distance could not be determined"
+    ).strip()
+
+    if commits_since_last_pass is _UNSET_COUNT:
+        raw_cnt = (
+            ci.get("commits_since_last_pass")
+            if ci.get("commits_since_last_pass") is not None
+            else ci.get("commits_since_pass")
+        )
+        count: int | None = (
+            raw_cnt
+            if (isinstance(raw_cnt, int) and not isinstance(raw_cnt, bool))
+            else (0 if status == "PASSING" else None)
+        )
+    else:
+        count = (
+            commits_since_last_pass
+            if (
+                isinstance(commits_since_last_pass, int)
+                and not isinstance(commits_since_last_pass, bool)
+            )
+            else None
+        )
+
+    if status == "UNKNOWN" or count is None:
+        return RedCiGateDecision(
+            verdict=RED_CI_ALLOW_WITH_WARNING,
+            message=(
+                f"WARNING: red-CI gate: CI status is UNKNOWN ({reason_detail}); "
+                "proceeding without blocking."
+            ),
+            status="UNKNOWN",
+            last_passing_commit=last_pass,
+            commits_since_last_pass=None,
+            interval=int(interval),
+        )
+
+    if count <= interval:
+        return RedCiGateDecision(
+            verdict=RED_CI_ALLOW,
+            message="",
+            status=status,
+            last_passing_commit=last_pass,
+            commits_since_last_pass=count,
+            interval=int(interval),
+        )
+
+    exempt_norm = {
+        str(s).strip()
+        for s in (eff_exempt or ())
+        if isinstance(s, str) and str(s).strip()
+    }
+    queue_items = [item for item in (queue or ()) if isinstance(item, Mapping)]
+    if queue_items and exempt_norm:
+
+        def _item_setid(it: Mapping[str, Any]) -> str:
+            raw_s = str(it.get("setid") or it.get("set") or "").strip()
+            return raw_s.split()[0] if raw_s else ""
+
+        if all(_item_setid(item) in exempt_norm for item in queue_items):
+            return RedCiGateDecision(
+                verdict=RED_CI_ALLOW,
+                message="",
+                status=status,
+                last_passing_commit=last_pass,
+                commits_since_last_pass=count,
+                interval=int(interval),
+                exempt=True,
+            )
+
+    cleaned_override = (
+        str(eff_override).strip()
+        if isinstance(eff_override, str) and str(eff_override).strip()
+        else None
+    )
+    if cleaned_override is not None:
+        msg = (
+            f"WARNING: [RUN-RED-CI-OVERRIDE] Proceeding past red-CI stop "
+            f"(CI {status}: {count} commit(s) since last passing commit "
+            f"{last_pass or 'unknown'}, threshold {interval}) by explicit "
+            f"--allow-red-ci override: {cleaned_override}"
+        )
+        return RedCiGateDecision(
+            verdict=RED_CI_ALLOW_WITH_WARNING,
+            message=msg,
+            status=status,
+            last_passing_commit=last_pass,
+            commits_since_last_pass=count,
+            interval=int(interval),
+            override_reason=cleaned_override,
+        )
+
+    exempt_hint = (
+        f" (configured exempt Sets: {', '.join(sorted(exempt_norm))})"
+        if exempt_norm
+        else " (configure `ci_red_exempt_sets` in `.aw/config/project.json`)"
+    )
+    remedy = (
+        "Two ways forward: (1) fix CI on the tracked branch or run only an exempt "
+        f"CI-repair Set listed in `ci_red_exempt_sets`{exempt_hint}; or "
+        '(2) pass `--allow-red-ci "<why>"` (non-empty justification required) '
+        "to override the red-CI stop for this run."
+    )
+    msg = (
+        f"[RUN-RED-CI] Refusing to start new run work: CI has not passed in "
+        f"{count} commit(s) (threshold: {interval}; CI status: {status}; "
+        f"last passing commit: {last_pass or 'unknown'}). {remedy}"
+    )
+    return RedCiGateDecision(
+        verdict=RED_CI_REFUSE,
+        message=msg,
+        remedy=remedy,
+        code=RED_CI_REFUSAL_CODE,
+        status=status,
+        last_passing_commit=last_pass,
+        commits_since_last_pass=count,
+        interval=int(interval),
+    )
+
+
+evaluate_red_ci_gate = decide_red_ci_gate
+
+
+def is_agent_mode(args: Any) -> bool:
+    """Return True if `--agent` / `--as-agent` machine output mode was requested."""
+    if args is None:
+        return False
+    if bool(getattr(args, "as_agent", False)):
+        return True
+    return getattr(args, "agent", None) is True
+
+
+def enforce_red_ci_gate(
+    run_dir: Path | str | None = None,
+    state: dict[str, Any] | None = None,
+    *,
+    repo: Path | str | None = None,
+    args: Any = None,
+    allow_red_ci: str | None = None,
+    write_report_fn: Any = None,
+    save_state_fn: Callable[[Path, dict[str, Any]], None] | None = None,
+    append_event_fn: Callable[[Path, dict[str, Any]], None] | None = None,
+    warn_fn: Callable[[str], None] | None = None,
+    raise_on_refuse: bool = True,
+) -> RedCiGateDecision:
+    """Enforce the red-CI run-start stop (`s4z5n8` E-02, spec `25kzda` 2.5f).
+
+    Sited in `initialize_run_core` immediately after `run_start_checkup` and BEFORE the
+    `--prepare-only` early return, so both hosts inherit it and `--prepare-only` cannot
+    prepare a queue past a red CI.
+    """
+    from agent_workflows import checkup as _checkup
+    from agent_workflows import config as _config
+
+    if state is None:
+        state = {}
+    eff_repo = Path(repo if repo is not None else state.get("repo", "."))
+    eff_run_dir = Path(run_dir) if run_dir is not None else eff_repo
+
+    def _save(rdir: Path, st: dict[str, Any]) -> None:
+        if save_state_fn is not None:
+            save_state_fn(rdir, st)
+        elif write_report_fn is not None:
+            save_state(rdir, st, write_report=write_report_fn)
+        elif (rdir / "state.json").is_file():
+            atomic_write_json(rdir / "state.json", st)
+
+    _append = append_event_fn or append_jsonl
+
+    raw_override = allow_red_ci
+    if raw_override is None and args is not None:
+        raw_override = getattr(args, "allow_red_ci", None)
+    if isinstance(raw_override, bool):
+        raw_override = None
+    if isinstance(raw_override, str) and not raw_override.strip():
+        raise RunFlagRefusal(
+            '--allow-red-ci requires a non-empty justification string (for example: --allow-red-ci "known flake")'
+        )
+    if raw_override is None:
+        opt_override = (state.get("options") or {}).get("allow_red_ci")
+        if isinstance(opt_override, str) and opt_override.strip():
+            raw_override = opt_override
+    override_str = (
+        str(raw_override).strip()
+        if isinstance(raw_override, str) and str(raw_override).strip()
+        else None
+    )
+
+    interval = _config.ci_checkup_interval_commits(eff_repo, warn=warn_fn)
+    exempt_sets = _config.ci_red_exempt_sets(eff_repo, warn=warn_fn)
+    record = _checkup.read_checkup_record(eff_repo)
+    recounted = recount_commits_since_last_pass(eff_repo, record)
+
+    decision = decide_red_ci_gate(
+        record,
+        interval,
+        exempt_sets=exempt_sets,
+        queue=state.get("queue", []),
+        allow_red_ci=override_str,
+        commits_since_last_pass=recounted,
+    )
+
+    if decision.verdict == RED_CI_REFUSE:
+        for item in state.get("queue", []) or []:
+            if isinstance(item, dict):
+                record_refusal(
+                    item,
+                    code=RED_CI_REFUSAL_CODE,
+                    reason=decision.message,
+                    remedy=decision.remedy,
+                )
+        state["red_ci_refusal"] = {
+            "code": RED_CI_REFUSAL_CODE,
+            "status": decision.status,
+            "last_passing_commit": decision.last_passing_commit,
+            "commits_since_last_pass": decision.commits_since_last_pass,
+            "interval": decision.interval,
+            "reason": decision.message,
+            "remedy": decision.remedy,
+        }
+        _save(eff_run_dir, state)
+        _append(
+            eff_run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "red-ci-refused",
+                "proceed": False,
+                "code": RED_CI_REFUSAL_CODE,
+                "status": decision.status,
+                "last_passing_commit": decision.last_passing_commit,
+                "commits_since_last_pass": decision.commits_since_last_pass,
+                "interval": decision.interval,
+                "reason": decision.message,
+                "remedy": decision.remedy,
+            },
+        )
+        if raise_on_refuse:
+            raise RedCiRefusalError(
+                decision.message,
+                decision=decision,
+                run_dir=eff_run_dir,
+                state=state,
+            )
+        return decision
+
+    if decision.verdict == RED_CI_ALLOW_WITH_WARNING and decision.override_reason:
+        override_info = {
+            "reason": decision.override_reason,
+            "justification": decision.override_reason,
+            "status": decision.status,
+            "last_passing_commit": decision.last_passing_commit,
+            "commits_since_last_pass": decision.commits_since_last_pass,
+            "interval": decision.interval,
+        }
+        state.setdefault("options", {})["allow_red_ci"] = decision.override_reason
+        state["red_ci_override"] = override_info
+        existing_chk = str(state.get("checkup_line") or "").strip()
+        ovr_tag = f"[red-ci-override: {decision.override_reason}]"
+        if existing_chk:
+            if ovr_tag not in existing_chk:
+                state["checkup_line"] = f"{existing_chk} {ovr_tag}"
+        else:
+            state["checkup_line"] = (
+                f"Checkup: CI {decision.status} "
+                f"({decision.commits_since_last_pass} commits since pass "
+                f"{(decision.last_passing_commit or 'unknown')[:10]}) {ovr_tag}"
+            )
+        _save(eff_run_dir, state)
+        _append(
+            eff_run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "red-ci-override",
+                "proceed": True,
+                "reason": decision.override_reason,
+                "justification": decision.override_reason,
+                "ci": {
+                    "status": decision.status,
+                    "last_passing_commit": decision.last_passing_commit,
+                    "commits_since_last_pass": decision.commits_since_last_pass,
+                    "interval": decision.interval,
+                },
+                "status": decision.status,
+                "last_passing_commit": decision.last_passing_commit,
+                "commits_since_last_pass": decision.commits_since_last_pass,
+                "interval": decision.interval,
+            },
+        )
+        if warn_fn is not None:
+            warn_fn(decision.message)
+        elif not is_agent_mode(args):
+            print(decision.message, file=sys.stderr)
+        return decision
+
+    if decision.verdict == RED_CI_ALLOW_WITH_WARNING:
+        state["red_ci_warning"] = decision.message
+        if warn_fn is not None:
+            warn_fn(decision.message)
+        elif not is_agent_mode(args):
+            print(decision.message, file=sys.stderr)
+        return decision
+
+    return decision
+
+
+def emit_agent_run_refusal_record(
+    exc: DriverError,
+    *,
+    cmd: str,
+    run_dir: Path | None = None,
+) -> None:
+    """Emit an `aw.agent/v1` result record for a refused run under `--agent` (`s4z5n8` E-02)."""
+    from agent_workflows import agent_schema
+
+    rec: dict[str, Any] = {
+        "schema": "aw.agent/v1",
+        "kind": "result",
+        "cmd": cmd,
+        "exit": 2,
+        "outcome": "cannot-run",
+        "verified": False,
+        "complete": False,
+        "summary": str(exc),
+    }
+    eff_run_dir = run_dir
+    if isinstance(exc, RedCiRefusalError):
+        if eff_run_dir is None:
+            eff_run_dir = exc.run_dir
+        if exc.decision is not None:
+            d = exc.decision
+            refusal_obj = {
+                "code": d.code,
+                "status": d.status,
+                "last_passing_commit": d.last_passing_commit,
+                "commits_since_last_pass": d.commits_since_last_pass,
+                "interval": d.interval,
+                "reason": d.message,
+                "remedy": d.remedy,
+            }
+            rec["refusal"] = refusal_obj
+            rec["red_ci"] = refusal_obj
+    if eff_run_dir is not None:
+        rec["run_id"] = eff_run_dir.name
+        if (eff_run_dir / "state.json").is_file() and "refusal" not in rec:
+            try:
+                st = json.loads(
+                    (eff_run_dir / "state.json").read_text(encoding="utf-8")
+                )
+                if st.get("red_ci_refusal"):
+                    rec["refusal"] = st["red_ci_refusal"]
+                    rec["red_ci"] = st["red_ci_refusal"]
+            except Exception:
+                pass
+    print(agent_schema.render_jsonl_record(rec))
+
+
+def emit_agent_run_start_record(
+    run_dir: Path,
+    *,
+    cmd: str,
+    exit_code: int = 0,
+) -> None:
+    """Emit an `aw.agent/v1` result record for a started/prepared run under `--agent` (`s4z5n8` E-02)."""
+    from agent_workflows import agent_schema
+
+    st: dict[str, Any] = {}
+    if (run_dir / "state.json").is_file():
+        try:
+            st = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        except Exception:
+            st = {}
+    ovr = st.get("red_ci_override")
+    summary = f"Run {run_dir.name} initialized ({len(st.get('queue', []))} item(s))."
+    if isinstance(ovr, Mapping) and ovr.get("reason"):
+        summary = (
+            f"Run {run_dir.name} initialized with red-CI override "
+            f"({ovr.get('reason')})."
+        )
+    rec: dict[str, Any] = {
+        "schema": "aw.agent/v1",
+        "kind": "result",
+        "cmd": cmd,
+        "exit": int(exit_code),
+        "outcome": "ok" if exit_code == 0 else "fail",
+        "verified": exit_code == 0,
+        "complete": True,
+        "run_id": run_dir.name,
+        "summary": summary,
+    }
+    if ovr:
+        rec["red_ci_override"] = ovr
+        rec["override"] = ovr
+    if st.get("red_ci_warning"):
+        rec["red_ci_warning"] = st["red_ci_warning"]
+    print(agent_schema.render_jsonl_record(rec))
 
 
 # ==================================================================================================
@@ -30825,6 +31450,17 @@ def write_report(
     # line ABOVE the table so the table's column contract is unchanged.
     if labels.emits_launch_identity and render_launch_identity is not None:
         lines.append(f"- Launch: {render_launch_identity(state)}")
+    red_ci_ovr = state.get("red_ci_override")
+    if isinstance(red_ci_ovr, Mapping) and red_ci_ovr.get("reason"):
+        ovr_lp = red_ci_ovr.get("last_passing_commit") or "unknown"
+        ovr_cnt = red_ci_ovr.get("commits_since_last_pass")
+        ovr_st = red_ci_ovr.get("status") or "FAILING"
+        lines.append(
+            f"- Red-CI override: {red_ci_ovr['reason']} "
+            f"(CI {ovr_st}, {ovr_cnt} commit(s) since last pass `{ovr_lp}`)"
+        )
+    elif isinstance(red_ci_ovr, str) and red_ci_ovr.strip():
+        lines.append(f"- Red-CI override: {red_ci_ovr.strip()}")
     lines.extend(
         [
             "",
@@ -32332,6 +32968,19 @@ def initialize_run_core(
             state["checkup_line"] = _chk_line
     except Exception:
         pass
+
+    # cihealth Order 03 (s4z5n8) E-02: Enforce the red-CI run-start stop immediately
+    # after the checkup trigger and BEFORE the --prepare-only early return, so both
+    # hosts inherit it from this single shared site and --prepare-only cannot prepare
+    # a queue past a red CI.
+    enforce_red_ci_gate(
+        run_dir,
+        state,
+        repo=repo,
+        args=args,
+        allow_red_ci=getattr(args, "allow_red_ci", None),
+        write_report_fn=write_report_fn,
+    )
 
     # specpause-01 (`1g4i1t`) E-05: THE SPEC-EDIT ACKNOWLEDGEMENT GATE, sited HERE immediately
     # after the initial run report is written and BEFORE the `--prepare-only` early return.
@@ -41644,8 +42293,8 @@ def execute_item_core(
                                     )
 
                             post_turn_head = git_head(wt_handle.path)
-                            changed_paths: list[str] = []
-                            undeclared_paths: list[str] = []
+                            changed_paths = []
+                            undeclared_paths = []
                             if (
                                 pre_turn_head
                                 and post_turn_head

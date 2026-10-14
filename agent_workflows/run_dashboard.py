@@ -38,7 +38,10 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from agent_workflows.run_analytics_schema import resolve_attempt_model
 from agent_workflows.runner_shared import canonical_terminal_status
-from agent_workflows.verifier_corroboration import tool_call_from_event
+from agent_workflows.verifier_corroboration import (
+    AGY_TERMINAL_STATES,
+    tool_call_from_event,
+)
 
 __all__ = [
     "DASHBOARD_SCHEMA_VERSION",
@@ -52,7 +55,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 4
+DASHBOARD_SCHEMA_VERSION = 5
 ASSETS_DIRNAME = "run_dashboard_assets"
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"
@@ -318,7 +321,7 @@ def _agy_line(
         return
     state = su.get("state")
     stype = su.get("step_type")
-    if state not in ("DONE", "ERROR"):
+    if state not in AGY_TERMINAL_STATES:
         return
     secs = _num(su.get("duration_seconds"))
     if stype == "agent_response":

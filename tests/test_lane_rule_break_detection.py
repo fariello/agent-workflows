@@ -16,8 +16,13 @@ hosts (`oc_runipd` and `agy_runipd`), asserting:
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import stat
 import subprocess
+import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -31,26 +36,87 @@ _HOSTS = (
     ("agy", agy_runipd, "run_agy_turn", runner_shared.AGY_HOST_LABELS),
 )
 
-_SYSTEM_PRE_COMMIT_CONFIG = """repos:
+_PY_ENTRY = Path(sys.executable).as_posix()
+
+_SYSTEM_PRE_COMMIT_CONFIG = f"""repos:
 - repo: local
   hooks:
   - id: refuse-content
     name: refuse bad content
-    entry: python3 -c "import sys; sys.exit(1 if any('REFUSE_HOOK' in open(f).read() for f in sys.argv[1:]) else 0)"
+    entry: >-
+      "{_PY_ENTRY}" -c "import sys; sys.exit(1 if any('REFUSE_HOOK' in open(f).read() for f in sys.argv[1:]) else 0)"
     language: system
     files: \\.txt$
 """
 
-_STAGED_GATE_PRE_COMMIT_CONFIG = """repos:
+_STAGED_GATE_PRE_COMMIT_CONFIG = f"""repos:
 - repo: local
   hooks:
   - id: check-staged-executed
     name: check staged executed
-    entry: python3 -c "import subprocess, sys; out = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True); sys.exit(1 if 'executed/' in out else 0)"
+    entry: >-
+      "{_PY_ENTRY}" -c "import subprocess, sys; out = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True); sys.exit(1 if 'executed/' in out else 0)"
     language: system
     pass_filenames: false
     always_run: true
 """
+
+_PRE_COMMIT_SHIM_SOURCE = textwrap.dedent(
+    """\
+    import os
+    import re
+    import shlex
+    import subprocess
+    import sys
+    import yaml
+
+    def main() -> int:
+        with open(".pre-commit-config.yaml", encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh) or {}
+        staged_out = subprocess.check_output(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            text=True,
+        )
+        staged = [line.strip() for line in staged_out.splitlines() if line.strip()]
+        rc_overall = 0
+        for repo in cfg.get("repos", []):
+            for hook in repo.get("hooks", []):
+                hid = hook.get("id", "hook")
+                name = hook.get("name", hid)
+                entry = hook.get("entry", "")
+                files_pat = hook.get("files")
+                pass_files = hook.get("pass_filenames", True)
+                always = hook.get("always_run", False)
+                matched = [f for f in staged if not files_pat or re.search(files_pat, f)]
+                if not matched and not always:
+                    print(f"{name}...Skipped")
+                    continue
+                argv = shlex.split(entry, posix=(os.name != "nt"))
+                if os.name == "nt":
+                    argv = [
+                        a[1:-1] if len(a) >= 2 and a[0] == a[-1] == '"' else a
+                        for a in argv
+                    ]
+                if pass_files:
+                    argv.extend(matched)
+                proc = subprocess.run(argv, capture_output=True, text=True)
+                if proc.returncode != 0:
+                    print(f"{name}...Failed")
+                    print(f"- hook id: {hid}")
+                    print(f"- exit code: {proc.returncode}")
+                    if proc.stdout:
+                        print(proc.stdout, end="")
+                    if proc.stderr:
+                        print(proc.stderr, end="")
+                    rc_overall = 1
+                else:
+                    print(f"{name}...Passed")
+        return rc_overall
+
+    if __name__ == "__main__":
+        sys.exit(main())
+    """
+)
 
 
 def _state_and_item(repo: Path, plan: Path) -> tuple[dict, dict]:
@@ -87,6 +153,31 @@ def _state_and_item(repo: Path, plan: Path) -> tuple[dict, dict]:
 class LaneRuleBreakDetectionTests(unittest.TestCase):
     def setUp(self) -> None:
         support.declare_execution_role(self)
+        if shutil.which("pre-commit") is None:
+            bin_tmp = tempfile.TemporaryDirectory()
+            self.addCleanup(bin_tmp.cleanup)
+            bin_dir = Path(bin_tmp.name)
+            shim_py = bin_dir / "_pre_commit_shim.py"
+            shim_py.write_text(_PRE_COMMIT_SHIM_SOURCE, encoding="utf-8")
+            posix_bin = bin_dir / "pre-commit"
+            posix_bin.write_text(
+                f"#!{sys.executable}\n" + _PRE_COMMIT_SHIM_SOURCE,
+                encoding="utf-8",
+            )
+            posix_bin.chmod(posix_bin.stat().st_mode | stat.S_IEXEC)
+            if os.name == "nt":
+                win_cmd = bin_dir / "pre-commit.cmd"
+                win_cmd.write_text(
+                    f'@echo off\r\n"{sys.executable}" "{shim_py}" %*\r\n',
+                    encoding="utf-8",
+                )
+            old_path = os.environ.get("PATH", "")
+            os.environ["PATH"] = f"{bin_dir}{os.pathsep}{old_path}"
+
+            def _restore_path() -> None:
+                os.environ["PATH"] = old_path
+
+            self.addCleanup(_restore_path)
 
     def _setup_repo(
         self, pre_commit_cfg: str | None = None
@@ -722,7 +813,10 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
                     return mock.Mock(returncode=3, stdout="", stderr="network error")
                 return orig_sub_run(cmd, *a, **k)
 
-            with mock.patch("subprocess.run", side_effect=fake_pre_commit_run):
+            with (
+                mock.patch("shutil.which", return_value="/usr/bin/pre-commit"),
+                mock.patch("subprocess.run", side_effect=fake_pre_commit_run),
+            ):
                 passed, msg = runner_shared.check_lane_hook_bypass(r, b, h)
                 self.assertTrue(passed)
                 self.assertIn("unavailable", msg)

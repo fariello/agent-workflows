@@ -54,7 +54,7 @@ class SelectorTwoDialectReadersBase(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory(prefix="aw_test_two_dialect_")
-        self.repo_root = Path(self.tmpdir.name)
+        self.repo_root = Path(self.tmpdir.name).resolve()
         for rtype in ("research", "plans", "prompts", "specs", "backlog"):
             (self.repo_root / ".aw" / "records" / rtype).mkdir(
                 parents=True, exist_ok=True

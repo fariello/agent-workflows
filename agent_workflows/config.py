@@ -2471,10 +2471,13 @@ def ci_checkup_interval_commits(
     if not isinstance(data, dict):
         return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
 
-    if CI_CHECKUP_INTERVAL_COMMITS_KEY not in data:
+    key = CI_CHECKUP_INTERVAL_COMMITS_KEY
+    if key not in data and "ci_checkup_commit_interval" in data:
+        key = "ci_checkup_commit_interval"
+    if key not in data:
         return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
 
-    raw = data.get(CI_CHECKUP_INTERVAL_COMMITS_KEY)
+    raw = data.get(key)
     if raw is None:
         return CI_CHECKUP_INTERVAL_COMMITS_DEFAULT
 
@@ -2596,3 +2599,83 @@ def ci_checkup_branch(
         f"Using default {CI_CHECKUP_BRANCH_DEFAULT!r} instead."
     )
     return CI_CHECKUP_BRANCH_DEFAULT
+
+
+CI_RED_EXEMPT_SETS_KEY = "ci_red_exempt_sets"
+CI_RED_EXEMPT_SETS_DEFAULT: Tuple[str, ...] = ()
+
+
+def ci_red_exempt_sets(repo_root: Any = None, *, warn: Any = None) -> List[str]:
+    """Read `ci_red_exempt_sets` from `.aw/config/project.json` (s4z5n8 E-01).
+
+    Returns a list of non-empty setid strings that are exempt from the red-CI
+    run-start stop, defaulting to `[]`. If `repo_root` is a Mapping, validates it
+    directly as a config dict; otherwise reads `.aw/config/project.json` under
+    `repo_root`. Malformed values warn and fall back to `[]`.
+    """
+    from collections.abc import Mapping as _Mapping
+    import sys as _sys
+    from agent_workflows.project_context import project_config_dir
+
+    def _emit(msg: str) -> None:
+        if warn is None:
+            print(msg, file=_sys.stderr)
+        else:
+            warn(msg)
+
+    if isinstance(repo_root, _Mapping):
+        data: Any = repo_root
+        project_file: Any = "<dict>"
+    else:
+        try:
+            rpath = Path(repo_root) if repo_root is not None else None
+            cfg_dir = project_config_dir(rpath)
+        except Exception:
+            return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+        project_file = cfg_dir / "project.json"
+        if not project_file.is_file():
+            return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+        try:
+            text = project_file.read_text(encoding="utf-8")
+            data = json.loads(text)
+        except Exception as exc:
+            _emit(
+                f"WARNING: {CI_RED_EXEMPT_SETS_KEY} in {project_file} could not be read: {exc}. "
+                f"Using default {list(CI_RED_EXEMPT_SETS_DEFAULT)!r} instead."
+            )
+            return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+        if not isinstance(data, dict):
+            _emit(
+                f"WARNING: {project_file} does not contain a JSON object. "
+                f"Using default {list(CI_RED_EXEMPT_SETS_DEFAULT)!r} instead."
+            )
+            return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+    if CI_RED_EXEMPT_SETS_KEY not in data:
+        return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+    raw = data.get(CI_RED_EXEMPT_SETS_KEY)
+    if raw is None:
+        return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+    if not isinstance(raw, list):
+        _emit(
+            f"WARNING: {CI_RED_EXEMPT_SETS_KEY} in {project_file} is {raw!r}, which is not a list of strings. "
+            f"Using default {list(CI_RED_EXEMPT_SETS_DEFAULT)!r} instead."
+        )
+        return list(CI_RED_EXEMPT_SETS_DEFAULT)
+
+    cleaned: List[str] = []
+    for item in raw:
+        if not isinstance(item, str) or not item.strip():
+            _emit(
+                f"WARNING: {CI_RED_EXEMPT_SETS_KEY} in {project_file} contains invalid setid entry {item!r} "
+                f"(must be a non-empty string). Using default {list(CI_RED_EXEMPT_SETS_DEFAULT)!r} instead."
+            )
+            return list(CI_RED_EXEMPT_SETS_DEFAULT)
+        cleaned.append(item.strip())
+
+    return cleaned
