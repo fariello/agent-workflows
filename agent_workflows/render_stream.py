@@ -3452,7 +3452,9 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
 #: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
 #: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
 #: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
-_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)+[\w.\-+@]+")
+_ABSOLUTE_PATH_IN_TEXT = re.compile(
+    r"(?:(?<![\w/\\])[A-Za-z]:[/\\](?:[\w.\-+@~]+[/\\])+[\w.\-+@~]+|(?<![\w/])/(?:[\w.\-+@~]+/)+[\w.\-+@~]+)"
+)
 
 
 def _redact_absolute_paths(text: str) -> str:
@@ -3466,7 +3468,11 @@ def _redact_absolute_paths(text: str) -> str:
 
     def _replace(match: re.Match[str]) -> str:
         raw = match.group(0)
-        parts = raw.strip("/").split("/")
+        parts = [
+            p
+            for p in re.split(r"[/\\]+", raw.strip("/\\"))
+            if p and not re.fullmatch(r"[A-Za-z]:", p)
+        ]
         for marker in (".aw", "agent_workflows", "tests"):
             if marker in parts:
                 return "/".join(parts[parts.index(marker) :])

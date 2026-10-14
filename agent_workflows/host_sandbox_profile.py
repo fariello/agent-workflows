@@ -1374,6 +1374,8 @@ def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
                 "action": "execute",
             }
 
+            prev_cfg = os.environ.get("AW_CONFIG_DIR")
+            os.environ["AW_CONFIG_DIR"] = str(root / "empty-config")
             subprocess.Popen = fake_popen  # type: ignore[assignment]
             try:
                 invoker(state, run_dir, item, plan, prompt, sentinel)
@@ -1381,6 +1383,10 @@ def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
                 pass
             finally:
                 subprocess.Popen = real_popen  # type: ignore[assignment]
+                if prev_cfg is None:
+                    os.environ.pop("AW_CONFIG_DIR", None)
+                else:
+                    os.environ["AW_CONFIG_DIR"] = prev_cfg
 
         argv = captured.get("argv", [])
         if argv:

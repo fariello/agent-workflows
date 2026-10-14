@@ -767,14 +767,11 @@ def _owner_is_live(owner: dict) -> Optional[bool]:
     if host and host != socket.gethostname():
         # A record from another machine: we cannot tell, so treat as UNKNOWN (never adopt).
         return None
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # alive but not ours to signal
-    except Exception:
-        return None
+    from agent_workflows import platform_lock
+
+    alive = platform_lock.pid_alive(pid)
+    if not alive:
+        return alive
     token = owner.get("start_token")
     if token is not None:
         current = _process_start_token(pid)

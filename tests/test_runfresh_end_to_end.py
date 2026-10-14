@@ -292,7 +292,7 @@ from agent_workflows import runner_shared
 
 if phase == "phase1":
     runner_shared.assert_child_tool_identity(events_path, cwd=fixture_root)
-    os.execv(sys.executable, [sys.executable, __file__, "phase2", str(events_path), str(fixture_root)])
+    runner_shared._default_replace([sys.executable, __file__, "phase2", str(events_path), str(fixture_root)], dict(os.environ))
 elif phase == "phase2":
     runner_shared.assert_child_tool_identity(events_path, cwd=fixture_root)
     sys.exit(0)
@@ -748,9 +748,8 @@ class RunfreshEndToEndTests(unittest.TestCase):
         """E-05: nested-call pin re-established after a restart via os.execv."""
         with tempfile.TemporaryDirectory() as td:
             fixture_root, _fake_host, _orch, _child = make_runfresh_fixture(Path(td))
-            script_path = make_fake_executable(
-                fixture_root / "nested_pin_script.py", _NESTED_PIN_SCRIPT
-            )
+            script_path = fixture_root / "nested_pin_script.py"
+            script_path.write_text(_NESTED_PIN_SCRIPT, encoding="utf-8")
             events_path = fixture_root / "events.jsonl"
 
             env = _clean_driver_env(fixture_root)

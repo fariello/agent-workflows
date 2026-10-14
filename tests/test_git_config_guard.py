@@ -239,8 +239,10 @@ def test_guard_disables_itself_on_non_git_target(tmp_path: Path):
 
 def test_init_repo_failure_does_not_leak_to_enclosing_repo(tmp_path: Path):
     """(e) init_repo on an unwritable path raises RuntimeError without leaking to enclosing repo."""
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        pytest.skip("Test requires non-root user for chmod 0o500 permissions")
+    if os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0):
+        pytest.skip(
+            "Test requires POSIX non-root user for directory chmod 0o500 permissions"
+        )
 
     enclosing = tmp_path / "enclosing"
     enclosing.mkdir()

@@ -3665,39 +3665,86 @@ def observe_host_model(
             except Exception:
                 fd = None
 
-        while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
-            rem = deadline - time.monotonic()
-            if rem <= 0:
-                timed_out = True
-                break
-            if fd is not None:
-                r, _, _ = select.select([fd], [], [], rem)
-                if not r:
-                    timed_out = True
-                    break
-                try:
-                    chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
-                except Exception:
-                    break
-                if not chunk:
-                    break
-                raw_bytes.extend(chunk)
-            else:
-                try:
-                    chunk = stdout_stream.read(HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
-                except (TimeoutError, Exception):
-                    timed_out = True
-                    break
-                if not chunk:
-                    break
-                raw_bytes.extend(chunk)
+        if os.name == "nt":
+            import queue
+            import threading
 
-            # Check if model object is already in the read prefix
-            if (
-                _extract_model_from_prefix(raw_bytes.decode("utf-8", errors="replace"))
-                is not None
-            ):
-                break
+            q: queue.Queue[bytes | None] = queue.Queue()
+
+            def _win_reader() -> None:
+                try:
+                    while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                        if fd is not None:
+                            chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES)
+                        else:
+                            chunk = stdout_stream.read(HOST_MODEL_PREFIX_BYTES)
+                        if not chunk:
+                            q.put(None)
+                            break
+                        q.put(chunk)
+                except Exception:
+                    q.put(None)
+
+            reader_thread = threading.Thread(target=_win_reader, daemon=True)
+            reader_thread.start()
+            while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                rem = deadline - time.monotonic()
+                if rem <= 0:
+                    timed_out = True
+                    break
+                try:
+                    item_chunk = q.get(timeout=rem)
+                except queue.Empty:
+                    timed_out = True
+                    break
+                if item_chunk is None:
+                    break
+                raw_bytes.extend(item_chunk[: HOST_MODEL_PREFIX_BYTES - len(raw_bytes)])
+                if (
+                    _extract_model_from_prefix(
+                        raw_bytes.decode("utf-8", errors="replace")
+                    )
+                    is not None
+                ):
+                    break
+        else:
+            while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+                rem = deadline - time.monotonic()
+                if rem <= 0:
+                    timed_out = True
+                    break
+                if fd is not None:
+                    r, _, _ = select.select([fd], [], [], rem)
+                    if not r:
+                        timed_out = True
+                        break
+                    try:
+                        chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
+                    except Exception:
+                        break
+                    if not chunk:
+                        break
+                    raw_bytes.extend(chunk)
+                else:
+                    try:
+                        chunk = stdout_stream.read(
+                            HOST_MODEL_PREFIX_BYTES - len(raw_bytes)
+                        )
+                    except (TimeoutError, Exception):
+                        timed_out = True
+                        break
+                    if not chunk:
+                        break
+                    raw_bytes.extend(chunk)
+
+                # Check if model object is already in the read prefix
+                if (
+                    _extract_model_from_prefix(
+                        raw_bytes.decode("utf-8", errors="replace")
+                    )
+                    is not None
+                ):
+                    break
 
     except Exception:
         return None
@@ -3721,6 +3768,10 @@ def observe_host_model(
                         proc.wait(timeout=1.0)
         except Exception:
             pass
+        for s in (getattr(proc, "stdout", None), getattr(proc, "stderr", None)):
+            if s is not None and hasattr(s, "close"):
+                with contextlib.suppress(Exception):
+                    s.close()
 
     if timed_out:
         return None
