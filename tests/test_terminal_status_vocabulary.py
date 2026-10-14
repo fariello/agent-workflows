@@ -262,6 +262,24 @@ class TestWriterCanonicalEmissionsAndFourWaySplit(unittest.TestCase):
             ),
             "fail-gate",
         )
+        self.assertEqual(
+            runner_shared.outcome_precedence_disposition(
+                "pending", {"status": "executed"}
+            ),
+            "fail-gate",
+        )
+        self.assertEqual(
+            runner_shared.outcome_precedence_disposition(
+                "pending", {"status": "completed"}
+            ),
+            "fail-gate",
+        )
+        self.assertEqual(
+            runner_shared.outcome_precedence_disposition(
+                "pending", {"disposition": "completed"}
+            ),
+            "fail-gate",
+        )
 
         # Recorded canonical tokens preserved
         for token in (

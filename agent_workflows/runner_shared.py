@@ -35330,6 +35330,10 @@ def outcome_precedence_disposition(
         return RETIRED_STATUS
     if outcome:
         disposition = outcome.get("disposition")
+        if disposition is None and isinstance(outcome.get("status"), str):
+            disposition = outcome.get("status")
+        if isinstance(disposition, str) and disposition.strip().lower() == "completed":
+            disposition = "executed"
         if disposition == "executed":
             return "fail-gate"
         if disposition in TERMINAL_STATES - {
