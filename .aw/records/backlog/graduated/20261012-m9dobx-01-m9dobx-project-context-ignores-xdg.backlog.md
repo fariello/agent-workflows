@@ -1,5 +1,6 @@
 - Id: m9dobx
-- Status: open
+- Status: graduated
+- Graduated-To: m9dobx
 - Blocks-Release: next
 - Set: m9dobx
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: project_context reads user config from a hard-coded ~/.config/agent-workflows, ignoring XDG_CONFIG_HOME that config.config_dir honors
 
 ## Workflow history
+- 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: qi5ljl
 - 2026-10-12 created (aw backlog): filed while graduating btw02e (plan 9y27t2)
 
 ## Context
