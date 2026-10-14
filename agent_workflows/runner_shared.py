@@ -44201,7 +44201,26 @@ SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest"
 
 # suiteeff Order 02 (`0o0wt2`) E-04: canonical definitions live in `suite_cache` and are
 # re-exported here under the identical names so existing consumers and host bindings
-# remain untouched without an import cycle.
+# remain untouched without an import cycle or module-level import.
+_SUITE_SUMMARY_RE = re.compile(
+    r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
+)
+_SUITE_FAILURE_LINE_RE = re.compile(r"^(?:FAILED|ERROR)\s+\S.*$", re.MULTILINE)
+SUITE_FAILURE_LINE_LIMIT: int = 40
+
+
+def parse_suite_summary(text: str) -> str:
+    """Delegate to the canonical parser in `suite_cache` (suiteeff-02 `0o0wt2` E-04)."""
+    from agent_workflows import suite_cache
+
+    return suite_cache.parse_suite_summary(text)
+
+
+def extract_suite_failures(stdout: str, stderr: str = "") -> tuple[str, ...]:
+    """Delegate to the canonical extractor in `suite_cache` (suiteeff-02 `0o0wt2` E-04)."""
+    from agent_workflows import suite_cache
+
+    return suite_cache.extract_suite_failures(stdout, stderr)
 
 
 class SuiteCheckResult(NamedTuple):
