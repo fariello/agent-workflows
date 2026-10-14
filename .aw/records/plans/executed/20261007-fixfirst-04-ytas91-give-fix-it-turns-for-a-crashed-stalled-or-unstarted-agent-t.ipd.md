@@ -6,7 +6,7 @@
 - Scope: Make a nonzero exit / missing outcome file, a stall or turn-limit expiry, and a spawn failure each reach a fix-it turn under the existing per-kind budget, with Order 03's message naming what happened; key the decision on a recorded failure-kind marker rather than on the disposition token; record the session id even on a stall; for the fix-it re-dispatch, run in the FAILED attempt's own lane and resume that attempt's session when one exists; retire `p47qfu` as superseded. EXCLUDES hook and suite refusals (Order 05), scope (Order 06), detection (Order 07), changing the budget, changing `finalize_retry_decision`, changing the silent-turn and zero-work verdicts themselves (`turn_attempted_nothing`, `handle_zero_work_retry`), and changing the first-dispatch fresh-session rule (`lanesess` `xd9sll`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_turn_fix_it.py, tests/test_retry_class_mapping.py, tests/test_silent_turn_observability.py, tests/test_oc_runipd.py, tests/test_ipdrunner_runagy_shim.py, .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
 - Item-Dependencies: executed:mcbph5
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ytas91
-- Approval: 2026-10-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ytas91 verified (set fixfirst, attempt 1). [Scope reconciliation - widened-scope tests/test_ipdrunner_runagy_shim.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_oc_runipd.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_retry_class_mapping.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_silent_turn_observability.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-09 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): Scope-Paths path-only correction: dropped the `pending/` path of `p47qfu`, which was retired to `superseded/` on 2026-10-08 (5b5439737); the `superseded/` path stays declared. run-20261009T013333Z-334392 refused dispatch on the stale entry (fail-gate, scope-target-stale moved-terminal). E-06's expected outcome (`p47qfu` is under `superseded/`) is now already true.
 - 2026-10-09 approved (aw set): status set to approved
 - 2026-10-08 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED
