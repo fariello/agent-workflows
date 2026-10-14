@@ -29,9 +29,9 @@ alter any item disposition, verification status, or integration decision (such a
     make an outcome MORE permissive and explicitly forbids using an observation to
     disbelieve the agent; a corroboration refusal is the forbidden sign.
 (3) The extraction predicate has known false positives that make it unsafe to strand a
-    lane on: specifically, the Antigravity `step_type == "subagent"` delegation shape
-    is unobserved by the reader, causing genuine test delegations to resolve to
-    `uncorroborated` (tracked as bug `iuhx9d`).
+    lane on: while the Antigravity `step_type == "subagent"` delegation gap tracked as
+    bug `iuhx9d` is now detected, the observational ruling stands unchanged (other
+    measured false positives remain, e.g. `1kebul`).
 IMPERATIVE: A future consumer may read this verdict and may make an outcome MORE
 permissive on it, but MUST NOT refuse, downgrade, or change a disposition on it. A
 reader who believes a refusal is warranted opens a new decision rather than wiring
@@ -50,9 +50,9 @@ The turn-level corroboration verdict is partitioned into a closed set of conditi
        or cannot be read due to filesystem/OS permissions.
    (b) "log-empty": The session log exists but contains zero valid JSON event lines.
    (c) "claims-empty": The list of claimed test commands is empty.
-   (d) "delegation-present": The turn delegated work to a subagent (`task` on OpenCode
-       or `browser_subagent` on Antigravity). Subagent tool calls do not appear in the
-       parent session log, making commands unobservable.
+   (d) "delegation-present": The turn delegated work to a subagent (`task` on OpenCode,
+       or `browser_subagent` or a `step_type == "subagent"` step on Antigravity). Subagent
+       tool calls do not appear in the parent session log, making commands unobservable.
    (e) "missing-command-text": Shell calls were executed, but every shell call lacked
        command text (or no shell command text was observable).
    (f) "indirection-unresolved": An observed command is an unresolved indirection
@@ -393,8 +393,9 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
        - 'invoke_subagent' is referenced in-tree as a real Antigravity tool name
          (stall_progress lists 'invoke_subagent' alongside 'schedule' and 'manage_task'
          as tool names that start background tasks, and its docstring cites it).
-       - 'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER.
-       - Neither appears in committed fixtures, which use only 'task' and
+       - 'subagent' had no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER
+         until 0yvidi added the Antigravity `step_type == "subagent"` delegation arm.
+       - Neither appears in committed fixtures prior to 0yvidi, which used only 'task' and
          'browser_subagent'. This is a consistency fix backed by one in-tree reference.
 
     4. Antigravity Tool Name and Fail-Open Delegation (n8we3u, resolving 1kebul):
@@ -419,6 +420,20 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
        (b) Treating `FAILED` as a terminal errored observation reconciles `tool_call_from_event`,
            `run_dashboard._agy_line`, and `agy_runipd.render_agy_event` onto one shared
            vocabulary without hiding failed tool calls from the operator or analytics.
+
+    6. Antigravity Subagent Delegation Step (0yvidi, resolving iuhx9d):
+       An Antigravity `step_update` with `step_type == "subagent"` and
+       `state in AGY_TERMINAL_STATES` returns a delegation `ToolCall`
+       (`tool="subagent"`, `host="agy"`, `command=None`, `path=None`,
+       `seconds=_to_float(su.get("duration_seconds"))`, `error=(state in AGY_ERROR_STATES)`,
+       `delegation=True`, `command_missing=False`). Exactly one record is returned
+       per step regardless of `len(subagent_info.subagents)` (OQ-02).
+       Evidence:
+       `agy_runipd.render_agy_event` already contains a `step_type == "subagent"` arm
+       reading `subagent_info.subagents`, and `agy_runipd`'s header explicitly notes that
+       "agy's stdout stream ALREADY carries `step_type == 'subagent'` events". The shape
+       is real and unobserved by the reader, causing genuine test delegations to resolve
+       to `uncorroborated`.
     """
     if not isinstance(obj, (dict, Mapping)):
         return None
@@ -429,7 +444,20 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
             return None
         state = su.get("state")
         stype = su.get("step_type")
-        if state not in AGY_TERMINAL_STATES or stype != "tool":
+        if state not in AGY_TERMINAL_STATES:
+            return None
+        if stype == "subagent":
+            return ToolCall(
+                tool="subagent",
+                host="agy",
+                command=None,
+                path=None,
+                seconds=_to_float(su.get("duration_seconds")),
+                error=(state in AGY_ERROR_STATES),
+                delegation=True,
+                command_missing=False,
+            )
+        if stype != "tool":
             return None
         tool_name = agy_tool_name(su)
         is_error = state in AGY_ERROR_STATES

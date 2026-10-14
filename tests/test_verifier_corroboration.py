@@ -1354,3 +1354,86 @@ class TestSharedToolCallExtraction:
             assert res.verdict == vc.CORROBORATED
             assert res.reason_code == vc.CORROBORATED
             assert res.observed_count == 2
+
+    def test_extract_session_commands_agy_subagent_step_fixture(self) -> None:
+        """E-04 (0yvidi): extract_session_commands on fixture yields delegation_count == 1 and one observed command."""
+        p = FIXTURES_DIR / "agy_session_subagent_step.jsonl"
+        res = vc.extract_session_commands(p)
+        assert res.delegation_count == 1
+        assert len(res.commands) == 1
+        assert res.commands[0].command == "git status"
+
+    def test_corroborate_verifier_turn_agy_subagent_step_fixture(self) -> None:
+        """E-04 (0yvidi): corroborate_verifier_turn on fixture yields indeterminate delegation-present."""
+        p = FIXTURES_DIR / "agy_session_subagent_step.jsonl"
+        res = vc.corroborate_verifier_turn(str(p), ["python3 -m pytest"])
+        assert res.verdict == vc.INDETERMINATE
+        assert res.reason_code == vc.INDETERMINATE_DELEGATION
+
+    def test_control_without_subagent_step_resolves_uncorroborated(self) -> None:
+        """E-04 (0yvidi): Control log without subagent step resolves to uncorroborated, proving subagent step prevents false accusation."""
+        p = FIXTURES_DIR / "agy_session_subagent_step.jsonl"
+        lines = p.read_text(encoding="utf-8").splitlines()
+        filtered = [
+            line
+            for line in lines
+            if line.strip()
+            and json.loads(line).get("step_update", {}).get("step_type") != "subagent"
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            ctrl_path = Path(td) / "control.jsonl"
+            ctrl_path.write_text("\n".join(filtered) + "\n", encoding="utf-8")
+            res = vc.corroborate_verifier_turn(str(ctrl_path), ["python3 -m pytest"])
+            assert res.verdict == vc.UNCORROBORATED
+            assert res.reason_code == vc.UNCORROBORATED
+
+    @pytest.mark.parametrize(
+        ("state", "expected_tc"),
+        [
+            ("DONE", {"delegation": True, "error": False}),
+            ("ERROR", {"delegation": True, "error": True}),
+            ("FAILED", {"delegation": True, "error": True}),
+            ("ACTIVE", None),
+            ("CANCELED", None),
+        ],
+    )
+    def test_tool_call_from_event_subagent_step_literal_state_table(
+        self, state: str, expected_tc: dict[str, bool] | None
+    ) -> None:
+        """E-04 (0yvidi): tool_call_from_event over literal state table for subagent step."""
+        ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "subagent",
+                "state": state,
+                "duration_seconds": 2.0,
+                "subagent_info": {"subagents": [{"name": "worker"}]},
+            },
+        }
+        tc = vc.tool_call_from_event(ev)
+        if expected_tc is None:
+            assert tc is None
+        else:
+            assert tc is not None
+            assert tc.tool == "subagent"
+            assert tc.host == "agy"
+            assert tc.delegation is expected_tc["delegation"]
+            assert tc.error is expected_tc["error"]
+            assert tc.command is None
+            assert tc.path is None
+            assert tc.command_missing is False
+
+    def test_tool_call_from_event_agent_response_returns_none(self) -> None:
+        """E-04 (0yvidi): tool_call_from_event returns None for step_type: 'agent_response'."""
+        ev = {
+            "event": "step_update",
+            "step_update": {
+                "step_index": 1,
+                "step_type": "agent_response",
+                "state": "DONE",
+                "duration_seconds": 1.0,
+                "usage": {"input_tokens": 10},
+            },
+        }
+        assert vc.tool_call_from_event(ev) is None

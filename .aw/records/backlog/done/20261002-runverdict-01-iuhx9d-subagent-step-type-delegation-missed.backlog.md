@@ -1,5 +1,5 @@
 - Id: iuhx9d
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: runverdict
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: verifier_corroboration misses the agy step_type subagent delegation shape, so a delegating agy verifier turn can be reported uncorroborated instead of indeterminate
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD 0yvidi executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-runverdict-13-0yvidi-count-an-antigravity-subagent-step-as-a-delegation-so-a-dele.ipd.md); evidence .aw/records/plans/executed/20261012-runverdict-13-0yvidi-count-an-antigravity-subagent-step-as-a-delegation-so-a-dele.ipd.md
 - 2026-10-02 created (aw backlog): verifier_corroboration misses the agy step_type subagent delegation shape, so a delegating agy verifier turn can be reported uncorroborated instead of indeterminate
 
 FILED by plan `e08ssu` (Order 10, from backlog `2mjfo7`) as the durable carrier for a correctness gap that plan MEASURES and deliberately does NOT fix, because the fix changes a published verdict and a de-duplication chore has no authority to do that.
