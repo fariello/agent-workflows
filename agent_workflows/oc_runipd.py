@@ -3400,8 +3400,12 @@ def run_opencode(
                     os.fsync(log.fileno())
                 if watchdog.stalled:
                     timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                    stalled_session_id = getattr(
+                        observer, "parent_session_id", None
+                    ) or extract_session_id(log_path)
                     raise StallTimeout(
-                        f"OpenCode child turn stalled: no output for {timeout_val}s"
+                        f"OpenCode child turn stalled: no output for {timeout_val}s",
+                        session_id=stalled_session_id,
                     ) from None
                 raise
             finally:
@@ -3413,8 +3417,12 @@ def run_opencode(
                 with contextlib.suppress(OSError):
                     os.fsync(log.fileno())
                 timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                stalled_session_id = getattr(
+                    observer, "parent_session_id", None
+                ) or extract_session_id(log_path)
                 raise StallTimeout(
-                    f"OpenCode child turn stalled: no output for {timeout_val}s"
+                    f"OpenCode child turn stalled: no output for {timeout_val}s",
+                    session_id=stalled_session_id,
                 )
 
             returncode = process.wait()
@@ -3470,6 +3478,7 @@ def execute_item(
             attempt_no,
             tracker=tracker,
             work_dir=work_dir,
+            resume_session=session_id,
         )
 
     def _spawn_verifier(

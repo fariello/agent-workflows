@@ -231,6 +231,7 @@ _PRIOR_ATTEMPT_SAFE_KEYS = (
     "verification_refused",
     "cost",
     "tokens",
+    "turn_failure_kind",
     # OQ-02: these describe the worker's OWN lane: two commit hashes it can `git show`
     # from inside the lane, and a `git status --short` listing whose paths are lane-relative,
     # so none carries a driver-side absolute path (the property this allowlist enforces).

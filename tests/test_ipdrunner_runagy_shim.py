@@ -767,7 +767,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
             repo = self._create_mock_repo(root)
             stall_agy = self._write_fake_agy(root, behavior="stall")
 
-            # Start with 0.3s stall timeout so fake_agy (sleeping 2s) stalls
+            # Start with 0.3s stall timeout so fake_agy (sleeping 2s) stalls; budget 0 exhausts immediately
             result = subprocess.run(
                 [
                     sys.executable,
@@ -780,6 +780,8 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                     os.fspath(stall_agy),
                     "--stall-timeout",
                     "0.3",
+                    "--retry-budget",
+                    "0",
                 ],
                 cwd=repo,
                 text=True,
@@ -795,7 +797,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
             )
             run_dir = repo / ".aw" / "records" / "runs" / run_id
             state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-            self.assertEqual(state["queue"][0]["status"], "interrupted")
+            self.assertEqual(state["queue"][0]["status"], "failed-safely")
 
             # Now switch agy to normal and resume with --retry-incomplete
             normal_agy = self._write_fake_agy(root, behavior="normal")

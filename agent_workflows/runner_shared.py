@@ -302,6 +302,14 @@ class DriverError(RuntimeError):
 class StallTimeout(DriverError):
     """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
 
+    def __init__(self, message: str = "", *, session_id: str | None = None) -> None:
+        super().__init__(message)
+        self.session_id = session_id
+
+
+class HostSpawnError(DriverError):
+    """Raised when an executor cannot be spawned (e.g. missing or non-executable host binary)."""
+
 
 class EmptyStatusSelection(DriverError):
     """A STATUS selector (`reviews`/`review`/`to-review`) matched nothing, which is a SUCCESS.
@@ -9064,6 +9072,9 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
 #: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
 #: failure" and "host nonzero exit that did not create an ambiguous side effect".
 #:
+#: TWO ADMISSION ROUTES (ytas91 E-03): an attempt carrying `turn_failure_kind` is admitted under
+#: any disposition; otherwise the disposition must be in :data:`TURN_RETRYABLE_DISPOSITIONS`.
+#:
 #: DERIVED directly from :data:`TURN_RETRY_CLASSIFICATION` above (IPD 4gx141) so the two sources of
 #: truth cannot diverge. Change the table row rather than editing this set.
 #:
@@ -9129,18 +9140,25 @@ def turn_failure_is_retryable(
 ) -> tuple[bool, str]:
     """Is this FINISHED turn in the retryable class? Returns `(retryable, why)`.
 
-    A POSITIVE ALLOWLIST over :data:`TURN_RETRYABLE_DISPOSITIONS`, plus two REFUSALS that the
+    A POSITIVE ALLOWLIST over :data:`TURN_RETRYABLE_DISPOSITIONS`, plus three REFUSALS that the
     disposition alone cannot express:
 
       1. A DELIBERATE OPERATOR STOP. `reconcile_disposition` returns `interrupted` for a recorded
          stop, which is already outside the allowlist - but its own comment records that WITHOUT that
          branch a stop reconciles as `failed-safely`, which IS inside it. So the `stopped` record is
          checked directly rather than trusted to have been mapped away. Retrying an operator's stop
-         would spend paid turns fighting the operator, and this is the single most important refusal
+         would spend paid model turns fighting the operator, and this is the single most important refusal
          in this function.
       2. A REFUSED FINALIZE. `finalize_retry_decision` already owns that class and already spends
          budget on it. An item carrying a `finalize_refusal` is therefore NOT retried here, or the
          same failure would be charged to two counters.
+      3. A REFUSED VERIFICATION. The verification send-back already owns that class and its own
+         counter (see `verification_retry_decision`).
+
+    TWO ADMISSION ROUTES (ytas91 E-03):
+      1. Attempt failure kind: if the item's last attempt carries a `turn_failure_kind` (`nonzero-exit`,
+         `no-outcome`, `stall`, `turn-limit`, `spawn-failure`), it is admitted under any disposition.
+      2. Token allowlist: :data:`TURN_RETRYABLE_DISPOSITIONS`.
 
     The reason string is returned rather than logged so the caller can record WHY an item was not
     retried; "we did not retry and nobody can tell why" is the state this repository keeps refusing.
@@ -9159,6 +9177,21 @@ def turn_failure_is_retryable(
             "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already "
             "classifies and already spends correction budget on (see `finalize_retry_decision`)",
         )
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    last_attempt = attempts[-1] if attempts else None
+    if last_attempt and last_attempt.get(VERIFICATION_REFUSED_KEY):
+        return (
+            False,
+            "the turn's failure is a REFUSED VERIFICATION, which the verification send-back already "
+            "classifies and already spends correction budget on (see `verification_retry_decision`)",
+        )
+    if last_attempt and last_attempt.get("turn_failure_kind"):
+        kind = str(last_attempt["turn_failure_kind"])
+        return (
+            True,
+            f"turn failure kind {kind!r} is in spec 5.5's retryable host-failure class",
+        )
+
     status = (disposition or "").strip()
     if status not in TURN_RETRYABLE_DISPOSITIONS:
         for name, retryable, why in TURN_RETRY_CLASSIFICATION:
@@ -9379,6 +9412,9 @@ def turn_correction_packet(
     state: Mapping[str, Any],
     disposition: str,
     decision: "TurnRetryDecision",
+    *,
+    attempt: Mapping[str, Any] | None = None,
+    run_dir: Path | None = None,
 ) -> dict[str, Any]:
     """The CORRECTION packet: only what FAILED, never a re-send of the whole task.
 
@@ -9400,6 +9436,96 @@ def turn_correction_packet(
     WHAT IS OMITTED, and the omission is the point: no plan body, no E/V checklist, no passing
     predicate, no prior log. Only the failed predicates, the attempt bookkeeping, and the budget.
     """
+
+    target_attempt: Mapping[str, Any]
+    if attempt is not None:
+        target_attempt = attempt
+    else:
+        attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+        target_attempt = attempts[-1] if attempts else {}
+
+    if target_attempt.get("turn_failure_kind"):
+        kind = str(target_attempt["turn_failure_kind"])
+        ev_lines: list[str] = [
+            f"Failure kind: {kind}",
+        ]
+        if kind == "spawn-failure":
+            ev_lines.append("Exit code: the host never started")
+            spawn_err = _redact_absolute_paths(
+                str(target_attempt.get("spawn_error") or "")
+            ).strip()
+            if spawn_err:
+                ev_lines.append(f"Spawn error: {spawn_err}")
+        else:
+            ev_lines.append(f"Exit code: {target_attempt.get('exit_code')}")
+
+        outcome_exists = False
+        if run_dir is not None:
+            rec_p = recorded_outcome_path(run_dir, item)
+            if rec_p is not None and rec_p.is_file():
+                outcome_exists = True
+
+        if not outcome_exists:
+            ev_lines.append("Outcome file: no outcome file")
+        else:
+            ev_lines.append("Outcome file: exists")
+
+        if kind == "stall":
+            stall_sec = target_attempt.get("stall_timeout") or DEFAULT_STALL_TIMEOUT
+            ev_lines.append(f"Stall timeout: {stall_sec}s")
+        elif kind == "turn-limit":
+            bound = target_attempt.get("bound") or ""
+            to_sec = target_attempt.get("timeout_seconds") or ""
+            ev_lines.append(f"Turn limit: {bound} ({to_sec}s)")
+
+        if target_attempt.get("lane_starting_head"):
+            ev_lines.append(
+                f"Lane starting head: {target_attempt['lane_starting_head']}"
+            )
+        if target_attempt.get("lane_ending_head"):
+            ev_lines.append(f"Lane ending head: {target_attempt['lane_ending_head']}")
+        if target_attempt.get("lane_ending_status"):
+            ev_lines.append(f"Lane status:\n{target_attempt['lane_ending_status']}")
+
+        log_val = target_attempt.get("log")
+        if log_val:
+            try:
+                log_p = Path(log_val)
+                if log_p.is_file():
+                    raw_lines = log_p.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).splitlines()
+                    tail_lines = raw_lines[-40:]
+                    if tail_lines:
+                        ev_lines.append(
+                            "Log tail:\n"
+                            + _redact_absolute_paths("\n".join(tail_lines))
+                        )
+            except Exception:
+                pass
+
+        ev_text = "\n".join(ev_lines)
+        notice = build_fix_it_notice(
+            kind,
+            ev_text,
+            decision.attempts + 1,
+            decision.budget,
+            recovery=True,
+            include_rule=False,
+        )
+        return {
+            "kind": "correction",
+            "attempt": decision.attempts + 1,
+            "of": decision.budget,
+            "idempotency_key": decision.key,
+            "turn_failure_kind": kind,
+            "failed_predicates": [f"turn failed with {kind}"],
+            "evidence_invalidated": True,
+            "rendered_notice": notice,
+            "instruction": (
+                f"This is a BOUNDED CORRECTION for a {kind} failure. Address the cause of this failure."
+            ),
+        }
 
     failed: list[str] = []
     if disposition:
@@ -9515,6 +9641,8 @@ def build_correction_notice(item: Mapping[str, Any], recovery: bool) -> str:
             break
     if not isinstance(packet, Mapping):
         return ""
+    if "rendered_notice" in packet:
+        return str(packet["rendered_notice"])
     att_num = packet.get("attempt", 1)
     budget = packet.get("of", 2)
     predicates = [str(p) for p in (packet.get("failed_predicates") or ())]
@@ -9960,7 +10088,9 @@ def handle_turn_failure_retry(
         # saved, so a crash between here and the next dispatch cannot yield a free retry.
         item[TURN_RETRY_COUNT_KEY] = decision.attempts + 1
         item.setdefault(TURN_RETRY_KEYS_KEY, []).append(decision.key)
-        packet = turn_correction_packet(item, state, disposition, decision)
+        packet = turn_correction_packet(
+            item, state, disposition, decision, attempt=attempt, run_dir=run_dir
+        )
         # INVALIDATE BEFORE RE-QUEUEING, and in this order: the packet is built from the failed
         # attempt's facts, so invalidation must follow its construction and precede the dispatch.
         invalidation = invalidate_turn_evidence(item, attempt_no, decision.reason)
@@ -37634,104 +37764,231 @@ def execute_item_core(
             )
             return
         if isolate:
-            try:
-                wt_handle = allocate_isolation_worktree(repo, item["id6"])
-                work_dir = str(wt_handle.path)
-                # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
-                # session bound to a DIFFERENT tree. Sessions were keyed per SET while worktrees are
-                # per ITEM, so carrying across trees caused silent exit-0 failures (the override
-                # explanation is unproven; F-03/F-07). Drop the inherited session and
-                # do NOT fall back to `--continue` (which resumes the previous conversation and would
-                # reintroduce the same carryover). Kept symmetric with oc_runipd.run_opencode; a
-                # one-driver-only fix is asserted against in tests.
-                session_id = None
-                use_continue = False
-                attempt["worktree"] = work_dir
-                attempt["worktree_branch"] = wt_handle.branch
-                attempt["worktree_lane_id"] = wt_handle.lane_id
-                attempt["worktree_base"] = wt_handle.base_commit
-                with contextlib.suppress(DriverError, OSError):
-                    attempt["lane_starting_head"] = git_head(Path(work_dir))
-                attempt["worktree_disposition"] = getattr(
-                    wt_handle, "disposition", "created"
-                )
-                attempt["worktree_displaced_from"] = getattr(
-                    wt_handle, "displaced_from", None
-                )
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "worktree-allocated",
-                        "id6": item["id6"],
-                        "worktree": work_dir,
-                        "branch": wt_handle.branch,
-                        "lane_id": wt_handle.lane_id,
-                        "base_commit": wt_handle.base_commit,
-                        "disposition": getattr(wt_handle, "disposition", "created"),
-                        "displaced_from": getattr(wt_handle, "displaced_from", None),
-                    },
-                )
-                from agent_workflows import ipd_lifecycle as _lifecycle
+            is_fix_it_recovery = False
+            prev_attempt = None
+            if recovery:
+                attempts = [
+                    a for a in (item.get("attempts") or []) if isinstance(a, Mapping)
+                ]
+                if len(attempts) >= 2:
+                    prev_candidate = attempts[-2]
+                    if prev_candidate.get("turn_failure_kind") and prev_candidate.get(
+                        "turn_correction"
+                    ):
+                        is_fix_it_recovery = True
+                        prev_attempt = prev_candidate
 
-                try:
-                    rcpt_ok, rcpt_detail = _lifecycle.record_allocated_lane(
+            wt_handle = None
+            if is_fix_it_recovery and prev_attempt is not None:
+                prior_wt = prev_attempt.get("worktree")
+                prior_branch = prev_attempt.get("worktree_branch")
+                prior_lane_id = prev_attempt.get("worktree_lane_id") or item["id6"]
+                prior_base = prev_attempt.get("worktree_base") or "HEAD"
+                prior_session_id = prev_attempt.get("session_id")
+
+                can_resume = False
+                fallback_reason = ""
+                if not (prior_wt and Path(prior_wt).is_dir()):
+                    fallback_reason = f"prior worktree path {prior_wt!r} does not exist"
+                elif not prior_session_id:
+                    fallback_reason = "missing prior session id"
+                else:
+                    st = worktree_lease.inspect_lane(repo, prior_lane_id)
+                    if not st.worktree_registered:
+                        fallback_reason = (
+                            f"prior lane {prior_lane_id!r} is not registered"
+                        )
+                    else:
+                        safe, safe_why = worktree_lease.lane_is_safe_to_adopt(
+                            repo, prior_lane_id
+                        )
+                        if not safe:
+                            fallback_reason = f"prior lane {prior_lane_id!r} is not safe to adopt: {safe_why}"
+                        else:
+                            can_resume = True
+
+                if can_resume:
+                    work_dir = str(prior_wt)
+                    wt_handle = worktree_lease.WorktreeHandle(
+                        lane_id=prior_lane_id,
+                        path=Path(prior_wt),
+                        branch=prior_branch or ("aw/lane/" + prior_lane_id),
+                        base_commit=prior_base,
+                        disposition="adopted",
+                    )
+                    worktree_lease.write_lane_owner(
                         repo,
-                        item["id6"],
-                        wt_handle.branch,
-                        wt_handle.lane_id,
-                        wt_handle.base_commit,
-                        getattr(wt_handle, "disposition", "created"),
+                        prior_lane_id,
+                        branch=wt_handle.branch,
+                        worktree=work_dir,
+                        base_commit=wt_handle.base_commit,
+                        disposition="adopted",
                     )
-                except Exception as _rcpt_exc:
-                    rcpt_ok, rcpt_detail = False, str(_rcpt_exc)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "receipt-lane-recorded",
-                        "id6": item["id6"],
-                        "branch": wt_handle.branch,
-                        "lane_id": wt_handle.lane_id,
-                        "base_commit": wt_handle.base_commit,
-                        "disposition": getattr(wt_handle, "disposition", "created"),
-                        "updated": rcpt_ok,
-                        "detail": rcpt_detail,
-                    },
-                )
-                disp = getattr(wt_handle, "disposition", "created")
-                suffix = "" if disp == "created" else f" ({disp})"
-                print(
-                    pal(
-                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
-                        "cyan",
+                    session_id = prior_session_id
+                    use_continue = False
+                    attempt["fix_it_lane"] = "resumed"
+                    attempt["worktree"] = work_dir
+                    attempt["worktree_branch"] = wt_handle.branch
+                    attempt["worktree_lane_id"] = wt_handle.lane_id
+                    attempt["worktree_base"] = wt_handle.base_commit
+                    with contextlib.suppress(DriverError, OSError):
+                        attempt["lane_starting_head"] = git_head(Path(work_dir))
+                    attempt["worktree_disposition"] = "adopted"
+                    attempt["worktree_displaced_from"] = None
+                    save_state(run_dir, state)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "worktree-allocated",
+                            "id6": item["id6"],
+                            "worktree": work_dir,
+                            "branch": wt_handle.branch,
+                            "lane_id": wt_handle.lane_id,
+                            "base_commit": wt_handle.base_commit,
+                            "disposition": "adopted",
+                            "displaced_from": None,
+                        },
                     )
-                )
-            except Exception as exc:
-                attempt["ended_at"] = utc_now()
-                attempt["disposition"] = "fail-lane"
-                item["status"] = "fail-lane"
-                item["worktree_error"] = str(exc)
-                save_state(run_dir, state)
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "worktree-alloc-failed",
-                        "id6": item["id6"],
-                        "detail": str(exc),
-                    },
-                )
-                print(
-                    pal(
-                        f"\u2717 IPD {seq:02d}/{total} {item['id6']} worktree "
-                        f"allocation failed; not launching. {exc}",
-                        "red",
-                    ),
-                    file=sys.stderr,
-                )
-                return
+                    from agent_workflows import ipd_lifecycle as _lifecycle
+
+                    try:
+                        rcpt_ok, rcpt_detail = _lifecycle.record_allocated_lane(
+                            repo,
+                            item["id6"],
+                            wt_handle.branch,
+                            wt_handle.lane_id,
+                            wt_handle.base_commit,
+                            "adopted",
+                        )
+                    except Exception as _rcpt_exc:
+                        rcpt_ok, rcpt_detail = False, str(_rcpt_exc)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "receipt-lane-recorded",
+                            "id6": item["id6"],
+                            "branch": wt_handle.branch,
+                            "lane_id": wt_handle.lane_id,
+                            "base_commit": wt_handle.base_commit,
+                            "disposition": "adopted",
+                            "updated": rcpt_ok,
+                            "detail": rcpt_detail,
+                        },
+                    )
+                    print(
+                        pal(
+                            f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir} (resumed)",
+                            "cyan",
+                        ),
+                        file=sys.stderr,
+                    )
+                else:
+                    attempt["fix_it_lane"] = f"fresh: {fallback_reason}"
+
+            if wt_handle is None:
+                try:
+                    wt_handle = allocate_isolation_worktree(repo, item["id6"])
+                    work_dir = str(wt_handle.path)
+                    # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
+                    # session bound to a DIFFERENT tree. Sessions were keyed per SET while worktrees are
+                    # per ITEM, so carrying across trees caused silent exit-0 failures (the override
+                    # explanation is unproven; F-03/F-07). Drop the inherited session and
+                    # do NOT fall back to `--continue` (which resumes the previous conversation and would
+                    # reintroduce the same carryover). Kept symmetric with oc_runipd.run_opencode; a
+                    # one-driver-only fix is asserted against in tests.
+                    session_id = None
+                    use_continue = False
+                    attempt["worktree"] = work_dir
+                    attempt["worktree_branch"] = wt_handle.branch
+                    attempt["worktree_lane_id"] = wt_handle.lane_id
+                    attempt["worktree_base"] = wt_handle.base_commit
+                    with contextlib.suppress(DriverError, OSError):
+                        attempt["lane_starting_head"] = git_head(Path(work_dir))
+                    attempt["worktree_disposition"] = getattr(
+                        wt_handle, "disposition", "created"
+                    )
+                    attempt["worktree_displaced_from"] = getattr(
+                        wt_handle, "displaced_from", None
+                    )
+                    save_state(run_dir, state)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "worktree-allocated",
+                            "id6": item["id6"],
+                            "worktree": work_dir,
+                            "branch": wt_handle.branch,
+                            "lane_id": wt_handle.lane_id,
+                            "base_commit": wt_handle.base_commit,
+                            "disposition": getattr(wt_handle, "disposition", "created"),
+                            "displaced_from": getattr(
+                                wt_handle, "displaced_from", None
+                            ),
+                        },
+                    )
+                    from agent_workflows import ipd_lifecycle as _lifecycle
+
+                    try:
+                        rcpt_ok, rcpt_detail = _lifecycle.record_allocated_lane(
+                            repo,
+                            item["id6"],
+                            wt_handle.branch,
+                            wt_handle.lane_id,
+                            wt_handle.base_commit,
+                            getattr(wt_handle, "disposition", "created"),
+                        )
+                    except Exception as _rcpt_exc:
+                        rcpt_ok, rcpt_detail = False, str(_rcpt_exc)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "receipt-lane-recorded",
+                            "id6": item["id6"],
+                            "branch": wt_handle.branch,
+                            "lane_id": wt_handle.lane_id,
+                            "base_commit": wt_handle.base_commit,
+                            "disposition": getattr(wt_handle, "disposition", "created"),
+                            "updated": rcpt_ok,
+                            "detail": rcpt_detail,
+                        },
+                    )
+                    disp = getattr(wt_handle, "disposition", "created")
+                    suffix = "" if disp == "created" else f" ({disp})"
+                    print(
+                        pal(
+                            f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
+                            "cyan",
+                        ),
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    attempt["ended_at"] = utc_now()
+                    attempt["disposition"] = "fail-lane"
+                    item["status"] = "fail-lane"
+                    item["worktree_error"] = str(exc)
+                    save_state(run_dir, state)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "worktree-alloc-failed",
+                            "id6": item["id6"],
+                            "detail": str(exc),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"\u2717 IPD {seq:02d}/{total} {item['id6']} worktree "
+                            f"allocation failed; not launching. {exc}",
+                            "red",
+                        ),
+                        file=sys.stderr,
+                    )
+                    return
 
     if work_dir and not is_review and not is_production:
         lane_root = Path(work_dir)
@@ -37977,15 +38234,66 @@ def execute_item_core(
     # alternative deleting an agent's branch, its reflog and its commits.
     try:
         try:
-            exit_code, session_id, log_path, argv = spawn_executor(
-                prompt_path,
-                work_dir,
-                tracker,
-                plan_path,
-                attempt_no,
-                session_id,
-                use_continue,
-            )
+            try:
+                exit_code, session_id, log_path, argv = spawn_executor(
+                    prompt_path,
+                    work_dir,
+                    tracker,
+                    plan_path,
+                    attempt_no,
+                    session_id,
+                    use_continue,
+                )
+            except (
+                FileNotFoundError,
+                PermissionError,
+                OSError,
+                HostSpawnError,
+            ) as spawn_err:
+                now = utc_now()
+                attempt["ended_at"] = now
+                attempt["exit_code"] = None
+                attempt["turn_failure_kind"] = "spawn-failure"
+                redacted_err = _redact_absolute_paths(str(spawn_err))
+                attempt["spawn_error"] = redacted_err
+                attempt["disposition"] = "failed-safely"
+                item["status"] = "failed-safely"
+                record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": now,
+                        "event": "host-spawn-failed",
+                        "id6": item["id6"],
+                        "attempt": attempt_no,
+                        "error": redacted_err,
+                    },
+                )
+                print(
+                    pal(
+                        f"\u2717 IPD {seq:02d}/{total} {item['id6']} spawn failed: {redacted_err}",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                if not is_review and not is_production:
+                    disposition = handle_turn_failure_retry(
+                        run_dir=run_dir,
+                        state=state,
+                        item=item,
+                        attempt=attempt,
+                        attempt_no=attempt_no,
+                        disposition="failed-safely",
+                        host_labels=host_labels,
+                        save_state=save_state,
+                        append_jsonl=append_jsonl,
+                    )
+                else:
+                    disposition = "failed-safely"
+                item["status"] = disposition
+                save_state(run_dir, state)
+                return
         except runner_stop.StopNowForce as stop:
             now = utc_now()
             record = _record_forced_stop(
@@ -38050,18 +38358,23 @@ def execute_item_core(
                 total=total,
             )
             raise
-        except StallTimeout:
+        except StallTimeout as stall_exc:
             from agent_workflows import lane_containment, worktree_lease
 
             now = utc_now()
             attempt["interrupted_at"] = now
             attempt["ended_at"] = now
             attempt["interrupt_reason"] = "stall_timeout"
+            attempt["turn_failure_kind"] = "stall"
+            stalled_sid = getattr(stall_exc, "session_id", None)
+            if stalled_sid:
+                attempt["session_id"] = stalled_sid
             stall_sec = state.get("options", {}).get(
                 "stall_timeout", DEFAULT_STALL_TIMEOUT
             )
             attempt["stall_timeout"] = stall_sec
             item["status"] = "interrupted"
+            attempt["disposition"] = "interrupted"
             if wt_handle is not None:
                 try:
                     worktree_lease.snapshot_lane_dirty_work(
@@ -38095,6 +38408,22 @@ def execute_item_core(
                 ),
                 file=sys.stderr,
             )
+            if not is_review and not is_production:
+                disposition = handle_turn_failure_retry(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    attempt_no=attempt_no,
+                    disposition="interrupted",
+                    host_labels=host_labels,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
+                )
+            else:
+                disposition = "interrupted"
+            item["status"] = disposition
+            save_state(run_dir, state)
             return
 
         if session_id:
@@ -38145,6 +38474,18 @@ def execute_item_core(
                 "argv": argv,
             }
         )
+        turn_bound_exp = item.pop("turn_bound_expiry", None)
+        if turn_bound_exp:
+            attempt["turn_failure_kind"] = "turn-limit"
+            attempt["bound"] = turn_bound_exp.get("bound")
+            attempt["timeout_seconds"] = turn_bound_exp.get("timeout_seconds")
+        elif exit_code != 0:
+            rec_p = recorded_outcome_path(run_dir, item)
+            if rec_p is None or not rec_p.is_file():
+                attempt["turn_failure_kind"] = "no-outcome"
+            else:
+                attempt["turn_failure_kind"] = "nonzero-exit"
+
         # ckxypc E-02: capture host error from session log
         host_err_scanned = scan_last_host_error(attempt.get("log"))
         if host_err_scanned is not None:
