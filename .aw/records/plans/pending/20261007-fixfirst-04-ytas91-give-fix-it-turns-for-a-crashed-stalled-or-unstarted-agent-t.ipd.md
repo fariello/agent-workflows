@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The turn retry can never fire. `runner_shared.TURN_RETRYABLE_DISPOSITIONS` admits only `failed-safely`, and nothing that reaches `handle_turn_failure_retry` carries that token. Measured at review through the real oc `execute_item` with a scripted host: a nonzero exit with no outcome file and no commits is scored `fail-verify` by the silent-turn gate (`turn_attempted_nothing`, refusal `turn-silent-refused`) and refused as "verifier refused or turn fell short"; a nonzero exit that left a lane commit is scored `fail-gate` by `reconcile_disposition` rung 5 and refused as "lifecycle gate or clean-base gate refused"; a `StallTimeout` sets `interrupted` and RETURNS from `execute_item_core` before the retry site and before `session_id` is recorded; and a missing host binary raises `FileNotFoundError` out of `execute_item`, leaving the item `running` (`oc_runipd.run_queue` catches only `DriverError`). So the commonest agent failures fail the item and wait for a human. Separately, every re-dispatch of an isolated execute item starts a FRESH session in a NEW lane: when the prior lane holds work, `worktree_lease.allocate_worktree` attempt-scopes it (measured: attempt 2 ran in `wir001_attempt2`), so the agent must rediscover its own work. Plan `p47qfu` tried to fix the first half by marking producers the predicate never sees (its F-12) and is superseded by this plan.
 - Scope: Make a nonzero exit / missing outcome file, a stall or turn-limit expiry, and a spawn failure each reach a fix-it turn under the existing per-kind budget, with Order 03's message naming what happened; key the decision on a recorded failure-kind marker rather than on the disposition token; record the session id even on a stall; for the fix-it re-dispatch, run in the FAILED attempt's own lane and resume that attempt's session when one exists; retire `p47qfu` as superseded. EXCLUDES hook and suite refusals (Order 05), scope (Order 06), detection (Order 07), changing the budget, changing `finalize_retry_decision`, changing the silent-turn and zero-work verdicts themselves (`turn_attempted_nothing`, `handle_zero_work_retry`), and changing the first-dispatch fresh-session rule (`lanesess` `xd9sll`).
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_turn_fix_it.py, tests/test_retry_class_mapping.py, tests/test_silent_turn_observability.py, .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_turn_fix_it.py, tests/test_retry_class_mapping.py, tests/test_silent_turn_observability.py, tests/test_oc_runipd.py, tests/test_ipdrunner_runagy_shim.py, .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
 - Item-Dependencies: executed:mcbph5
 - Status: approved
 - Readiness: go-pending-approval
@@ -39,46 +39,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: record what happened where it happens
 
-- [ ] E-01 Add a `turn_failure_kind` attempt field with values `nonzero-exit`, `no-outcome`, `stall`, `turn-limit`, `spawn-failure`, written inside `execute_item_core` at the points the runner LEARNS it, and nowhere else: (a) after the executor spawn returns, `no-outcome` when `exit_code != 0` and `recorded_outcome_path` names no file, else `nonzero-exit` when `exit_code != 0` (written BEFORE `reconcile_disposition` and the silent-turn gate run, so both of today's scorings, rung-5 `fail-gate` and silent-turn `fail-verify`, carry it); (b) `turn-limit` when `item["turn_bound_expiry"]` was set during this attempt (the only place `lane_containment.bound_expiry_reaper` records it; copy its `bound` and `timeout_seconds` onto the attempt and clear the item key so a later attempt does not inherit it); (c) `stall` in the `StallTimeout` arm. Change that arm so that, after its existing snapshot, preservation, accounting and `ipd-stalled` event, it falls through to `handle_turn_failure_retry` with the `interrupted` disposition instead of returning first (a `queued` result returns as the other arms do). Write nothing at a gate-refusal, finalize-refusal or verification-refusal site, and write nothing when `exit_code == 0`.
+- [x] E-01 Add a `turn_failure_kind` attempt field with values `nonzero-exit`, `no-outcome`, `stall`, `turn-limit`, `spawn-failure`, written inside `execute_item_core` at the points the runner LEARNS it, and nowhere else: (a) after the executor spawn returns, `no-outcome` when `exit_code != 0` and `recorded_outcome_path` names no file, else `nonzero-exit` when `exit_code != 0` (written BEFORE `reconcile_disposition` and the silent-turn gate run, so both of today's scorings, rung-5 `fail-gate` and silent-turn `fail-verify`, carry it); (b) `turn-limit` when `item["turn_bound_expiry"]` was set during this attempt (the only place `lane_containment.bound_expiry_reaper` records it; copy its `bound` and `timeout_seconds` onto the attempt and clear the item key so a later attempt does not inherit it); (c) `stall` in the `StallTimeout` arm. Change that arm so that, after its existing snapshot, preservation, accounting and `ipd-stalled` event, it falls through to `handle_turn_failure_retry` with the `interrupted` disposition instead of returning first (a `queued` result returns as the other arms do). Write nothing at a gate-refusal, finalize-refusal or verification-refusal site, and write nothing when `exit_code == 0`.
   - Depends on: none
   - Expected outcome: driving each path through `execute_item` with a scripted host leaves the matching `turn_failure_kind` on the attempt; an exit-0 turn and a gate refusal leave none; a stall reaches `handle_turn_failure_retry`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Bring spawn failure inside the retry path. Wrap the `spawn_executor(...)` call in `execute_item_core` so that `FileNotFoundError`/`PermissionError`/`OSError` from `subprocess.Popen` (measured: a missing binary raises `FileNotFoundError` out of `execute_item` and leaves the item `running`), and a `DriverError` raised BEFORE the child started (no `process` created; the host launchers may need a small marker such as a `DriverError` subclass `HostSpawnError` raised from the pre-`Popen` checks, for example `agy_runipd`'s "The --agy path is not executable"), are caught there: record `exit_code: None`, `turn_failure_kind: spawn-failure`, the error text (redacted) under `spawn_error`, set disposition `failed-safely`, and fall through to `handle_turn_failure_retry`. Keep each host's outer `except DriverError` arm in `run_queue` for every other `DriverError` (for example the session-drift raises), and keep `StopNowForce`/`StopAtCheckpoint`/`KeyboardInterrupt` propagation unchanged.
+- [x] E-02 Bring spawn failure inside the retry path. Wrap the `spawn_executor(...)` call in `execute_item_core` so that `FileNotFoundError`/`PermissionError`/`OSError` from `subprocess.Popen` (measured: a missing binary raises `FileNotFoundError` out of `execute_item` and leaves the item `running`), and a `DriverError` raised BEFORE the child started (no `process` created; the host launchers may need a small marker such as a `DriverError` subclass `HostSpawnError` raised from the pre-`Popen` checks, for example `agy_runipd`'s "The --agy path is not executable"), are caught there: record `exit_code: None`, `turn_failure_kind: spawn-failure`, the error text (redacted) under `spawn_error`, set disposition `failed-safely`, and fall through to `handle_turn_failure_retry`. Keep each host's outer `except DriverError` arm in `run_queue` for every other `DriverError` (for example the session-drift raises), and keep `StopNowForce`/`StopAtCheckpoint`/`KeyboardInterrupt` propagation unchanged.
   - Depends on: E-01
   - Expected outcome: a missing host binary yields one fix-it re-dispatch per budget unit and then the item ends `failed-safely` with a recorded reason; the run continues to the next item and exits through the normal summary, never a traceback.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: decide on the marker
 
-- [ ] E-03 Change `turn_failure_is_retryable` to admit an attempt (the item's last attempt) carrying a `turn_failure_kind` from E-01 under any disposition, AFTER its existing deliberate-operator-stop and refused-finalize refusals (order is load-bearing, see its docstring) and BEFORE the token allowlist, and also refuse first when the attempt carries `VERIFICATION_REFUSED_KEY` (the verification send-back owns that class and its own counter, as `finalize_refusal` is owned by finalize). Keep the allowlist and the fail-closed tail. Return a reason naming the kind. Update `TURN_RETRY_CLASSIFICATION`'s comment to describe the two admission routes, and `tests/test_retry_class_mapping.py` only where it asserts the old single-route behavior (`test_predicate_agrees_with_table` calls with `{}`, so it is expected to pass unchanged; confirm). Update `tests/test_silent_turn_observability.py` `test_silent_turn_records_refusal_and_event`, which drives a nonzero-free silent turn and asserts `fail-verify`: its fake exits 0, so it must still pass unchanged; confirm, and change nothing if it does.
+- [x] E-03 Change `turn_failure_is_retryable` to admit an attempt (the item's last attempt) carrying a `turn_failure_kind` from E-01 under any disposition, AFTER its existing deliberate-operator-stop and refused-finalize refusals (order is load-bearing, see its docstring) and BEFORE the token allowlist, and also refuse first when the attempt carries `VERIFICATION_REFUSED_KEY` (the verification send-back owns that class and its own counter, as `finalize_refusal` is owned by finalize). Keep the allowlist and the fail-closed tail. Return a reason naming the kind. Update `TURN_RETRY_CLASSIFICATION`'s comment to describe the two admission routes, and `tests/test_retry_class_mapping.py` only where it asserts the old single-route behavior (`test_predicate_agrees_with_table` calls with `{}`, so it is expected to pass unchanged; confirm). Update `tests/test_silent_turn_observability.py` `test_silent_turn_records_refusal_and_event`, which drives a nonzero-free silent turn and asserts `fail-verify`: its fake exits 0, so it must still pass unchanged; confirm, and change nothing if it does.
   - Depends on: E-01
   - Expected outcome: `(True, <reason naming the kind>)` for each kind; a deliberate stop, a refused finalize and a verification refusal still refuse first; a bare `fail-gate` or `fail-verify` with no kind still refuses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Build the fix-it packet for these kinds with Order 03's `build_fix_it_notice` inside `turn_correction_packet`, passing as evidence: the kind; the exit code (or "the host never started" for `spawn-failure` with the redacted `spawn_error`); whether the outcome file exists; the last 40 lines of the attempt's own log (`attempt["log"]`, read by the driver, redacted by the builder, bounded); the stall or turn limit that fired and its seconds; and the lane-relative facts `_PRIOR_ATTEMPT_SAFE_KEYS` already allows (`lane_starting_head`, `lane_ending_head`, `lane_ending_status`). Add `turn_failure_kind` to `_PRIOR_ATTEMPT_SAFE_KEYS` (a fixed token, no path). Do not add the log text or `spawn_error` to that allowlist; they reach the agent only through the notice.
+- [x] E-04 Build the fix-it packet for these kinds with Order 03's `build_fix_it_notice` inside `turn_correction_packet`, passing as evidence: the kind; the exit code (or "the host never started" for `spawn-failure` with the redacted `spawn_error`); whether the outcome file exists; the last 40 lines of the attempt's own log (`attempt["log"]`, read by the driver, redacted by the builder, bounded); the stall or turn limit that fired and its seconds; and the lane-relative facts `_PRIOR_ATTEMPT_SAFE_KEYS` already allows (`lane_starting_head`, `lane_ending_head`, `lane_ending_status`). Add `turn_failure_kind` to `_PRIOR_ATTEMPT_SAFE_KEYS` (a fixed token, no path). Do not add the log text or `spawn_error` to that allowlist; they reach the agent only through the notice.
   - Depends on: E-03
   - Expected outcome: the delivered correction prompt for a `no-outcome` turn contains the kind line, the exit code, "no outcome file", the lane status and a log tail, and contains no absolute path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: resume in the same lane and session
 
-- [ ] E-05 For a fix-it re-dispatch of an isolated execute item (the attempt is a recovery attempt whose previous attempt carries a `turn_failure_kind` and a `turn_correction` packet), run in the FAILED attempt's own lane and resume its session. Today `allocate_isolation_worktree` attempt-scopes a lane that holds work (measured: attempt 2 ran in `wir001_attempt2` with a fresh session), so resuming the old session there would run it in a different tree than the one it was bound to, which is the hazard `lanesess` `xd9sll` prevents. So: re-adopt the prior attempt's worktree (`worktree`, `worktree_branch`, `worktree_lane_id`, `worktree_base`) when it still exists, is registered, and is not owned by a live process (`worktree_lease.lane_is_safe_to_adopt` or its equivalent), and only then pass the prior attempt's `session_id` as the resume id (`resume_session=` on oc, `session_id=` with `use_continue=False` on agy, the shapes `resume_via_launcher` already uses). Otherwise fall back to today's allocation and a fresh session, and record which branch was taken (`attempt["fix_it_lane"]`: `resumed` | `fresh` plus the reason). Leave a FIRST dispatch's fresh-session rule unchanged. `driver_begin` still runs for the recovery attempt; the receipt's `base_head` is main's HEAD, as today.
+- [x] E-05 For a fix-it re-dispatch of an isolated execute item (the attempt is a recovery attempt whose previous attempt carries a `turn_failure_kind` and a `turn_correction` packet), run in the FAILED attempt's own lane and resume its session. Today `allocate_isolation_worktree` attempt-scopes a lane that holds work (measured: attempt 2 ran in `wir001_attempt2` with a fresh session), so resuming the old session there would run it in a different tree than the one it was bound to, which is the hazard `lanesess` `xd9sll` prevents. So: re-adopt the prior attempt's worktree (`worktree`, `worktree_branch`, `worktree_lane_id`, `worktree_base`) when it still exists, is registered, and is not owned by a live process (`worktree_lease.lane_is_safe_to_adopt` or its equivalent), and only then pass the prior attempt's `session_id` as the resume id (`resume_session=` on oc, `session_id=` with `use_continue=False` on agy, the shapes `resume_via_launcher` already uses). Otherwise fall back to today's allocation and a fresh session, and record which branch was taken (`attempt["fix_it_lane"]`: `resumed` | `fresh` plus the reason). Leave a FIRST dispatch's fresh-session rule unchanged. `driver_begin` still runs for the recovery attempt; the receipt's `base_head` is main's HEAD, as today.
   - Depends on: E-04
   - Expected outcome: a scripted host records the work_dir and session id it was launched with; the fix-it turn runs in the first attempt's lane and resumes the first attempt's id; a removed lane or a missing id falls back to a fresh lane and session with the reason recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Record the session id on a stall. The `StallTimeout` arm is reached before `attempt["session_id"]` is set (measured: `session_id: None` on a stalled attempt), so E-05 would always fall back for the stall kind. Have the host launchers attach the session id they have already parsed to the raised `StallTimeout` (an optional `session_id` attribute; both hosts parse it from the stream before the watchdog fires) and have the arm copy it to `attempt["session_id"]`. A `StallTimeout` without the attribute leaves the field unset.
+- [x] E-07 Record the session id on a stall. The `StallTimeout` arm is reached before `attempt["session_id"]` is set (measured: `session_id: None` on a stalled attempt), so E-05 would always fall back for the stall kind. Have the host launchers attach the session id they have already parsed to the raised `StallTimeout` (an optional `session_id` attribute; both hosts parse it from the stream before the watchdog fires) and have the arm copy it to `attempt["session_id"]`. A `StallTimeout` without the attribute leaves the field unset.
   - Depends on: E-01
   - Expected outcome: a stalled attempt whose stream carried a session id records it; the fix-it turn for that stall resumes it (E-05).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests and retirement
 
-- [ ] E-06 Add `tests/test_turn_fix_it.py` driving the real `execute_item` and `run_queue` on BOTH hosts with a scripted host for: nonzero exit with no outcome and no work, then success on the fix-it turn (item executed, `turn_retry_attempts == 1`); nonzero exit that left a commit (rung-5 path), then success; stall then success; turn-limit expiry; missing host binary (budget spent, then `failed-safely`, the next queued item still runs, `run_queue` returns normally); budget 0 (no fix-it turn); deliberate stop (no fix-it turn); a verification refusal (owned by the verification send-back, not double-counted); and session plus lane resume, including the fallback. Then retire `p47qfu` with `aw ipd set superseded p47qfu -m "superseded by ytas91 (fixfirst-04): marks failures where the run learns them"` and commit both its paths. No source introspection.
+- [x] E-06 Add `tests/test_turn_fix_it.py` driving the real `execute_item` and `run_queue` on BOTH hosts with a scripted host for: nonzero exit with no outcome and no work, then success on the fix-it turn (item executed, `turn_retry_attempts == 1`); nonzero exit that left a commit (rung-5 path), then success; stall then success; turn-limit expiry; missing host binary (budget spent, then `failed-safely`, the next queued item still runs, `run_queue` returns normally); budget 0 (no fix-it turn); deliberate stop (no fix-it turn); a verification refusal (owned by the verification send-back, not double-counted); and session plus lane resume, including the fallback. Then retire `p47qfu` with `aw ipd set superseded p47qfu -m "superseded by ytas91 (fixfirst-04): marks failures where the run learns them"` and commit both its paths. No source introspection.
   - Depends on: E-05, E-07
   - Expected outcome: the module passes; `p47qfu` is under `superseded/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -148,40 +148,130 @@ N/A: spec `25kzda` 5.5 group (a) and the mapping table are amended by Order 01 (
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste each scripted path's attempt record showing `turn_failure_kind` (no-outcome, nonzero-exit with work, stall, turn-limit), an exit-0 turn and a gate refusal showing none, and the stalled item reaching `handle_turn_failure_retry` (its `turn_retry_*` record).
   - Observed evidence:
-  - Result: pending
+```json
+// No outcome:
+{"number": 1, "exit_code": 2, "turn_failure_kind": "no-outcome"}
 
-- [ ] V-02 validates E-02
+// Nonzero exit with work:
+{"number": 1, "exit_code": 2, "turn_failure_kind": "nonzero-exit"}
+
+// Stall attempt record and retry records:
+{"number": 1, "disposition": "interrupted", "turn_failure_kind": "stall", "session_id": "stalled-ses-42"}
+{"status": "executed", "turn_retry_attempts": 1, "turn_retry_keys": ["v01stl:1"]}
+
+// Turn limit:
+{"number": 1, "exit_code": 137, "turn_failure_kind": "turn-limit", "turn_bound_expiry": null}
+
+// Exit-0 turn and gate refusal (turn_failure_kind absent / None):
+{"number": 1, "exit_code": 0, "turn_failure_kind": null}
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a run with a nonexistent host binary showing the fix-it re-dispatch, then `failed-safely` with a recorded reason, the next queued item running, and `run_queue`'s normal return with no traceback.
   - Observed evidence:
-  - Result: pending
+```
+▶ IPD 01/2 spn1oc  set=tstset  action=execute  attempt 1
+✗ IPD 01/2 spn1oc spawn failed: Cannot find 'nonexistent-host' on PATH
+  -> IPD spn1oc failed (failed-safely); handing it back for a bounded correction carrying only the failed predicates (attempt 1 of 1)
+▶ IPD 01/2 spn1oc  set=tstset  action=execute  attempt 2 (recovery)
+✗ IPD 01/2 spn1oc spawn failed: Cannot find 'nonexistent-host' on PATH
+  ! IPD spn1oc FAILED: correction budget exhausted (1 of 1 spent); the plan did NOT land
+▶ IPD 02/2 spn2oc  set=tstset  action=execute  attempt 1
+✓ IPD 02/2 spn2oc (execute) -> executed  (exit 0)
 
-- [ ] V-03 validates E-03
+V02 RETURN CODE: 1
+V02 ITEM 1 STATUS: failed-safely
+V02 ITEM 1 ATTEMPTS: 2
+V02 ITEM 1 REFUSAL: {'code': 'turn-retry', 'reason': "the turn failed (failed-safely) in a retryable class and the run's correction budget is exhausted (1 of 1 correction attempt spent), so the item is FAILED rather than re-dispatched", ...}
+V02 ITEM 2 STATUS: executed
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a `python3 -c` session printing `turn_failure_is_retryable` for each kind, a deliberate stop, a refused finalize, a verification refusal, and a bare `fail-gate` and `fail-verify`.
   - Observed evidence:
-  - Result: pending
+```
+nonzero-exit: (True, "turn failure kind 'nonzero-exit' is in spec 5.5's retryable host-failure class")
+no-outcome: (True, "turn failure kind 'no-outcome' is in spec 5.5's retryable host-failure class")
+stall: (True, "turn failure kind 'stall' is in spec 5.5's retryable host-failure class")
+turn-limit: (True, "turn failure kind 'turn-limit' is in spec 5.5's retryable host-failure class")
+spawn-failure: (True, "turn failure kind 'spawn-failure' is in spec 5.5's retryable host-failure class")
+deliberate-stop: (False, "disposition 'interrupted' is not retryable: an INTERRUPT is not a failure of the work. `requeue_interrupted` already owns its recovery route and applies the spec R19 certainty gate; a second route would bypass that gate")
+refused-finalize: (False, "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already classifies and already spends correction budget on (see `finalize_retry_decision`)")
+verification-refusal: (False, "the turn's failure is a REFUSED VERIFICATION, which the verification send-back already classifies and already spends correction budget on (see `verification_retry_decision`)")
+bare fail-gate: (False, "disposition 'fail-gate' is not retryable: lifecycle gate or clean-base gate refused; not a host failure to retry without human action")
+bare fail-verify: (False, "disposition 'fail-verify' is not retryable: verifier refused or turn fell short; not retryable as a host failure")
+```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the delivered correction prompt for a `no-outcome` turn, showing no absolute path.
   - Observed evidence:
-  - Result: pending
+```markdown
+## no-outcome (attempt 1 of 2)
 
-- [ ] V-05 validates E-05
+Failure kind: no-outcome
+Exit code: 2
+Outcome file: no outcome file
+Lane starting head: abc
+Lane ending head: def
+Lane status:
+M file.txt
+Log tail:
+Line 1 of crash log
+Line 2 of crash log
+
+Record your findings and disposition in your outcome file before exiting.
+```
+Contains absolute path: False
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the scripted host's recorded work_dir and session ids for both attempts in the resume case, and the fallback case with `attempt["fix_it_lane"]`.
   - Observed evidence:
-  - Result: pending
+```
+// Resume case:
+Attempt 1: work_dir: .../.aw/worktrees/res1oc, session_id: None
+Attempt 2: work_dir: .../.aw/worktrees/res1oc, session_id: 'ses-prev'
+Attempt 2 fix_it_lane: resumed
 
-- [ ] V-06 validates E-06
+// Fallback case:
+Attempt 1: work_dir: .../.aw/worktrees/fbk1oc, session_id: None
+Attempt 2: work_dir: .../.aw/worktrees/fbk1oc_attempt2, session_id: None
+Attempt 2 fix_it_lane: fresh: prior lane 'fbk1oc' is not safe to adopt: simulated-unregistered
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the passing Required tests run with per-test counts, the bare-suite summary line, and `aw find plans p47qfu` showing `superseded/`.
   - Observed evidence:
-  - Result: pending
+```
+python3 -m pytest tests/test_turn_fix_it.py tests/test_retry_class_mapping.py tests/test_silent_turn_observability.py tests/test_turn_bounds.py tests/test_oc_runipd.py tests/test_verification_sendback.py tests/test_finalize_sendback.py
+283 passed in 32.49s
 
-- [ ] V-07 validates E-07
+Bare suite summary:
+8404 passed, 5 skipped, 18 xfailed, 3 warnings in 528.74s (0:08:48)
+
+aw find plans p47qfu:
+↪  superseded    p47qfu  vmrhj0          .aw/records/plans/superseded/20261002-vmrhj0-01-p47qfu-make-the-turn-retry-allowlist-key-on-what-happened-not-on-wh.ipd.md
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste a stalled attempt's record showing the session id, and the fix-it turn's launch showing it resumed.
   - Observed evidence:
-  - Result: pending
+```
+Stalled attempt record:
+{"number": 1, "disposition": "interrupted", "turn_failure_kind": "stall", "session_id": "stalled-ses-42"}
+
+Fix-it turn launch:
+{"attempt": 2, "session_id": "stalled-ses-42", "fix_it_lane": "resumed"}
+```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1750,7 +1750,7 @@ class StallWatchdogTests(unittest.TestCase):
             state = json.loads(state_file.read_text(encoding="utf-8"))
 
             item = state["queue"][0]
-            self.assertEqual(item["status"], "interrupted")
+            self.assertEqual(item["status"], "failed-safely")
             attempt = item["attempts"][0]
             self.assertEqual(attempt.get("interrupt_reason"), "stall_timeout")
             self.assertEqual(attempt.get("stall_timeout"), 0.3)
@@ -1767,6 +1767,7 @@ class StallWatchdogTests(unittest.TestCase):
                 runner_stop.is_indeterminate(item),
                 "a stalled turn is not an indeterminate force-stop",
             )
+            item["status"] = "interrupted"
             requeued = driver.requeue_interrupted(
                 repo / ".aw" / "records" / "runs" / run_id, state
             )

@@ -452,6 +452,7 @@ from agent_workflows.runner_shared import (
     EmptyStatusSelection as EmptyStatusSelection,
 )
 from agent_workflows.runner_shared import (
+    HostSpawnError as HostSpawnError,
     StallTimeout as StallTimeout,
 )
 
@@ -2006,16 +2007,19 @@ def enforce_requested_action(
 
 
 def resolve_agy(explicit_path: str | None) -> str:
-    """Return an executable agy path or raise DriverError."""
+    """Return an executable agy path or raise HostSpawnError."""
     if explicit_path:
         cand = Path(explicit_path).expanduser()
         if cand.is_file() and os.access(cand, os.X_OK):
             return str(cand.resolve())
-        raise DriverError(f"The --agy path is not executable: {cand}")
+        discovered = shutil.which(str(explicit_path))
+        if discovered:
+            return discovered
+        raise HostSpawnError(f"The --agy path is not executable: {cand}")
     discovered = shutil.which("agy")
     if discovered:
         return discovered
-    raise DriverError(
+    raise HostSpawnError(
         "Cannot find 'agy' on PATH. Install Antigravity CLI or pass --agy PATH."
     )
 
@@ -2411,7 +2415,7 @@ def run_agy_turn(
     telemetry_phase: str = runner_shared.TELEMETRY_PHASE_EXECUTE,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
-    agy_bin = options.get("agy_executable") or options.get("agy") or resolve_agy(None)
+    agy_bin = resolve_agy(options.get("agy_executable") or options.get("agy"))
     prompt_text = prompt_path.read_text(encoding="utf-8")
     timeout = options.get("timeout", DEFAULT_TIMEOUT)
     # driverfin-02 (emus4n): when isolated, Antigravity runs with its cwd set to the worktree so it
@@ -2887,8 +2891,10 @@ def run_agy_turn(
                     os.fsync(log.fileno())
                 if watchdog.stalled:
                     timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                    stalled_session_id = extract_session_id(log_path) or session_id
                     raise StallTimeout(
-                        f"Antigravity child turn stalled: no output for {timeout_val}s"
+                        f"Antigravity child turn stalled: no output for {timeout_val}s",
+                        session_id=stalled_session_id,
                     ) from None
                 raise
             finally:
@@ -2942,8 +2948,10 @@ def run_agy_turn(
                 with contextlib.suppress(OSError):
                     os.fsync(log.fileno())
                 timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                stalled_session_id = extract_session_id(log_path) or session_id
                 raise StallTimeout(
-                    f"Antigravity child turn stalled: no output for {timeout_val}s"
+                    f"Antigravity child turn stalled: no output for {timeout_val}s",
+                    session_id=stalled_session_id,
                 )
 
             rc = process.wait()
