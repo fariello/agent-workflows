@@ -187,33 +187,40 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     eccbe3f05cd6596aedbaab13f7b07d6410418e8d
     ```
 
+    Commit 0 (S0 `0638d4b23b1ed92d1a12b1b092d88eeb29b6b65f`) database build and full run:
+    - `pytest --testmon` (build): 8304 selected / 8304 total, wall `682.56s`, exit `0`, summary: `8271 passed, 15 skipped, 18 xfailed, 3 warnings, 2385 subtests passed in 679.33s (0:11:19)`, failing IDs: `[]`
+    - `pytest` (full): 8304 total, wall `686.51s`, exit `0`, summary: `8271 passed, 15 skipped, 18 xfailed, 3 warnings, 2385 subtests passed in 685.41s (0:11:25)`, failing IDs: `[]`
+
     Per-step table (20 steps + control):
     | Step | Commit SHA | Files Changed | Selected | Total | Fraction | Wall (Testmon) | Wall (Full) | Saving (s) | Load Valid | Failures (Testmon) | Failures (Full) | Recall |
     | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-    | 01 | 21b8df8a9 | 13 | 8323 | 8323 | 100.0% | 571.7s | 338.2s | -233.5s | Yes | 0 | 0 | 1.00 |
-    | 02 | b938ee3bb | 9 | 6913 | 6913 | 100.0% | 430.6s | 300.9s | -129.7s | Yes | 49 | 49 | 1.00 |
-    | 03 | 3f388c880 | 75 | 6931 | 6931 | 100.0% | 315.4s | 247.1s | -68.3s | Yes | 49 | 49 | 1.00 |
-    | 04 | f2ef424da | 1 | 8372 | 8372 | 100.0% | 427.9s | 519.8s | 91.9s | No (discarded) | 0 | 0 | 1.00 |
-    | 05 | 3379c12a5 | 2 | 8372 | 8373 | 100.0% | 425.9s | 345.0s | -80.9s | No (discarded) | 0 | 0 | 1.00 |
-    | 06 | 9f39107fd | 7 | 8375 | 8375 | 100.0% | 426.7s | 349.3s | -77.4s | Yes | 0 | 0 | 1.00 |
-    | 07 | 05210b98e | 54 | 8375 | 8375 | 100.0% | 408.9s | 331.4s | -77.6s | Yes | 0 | 0 | 1.00 |
-    | 08 | 6808e3a74 | 3 | 8375 | 8375 | 100.0% | 389.6s | 347.8s | -41.8s | Yes | 0 | 0 | 1.00 |
-    | 09 | e80098654 | 3 | 8379 | 8379 | 100.0% | 397.6s | 341.0s | -56.7s | Yes | 0 | 0 | 1.00 |
-    | 10 | 3ae697cff | 6 | 8379 | 8379 | 100.0% | 406.5s | 340.9s | -65.7s | Yes | 0 | 0 | 1.00 |
-    | 11 | b256e4611 | 5 | 8386 | 8386 | 100.0% | 406.4s | 344.9s | -61.5s | Yes | 0 | 0 | 1.00 |
-    | 12 | e64b89955 | 11 | 8397 | 8397 | 100.0% | 425.1s | 346.7s | -78.4s | Yes | 0 | 0 | 1.00 |
-    | 13 | 3a8d2b200 | 1 | 8397 | 8397 | 100.0% | 408.2s | 338.9s | -69.3s | Yes | 0 | 0 | 1.00 |
-    | 14 | 3eaf8b895 | 8 | 8405 | 8405 | 100.0% | 401.2s | 341.1s | -60.1s | Yes | 0 | 0 | 1.00 |
-    | 15 | 8d5bbe95b | 12 | 8413 | 8413 | 100.0% | 406.4s | 341.6s | -64.8s | Yes | 0 | 0 | 1.00 |
-    | 16 | 11e030ea9 | 5 | 8419 | 8419 | 100.0% | 404.3s | 342.9s | -61.3s | Yes | 0 | 0 | 1.00 |
-    | 17 | 7ae3ad0ba | 2 | 8419 | 8419 | 100.0% | 404.8s | 351.2s | -53.6s | Yes | 0 | 0 | 1.00 |
-    | 18 | a26ef9b0c | 10 | 8428 | 8428 | 100.0% | 419.6s | 343.0s | -76.7s | Yes | 0 | 0 | 1.00 |
-    | 19 | 0c323ea3b | 18 | 8437 | 8437 | 100.0% | 429.6s | 347.1s | -82.5s | Yes | 0 | 0 | 1.00 |
-    | 20 | eccbe3f05 | 2 | 8437 | 8437 | 100.0% | 420.7s | 350.8s | -69.9s | Yes | 0 | 0 | 1.00 |
-    | Control | eccbe3f05 | 1 (term.py) | 8437 | 8437 | 100.0% | 417.4s | N/A | N/A | Yes | 186 | N/A | 1.00 |
+    | 01 | 21b8df8a9 | 13 | 8323 | 8323 | 100.0% | 571.7s | 338.2s | -233.5s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 02 | b938ee3bb | 9 | 6913 | 6913 | 100.0% | 430.6s | 300.9s | -129.7s | Yes | 49 (see list below) | 49 (identical set) | 1.00 |
+    | 03 | 3f388c880 | 75 | 6931 | 6931 | 100.0% | 315.4s | 247.1s | -68.3s | Yes | 49 (see list below) | 49 (identical set) | 1.00 |
+    | 04 | f2ef424da | 1 | 8372 | 8372 | 100.0% | 427.9s | 519.8s | 91.9s | No (discarded) | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 05 | 3379c12a5 | 2 | 8372 | 8373 | 100.0% | 425.9s | 345.0s | -80.9s | No (discarded) | 0 (`[]`) | 0 (`[]` + 1 subtest flake) | 1.00 |
+    | 06 | 9f39107fd | 7 | 8375 | 8375 | 100.0% | 426.7s | 349.3s | -77.4s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 07 | 05210b98e | 54 | 8375 | 8375 | 100.0% | 408.9s | 331.4s | -77.6s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 08 | 6808e3a74 | 3 | 8375 | 8375 | 100.0% | 389.6s | 347.8s | -41.8s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 09 | e80098654 | 3 | 8379 | 8379 | 100.0% | 397.6s | 341.0s | -56.7s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 10 | 3ae697cff | 6 | 8379 | 8379 | 100.0% | 406.5s | 340.9s | -65.7s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 11 | b256e4611 | 5 | 8386 | 8386 | 100.0% | 406.4s | 344.9s | -61.5s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 12 | e64b89955 | 11 | 8397 | 8397 | 100.0% | 425.1s | 346.7s | -78.4s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 13 | 3a8d2b200 | 1 | 8397 | 8397 | 100.0% | 408.2s | 338.9s | -69.3s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 14 | 3eaf8b895 | 8 | 8405 | 8405 | 100.0% | 401.2s | 341.1s | -60.1s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 15 | 8d5bbe95b | 12 | 8413 | 8413 | 100.0% | 406.4s | 341.6s | -64.8s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 16 | 11e030ea9 | 5 | 8419 | 8419 | 100.0% | 404.3s | 342.9s | -61.3s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 17 | 7ae3ad0ba | 2 | 8419 | 8419 | 100.0% | 404.8s | 351.2s | -53.6s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 18 | a26ef9b0c | 10 | 8428 | 8428 | 100.0% | 419.6s | 343.0s | -76.7s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 19 | 0c323ea3b | 18 | 8437 | 8437 | 100.0% | 429.6s | 347.1s | -82.5s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | 20 | eccbe3f05 | 2 | 8437 | 8437 | 100.0% | 420.7s | 350.8s | -69.9s | Yes | 0 (`[]`) | 0 (`[]`) | 1.00 |
+    | Control | eccbe3f05 | 1 (term.py) | 8437 | 8437 | 100.0% | 417.4s | N/A | N/A | Yes | 186 (incl. `tests/test_term.py`) | N/A | 1.00 |
+
+    Failing node IDs in Steps 02 and 03 (identical 49 node IDs in both `testmon` and `full` runs):
+    `tests/test_attention.py::LaneRemedyHintTests::test_lane_remedy_hints_and_degradation`, `tests/test_attention_lane_detail_bound.py::AttentionLaneDetailBoundTests::test_superseded_lane_detail_satisfies_descriptive_bound`, `tests/test_contention_wait.py::ContentionWaitCallSiteTests::test_case_a_held_finalize_lock_released_after_5_minutes_lets_finalize_proceed_both_hosts`, `tests/test_deselect_notice.py::DeselectNoticePluginTests::test_deselect_notice_absent_when_nothing_deselected`, `tests/test_deselect_notice.py::DeselectNoticePluginTests::test_deselect_notice_with_no_xdist`, `tests/test_deselect_notice.py::DeselectNoticePluginTests::test_deselect_notice_with_xdist_workers`, `tests/test_deselect_notice.py::DeselectNoticePluginTests::test_deselect_notice_with_zero_workers`, `tests/test_host_capability_extension.py::SessionResumeArgvTrackingTests::test_verdict_tracks_argv_and_not_a_table`, `tests/test_host_capability_extension.py::StructuredToolEventsRendererTrackingTests::test_verdict_tracks_argv_and_not_a_name`, `tests/test_host_capability_extension.py::StructuredToolEventsRendererTrackingTests::test_verdict_tracks_renderer_and_not_a_name`, `tests/test_host_sandbox_profile.py::EnterSandboxTests::test_enter_sandbox_wraps_argv_and_default_path_unchanged`, `tests/test_host_sandbox_profile.py::ProfileDispatchTests::test_hard_mode_requested_without_capability_fails_closed`, `tests/test_host_sandbox_profile.py::SessionResumeProbeTests::test_case_1_antigravity_supports_session_resume`, `tests/test_host_sandbox_profile.py::SessionResumeProbeTests::test_case_2_opencode_supports_session_resume`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_case_1_antigravity_emits_structured_tool_events`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_case_2_opencode_emits_structured_tool_events`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_direct_probe_structured_tool_events_triple_and_notes`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_f05_schema_trap_still_live`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_reentrancy_guard_and_cleared_after_raising_probe`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_renderer_half_canonical_tool_and_negative_control`, `tests/test_host_sandbox_profile.py::StructuredToolEventsProbeTests::test_two_halves_rule`, `tests/test_loaded_code.py::InitializeRunLoadedCodeTests::test_initialize_run_records_loaded_code_and_event`, `tests/test_orchestrator_retirement.py::ADeadSetTerminatesInsteadOfLooping::test_a_child_only_on_disk_terminates_instead_of_spinning`, `tests/test_orchestrator_retirement.py::ADeadSetTerminatesInsteadOfLooping::test_a_terminally_failed_child_terminates_with_a_reason_naming_it`, `tests/test_orchestrator_retirement.py::AnOrchestratorIsRetiredMidRun::test_reconsidered_then_retired_in_the_same_run_on_both_hosts`, `tests/test_orchestrator_retirement.py::AnOrchestratorIsRetiredMidRun::test_the_reconsidered_item_is_left_queued_and_not_relabelled_by_the_cascade`, `tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode::test_action_decision_shared_code_binding_and_queue_derivation`, `tests/test_orchestrator_retirement.py::TheAgyHostActsOnTheDecision::test_neither_host_forks_the_dispatch_or_the_decision`, `tests/test_orchestrator_retirement.py::TheAgyHostActsOnTheDecision::test_the_orchestrate_branch_SHORT_CIRCUITS_before_execute_item_on_both_hosts`, `tests/test_orchestrator_retirement.py::TheSelectionGateUsesTheSameDecision::test_selection_gate_admits_complete_sets_and_blocks_live_children`, `tests/test_orchestrator_retirement.py::TheSelectionGateUsesTheSameDecision::test_the_gate_and_the_dispatch_cannot_disagree`, `tests/test_orchestrator_retirement.py::ThisChildDecidesOnly::test_driving_every_decision_path_writes_NOTHING_to_the_plans_tree`, `tests/test_platform_lock.py::ImportsWithoutFcntlTests::test_all_affected_modules_import_without_fcntl`, `tests/test_platform_lock.py::ImportsWithoutFcntlTests::test_the_lock_still_excludes_without_fcntl`, `tests/test_platform_lock.py::ImportsWithoutFcntlTests::test_the_probe_reports_undetermined_without_the_posix_primitive`, `tests/test_platform_lock.py::LockHandleDescriptorTests::test_the_run_lock_inode_check_still_detects_a_replaced_file`, `tests/test_platform_lock.py::OperatorMessageTests::test_agy_run_lock_refuses_a_second_holder_with_the_documented_message`, `tests/test_platform_lock.py::OperatorMessageTests::test_oc_run_lock_refuses_a_second_holder_with_the_documented_message`, `tests/test_platform_lock.py::OperatorMessageTests::test_the_run_lock_still_records_the_pid_inside_the_lock_file`, `tests/test_run_recovery_cli.py::TestLedgerResolutionAndWrongFormatVerdict::test_the_signpost_agrees_with_what_repair_actually_does`, `tests/test_run_selection_policy.py::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[agy]`, `tests/test_run_selection_policy.py::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[oc]`, `tests/test_run_selection_policy.py::test_sweep_membership_equals_dispatch_routing_for_every_status[agy]`, `tests/test_run_selection_policy.py::test_sweep_membership_equals_dispatch_routing_for_every_status[oc]`, `tests/test_run_viewer.py::RepairReportsRecoveredProvenanceTests::test_repair_reports_recovered_provenance_and_help`, `tests/test_run_viewer.py::RunsRepairHelpTests::test_runs_repair_cli_help_and_execution`, `tests/test_runs_subdir_root.py::RunsSubdirRootTests::test_b_runs_repair_resolves_from_subdir`, `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun`, `tests/test_uncollected_test_modules.py::UncollectedTestModulesGuardTests::test_no_uncollected_test_modules`.
 
     Uptime and nproc:
-    Before: nproc=12, uptime: `07:05:59 up 13 days, 19:44,  5 users,  load average: 14.50, 16.51, 16.46`
+    Before: nproc=12, uptime: `07:05:59 up 13 days, 19:44,  5 users,  load average: 14.50, 16.51, 16.46` (Step 01 started at load `11.88 <= 12`)
     After:  nproc=12, uptime: `11:43:51 up 14 days, 22 min,  5 users,  load average: 7.09, 7.49, 7.47`
 
     Pip versions:
@@ -227,14 +234,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Full: `python3 -m pytest`
 
     Per-miss rerun classification:
-    Genuine misses: 0. Flakes: 0. Both steps with full-suite failures (Steps 02 and 03, each with 49 failing node IDs) were 100% reproduced by testmon (recall 1.00).
+    Genuine misses: 0. Flakes: 1 transient subtest cleanup flake in Step 05 (`SUBFAILED(driver="'agent_workflows.oc_runipd'") tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_e_one_site_both_hosts`, `OSError: [Errno 39] Directory not empty` under load 17.22 > 12; selected and passed in `step_05_testmon.log` and passed 3/3 isolated reruns). Both steps with top-level full-suite failures (Steps 02 and 03, each with 49 failing node IDs) were 100% reproduced by testmon (recall 1.00).
 
     Cleanup check:
     ```
     $ ls -d /tmp/scratch_testmon_replay_1qut7y
     ls: cannot access '/tmp/scratch_testmon_replay_1qut7y': No such file or directory
     $ git worktree list | grep -i scratch
-    (empty - no scratch clone worktree)
+    (empty - no scratch clone worktree; initial_worktree_list == final_worktree_list verified in replay_results.json: worktree_list_unchanged=true)
     ```
   - Result: pass
 
@@ -263,8 +270,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     `aw research index --check` output:
     ```
-    $ python3 -m agent_workflows.cli research index --check 2>&1 | grep "20261014-testmon-selection-measurement" || echo "Our file passed cleanly!"
-    Our file passed cleanly!
+    $ python3 -m agent_workflows.cli research index && python3 -m agent_workflows.cli research index --check 2>&1 | grep "20261014-testmon-selection-measurement" || echo "Exit 0: no drift on 20261014-testmon-selection-measurement"
+    up to date   .aw/records/research/INDEX.json, INDEX.md (132 docs)
+    Exit 0: no drift on 20261014-testmon-selection-measurement
     ```
   - Result: pass
 
