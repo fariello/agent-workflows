@@ -116,6 +116,7 @@ in your own scripts for "the command could not run at all".
 | Only the fields you care about (agent) | `aw check plans --agent --fields findings` |
 | Bounded output with a continuation hint | `aw find plans --agent --limit 20` |
 | Launch an IPD with a saved model alias | `aw run as gem <selector>` |
+| Run the full test suite with tree-keyed caching | `aw suite` |
 
 ## Naming a model once instead of on every run
 
@@ -126,3 +127,7 @@ made default for you, and `aw setup` offers to set one up with a question that d
 [Runner profiles](runner-profiles.md) is the complete reference: every command form, the exact
 per-field override precedence, storage and privacy, and what happens on a bad or missing
 profile.
+
+## Running the full test suite (`aw suite`)
+
+`aw suite` runs or serves the repository's bare full `pytest` suite with a bounded xdist worker count (`max(2, cpus // slots)` where `slots` comes from `AW_SUITE_SLOTS`, default `max(1, cpus // 6)`) and caches passing verdicts and confirmed reproducible failures in `<git-common-dir>/aw-suite-cache/<digest>.json` with a 14-day expiry. The cache key (`digest`) is a SHA-256 over the working-tree git tree (including tracked edits and untracked non-ignored files), the normalized argv after the interpreter (excluding `-n`), `sys.version` and `sys.executable`, the sorted `name==version` installed distributions, and behavior-changing environment variables (`PYTEST_ADDOPTS`, `PYTHONPATH`, `AW_NO_REEXEC`, `NO_COLOR`, `FORCE_COLOR`, `TERM`, and `AW_EXECUTION_ROLE`; inspect with `aw suite --explain`). State outside the key (wall clock, network, or `.aw/state`) is bounded by default marker deselection (`slow` and `livecorpus`), per-test `AW_HOME`/`XDG_CONFIG_HOME` sandboxing, and the 14-day record expiry; pass `--no-cache` to force a fresh run and update the stored entry. A cached failure is advisory for `aw suite` only and never reaches a runner gate (every gate failure and gate re-check is always an observed live run).

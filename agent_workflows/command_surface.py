@@ -297,6 +297,17 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=(),
         exit_contract=(0, 1, 2),
     ),
+    # suiteeff Order 02 (`0o0wt2`) E-05: full-suite runner with a tree-keyed result cache.
+    CommandDeclaration(
+        command="suite",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
     # worksequence i6015i E-01/E-04: the canonical cross-tree view. Renamed from `attention` (kept as
     # an alias above, together with `att` and `todo`) and given `--order-by`, which is what makes the
     # name `next` true rather than aspirational.

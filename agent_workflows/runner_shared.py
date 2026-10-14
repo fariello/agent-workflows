@@ -26295,6 +26295,10 @@ class SuiteBaseline(NamedTuple):
     exit_code: int | None = None
     #: Wall-clock the baseline's own run took, for the wall-clock claim this design was accepted on.
     elapsed_seconds: float = 0.0
+    #: Whether the baseline verdict was served from `<git-common-dir>/aw-suite-cache` (`0o0wt2` E-06).
+    cached: bool = False
+    #: The tree-keyed cache digest for the baseline run (`0o0wt2` E-06).
+    digest: str | None = None
 
     @property
     def known(self) -> bool:
@@ -26317,6 +26321,8 @@ class SuiteBaseline(NamedTuple):
             "summary": self.summary,
             "exit_code": self.exit_code,
             "elapsed_seconds": round(float(self.elapsed_seconds), 3),
+            "cached": bool(self.cached),
+            "digest": self.digest,
         }
 
 
@@ -26402,13 +26408,31 @@ class SuiteBaselineRun:
         self._stderr = ""
         self._result: SuiteBaseline | None = None
         spawn = popen or subprocess.Popen
-        self.process = spawn(
-            self.argv,
-            cwd=str(self.checkout),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        if popen is None:
+            child_env = dict(os.environ)
+            child_env["AW_NO_REEXEC"] = "1"
+            pkg_root = str(Path(__file__).resolve().parent.parent)
+            existing_pp = child_env.get("PYTHONPATH", "").strip()
+            if not existing_pp:
+                child_env["PYTHONPATH"] = pkg_root
+            elif pkg_root not in existing_pp.split(os.pathsep):
+                child_env["PYTHONPATH"] = f"{pkg_root}{os.pathsep}{existing_pp}"
+            self.process = spawn(
+                self.argv,
+                cwd=str(self.checkout),
+                env=child_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        else:
+            self.process = spawn(
+                self.argv,
+                cwd=str(self.checkout),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
         self._drain = threading.Thread(target=self._pump, daemon=True)
         self._drain.start()
 
@@ -26471,15 +26495,43 @@ class SuiteBaselineRun:
                 base_commit=self.base_commit,
             )
             return self._result
-        failures = tuple(
-            str(line) for line in self._extract(self._stdout, self._stderr)
-        )
+        cached = False
+        digest: str | None = None
+        raw_stdout = self._stdout
+        raw_stderr = self._stderr
+        for line in reversed((self._stdout or "").splitlines()):
+            sline = line.strip()
+            if sline.startswith("{") and sline.endswith("}"):
+                with contextlib.suppress(Exception):
+                    rec = json.loads(sline)
+                    if isinstance(rec, dict) and (
+                        rec.get("cmd") == "suite" or rec.get("command") == "suite"
+                    ):
+                        cached = bool(rec.get("cached", False))
+                        raw_digest = rec.get("digest")
+                        digest = str(raw_digest) if raw_digest else None
+                        if isinstance(rec.get("exit_code"), int):
+                            exit_code = int(rec["exit_code"])
+                        elif isinstance(rec.get("returncode"), int):
+                            exit_code = int(rec["returncode"])
+                        rec_failures = [
+                            str(f)
+                            for f in (rec.get("failures") or ())
+                            if str(f).strip()
+                        ]
+                        rec_summary = str(rec.get("summary") or "").strip()
+                        synth_lines = list(rec_failures)
+                        if rec_summary:
+                            synth_lines.append(rec_summary)
+                        raw_stdout = "\n".join(synth_lines)
+                        break
+        failures = tuple(str(line) for line in self._extract(raw_stdout, raw_stderr))
         summary = ""
         if self._parse_summary is not None:
             with contextlib.suppress(Exception):
                 summary = str(
-                    self._parse_summary(self._stdout)
-                    or self._parse_summary(self._stderr)
+                    self._parse_summary(raw_stdout)
+                    or self._parse_summary(raw_stderr)
                     or ""
                 )
         self._result = SuiteBaseline(
@@ -26490,6 +26542,8 @@ class SuiteBaselineRun:
             summary=summary,
             exit_code=int(exit_code),
             elapsed_seconds=elapsed,
+            cached=cached,
+            digest=digest,
         )
         return self._result
 
@@ -26593,11 +26647,21 @@ def start_suite_baseline(
             f"the baseline checkout could not be created ({type(exc).__name__}: {exc})",
             base_commit=commit,
         )
+    effective_argv = list(argv)
+    if len(effective_argv) == 3 and effective_argv[1:] == ["-m", "pytest"]:
+        effective_argv = [
+            effective_argv[0],
+            "-m",
+            "agent_workflows",
+            "suite",
+            "--agent",
+            "--no-serve-failures",
+        ]
     try:
         run = SuiteBaselineRun(
             checkout=path,
             base_commit=sha,
-            argv=argv,
+            argv=effective_argv,
             extract_failures=extract_failures,
             parse_summary=parse_summary,
             timeout=timeout,
@@ -28295,6 +28359,7 @@ def make_integration_validation_runner(
                 # matches how they were recorded.
                 measured=cached.get("measured", True) is not False,
                 comparison=comparison,
+                digest=cached.get("digest"),
             )
             return passed
         if path is None:
@@ -28310,9 +28375,14 @@ def make_integration_validation_runner(
         measured = True
         suite_passed = False
         collected_nothing = False
+        suite_cached = False
+        suite_digest: str | None = None
         try:
             result = suite_check(path, str((state or {}).get("run_id") or ""))
             passed = bool(getattr(result, "passing", False))
+            suite_cached = bool(getattr(result, "cached", False))
+            raw_digest = getattr(result, "digest", None)
+            suite_digest = str(raw_digest) if raw_digest else None
             # THE SUITE'S OWN VERDICT, KEPT SEPARATE FROM `passed`, because `passed` is about to become
             # a RELATIVE judgement while the baseline comparison needs to know what the EXIT CODE said.
             # `new_failures_since_baseline` refuses to subtract an empty failing list on a non-passing
@@ -28364,6 +28434,8 @@ def make_integration_validation_runner(
             "suite_passed": suite_passed,
             "failures": [str(f) for f in failures],
             "collected_nothing": collected_nothing,
+            "cached": suite_cached,
+            "digest": suite_digest,
         }
         if isinstance(cache, dict) and tree_id:
             cache[tree_id] = measurement
@@ -28376,8 +28448,10 @@ def make_integration_validation_runner(
             reason=reason,
             failures=failures,
             merged_files=list(merged_files or ()),
+            cached=suite_cached,
             measured=measured,
             comparison=comparison,
+            digest=suite_digest,
         )
         return passed
 
@@ -28609,6 +28683,7 @@ def _record_revalidation(
     skipped: bool = False,
     measured: bool = True,
     comparison: RevalidationComparison | None = None,
+    digest: str | None = None,
 ) -> None:
     """Record WHAT the post-merge revalidation measured, ON THE ITEM. NEVER raises.
 
@@ -28661,6 +28736,7 @@ def _record_revalidation(
             "failures": [str(f) for f in failures],
             "merged_files": [str(f) for f in merged_files],
             "cached": bool(cached),
+            "digest": digest,
             "skipped": bool(skipped),
             "measured": bool(measured),
         }
@@ -31086,7 +31162,7 @@ and documentation satisfy every requirement before this plan can be considered e
    - Check if the recorded observed evidence matches real code and passing tests.
 
 3. **Run and Verify Test Suite**:
-   - Run the required tests and validation commands for this IPD{test_tool} (e.g. `python3 -m pytest <test_file> -v` or `python3 -m unittest ...`).
+   - Run the required tests and validation commands for this IPD{test_tool}: run narrowed checks with `python3 -m pytest <test_file>`; run the FULL suite with `aw suite` (cached when the tree has not changed, bounded worker count); paste its output.
    - Paste the actual runner output with exit code.
    - Confirm that tests are genuine and testing real assertions (not trivial passes).
 
@@ -31179,7 +31255,7 @@ report honestly, including when the honest answer is that you cannot tell.
    - Check if the recorded observed evidence matches real code and passing tests.
 
 3. **Run and Verify Test Suite**:
-   - Run the required tests and validation commands for this IPD{test_tool} (e.g. `python3 -m pytest <test_file> -v` or `python3 -m unittest ...`).
+   - Run the required tests and validation commands for this IPD{test_tool}: run narrowed checks with `python3 -m pytest <test_file>`; run the FULL suite with `aw suite` (cached when the tree has not changed, bounded worker count); paste its output.
    - Paste the actual runner output with exit code.
    - Confirm that tests are genuine and testing real assertions (not trivial passes).
 
@@ -31547,7 +31623,7 @@ processes are terminated when it ends, so a backgrounded test suite is killed un
 you will have produced nothing. This applies above all to the validation suite, which takes
 minutes in this repository. Never end your turn while waiting for a command you started. If a
 command genuinely cannot finish in this turn, treat that as a deferred question and record the
-preserved state, rather than exiting with the work outstanding.{budget_block}
+preserved state, rather than exiting with the work outstanding. Run narrowed checks with `python3 -m pytest <test_file>`; run the FULL suite with `aw suite` (cached when the tree has not changed, bounded worker count); paste its output.{budget_block}
 {role_block}
 Before exiting, write valid JSON to {outcome} with at least:
 {{
@@ -38622,6 +38698,8 @@ def execute_item_core(
                 # the count line because `summary` alone ("1 failed") is not attributable to a diff, so a
                 # human reading this record afterwards could not check the agent's answer either.
                 "failures": list(getattr(suite_result, "failures", ()) or ()),
+                "cached": bool(getattr(suite_result, "cached", False)),
+                "digest": getattr(suite_result, "digest", None),
             }
             # ---- integearn-05 (`9lyg5h`) E-03/E-06: COLLECT THE PRE-WORK BASELINE -----------------
             #
@@ -38668,6 +38746,8 @@ def execute_item_core(
                     "base_commit": suite_baseline.base_commit,
                     "failing_count": len(suite_baseline.failures),
                     "reason": suite_baseline.reason,
+                    "cached": bool(getattr(suite_baseline, "cached", False)),
+                    "digest": getattr(suite_baseline, "digest", None),
                 },
             )
         integration = integration_is_earned(
@@ -38859,6 +38939,8 @@ def execute_item_core(
                     "failures": list(
                         getattr(gate_outcome.suite_result, "failures", ()) or ()
                     ),
+                    "cached": bool(getattr(gate_outcome.suite_result, "cached", False)),
+                    "digest": getattr(gate_outcome.suite_result, "digest", None),
                 }
             if gate_outcome.release:
                 integration = integration.__class__(
@@ -43468,73 +43550,9 @@ SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
 SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
 
 
-_SUITE_SUMMARY_RE = re.compile(
-    r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
-)
-
-
-def parse_suite_summary(text: str) -> str:
-    """The suite's COUNT LINE out of its output, or `""` when none is present.
-
-    integearn-05 (`9lyg5h`) E-03: a NAMED, injectable reader for the one pattern `run_suite_check`
-    already applies inline, so the concurrent pre-work baseline in `runner_shared` can report the same
-    count line the post-work check reports. It exists ONLY because `runner_shared` may not import a
-    host driver (a shipped AST test enforces that), so every host specific must be handed over as a
-    name; this is the `run_checked`/`host_label` injection precedent applied to one regex.
-
-    IT IS THE SAME PATTERN, DELIBERATELY NOT A SECOND ONE. `run_suite_check` keeps its inline use, and
-    both now resolve `_SUITE_SUMMARY_RE`, because a second spelling of a parser is how a producer and
-    a reader drift apart (the render_stream F-4 defect class, measured twice in this package).
-    """
-
-    match = _SUITE_SUMMARY_RE.search(text or "")
-    return match.group(1).strip() if match else ""
-
-
-#: gatewire-01 (`h5pyqa`) E-02: the lines naming WHICH tests failed, which `_SUITE_SUMMARY_RE`
-#: deliberately does not capture.
-#:
-#: WHY A SECOND PATTERN RATHER THAN WIDENING THE FIRST. `_SUITE_SUMMARY_RE` answers "did it pass and
-#: by how much", and its single capture group feeds `SuiteCheckResult.summary`, which the integration
-#: refusal reason embeds. Widening it to also span the failure list would change that one-line reason
-#: into a paragraph on every refusal. These are two different questions with two different readers, so
-#: they get two patterns.
-#:
-#: BOTH `FAILED` AND `ERROR` ARE MATCHED, and the second is not padding. MEASURED on 2026-09-20 with a
-#: deliberately broken import under this repository's own `-n auto --dist=worksteal` addopts: a module
-#: that cannot be collected yields `ERROR test_broken.py` and NO `FAILED` line at all, while the count
-#: line reads `1 failed, 1 passed, 1 error`. Matching only `FAILED` would therefore show an agent
-#: nothing for the whole collection-error class, which is exactly the class most likely to be somebody
-#: else's fault and so most likely to be a true `not-mine`.
-_SUITE_FAILURE_LINE_RE = re.compile(r"^(?:FAILED|ERROR)\s+\S.*$", re.MULTILINE)
-
-
-#: How many failing-test lines are carried. A pathological run can redden hundreds of tests, and this
-#: text goes into a PROMPT; the cap keeps one bad suite from crowding out the rest of the question.
-#: Generous on purpose: attribution gets harder, not easier, as the list is truncated.
-SUITE_FAILURE_LINE_LIMIT: int = 40
-
-
-def extract_suite_failures(stdout: str, stderr: str = "") -> tuple[str, ...]:
-    """The `FAILED`/`ERROR` lines from a suite run, deduplicated, in first-seen order.
-
-    gatewire-01 (`h5pyqa`) E-02. SEPARATE FROM THE COUNT LINE BY DESIGN: a count ("1 failed") tells an
-    agent nothing it can attribute to its own diff, and attribution is the entire judgement the
-    integration-refusal answer turns on.
-
-    Deduplicated because xdist can report the same node twice across the short summary and a rerun
-    section, and a question that lists one failure three times reads as three failures.
-    """
-
-    seen: dict[str, None] = {}
-    for haystack in (stdout or "", stderr or ""):
-        for match in _SUITE_FAILURE_LINE_RE.finditer(haystack):
-            line = match.group(0).strip()
-            if line and line not in seen:
-                seen[line] = None
-            if len(seen) >= SUITE_FAILURE_LINE_LIMIT:
-                return tuple(seen)
-    return tuple(seen)
+# suiteeff Order 02 (`0o0wt2`) E-04: canonical definitions live in `suite_cache` and are
+# re-exported here under the identical names so existing consumers and host bindings
+# remain untouched without an import cycle.
 
 
 class SuiteCheckResult(NamedTuple):
@@ -43558,6 +43576,8 @@ class SuiteCheckResult(NamedTuple):
     timeout_seconds: float
     elapsed_seconds: float
     failures: tuple[str, ...] = ()
+    cached: bool = False
+    digest: str | None = None
 
     @property
     def failing_text(self) -> str:
@@ -43591,7 +43611,7 @@ def run_suite_check(
 ) -> SuiteCheckResult:
     """Run the repository's suite in the PRIMARY checkout and report what actually happened.
 
-    novalnomerge-01 (evgi9n) E-01/E-02.
+    novalnomerge-01 (evgi9n) E-01/E-02; suiteeff-02 (`0o0wt2`) E-06.
 
     WHY THE PRIMARY CHECKOUT AND NOT THE LANE: a green PRIMARY tree is what integration endangers,
     so the primary checkout is the venue whose greenness the gate is about (independent of lane
@@ -43610,33 +43630,23 @@ def run_suite_check(
     into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
     machinery. Neither code is special-cased into a pass.
 
-    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the contract was
-    formalized at toolevtext-01 (`emzbut`). Historically this function read an excerpt key off the
-    returned mapping, and `build_tool_event` never wrote that key: a `tool_event` is a ledger record
-    carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured 2026-09-20 by calling
-    `capture_command` directly, that read yielded `""`, `summary` was ALWAYS empty, and every refusal
-    reason said `no summary line parsed`. `capture_command` returns a `CapturedToolEvent` carrying
-    `stdout` and `stderr` as typed out-of-band attributes, so this function reads those attributes
-    directly while the ledger record remains clean.
+    Routed through `suite_cache.run_full_suite` with `serve_failures=False` so an exact-key cached
+    PASS satisfies the check while a cached FAILURE is never served to a gate (every failure a gate
+    acts on, and every `rerun_suite` re-check in a gate-answer follow-up, is an observed run).
     """
-    from agent_workflows import run_evidence
+    from agent_workflows import suite_cache
 
     started = time.monotonic()
     try:
-        tool_event, _envelope = run_evidence.capture_command(
-            run_id,
-            list(SUITE_CHECK_ARGV),
-            cwd=repo_dir,
-            # Both values must stay inside run_ledger_schema.ROLES / EVIDENCE_KINDS
-            # (backlog 1g8lbe, decision in OQ-01 of plan 1rozt5).
-            evidence_kind="test_report",
-            actor="runtime",
+        res = suite_cache.run_full_suite(
+            repo_dir,
+            argv=list(SUITE_CHECK_ARGV),
+            use_cache=True,
+            serve_failures=False,
             timeout=timeout,
-            max_output_bytes=512_000,
+            stream=False,
+            run_id=run_id,
         )
-        exit_code = int(tool_event.get("exit_code", 127))
-        stdout = str(tool_event.stdout or "")
-        stderr = str(tool_event.stderr or "")
     except Exception as exc:  # noqa: BLE001  # pragma: no cover
         # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
         # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`
@@ -43654,37 +43664,17 @@ def run_suite_check(
             elapsed_seconds=elapsed,
         )
 
-    elapsed = time.monotonic() - started
-    summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
-    # gatewire-01 (`h5pyqa`) E-02: capture WHICH tests failed, not merely how many. `stdout` is
-    # discarded after this function returns, so a failure name not taken here is gone for good.
-    failures = extract_suite_failures(stdout, stderr)
-    if exit_code == 0:
-        reason = f"suite passed in {repo_dir} ({summary or 'no summary line parsed'})"
-    elif exit_code == 124:
-        reason = (
-            f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {repo_dir}; "
-            "treated as a failure (fail-closed)"
-        )
-    elif exit_code == 127:
-        reason = (
-            f"suite could not be executed in {repo_dir} (exit 127); "
-            "treated as a failure (fail-closed)"
-        )
-    else:
-        reason = (
-            f"suite FAILED with exit {exit_code} in {repo_dir} "
-            f"({summary or 'no summary line parsed'})"
-        )
     return SuiteCheckResult(
-        passing=exit_code == 0,
-        exit_code=exit_code,
-        summary=summary,
-        reason=reason,
+        passing=res.passed,
+        exit_code=res.exit_code,
+        summary=res.summary,
+        reason=res.reason,
         cwd=str(repo_dir),
         timeout_seconds=timeout,
-        elapsed_seconds=elapsed,
-        failures=failures,
+        elapsed_seconds=res.duration_seconds,
+        failures=res.failures,
+        cached=res.cached,
+        digest=res.digest,
     )
 
 

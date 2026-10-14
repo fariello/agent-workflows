@@ -183,6 +183,15 @@ _DESCRIPTIONS = {
         "merging, but it is NOT a substitute for holding the lock: it is blind to a peer that "
         "advanced main in a way your branch can still fast-forward over."
     ),
+    "suite": (
+        "Run the full pytest suite with a bounded xdist worker count and a tree-keyed result cache "
+        "under <git-common-dir>/aw-suite-cache/. Keyed on the working-tree git tree (tracked edits "
+        "and untracked non-ignored files), normalized argv, Python interpreter, installed "
+        "distributions, and behavior-changing environment variables. Pass --no-cache to force a "
+        "fresh run and --explain to inspect the key components. Narrowed selections (file paths, "
+        "-k, -m, :: node ids) are refused with exit 2; run narrowed checks with plain "
+        "python3 -m pytest."
+    ),
     "install": (
         "Install or update the agent-workflows framework in one or more target repos "
         "(idempotent: safe to re-run). With no target, acts on the current directory; "
@@ -1577,6 +1586,56 @@ def _build_parser() -> argparse.ArgumentParser:
         "locked_command",
         nargs=argparse.REMAINDER,
         help="The command to run while holding the lock, after `--` (e.g. -- git merge --ff-only <branch>).",
+    )
+
+    # suiteeff Order 02 (0o0wt2): tree-keyed full-suite entry point (`aw suite`).
+    p_suite = sub.add_parser(
+        "suite",
+        parents=[common],
+        help="Run or serve the full test suite using a tree-keyed result cache.",
+        description=_DESCRIPTIONS["suite"],
+    )
+    p_suite.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_suite.add_argument(
+        "--no-cache",
+        action="store_true",
+        dest="no_cache",
+        help="Always run the full suite even on a cache hit, and store the new result.",
+    )
+    p_suite.add_argument(
+        "--explain",
+        action="store_true",
+        help="Print the cache key components and digests, and on a miss which component differed from the most recent record for the same HEAD.",
+    )
+    p_suite.add_argument(
+        "--no-serve-failures",
+        action="store_true",
+        dest="no_serve_failures",
+        help=argparse.SUPPRESS,
+    )
+    p_suite.add_argument(
+        "-k",
+        dest="narrowed_k",
+        nargs="?",
+        const="",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    p_suite.add_argument(
+        "-m",
+        dest="narrowed_m",
+        nargs="?",
+        const="",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    p_suite.add_argument(
+        "suite_targets",
+        nargs="*",
+        default=[],
+        help=argparse.SUPPRESS,
     )
 
     # awuntrackedfix Order 01: rename local/ quarantine lanes to untracked/ (retroactive, tools-free).
@@ -17626,6 +17685,200 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 for _sig, _handler in restore.items():
                     with _contextlib.suppress(Exception):
                         _signal.signal(_sig, _handler)
+
+    if args.command == "suite":
+        import os as _os
+
+        from agent_workflows import agent_schema, suite_cache as _sc
+
+        ctx = context
+
+        def _emit_suite_machine(rec: dict[str, Any]) -> None:
+            if ctx.fields:
+                rec = agent_schema.filter_record_fields(rec, ctx.fields)
+            sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+
+        suite_targets = list(getattr(args, "suite_targets", None) or [])
+        narrowed_k = getattr(args, "narrowed_k", None)
+        narrowed_m = getattr(args, "narrowed_m", None)
+        if suite_targets or narrowed_k is not None or narrowed_m is not None:
+            print(_sc.SUITE_REFUSAL_MESSAGE, file=sys.stderr)
+            if ctx.is_agent or ctx.is_json:
+                _emit_suite_machine(
+                    {
+                        "schema": "aw.agent/v1",
+                        "kind": "result",
+                        "cmd": "suite",
+                        "command": "suite",
+                        "outcome": "cannot-run",
+                        "exit": 2,
+                        "verified": False,
+                        "complete": False,
+                        "passed": False,
+                        "exit_code": 2,
+                        "returncode": 2,
+                        "cached": False,
+                        "digest": None,
+                        "summary": "",
+                        "failures": [],
+                        "reason": _sc.SUITE_REFUSAL_MESSAGE,
+                        "diagnostics": [
+                            {
+                                "message": _sc.SUITE_REFUSAL_MESSAGE,
+                                "severity": "error",
+                            }
+                        ],
+                    }
+                )
+            return 2
+
+        repo_root = Path(getattr(args, "dir", None) or _os.getcwd())
+        if not _sc.is_git_checkout(repo_root):
+            msg = "aw suite: checkout is not a git repository"
+            print(msg, file=sys.stderr)
+            if ctx.is_agent or ctx.is_json:
+                _emit_suite_machine(
+                    {
+                        "schema": "aw.agent/v1",
+                        "kind": "result",
+                        "cmd": "suite",
+                        "command": "suite",
+                        "outcome": "cannot-run",
+                        "exit": 2,
+                        "verified": False,
+                        "complete": False,
+                        "passed": False,
+                        "exit_code": 2,
+                        "returncode": 2,
+                        "cached": False,
+                        "digest": None,
+                        "summary": "",
+                        "failures": [],
+                        "reason": msg,
+                        "diagnostics": [{"message": msg, "severity": "error"}],
+                    }
+                )
+            return 2
+
+        if bool(getattr(args, "explain", False)):
+            key = _sc.suite_key(repo_root)
+            diff_info = _sc.explain_key_diff(repo_root, key)
+            exit_rc = 0 if key.cacheable else 2
+            if ctx.is_agent or ctx.is_json:
+                _emit_suite_machine(
+                    {
+                        "schema": "aw.agent/v1",
+                        "kind": "result",
+                        "cmd": "suite",
+                        "command": "suite",
+                        "outcome": "ok" if exit_rc == 0 else "cannot-run",
+                        "exit": exit_rc,
+                        "verified": bool(exit_rc == 0),
+                        "complete": bool(exit_rc == 0),
+                        "cacheable": bool(key.cacheable),
+                        "cached": bool(diff_info.get("hit", False)),
+                        "digest": key.digest,
+                        "head": key.head,
+                        "components": dict(key.components),
+                        "compared_digest": diff_info.get("compared_digest"),
+                        "compared_head": diff_info.get("compared_head"),
+                        "differing_components": list(
+                            diff_info.get("differing_components") or []
+                        ),
+                        "reason": str(key.reason or ""),
+                        "diagnostics": (
+                            []
+                            if exit_rc == 0
+                            else [
+                                {
+                                    "message": str(
+                                        key.reason or "working tree is uncacheable"
+                                    ),
+                                    "severity": "error",
+                                }
+                            ]
+                        ),
+                    }
+                )
+                return exit_rc
+
+            print(f"digest: {key.digest or 'none'}")
+            print(f"head: {key.head or 'none'}")
+            print(f"cacheable: {key.cacheable}")
+            print(f"cached: {diff_info.get('hit', False)}")
+            if key.reason:
+                print(f"reason: {key.reason}")
+            print("components:")
+            for comp_name in ("tree", "argv", "interpreter", "distributions", "env"):
+                print(f"  {comp_name}: {key.components.get(comp_name, 'none')}")
+            if not diff_info.get("hit") and diff_info.get("compared_digest"):
+                print(f"compared_digest: {diff_info['compared_digest']}")
+                print(f"compared_head: {diff_info.get('compared_head') or 'none'}")
+                diffs_str = (
+                    ", ".join(diff_info.get("differing_components") or []) or "none"
+                )
+                print(f"differing_components: {diffs_str}")
+            return exit_rc
+
+        stream_live = not (ctx.is_agent or ctx.is_json)
+        res = _sc.run_full_suite(
+            repo_root,
+            use_cache=not bool(getattr(args, "no_cache", False)),
+            serve_failures=not bool(getattr(args, "no_serve_failures", False)),
+            stream=stream_live,
+        )
+        cli_exit = 0 if res.passed else 1
+        if res.passed:
+            reason_msg = f"suite passed ({res.summary or 'no summary line parsed'})"
+        elif res.exit_code == 124:
+            reason_msg = "suite timed out; treated as a failure (fail-closed)"
+        elif res.exit_code == 127:
+            reason_msg = "suite could not be executed (exit 127); treated as a failure (fail-closed)"
+        else:
+            reason_msg = (
+                f"suite failed with exit {res.exit_code} "
+                f"({res.summary or 'no summary line parsed'})"
+            )
+
+        if ctx.is_agent or ctx.is_json:
+            _emit_suite_machine(
+                {
+                    "schema": "aw.agent/v1",
+                    "kind": "result",
+                    "cmd": "suite",
+                    "command": "suite",
+                    "outcome": "ok" if cli_exit == 0 else "fail",
+                    "exit": cli_exit,
+                    "verified": bool(cli_exit == 0),
+                    "complete": bool(cli_exit == 0),
+                    "passed": bool(res.passed),
+                    "exit_code": int(res.exit_code),
+                    "returncode": int(res.exit_code),
+                    "summary": str(res.summary or ""),
+                    "failures": list(res.failures or ()),
+                    "duration_seconds": round(float(res.duration_seconds), 3),
+                    "cached": bool(res.cached),
+                    "digest": res.digest,
+                    "components": dict(res.components or {}),
+                    "worker_count": int(res.worker_count),
+                    "recorded_at": str(res.recorded_at or ""),
+                    "confirmed": bool(res.confirmed),
+                    "reason": reason_msg,
+                    "diagnostics": (
+                        []
+                        if cli_exit == 0
+                        else [{"message": reason_msg, "severity": "error"}]
+                    ),
+                }
+            )
+            return cli_exit
+
+        if res.cached and not res.passed and res.failures:
+            for fline in res.failures:
+                print(fline)
+        elif not res.cached and res.exit_code in (124, 127):
+            print(f"aw suite: {res.reason}", file=sys.stderr)
+        return cli_exit
 
     if args.command == "normalize-lanes":
         import os as _os

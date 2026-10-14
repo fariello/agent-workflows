@@ -1731,6 +1731,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-14 note (aw specs): IPD 0o0wt2 (suiteeff-02): Section 5.1's per-lane suite check (run_suite_check), the pre-work baseline (start_suite_baseline), and GATE 2's post-merge revalidation (make_integration_validation_runner) route through aw suite (agent_workflows/suite_cache.py:run_full_suite) and may be satisfied by an exact-key cached PASS in <git-common-dir>/aw-suite-cache/<digest>.json; a cached failure is advisory only and is never served to a gate.
 - 2026-10-13 note (aw specs): AMENDED (plan sa13no, backlog gqy7yd): 5.2 guarantee row 4 Enforcement or proof cell now states its status: isolated_worktree/path_policy/timeout_cancel are unrepresented in the capability contract; default worktree isolation and the per-turn ceiling run but are not a boundary; hardened profile is opt-in and fails closed on OpenCode (agy ignores it). All five Host-dependent rows now state enforcement status.
 - 2026-10-13 note (aw specs): amendment (mnwkqu): Section 5.5 retry policy includes the merge-time spec line-anchor check under class 'missing expected artifact or failed deterministic check' with cause spec-anchor-new-stale and fail-open unknown behavior
 - 2026-10-13 note (aw specs): Code conformed to the 4.1 abort set by plan s2tn4q (backlog 03y5g6): a runner tool-identity mismatch now fails only the item (fail-gate, refusal tool-identity-mismatch); the shipped run abort named as a divergence by Set fixfirst is removed
