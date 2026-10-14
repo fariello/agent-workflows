@@ -49,6 +49,10 @@ Parse the terminal record's `exit` and compare it to the process return code; th
 
 When a record constructed by a command fails schema validation during rendering, it is replaced by a conforming `kind: error` record carrying `exit: 2` and `outcome: "error"` rather than crashing with a traceback. The substitute record reports rule text only, preserving field names and naming the violated rules while discarding the offending values (such as unsanitized absolute paths or ANSI escapes) to prevent secondary leaks.
 
+## Findings and severity
+
+`findings` counts every diagnostic regardless of severity and its meaning is unchanged. `findings_by_severity` is an optional, additive object present only when the record carries diagnostics, with keys `error`, `warning`, `info` summing to `findings`. The exit code, not `findings`, is the verdict, so a `findings` count of nonzero beside `exit: 0` means advisories only.
+
 ## Stream truncation is honest
 
 When a stream is bounded (for example with `--limit`), the terminating `summary` record retains
@@ -108,7 +112,7 @@ Clean result (`exit: 0`):
 Domain findings (`exit: 1`):
 
 ```json
-{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"a.md","rule":"check.name-nonconformant"}],"next":"aw group plans x --set y"}
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"findings_by_severity":{"error":2,"warning":0,"info":0},"diagnostics":[{"location":"a.md","rule":"check.name-nonconformant"}],"next":"aw group plans x --set y"}
 ```
 
 Truncated stream summary:

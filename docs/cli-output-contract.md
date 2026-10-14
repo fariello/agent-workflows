@@ -286,8 +286,11 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 ```
 
 ### Domain Findings Result (`exit: 1`)
+
+`findings_by_severity` is an optional, additive object present only when the record carries diagnostics, with keys `error`, `warning`, `info` summing to `findings`.
+
 ```json
-{"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
+{"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"findings_by_severity":{"error":2,"warning":0,"info":0},"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
 ```
 
 ### Stream Summary with Truncation (`exit: 0`)

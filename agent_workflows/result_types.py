@@ -435,6 +435,18 @@ class CommandResult:
         )
         rec["findings"] = int(findings_count)
 
+        if self.diagnostics:
+            severity_counts = {"error": 0, "warning": 0, "info": 0}
+            for d in self.diagnostics:
+                sev = getattr(d, "severity", None)
+                if sev == "warning":
+                    severity_counts["warning"] += 1
+                elif sev == "info":
+                    severity_counts["info"] += 1
+                else:
+                    severity_counts["error"] += 1
+            rec["findings_by_severity"] = severity_counts
+
         # Changes
         if self.changes:
             if is_verbose:
