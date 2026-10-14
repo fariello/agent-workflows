@@ -5,8 +5,9 @@
 - Concern: Nothing bounds how many full suites run at once on one machine. On 2026-10-12, seven concurrent drivers (four review sweeps, three execute runs) on a 12-core host ran load average 75-88; each execute turn's full suite (`python3 -m pytest` at `-n auto`) then outran the 900s stall watchdog, and runs `run-20261012T170951Z-1138207`, `run-20261012T170958Z-1138454` and `run-20261012T171028Z-1138872` lost 9 of 11 turns to `ipd-stalled` (each killed at exactly `stall_timeout: 900.0`). A lock alone would make this WORSE: an agent's `aw suite` blocked on a lock prints nothing the driver can see, because opencode reports a shell tool only when it completes, and `runner_shared.StallWatchdog._run` reaps on idle unless `progress_checker` reports progress.
 - Scope: IN: a machine-wide slot lock taken inside `suite_cache.run_full_suite` (Order 02) around every cache-MISS run, default `max(1, os.cpu_count() // 6)` slots, configurable by `AW_SUITE_SLOTS`; a bounded, loud wait (a progress line at least every 60s, matching `INTEGRATION_LOCK_PROGRESS_SECONDS`); a heartbeat file the waiter touches, keyed by the agent turn's run and item ids, which both hosts' stall watchdogs read as progress; an env marker so a pytest launched by a test does not re-enter the lock; tests; docs. OUT: cache hits (they take no slot); narrowed runs (never pass through `aw suite`); bounding DRIVER concurrency or warning on host load (separate defect, deferred); changing the stall timeout default.
 - Scope-Paths: agent_workflows/suite_cache.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/stall_progress.py, tests/test_suite_slot_lock.py, docs/cli-human-guide.md, CHANGELOG.md
+- Scope-Exceeded: agent_workflows/cli.py (aw suite --agent machine record requires slot field)
 - Item-Dependencies: executed:0o0wt2
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xvm6no
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xvm6no verified (set suiteeff, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: aw suite --agent machine record requires slot field]
 - 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-010 (record `.aw/records/reviews/20261012-suiteeff-03-xvm6no-serialize-full-suites-machine-wide-with-a-lock-whose-wait-th.review.md`)
