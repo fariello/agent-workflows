@@ -585,9 +585,9 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
         for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
             self.assertEqual(dash.tool_category(name), "subagent")
 
-    def test_dashboard_schema_version_is_5(self) -> None:
-        """E-04 (u3enlv): DASHBOARD_SCHEMA_VERSION is 5."""
-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 5)
+    def test_dashboard_schema_version_is_6(self) -> None:
+        """E-03 (0yvidi): DASHBOARD_SCHEMA_VERSION is 6."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 6)
 
     def test_dashboard_conflict_and_info_only_shapes_e10(self) -> None:
         """E-10 (n8we3u): session_stats counts tools/categories/commands correctly for CONFLICT and INFO-ONLY."""
@@ -712,6 +712,83 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
             st_failed = by_state["FAILED"]
             self.assertEqual(st_failed["error_messages"], 1)
             self.assertEqual(st_failed, by_state["ERROR"])
+
+    def test_dashboard_subagent_step_fixture_counts(self) -> None:
+        """E-05 (0yvidi): session_stats on E-04 fixture counts subagent tool, category, and non-test command."""
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "verifier_corroboration"
+            / "agy_session_subagent_step.jsonl"
+        )
+        st = dash.session_stats(fixture_path)
+        self.assertEqual(st["tools"].get("subagent"), 1)
+        self.assertEqual(st["categories"].get("subagent"), 1)
+        self.assertEqual(st["tool_calls"], 2)
+        self.assertEqual(st["commands"], {"git": 1})
+
+    def test_dashboard_stale_cache_invalidated_by_schema_version_bump(self) -> None:
+        """E-05 (0yvidi): StatsCache with schema DASHBOARD_SCHEMA_VERSION - 1 is invalidated, re-parsing session."""
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "verifier_corroboration"
+            / "agy_session_subagent_step.jsonl"
+        )
+        fixture_content = fixture_path.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            runs_root = root / "runs"
+            run = _write_run(runs_root, "run-20261014T000000Z-1", host="agy")
+            session_file = run / "sessions" / "01-abc123-attempt-1.jsonl"
+            session_file.write_text(fixture_content, encoding="utf-8")
+            st = session_file.stat()
+            stamp = [st.st_size, st.st_mtime_ns]
+
+            cache_file = root / "cache.json"
+            stale_cache_data = {
+                "schema": dash.DASHBOARD_SCHEMA_VERSION - 1,
+                "files": {
+                    str(session_file): {
+                        "stamp": stamp,
+                        "stats": {
+                            "format": "agy",
+                            "steps": 1,
+                            "input": 0.0,
+                            "output": 0.0,
+                            "reasoning": 0.0,
+                            "cache_read": 0.0,
+                            "cache_write": 0.0,
+                            "cost": 0.0,
+                            "has_cost": False,
+                            "has_tokens": False,
+                            "tools": {"run_command": 1},
+                            "tool_err": {},
+                            "categories": {"shell": 1},
+                            "commands": {"git": 1},
+                            "tool_calls": 99,
+                            "tool_errors": 0,
+                            "tool_seconds": 1.0,
+                            "llm_seconds": 1.0,
+                            "first_ts": None,
+                            "last_ts": None,
+                            "files_read": 0,
+                            "files_edited": 0,
+                            "result_status": "SUCCESS",
+                            "error_messages": 0,
+                        },
+                    }
+                },
+            }
+            cache_file.write_text(json.dumps(stale_cache_data), encoding="utf-8")
+
+            rows, info = dash.collect_rows([run], cache_path=cache_file)
+            self.assertEqual(info["cache_hits"], 0)
+            self.assertGreaterEqual(info["cache_misses"], 1)
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row["t_subagent"], 1)
+            self.assertEqual(row["tool_calls"], 2)
 
 
 if __name__ == "__main__":

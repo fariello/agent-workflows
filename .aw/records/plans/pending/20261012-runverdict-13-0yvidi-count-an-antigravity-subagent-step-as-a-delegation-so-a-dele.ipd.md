@@ -37,46 +37,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-drive the authoring measurement at the executing HEAD and record it verbatim. EDIT NO FILE IN THIS ITEM. (a) Build two temporary JSONL logs under a temp dir: MIXED (one `step_type: "tool"`, `tool_name: "run_command"`, `CommandLine: "ls -la"` step, then one `step_type: "subagent"`, `state: "DONE"`, `subagent_info: {"subagents": [{"name": "x"}]}` step) and SUB-ONLY (the subagent step alone). Paste `tool_call_from_event(<subagent event>)`, `extract_session_commands(MIXED).delegation_count`, `corroborate_verifier_turn(MIXED, ["python3 -m pytest"])` `verdict`/`reason_code`, the same for SUB-ONLY, and `run_dashboard.session_stats` `tool_calls`/`tools`/`categories` for both. (b) Paste the current value of `run_dashboard.DASHBOARD_SCHEMA_VERSION` (3 at authoring; the prerequisites `n8we3u` and `u3enlv` each bump it by one, so 5 is expected, but E-03 increments whatever value is live) and paste `verifier_corroboration.AGY_TERMINAL_STATES` and `AGY_ERROR_STATES` (defined by `u3enlv` E-02; if either is absent, STOP AND REPORT: the prerequisite has not landed). (c) Run the bare suite and record the failing NODE IDS. If (a) already shows `delegation_count >= 1` for MIXED, STOP AND REPORT: the shape has been handled elsewhere.
+- [x] E-01 Re-drive the authoring measurement at the executing HEAD and record it verbatim. EDIT NO FILE IN THIS ITEM. (a) Build two temporary JSONL logs under a temp dir: MIXED (one `step_type: "tool"`, `tool_name: "run_command"`, `CommandLine: "ls -la"` step, then one `step_type: "subagent"`, `state: "DONE"`, `subagent_info: {"subagents": [{"name": "x"}]}` step) and SUB-ONLY (the subagent step alone). Paste `tool_call_from_event(<subagent event>)`, `extract_session_commands(MIXED).delegation_count`, `corroborate_verifier_turn(MIXED, ["python3 -m pytest"])` `verdict`/`reason_code`, the same for SUB-ONLY, and `run_dashboard.session_stats` `tool_calls`/`tools`/`categories` for both. (b) Paste the current value of `run_dashboard.DASHBOARD_SCHEMA_VERSION` (3 at authoring; the prerequisites `n8we3u` and `u3enlv` each bump it by one, so 5 is expected, but E-03 increments whatever value is live) and paste `verifier_corroboration.AGY_TERMINAL_STATES` and `AGY_ERROR_STATES` (defined by `u3enlv` E-02; if either is absent, STOP AND REPORT: the prerequisite has not landed). (c) Run the bare suite and record the failing NODE IDS. If (a) already shows `delegation_count >= 1` for MIXED, STOP AND REPORT: the shape has been handled elsewhere.
   - Depends on: none
   - Expected outcome: pasted transcripts reproducing F-01 (or the STOP report), the current schema version and both state constants, and the baseline failing node-id list.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: detect the shape in the shared reader and the dashboard
 
-- [ ] E-02 In `agent_workflows/verifier_corroboration.py`, extend `tool_call_from_event`'s Antigravity branch: when `step_type == "subagent"` and `state in AGY_TERMINAL_STATES` (the SAME shared constant the `"tool"` arm gates on after `u3enlv`; do not write a literal tuple, so the two arms cannot drift), return `ToolCall(tool="subagent", host="agy", command=None, path=None, seconds=<duration_seconds via _to_float>, error=(state in AGY_ERROR_STATES), delegation=True, command_missing=False)`. Return exactly ONE record per step regardless of `len(subagent_info.subagents)` (OQ-02). Every other non-`"tool"` step type still returns `None`, and the `"tool"` arm and the OpenCode branch are byte-unchanged. Add a numbered DESIGN DECISION to the function docstring citing `agy_runipd.render_agy_event`'s `step_type == "subagent"` arm and `agy_runipd`'s header ("agy's stdout stream ALREADY carries `step_type == 'subagent'` events") as the evidence the shape is real, and correct DESIGN DECISION 3's sentence "'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER" so it now names this arm. Update the module docstring: item `(d) "delegation-present"` names the Antigravity `step_type == "subagent"` step alongside `browser_subagent`, and the CONTRACT block's reason (3) says the `step_type == "subagent"` gap tracked as `iuhx9d` is now detected while the observational ruling stands unchanged (other measured false positives remain, e.g. `1kebul`).
+- [x] E-02 In `agent_workflows/verifier_corroboration.py`, extend `tool_call_from_event`'s Antigravity branch: when `step_type == "subagent"` and `state in AGY_TERMINAL_STATES` (the SAME shared constant the `"tool"` arm gates on after `u3enlv`; do not write a literal tuple, so the two arms cannot drift), return `ToolCall(tool="subagent", host="agy", command=None, path=None, seconds=<duration_seconds via _to_float>, error=(state in AGY_ERROR_STATES), delegation=True, command_missing=False)`. Return exactly ONE record per step regardless of `len(subagent_info.subagents)` (OQ-02). Every other non-`"tool"` step type still returns `None`, and the `"tool"` arm and the OpenCode branch are byte-unchanged. Add a numbered DESIGN DECISION to the function docstring citing `agy_runipd.render_agy_event`'s `step_type == "subagent"` arm and `agy_runipd`'s header ("agy's stdout stream ALREADY carries `step_type == 'subagent'` events") as the evidence the shape is real, and correct DESIGN DECISION 3's sentence "'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER" so it now names this arm. Update the module docstring: item `(d) "delegation-present"` names the Antigravity `step_type == "subagent"` step alongside `browser_subagent`, and the CONTRACT block's reason (3) says the `step_type == "subagent"` gap tracked as `iuhx9d` is now detected while the observational ruling stands unchanged (other measured false positives remain, e.g. `1kebul`).
   - Depends on: E-01
   - Expected outcome: `tool_call_from_event(<subagent DONE event>)` returns a `ToolCall` with `tool='subagent'`, `host='agy'`, `delegation=True`, `error=False`; a `FAILED` subagent step returns `delegation=True`, `error=True`; MIXED gives `delegation_count == 1` and verdict `indeterminate`/`delegation-present`; SUB-ONLY gives `indeterminate`/`delegation-present`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/run_dashboard.py`, add an `elif stype == "subagent":` branch to `_agy_line` that obtains its record from `tool_call_from_event(obj)` and passes it to `_record_tool` exactly as the `"tool"` branch does (no new parsing in the dashboard). Increment `DASHBOARD_SCHEMA_VERSION` by one from the value E-01(b) recorded, because `_StatsCache` keys entries by `(size, mtime_ns)` and gates the cache on `raw.get("schema") == DASHBOARD_SCHEMA_VERSION`, so an unchanged log containing a subagent step would otherwise be served its stale count (same rule `e08ssu` OQ-02 applied). In the same item rename the existing `tests/test_run_dashboard.py::test_dashboard_schema_version_is_<N>` to the new value (docstring citing `0yvidi`), because that test pins the constant and E-03 alone would otherwise leave the suite red until E-05. Change no other dashboard logic: in particular the new branch inherits the `_agy_line` state gate, which after `u3enlv` is `AGY_TERMINAL_STATES`.
+- [x] E-03 In `agent_workflows/run_dashboard.py`, add an `elif stype == "subagent":` branch to `_agy_line` that obtains its record from `tool_call_from_event(obj)` and passes it to `_record_tool` exactly as the `"tool"` branch does (no new parsing in the dashboard). Increment `DASHBOARD_SCHEMA_VERSION` by one from the value E-01(b) recorded, because `_StatsCache` keys entries by `(size, mtime_ns)` and gates the cache on `raw.get("schema") == DASHBOARD_SCHEMA_VERSION`, so an unchanged log containing a subagent step would otherwise be served its stale count (same rule `e08ssu` OQ-02 applied). In the same item rename the existing `tests/test_run_dashboard.py::test_dashboard_schema_version_is_<N>` to the new value (docstring citing `0yvidi`), because that test pins the constant and E-03 alone would otherwise leave the suite red until E-05. Change no other dashboard logic: in particular the new branch inherits the `_agy_line` state gate, which after `u3enlv` is `AGY_TERMINAL_STATES`.
   - Depends on: E-02
   - Expected outcome: `session_stats(MIXED)` reports `tool_calls == 2`, `tools == {'run_command': 1, 'subagent': 1}`, `categories` containing `'subagent': 1`, `commands` unchanged from E-01; the schema version is one higher than E-01(b); the renamed version test passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the outcome with a fixture and tests
 
-- [ ] E-04 Add the committed fixture `tests/fixtures/verifier_corroboration/agy_session_subagent_step.jsonl` in the style of `agy_session_three_categories.jsonl` (an `init` event with `"session_id":"ses_<redacted>"`, a `user_input` step, one `run_command` step with a non-test `CommandLine` such as `git status`, one `step_type: "subagent"` `DONE` step with `subagent_info.subagents` of length 1, and an `agent_response` step). In `tests/test_verifier_corroboration.py` ADD (do not edit existing cases): (1) `extract_session_commands(fixture)` gives `delegation_count == 1` and one observed command; (2) `corroborate_verifier_turn(fixture, ["python3 -m pytest"])` gives `verdict == "indeterminate"` and `reason_code == "delegation-present"`; (3) a CONTROL built at test time from the fixture's lines with the subagent step removed gives `uncorroborated`, proving the fixture would otherwise be an accusation; (4) `tool_call_from_event` returns `delegation=True` with `error=True` for a subagent step in `ERROR` and in `FAILED` state, and returns `None` for a subagent step in `ACTIVE` state, for an unknown `CANCELED` state, and for a `step_type: "agent_response"` step. The expected per-state outcome is a LITERAL table in the test, not derived from `AGY_TERMINAL_STATES`, so a wrong constant fails the test rather than redefining the oracle (same rule `u3enlv` E-08 applies).
+- [x] E-04 Add the committed fixture `tests/fixtures/verifier_corroboration/agy_session_subagent_step.jsonl` in the style of `agy_session_three_categories.jsonl` (an `init` event with `"session_id":"ses_<redacted>"`, a `user_input` step, one `run_command` step with a non-test `CommandLine` such as `git status`, one `step_type: "subagent"` `DONE` step with `subagent_info.subagents` of length 1, and an `agent_response` step). In `tests/test_verifier_corroboration.py` ADD (do not edit existing cases): (1) `extract_session_commands(fixture)` gives `delegation_count == 1` and one observed command; (2) `corroborate_verifier_turn(fixture, ["python3 -m pytest"])` gives `verdict == "indeterminate"` and `reason_code == "delegation-present"`; (3) a CONTROL built at test time from the fixture's lines with the subagent step removed gives `uncorroborated`, proving the fixture would otherwise be an accusation; (4) `tool_call_from_event` returns `delegation=True` with `error=True` for a subagent step in `ERROR` and in `FAILED` state, and returns `None` for a subagent step in `ACTIVE` state, for an unknown `CANCELED` state, and for a `step_type: "agent_response"` step. The expected per-state outcome is a LITERAL table in the test, not derived from `AGY_TERMINAL_STATES`, so a wrong constant fails the test rather than redefining the oracle (same rule `u3enlv` E-08 applies).
   - Depends on: E-02
   - Expected outcome: the four new cases pass; every pre-existing case passes unedited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `tests/test_run_dashboard.py` ADD two cases (the schema-version rename is E-03's). (1) `session_stats` on the E-04 fixture counts `tools['subagent'] == 1`, `categories['subagent'] == 1`, and `commands` holding only the non-test command's kind. (2) A stale-cache case driven through `collect_rows`: place the fixture content as an agy session under a run built with the file's existing `_write_run(..., host="agy")` helper, write a cache file whose `schema` is `DASHBOARD_SCHEMA_VERSION - 1` and whose entry for that session carries the CURRENT `[size, mtime_ns]` stamp but stale stats (e.g. `tool_calls: 99`), call `collect_rows([run], cache_path=<file>)`, and assert `cache_hits == 0`, `cache_misses >= 1`, and the session row's `t_subagent == 1` and `tool_calls == 2`. Measured at review with a stand-in subagent arm: previous-schema cache -> `hits 0, misses 1, tool_calls [1]` on the unpatched dashboard; same-schema cache -> `hits 1, misses 0, tool_calls [99]`, which is the stale serve the bump prevents.
+- [x] E-05 In `tests/test_run_dashboard.py` ADD two cases (the schema-version rename is E-03's). (1) `session_stats` on the E-04 fixture counts `tools['subagent'] == 1`, `categories['subagent'] == 1`, and `commands` holding only the non-test command's kind. (2) A stale-cache case driven through `collect_rows`: place the fixture content as an agy session under a run built with the file's existing `_write_run(..., host="agy")` helper, write a cache file whose `schema` is `DASHBOARD_SCHEMA_VERSION - 1` and whose entry for that session carries the CURRENT `[size, mtime_ns]` stamp but stale stats (e.g. `tool_calls: 99`), call `collect_rows([run], cache_path=<file>)`, and assert `cache_hits == 0`, `cache_misses >= 1`, and the session row's `t_subagent == 1` and `tool_calls == 2`. Measured at review with a stand-in subagent arm: previous-schema cache -> `hits 0, misses 1, tool_calls [1]` on the unpatched dashboard; same-schema cache -> `hits 1, misses 0, tool_calls [99]`, which is the stale serve the bump prevents.
   - Depends on: E-03, E-04
   - Expected outcome: both new cases pass; no pre-existing test is edited by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: record and run the suite
 
-- [ ] E-06 Add the next free `### D<n>` to `DECISIONS.md` (D163 is already taken at review HEAD by "Rename/regroup citation rewriting skips and reports in-flight plans", and `n8we3u` and `u3enlv` each add one first, so read the last heading and use the next free number) with Context (F-01's measured verdict), Decision (an agy `step_type == "subagent"` step is a delegation in the shared reader; one record per step; the same `AGY_TERMINAL_STATES` the `"tool"` arm uses), the rejected alternative (counting one delegation per entry in `subagent_info.subagents`) with its reason, a note that D160 reason (3)'s example is now fixed while D160's ruling is unchanged, and Applied (files). Add one `CHANGELOG.md` line in the pending release's Fixed list, without em or en dashes, e.g. "Fixed: an Antigravity verifier turn that hands work to a subagent is now reported as indeterminate in `aw runs` instead of uncorroborated, and the run dashboard counts that handoff in its subagent column."
+- [x] E-06 Add the next free `### D<n>` to `DECISIONS.md` (D163 is already taken at review HEAD by "Rename/regroup citation rewriting skips and reports in-flight plans", and `n8we3u` and `u3enlv` each add one first, so read the last heading and use the next free number) with Context (F-01's measured verdict), Decision (an agy `step_type == "subagent"` step is a delegation in the shared reader; one record per step; the same `AGY_TERMINAL_STATES` the `"tool"` arm uses), the rejected alternative (counting one delegation per entry in `subagent_info.subagents`) with its reason, a note that D160 reason (3)'s example is now fixed while D160's ruling is unchanged, and Applied (files). Add one `CHANGELOG.md` line in the pending release's Fixed list, without em or en dashes, e.g. "Fixed: an Antigravity verifier turn that hands work to a subagent is now reported as indeterminate in `aw runs` instead of uncorroborated, and the run dashboard counts that handoff in its subagent column."
   - Depends on: E-02, E-03
   - Expected outcome: one new DECISIONS entry and one CHANGELOG line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the full suite BARE (`python3 -m pytest`) and compare failing NODE IDS against E-01's baseline.
+- [x] E-07 Run the full suite BARE (`python3 -m pytest`) and compare failing NODE IDS against E-01's baseline.
   - Depends on: E-04, E-05, E-06
   - Expected outcome: no failing node id absent from the baseline; the new tests are among the passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,40 +169,315 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the full transcript of E-01(a) showing `None`, `delegation_count` 0, `uncorroborated uncorroborated` for MIXED and `indeterminate missing-command-text` for SUB-ONLY, and the dashboard counts (or the STOP report); paste the schema version value and the two `AGY_*_STATES` constants; paste the bare-suite summary line and sorted failing node-id list. FAILS if any value is paraphrased.
   - Observed evidence:
-  - Result: pending
+```
+tool_call_from_event(<subagent event>): None
+extract_session_commands(MIXED).delegation_count: 0
+corroborate_verifier_turn(MIXED): verdict= uncorroborated reason_code= uncorroborated
+extract_session_commands(SUB-ONLY).delegation_count: 0
+corroborate_verifier_turn(SUB-ONLY): verdict= indeterminate reason_code= missing-command-text
+run_dashboard.session_stats(MIXED): tool_calls= 1 tools= {'run_command': 1} categories= {'shell': 1}
+run_dashboard.session_stats(SUB-ONLY): tool_calls= 0 tools= {} categories= {}
+DASHBOARD_SCHEMA_VERSION: 5
+AGY_TERMINAL_STATES: ('DONE', 'ERROR', 'FAILED')
+AGY_ERROR_STATES: ('ERROR', 'FAILED')
 
-- [ ] V-02 validates E-02
+Bare-suite summary line:
+8357 passed, 4 skipped, 18 xfailed, 3 warnings in 584.51s (0:09:44)
+Sorted failing node-id list:
+(empty)
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the `git diff agent_workflows/verifier_corroboration.py` (new arm, new DESIGN DECISION, corrected decision 3, module docstring edits) and a transcript re-running E-01(a) showing `ToolCall(tool='subagent', host='agy', ..., delegation=True, ...)`, a `FAILED` subagent step giving `delegation=True, error=True`, MIXED `delegation_count 1` and `indeterminate delegation-present`, SUB-ONLY `indeterminate delegation-present`. The diff must show the new arm gating on `AGY_TERMINAL_STATES`/`AGY_ERROR_STATES` and no literal state tuple. Paste `python3 -m pytest -o addopts="" -q tests/test_verifier_corroboration.py` BEFORE E-04 adds cases, all passing unedited.
   - Observed evidence:
-  - Result: pending
+```
+git diff agent_workflows/verifier_corroboration.py:
+diff --git a/agent_workflows/verifier_corroboration.py b/agent_workflows/verifier_corroboration.py
+index 5a7870f7d..eb85d8ef5 100644
+--- a/agent_workflows/verifier_corroboration.py
++++ b/agent_workflows/verifier_corroboration.py
+@@ -29,9 +29,9 @@ alter any item disposition, verification status, or integration decision (such a
+     make an outcome MORE permissive and explicitly forbids using an observation to
+     disbelieve the agent; a corroboration refusal is the forbidden sign.
+ (3) The extraction predicate has known false positives that make it unsafe to strand a
+-    lane on: specifically, the Antigravity `step_type == "subagent"` delegation shape
+-    is unobserved by the reader, causing genuine test delegations to resolve to
+-    `uncorroborated` (tracked as bug `iuhx9d`).
++    lane on: while the Antigravity `step_type == "subagent"` delegation gap tracked as
++    bug `iuhx9d` is now detected, the observational ruling stands unchanged (other
++    measured false positives remain, e.g. `1kebul`).
+ IMPERATIVE: A future consumer may read this verdict and may make an outcome MORE
+ permissive on it, but MUST NOT refuse, downgrade, or change a disposition on it. A
+ reader who believes a refusal is warranted opens a new decision rather than wiring
+@@ -50,9 +50,9 @@ The turn-level corroboration verdict is partitioned into a closed set of conditi
+        or cannot be read due to filesystem/OS permissions.
+    (b) "log-empty": The session log exists but contains zero valid JSON event lines.
+    (c) "claims-empty": The list of claimed test commands is empty.
+-   (d) "delegation-present": The turn delegated work to a subagent (`task` on OpenCode
+-       or `browser_subagent` on Antigravity). Subagent tool calls do not appear in the
+-       parent session log, making commands unobservable.
++   (d) "delegation-present": The turn delegated work to a subagent (`task` on OpenCode,
++       or `browser_subagent` or a `step_type == "subagent"` step on Antigravity). Subagent
++       tool calls do not appear in the parent session log, making commands unobservable.
+    (e) "missing-command-text": Shell calls were executed, but every shell call lacked
+        command text (or no shell command text was observable).
+    (f) "indirection-unresolved": An observed command is an unresolved indirection
+@@ -393,8 +393,9 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
+        - 'invoke_subagent' is referenced in-tree as a real Antigravity tool name
+          (stall_progress lists 'invoke_subagent' alongside 'schedule' and 'manage_task'
+          as tool names that start background tasks, and its docstring cites it).
+-       - 'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER.
+-       - Neither appears in committed fixtures, which use only 'task' and
++       - 'subagent' had no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER
++         until 0yvidi added the Antigravity `step_type == "subagent"` delegation arm.
++       - Neither appears in committed fixtures prior to 0yvidi, which used only 'task' and
+          'browser_subagent'. This is a consistency fix backed by one in-tree reference.
 
-- [ ] V-03 validates E-03
+     4. Antigravity Tool Name and Fail-Open Delegation (n8we3u, resolving 1kebul):
+@@ -419,6 +420,20 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
+        (b) Treating `FAILED` as a terminal errored observation reconciles `tool_call_from_event`,
+            `run_dashboard._agy_line`, and `agy_runipd.render_agy_event` onto one shared
+            vocabulary without hiding failed tool calls from the operator or analytics.
++
++    6. Antigravity Subagent Delegation Step (0yvidi, resolving iuhx9d):
++       An Antigravity `step_update` with `step_type == "subagent"` and
++       `state in AGY_TERMINAL_STATES` returns a delegation `ToolCall`
++       (`tool="subagent"`, `host="agy"`, `command=None`, `path=None`,
++       `seconds=_to_float(su.get("duration_seconds"))`, `error=(state in AGY_ERROR_STATES)`,
++       `delegation=True`, `command_missing=False`). Exactly one record is returned
++       per step regardless of `len(subagent_info.subagents)` (OQ-02).
++       Evidence:
++       `agy_runipd.render_agy_event` already contains a `step_type == "subagent"` arm
++       reading `subagent_info.subagents`, and `agy_runipd`'s header explicitly notes that
++       "agy's stdout stream ALREADY carries `step_type == 'subagent'` events". The shape
++       is real and unobserved by the reader, causing genuine test delegations to resolve
++       to `uncorroborated`.
+     """
+     if not isinstance(obj, (dict, Mapping)):
+         return None
+@@ -429,7 +444,20 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
+             return None
+         state = su.get("state")
+         stype = su.get("step_type")
+-        if state not in AGY_TERMINAL_STATES or stype != "tool":
++        if state not in AGY_TERMINAL_STATES:
++            return None
++        if stype == "subagent":
++            return ToolCall(
++                tool="subagent",
++                host="agy",
++                command=None,
++                path=None,
++                seconds=_to_float(su.get("duration_seconds")),
++                error=(state in AGY_ERROR_STATES),
++                delegation=True,
++                command_missing=False,
++            )
++        if stype != "tool":
+             return None
+         tool_name = agy_tool_name(su)
+         is_error = state in AGY_ERROR_STATES
+
+Transcript:
+tool_call_from_event(<subagent DONE event>): ToolCall(tool='subagent', host='agy', command=None, path=None, seconds=2.0, error=False, delegation=True, command_missing=False)
+tool_call_from_event(<subagent FAILED event>): ToolCall(tool='subagent', host='agy', command=None, path=None, seconds=3.0, error=True, delegation=True, command_missing=False)
+extract_session_commands(MIXED).delegation_count: 1
+corroborate_verifier_turn(MIXED): verdict= indeterminate reason_code= delegation-present
+extract_session_commands(SUB-ONLY).delegation_count: 1
+corroborate_verifier_turn(SUB-ONLY): verdict= indeterminate reason_code= delegation-present
+
+Pytest output before E-04 additions:
+$ python3 -m pytest -o addopts="" -q tests/test_verifier_corroboration.py
+..................................................                       [100%]
+50 passed in 7.19s
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the `git diff agent_workflows/run_dashboard.py` showing only the new `_agy_line` branch and the schema increment, the `git diff tests/test_run_dashboard.py` showing only the version-test rename/value, `session_stats(MIXED)` output with `tool_calls 2`, `tools {'run_command': 1, 'subagent': 1}`, `categories` containing `'subagent': 1`, and `python3 -m pytest -o addopts="" -q tests/test_run_dashboard.py` passing.
   - Observed evidence:
-  - Result: pending
+```
+git diff agent_workflows/run_dashboard.py:
+diff --git a/agent_workflows/run_dashboard.py b/agent_workflows/run_dashboard.py
+index 2924745bb..a75daac89 100644
+--- a/agent_workflows/run_dashboard.py
++++ b/agent_workflows/run_dashboard.py
+@@ -55,7 +55,7 @@ __all__ = [
+     "render_dashboard",
+ ]
 
-- [ ] V-04 validates E-04
+-DASHBOARD_SCHEMA_VERSION = 5
++DASHBOARD_SCHEMA_VERSION = 6
+ ASSETS_DIRNAME = "run_dashboard_assets"
+ STATS_CACHE_FILENAME = "dashboard-session-stats.json"
+ UNRECORDED = "(unrecorded)"
+@@ -349,6 +349,19 @@ def _agy_line(
+                 read_paths=read_paths,
+                 edit_paths=edit_paths,
+             )
++    elif stype == "subagent":
++        tc = tool_call_from_event(obj)
++        if tc is not None:
++            _record_tool(
++                stats,
++                tc.tool,
++                error=tc.error,
++                seconds=tc.seconds,
++                command=tc.command,
++                path=tc.path,
++                read_paths=read_paths,
++                edit_paths=edit_paths,
++            )
+     elif stype == "error_message":
+         stats["error_messages"] += 1
+
+git diff tests/test_run_dashboard.py (version test rename/value):
+@@ -588,4 +588,4 @@
+-    def test_dashboard_schema_version_is_5(self) -> None:
+-        """E-04 (u3enlv): DASHBOARD_SCHEMA_VERSION is 5."""
+-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 5)
++    def test_dashboard_schema_version_is_6(self) -> None:
++        """E-03 (0yvidi): DASHBOARD_SCHEMA_VERSION is 6."""
++        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 6)
+
+session_stats(MIXED) output:
+tool_calls: 2
+tools: {'run_command': 1, 'subagent': 1}
+categories: {'shell': 1, 'subagent': 1}
+commands: {'inspect': 1}
+
+$ python3 -m pytest -o addopts="" -q tests/test_run_dashboard.py
+.....................                                                    [100%]
+21 passed in 0.82s
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the fixture content, the new test function names, and `python3 -m pytest -o addopts="" -q tests/test_verifier_corroboration.py` output; paste `git diff tests/test_verifier_corroboration.py` showing only added lines. Then temporarily revert the E-02 arm, re-run the file, PASTE the failing new cases (the verdict case must fail with `uncorroborated`), restore, re-run passing, and paste `git diff --stat` showing no residue.
   - Observed evidence:
-  - Result: pending
+```
+Fixture content (tests/fixtures/verifier_corroboration/agy_session_subagent_step.jsonl):
+{"event":"init","init":{"session_id":"ses_<redacted>","tools":[]}}
+{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}
+{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"run_command","duration_seconds":0.5,"tool_info":{"parameters":{"CommandLine":"git status"}}}}
+{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"subagent","duration_seconds":2.0,"subagent_info":{"subagents":[{"name":"worker"}]}}}
+{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"agent_response","duration_seconds":1.0,"usage":{"input_tokens":100,"output_tokens":10,"thinking_tokens":0,"cache_read_tokens":50}}}
 
-- [ ] V-05 validates E-05
+New test function names:
+- test_extract_session_commands_agy_subagent_step_fixture
+- test_corroborate_verifier_turn_agy_subagent_step_fixture
+- test_control_without_subagent_step_resolves_uncorroborated
+- test_tool_call_from_event_subagent_step_literal_state_table
+- test_tool_call_from_event_agent_response_returns_none
+
+$ python3 -m pytest -o addopts="" -q tests/test_verifier_corroboration.py
+...........................................................              [100%]
+59 passed in 8.00s
+
+git diff tests/test_verifier_corroboration.py:
+84 insertions(+), 0 deletions(-)
+
+Revert proof (temporarily disabling E-02 subagent arm):
+FAILED tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_tool_call_from_event_subagent_step_literal_state_table[DONE-expected_tc0]
+FAILED tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_tool_call_from_event_subagent_step_literal_state_table[FAILED-expected_tc2]
+FAILED tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_extract_session_commands_agy_subagent_step_fixture
+FAILED tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_corroborate_verifier_turn_agy_subagent_step_fixture
+FAILED tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_tool_call_from_event_subagent_step_literal_state_table[ERROR-expected_tc1]
+5 failed, 54 passed in 7.35s
+
+test_corroborate_verifier_turn_agy_subagent_step_fixture failure:
+AssertionError: assert 'uncorroborated' == 'indeterminate'
+  - indeterminate
+  + uncorroborated
+
+Restored and re-run:
+59 passed in 8.01s
+
+git diff --stat: no residue on agent_workflows/verifier_corroboration.py beyond E-02 change.
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the new test names (non-binding pointers) and `python3 -m pytest -o addopts="" -q tests/test_run_dashboard.py` output; paste the E-05 portion of `git diff tests/test_run_dashboard.py` showing only added lines. The stale-cache case exercises `run_dashboard._StatsCache` through `collect_rows`; paste its assertion lines (`cache_hits == 0`, the row's `t_subagent == 1`). Then temporarily set the cache file's `schema` in the test to the CURRENT value, re-run, PASTE the failure (stale `tool_calls` served), restore, and paste `git diff --stat` showing no residue.
   - Observed evidence:
-  - Result: pending
+```
+New test names:
+- test_dashboard_subagent_step_fixture_counts
+- test_dashboard_stale_cache_invalidated_by_schema_version_bump
 
-- [ ] V-06 validates E-06
+$ python3 -m pytest -o addopts="" -q tests/test_run_dashboard.py
+.......................                                                  [100%]
+23 passed in 0.69s
+
+E-05 portion of git diff tests/test_run_dashboard.py:
++    def test_dashboard_subagent_step_fixture_counts(self) -> None:
++        """E-05 (0yvidi): session_stats on E-04 fixture counts subagent tool, category, and non-test command."""
+...
++    def test_dashboard_stale_cache_invalidated_by_schema_version_bump(self) -> None:
++        """E-05 (0yvidi): StatsCache with schema DASHBOARD_SCHEMA_VERSION - 1 is invalidated, re-parsing session."""
+...
++            rows, info = dash.collect_rows([run], cache_path=cache_file)
++            self.assertEqual(info["cache_hits"], 0)
++            self.assertGreaterEqual(info["cache_misses"], 1)
++            self.assertEqual(len(rows), 1)
++            row = rows[0]
++            self.assertEqual(row["t_subagent"], 1)
++            self.assertEqual(row["tool_calls"], 2)
+
+Assertion lines:
+self.assertEqual(info["cache_hits"], 0)
+self.assertEqual(row["t_subagent"], 1)
+
+Revert proof (setting schema to CURRENT in test cache):
+FAILED tests/test_run_dashboard.py::TestUnifiedToolExtractionRouting::test_dashboard_stale_cache_invalidated_by_schema_version_bump
+AssertionError: 1 != 0 (cache_hits == 1, serving stale tool_calls: 99)
+
+Restored and re-run:
+23 passed in 0.69s
+
+git diff --stat: no residue on tests/test_run_dashboard.py beyond E-03 and E-05.
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the new `DECISIONS.md` entry and the `CHANGELOG.md` line, plus a search of that line for U+2014 and U+2013 returning no match.
   - Observed evidence:
-  - Result: pending
+```
+DECISIONS.md entry:
+### D167. Count an Antigravity subagent step as a delegation across analytics readers
 
-- [ ] V-07 validates E-07
+- **Context:** The shared Antigravity session reader `verifier_corroboration.tool_call_from_event` returned `None` for every `step_update` whose `step_type` was not `"tool"`, ignoring `step_type == "subagent"` steps that `agy_runipd.render_agy_event` already rendered as child delegations. In a session log holding one non-test `run_command` (`ls -la`) and one `step_type: "subagent"`, `state: "DONE"` step, `extract_session_commands` reported `delegation_count=0`, resolving `corroborate_verifier_turn` against claimed test commands to `uncorroborated` (reason: `uncorroborated`) instead of `indeterminate` (reason: `delegation-present`), and `run_dashboard.session_stats` dropped the step entirely (`tool_calls=1`, `tools={'run_command': 1}`, `categories={'shell': 1}`). This produced a false accusation against verifiers that legitimately delegated test runs to subagents.
+- **Decision:** Recognize an Antigravity `step_type == "subagent"` step in `tool_call_from_event` as a delegation `ToolCall` (`tool="subagent"`, `host="agy"`, `delegation=True`, `seconds=duration_seconds`, `error=(state in AGY_ERROR_STATES)`) using the same `AGY_TERMINAL_STATES` constant as the `"tool"` arm. Route the shape into `run_dashboard._agy_line` via the same primitive and bump `DASHBOARD_SCHEMA_VERSION` from 5 to 6 so unchanged logs containing subagent steps are invalidated. Return exactly one record per step. Note that D160 reason (3)'s cited example (the `step_type == "subagent"` gap tracked as `iuhx9d`) is now detected while D160's observational ruling stands unchanged (other measured false positives remain, e.g. `1kebul`).
+  Rejected alternative:
+  1. *Counting one delegation per entry in `subagent_info.subagents`:* rejected because the verdict predicate needs only `delegation_count > 0` to fail open, `tool_call_from_event` returns exactly one record per event by contract, and the dashboard counts tool calls, where one subagent step update is one invocation regardless of how many child workers it spins up.
+- **Applied:** `agent_workflows/verifier_corroboration.py` (`tool_call_from_event`); `agent_workflows/run_dashboard.py` (`_agy_line`, `DASHBOARD_SCHEMA_VERSION = 6`); `tests/test_verifier_corroboration.py`; `tests/test_run_dashboard.py`; `tests/fixtures/verifier_corroboration/agy_session_subagent_step.jsonl`; `DECISIONS.md` (this entry); `CHANGELOG.md`. Executed per IPD `0yvidi` (Set `runverdict`, Order 13, backlog `iuhx9d`).
+
+CHANGELOG.md line:
+- Fixed: an Antigravity verifier turn that hands work to a subagent is now reported as indeterminate in `aw runs` instead of uncorroborated, and the run dashboard counts that handoff in its subagent column.
+
+Dash search result:
+Contains U+2014 or U+2013: False
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: PASTE the bare `python3 -m pytest` summary line, the sorted failing node-id list, and the `comm -13` of baseline vs post-change failing ids showing it is EMPTY. FAILS if a new failing id appears.
   - Observed evidence:
-  - Result: pending
+```
+Bare `python3 -m pytest` summary line:
+8368 passed, 4 skipped, 18 xfailed, 3 warnings in 433.64s (0:07:13)
+
+Sorted failing node-id list:
+(empty)
+
+comm -13 of baseline vs post-change failing ids:
+(empty)
+```
+  - Result: pass
 
 ## Approval and execution gate
 

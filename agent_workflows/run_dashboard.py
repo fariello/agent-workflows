@@ -55,7 +55,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 5
+DASHBOARD_SCHEMA_VERSION = 6
 ASSETS_DIRNAME = "run_dashboard_assets"
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"
@@ -337,6 +337,19 @@ def _agy_line(
             stats["reasoning"] += _num(usage.get("thinking_tokens"))
             stats["cache_read"] += _num(usage.get("cache_read_tokens"))
     elif stype == "tool":
+        tc = tool_call_from_event(obj)
+        if tc is not None:
+            _record_tool(
+                stats,
+                tc.tool,
+                error=tc.error,
+                seconds=tc.seconds,
+                command=tc.command,
+                path=tc.path,
+                read_paths=read_paths,
+                edit_paths=edit_paths,
+            )
+    elif stype == "subagent":
         tc = tool_call_from_event(obj)
         if tc is not None:
             _record_tool(
