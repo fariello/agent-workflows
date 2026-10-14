@@ -6,7 +6,7 @@
 - Scope: Coordinates four children. Order 01 makes CI pass again. Order 02 adds a periodic checkup (every N main commits, default 100) that reads CI's result and runs slow checks, shown by `aw attention` and `aw doctor`. Order 03 makes runs refuse to start new work when CI has not passed in N commits, with an override. Order 04 refuses to merge a lane that makes a spec line pointer stale, replacing `l85xvi`'s CI step.
 - Scope-Paths: .aw/records/plans/pending/20261012-cihealth-00-cntxsm-see-ci-fail-again-and-keep-it-from-going-unseen.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 19c82327d4c18f7cf5d867b27cf28b64d438e9ab65f16e94399570f670ae6253
@@ -20,9 +20,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cntxsm
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set cihealth reached executed, so the runner (run run-20261014T055521Z-2108793) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: ezyb4a, n7xlhm, s4z5n8, mnwkqu.
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-10-12 coverage pass (aw oc run): fingerprint 19c82327d4c1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -37,6 +37,9 @@
 CI passes again, and from then on a failing CI is shown to the maintainer within 100 commits of main without anyone visiting GitHub, and blocks new run work until it is fixed or deliberately overridden.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
