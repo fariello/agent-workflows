@@ -491,7 +491,12 @@ class StreamTracker:
 
     def note_modified_file(self, path: str) -> None:
         if path:
-            self.modified_files.add(path)
+            norm = path.replace("\\", "/")
+            if norm.startswith(".aw/worktrees/"):
+                parts = norm.split("/", 3)
+                if len(parts) == 4 and parts[3]:
+                    norm = parts[3]
+            self.modified_files.add(norm)
 
     def update(
         self,
@@ -595,14 +600,19 @@ def format_todo_transition(
     return f"{counter}: {active_part}"
 
 
-def _relativize_path(raw: str, repo_root: str | Path | None = None) -> str:
+def _relativize_path(
+    raw: str,
+    repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
+) -> str:
     """Render a file path repo-relative when it is inside the repo (E-03).
 
     Both `metadata.filediff.file` (edit) and `metadata.filepath` (write) are ABSOLUTE in the
     corpus. An absolute path is noisier to read and is also what `aw sanitize --agent` flags if it
     ever reaches a shared artifact, so it is relativized against the repo root when one is known
-    and against the process cwd otherwise. A path outside both is left as-is rather than
-    truncated, because a wrong-looking short path is worse than an honest long one.
+    and against the process cwd otherwise. When the agent runs inside an isolated lane worktree
+    (`work_dir`), relativizing against `repo_root` preserves `.aw/worktrees/<lane>/...` so the
+    displayed path is the actual path from the repository root rather than a worktree-local path.
     """
     if not raw:
         return raw
@@ -610,6 +620,21 @@ def _relativize_path(raw: str, repo_root: str | Path | None = None) -> str:
     # A ROOTED path is a relativization candidate even without a drive: on Windows `/repo/x`
     # is rooted but not `is_absolute()`, and it is still not a repo-relative path.
     if not (candidate.is_absolute() or candidate.root):
+        if work_dir and repo_root:
+            raw_posix = raw.replace("\\", "/")
+            if not raw_posix.startswith(".aw/worktrees/"):
+                w_path = Path(work_dir)
+                r_path = Path(repo_root)
+                for w_cand, r_cand in (
+                    (w_path, r_path),
+                    (w_path.resolve(), r_path.resolve()),
+                ):
+                    try:
+                        rel = (w_cand / candidate).relative_to(r_cand).as_posix()
+                        if rel != ".":
+                            return rel
+                    except (ValueError, OSError):
+                        continue
         return raw
     roots: list[Path] = []
     if repo_root:
@@ -622,13 +647,17 @@ def _relativize_path(raw: str, repo_root: str | Path | None = None) -> str:
         try:
             return candidate.relative_to(root).as_posix()
         except ValueError:
-            continue
+            try:
+                return candidate.resolve().relative_to(root.resolve()).as_posix()
+            except (ValueError, OSError):
+                continue
     return raw
 
 
 def format_edit_payload(
     state: dict[str, Any],
     repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
 ) -> str | None:
     """Format an `edit` tool payload as ``<path> (+A, -D)`` (E-03).
 
@@ -643,7 +672,7 @@ def format_edit_payload(
     diff = metadata.get("filediff")
     if not isinstance(diff, dict):
         return None
-    path = _relativize_path(str(diff.get("file") or ""), repo_root)
+    path = _relativize_path(str(diff.get("file") or ""), repo_root, work_dir=work_dir)
     adds = diff.get("additions")
     dels = diff.get("deletions")
     if isinstance(adds, int) and isinstance(dels, int):
@@ -656,6 +685,7 @@ def format_edit_payload(
 def format_write_payload(
     state: dict[str, Any],
     repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
 ) -> str | None:
     """Format a `write` tool payload as ``<path> (new file|overwrote, N lines)`` (E-03).
 
@@ -673,7 +703,7 @@ def format_write_payload(
     raw_path = str(metadata.get("filepath") or inp.get("filePath") or "")
     if not raw_path:
         return None
-    path = _relativize_path(raw_path, repo_root)
+    path = _relativize_path(raw_path, repo_root, work_dir=work_dir)
     word = "overwrote" if metadata.get("exists") else "new file"
     content = inp.get("content")
     if isinstance(content, str):
@@ -685,6 +715,7 @@ def format_write_payload(
 def format_read_payload(
     state: dict[str, Any],
     repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
 ) -> str | None:
     """Format a `read` tool payload as ``<path> (lines A-B of T)`` (E-04, verbose tier).
 
@@ -703,7 +734,7 @@ def format_read_payload(
     raw_path = str(display.get("path") or inp.get("filePath") or "")
     if not raw_path:
         return None
-    path = _relativize_path(raw_path, repo_root)
+    path = _relativize_path(raw_path, repo_root, work_dir=work_dir)
     start = display.get("lineStart")
     end = display.get("lineEnd")
     total = display.get("totalLines")
@@ -864,6 +895,7 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
     verbosity: int = 0,
     use_unicode: bool = True,
     repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
 ) -> str | None:
     """Translate one raw JSONL event from `opencode run --format json` into a
     concise, colored terminal line.
@@ -928,14 +960,16 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
         extra_lines: list[str] = []
 
         if tool == "edit":
-            payload = format_edit_payload(state, repo_root)
+            payload = format_edit_payload(state, repo_root, work_dir=work_dir)
             if tracker is not None:
                 metadata = state.get("metadata")
                 if isinstance(metadata, dict):
                     diff = metadata.get("filediff")
                     if isinstance(diff, dict) and diff.get("file"):
                         tracker.note_modified_file(
-                            _relativize_path(str(diff["file"]), repo_root)
+                            _relativize_path(
+                                str(diff["file"]), repo_root, work_dir=work_dir
+                            )
                         )
             if verbosity >= 2:
                 metadata = state.get("metadata")
@@ -951,16 +985,18 @@ def render_event(  # type: ignore[return]  # checker-limitation: intentional fal
                                 )
                             )
         elif tool == "write":
-            payload = format_write_payload(state, repo_root)
+            payload = format_write_payload(state, repo_root, work_dir=work_dir)
             if tracker is not None:
                 metadata = state.get("metadata")
                 metadata = metadata if isinstance(metadata, dict) else {}
                 if metadata.get("filepath"):
                     tracker.note_modified_file(
-                        _relativize_path(str(metadata["filepath"]), repo_root)
+                        _relativize_path(
+                            str(metadata["filepath"]), repo_root, work_dir=work_dir
+                        )
                     )
         elif tool == "read":
-            payload = format_read_payload(state, repo_root)
+            payload = format_read_payload(state, repo_root, work_dir=work_dir)
         elif tool in ("grep", "glob"):
             payload = format_find_payload(tool, state)
         elif tool == "todowrite":
@@ -3263,6 +3299,126 @@ def _interrupt_reason_of(item: dict[str, Any]) -> str | None:
     return None
 
 
+def explain_fail_verify_outcome(
+    item: Mapping[str, Any],
+    outcome: Mapping[str, Any] | None = None,
+    *,
+    run_id: str | None = None,
+) -> tuple[str, str, str]:
+    """Derive ``(code, reason, remedy)`` explaining why an item ended in ``fail-verify``.
+
+    When ``reconcile_disposition`` scores an execute turn as ``fail-verify`` (or ``partial``)
+    before the verifier runs, the verifier never executes and no verifier refusal is recorded.
+    This helper inspects the collected outcome JSON and attempt metadata to state the exact cause
+    (missing outcome file, missing ``disposition`` field such as writing ``status`` instead,
+    unrecognized ``disposition``, or an agent-reported ``partial``/``fail-verify`` disposition)
+    and names the durable collected outcome path under ``.aw/records/runs/<run-id>/outcomes/``.
+    """
+    if outcome is None:
+        raw_last = item.get("last_outcome")
+        if isinstance(raw_last, Mapping):
+            outcome = raw_last
+
+    id6 = str(item.get("id6") or "unknown").strip() or "unknown"
+    pos = item.get("position")
+    rid = str(run_id or "").strip()
+    if not rid and isinstance(outcome, Mapping) and outcome.get("run_id"):
+        rid = str(outcome["run_id"]).strip()
+    attempts = item.get("attempts")
+    last_attempt: Mapping[str, Any] | None = None
+    if isinstance(attempts, list) and attempts:
+        if isinstance(attempts[-1], Mapping):
+            last_attempt = attempts[-1]
+            if not rid:
+                for p_key in ("log", "prompt", "defect_reask_prompt"):
+                    p_val = str(last_attempt.get(p_key) or "")
+                    m_run = re.search(r"(run-\d{8}T\d{6}Z-\d+)", p_val)
+                    if m_run:
+                        rid = m_run.group(1)
+                        break
+
+    if rid and isinstance(pos, int):
+        rel_outcome_path = f".aw/records/runs/{rid}/outcomes/{pos:02d}-{id6}.json"
+    elif isinstance(pos, int):
+        rel_outcome_path = f"outcomes/{pos:02d}-{id6}.json"
+    else:
+        rel_outcome_path = f"outcomes/{id6}.json"
+
+    preserved_branch = str(
+        item.get("preserved_branch")
+        or (last_attempt.get("worktree_branch") if last_attempt else "")
+        or ""
+    ).strip()
+    lane_hint = (
+        f" (work preserved on branch {preserved_branch})" if preserved_branch else ""
+    )
+
+    if outcome is None:
+        return (
+            "outcome-missing",
+            (
+                f"turn exited 0 without writing a readable outcome file at {rel_outcome_path}; "
+                f"verification could not run{lane_hint}"
+            ),
+            (
+                f"inspect the session log and preserved lane for {id6}, write {rel_outcome_path} "
+                f"with a valid 'disposition', or re-run {id6}"
+            ),
+        )
+
+    raw_disp = outcome.get("disposition")
+    if raw_disp is None or str(raw_disp).strip() == "":
+        wrong_status = outcome.get("status")
+        if wrong_status is not None and str(wrong_status).strip() != "":
+            status_note = f" (wrote 'status': {wrong_status!r} instead)"
+        else:
+            status_note = ""
+        return (
+            "outcome-missing-disposition",
+            (
+                f"outcome file {rel_outcome_path} omitted required field 'disposition'"
+                f"{status_note}; verification could not run{lane_hint}"
+            ),
+            (
+                f"set a valid 'disposition' in {rel_outcome_path} and integrate or re-run {id6}"
+            ),
+        )
+
+    disp_str = str(raw_disp).strip()
+    if disp_str.lower() in ("fail-verify", "partial"):
+        parts: list[str] = []
+        inc = outcome.get("incomplete_requirements")
+        if isinstance(inc, list) and inc:
+            parts.append("incomplete: " + ", ".join(str(x) for x in inc[:4]))
+        def_q = outcome.get("deferred_question_ids")
+        if isinstance(def_q, list) and def_q:
+            parts.append("deferred: " + ", ".join(str(x) for x in def_q[:4]))
+        summary = " ".join(str(outcome.get("summary") or "").split())
+        if summary:
+            parts.append(_one_line(summary, 160))
+        detail = "; ".join(parts) if parts else "no summary recorded"
+        next_act = " ".join(str(outcome.get("recommended_next_action") or "").split())
+        remedy = (
+            next_act
+            if next_act
+            else f"inspect {rel_outcome_path}, complete remaining requirements for {id6}, and re-run"
+        )
+        return (
+            "agent-reported-partial",
+            f"agent reported disposition {disp_str!r} in {rel_outcome_path} ({detail}){lane_hint}",
+            remedy,
+        )
+
+    return (
+        "outcome-invalid-disposition",
+        (
+            f"outcome file {rel_outcome_path} recorded unrecognized disposition {disp_str!r}; "
+            f"verification could not run{lane_hint}"
+        ),
+        f"set a valid 'disposition' in {rel_outcome_path} and integrate or re-run {id6}",
+    )
+
+
 def refusal_of_item(item: dict[str, Any]) -> Refusal | None:
     """The refusal recorded on one queue item, or ``None``.
 
@@ -3303,6 +3459,15 @@ def refusal_of_item(item: dict[str, Any]) -> Refusal | None:
                 "then finalize. This run predates the structured refusal record, so its reason is the "
                 "gate's raw message; the work itself is preserved on the item's lane"
             ),
+        )
+    if str(item.get("status") or "").strip() == "fail-verify" and (
+        item.get("last_outcome") is not None or item.get("attempts")
+    ):
+        fv_code, fv_reason, fv_remedy = explain_fail_verify_outcome(item)
+        return Refusal(
+            code=fv_code,
+            reason=_redact_absolute_paths(fv_reason),
+            remedy=_redact_absolute_paths(fv_remedy),
         )
     return None
 

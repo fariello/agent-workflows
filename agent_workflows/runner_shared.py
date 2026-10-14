@@ -197,6 +197,7 @@ from agent_workflows.render_stream import (
     record_refusal,
     record_integration_refusal as render_record_integration_refusal,
     refusal_of_item,
+    explain_fail_verify_outcome,
     render_run_summary_table,
     # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the two renderers the re-homed
     # `report_run_spec_edits` closes over. They are ADDED TO THE EXISTING `render_stream` statement
@@ -39265,6 +39266,9 @@ def execute_item_core(
                             "cyan",
                         )
                     )
+                elif rescored_outcome is not None:
+                    outcome = rescored_outcome
+                    item["last_outcome"] = rescored_outcome
 
         # verremand (t18l64) E-03: Remand retryable verification failures back to the agent in its lane
         # under the frozen retry budget, called ONCE after the rescore and before silent-turn / integration gates.
@@ -39321,6 +39325,31 @@ def execute_item_core(
             )
             print(
                 pal(f"\u2717 IPD {item['id6']} silent turn: {zero_work.reason}", "red"),
+                file=sys.stderr,
+            )
+        elif (
+            not is_review
+            and not is_production
+            and canonical_terminal_status(disposition) == "fail-verify"
+            and refusal_of_item(item) is None
+        ):
+            fv_code, fv_reason, fv_remedy = explain_fail_verify_outcome(
+                item,
+                outcome,
+                run_id=str(state.get("run_id") or run_dir.name),
+            )
+            record_refusal(
+                item,
+                code=fv_code,
+                reason=fv_reason,
+                remedy=fv_remedy,
+            )
+            print(
+                pal(f"  ! IPD {item['id6']} fail-verify: {fv_reason}", "yellow"),
+                file=sys.stderr,
+            )
+            print(
+                pal(f"    -> {fv_remedy}", "yellow"),
                 file=sys.stderr,
             )
 

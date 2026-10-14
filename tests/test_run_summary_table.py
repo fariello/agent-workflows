@@ -349,3 +349,218 @@ class RunSummaryTableRenderingTests(TestCase):
         self.assertIn("\033[38;5;245mn/a\033[0m", table)
         # 214 yellow for "unknown"
         self.assertIn("\033[38;5;214munknown\033[0m", table)
+
+
+class TestLaneWorktreePathsAndFailVerifyRefusal(TestCase):
+    """Verify stream paths inside lane worktrees show actual .aw/worktrees/<lane>/... paths
+    and fail-verify outcomes explain WHY the item was placed in fail-verify."""
+
+    def test_stream_events_render_actual_lane_worktree_path_while_tracker_dedupes_logical_path(
+        self,
+    ):
+        import json
+        from agent_workflows.agy_runipd import render_agy_event
+        from agent_workflows.render_stream import Palette, StreamTracker, render_event
+
+        repo_root = Path("/repo/project")
+        lane_dir = repo_root / ".aw" / "worktrees" / "s4z5n8"
+        rel_sub = ".aw/state/lane-submissions/run-20261014T004917Z-3785780/01-s4z5n8/attempt-1/outcomes/01-s4z5n8.json"
+        abs_in_lane = str(lane_dir / rel_sub)
+        expected_display = f".aw/worktrees/s4z5n8/{rel_sub}"
+
+        pal = Palette(False)
+        tracker = StreamTracker()
+
+        # 1. Antigravity write_to_file with absolute path inside lane worktree
+        agy_write_line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 3.33,
+                    "tool_info": {
+                        "name": "write_to_file",
+                        "parameters": {"TargetFile": abs_in_lane},
+                    },
+                },
+            }
+        )
+        out_agy_abs = render_agy_event(
+            agy_write_line,
+            pal,
+            repo_root=repo_root,
+            work_dir=lane_dir,
+            tracker=tracker,
+        )
+        self.assertIsNotNone(out_agy_abs)
+        self.assertIn(expected_display, out_agy_abs)
+        self.assertIn(rel_sub, tracker.modified_files)
+
+        # 2. Antigravity replace_file_content with relative path inside lane worktree
+        agy_edit_rel = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 2.29,
+                    "tool_info": {
+                        "name": "replace_file_content",
+                        "parameters": {"TargetFile": rel_sub},
+                    },
+                },
+            }
+        )
+        out_agy_rel = render_agy_event(
+            agy_edit_rel,
+            pal,
+            repo_root=repo_root,
+            work_dir=lane_dir,
+            tracker=tracker,
+        )
+        self.assertIsNotNone(out_agy_rel)
+        self.assertIn(expected_display, out_agy_rel)
+
+        # 3. OpenCode write event with relative or absolute path inside lane worktree
+        oc_write_line = json.dumps(
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "write",
+                    "state": {
+                        "status": "completed",
+                        "input": {"filePath": rel_sub, "content": "{\n}\n"},
+                        "metadata": {"filepath": abs_in_lane, "exists": False},
+                    },
+                },
+            }
+        )
+        out_oc = render_event(
+            oc_write_line,
+            pal,
+            tracker=tracker,
+            repo_root=repo_root,
+            work_dir=lane_dir,
+        )
+        self.assertIsNotNone(out_oc)
+        self.assertIn(expected_display, out_oc)
+
+    def test_fail_verify_missing_disposition_surfaces_reason_and_remedy_across_summaries(
+        self,
+    ):
+        from agent_workflows.render_stream import (
+            Palette,
+            explain_fail_verify_outcome,
+            refusal_of_item,
+            render_run_summary_table,
+        )
+        from agent_workflows.run_selection_policy import (
+            render_disposition_summary,
+            render_queue_dispositions,
+        )
+
+        run_id = "run-20261014T004917Z-3785780"
+        item = {
+            "position": 1,
+            "id6": "s4z5n8",
+            "setid": "cihealth",
+            "action": "execute",
+            "status": "fail-verify",
+            "preserved_branch": "aw/lane/s4z5n8",
+            "last_outcome": {"id6": "s4z5n8", "status": "executed"},
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "started_at": "2026-10-14T00:49:17Z",
+                    "ended_at": "2026-10-14T02:19:09Z",
+                    "exit_code": 0,
+                    "disposition": "fail-verify",
+                    "worktree_branch": "aw/lane/s4z5n8",
+                    "log": f"/tmp/repo/.aw/records/runs/{run_id}/sessions/01-s4z5n8-attempt1.jsonl",
+                }
+            ],
+        }
+        code, reason, remedy = explain_fail_verify_outcome(item, run_id=run_id)
+        self.assertEqual(code, "outcome-missing-disposition")
+        self.assertIn(
+            f".aw/records/runs/{run_id}/outcomes/01-s4z5n8.json",
+            reason,
+        )
+        self.assertIn("omitted required field 'disposition'", reason)
+        self.assertIn("wrote 'status': 'executed' instead", reason)
+        self.assertIn("aw/lane/s4z5n8", reason)
+        self.assertIn("set a valid 'disposition'", remedy)
+
+        # Even without an explicit item["refusal"], refusal_of_item synthesizes one for frozen runs
+        refusal = refusal_of_item(item)
+        self.assertIsNotNone(refusal)
+        assert refusal is not None
+        self.assertEqual(refusal.code, "outcome-missing-disposition")
+        self.assertIn("omitted required field 'disposition'", refusal.reason)
+
+        state = {
+            "run_id": run_id,
+            "created_at": "2026-10-14T00:49:17Z",
+            "updated_at": "2026-10-14T02:19:09Z",
+            "queue": [item],
+        }
+        table = render_run_summary_table(
+            state, pal=Palette(False), driver_label="antigravity"
+        )
+        self.assertIn("Diagnostics / Blocked Items:", table)
+        self.assertIn(
+            "s4z5n8: fail-verify (outcome file .aw/records/runs/run-20261014T004917Z-3785780/outcomes/01-s4z5n8.json omitted required field 'disposition' (wrote 'status': 'executed' instead)",
+            table,
+        )
+        self.assertIn("→ remedy: set a valid 'disposition'", table)
+
+        q_lines = "\n".join(
+            render_queue_dispositions([item], refusal_reader=refusal_of_item)
+        )
+        self.assertIn("omitted required field 'disposition'", q_lines)
+
+        d_lines = "\n".join(
+            render_disposition_summary([item], refusal_reader=refusal_of_item)
+        )
+        self.assertIn("outcome-missing-disposition", d_lines)
+        self.assertIn("remedy: set a valid 'disposition'", d_lines)
+
+    def test_explain_fail_verify_outcome_handles_missing_and_partial_outcomes(self):
+        from agent_workflows.render_stream import explain_fail_verify_outcome
+
+        missing_item = {
+            "position": 2,
+            "id6": "abc123",
+            "status": "fail-verify",
+            "preserved_branch": "aw/lane/abc123",
+            "last_outcome": None,
+        }
+        code, reason, remedy = explain_fail_verify_outcome(
+            missing_item, run_id="run-20261014T010000Z-1"
+        )
+        self.assertEqual(code, "outcome-missing")
+        self.assertIn(
+            ".aw/records/runs/run-20261014T010000Z-1/outcomes/02-abc123.json",
+            reason,
+        )
+        self.assertIn("without writing a readable outcome file", reason)
+
+        partial_item = {
+            "position": 3,
+            "id6": "def456",
+            "status": "fail-verify",
+            "last_outcome": {
+                "disposition": "partial",
+                "incomplete_requirements": ["E-02", "V-02"],
+                "summary": "Stopped before completing E-02.",
+                "recommended_next_action": "Finish E-02 on the preserved lane.",
+            },
+        }
+        code_p, reason_p, remedy_p = explain_fail_verify_outcome(
+            partial_item, run_id="run-20261014T010000Z-1"
+        )
+        self.assertEqual(code_p, "agent-reported-partial")
+        self.assertIn("incomplete: E-02, V-02", reason_p)
+        self.assertIn("Stopped before completing E-02.", reason_p)
+        self.assertEqual(remedy_p, "Finish E-02 on the preserved lane.")

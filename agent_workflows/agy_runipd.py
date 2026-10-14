@@ -1007,6 +1007,7 @@ def render_agy_event(
     verbosity: int = 0,
     use_unicode: bool = True,
     repo_root: str | Path | None = None,
+    work_dir: str | Path | None = None,
     tracker: StreamTracker | None = None,
     app_data_dir: Path | None = None,
 ) -> str | None:
@@ -1116,7 +1117,9 @@ def render_agy_event(
                 ):
                     p = params.get("TargetFile") or params.get("AbsolutePath")
                     if p:
-                        tracker.note_modified_file(_relativize_path(str(p), repo_root))
+                        tracker.note_modified_file(
+                            _relativize_path(str(p), repo_root, work_dir=work_dir)
+                        )
             # streamfmt (mm6wuz) E-06: the same tier rule the oc renderer applies. A read or a
             # search does not change the repository, so it is suppressed at the default tier and
             # surfaced at `-v`.
@@ -1135,9 +1138,13 @@ def render_agy_event(
                 # Was `Path(...).name`, a BARE BASENAME, which told an operator `runner_shared.py`
                 # was touched without saying which of several trees it lived in. Repo-relative is
                 # both more informative and what the leak-sanitizer prefers over an absolute path.
-                cmd = _relativize_path(str(params["AbsolutePath"]), repo_root)
+                cmd = _relativize_path(
+                    str(params["AbsolutePath"]), repo_root, work_dir=work_dir
+                )
             elif "TargetFile" in params:
-                cmd = _relativize_path(str(params["TargetFile"]), repo_root)
+                cmd = _relativize_path(
+                    str(params["TargetFile"]), repo_root, work_dir=work_dir
+                )
             elif "Pattern" in params:
                 cmd = str(params["Pattern"])
             elif tool_name == "manage_task" or "TaskId" in params or "Action" in params:
@@ -2818,6 +2825,7 @@ def run_agy_turn(
                         if checkpoint_observer.observe(raw_line):
                             raise runner_stop.StopAtCheckpoint(checkpoint_observer)
 
+                        display_repo_root = state.get("repo") or agent_dir
                         if output_mode == "raw":
                             sys.stdout.write(raw_line)
                             sys.stdout.flush()
@@ -2826,7 +2834,8 @@ def run_agy_turn(
                                     raw_line,
                                     pal,
                                     verbosity=verbosity,
-                                    repo_root=agent_dir,
+                                    repo_root=display_repo_root,
+                                    work_dir=work_dir,
                                     tracker=tracker,
                                 )
                         elif output_mode == "clean":
@@ -2834,7 +2843,8 @@ def run_agy_turn(
                                 raw_line,
                                 pal,
                                 verbosity=verbosity,
-                                repo_root=agent_dir,
+                                repo_root=display_repo_root,
+                                work_dir=work_dir,
                                 tracker=tracker,
                             )
                             if rendered is not None:
@@ -2844,7 +2854,8 @@ def run_agy_turn(
                                 raw_line,
                                 pal,
                                 verbosity=verbosity,
-                                repo_root=agent_dir,
+                                repo_root=display_repo_root,
+                                work_dir=work_dir,
                                 tracker=tracker,
                             )
                     # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent

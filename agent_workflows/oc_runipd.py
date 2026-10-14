@@ -3334,6 +3334,7 @@ def run_opencode(
                             # unwinds into the existing `except BaseException` below, which already
                             # routes to the shared reaper, so no second teardown path exists (spec R5).
                             raise runner_stop.StopAtCheckpoint(checkpoint_observer)
+                        display_repo_root = state.get("repo") or agent_dir
                         if output_mode == "raw":
                             sys.stdout.write(line)
                             sys.stdout.flush()
@@ -3343,7 +3344,8 @@ def run_opencode(
                                     pal,
                                     tracker=tracker,
                                     verbosity=verbosity,
-                                    repo_root=agent_dir,
+                                    repo_root=display_repo_root,
+                                    work_dir=work_dir,
                                 )
                         elif output_mode == "clean":
                             rendered = render_event(
@@ -3351,7 +3353,8 @@ def run_opencode(
                                 pal,
                                 tracker=tracker,
                                 verbosity=verbosity,
-                                repo_root=agent_dir,
+                                repo_root=display_repo_root,
+                                work_dir=work_dir,
                             )
                             if rendered is not None:
                                 statusline.write_event(rendered)
@@ -3361,7 +3364,8 @@ def run_opencode(
                                 pal,
                                 tracker=tracker,
                                 verbosity=verbosity,
-                                repo_root=agent_dir,
+                                repo_root=display_repo_root,
+                                work_dir=work_dir,
                             )
                     # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
                     # child, which is how the blocking iteration above is unblocked at all. Re-check here
