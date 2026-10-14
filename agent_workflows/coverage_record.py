@@ -339,10 +339,19 @@ def write(
         fname_match = re.search(r"\b([0-9a-z]{6})\b", path.name)
         id6 = fname_match.group(1) if fname_match else path.stem
 
+    from agent_workflows import git_commit_helper as _gch
+
     commit_msg = f"coverage({resolved_host}): record the coverage answer for {id6}"
+    ident = _gch.agent_commit_identity(
+        resolved_repo,
+        model=None if hist_model == "by host-default" else hist_model,
+        item_id6=id6,
+        message=commit_msg,
+    )
     commit_proc = subprocess.run(
-        ["git", "commit", "-m", commit_msg, "--", rel_path],
+        ["git", "commit", "-m", ident.message, "--", rel_path],
         cwd=str(resolved_repo),
+        env=ident.env,
         capture_output=True,
         text=True,
         check=False,

@@ -32,11 +32,18 @@ it so there is a single git-subprocess wrapper across the codebase.
 
 from __future__ import annotations
 
+import inspect
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
+
+# Keep an unpatched reference to subprocess.Popen so internal git-config probes
+# inside agent_commit_identity are unaffected when unit tests mock subprocess.Popen
+# around runner invocations (run_opencode / run_agy_turn).
+_REAL_POPEN = subprocess.Popen
 
 # --------------------------------------------------------------------------------------
 # Git trailer conventions (see compose_message_with_trailers)
@@ -47,6 +54,7 @@ from typing import Any, List, NamedTuple, Optional, Sequence, Tuple
 # `AW-Run: <run-id>` and `AW-Item: <id6>`, then proves their tree diffs".
 TRAILER_KEY_RUN = "AW-Run"
 TRAILER_KEY_ITEM = "AW-Item"
+TRAILER_KEY_RUNNER = "AW-Runner"
 
 # Environment variable names by which a live run hands its ids to an agent's `aw commit`.
 # This is the ONE channel for that handover: the runner writes them and `work_cmd` reads
@@ -54,6 +62,17 @@ TRAILER_KEY_ITEM = "AW-Item"
 # trailer keys are.
 RUN_ID_ENV = "AW_RUN_ID"
 ITEM_ID6_ENV = "AW_ITEM_ID6"
+RUNNER_ENV = "AW_RUNNER"
+AGENT_RUNNER_ENV = RUNNER_ENV
+AGENT_MODEL_ENV = "AW_AGENT_MODEL"
+COMMITTER_NAME_ENV = "GIT_COMMITTER_NAME"
+COMMITTER_EMAIL_ENV = "GIT_COMMITTER_EMAIL"
+
+# Closed set of recognized runner labels for the AW-Runner trailer.
+RUNNER_OC_RUN = "aw oc run"
+RUNNER_AGY_RUN = "aw agy run"
+RUNNER_AW_COMMIT = "aw commit"
+KNOWN_RUNNERS: Tuple[str, ...] = (RUNNER_OC_RUN, RUNNER_AGY_RUN, RUNNER_AW_COMMIT)
 
 # A trailer token, per `git-interpret-trailers`: "there can be no whitespace before or inside the
 # <key>, but any number of regular space and tab characters are allowed between the <key> and the
@@ -260,6 +279,418 @@ def run_item_trailers(run_id: Optional[str], item_id6: Optional[str]) -> List[st
     return out
 
 
+run_trailers = run_item_trailers
+
+# --------------------------------------------------------------------------------------
+# Agent commit identity & runner attribution (IPD yr3d4o E-02)
+# --------------------------------------------------------------------------------------
+
+_COMMITTER_NAME_MODEL_RE = re.compile(r"^AW Agent \(([^()]+)\)$")
+_SCOPED_GIT_ENV: Optional[Dict[str, str]] = None
+
+
+def model_from_actor(actor: Optional[str]) -> Optional[str]:
+    """Extract the model component from a runner/lifecycle actor string.
+
+    Actor strings in the runners and lifecycle have shapes such as
+    ``"aw oc run model=opus"``, ``"opencode model=claude-opus-4-6"``,
+    ``"opencode/claude-opus-4-6"``, ``"agy/gemini-2.5-pro"``, or ``"human/operator"``.
+    Returns ``None`` for ``human/*`` or when no model token is present so
+    :func:`resolve_agent_model` can fall back to ``AW_AGENT_MODEL`` or ``"unknown"``.
+    """
+
+    s = str(actor or "").strip()
+    if not s or s.startswith("human/"):
+        return None
+    m = re.search(r"\bmodel=([^\s;,\]]+)", s)
+    if m:
+        return m.group(1).strip() or None
+    if "/" in s:
+        host, rest = s.split("/", 1)
+        if host in ("opencode", "agy", "antigravity", "oc"):
+            return rest.strip() or None
+    return None
+
+
+def sanitize_agent_model(raw: Optional[str]) -> str:
+    """Sanitize a raw model name for use in ``AW Agent (<model>)`` (E-02).
+
+    Strips newlines, carriage returns, NULs, ``<``, ``>``, and parentheses, and
+    collapses whitespace so ``Gemini 3.8 Flash (High)`` becomes
+    ``Gemini 3.8 Flash High``. Returns ``"unknown"`` when unset or empty.
+    """
+
+    if raw is None:
+        return "unknown"
+    cleaned = re.sub(r"[\r\n\x00<>()]+", " ", str(raw))
+    cleaned = " ".join(cleaned.split())
+    return cleaned if cleaned else "unknown"
+
+
+def resolve_agent_model(
+    explicit: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    """Resolve the effective model identifier with deterministic precedence (E-02).
+
+    Precedence:
+    1. Explicit ``explicit`` argument (when non-empty and not ``"unknown"``).
+    2. ``AW_AGENT_MODEL`` in ``env`` (or ``os.environ`` when ``env`` is ``None``).
+    3. ``GIT_COMMITTER_NAME`` matching ``^AW Agent \\(([^()]+)\\)$`` in ``env``.
+    4. ``"unknown"``. Never guessed.
+    """
+
+    if explicit is not None and str(explicit).strip():
+        cand = sanitize_agent_model(explicit)
+        if cand != "unknown":
+            return cand
+    env_map: Mapping[str, str] = os.environ if env is None else env
+    env_model = env_map.get(AGENT_MODEL_ENV)
+    if env_model is not None and str(env_model).strip():
+        cand = sanitize_agent_model(env_model)
+        if cand != "unknown":
+            return cand
+    committer_name = (env_map.get(COMMITTER_NAME_ENV) or "").strip()
+    m = _COMMITTER_NAME_MODEL_RE.match(committer_name)
+    if m:
+        cand = sanitize_agent_model(m.group(1))
+        if cand != "unknown":
+            return cand
+    return "unknown"
+
+
+def resolve_agent_runner(
+    explicit: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> Optional[str]:
+    """Resolve the runner label for ``AW-Runner``, validated against ``KNOWN_RUNNERS``.
+
+    Precedence:
+    1. Explicit ``explicit`` argument.
+    2. ``AW_RUNNER`` in ``env`` (or ``os.environ`` when ``env`` is ``None``).
+    3. ``None`` (no ``AW-Runner`` trailer emitted when unknown).
+    """
+
+    if explicit is not None and str(explicit).strip():
+        val = str(explicit).strip()
+        return val if val in KNOWN_RUNNERS else None
+    env_map: Mapping[str, str] = os.environ if env is None else env
+    env_val = env_map.get(RUNNER_ENV)
+    if env_val is not None and str(env_val).strip():
+        val = str(env_val).strip()
+        return val if val in KNOWN_RUNNERS else None
+    return None
+
+
+def tag_agent_email(raw_email: Optional[str]) -> str:
+    """Tag ``raw_email`` as an ``aw`` agent committer address (E-02).
+
+    * ``<local>@<domain>`` -> ``<local>+aw@<domain>`` when ``<local>`` has no ``+``.
+    * ``<local>@<domain>`` -> ``<local>-aw@<domain>`` when ``<local>`` already contains ``+``.
+    * Idempotent when ``<local>`` already ends with ``+aw`` or ``-aw``.
+    * Returns ``""`` when ``raw_email`` is empty or lacks ``@`` (no committer override).
+    """
+
+    s = str(raw_email or "").strip().strip("<>").strip()
+    if not s or "@" not in s:
+        return ""
+    local, sep, domain = s.rpartition("@")
+    local = local.strip()
+    domain = domain.strip()
+    if not sep or not local or not domain:
+        return ""
+    if local.endswith("+aw") or local.endswith("-aw"):
+        return f"{local}@{domain}"
+    if "+" in local:
+        return f"{local}-aw@{domain}"
+    return f"{local}+aw@{domain}"
+
+
+class AgentCommitIdentity(NamedTuple):
+    """Resolved committer/author identity, trailer set, message, and subprocess env."""
+
+    committer_name: str
+    committer_email: str
+    author_name: Optional[str]
+    author_email: Optional[str]
+    model: str
+    runner: Optional[str]
+    trailers: Tuple[str, ...]
+    message: str
+    env: Dict[str, str]
+
+
+def _git_config_get(
+    repo_root: Path,
+    key: str,
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> Optional[str]:
+    """Read a single ``git config --get <key>`` value using ``_REAL_POPEN``.
+
+    Uses ``_REAL_POPEN`` directly so unit tests that patch ``subprocess.Popen`` around
+    runner turns or spy on ``_git`` do not intercept internal git-config lookups.
+    """
+
+    cwd_path: Optional[str] = None
+    try:
+        if repo_root and repo_root.is_dir():
+            cwd_path = str(repo_root)
+        elif repo_root and repo_root.parent.is_dir():
+            cwd_path = str(repo_root.parent)
+    except OSError:
+        cwd_path = None
+
+    try:
+        proc = _REAL_POPEN(
+            ["git", "config", "--get", key],
+            cwd=cwd_path,
+            env=dict(env) if env is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, _err = proc.communicate(timeout=5)
+        if proc.returncode == 0 and out:
+            val = out.strip()
+            return val if val else None
+    except Exception:
+        return None
+    return None
+
+
+_EXISTING_AW_TRAILER_KEY_RE = re.compile(r"(?m)^(AW-Runner|AW-Run|AW-Item)[ \t]*:")
+
+
+def _compose_identity_message(message: str, ident_trailers: Sequence[str]) -> str:
+    """Compose ``message`` with ``ident_trailers`` without duplicating existing ``AW-*`` keys (E-02).
+
+    Never adds an ``AW-Runner``, ``AW-Run``, or ``AW-Item`` trailer whose key is already
+    present in ``message`` (e.g. ``commit_review_lane_output`` already stamps ``AW-Run`` /
+    ``AW-Item`` and ``AW-Committed-By: driver``).
+    """
+
+    cleaned_ident = [validate_trailer(t) for t in ident_trailers]
+    if not cleaned_ident:
+        return message
+
+    existing_keys = set(_EXISTING_AW_TRAILER_KEY_RE.findall(message or ""))
+    to_add: List[str] = []
+    for t in cleaned_ident:
+        key = t.split(":", 1)[0].strip()
+        if key not in existing_keys:
+            to_add.append(t)
+            existing_keys.add(key)
+
+    if not to_add:
+        return message
+    return compose_message_with_trailers(message, to_add)
+
+
+_ENV_RUN_ID_RE = re.compile(r"^run-[A-Za-z0-9_-]+$")
+_ENV_ITEM_ID6_RE = re.compile(r"^[a-z0-9]{6}$")
+
+
+def agent_commit_identity(
+    repo_root: Path,
+    *,
+    model: Optional[str] = None,
+    runner: Optional[str] = None,
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
+    message: Optional[str] = None,
+    base_env: Optional[Mapping[str, str]] = None,
+) -> AgentCommitIdentity:
+    """Resolve the agent committer identity, signing override, trailers, and git env (E-02).
+
+    * COMMITTER NAME: ``AW Agent (<model>)``, where ``<model>`` is resolved by
+      :func:`resolve_agent_model` and never guessed.
+    * COMMITTER EMAIL: user's email from ``GIT_AUTHOR_EMAIL`` or ``git config user.email``
+      in ``repo_root`` tagged via :func:`tag_agent_email`. When no user email is configured
+      or it lacks ``@``, sets no committer override in ``env``.
+    * AUTHOR: never set by this helper, so git's normal author identity applies.
+    * SIGNING: when ``commit.gpgsign=true`` and ``user.signingkey`` is unset in ``repo_root``,
+      appends ``GIT_CONFIG_COUNT``/``GIT_CONFIG_KEY_<n>=user.signingkey``/
+      ``GIT_CONFIG_VALUE_<n>=<Name <email>>`` so ``gpg`` signs with the user's key rather
+      than looking up a key for the ``+aw`` committer address.
+    * TRAILERS: ``AW-Runner: <runner>`` (when known), plus ``AW-Run`` and ``AW-Item`` when
+      present, never duplicating a key ``message`` already carries.
+    """
+
+    env_in: Dict[str, str] = dict(os.environ if base_env is None else base_env)
+
+    cfg_name = _git_config_get(repo_root, "user.name", env=env_in)
+    cfg_email = _git_config_get(repo_root, "user.email", env=env_in)
+    cfg_gpgsign = _git_config_get(repo_root, "commit.gpgsign", env=env_in)
+    cfg_signingkey = _git_config_get(repo_root, "user.signingkey", env=env_in)
+
+    author_name = (env_in.get("GIT_AUTHOR_NAME") or "").strip() or cfg_name or None
+    raw_email = (env_in.get("GIT_AUTHOR_EMAIL") or "").strip() or cfg_email or None
+    author_email = raw_email
+
+    committer_email = tag_agent_email(raw_email)
+    resolved_model = resolve_agent_model(model, env=env_in)
+    committer_name = f"AW Agent ({resolved_model})" if committer_email else ""
+    resolved_runner = resolve_agent_runner(runner, env=env_in)
+
+    if run_id is not None and str(run_id).strip():
+        resolved_run_id: Optional[str] = str(run_id).strip()
+    else:
+        env_run = (env_in.get(RUN_ID_ENV) or "").strip()
+        resolved_run_id = env_run if _ENV_RUN_ID_RE.match(env_run) else None
+
+    if item_id6 is not None and str(item_id6).strip():
+        resolved_item_id6: Optional[str] = str(item_id6).strip()
+    else:
+        env_item = (env_in.get(ITEM_ID6_ENV) or "").strip()
+        resolved_item_id6 = env_item if _ENV_ITEM_ID6_RE.match(env_item) else None
+
+    t_list: List[str] = []
+    if resolved_runner:
+        t_list.append(f"{TRAILER_KEY_RUNNER}: {resolved_runner}")
+    t_list.extend(run_item_trailers(resolved_run_id, resolved_item_id6))
+    trailers_tuple: Tuple[str, ...] = tuple(t_list)
+
+    out_message = (
+        _compose_identity_message(message, trailers_tuple)
+        if message is not None
+        else ""
+    )
+
+    out_env: Dict[str, str] = dict(env_in)
+    if committer_email:
+        out_env[COMMITTER_NAME_ENV] = committer_name
+        out_env[COMMITTER_EMAIL_ENV] = committer_email
+
+        # When commit.gpgsign is true and user.signingkey is unset, point user.signingkey
+        # at the user's own ident so gpg requests the user's key, not the +aw address (E-02, F-09).
+        if (cfg_gpgsign or "").strip().lower() in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        ) and not (cfg_signingkey or "").strip():
+            user_ident = (
+                f"{author_name} <{raw_email}>" if author_name else f"<{raw_email}>"
+            )
+            try:
+                count = int(out_env.get("GIT_CONFIG_COUNT", "0") or "0")
+            except ValueError:
+                count = 0
+            already_set = any(
+                out_env.get(f"GIT_CONFIG_KEY_{i}") == "user.signingkey"
+                for i in range(max(count, 0))
+            )
+            if not already_set:
+                out_env[f"GIT_CONFIG_KEY_{count}"] = "user.signingkey"
+                out_env[f"GIT_CONFIG_VALUE_{count}"] = user_ident
+                out_env["GIT_CONFIG_COUNT"] = str(count + 1)
+
+    return AgentCommitIdentity(
+        committer_name=committer_name,
+        committer_email=committer_email,
+        author_name=author_name,
+        author_email=author_email,
+        model=resolved_model,
+        runner=resolved_runner,
+        trailers=trailers_tuple,
+        message=out_message,
+        env=out_env,
+    )
+
+
+def export_agent_child_env(
+    child_env: Dict[str, str],
+    repo_root: Path,
+    *,
+    model: Optional[str],
+    runner: Optional[str],
+) -> Dict[str, str]:
+    """Populate ``child_env`` with agent committer identity and runner/model env vars (E-04).
+
+    Applies the same overwrite-or-pop discipline as ``AW_RUN_ID`` / ``AW_ITEM_ID6`` so an
+    outer run's identity never leaks into a nested driver when values are absent.
+    """
+
+    ident = agent_commit_identity(
+        repo_root,
+        model=model,
+        runner=runner,
+        base_env=child_env,
+    )
+    if ident.committer_email:
+        child_env.update(ident.env)
+    else:
+        child_env.pop(COMMITTER_NAME_ENV, None)
+        child_env.pop(COMMITTER_EMAIL_ENV, None)
+
+    if ident.runner:
+        child_env[RUNNER_ENV] = ident.runner
+    elif runner and str(runner).strip() in KNOWN_RUNNERS:
+        child_env[RUNNER_ENV] = str(runner).strip()
+    else:
+        child_env.pop(RUNNER_ENV, None)
+
+    if model is not None and str(model).strip():
+        sanitized = sanitize_agent_model(model)
+        if sanitized != "unknown":
+            child_env[AGENT_MODEL_ENV] = sanitized
+        else:
+            child_env.pop(AGENT_MODEL_ENV, None)
+    elif ident.model != "unknown":
+        child_env[AGENT_MODEL_ENV] = ident.model
+    else:
+        child_env.pop(AGENT_MODEL_ENV, None)
+    return child_env
+
+
+def _accepts_kwarg(fn: Any, kw_name: str) -> bool:
+    """Return True if ``fn`` (or its callable ``side_effect``) accepts ``kw_name`` or ``**kwargs``."""
+
+    target = fn
+    side_effect = getattr(fn, "side_effect", None)
+    if callable(side_effect):
+        target = side_effect
+    try:
+        sig = inspect.signature(target)
+    except (TypeError, ValueError):
+        return False
+    for param in sig.parameters.values():
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == kw_name and param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            return True
+    return False
+
+
+def _accepts_env_kwarg(fn: Any) -> bool:
+    """Return True if ``fn`` accepts an ``env`` keyword argument (or ``**kwargs``)."""
+
+    return _accepts_kwarg(fn, "env")
+
+
+def call_git_with_env(
+    git_fn: Any,
+    repo_root: Path,
+    args: List[str],
+    env: Optional[Mapping[str, str]] = None,
+) -> Tuple[int, str, str]:
+    """Call ``git_fn(repo_root, args)`` with ``env``, supporting 2-arg test spies."""
+
+    global _SCOPED_GIT_ENV
+    prev_env = _SCOPED_GIT_ENV
+    _SCOPED_GIT_ENV = dict(env) if env is not None else prev_env
+    try:
+        if env is not None and _accepts_env_kwarg(git_fn):
+            return git_fn(repo_root, args, env=env)
+        return git_fn(repo_root, args)
+    finally:
+        _SCOPED_GIT_ENV = prev_env
+
+
 # Outcome status literals (kept as plain strings so callers/tests can compare directly).
 STATUS_COMMITTED = "committed"
 STATUS_SKIPPED = "skipped"
@@ -301,16 +732,24 @@ class CommitOutcome(NamedTuple):
     abandoned: Tuple[str, ...] = ()
 
 
-def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
+def _git(
+    repo_root: Path,
+    args: List[str],
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> Tuple[int, str, str]:
     """Run a git command in ``repo_root``; return (returncode, stdout, stderr).
 
     The single canonical git-subprocess wrapper for the codebase; ``ipd_lifecycle._git``
-    delegates here so there is no duplicated runner.
+    delegates here so there is no duplicated runner. When ``env`` is provided (or scoped via
+    :func:`call_git_with_env`), passes that environment mapping to the ``git`` subprocess.
     """
 
+    effective_env = env if env is not None else _SCOPED_GIT_ENV
     proc = subprocess.run(
         ["git", *args],
         cwd=str(repo_root),
+        env=dict(effective_env) if effective_env is not None else None,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -540,6 +979,10 @@ def offer_commit(
     interactive: Optional[bool] = None,
     on_unrelated_staged: str = "scope",
     trailers: Sequence[str] = (),
+    model: Optional[str] = None,
+    runner: Optional[str] = None,
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
 ) -> CommitOutcome:
     """Offer to commit ONLY ``paths`` (path-scoped), enforcing the repo contract.
 
@@ -787,7 +1230,32 @@ def offer_commit(
             # committing here would let pre-commit stash the SHARED tree and then restore over a peer's
             # in-flight edit, destroying it (measured). `commit_isolated` runs the SAME hooks in a private
             # worktree instead, and advances the branch under a compare-and-swap.
-            iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
+            ident = agent_commit_identity(
+                repo_root,
+                model=model,
+                runner=runner,
+                run_id=run_id,
+                item_id6=item_id6,
+                message=full_message,
+            )
+            full_message = ident.message
+
+            def _call_commit_isolated() -> Any:
+                if _accepts_kwarg(_lock.commit_isolated, "model"):
+                    return _lock.commit_isolated(
+                        repo_root,
+                        our_staged,
+                        message=full_message,
+                        model=model,
+                        runner=runner,
+                        run_id=run_id,
+                        item_id6=item_id6,
+                    )
+                return _lock.commit_isolated(
+                    repo_root, our_staged, message=full_message
+                )
+
+            iso = _call_commit_isolated()
 
             # E-06: ISO_RACED_MAX_ATTEMPTS is a deliberate COST bound from plan 9bq5o4
             # ("each attempt re-runs the FULL pre-commit hook set in a fresh worktree").
@@ -808,9 +1276,7 @@ def offer_commit(
                     if raced_attempts >= ISO_RACED_MAX_ATTEMPTS:
                         return True, iso
                     raced_attempts += 1
-                    iso = _lock.commit_isolated(
-                        repo_root, our_staged, message=full_message
-                    )
+                    iso = _call_commit_isolated()
                     if getattr(iso, "abandoned", ()):
                         abandoned_shas.extend(iso.abandoned)
                     if iso.status == _lock.ISO_COMMITTED:

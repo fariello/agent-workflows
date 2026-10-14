@@ -2945,6 +2945,16 @@ def run_opencode(
     else:
         child_env.pop(_gch.ITEM_ID6_ENV, None)
 
+    # agentident (yr3d4o) E-04: export GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL, AW_AGENT_MODEL,
+    # and AW_RUNNER into the agent turn's child env so both `aw commit` and any direct `git commit`
+    # inside the turn carry the agent committer identity and runner label.
+    _gch.export_agent_child_env(
+        child_env,
+        Path(agent_dir),
+        runner=_gch.RUNNER_OC_RUN,
+        model=options.get(model_key) or options.get("model"),
+    )
+
     # userconfig (9y27t2) E-04: contain agent writes to user config via per-turn sandbox.
     from agent_workflows import config as _config
 

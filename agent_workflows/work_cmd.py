@@ -522,6 +522,31 @@ def _trailers_from_args(args: argparse.Namespace) -> List[str]:
     return _gch.run_item_trailers(valid_run_id, valid_item_id6)
 
 
+def _runner_from_args(args: argparse.Namespace) -> str:
+    """Resolve the ``AW-Runner`` label for ``aw commit`` (IPD yr3d4o E-03, E-04).
+
+    Reads ``args.runner`` when supplied programmatically, else ``AW_RUNNER`` from the environment
+    (exported into agent turns by ``aw oc run`` and ``aw agy run``), validated against
+    ``git_commit_helper.KNOWN_RUNNERS``. A malformed environment value warns on stderr and falls
+    back to ``"aw commit"``.
+    """
+    ns_runner = getattr(args, "runner", None)
+    if ns_runner is not None and str(ns_runner).strip() in _gch.KNOWN_RUNNERS:
+        return str(ns_runner).strip()
+
+    raw_runner = os.environ.get(_gch.AGENT_RUNNER_ENV)
+    if raw_runner is not None and raw_runner.strip():
+        cleaned = raw_runner.strip()
+        if cleaned in _gch.KNOWN_RUNNERS:
+            return cleaned
+        sys.stderr.write(
+            f"aw commit: warning - ignoring malformed {_gch.AGENT_RUNNER_ENV} value {raw_runner!r}; "
+            'falling back to "aw commit"\n'
+        )
+
+    return _gch.RUNNER_AW_COMMIT
+
+
 def _default_commit_message(plan_text: str, plan_rel: str) -> str:
     """Derive the default commit message for ``aw commit <plan>`` (backlog qivywd, IPD isgno7).
 
@@ -821,6 +846,7 @@ def run_commit(args: argparse.Namespace) -> int:
         no_commit=bool(getattr(args, "no_commit", False)),
         on_unrelated_staged="scope",
         trailers=_trailers_from_args(args),
+        runner=_runner_from_args(args),
     )
     if outcome.status == _gch.STATUS_COMMITTED:
         if plan_id and parsed_scope_reasons:

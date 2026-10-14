@@ -2491,6 +2491,17 @@ def run_agy_turn(
     else:
         child_env.pop(_gch.ITEM_ID6_ENV, None)
 
+    # agentident (yr3d4o) E-04: mirror of the oc twin (oc_runipd.run_opencode). Export
+    # GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL, AW_AGENT_MODEL, and AW_RUNNER into the agent turn's
+    # child env so both `aw commit` and any direct `git commit` inside the turn carry the agent
+    # committer identity and runner label.
+    _gch.export_agent_child_env(
+        child_env,
+        Path(agent_dir),
+        runner=_gch.RUNNER_AGY_RUN,
+        model=model_flag or options.get("model"),
+    )
+
     # userconfig (9y27t2) E-04: contain agent writes to user config via per-turn sandbox.
     from agent_workflows import config as _config
 

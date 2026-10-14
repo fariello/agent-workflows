@@ -558,6 +558,7 @@ def _run_git(
     *,
     timeout: float | None = None,
     input: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> tuple[int, str, str]:
     """Run a git command in ``repo``; return (returncode, stdout, stderr).
 
@@ -567,6 +568,10 @@ def _run_git(
     `subprocess.TimeoutExpired` as an unprovable `unknown` rather than a pass. Raising is deliberate:
     swallowing a timeout here would make a hang indistinguishable from an empty history.
     """
+    run_env: dict[str, str] | None = None
+    if env is not None:
+        run_env = os.environ.copy()
+        run_env.update(env)
     proc = subprocess.run(
         ["git", *args],
         cwd=str(repo),
@@ -575,6 +580,7 @@ def _run_git(
         stderr=subprocess.PIPE,
         timeout=timeout,
         input=input,
+        env=run_env,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -3039,8 +3045,28 @@ def reclaim_lanes_on_interrupt(
             snapshot = None
             if lane["dirty"]:
                 try:
+                    _snap_host = (
+                        "aw agy run"
+                        if str(
+                            (state.get("host_capabilities") or {}).get("host") or ""
+                        ).startswith("agy")
+                        else (
+                            "aw oc run"
+                            if str(
+                                (state.get("host_capabilities") or {}).get("host") or ""
+                            ).startswith("oc")
+                            else None
+                        )
+                    )
                     snapshot = worktree_lease.snapshot_lane_dirty_work(
-                        repo, handle, note=f"Reason: {reason}."
+                        repo,
+                        handle,
+                        note=f"Reason: {reason}.",
+                        runner=_snap_host,
+                        model=str((state.get("options") or {}).get("model") or "")
+                        or None,
+                        run_id=str(state.get("run_id") or "") or None,
+                        item_id6=str(lane.get("id6") or "") or None,
                     )
                 except Exception as exc:  # never let preservation failure escalate
                     append_jsonl(
@@ -3633,6 +3659,13 @@ def commit_review_lane_output(
     )
     trailers = [*_gch.run_item_trailers(run_id, id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=id6,
+        message=message_body,
+    )
     rc, _out, _err = _run_git(
         wt,
         [
@@ -3640,10 +3673,11 @@ def commit_review_lane_output(
             "-m",
             subject,
             "-m",
-            message_body,
+            ident.message,
             "--",
             *paths,
         ],
+        env=ident.env,
     )
     if rc != 0:
         # A hook refused, or there was nothing to commit after all. Leave the work in the lane: the
@@ -3659,6 +3693,7 @@ def commit_review_shared_output(
     *,
     host_label: str,
     allowed_paths: Sequence[str | Path] = (),
+    run_id: str | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit a non-isolated review turn's uncommitted output to the shared checkout.
 
@@ -3702,7 +3737,21 @@ def commit_review_shared_output(
     rc, _out, _err = _run_git(repo, ["add", "--", *paths])
     if rc != 0:
         return None, ()
+    from agent_workflows import git_commit_helper as _gch
+
     subject = f"review({host_label}): record the review of {id6}"
+    body = (
+        "Committed by the driver because the non-isolated review turn left its output "
+        "uncommitted in the shared checkout. Path-scoped to the artifact under review and its "
+        "review record; hooks ran normally."
+    )
+    ident = _gch.agent_commit_identity(
+        repo,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=id6,
+        message=body,
+    )
     rc, _out, _err = _run_git(
         repo,
         [
@@ -3710,14 +3759,11 @@ def commit_review_shared_output(
             "-m",
             subject,
             "-m",
-            (
-                "Committed by the driver because the non-isolated review turn left its output "
-                "uncommitted in the shared checkout. Path-scoped to the artifact under review and its "
-                "review record; hooks ran normally."
-            ),
+            ident.message,
             "--",
             *paths,
         ],
+        env=ident.env,
     )
     if rc != 0:
         _run_git(repo, ["restore", "--staged", "--", *paths])
@@ -3834,6 +3880,13 @@ def commit_spec_production_output(
     )
     trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=spec_id6,
+        message=message_body,
+    )
     rc, _out, _err = _run_git(
         wt,
         [
@@ -3841,10 +3894,11 @@ def commit_spec_production_output(
             "-m",
             subject,
             "-m",
-            message_body,
+            ident.message,
             "--",
             *allowed,
         ],
+        env=ident.env,
     )
     if rc != 0:
         return None, tuple(allowed), tuple(out_of_scope)
@@ -3859,6 +3913,7 @@ def commit_spec_transition_output(
     *,
     run_id: str | None = None,
     is_note: bool = False,
+    host_label: str | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit the spec transition to implementing (or stage note) (path-scoped) (E-05)."""
     wt = Path(target_dir)
@@ -3902,6 +3957,13 @@ def commit_spec_transition_output(
         )
     trailers = [*_gch.run_item_trailers(run_id, spec_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=spec_id6,
+        message=message_body,
+    )
     rc, _out, _err = _run_git(
         wt,
         [
@@ -3909,10 +3971,11 @@ def commit_spec_transition_output(
             "-m",
             subject,
             "-m",
-            message_body,
+            ident.message,
             "--",
             *allowed,
         ],
+        env=ident.env,
     )
     if rc != 0:
         return None, tuple(allowed)
@@ -4028,6 +4091,13 @@ def commit_backlog_production_output(
     )
     trailers = [*_gch.run_item_trailers(run_id, item_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=item_id6,
+        message=message_body,
+    )
     rc, _out, _err = _run_git(
         wt,
         [
@@ -4035,10 +4105,11 @@ def commit_backlog_production_output(
             "-m",
             subject,
             "-m",
-            message_body,
+            ident.message,
             "--",
             *allowed,
         ],
+        env=ident.env,
     )
     if rc != 0:
         return None, tuple(allowed), tuple(out_of_scope)
@@ -4052,6 +4123,7 @@ def commit_backlog_transition_output(
     *,
     status_label: str = "graduated",
     run_id: str | None = None,
+    host_label: str | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit the backlog transition (path-scoped) (E-05/E-06)."""
     wt = Path(target_dir)
@@ -4089,6 +4161,13 @@ def commit_backlog_transition_output(
     )
     trailers = [*_gch.run_item_trailers(run_id, item_id6), "AW-Committed-By: driver"]
     message_body = _gch.compose_message_with_trailers(body, trailers)
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=item_id6,
+        message=message_body,
+    )
     rc, _out, _err = _run_git(
         wt,
         [
@@ -4096,10 +4175,11 @@ def commit_backlog_transition_output(
             "-m",
             subject,
             "-m",
-            message_body,
+            ident.message,
             "--",
             *allowed,
         ],
+        env=ident.env,
     )
     if rc != 0:
         return None, tuple(allowed)
@@ -5989,6 +6069,8 @@ def prepare_lane_for_conflict_resolution(
     run_checked: Callable[..., str] | None = None,
     main_tip: str | None = None,
     item: Mapping[str, Any] | None = None,
+    host_label: str | None = None,
+    run_id: str | None = None,
 ) -> ConflictPrep:
     """Merge main into the lane worktree, leaving conflicts for the agent to resolve.
 
@@ -6028,12 +6110,29 @@ def prepare_lane_for_conflict_resolution(
     lane_id = getattr(handle, "lane_id", "") or "lane"
     id6 = lane_id.split(":")[0]
 
-    rc, out, err = _run_git(wt_path, ["merge", "--no-ff", "--no-commit", target_tip])
+    from agent_workflows import git_commit_helper as _gch
+
+    commit_subject = f"merge main into lane {id6} for merge-back"
+    ident = _gch.agent_commit_identity(
+        wt_path,
+        runner=host_label,
+        run_id=run_id,
+        item_id6=id6,
+        message=commit_subject,
+    )
+    rc, out, err = _run_git(
+        wt_path,
+        ["merge", "--no-ff", "--no-commit", target_tip],
+        env=ident.env,
+    )
 
     if rc == 0:
         if merge_in_progress(wt_path):
-            commit_subject = f"merge main into lane {id6} for merge-back"
-            c_rc, c_out, c_err = _run_git(wt_path, ["commit", "-m", commit_subject])
+            c_rc, c_out, c_err = _run_git(
+                wt_path,
+                ["commit", "-m", ident.message],
+                env=ident.env,
+            )
             if c_rc != 0:
                 _run_git(wt_path, ["merge", "--abort"])
                 return ConflictPrep(
@@ -7864,6 +7963,19 @@ def integrate_lane_branch(
     if rc == 0:
         return True, "fast-forward integrated to main", "integrated"
     # main advanced past the lane base: attempt a controlled non-ff merge of ONLY this branch.
+    from agent_workflows import git_commit_helper as _gch
+
+    _integ_run_id = (
+        run_dir.name if (run_dir and run_dir.name.startswith("run-")) else None
+    )
+    _merge_msg = f"integrate({host_label}): merge verified lane {id6} to main"
+    _merge_ident = _gch.agent_commit_identity(
+        repo,
+        runner=host_label,
+        run_id=_integ_run_id,
+        item_id6=id6,
+        message=_merge_msg,
+    )
     rc, out2, err2 = _run_git(
         repo,
         [
@@ -7871,9 +7983,10 @@ def integrate_lane_branch(
             "--no-ff",
             "--no-edit",
             "-m",
-            f"integrate({host_label}): merge verified lane {id6} to main",
+            _merge_ident.message,
             handle.branch,
         ],
+        env=_merge_ident.env,
     )
     if rc == 0:
         return True, "controlled non-ff merge integrated to main", "integrated"
@@ -7957,15 +8070,26 @@ def integrate_lane_branch(
         if rederivable:
             applied, apply_why = apply_records_only_rederivation(repo, verdicts)
             if applied:
+                _rederive_msg = (
+                    f"integrate({host_label}): re-derive records-only front matter for lane "
+                    f"{id6} against the settled tree"
+                )
+                _rederive_ident = _gch.agent_commit_identity(
+                    repo,
+                    runner=host_label,
+                    run_id=_integ_run_id,
+                    item_id6=id6,
+                    message=_rederive_msg,
+                )
                 rc3, out3, err3 = _run_git(
                     repo,
                     [
                         "commit",
                         "--no-edit",
                         "-m",
-                        f"integrate({host_label}): re-derive records-only front matter for lane "
-                        f"{id6} against the settled tree",
+                        _rederive_ident.message,
                     ],
+                    env=_rederive_ident.env,
                 )
                 if rc3 == 0:
                     return (
@@ -8021,15 +8145,26 @@ def integrate_lane_branch(
             repo, conflicted
         )
         if history_ok:
+            _hist_msg = (
+                f"integrate({host_label}): merge verified lane {id6} to main "
+                "(kept both sides of workflow-history lines)"
+            )
+            _hist_ident = _gch.agent_commit_identity(
+                repo,
+                runner=host_label,
+                run_id=_integ_run_id,
+                item_id6=id6,
+                message=_hist_msg,
+            )
             rc4, out4, err4 = _run_git(
                 repo,
                 [
                     "commit",
                     "--no-edit",
                     "-m",
-                    f"integrate({host_label}): merge verified lane {id6} to main "
-                    "(kept both sides of workflow-history lines)",
+                    _hist_ident.message,
                 ],
+                env=_hist_ident.env,
             )
             if rc4 == 0:
                 return (
@@ -13537,10 +13672,28 @@ def reconcile_item_on_interrupt(
             )
             if lane["dirty"]:
                 with contextlib.suppress(Exception):
+                    _snap_host = (
+                        "aw agy run"
+                        if str(
+                            (state.get("host_capabilities") or {}).get("host") or ""
+                        ).startswith("agy")
+                        else (
+                            "aw oc run"
+                            if str(
+                                (state.get("host_capabilities") or {}).get("host") or ""
+                            ).startswith("oc")
+                            else None
+                        )
+                    )
                     snapshot = worktree_lease.snapshot_lane_dirty_work(
                         repo,
                         handle,
                         note=f"Reason: {FORCED_INTERRUPT_SENTINEL}.",
+                        runner=_snap_host,
+                        model=str((state.get("options") or {}).get("model") or "")
+                        or None,
+                        run_id=str(state.get("run_id") or "") or None,
+                        item_id6=str(item.get("id6") or "") or None,
                     )
 
         if snapshot:
@@ -13681,8 +13834,28 @@ def reconcile_item_on_interrupt(
             )
             if lane["dirty"]:
                 with contextlib.suppress(Exception):
+                    _snap_host = (
+                        "aw agy run"
+                        if str(
+                            (state.get("host_capabilities") or {}).get("host") or ""
+                        ).startswith("agy")
+                        else (
+                            "aw oc run"
+                            if str(
+                                (state.get("host_capabilities") or {}).get("host") or ""
+                            ).startswith("oc")
+                            else None
+                        )
+                    )
                     snapshot = worktree_lease.snapshot_lane_dirty_work(
-                        repo, handle, note="Reason: clean-up-and-terminate."
+                        repo,
+                        handle,
+                        note="Reason: clean-up-and-terminate.",
+                        runner=_snap_host,
+                        model=str((state.get("options") or {}).get("model") or "")
+                        or None,
+                        run_id=str(state.get("run_id") or "") or None,
+                        item_id6=str(item.get("id6") or "") or None,
                     )
 
         attempt["interrupted_at"] = now
@@ -26611,17 +26784,33 @@ def handle_review_orchestrator_readiness(
                     ]
                 )
                 try:
+                    from agent_workflows import git_commit_helper as _gch
+
                     run_checked(cmd, cwd=tree, env_builder=pinned_child_env)
                     subprocess.run(["git", "add", str(plan_file)], cwd=tree, check=True)
+                    _demote_msg = (
+                        f"demote {item['id6']} to to-review: {findings_summary}"
+                    )
+                    _demote_ident = _gch.agent_commit_identity(
+                        tree,
+                        runner=host_labels.command,
+                        model=(state.get("options") or {}).get("model"),
+                        run_id=str(state.get("run_id") or "") or None,
+                        item_id6=str(item.get("id6") or "") or None,
+                        message=_demote_msg,
+                    )
+                    _demote_env = os.environ.copy()
+                    _demote_env.update(_demote_ident.env)
                     subprocess.run(
                         [
                             "git",
                             "commit",
                             "-m",
-                            f"demote {item['id6']} to to-review: {findings_summary}",
+                            _demote_ident.message,
                         ],
                         cwd=tree,
                         check=True,
+                        env=_demote_env,
                     )
                 except Exception as exc:
                     print(
@@ -26745,6 +26934,7 @@ def handle_review_orchestrator_readiness(
                 repo=Path(state.get("repo", ".")),
                 id6=item["id6"],
                 host_label=host_labels.command,
+                run_id=str(state.get("run_id") or "") or None,
             )
 
         next_readiness = _orch_readiness.review_readiness(
@@ -33663,7 +33853,15 @@ def driver_finalize(
         cmd.extend(["--scope-ack", f"{path}={note}"])
     if run_id:
         cmd.extend(["--run-id", run_id])
+    from agent_workflows import git_commit_helper as _gch
+
     env = dict(env_builder())
+    _gch.export_agent_child_env(
+        env,
+        repo,
+        runner=labels.command,
+        model=_gch.model_from_actor(actor),
+    )
     result = subprocess.run(
         cmd,
         cwd=str(repo),
@@ -36663,6 +36861,7 @@ def _close_already_complete_backlog_item(
             item["id6"],
             status_label="done",
             run_id=run_id_val,
+            host_label=host_labels.command,
         )
         if bkl_trans_commit:
             attempt["backlog_transition_commit"] = bkl_trans_commit
@@ -38065,7 +38264,14 @@ def execute_item_core(
             if wt_handle is not None:
                 try:
                     worktree_lease.snapshot_lane_dirty_work(
-                        repo, wt_handle, note="Reason: stall_timeout."
+                        repo,
+                        wt_handle,
+                        note="Reason: stall_timeout.",
+                        runner=host_labels.command,
+                        model=str((state.get("options") or {}).get("model") or "")
+                        or None,
+                        run_id=str(state.get("run_id") or "") or None,
+                        item_id6=str(item.get("id6") or "") or None,
                     )
                 except Exception:
                     pass
@@ -40079,6 +40285,7 @@ def execute_item_core(
                 item["id6"],
                 host_label=host_labels.command,
                 allowed_paths=extra_allowed,
+                run_id=str(state.get("run_id") or "") or None,
             )
             if review_commit:
                 attempt["review_shared_commit"] = review_commit
@@ -40606,6 +40813,7 @@ def execute_item_core(
                         target_spec_path,
                         run_id=run_id_val or None,
                         is_note=is_implementing_source,
+                        host_label=host_labels.command,
                     )
                     if spec_trans_commit:
                         if is_implementing_source:
@@ -41323,6 +41531,7 @@ def execute_item_core(
                             item["id6"],
                             status_label="graduated",
                             run_id=run_id_val or None,
+                            host_label=host_labels.command,
                         )
                         if bkl_trans_commit:
                             attempt["backlog_transition_commit"] = bkl_trans_commit
@@ -41383,6 +41592,7 @@ def execute_item_core(
                                 item["id6"],
                                 status_label="open",
                                 run_id=run_id_val or None,
+                                host_label=host_labels.command,
                             )
                             # Verify item is back under open/
                             check_bkl = resolve_backlog_item(target_tree, item["id6"])
@@ -41755,6 +41965,8 @@ def execute_item_core(
                                 wt_handle,
                                 run_checked=globals().get("run_checked"),
                                 item=item,
+                                host_label=host_labels.command,
+                                run_id=str(state.get("run_id") or "") or None,
                             )
                             if not prep.ok:
                                 break

@@ -117,7 +117,7 @@ def test_scratch_repo_end_to_end_stamps_trailers():
 
 
 def test_byte_identity_without_env_vars():
-    """Case 2: BYTE-IDENTITY WITHOUT ENV: stored commit body is exactly 'x\\n'."""
+    """Case 2: WITHOUT RUN/ITEM ENV: stored commit body carries only AW-Runner: aw commit."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo = Path(tmpdir)
         f = _init_repo(repo)
@@ -126,6 +126,7 @@ def test_byte_identity_without_env_vars():
         env = os.environ.copy()
         env.pop(_gch.RUN_ID_ENV, None)
         env.pop(_gch.ITEM_ID6_ENV, None)
+        env.pop(_gch.RUNNER_ENV, None)
         env["PYTHONPATH"] = str(_REPO_ROOT)
 
         proc = subprocess.run(
@@ -147,7 +148,7 @@ def test_byte_identity_without_env_vars():
             check=False,
         )
         assert proc.returncode == 0, f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
-        assert _raw_commit_body(repo) == "x\n"
+        assert _raw_commit_body(repo) == "x\n\nAW-Runner: aw commit\n"
 
 
 def test_malformed_values_dropped_with_warning():
