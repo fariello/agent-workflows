@@ -1,5 +1,6 @@
 - Id: pex4pv
-- Status: open
+- Status: graduated
+- Graduated-To: pex4pv
 - Blocks-Release: next
 - Set: pex4pv
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: commit_spec_transition_output fails git add on renamed spec path
 
 ## Workflow history
+- 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: i2ty4u
 - 2026-10-13 created (aw backlog): commit_spec_transition_output fails git add on renamed spec path
 
 ## Problem Description
