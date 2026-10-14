@@ -34,7 +34,8 @@ def temporary_timezone(tz: str):
     """Context manager setting process TZ with unconditional restoration in finally."""
     old_tz = os.environ.get("TZ")
     os.environ["TZ"] = tz
-    time.tzset()
+    if hasattr(time, "tzset"):
+        time.tzset()
     try:
         yield
     finally:
@@ -42,7 +43,8 @@ def temporary_timezone(tz: str):
             os.environ.pop("TZ", None)
         else:
             os.environ["TZ"] = old_tz
-        time.tzset()
+        if hasattr(time, "tzset"):
+            time.tzset()
 
 
 class HistoryDateClockSidecarTests(unittest.TestCase):

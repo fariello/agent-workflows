@@ -2279,7 +2279,9 @@ def write_file(
         if is_shim and not relative_posix.endswith("README.md"):
             try:
                 current_text = destination.read_text(encoding="utf-8")
-                expected_text = data.decode("utf-8", errors="replace")
+                expected_text = data.decode("utf-8", errors="replace").replace(
+                    "\r\n", "\n"
+                )
                 if _shim_is_user_modified(
                     plan, relative_posix, current_text, expected_text
                 ):
@@ -4294,7 +4296,7 @@ def show_install_diffs(
             except OSError:
                 pass
 
-        new_text = new_bytes.decode("utf-8", errors="replace")
+        new_text = new_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n")
         new_lines = new_text.splitlines(keepends=True)
 
         if dest_exists and "".join(current_lines) == "".join(new_lines):
@@ -6489,7 +6491,9 @@ def ensure_plans_readmes(
                 except OSError:
                     skipped.append(f"{rel_path} [already current]")
                     continue
-                expected_text = content_bytes.decode("utf-8", errors="replace")
+                expected_text = content_bytes.decode("utf-8", errors="replace").replace(
+                    "\r\n", "\n"
+                )
                 verdict = classify_records_root_readme(current_text, expected_text)
                 if verdict == "current":
                     skipped.append(f"{rel_path} [already current]")
@@ -6565,7 +6569,9 @@ def ensure_docs_readmes(
                 except OSError:
                     skipped.append(f"{rel_path} [already current]")
                     continue
-                expected_text = content_bytes.decode("utf-8", errors="replace")
+                expected_text = content_bytes.decode("utf-8", errors="replace").replace(
+                    "\r\n", "\n"
+                )
                 verdict = classify_records_root_readme(
                     current_text, expected_text, retired_hashes
                 )

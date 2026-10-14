@@ -3618,7 +3618,7 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
 #: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
 #: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
 _ABSOLUTE_PATH_IN_TEXT = re.compile(
-    r"(?:(?<![\w/\\])[A-Za-z]:[/\\](?:[\w.\-+@~]+[/\\])+[\w.\-+@~]+|(?<![\w/])/(?:[\w.\-+@~]+/)+[\w.\-+@~]+)"
+    r"(?:(?<![\w/\\])[A-Za-z]:[/\\]+(?:[\w.\-+@~]+[/\\]+)+[\w.\-+@~]+|(?<![\w/])/(?:[\w.\-+@~]+/)+[\w.\-+@~]+)"
 )
 
 

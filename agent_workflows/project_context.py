@@ -476,9 +476,10 @@ def no_project_message(
     else:
         git_root = _find_git_root(str(where))
         if git_root is not None and not is_project_dir(git_root):
+            git_root_path = Path(git_root)
             msg += (
-                f"\n{git_root} IS a git repository, but agent-workflows is not installed in it.\n"
-                f"Install it there with: aw install {git_root}"
+                f"\n{git_root_path} IS a git repository, but agent-workflows is not installed in it.\n"
+                f"Install it there with: aw install {git_root_path}"
             )
     return msg
 

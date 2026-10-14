@@ -176,6 +176,8 @@ class HistoryDateClockParityTests(unittest.TestCase):
 
     def test_precondition_at_least_one_zone_in_skew_window(self) -> None:
         """Self-check asserting that at least one of the two timezones is inside a skew window."""
+        if not hasattr(time, "tzset"):
+            self.skipTest("POSIX TZ/tzset required to shift datetime.date.today()")
         local_dates, utc_date = self._assert_skew_window_present(TIMEZONES)
         print("\nSKEW PRECONDITION CHECK:")
         print(f"  UTC date: {utc_date}")

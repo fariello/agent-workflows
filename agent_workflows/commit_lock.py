@@ -336,6 +336,8 @@ def commit_isolated(
 
     wt = Path(tempfile.mkdtemp(prefix=".aw-isocommit-", dir=str(repo_root.parent)))
     try:
+        if os.name == "nt":
+            _git(repo_root, ["config", "core.longpaths", "true"])
         # `--detach` is REQUIRED: git refuses a second worktree on a branch already checked out
         # elsewhere (measured: "fatal: 'main' is already used by worktree at ..."). So we commit
         # detached and move the ref ourselves, under CAS.
@@ -681,9 +683,11 @@ def coordinator_worktree(
     # flight in one checkout, and a shared branch name would make the second `worktree add` fail.
     suffix = f"{os.getpid()}-{int(time.time() * 1000) % 1_000_000}"
     branch = f"{COORDINATOR_WORKTREE_PREFIX}{label}-{suffix}"
-    wt = Path(tempfile.mkdtemp(prefix=".aw-coordinator-", dir=str(repo_root.parent)))
+    wt = Path(tempfile.mkdtemp(prefix=".aw-coord-", dir=str(repo_root.parent)))
     created_branch = False
     try:
+        if os.name == "nt":
+            _git(repo_root, ["config", "core.longpaths", "true"])
         rc, _o, err = _git(
             repo_root, ["worktree", "add", "-q", "-b", branch, str(wt), base_sha]
         )

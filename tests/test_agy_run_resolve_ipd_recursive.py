@@ -224,7 +224,7 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
             self.root, agy_run.parse_args(["--audit-only", "ab12cd"])
         )
         self.assertEqual(mode, "ipd")
-        rel_path = str(self.sharded_plan.relative_to(self.root))
+        rel_path = self.sharded_plan.relative_to(self.root).as_posix()
         self.assertEqual(target, rel_path)
 
     def test_08a_duplicate_id6_across_shard_raises_ambiguous(self) -> None:

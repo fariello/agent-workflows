@@ -425,7 +425,9 @@ def scan_target_files(repo_root: Path) -> list[str]:
                 for f in filenames:
                     ext = os.path.splitext(f)[1]
                     if ext in EXTENSION_ALLOWLIST:
-                        rel = os.path.relpath(os.path.join(dirpath, f), repo_root)
+                        rel = os.path.relpath(
+                            os.path.join(dirpath, f), repo_root
+                        ).replace("\\", "/")
                         if (
                             not rel.startswith(".aw/records/")
                             and rel not in OUT_OF_SCOPE_HISTORY_FILES

@@ -69,16 +69,16 @@ def evaluate_test_module_collection(
 
     Pure helper factoring the set arithmetic away from live filesystem / subprocess execution.
     """
-    candidate_set = {os.path.normpath(c) for c in candidates}
-    collected_set = {os.path.normpath(c) for c in collected}
-    exempt_map = {os.path.normpath(k): v for k, v in exempt.items()}
+    candidate_set = {os.path.normpath(c).replace("\\", "/") for c in candidates}
+    collected_set = {os.path.normpath(c).replace("\\", "/") for c in collected}
+    exempt_map = {os.path.normpath(k).replace("\\", "/"): v for k, v in exempt.items()}
 
     uncollected: list[str] = []
     for c in sorted(candidate_set):
         if c in collected_set:
             continue
         if any(
-            c.startswith(os.path.normpath(p)) or c.startswith(p)
+            c.startswith(os.path.normpath(p).replace("\\", "/")) or c.startswith(p)
             for p in exempt_prefixes
         ):
             continue

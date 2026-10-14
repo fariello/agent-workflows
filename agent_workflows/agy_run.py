@@ -709,9 +709,9 @@ def run_agy(
         rejected_file = _is_sandboxed_repo_write_rejection(error, root)
         if rejected_file is not None:
             try:
-                rel = rejected_file.relative_to(root.resolve())
+                rel = rejected_file.relative_to(root.resolve()).as_posix()
             except ValueError:
-                rel = rejected_file
+                rel = rejected_file.as_posix()
             print(
                 f"[{phase}] Warning: downgraded benign sandboxed write_to_file rejection on repo path "
                 f"'{rel}' to SUCCESS (file exists on disk via run_command).",

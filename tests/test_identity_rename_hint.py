@@ -283,7 +283,7 @@ class TestIdentityRenameHint(unittest.TestCase):
             seen_verbs.add(verb)
 
             # Determine record type from file path
-            loc = str(f.location)
+            loc = str(f.location).replace("\\", "/")
             rtype = next(t for t in old_static_noun if f"/{t}/" in loc)
             if noun != old_static_noun[rtype]:
                 differing_types.add(rtype)

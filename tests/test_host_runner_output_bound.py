@@ -51,7 +51,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
         self.assertIsNone(packet.max_output_bytes)
         res = hr.run_worker_process(packet)
         self.assertEqual(res.exit_code, 0)
-        self.assertEqual(len(res.stdout), 50001)
+        self.assertEqual(len(res.stdout.replace("\r\n", "\n")), 50001)
         self.assertFalse(res.truncated)
 
     def test_runner_double_output_bound_enforced(self):

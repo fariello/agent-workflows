@@ -646,7 +646,9 @@ def _pinned_env(
     # Always pin PYTHONPATH to REPO_ROOT (prepended to any existing value) so
     # subprocesses launched with cwd outside this checkout import this worktree's package (F-13).
     existing_pp = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{REPO_ROOT}:{existing_pp}" if existing_pp else str(REPO_ROOT)
+    env["PYTHONPATH"] = (
+        f"{REPO_ROOT}{os.pathsep}{existing_pp}" if existing_pp else str(REPO_ROOT)
+    )
 
     if env_overrides:
         env.update(env_overrides)
@@ -684,8 +686,8 @@ def run_cli(
             env_overrides=env_overrides,
         ),
     )
-    out = proc.stdout.decode(encoding, errors="replace")
-    err = proc.stderr.decode(encoding, errors="replace")
+    out = proc.stdout.decode(encoding, errors="replace").replace("\r\n", "\n")
+    err = proc.stderr.decode(encoding, errors="replace").replace("\r\n", "\n")
     return RunResult(
         argv=list(argv), returncode=proc.returncode, stdout=out, stderr=err
     )

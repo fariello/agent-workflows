@@ -133,7 +133,7 @@ def assert_isolated_base(base_dir: Path | str) -> Path:
             f"Isolation guard violation: Base directory '{base_path}' cannot be the real home directory '{real_home}'."
         )
 
-    if base_path in real_home.parents:
+    if base_path in real_home.parents or base_path.parent == base_path:
         raise SafetyError(
             f"Isolation guard violation: Base directory '{base_path}' is a parent of real home directory '{real_home}'."
         )

@@ -807,7 +807,7 @@ def refuse_unsafe_descriptive(
 # ``last_history_at`` is the date of the NEWEST record, which is the FIRST one in file order because
 # every writer PREPENDS (see :func:`newest_history_record` for the measured reason this is not "last").
 HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
-_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
+_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*\r?$")
 
 
 class HistoryBlock(NamedTuple):

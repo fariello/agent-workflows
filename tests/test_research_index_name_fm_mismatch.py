@@ -26,7 +26,10 @@ class ResearchIndexNameFmMismatchTests(unittest.TestCase):
         self.repo_dir = self.tmp_dir / "repo"
         support.init_repo(self.repo_dir)
 
+        import os
+
         self.env = {
+            **os.environ,
             "HOME": str(self.tmp_dir),
             "XDG_CONFIG_HOME": str(self.tmp_dir / ".config"),
             "AW_NO_REEXEC": "1",

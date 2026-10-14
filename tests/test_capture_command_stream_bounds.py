@@ -153,7 +153,10 @@ def test_spawn_failure_diagnostic_carve_out() -> None:
     )
 
     assert tool_event["exit_code"] == 127
-    assert "No such file or directory" in tool_event.stderr
+    assert (
+        "No such file or directory" in tool_event.stderr
+        or "cannot find the file" in tool_event.stderr
+    )
     assert tool_event["stdout_truncated"] is False
     assert tool_event["stderr_truncated"] is False
     assert tool_event["truncated"] is False

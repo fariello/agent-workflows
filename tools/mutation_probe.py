@@ -211,8 +211,8 @@ def _node_id_to_selector(node_id: str, wt_dir: str) -> str:
     cls_name, test_name = node_id.split("::", 1)
     parts = cls_name.split(".")
     for i in range(len(parts), 0, -1):
-        rel_file = os.path.join(*parts[:i]) + ".py"
-        if os.path.exists(os.path.join(wt_dir, rel_file)):
+        rel_file = "/".join(parts[:i]) + ".py"
+        if os.path.exists(os.path.join(wt_dir, *parts[:i]) + ".py"):
             rest = parts[i:]
             if rest:
                 return f"{rel_file}::{'::'.join(rest)}::{test_name}"
@@ -319,11 +319,12 @@ def probe(
                     extra_tests_overwrote=extra_tests_overwrote,
                 )
             commit, test_path = item.split(":", 1)
+            git_test_path = Path(test_path).as_posix()
             dest = os.path.join(wt_dir, test_path)
             if os.path.exists(dest):
                 extra_tests_overwrote.append(test_path)
             show_res = subprocess.run(
-                ["git", "-C", repo_root_str, "show", f"{commit}^:{test_path}"],
+                ["git", "-C", repo_root_str, "show", f"{commit}^:{git_test_path}"],
                 capture_output=True,
             )
             if show_res.returncode != 0:
@@ -374,6 +375,7 @@ def probe(
         pkg_name = first_comp[:-3] if first_comp.endswith(".py") else first_comp
 
         env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         env["PYTHONPATH"] = wt_dir + (
             os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else ""
         )
@@ -414,10 +416,11 @@ def probe(
         base_xml = os.path.join(tmp_parent, "baseline.xml")
         base_cmd = [
             sys.executable,
+            "-B",
             "-m",
             "pytest",
             "-o",
-            'addopts=""',
+            "addopts=",
             "-q",
             "-p",
             "no:randomly",
@@ -435,6 +438,8 @@ def probe(
                 env=env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout_s,
             )
         except subprocess.TimeoutExpired:
@@ -470,10 +475,11 @@ def probe(
         mut_xml = os.path.join(tmp_parent, "mutant.xml")
         mut_cmd = [
             sys.executable,
+            "-B",
             "-m",
             "pytest",
             "-o",
-            'addopts=""',
+            "addopts=",
             "-q",
             "-p",
             "no:randomly",
@@ -491,6 +497,8 @@ def probe(
                 env=env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout_s,
             )
         except subprocess.TimeoutExpired:
@@ -543,10 +551,11 @@ def probe(
         rerun_xml = os.path.join(tmp_parent, "rerun.xml")
         rerun_cmd = [
             sys.executable,
+            "-B",
             "-m",
             "pytest",
             "-o",
-            'addopts=""',
+            "addopts=",
             "-q",
             "-p",
             "no:randomly",
@@ -564,6 +573,8 @@ def probe(
                 env=env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout_s,
             )
         except subprocess.TimeoutExpired:
@@ -621,6 +632,8 @@ def probe(
             ["git", "-C", repo_root_str, "worktree", "remove", "--force", wt_dir],
             capture_output=True,
         )
+        if os.path.exists(wt_dir):
+            shutil.rmtree(wt_dir, ignore_errors=True)
         subprocess.run(
             ["git", "-C", repo_root_str, "worktree", "prune"],
             capture_output=True,

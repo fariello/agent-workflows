@@ -148,8 +148,8 @@ class LaneReclaimDecisionOrderTests(unittest.TestCase):
                 )
 
                 # Verify real git worktree presence
-                wt_list = _git(repo, "worktree", "list")
-                self.assertIn(str(handle.path), wt_list)
+                wt_list = _git(repo, "worktree", "list").replace("\\", "/")
+                self.assertIn(handle.path.as_posix(), wt_list)
 
                 # Verify target head is ahead of the lane's base commit
                 rev_list = _git(repo, "rev-list", f"{base_sha}..HEAD")

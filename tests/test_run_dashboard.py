@@ -617,18 +617,17 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
             },
         }
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(conflict_ev) + "\n")
-            f.flush()
-            stats_conflict = dash.session_stats(Path(f.name))
+        with tempfile.TemporaryDirectory() as td:
+            p_conflict = Path(td) / "conflict.jsonl"
+            p_conflict.write_text(json.dumps(conflict_ev) + "\n", encoding="utf-8")
+            stats_conflict = dash.session_stats(p_conflict)
             self.assertEqual(stats_conflict["tools"], {"browser_subagent": 1})
             self.assertEqual(stats_conflict["categories"].get("subagent"), 1)
             self.assertEqual(stats_conflict["commands"], {})
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(info_only_ev) + "\n")
-            f.flush()
-            stats_info = dash.session_stats(Path(f.name))
+            p_info = Path(td) / "info.jsonl"
+            p_info.write_text(json.dumps(info_only_ev) + "\n", encoding="utf-8")
+            stats_info = dash.session_stats(p_info)
             self.assertEqual(stats_info["tools"], {"run_command": 1})
             self.assertEqual(stats_info["commands"], {"test": 1})
 

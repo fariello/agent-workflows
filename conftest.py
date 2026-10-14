@@ -53,6 +53,8 @@ pytest_plugins = [
     "tests.git_config_guard",
 ]
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
+os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 _IS_CI = bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
 
 # --------------------------------------------------------------------------------------

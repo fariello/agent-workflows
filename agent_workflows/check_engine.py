@@ -7879,7 +7879,7 @@ def resolve_gate_ref(
             and candidate != root_resolved
             and candidate.exists()
         ):
-            rel_path = str(candidate.relative_to(root_resolved))
+            rel_path = candidate.relative_to(root_resolved).as_posix()
             return GateRefResolution("resolved", route="path", path=rel_path)
     except (ValueError, OSError, RuntimeError):
         pass

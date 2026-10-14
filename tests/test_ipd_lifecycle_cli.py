@@ -125,7 +125,8 @@ class BeginHappyPathTests(unittest.TestCase):
         assert r is not None
         self.assertEqual(r["plan_id"], "abc123")
         self.assertEqual(
-            r["plan_content_digest"], LC.plan_content_digest(self.plan.read_text())
+            r["plan_content_digest"],
+            LC.plan_content_digest(self.plan.read_text(encoding="utf-8")),
         )
         self.assertTrue(r["requirement_digest"])
         self.assertEqual(
@@ -158,36 +159,44 @@ class BeginHappyPathTests(unittest.TestCase):
         stored = LC.read_receipt(self.root, "abc123")
         assert stored is not None
         self.assertEqual(stored["requirement_digest"], r2["requirement_digest"])
-        self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
 
     def test_receipt_invalidation_and_persistence(self):
         """A change to the plan's frozen contract invalidates receipt; non-contract edits & disjoint commits persist."""
         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
         stored = LC.read_receipt(self.root, "abc123")
         assert stored is not None
-        self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
 
         # Scope addition invalidates
-        rescoped = self.plan.read_text().replace(
+        rescoped = self.plan.read_text(encoding="utf-8").replace(
             "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
             "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py",
         )
         self.assertFalse(LC.receipt_is_current(stored, rescoped))
 
         # E-item rewrite invalidates
-        retasked = self.plan.read_text().replace(
+        retasked = self.plan.read_text(encoding="utf-8").replace(
             "- [ ] E-01 ", "- [ ] E-01 REWRITTEN ", 1
         )
         self.assertFalse(LC.receipt_is_current(stored, retasked))
 
         # Non-contract edit (trailing prose) preserves validity
-        commented = self.plan.read_text() + "\n<!-- a non-contract edit -->\n"
+        commented = (
+            self.plan.read_text(encoding="utf-8") + "\n<!-- a non-contract edit -->\n"
+        )
         self.assertTrue(LC.receipt_is_current(stored, commented))
 
         # Disjoint commit preserves validity
         (self.root / "unrelated.txt").write_text("hello", encoding="utf-8")
         _commit_all(self.root, "unrelated change on a disjoint path")
-        self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
+        self.assertTrue(
+            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
+        )
 
     def test_receipt_invalidation_on_e_item_continuation_rewrite(self):
         """Rewriting an E-item's continuation line invalidates begin receipt (qurgra 168p5j pin a)."""
@@ -372,7 +381,7 @@ class BeginFailClosedTests(unittest.TestCase):
 
         # Non-conforming lint (draft status)
         bad = (
-            self.plan.read_text()
+            self.plan.read_text(encoding="utf-8")
             .replace("- Status: approved", "- Status: draft")
             .replace("- Approval: 2026-08-24, human: approved\n", "")
         )
@@ -459,7 +468,7 @@ class BeginCliTests(unittest.TestCase):
 
         # Non-conforming lint -> 1
         bad = (
-            self.plan.read_text()
+            self.plan.read_text(encoding="utf-8")
             .replace("- Status: approved", "- Status: draft")
             .replace("- Approval: 2026-08-24, human: approved\n", "")
         )
@@ -523,7 +532,7 @@ class FinalizeTests(unittest.TestCase):
         self.assertFalse(self.plan.exists())
         moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
         self.assertTrue(moved.is_file())
-        moved_text = moved.read_text()
+        moved_text = moved.read_text(encoding="utf-8")
         self.assertIn("opencode/test", moved_text)
         self.assertIn("- Status: executed", moved_text)
         self.assertEqual(
@@ -630,7 +639,7 @@ class FinalizeTests(unittest.TestCase):
 
         # Contract rewrite refuses as stale
         self.plan.write_text(
-            self.plan.read_text().replace(
+            self.plan.read_text(encoding="utf-8").replace(
                 "- [x] E-01 ", "- [x] E-01 REWRITTEN REQUIREMENT ", 1
             ),
             encoding="utf-8",
@@ -650,7 +659,7 @@ class FinalizeTests(unittest.TestCase):
         self.setUp()
         self._begin()
         self.plan.write_text(
-            self.plan.read_text().replace(
+            self.plan.read_text(encoding="utf-8").replace(
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py",
             ),
@@ -669,7 +678,7 @@ class FinalizeTests(unittest.TestCase):
         self.tearDown()
         self.setUp()
         self._begin()
-        edited = self.plan.read_text()
+        edited = self.plan.read_text(encoding="utf-8")
         edited = edited.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
             "  - Execution state: pending", "  - Execution state: performed", 1
         )
@@ -751,7 +760,7 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(res_clean.exit_code, LC.EXIT_OK)
         moved_clean = (
             self.root / ".aw" / "records" / "plans" / "executed" / plan_clean.name
-        ).read_text()
+        ).read_text(encoding="utf-8")
         self.assertNotIn("Scope reconciliation", moved_clean)
 
         # 2. Both directions at once (out-of-scope + in-scope-unmodified)
@@ -774,7 +783,7 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(res_both.exit_code, LC.EXIT_OK)
         moved_both = (
             self.root / ".aw" / "records" / "plans" / "executed" / plan_both.name
-        ).read_text()
+        ).read_text(encoding="utf-8")
         self.assertIn("out-of-scope tests/extra.py: discovered mid-stream", moved_both)
         self.assertIn("in-scope-unmodified tests/declared.py: not-needed", moved_both)
 
@@ -844,7 +853,7 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(calls["n"], 1)
         moved_text = (
             self.root / ".aw" / "records" / "plans" / "executed" / plan.name
-        ).read_text()
+        ).read_text(encoding="utf-8")
         self.assertIn("prompted reason", moved_text)
         self.assertIn("prompted-ack", moved_text)
 
@@ -924,13 +933,15 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         (self.root / "tests" / "test_demo.py").write_text("y\n", encoding="utf-8")
         (self.root / added).write_text("z\n", encoding="utf-8")
         self.plan.write_text(
-            self.plan.read_text().replace(
+            self.plan.read_text(encoding="utf-8").replace(
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, " + added,
             ),
             encoding="utf-8",
         )
-        self.assertIn(added, self.plan.read_text(), "the widening did not apply")
+        self.assertIn(
+            added, self.plan.read_text(encoding="utf-8"), "the widening did not apply"
+        )
         if commit:
             _commit_all(self.root, "in-scope work plus the newly declared path")
         else:
@@ -977,7 +988,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
                     / self.plan.name
                 )
                 self.assertTrue(moved.is_file(), "the plan did not reach executed/")
-                text = moved.read_text()
+                text = moved.read_text(encoding="utf-8")
                 # THE ACCEPTED WIDENING IS ON THE PERMANENT RECORD, labelled as a widening rather
                 # than as an out-of-scope edit, and named exactly ONCE.
                 self.assertIn("widened-scope tests/test_extra.py", text)
@@ -1009,7 +1020,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         import json as _json
 
         self._do_the_work_and_widen(commit=True)
-        text = self.plan.read_text()
+        text = self.plan.read_text(encoding="utf-8")
         marker = next(
             line for line in text.splitlines() if line.startswith("- [x] E-01 ")
         )
@@ -1018,7 +1029,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         )
         _commit_all(self.root, "record the id the item told me to record")
         receipt_path = LC.receipt_path_for(self.root, "abc123")
-        base_before = _json.loads(receipt_path.read_text())["base_head"]
+        base_before = _json.loads(receipt_path.read_text(encoding="utf-8"))["base_head"]
 
         refused = LC.finalize(
             self.root,
@@ -1039,7 +1050,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
             timestamp="t2",
         )
         self.assertTrue(ok, detail)
-        receipt = _json.loads(receipt_path.read_text())
+        receipt = _json.loads(receipt_path.read_text(encoding="utf-8"))
         self.assertEqual(
             receipt["base_head"], base_before, "a re-freeze must keep base_head"
         )
@@ -1099,7 +1110,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         self.assertEqual(result.exit_code, LC.EXIT_OK, result.message)
         moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
         self.assertEqual(
-            moved.read_text().count("tests/test_extra.py:"),
+            moved.read_text(encoding="utf-8").count("tests/test_extra.py:"),
             1,
             "one supplied reason must produce ONE record, not one per demand",
         )
@@ -1137,7 +1148,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         self.setUp()
         self._do_the_work_and_widen(commit=True)
         self.plan.write_text(
-            self.plan.read_text().replace(
+            self.plan.read_text(encoding="utf-8").replace(
                 "- [x] E-01 ", "- [x] E-01 REWRITTEN REQUIREMENT ", 1
             ),
             encoding="utf-8",
@@ -1159,7 +1170,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         self.setUp()
         (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
         self.plan.write_text(
-            self.plan.read_text().replace(
+            self.plan.read_text(encoding="utf-8").replace(
                 "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
                 "- Scope-Paths: agent_workflows/demo.py",
             ),
@@ -1178,7 +1189,9 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         self.setUp()
         self._do_the_work_and_widen(commit=True, added="tests/test_extra.py")
         self.plan.write_text(
-            self.plan.read_text().replace(", tests/test_extra.py", ", tests/"),
+            self.plan.read_text(encoding="utf-8").replace(
+                ", tests/test_extra.py", ", tests/"
+            ),
             encoding="utf-8",
         )
         _commit_all(self.root, "widen to a whole directory")
@@ -1257,7 +1270,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.setUp()
         self._begin_and_work()
         head_before = self._head()
-        orig_bytes = self.plan.read_text()
+        orig_bytes = self.plan.read_text(encoding="utf-8")
         res_fault = LC.finalize(
             self.root,
             self.plan,
@@ -1268,7 +1281,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         )
         self.assertEqual(res_fault.exit_code, LC.EXIT_CANNOT_RUN)
         self.assertTrue(self.plan.is_file())
-        self.assertEqual(self.plan.read_text(), orig_bytes)
+        self.assertEqual(self.plan.read_text(encoding="utf-8"), orig_bytes)
         self.assertFalse(self._executed_path().exists())
         self.assertEqual(self._head(), head_before)
         self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
@@ -1291,7 +1304,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         )
         self.addCleanup(other.wait)
         self.addCleanup(other.kill)
-        data = _json.loads(lock.read_text())
+        data = _json.loads(lock.read_text(encoding="utf-8"))
         data["pid"] = other.pid
         lock.write_text(_json.dumps(data), encoding="utf-8")
         with self.assertRaises(LC.TransactionLockError):
@@ -1305,7 +1318,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             _json.dumps({"plan_id": "abc123", "pid": 2**31 - 1}), encoding="utf-8"
         )
         LC.acquire_finalize_lock(self.root, "abc123")
-        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
         LC.release_finalize_lock(self.root)
 
     def test_finalize_lock_WAITS_for_a_short_lived_live_holder(self):
@@ -1353,7 +1368,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             release_index + 1,
             "it must take the lock as soon as the holder releases it",
         )
-        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
         self.assertIsNone(holder.poll(), "waiting must never kill the holder")
         LC.release_finalize_lock(self.root)
 
@@ -1393,7 +1410,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             self.root, "abc123", timeout=30.0, sleep=fake_sleep, now=fake_now
         )
         self.assertGreaterEqual(len(sleep_calls), 2)
-        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
         LC.release_finalize_lock(self.root)
 
     def test_holder_outlives_budget_injected_clock(self):
@@ -1451,7 +1470,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertEqual(
             0, len(sleeps), "stale lock must be reclaimed immediately without polling"
         )
-        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
         LC.release_finalize_lock(self.root)
 
     def test_two_process_lock_wait_succeeds(self):
@@ -1515,7 +1536,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             2,
             "must have sampled liveness at least twice before release",
         )
-        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
         LC.release_finalize_lock(self.root)
 
     def test_precommit_fault_rollback_and_recovery(self):
@@ -1542,8 +1565,12 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertTrue(self.plan.is_file())
         self.assertFalse(self._executed_path().exists())
         self.assertEqual(self._head(), head_before)
-        self.assertEqual((self.root / "unrelated_dirty.txt").read_text(), "dirty\n")
-        self.assertEqual((self.root / "unrelated_staged.txt").read_text(), "staged\n")
+        self.assertEqual(
+            (self.root / "unrelated_dirty.txt").read_text(encoding="utf-8"), "dirty\n"
+        )
+        self.assertEqual(
+            (self.root / "unrelated_staged.txt").read_text(encoding="utf-8"), "staged\n"
+        )
 
         # Re-finalize recovers cleanly
         res_rec = LC.finalize(
@@ -2701,7 +2728,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
         _commit_all(self.root, "add draft plan")
         rc, out = self._run_cli(["set", "approved", "drf123", "--by-human", "--yes"])
         self.assertEqual(rc, 0, out)
-        self.assertIn("- Status: approved", draft.read_text())
+        self.assertIn("- Status: approved", draft.read_text(encoding="utf-8"))
 
     def test_delegation_refusals(self):
         """Missing actor fails closed (exit 2) and missing receipt refuses (exit 1)."""

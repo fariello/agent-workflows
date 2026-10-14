@@ -3596,12 +3596,12 @@ def _release_own_plan_edit_before_landing(
         current = plan_abs.read_text(encoding="utf-8")
     except OSError:
         return None  # absent: nothing of ours to clear, and the merge decides
-    if current != mirrored_bytes:
+    if current.replace("\r\n", "\n") != mirrored_bytes.replace("\r\n", "\n"):
         return None  # somebody else's content: refuse to touch it
     if committed_bytes is None:
         return None
     rc, blob, _err = _git(repo_root, ["show", f"{landed}:{dest_rel}"])
-    if rc != 0 or blob != committed_bytes:
+    if rc != 0 or blob.replace("\r\n", "\n") != committed_bytes.replace("\r\n", "\n"):
         # The landed commit does not demonstrably carry these bytes, so clearing them could lose
         # content. Fail closed: leave the tree alone and let the merge refuse.
         return None

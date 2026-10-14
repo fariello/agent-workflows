@@ -346,7 +346,7 @@ def parse_item(text: str) -> BacklogItem:
     # scan, rather than depending on which line happened to come first in the file.
     work_kind = None
     legacy_kind = None
-    for line in text.split("\n"):
+    for line in text.replace("\r\n", "\n").split("\n"):
         if line.startswith("## ") or (line and not line.startswith("- ")):
             # metadata block ends at the first non-bullet, non-blank line or the first H2
             if line.startswith("## "):
@@ -426,7 +426,7 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
     # boundary and canonicalize the legacy Kind spelling.
     gate_summary: Optional[str] = None
     key_counts: Dict[str, int] = {}
-    for line in text.split("\n"):
+    for line in text.replace("\r\n", "\n").split("\n"):
         if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
             break
         m = _TOP_KEY_RE.match(line)
@@ -1045,7 +1045,7 @@ def set_close_evidence_line(
     if value in (None, "-"):
         return text
     val_str = str(value).strip()
-    if Path(val_str).is_absolute():
+    if Path(val_str).is_absolute() or val_str.startswith(("/", "\\")):
         if repo_root is None:
             raise ValueError(
                 f"cannot normalize absolute evidence citation '{val_str}' without repo_root"

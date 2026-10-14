@@ -20808,7 +20808,9 @@ def enforce_freeze_time_refusal(
                 if cache_key in _FREEZE_GATE_CACHE:
                     drifts = _FREEZE_GATE_CACHE[cache_key]
                 else:
-                    text = content_bytes.decode("utf-8", errors="replace")
+                    text = content_bytes.decode("utf-8", errors="replace").replace(
+                        "\r\n", "\n"
+                    )
                     drifts = specs.validate_spec(abs_path, text)
                     _FREEZE_GATE_CACHE[cache_key] = drifts
                 for d in drifts:
@@ -20830,7 +20832,9 @@ def enforce_freeze_time_refusal(
                 if cache_key in _FREEZE_GATE_CACHE:
                     drifts = _FREEZE_GATE_CACHE[cache_key]
                 else:
-                    text = content_bytes.decode("utf-8", errors="replace")
+                    text = content_bytes.decode("utf-8", errors="replace").replace(
+                        "\r\n", "\n"
+                    )
                     drifts = backlog.validate_item(abs_path, text)
                     _FREEZE_GATE_CACHE[cache_key] = drifts
                 for d in drifts:
@@ -43825,6 +43829,10 @@ class ProposalFilingResult(NamedTuple):
     landing_status: str | None = None
     reason: str | None = None
 
+    @property
+    def fallback_reason(self) -> str | None:
+        return self.reason
+
 
 def perform_coordinator_proposal_file(
     run_dir: Path,
@@ -44009,7 +44017,7 @@ def perform_coordinator_proposal_file(
             ) as coord:
                 record_id6: str = ""
                 new_record_rel: str = ""
-                clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:60]
+                clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:24]
 
                 if size == "small":
                     setid = f"prop-{item_id6}"
@@ -44045,8 +44053,11 @@ def perform_coordinator_proposal_file(
                     res = subprocess.run(
                         scaffold_cmd,
                         cwd=coord.path,
+                        env=pinned_child_env(),
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
+                        errors="replace",
                     )
                     if res.returncode != 0:
                         return _write_fallback_record(
@@ -44103,8 +44114,11 @@ def perform_coordinator_proposal_file(
                     res = subprocess.run(
                         pinned_module_argv(backlog_args),
                         cwd=coord.path,
+                        env=pinned_child_env(),
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
+                        errors="replace",
                     )
                     if res.returncode != 0:
                         return _write_fallback_record(

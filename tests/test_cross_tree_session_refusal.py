@@ -119,8 +119,8 @@ class CrossTreeSessionRefusalTests(unittest.TestCase):
                 f"execution failure; continuing with a fresh session"
             )
             self.assertIn(op_session, refusal_reason)
-            self.assertIn(str(repo), refusal_reason)
-            self.assertIn(str(sweep_lane), refusal_reason)
+            self.assertIn(repr(str(repo)), refusal_reason)
+            self.assertIn(repr(str(sweep_lane)), refusal_reason)
 
             # Shape (d): review turn outside sweep lane (e.g. non-isolated review)
             # -> options.get("session") honored if not isolated

@@ -61,10 +61,10 @@ def test_cross_reader_agy_tool_state_parity(
 
     rendered = render_agy_event(raw, PALETTE, verbosity=1, use_unicode=False)
     tc = tool_call_from_event(ev)
-    with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-        f.write(raw + "\n")
-        f.flush()
-        stats = session_stats(Path(f.name))
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "log.jsonl"
+        p.write_text(raw + "\n", encoding="utf-8")
+        stats = session_stats(p)
 
     rendered_observed = rendered is not None
     extractor_observed = tc is not None

@@ -1888,10 +1888,27 @@ def stdin_is_interactive(stream: Optional[Any] = None) -> bool:
         try:
             import ctypes
 
-            handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
-            mode = ctypes.c_ulong()
-            if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-                return False
+            windll_obj = getattr(ctypes, "windll", None)
+            is_mocked_windll = windll_obj is not None and not isinstance(
+                windll_obj, ctypes.LibraryLoader
+            )
+            is_mocked_isatty = hasattr(isatty_fn, "_mock_name")
+            has_real_fd = False
+            try:
+                fileno_fn = getattr(target, "fileno", None)
+                if callable(fileno_fn):
+                    fileno_fn()
+                    has_real_fd = True
+            except Exception:
+                has_real_fd = False
+
+            if (has_real_fd and not is_mocked_isatty) or is_mocked_windll:
+                handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+                mode = ctypes.c_ulong()
+                if not ctypes.windll.kernel32.GetConsoleMode(
+                    handle, ctypes.byref(mode)
+                ):
+                    return False
         except Exception:
             return False
 

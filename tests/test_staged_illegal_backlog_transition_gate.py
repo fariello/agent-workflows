@@ -7,6 +7,7 @@ No code-pinning tests: no inspect, no ast, no regex over source files, no line c
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -18,13 +19,13 @@ from agent_workflows import attention_contract, backlog, check_engine
 
 def _run(cmd: str, cwd: str | Path) -> str:
     res = subprocess.run(
-        cmd,
+        shlex.split(cmd),
         cwd=str(cwd),
-        shell=True,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
     )
     return res.stdout
 

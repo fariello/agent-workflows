@@ -637,4 +637,4 @@ class TestE02ContainmentBypassAndLegacyLayout(_ContainmentRepoTestCase):
             )
         self.assertEqual(rc_dry, 0, err_dry.getvalue())
         self.assertIn("--- would write", out_dry.getvalue())
-        self.assertIn(".agents/docs/specs/draft", out_dry.getvalue())
+        self.assertIn(".agents/docs/specs/draft", out_dry.getvalue().replace("\\", "/"))

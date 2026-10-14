@@ -843,13 +843,23 @@ def config_dir() -> Path:
     Never returns ``~/`` itself; always an absolute directory.
     """
     raw_override = os.environ.get(CONFIG_DIR_ENV)
+    env_home = os.environ.get("HOME")
+    homes = {Path.home()}
+    if env_home and env_home.strip():
+        homes.add(Path(env_home.strip()))
     if raw_override and raw_override.strip():
         candidate = Path(raw_override.strip()).expanduser()
-        if candidate.is_absolute() and candidate != Path.home():
+        if candidate.is_absolute() and candidate not in homes:
             return candidate
 
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
+    if xdg:
+        base = Path(xdg).expanduser()
+    else:
+        home_dir = (
+            Path(env_home.strip()) if (env_home and env_home.strip()) else Path.home()
+        )
+        base = home_dir / ".config"
     return base / _APP_DIR
 
 

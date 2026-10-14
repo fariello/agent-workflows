@@ -141,7 +141,7 @@ def replay_file(
     start_time = time.monotonic()
     repo_root_path = Path(repo_root).resolve()
     repo_root_str = str(repo_root_path)
-    clean_rel_path = str(Path(rel_path))
+    clean_rel_path = Path(rel_path).as_posix()
 
     head_res = subprocess.run(
         ["git", "-C", repo_root_str, "rev-parse", "HEAD"],
@@ -236,6 +236,8 @@ def replay_file(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             start_new_session=True,
         )
 
@@ -245,8 +247,17 @@ def replay_file(
         except subprocess.TimeoutExpired:
             timed_out = True
             try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
+                if hasattr(os, "killpg"):
+                    os.killpg(proc.pid, signal.SIGKILL)
+                elif sys.platform == "win32":
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                        capture_output=True,
+                    )
+                    proc.kill()
+                else:
+                    proc.kill()
+            except (ProcessLookupError, OSError):
                 pass
             proc.communicate()
 
@@ -332,6 +343,8 @@ def replay_file(
                 ["git", "-C", repo_root_str, "worktree", "remove", "--force", wt_dir],
                 capture_output=True,
             )
+            if os.path.exists(wt_dir):
+                shutil.rmtree(wt_dir, ignore_errors=True)
             subprocess.run(
                 ["git", "-C", repo_root_str, "worktree", "prune"],
                 capture_output=True,

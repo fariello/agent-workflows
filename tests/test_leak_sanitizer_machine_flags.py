@@ -480,7 +480,7 @@ class LeakSanitizerMachineFlagsTests(unittest.TestCase):
         self.assertEqual(stderr, "")
 
         # OSError branch with --wheel <missing-path> against valid repo
-        valid_repo = _init_repo(Path(self._tmp.name) / "repo_oserror")
+        valid_repo = _init_repo(Path(self._tmp.name).resolve() / "repo_oserror")
         missing_wheel = str(valid_repo / "nonexistent.whl")
         code, stdout, stderr = _capture_cli_separate(
             ["sanitize", str(valid_repo), "--wheel", missing_wheel, "--agent"]
@@ -522,4 +522,7 @@ class LeakSanitizerMachineFlagsTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertTrue(stderr.startswith("check-local-leaks: [Errno 2]"))
-        self.assertIn(missing_wheel, stderr)
+        self.assertTrue(
+            missing_wheel in stderr or repr(missing_wheel) in stderr,
+            f"Expected {missing_wheel!r} in {stderr!r}",
+        )

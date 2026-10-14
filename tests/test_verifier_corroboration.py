@@ -1101,10 +1101,10 @@ class TestSharedToolCallExtraction:
         assert tc_agy.tool == "run_command"
         assert tc_agy.command == "python3 -m pytest tests/"
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(oc_ev) + "\n")
-            f.flush()
-            res = vc.extract_session_commands(f.name)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(json.dumps(oc_ev) + "\n", encoding="utf-8")
+            res = vc.extract_session_commands(str(p))
             assert len(res.commands) == 1
             assert res.commands[0].tool == "bash"
 
@@ -1149,10 +1149,10 @@ class TestSharedToolCallExtraction:
         assert tc_read.command is None
         assert tc_read.command_missing is False
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(oc_ev) + "\n")
-            f.flush()
-            res = vc.extract_session_commands(f.name)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(json.dumps(oc_ev) + "\n", encoding="utf-8")
+            res = vc.extract_session_commands(str(p))
             assert len(res.commands) == 0
             assert res.missing_command_count == 1
 
@@ -1170,10 +1170,10 @@ class TestSharedToolCallExtraction:
             assert tc is not None
             assert tc.delegation is True
 
-            with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-                f.write(json.dumps(oc_ev) + "\n")
-                f.flush()
-                res = vc.extract_session_commands(f.name)
+            with tempfile.TemporaryDirectory() as td:
+                p = Path(td) / "log.jsonl"
+                p.write_text(json.dumps(oc_ev) + "\n", encoding="utf-8")
+                res = vc.extract_session_commands(str(p))
                 assert res.delegation_count == 1
 
     def test_agy_command_line_key_extraction(self) -> None:
@@ -1192,10 +1192,10 @@ class TestSharedToolCallExtraction:
         assert tc is not None
         assert tc.command == "python3 -m pytest"
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(agy_ev) + "\n")
-            f.flush()
-            res = vc.extract_session_commands(f.name)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(json.dumps(agy_ev) + "\n", encoding="utf-8")
+            res = vc.extract_session_commands(str(p))
             assert len(res.commands) == 1
             assert res.commands[0].command == "python3 -m pytest"
 
@@ -1229,10 +1229,10 @@ class TestSharedToolCallExtraction:
         }
 
         for ev in (conflict_ev, reverse_conflict_ev):
-            with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-                f.write(json.dumps(ev) + "\n")
-                f.flush()
-                res = vc.corroborate_verifier_turn(f.name, ["make test"])
+            with tempfile.TemporaryDirectory() as td:
+                p = Path(td) / "log.jsonl"
+                p.write_text(json.dumps(ev) + "\n", encoding="utf-8")
+                res = vc.corroborate_verifier_turn(str(p), ["make test"])
                 assert res.verdict == vc.INDETERMINATE
                 assert res.reason_code == vc.INDETERMINATE_DELEGATION
                 assert res.delegation_count == 1
@@ -1251,10 +1251,10 @@ class TestSharedToolCallExtraction:
                 },
             },
         }
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(info_only_ev) + "\n")
-            f.flush()
-            res = vc.corroborate_verifier_turn(f.name, ["python3 -m pytest tests/x.py"])
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(json.dumps(info_only_ev) + "\n", encoding="utf-8")
+            res = vc.corroborate_verifier_turn(str(p), ["python3 -m pytest tests/x.py"])
             assert res.verdict == vc.CORROBORATED
             assert res.reason_code == vc.CORROBORATED
 
@@ -1286,26 +1286,23 @@ class TestSharedToolCallExtraction:
                 },
             },
         }
-        with (
-            tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f_failed,
-            tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f_error,
-        ):
-            f_failed.write(json.dumps(failed_ev) + "\n")
-            f_failed.flush()
-            f_error.write(json.dumps(error_ev) + "\n")
-            f_error.flush()
+        with tempfile.TemporaryDirectory() as td:
+            p_failed = Path(td) / "failed.jsonl"
+            p_error = Path(td) / "error.jsonl"
+            p_failed.write_text(json.dumps(failed_ev) + "\n", encoding="utf-8")
+            p_error.write_text(json.dumps(error_ev) + "\n", encoding="utf-8")
 
-            ext = vc.extract_session_commands(f_failed.name)
+            ext = vc.extract_session_commands(str(p_failed))
             assert len(ext.commands) == 1
             assert ext.commands[0].command == "python3 -m pytest"
             assert ext.commands[0].error is True
             assert ext.missing_command_count == 0
 
             corr_failed = vc.corroborate_verifier_turn(
-                f_failed.name, ["python3 -m pytest"]
+                str(p_failed), ["python3 -m pytest"]
             )
             corr_error = vc.corroborate_verifier_turn(
-                f_error.name, ["python3 -m pytest"]
+                str(p_error), ["python3 -m pytest"]
             )
             assert corr_failed.verdict == corr_error.verdict
             assert corr_failed.reason_code == corr_error.reason_code
@@ -1345,11 +1342,14 @@ class TestSharedToolCallExtraction:
                 },
             },
         }
-        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
-            f.write(json.dumps(failed_ev) + "\n" + json.dumps(done_ev) + "\n")
-            f.flush()
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(
+                json.dumps(failed_ev) + "\n" + json.dumps(done_ev) + "\n",
+                encoding="utf-8",
+            )
             res = vc.corroborate_verifier_turn(
-                f.name, ["python3 -m pytest tests/test_pass.py"]
+                str(p), ["python3 -m pytest tests/test_pass.py"]
             )
             assert res.verdict == vc.CORROBORATED
             assert res.reason_code == vc.CORROBORATED

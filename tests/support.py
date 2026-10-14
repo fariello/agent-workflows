@@ -335,6 +335,12 @@ def pinned_env(env: dict[str, str] | None = None) -> dict[str, str]:
     """Return a copy of ``env`` (or ``os.environ``) with ``REPO_ROOT`` prepended to ``PYTHONPATH`` if absent."""
 
     merged_env = dict(os.environ) if env is None else dict(env)
+    merged_env.setdefault("PYTHONUTF8", "1")
+    merged_env.setdefault("PYTHONIOENCODING", "utf-8")
+    if os.name == "nt":
+        for k in ("SYSTEMROOT", "PATH", "COMSPEC", "PATHEXT", "TEMP", "TMP"):
+            if k not in merged_env and k in os.environ:
+                merged_env[k] = os.environ[k]
     existing_pp = merged_env.get("PYTHONPATH", "")
     root_str = str(REPO_ROOT)
     if root_str not in existing_pp.split(os.pathsep):
@@ -361,6 +367,9 @@ def run_cli(
     merged_env = pinned_env(env)
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
+    if kwargs.get("text"):
+        kwargs.setdefault("encoding", "utf-8")
+        kwargs.setdefault("errors", "replace")
     kwargs.setdefault("check", False)
 
     cli_args: list[str] = []

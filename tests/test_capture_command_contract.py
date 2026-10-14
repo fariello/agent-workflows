@@ -103,8 +103,8 @@ def test_capture_command_producer_contract() -> None:
     )
 
     assert isinstance(tool_event, run_evidence.CapturedToolEvent)
-    assert tool_event.stdout == "contract_stdout\n"
-    assert tool_event.stderr == "contract_stderr\n"
+    assert tool_event.stdout.replace("\r\n", "\n") == "contract_stdout\n"
+    assert tool_event.stderr.replace("\r\n", "\n") == "contract_stderr\n"
 
     # Mapping contains schema fields, none of the 4 text keys
     assert "stdout" not in tool_event
@@ -189,8 +189,11 @@ def test_capture_command_persistence_clean_in_real_store() -> None:
         # Digest preserved
         assert persisted_tool_event["stdout_sha256"] == tool_event["stdout_sha256"]
 
-        # Persisted line length is bounded (not containing the 5000-byte output)
-        line_bytes_len = len(lines[1].encode("utf-8"))
+        # Persisted line length (excluding ambient OS env like Windows PATH) is bounded
+        env_bytes_len = len(
+            json.dumps(persisted_tool_event.get("env", {})).encode("utf-8")
+        )
+        line_bytes_len = len(lines[1].encode("utf-8")) - env_bytes_len
         assert line_bytes_len < 2000, f"Persisted line length leaked: {line_bytes_len}"
 
         # In-memory object still holds the full output
@@ -238,7 +241,10 @@ def test_capture_command_error_paths() -> None:
         ["/nonexistent_binary_xyz987"],
     )
     assert tool_event_127.get("exit_code") == 127
-    assert "No such file or directory" in tool_event_127.stderr
+    assert (
+        "No such file or directory" in tool_event_127.stderr
+        or "cannot find the file" in tool_event_127.stderr
+    )
 
     # Timeout -> exit 124 with Command timed out on stderr
     tool_event_124, _ = run_evidence.capture_command(
@@ -364,8 +370,8 @@ def test_run_worker_process_consumer_contract() -> None:
     )
     res_real = host_runner.run_worker_process(packet)
     assert res_real.exit_code == 0
-    assert res_real.stdout == "worker_out\n"
-    assert res_real.stderr == "worker_err\n"
+    assert res_real.stdout.replace("\r\n", "\n") == "worker_out\n"
+    assert res_real.stderr.replace("\r\n", "\n") == "worker_err\n"
 
     # RunnerFn injection seam
     def custom_runner(

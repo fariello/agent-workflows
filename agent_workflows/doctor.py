@@ -1091,7 +1091,10 @@ def check_stale_build(
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "file":
             return None
-        dir_str = urllib.request.url2pathname(urllib.parse.unquote(parsed.path))
+        raw_url_path = (
+            f"/{parsed.netloc}{parsed.path}" if parsed.netloc else parsed.path
+        )
+        dir_str = urllib.request.url2pathname(urllib.parse.unquote(raw_url_path))
         dir_path = Path(dir_str)
         if not dir_path.is_dir():
             return None

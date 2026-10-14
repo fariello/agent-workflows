@@ -382,7 +382,7 @@ def test_write_targets_on_surveyable_root(seeded_fixture):
         ],
     )
     assert p.returncode == 0
-    assert ".aw/records/releases/" in p.stdout
+    assert ".aw/records/releases/" in p.stdout.replace("\\", "/")
 
     # research set-assign targets .aw/records/research/
     p = _run(
@@ -391,7 +391,7 @@ def test_write_targets_on_surveyable_root(seeded_fixture):
     )
     assert p.returncode == 0
     assert "would rename" in p.stdout
-    assert ".aw/records/research/" in p.stdout
+    assert ".aw/records/research/" in p.stdout.replace("\\", "/")
 
     # research mv targets .aw/records/research/
     p = _run(
@@ -400,10 +400,10 @@ def test_write_targets_on_surveyable_root(seeded_fixture):
     )
     assert p.returncode == 0
     assert "would rename" in p.stdout
-    assert ".aw/records/research/" in p.stdout
+    assert ".aw/records/research/" in p.stdout.replace("\\", "/")
 
     # archive targets .aw/records/research/archive/
     p = _run(seeded_fixture, ["archive", "res001", "--dir", repo])
     assert p.returncode == 0
     assert "would archive" in p.stdout
-    assert "202610/" in p.stdout
+    assert "202610/" in p.stdout.replace("\\", "/")

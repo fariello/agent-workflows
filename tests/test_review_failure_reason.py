@@ -19,6 +19,7 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+from pathlib import Path
 import subprocess
 import tempfile
 import unittest
@@ -142,30 +143,33 @@ class HostErrorHelpersUnitTests(unittest.TestCase):
         )
 
     def test_scan_last_host_error_clean_log(self) -> None:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
-            tf.write(
-                '{"type":"text","part":{"text":"hello"}}\n{"type":"step_finish"}\n'
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(
+                '{"type":"text","part":{"text":"hello"}}\n{"type":"step_finish"}\n',
+                encoding="utf-8",
             )
-            tf.flush()
-            self.assertIsNone(render_stream.scan_last_host_error(tf.name))
+            self.assertIsNone(render_stream.scan_last_host_error(str(p)))
 
     def test_scan_last_host_error_agy_success(self) -> None:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
-            tf.write(
-                '{"event":"init"}\n{"event":"result","result":{"status":"SUCCESS"}}\n'
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(
+                '{"event":"init"}\n{"event":"result","result":{"status":"SUCCESS"}}\n',
+                encoding="utf-8",
             )
-            tf.flush()
-            self.assertIsNone(render_stream.scan_last_host_error(tf.name))
+            self.assertIsNone(render_stream.scan_last_host_error(str(p)))
 
     def test_scan_last_host_error_agy_failed(self) -> None:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as tf:
-            tf.write(
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "log.jsonl"
+            p.write_text(
                 '{"event":"init"}\n'
-                '{"event":"result","result":{"status":"FAILED","error":"crash"}}\n'
+                '{"event":"result","result":{"status":"FAILED","error":"crash"}}\n',
+                encoding="utf-8",
             )
-            tf.flush()
             self.assertEqual(
-                ("FAILED", "crash"), render_stream.scan_last_host_error(tf.name)
+                ("FAILED", "crash"), render_stream.scan_last_host_error(str(p))
             )
 
     def test_scan_last_host_error_missing_path(self) -> None:

@@ -109,6 +109,7 @@ def test_cross_type_rename_does_not_rewrite_citations_of_foreign_artifact(
         "See plan 20260929-demo-01-ab12cd-a-demo-plan.ipd.md for implementation details.\n"
     )
     citing_path.write_text(citing_content, encoding="utf-8")
+    citing_bytes_before = citing_path.read_bytes()
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
 
@@ -133,7 +134,7 @@ def test_cross_type_rename_does_not_rewrite_citations_of_foreign_artifact(
     citing_bytes_after = citing_path.read_bytes()
     # The assertion is on the citing file's bytes, not on whether the rewriter was called.
     assert (
-        citing_bytes_after == citing_content.encode("utf-8")
+        citing_bytes_after == citing_bytes_before
     ), f"Citing file bytes were modified! Content after:\n{citing_path.read_text(encoding='utf-8')}"
 
 

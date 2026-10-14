@@ -165,7 +165,7 @@ def test_no_code_structure_pins_in_test_modules() -> None:
 
     all_violations: list[StructurePinViolation] = []
     for mod_path in test_modules:
-        rel_path = str(mod_path.relative_to(repo_root))
+        rel_path = mod_path.relative_to(repo_root).as_posix()
         if rel_path in allowlist_map:
             continue
         source = mod_path.read_text(encoding="utf-8")

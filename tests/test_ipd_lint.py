@@ -1694,7 +1694,9 @@ class ExitCodeTests(unittest.TestCase):
                 when="2026-08-03",
                 set_name="x",
                 order=1,
-            )
+                plan_id="aaa111",
+            ),
+            encoding="utf-8",
         )
         self.assertEqual(self._run(all=True, path=str(root)), 0)
 

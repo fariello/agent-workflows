@@ -60,6 +60,10 @@ print(f"{local_d},{utc_d},{agent_workflows.__file__}")
 
 def _check_and_select_skew(target_zone: str) -> None:
     """Probe both zones, assert exactly one is in skew, and skip target_zone if not in skew."""
+    import time
+
+    if not hasattr(time, "tzset"):
+        pytest.skip("POSIX TZ/tzset required to shift datetime.date.today()")
     probes = {z: _probe_zone(z) for z in ZONES}
     skews = {z: probes[z][0] != probes[z][1] for z in ZONES}
     skewed_count = sum(1 for s in skews.values() if s)

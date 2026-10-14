@@ -41,7 +41,8 @@ def temporary_timezone(tz: str):
     """Context manager setting process TZ for code under test with unconditional restore."""
     old_tz = os.environ.get("TZ")
     os.environ["TZ"] = tz
-    time.tzset()
+    if hasattr(time, "tzset"):
+        time.tzset()
     try:
         yield
     finally:
@@ -49,7 +50,8 @@ def temporary_timezone(tz: str):
             os.environ.pop("TZ", None)
         else:
             os.environ["TZ"] = old_tz
-        time.tzset()
+        if hasattr(time, "tzset"):
+            time.tzset()
 
 
 @contextlib.contextmanager
@@ -63,6 +65,10 @@ def temporary_cwd(target: Path):
         os.chdir(old_cwd)
 
 
+@unittest.skipUnless(
+    hasattr(time, "tzset"),
+    "POSIX TZ/tzset required to shift datetime.date.today()",
+)
 class ScaffoldHistoryClockTests(unittest.TestCase):
     """Behavioral outcome guard for the scaffold history clock and lifecycle validity."""
 

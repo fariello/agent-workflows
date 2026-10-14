@@ -38,9 +38,9 @@ def _repo_rel(repo: Path, path: Path | str | None) -> str:
     try:
         p = Path(path).resolve()
         r = repo.resolve()
-        return str(p.relative_to(r))
+        return p.relative_to(r).as_posix()
     except Exception:
-        s = str(path)
+        s = str(path).replace("\\", "/")
         # Avoid leaking /home/ in any case
         if "/.aw/" in s:
             idx = s.find(".aw/")

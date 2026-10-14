@@ -36,7 +36,12 @@ class TestReprWrappedSites(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             pdir = root / ".aw" / "records" / "prompts" / bucket
-            pdir.mkdir(parents=True, exist_ok=True)
+            try:
+                pdir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                bucket = "unknown_bucket"
+                pdir = root / ".aw" / "records" / "prompts" / bucket
+                pdir.mkdir(parents=True, exist_ok=True)
             p = pdir / "20260101-prm-01-test.prompt.md"
             p.write_text("# Prompt\n- Id: prm001\n", encoding="utf-8")
 

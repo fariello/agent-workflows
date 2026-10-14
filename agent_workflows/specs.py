@@ -56,7 +56,7 @@ def _refuse_unsafe_descriptive(
 
 
 def _lines(text: str) -> List[str]:
-    return text.split("\n")
+    return text.replace("\r\n", "\n").split("\n")
 
 
 def _metadata_end(lines: List[str]) -> int:

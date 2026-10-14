@@ -13708,9 +13708,9 @@ def _find_type_records(
             set_txt = f"{e.set_id or '-':<14}"
             full_p = (plans_dir / e.path).resolve()
             try:
-                rel_p = str(full_p.relative_to(repo_root.resolve()))
+                rel_p = full_p.relative_to(repo_root.resolve()).as_posix()
             except Exception:
-                rel_p = str(e.path)
+                rel_p = Path(e.path).as_posix()
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
             paths.append(rel_p)
@@ -13795,9 +13795,9 @@ def _find_type_records(
             summary = f"  {e.summary}" if e.summary else ""
             full_p = (research_root / e.path).resolve()
             try:
-                rel_p = str(full_p.relative_to(repo_root.resolve()))
+                rel_p = full_p.relative_to(repo_root.resolve()).as_posix()
             except Exception:
-                rel_p = str(e.path)
+                rel_p = Path(e.path).as_posix()
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
             paths.append(rel_p)
@@ -13842,9 +13842,9 @@ def _find_type_records(
         except OSError:
             continue
         try:
-            rel = str(p.resolve().relative_to(repo_root.resolve()))
+            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
         except Exception:
-            rel = str(p)
+            rel = p.as_posix()
         raw_id = _find_prompt_id6(p, text, artifact_type) or sel_mod._read_id(text)
         if explicit_id and raw_id != explicit_id:
             continue
@@ -13951,9 +13951,9 @@ def _detect_id6_collisions(
         rels = []
         for k in claimants:
             try:
-                rels.append(str(Path(k).relative_to(repo_root.resolve())))
+                rels.append(Path(k).relative_to(repo_root.resolve()).as_posix())
             except ValueError:
-                rels.append(k)
+                rels.append(Path(k).as_posix())
         out.append(_Id6Collision(token, shape, sorted(rels)))
     return out
 

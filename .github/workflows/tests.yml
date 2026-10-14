@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: "1"
+
 jobs:
   unittest:
     name: unittest (${{ matrix.os }}, py${{ matrix.python-version }})
