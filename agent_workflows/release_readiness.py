@@ -222,13 +222,24 @@ def gate_ipd_lint(repo_root: Optional[Path] = None) -> GateResult:
 
 
 def gate_full_suite(
-    suite_passed: bool, counts: Optional[Dict[str, int]] = None
+    suite_passed: Optional[bool], counts: Optional[Dict[str, int]] = None
 ) -> GateResult:
     """The full test suite gate.
 
     The suite (``make test``) is too heavy to re-run inside a unit test, so the aggregator
-    accepts the harness/CI result. ``suite_passed`` MUST come from a real run.
+    accepts the harness/CI result. ``suite_passed`` MUST come from a real run. When
+    ``suite_passed`` is None, fails closed with "full suite result not supplied" rather
+    than claiming a red suite that was never run.
     """
+    if suite_passed is None:
+        ev: Dict[str, Any] = dict(counts or {})
+        ev["supplied"] = False
+        return GateResult(
+            name="full_suite",
+            passed=False,
+            detail="full suite result not supplied",
+            evidence=ev,
+        )
     return GateResult(
         name="full_suite",
         passed=bool(suite_passed),
@@ -630,7 +641,7 @@ def aggregate(gates: Sequence[GateResult]) -> ReleaseReadinessReport:
 
 def build_report(
     *,
-    suite_passed: bool,
+    suite_passed: Optional[bool],
     suite_counts: Optional[Dict[str, int]] = None,
     drift_files: Optional[Sequence[str]] = None,
     doc_findings: Optional[Sequence[str]] = None,
@@ -671,6 +682,127 @@ def build_report(
     return aggregate(gates)
 
 
+def run_readiness(args: Any) -> int:
+    """``aw releases readiness``: render the read-only GO / NO-GO release-readiness report."""
+    import sys
+
+    from agent_workflows.project_context import (
+        nonsurveyable_root_refusal,
+        resolve_verb_repo_root,
+    )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        NextAction,
+        select_output,
+    )
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    ctx = select_output(args)
+    explicit_dir = bool(getattr(args, "dir", None))
+    refusal = nonsurveyable_root_refusal(
+        "releases readiness", repo_root, explicit_dir=explicit_dir
+    )
+    if not refusal.may_proceed:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="releases readiness",
+                status="cannot-run",
+                exit_code=2,
+                summary=refusal.summary,
+                next_actions=(
+                    [
+                        NextAction(
+                            command=refusal.next_action_command,
+                            description=refusal.next_action_description,
+                        )
+                    ]
+                    if refusal.next_action is not None
+                    else []
+                ),
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write((refusal.human_message or "") + "\n")
+        return 2
+
+    if getattr(args, "suite_passed", False):
+        suite_passed: Optional[bool] = True
+    elif getattr(args, "suite_failed", False):
+        suite_passed = False
+    else:
+        suite_passed = None
+
+    raw_signer = getattr(args, "residual_risk_signer", None)
+    signer = str(raw_signer).strip() if raw_signer else ""
+
+    try:
+        report = build_report(
+            suite_passed=suite_passed,
+            residual_risk_signed=bool(signer),
+            residual_risk_signer=signer or "",
+            repo_root=repo_root,
+            run_subprocess_gates=True,
+        )
+    except Exception as exc:
+        msg = (
+            f"aw releases readiness: could not build readiness report: "
+            f"{type(exc).__name__}"
+        )
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="releases readiness",
+                status="cannot-run",
+                exit_code=2,
+                summary=msg,
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stderr.write(msg + "\n")
+        return 2
+
+    is_go = report.is_go
+    exit_code = 0 if is_go else 1
+    failing = report.failing_gates()
+    summary = "Verdict: GO" if is_go else f"Verdict: NO-GO ({', '.join(failing)})"
+
+    if ctx.is_agent or ctx.is_json:
+        diagnostics = [
+            Diagnostic(
+                location=g.name,
+                rule=f"readiness.{g.name}",
+                detail=g.detail,
+                severity="error",
+            )
+            for g in report.gates
+            if not g.passed
+        ]
+        res = CommandResult(
+            command="releases readiness",
+            status="clean" if is_go else "findings",
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            data=report.to_dict(),
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    sys.stdout.write(report.render() + "\n")
+    needs_hint = any(
+        (g.name == "full_suite" and "not supplied" in g.detail)
+        or (g.name == "residual_risk" and "sign-off missing" in g.detail)
+        for g in report.gates
+        if not g.passed
+    )
+    if needs_hint:
+        sys.stderr.write(
+            "Hint: pass --suite-passed or --suite-failed for full_suite, and "
+            "--residual-risk-signer <name> for residual_risk.\n"
+        )
+    return exit_code
+
+
 __all__ = [
     "VERDICT_GO",
     "VERDICT_NO_GO",
@@ -692,4 +824,5 @@ __all__ = [
     "gate_residual_risk",
     "aggregate",
     "build_report",
+    "run_readiness",
 ]
