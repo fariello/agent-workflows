@@ -1,0 +1,187 @@
+# IPD: Pass --dir in test_finalize_sendback e2e scaffold and bound find_project_root at enclosing git root
+
+- Date: 2026-10-14
+- Kind: child
+- Concern: Test isolation in test_finalize_sendback e2e and project-root discovery boundary at enclosing git root.
+- Scope: Wire --dir into aw ipd scaffold via resolve_verb_repo_root, pass --dir in test_finalize_sendback e2e subprocesses, and stop find_project_root from climbing past an uninstalled .git boundary.
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/ipd_authoring.py, agent_workflows/project_context.py, tests/test_finalize_sendback.py, tests/test_ipd_authoring.py, tests/test_nonsurveyable_root_refusal.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: nj13xp
+- Blocks-Release: next
+- Set: nj13xp
+- Order: 1
+- Highest E allocated: 06
+- Author: antigravity
+- Id: ivq0nr
+
+## Workflow history
+- 2026-10-14 to-review (antigravity): authored review-ready child IPD for backlog nj13xp
+
+- 2026-10-14 draft (antigravity): created.
+
+## Goal
+
+Prevent `aw ipd scaffold` in `tests/test_finalize_sendback.py` from writing stray `e2e-test-plan.ipd.md` files into an enclosing `.aw/records/plans/pending/` tree (such as `/tmp/.aw/records/plans/pending/` or a parent checkout) by wiring `--dir` through `project_context.resolve_verb_repo_root` on `aw ipd scaffold`, passing `--dir` in the e2e test's subprocess invocations, and bounding `project_context.find_project_root` so upward discovery stops at an enclosing `.git` root that lacks an AW marker.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Wire `--dir` into `aw ipd scaffold` and pass `--dir` in `test_finalize_sendback` e2e
+
+- [ ] E-01 Register `--dir` on `p_ipd_scaffold` in `cli.build_parser` (`agent_workflows/cli.py:1790-1854`).
+  - Depends on: none
+  - Expected outcome: `p_ipd_scaffold.add_argument("--dir", default=None, help="Target repository root (default: discovered project root or CWD).")` is registered on the `ipd scaffold` subparser in `agent_workflows/cli.py`, matching sibling `ipd` subcommands (`begin`, `finalize`, `set`, `coverage`) and sibling authoring verbs (`backlog new`, `specs new`, `releases new`, `research new`).
+  - Execution state: pending
+
+- [ ] E-02 Route `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:436-671`) through `project_context.resolve_verb_repo_root` for project-root resolution.
+  - Depends on: E-01
+  - Expected outcome: `ipd_authoring.run_scaffold` resolves `repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))` once at entry, passes `repo_root=repo_root` into `ipd_authoring._setid_length_guard`, passes `repo_root` to `_backlog.find_item(repo_root, from_backlog)`, and uses `repo_root` to compute the derived destination path under `pending/` when `--path` is omitted (`resolve_record_path("plans", target_repo=str(repo_root))` with in-tree fallback `repo_root / ".aw" / "records" / "plans" / "pending" / derived_name`).
+  - Execution state: pending
+
+- [ ] E-03 Pass `"--dir", str(repo_dir)` to the `ipd` subprocess calls in `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-658`).
+  - Depends on: E-02
+  - Expected outcome: The `ipd scaffold`, `ipd begin`, and both `ipd finalize` subprocess invocations in `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` pass `"--dir", str(repo_dir)` explicitly, ensuring the scaffolded `E2E Test Plan` and its lifecycle transitions stay confined to `repo_dir`.
+  - Execution state: pending
+
+### Task group 2: Bound `find_project_root` at an enclosing `.git` root and add regression coverage
+
+- [ ] E-04 Bound `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`) at an enclosing `.git` directory that lacks an AW marker.
+  - Depends on: none
+  - Expected outcome: In `project_context.find_project_root`, immediately after checking `_is_project_marker(curr / ".aw") or _is_project_marker(curr / ".agents", legacy=True)`, if `(curr / ".git").exists()` is True, `find_project_root` returns `None` instead of climbing past the git repository boundary into an outer directory's `.aw/` marker.
+  - Execution state: pending
+
+- [ ] E-05 Add regression tests in `tests/test_ipd_authoring.py` and `tests/test_nonsurveyable_root_refusal.py` for `aw ipd scaffold --dir` and the `.git` climb boundary.
+  - Depends on: E-02, E-04
+  - Expected outcome: `tests/test_ipd_authoring.py` tests that (1) `aw ipd scaffold --dir <target> --apply` writes inside `<target>` without climbing to an ancestor `.aw/`, and (2) `aw ipd scaffold --apply` without `--dir` inside an uninstalled git repo nested under an outer `.aw/` project writes to the inner git repo's `.aw/records/plans/pending/` rather than the outer project; `tests/test_nonsurveyable_root_refusal.py` tests that `project_context.find_project_root` stops at an inner `.git` boundary nested under an outer `.aw/` project while still discovering `.aw/` from subdirectories of a git-backed or non-git AW project.
+  - Execution state: pending
+
+- [ ] E-06 Run the targeted regression tests and the full `python3 -m pytest` suite.
+  - Depends on: E-03, E-05
+  - Expected outcome: `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py` and the full `python3 -m pytest` suite pass with 0 failures.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Write and authoring verbs resolve their target repository root through `project_context.resolve_verb_repo_root` (`agent_workflows/project_context.py:356-414`), which honors an explicit `--dir` verbatim with no upward climb (`Path(explicit_dir).expanduser().resolve()`) and climbs via `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`) only when `explicit_dir` is `None`.
+- Project marker recognition in `project_context._is_project_marker` (`agent_workflows/project_context.py:293-312`) requires `(marker_dir / "records").is_dir()` or `(marker_dir / "config").is_dir()` for `.aw/` (and `plans`, `specs`, `config`, or `aw.toml` for legacy `.agents/`). Any stray creation of `/tmp/.aw/records/plans/pending` turns `/tmp` into a valid AW project root for every test creating temporary directories under `/tmp`.
+- In `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`), a bare `.git` directory is deliberately not treated as an AW project marker (`awretrofit` Order 06 OQ-01; `quqyc4` E-02), and non-git `.aw/` projects remain supported when `_is_project_marker` is checked before the `(curr / ".git").exists()` ceiling.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| # | Severity | Location | Finding | Evidence |
+|---|----------|----------|---------|----------|
+| F-1 | High | `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-559`) | The e2e test initializes a bare git repo (`repo_dir`) with no `.aw/` directory and invokes `python3 -m agent_workflows ipd scaffold ... --title "E2E Test Plan" --apply` with `cwd=repo_dir` and no `--dir`. When an ancestor of `repo_dir` has `.aw/records` or `.aw/config` (e.g., `/tmp/.aw/records` or `$TMPDIR` inside a checkout or under `$HOME`), `aw ipd scaffold` climbs out of `repo_dir` across `repo_dir/.git` and writes `20261012-testset-01-*-e2e-test-plan.ipd.md` into the ancestor's `.aw/records/plans/pending/`. Once `/tmp/.aw/records/plans/pending` exists, `/tmp` satisfies `project_context._is_project_marker` (`agent_workflows/project_context.py:293-312`), causing 39 non-project tests to fail with `'the specified directory is inside an AW project'`. | `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-563`) globs `repo_dir / ".aw" / "records" / "plans" / "pending" / "*.ipd.md"` and fails with `IndexError: list index out of range` when the file is written to the ancestor. |
+| F-2 | High | `cli.build_parser` (`agent_workflows/cli.py:1790-1854`) and `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:436-578`) | `p_ipd_scaffold` does not register `--dir`, and `ipd_authoring.run_scaffold` calls `project_context.find_project_root` (`Path.cwd()`) directly in three places (`ipd_authoring._setid_length_guard` at `agent_workflows/ipd_authoring.py:424`, `from_backlog` resolution at `agent_workflows/ipd_authoring.py:494`, and derived destination path resolution at `agent_workflows/ipd_authoring.py:562`) instead of calling `project_context.resolve_verb_repo_root` (`agent_workflows/project_context.py:356-414`). | Passing `--dir` to `aw ipd scaffold` currently exits 2 in `argparse`, whereas sibling `ipd` verbs (`begin`, `finalize`, `set`, `coverage`) and authoring verbs (`backlog new`, `specs new`, `releases new`, `research new`) accept `--dir` and route through `project_context.resolve_verb_repo_root`. |
+| F-3 | Medium | `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`) | `project_context.find_project_root` walks `[curr] + list(curr.parents)` without stopping at an enclosing `.git` boundary that lacks `.aw`/`.agents`. From any uninstalled git repository nested under `$HOME` (when `~/.aw/config` exists), `/tmp` (if `/tmp/.aw` exists), or an outer AW checkout, upward discovery escapes the inner git repository and attaches to the outer `.aw/`. `doctor._run_doctor` (`agent_workflows/doctor.py:2348-2354`) previously added a local workaround (`if git_root is not None and climbed in Path(git_root).resolve().parents: repo_root = cwd`) for this exact climb across `.git` because `project_context.py` was out of scope for IPD `sjsb04`. | In `project_context.find_project_root` (`agent_workflows/project_context.py:329-335`), the loop checks `_is_project_marker(curr / ".aw") or _is_project_marker(curr / ".agents", legacy=True)` and continues to `curr.parents` even when `(curr / ".git").exists()` is True. |
+
+## Proposed changes (ordered, validatable)
+
+1. **`agent_workflows/cli.py` (`E-01`)**:
+   - In `cli.build_parser` (`agent_workflows/cli.py:1790-1854`), add `--dir` to `p_ipd_scaffold`:
+     ```python
+     p_ipd_scaffold.add_argument(
+         "--dir",
+         default=None,
+         help="Target repository root (default: discovered project root or CWD).",
+     )
+     ```
+2. **`agent_workflows/ipd_authoring.py` (`E-02`)**:
+   - In `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:436-671`), resolve `repo_root` once via `project_context.resolve_verb_repo_root`:
+     ```python
+     from agent_workflows import project_context as _ctx
+
+     repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))
+     ```
+   - Pass `repo_root=repo_root` to `ipd_authoring._setid_length_guard` (`agent_workflows/ipd_authoring.py:456`).
+   - Use `repo_root` in the `from_backlog` lookup (`_backlog.find_item(repo_root, from_backlog)` at `agent_workflows/ipd_authoring.py:489-497`).
+   - Use `repo_root` when deriving the destination path under `pending/` in `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:559-578`), removing the redundant `find_project_root(Path.cwd())` call.
+3. **`tests/test_finalize_sendback.py` (`E-03`)**:
+   - In `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-658`), append `"--dir", str(repo_dir)` to the `ipd scaffold`, `ipd begin`, and both `ipd finalize` subprocess command lists.
+4. **`agent_workflows/project_context.py` (`E-04`)**:
+   - In `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`), stop upward traversal when `curr` has a `.git` entry (directory or worktree gitfile) and no valid `.aw` or legacy `.agents` project marker:
+     ```python
+     for curr in [curr] + list(curr.parents):
+         if _is_project_marker(curr / ".aw") or _is_project_marker(
+             curr / ".agents", legacy=True
+         ):
+             return curr
+         if (curr / ".git").exists():
+             return None
+     return None
+     ```
+5. **`tests/test_ipd_authoring.py` and `tests/test_nonsurveyable_root_refusal.py` (`E-05`, `E-06`)**:
+   - Add unit and subprocess tests in `IpdAuthoringTests` (`tests/test_ipd_authoring.py:41-210`) verifying `aw ipd scaffold --dir <repo_dir> --apply` and `aw ipd scaffold --apply` inside an uninstalled git repo nested under an outer AW project.
+   - Add unit tests in `tests/test_nonsurveyable_root_refusal.py` (`TestFindProjectRootRequiresMarker` at `tests/test_nonsurveyable_root_refusal.py:39-84`) verifying `project_context.find_project_root` returns `None` when an inner `.git` repo with no `.aw` marker is nested inside an outer `.aw` project, while still returning the project root when called from a subdirectory of a git-backed or non-git `.aw` project.
+
+## Deferred / out of scope (with reason)
+
+none.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: none; both items in backlog `nj13xp` (passing `--dir` in `tests/test_finalize_sendback.py` and bounding project discovery at the enclosing git root in `agent_workflows/project_context.py`, plus the prerequisite `--dir` support on `aw ipd scaffold`) are covered.
+
+## Required tests / validation
+
+- Run `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py`.
+- Run the full repository test suite via `python3 -m pytest`.
+
+## Spec / documentation sync
+
+- N/A with reason: `--dir` on `aw ipd scaffold` and stopping `find_project_root` at an uninstalled `.git` boundary align `aw ipd scaffold` and `project_context.find_project_root` with the existing `resolve_verb_repo_root` and `sjsb04` contracts without changing any spec-governed CLI grammar or schema.
+
+## Open questions
+
+### OQ-01: Should `project_context.find_project_root` stop climbing when it reaches a `.git` boundary that lacks an AW marker?
+
+- Blocking: no
+- Status: resolved
+- Owner: antigravity
+- Resolution or deferral rationale: Resolved from repository evidence. Returning `None` when `(curr / ".git").exists()` is True after `_is_project_marker` is False preserves non-git `.aw/` projects (no `.git` present), preserves subdirectory discovery inside git-backed `.aw/` projects (`_is_project_marker` succeeds at the repo root before `(curr / ".git").exists()` is checked), preserves `quqyc4` (a bare `.git` repo returns `None`), and prevents an uninstalled git repository from escaping across its own `.git` boundary into an ancestor `.aw/` directory (the exact hazard `doctor._run_doctor` at `agent_workflows/doctor.py:2348-2354` worked around locally in IPD `sjsb04`).
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: `git diff -- agent_workflows/cli.py` showing `--dir` added to `p_ipd_scaffold`, and output of `python3 -m agent_workflows ipd scaffold --help` showing `--dir DIR`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: `git diff -- agent_workflows/ipd_authoring.py` showing `run_scaffold` resolving `repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))` and threading `repo_root` into `_setid_length_guard`, `_backlog.find_item`, and derived destination path resolution.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: `git diff -- tests/test_finalize_sendback.py` showing `"--dir", str(repo_dir)` passed to the `ipd scaffold`, `ipd begin`, and `ipd finalize` subprocess calls in `test_e2e_real_finalize_checkbox_mismatch_is_retryable`, plus passing pytest output for `python3 -m pytest tests/test_finalize_sendback.py`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: `git diff -- agent_workflows/project_context.py` showing `if (curr / ".git").exists(): return None` immediately after the `_is_project_marker` check in `find_project_root`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: `git diff -- tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py` and passing pytest output for the new `--dir` and `.git`-boundary regression tests in both files.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: Pasted runner output from `python3 -m pytest` showing the full test suite passing with 0 failures.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Do not execute implementation steps until this IPD reaches an executable approval state (`- Status: approved` or `- Status: auto-approved`). Once all `E-*` items are `performed` and all `V-*` items are `pass` with pasted evidence, transition the plan via `aw ipd finalize` (or report results and let the runner finalize in a managed lane).
