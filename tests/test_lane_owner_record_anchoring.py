@@ -214,10 +214,10 @@ class LaneOwnerRecordAnchoringTests(unittest.TestCase):
         self.assertIn("unreadable", reason)
         self.assertTrue(owned)
 
-        # 4. Unreachable: chmod 0 on owners directory (skipped for root)
+        # 4. Unreachable: chmod 0 on owners directory (skipped for root / Windows)
         owners_dir.unlink()
         owners_dir.mkdir(parents=True, exist_ok=True)
-        if os.geteuid() != 0:
+        if os.name != "nt" and hasattr(os, "geteuid") and os.geteuid() != 0:
             os.chmod(owners_dir, 0)
             self.addCleanup(os.chmod, owners_dir, 0o755)
             try:

@@ -143,6 +143,10 @@ def _close_process_streams(process: subprocess.Popen) -> None:
                 stream.close()
 
 
+_REAL_POPEN = subprocess.Popen
+_REAL_SUBPROCESS_RUN = subprocess.run
+
+
 def signal_process(process: subprocess.Popen, sig: int) -> bool:
     """Send a signal to a process and its process group if available."""
     if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
@@ -153,11 +157,18 @@ def signal_process(process: subprocess.Popen, sig: int) -> bool:
                 return True
         except (ProcessLookupError, OSError):
             pass
+    if os.name == "nt" and sig == signal.SIGTERM and isinstance(process, _REAL_POPEN):
+        with contextlib.suppress(Exception):
+            _REAL_SUBPROCESS_RUN(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                capture_output=True,
+                timeout=5,
+            )
     try:
         process.send_signal(sig)
         return True
     except (ProcessLookupError, OSError):
-        return False
+        return os.name == "nt" and sig == signal.SIGTERM
     except ValueError:
         # Windows `Popen.send_signal` accepts only SIGTERM and the CTRL_* console events and raises
         # ValueError for anything else (SIGINT included). Report "not delivered" so the reaper's

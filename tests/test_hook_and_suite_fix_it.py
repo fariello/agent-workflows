@@ -354,9 +354,9 @@ class DriverHookAndSuiteFixItTests(unittest.TestCase):
                     "#!/usr/bin/env bash\n"
                     "branch=$(git branch --show-current 2>/dev/null || echo '')\n"
                     'if [[ "$branch" == aw/coordinator/* ]]; then\n'
-                    f'    cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
+                    f'    cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
                     '    if [ "$cnt" -lt 1 ]; then\n'
-                    f'        echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'        echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     '        echo "HOOK_FAIL: trailing whitespace in plan.ipd.md" >&2\n'
                     "        exit 1\n"
                     "    fi\n"
@@ -480,9 +480,9 @@ class DriverHookAndSuiteFixItTests(unittest.TestCase):
                 # Install pre-merge-commit hook that rejects on attempt 1 with an absolute machine path
                 hook_script = (
                     "#!/usr/bin/env bash\n"
-                    f'cnt=$(cat "{counter_file}" 2>/dev/null || echo 0)\n'
+                    f'cnt=$(cat "{counter_file.as_posix()}" 2>/dev/null || echo 0)\n'
                     'if [ "$cnt" -lt 1 ]; then\n'
-                    f'    echo $((cnt + 1)) > "{counter_file}"\n'
+                    f'    echo $((cnt + 1)) > "{counter_file.as_posix()}"\n'
                     f'    echo "HOOK_MERGE_FAIL: check failed on {td}/opt/verifier.sh" >&2\n'
                     "    exit 1\n"
                     "fi\n"
