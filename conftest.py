@@ -171,6 +171,10 @@ os.environ.pop("AW_EXECUTION_ROLE", None)
 # runner turn.
 os.environ.pop("AW_RUN_ID", None)
 os.environ.pop("AW_ITEM_ID6", None)
+os.environ.pop("AW_RUNNER", None)
+os.environ.pop("AW_AGENT_MODEL", None)
+os.environ.pop("GIT_COMMITTER_NAME", None)
+os.environ.pop("GIT_COMMITTER_EMAIL", None)
 
 # userconfig (9y27t2) E-06: an agent turn now exports AW_CONFIG_DIR and every plan tells
 # that agent to run the suite, so without this scrub the suite's own XDG_CONFIG_HOME

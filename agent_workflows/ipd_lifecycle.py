@@ -2409,14 +2409,24 @@ class FinalizeResult(NamedTuple):
     findings: Tuple[str, ...] = ()
 
 
-def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
+def _git(
+    repo_root: Path,
+    args: List[str],
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> Tuple[int, str, str]:
     """Run a git command in ``repo_root``; return (returncode, stdout, stderr).
 
     Delegates to the single canonical git-subprocess runner in ``git_commit_helper`` (the shared
     "commit-what-I-changed" leaf) so there is exactly one git wrapper across the codebase.
     """
-    from .git_commit_helper import _git as _shared_git
+    from .git_commit_helper import (
+        _git as _shared_git,
+        call_git_with_env as _call_git,
+    )
 
+    if env is not None:
+        return _call_git(_shared_git, repo_root, args, env)
     return _shared_git(repo_root, args)
 
 
@@ -4864,6 +4874,9 @@ def retire_orchestrator(
             message,
             evidence,
             fault_injection,
+            run_id=run_id,
+            item_id6=plan_id,
+            env=env,
         )
     finally:
         release_finalize_lock(repo_root)
@@ -5163,6 +5176,9 @@ def finalize(
             message,
             evidence,
             fault_injection,
+            run_id=run_id,
+            item_id6=plan_id,
+            env=env,
         )
     finally:
         release_finalize_lock(repo_root)
@@ -5211,6 +5227,10 @@ def _finalize_transaction(
     message: str,
     evidence: Dict[str, Any],
     fault_injection: Optional[str],
+    *,
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
 ) -> FinalizeResult:
     """The journaled two-phase terminal transaction (called under the finalize lock).
 
@@ -5380,14 +5400,26 @@ def _finalize_transaction(
             exit_code, None, f"{reason}; rolled back to pre-finalize state.", evidence
         )
 
+    from agent_workflows import git_commit_helper as _gch
+
     # The subject grammar is `artifact_core`'s (IPD `zexed1` E-02), not a local literal: the pre-commit
     # gate and the run viewer's discrepancy classifier both MATCH what is produced here, and a
     # hand-written copy in any one of them drifts silently (see `artifact_core.finalize_commit_subject`).
-    commit_msg = (
+    raw_commit_msg = (
         f"{_core.finalize_commit_subject(plan_id)} {plan_id} -> executed"
         f"\n\n{message}\n\n"
         f"Executed by {actor} via aw ipd finalize."
     )
+    _fin_model = _gch.model_from_actor(actor)
+    _fin_ident = _gch.agent_commit_identity(
+        repo_root,
+        model=_fin_model,
+        run_id=run_id,
+        item_id6=item_id6 or plan_id,
+        message=raw_commit_msg,
+        base_env=env,
+    )
+    commit_msg = _fin_ident.message
 
     # --- MUTATING + READY_TO_COMMIT + the commit, ALL IN A COORDINATOR-OWNED WORKTREE (`u23gbn`). ---
     #
@@ -5487,7 +5519,9 @@ def _finalize_transaction(
             # The REAL commit, hooks and all, in a tree nothing else writes to. `pre-commit` stashes
             # and restores HERE, so a peer's in-flight write in the shared tree cannot be clobbered by
             # us. NO pathspec: this worktree's index holds exactly our own rename.
-            rc, out, err = _git(coord.path, ["commit", "-m", commit_msg])
+            rc, out, err = _gch.call_git_with_env(
+                _git, coord.path, ["commit", "-m", commit_msg], _fin_ident.env
+            )
             if rc != 0:
                 combined = f"{out}\n{err}".strip()
                 raise _CommitRefused(

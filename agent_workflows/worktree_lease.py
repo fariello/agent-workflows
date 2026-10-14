@@ -83,8 +83,17 @@ class LeaseConflictError(Exception):
     """Raised when a lane tries to claim a path already exclusively owned by another lane."""
 
 
-def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
+def _git(
+    repo_root: Path,
+    args: List[str],
+    *,
+    env: Optional[Dict[str, str]] = None,
+) -> Tuple[int, str, str]:
     """Run a git command in ``repo_root``; return (returncode, stdout, stderr)."""
+    run_env: Optional[Dict[str, str]] = None
+    if env is not None:
+        run_env = os.environ.copy()
+        run_env.update(env)
     proc = subprocess.run(
         ["git", *args],
         cwd=str(repo_root),
@@ -93,6 +102,7 @@ def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=run_env,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -1078,7 +1088,14 @@ def teardown_worktree(
 
 
 def snapshot_lane_dirty_work(
-    repo_root: Path, handle: WorktreeHandle, *, note: str = ""
+    repo_root: Path,
+    handle: WorktreeHandle,
+    *,
+    note: str = "",
+    runner: Optional[str] = None,
+    model: Optional[str] = None,
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
 ) -> Optional[str]:
     """COMMIT a preserved lane's UNCOMMITTED work to its own lane branch, marked as an interrupted
     snapshot (laneorphan-01 `zwnjp3` E-09). Returns the snapshot commit sha, or None when the lane
@@ -1137,6 +1154,16 @@ def snapshot_lane_dirty_work(
     )
     if note:
         message += "\n{0}\n".format(note)
+    from agent_workflows import git_commit_helper as _gch
+
+    ident = _gch.agent_commit_identity(
+        wt,
+        runner=runner,
+        model=model,
+        run_id=run_id,
+        item_id6=item_id6,
+        message=message,
+    )
     rc, tree, err = _git(wt, ["write-tree"])
     if rc != 0:
         raise WorktreeError(
@@ -1148,8 +1175,8 @@ def snapshot_lane_dirty_work(
     args = ["commit-tree", tree.strip()]
     if rc == 0 and parent.strip():
         args.extend(["-p", parent.strip()])
-    args.extend(["-m", message])
-    rc, commit, err = _git(wt, args)
+    args.extend(["-m", ident.message])
+    rc, commit, err = _git(wt, args, env=ident.env)
     if rc != 0:
         raise WorktreeError(
             "cannot record interrupted snapshot for lane {0!r}: {1}".format(

@@ -154,10 +154,20 @@ ISO_RACED = "raced"
 ISO_ERROR = "error"
 
 
-def _git(repo_root: Path, args: list) -> tuple:
+def _git(
+    repo_root: Path,
+    args: list,
+    *,
+    env: Optional[Dict[str, str]] = None,
+) -> tuple:
     """Delegate to the canonical git runner (kept as one definition, not a second copy)."""
-    from agent_workflows.git_commit_helper import _git as _shared
+    from agent_workflows.git_commit_helper import (
+        _git as _shared,
+        call_git_with_env as _call_git,
+    )
 
+    if env is not None:
+        return _call_git(_shared, repo_root, args, env)
     return _shared(repo_root, args)
 
 
@@ -226,6 +236,10 @@ def commit_isolated(
     *,
     message: str,
     branch: Optional[str] = None,
+    model: Optional[str] = None,
+    runner: Optional[str] = None,
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
 ) -> IsolatedCommitResult:
     """Commit ``paths`` WITHOUT letting ``pre-commit`` stash the shared working tree.
 
@@ -382,9 +396,23 @@ def commit_isolated(
         # AFTER the `add`, because `shutil.copy2` above is what put our content there.
         pre: Dict[str, Optional[str]] = {r: _content_hash(wt / r) for r in rel}
 
+        from agent_workflows import git_commit_helper as _gch
+
+        ident = _gch.agent_commit_identity(
+            repo_root,
+            model=model,
+            runner=runner,
+            run_id=run_id,
+            item_id6=item_id6,
+            message=message,
+        )
+        commit_message = ident.message
+
         # The REAL commit, hooks included, in a worktree nothing else writes to.
         attempts = 0
-        rc, out, err = _git(wt, ["commit", "-m", message, "--", *rel])
+        rc, out, err = _gch.call_git_with_env(
+            _git, wt, ["commit", "-m", commit_message, "--", *rel], ident.env
+        )
         attempts += 1
         hook_fixed: tuple = ()
         if rc != 0:
@@ -436,7 +464,9 @@ def commit_isolated(
                     ),
                     hook_fixed,
                 )
-            rc, out, err = _git(wt, ["commit", "-m", message, "--", *rel])
+            rc, out, err = _gch.call_git_with_env(
+                _git, wt, ["commit", "-m", commit_message, "--", *rel], ident.env
+            )
             attempts += 1
             if rc != 0:
                 combined = (out + "\n" + err).strip()

@@ -9381,9 +9381,13 @@ def _offer_commit_uninstall(
         term.status("warn", "Left staged; commit with:")
         print(f'  git commit -m "uninstall agent-workflows" -- {quoted}')
         return
+    from agent_workflows import git_commit_helper as _gch
+
+    ident = _gch.agent_commit_identity(repo_root, message="uninstall agent-workflows")
     proc = subprocess.run(
-        ["git", "commit", "-m", "uninstall agent-workflows", "--", *paths],
+        ["git", "commit", "-m", ident.message, "--", *paths],
         cwd=str(repo_root),
+        env=ident.env,
         capture_output=True,
         text=True,
         shell=False,

@@ -1,5 +1,5 @@
 - Id: aluots
-- Status: graduated
+- Status: done
 - Graduated-To: agentident
 - Set: aluots
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Mark every aw-made commit as agent-made: author stays the user, committer becomes 'AW Agent (<model>) <user+aw@...>', plus runner trailers on every commit
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD yr3d4o executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-agentident-01-yr3d4o-mark-every-aw-made-commit-as-agent-made-with-an-agent-commit.ipd.md); evidence .aw/records/plans/executed/20261012-agentident-01-yr3d4o-mark-every-aw-made-commit-as-agent-made-with-an-agent-commit.ipd.md
 - 2026-10-12 graduated (aw set): graduated to plan yr3d4o (Set agentident) on the maintainer's instruction
 - 2026-10-11 created (aw backlog): Mark every aw-made commit as agent-made: author stays the user, committer becomes 'AW Agent (<model>) <user+aw@...>', plus runner trailers on every commit
 

@@ -3225,8 +3225,22 @@ def _commit_paths(repo_root: Path, rel_paths: list[str], message: str) -> bool:
     Any other git failure is raised, matching `git_run`'s contract.
     """
 
+    from agent_workflows import git_commit_helper as _gch
+
+    ident = _gch.agent_commit_identity(repo_root, message=message)
     result = subprocess.run(
-        ["git", "-C", str(repo_root), "commit", "-q", "-m", message, "--", *rel_paths],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "commit",
+            "-q",
+            "-m",
+            ident.message,
+            "--",
+            *rel_paths,
+        ],
+        env=ident.env,
         capture_output=True,
         text=True,
     )
@@ -4580,15 +4594,22 @@ def prompt_and_run_commit(
 
     paths_list = sorted(files_to_commit.keys())
     if plan.yes or (is_interactive and choice in ("", "y", "yes")):
+        from agent_workflows import git_commit_helper as _gch
+
         print("Committing changes...")
+        ident = _gch.agent_commit_identity(
+            Path(plan.repo_root), message="agent-workflows: sync via installer"
+        )
         cmd = [
             "git",
             "commit",
             "-m",
-            "agent-workflows: sync via installer",
+            ident.message,
             "--",
         ] + paths_list
-        res = subprocess.run(cmd, cwd=str(plan.repo_root), shell=False)
+        run_env = os.environ.copy()
+        run_env.update(ident.env)
+        res = subprocess.run(cmd, cwd=str(plan.repo_root), shell=False, env=run_env)
         if res.returncode == 0:
             sha_res = subprocess.run(
                 ["git", "-C", str(plan.repo_root), "rev-parse", "--short", "HEAD"],
