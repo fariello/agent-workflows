@@ -100,6 +100,7 @@ Orders 01, 02 and 03 touch disjoint files and are mutually independent.
   - Carrier-Evidence: .aw/records/plans/executed/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md
 - Restoring behavioral coverage for each lost guard: `ellenm` E-03 files one backlog carrier per RETIRE-UNGUARDED group; the restoration itself belongs to those items.
   - Carrier: ellenm
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-iosmvn-04-ellenm-reconcile-the-shipped-source-dangling-census-and-file-the-un.ipd.md
 - Restoring any source-reading guard.
   - Carrier-Declined: forbidden by `AGENTS.md` and `GUIDING_PRINCIPLES` P16.
 
