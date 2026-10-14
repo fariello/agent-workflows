@@ -127,15 +127,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Pasted output of the sensitivity check in `E-03` (temporarily changing `@pytest.hookimpl(optionalhook=True)` to `@pytest.hookimpl` on `conftest.pytest_xdist_auto_num_workers` and running `python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py -k "test_conftest_registers_on_pluginmanager_without_xdist_hookspecs or test_pytest_runs_without_xdist_plugin"`), showing both tests failing with `PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers'` before restoration; followed by pasted exit-0 outputs of bare `python3 -m pytest`, `aw check release-gates`, and `aw sanitize --agent`.
   - Observed evidence:
   - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
-
 
 ## Approval and execution gate
 
