@@ -17900,6 +17900,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     "duration_seconds": round(float(res.duration_seconds), 3),
                     "cached": bool(res.cached),
                     "digest": res.digest,
+                    "slot": dict(res.slot) if res.slot is not None else None,
                     "components": dict(res.components or {}),
                     "worker_count": int(res.worker_count),
                     "recorded_at": str(res.recorded_at or ""),

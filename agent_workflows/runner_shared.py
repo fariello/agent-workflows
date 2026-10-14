@@ -26929,6 +26929,8 @@ class SuiteBaseline(NamedTuple):
     cached: bool = False
     #: The tree-keyed cache digest for the baseline run (`0o0wt2` E-06).
     digest: str | None = None
+    #: Machine slot metadata if executed with slot lock (`xvm6no`).
+    slot: dict[str, Any] | None = None
 
     @property
     def known(self) -> bool:
@@ -26953,6 +26955,7 @@ class SuiteBaseline(NamedTuple):
             "elapsed_seconds": round(float(self.elapsed_seconds), 3),
             "cached": bool(self.cached),
             "digest": self.digest,
+            "slot": self.slot,
         }
 
 
@@ -27160,6 +27163,7 @@ class SuiteBaselineRun:
             return self._result
         cached = False
         digest: str | None = None
+        slot_data: dict[str, Any] | None = None
         raw_stdout = self._stdout
         raw_stderr = self._stderr
         for line in reversed((self._stdout or "").splitlines()):
@@ -27173,6 +27177,10 @@ class SuiteBaselineRun:
                         cached = bool(rec.get("cached", False))
                         raw_digest = rec.get("digest")
                         digest = str(raw_digest) if raw_digest else None
+                        raw_slot = rec.get("slot")
+                        slot_data = (
+                            dict(raw_slot) if isinstance(raw_slot, dict) else None
+                        )
                         if isinstance(rec.get("exit_code"), int):
                             exit_code = int(rec["exit_code"])
                         elif isinstance(rec.get("returncode"), int):
@@ -27207,6 +27215,7 @@ class SuiteBaselineRun:
             elapsed_seconds=elapsed,
             cached=cached,
             digest=digest,
+            slot=slot_data,
         )
         return self._result
 
@@ -33513,6 +33522,30 @@ def _default_stall_reaper(process: subprocess.Popen) -> None:
     from agent_workflows import runner_shutdown
 
     runner_shutdown.terminate_process(process)
+
+
+def any_progress(*checkers: Callable[[], bool] | None) -> Callable[[], bool]:
+    """Return a composite progress checker that calls ALL non-None checkers on each poll.
+
+    suiteeff-03 (xvm6no) E-05.
+    Returns True if at least one checker observed progress.
+    IMPORTANT: Calls EVERY checker on each invocation (no short-circuiting), so that stateful
+    observers (such as mtime tracking) advance their internal baselines even when an earlier
+    checker has already reported progress.
+    """
+    valid = [c for c in checkers if c is not None]
+
+    def _poll() -> bool:
+        any_made = False
+        for c in valid:
+            try:
+                if c():
+                    any_made = True
+            except Exception:
+                pass
+        return any_made
+
+    return _poll
 
 
 def parse_finalize_payload(stdout: str | None) -> dict[str, Any] | None:
@@ -44325,6 +44358,7 @@ class SuiteCheckResult(NamedTuple):
     failures: tuple[str, ...] = ()
     cached: bool = False
     digest: str | None = None
+    slot: dict[str, Any] | None = None
 
     @property
     def failing_text(self) -> str:
@@ -44409,6 +44443,7 @@ def run_suite_check(
             cwd=str(repo_dir),
             timeout_seconds=timeout,
             elapsed_seconds=elapsed,
+            slot=None,
         )
 
     return SuiteCheckResult(
@@ -44422,6 +44457,7 @@ def run_suite_check(
         failures=res.failures,
         cached=res.cached,
         digest=res.digest,
+        slot=res.slot,
     )
 
 

@@ -640,7 +640,7 @@ from agent_workflows.runner_shared import (
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
-from agent_workflows import runner_shared, runner_stop
+from agent_workflows import runner_shared, runner_stop, suite_cache
 
 # rununify 06 (`sy7uwh`) E-02/E-03: the ONE plan record, its ONE reader, and the readers/constants that
 # reader closes over. This module used to define its own `PlanRecord` (identical to oc's except that it
@@ -2619,8 +2619,15 @@ def run_agy_turn(
                 conversation_id=session_id,
                 session_log_path=log_path,
             )
+            suite_observer = stall_progress.SuiteHeartbeatObserver(
+                state.get("run_id"), item.get("id6")
+            )
             watchdog = StallWatchdog(
-                process, timeout=stall_timeout, progress_checker=observer.poll
+                process,
+                timeout=stall_timeout,
+                progress_checker=runner_shared.any_progress(
+                    observer.poll, suite_observer.poll
+                ),
             )
             # stallfp kaga7s (display parity): show the countdown from the clock that kills.
             statusline.watchdog = watchdog
@@ -2944,6 +2951,8 @@ def run_agy_turn(
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
     finally:
+        with contextlib.suppress(Exception):
+            suite_cache.remove_heartbeat_file(state.get("run_id"), item.get("id6"))
         if user_config_handle is not None:
             discarded_records = runner_shared.reconcile_agent_user_config(
                 user_config_handle, run_dir, item
