@@ -1,0 +1,210 @@
+# IPD: Enforce the Deferred-ID implemented gate and transition spec 89xjll to implemented
+
+- Date: 2026-10-14
+- Kind: child
+- Concern: Spec-requirement-ID deferred-implemented gate, partial-pass deferred event, qualified-citation prompt/review parity, and spec 89xjll transition to implemented.
+- Scope: Implement the spec 89xjll R-9 / Section 6.5 / AC-10 refusal on transitioning a spec with remaining [Deferred] IDs to implemented in agent_workflows/specs.py and agent_workflows/status_set.py; wire spec_plan_trace_deferred into the spec production block in agent_workflows/runner_shared.py to emit a distinguishable partial-pass event (89xjll R-6 / Section 6.3 / AC-9); add the 89xjll Section 6.2b qualified-citation instruction to the approved-spec branch of build_spec_production_prompt in agent_workflows/runner_shared.py and to .aw/system/workflows/plan-review/plan-review.md; add behavioral tests in tests/test_production_checks_trace.py and tests/test_spec_production.py; and transition spec 89xjll approved -> implementing -> implemented via aw specs set so backlog vy20et can close to done.
+- Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/runner_shared.py, .aw/system/workflows/plan-review/plan-review.md, tests/test_production_checks_trace.py, tests/test_spec_production.py, .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/specs/implementing/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/plans/pending/20261014-reqids-03-uiej2a-enforce-the-deferred-id-implemented-gate-and-transition-spec.ipd.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: feature
+- Priority: medium
+- From-Backlog: vy20et
+- From-Spec: 89xjll
+- Set: reqids (Spec requirement-ID convention and SPEC-PLAN-TRACE verification)
+- Order: 3
+- Highest E allocated: 05
+- Author: antigravity
+- Id: uiej2a
+
+## Workflow history
+- 2026-10-14 to-review (aw set): Authored review-ready child IPD uiej2a from backlog vy20et and spec 89xjll
+
+- 2026-10-14 draft (antigravity): created.
+
+## Goal
+
+Complete the remaining implementation obligations of approved specification `89xjll` (`.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`, amended 2026-10-08/09 with maintainer rulings OQ-04..OQ-08) that were deferred outside `rtvdak`'s scope fence, and transition `89xjll` through `implementing` to `implemented` via `aw specs set` so that open backlog item `vy20et` satisfies all carrier completion checks (`runner_shared._classify_backlog_carriers`). Specifically: (1) enforce `89xjll R-9` / Section 6.5 / `89xjll AC-10` at the spec status setter (`agent_workflows/specs.py` and `agent_workflows/status_set.py`) so both `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` refuse when a spec body still declares any `[Deferred]` requirement or acceptance ID; (2) wire `production_checks.spec_plan_trace_deferred` into the spec production block in `agent_workflows/runner_shared.py` so partial passes with `[Deferred]` IDs emit a distinguishable `spec-plan-trace-deferred` event (`89xjll R-6`, `89xjll AC-9`); (3) add the `89xjll` Section 6.2b qualified-citation authoring requirement to the `approved`-spec branch of `runner_shared.build_spec_production_prompt` and to `.aw/system/workflows/plan-review/plan-review.md`; and (4) transition `89xjll` `approved -> implementing -> implemented` with executed IPD `rtvdak` as `--evidence`.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: Re-verify shipped 89xjll baseline and setter/runner insertion anchors
+
+- [ ] E-01 Re-verify at execution HEAD that the requirement-ID parser, cutover, and `SPEC-PLAN-TRACE` verifier obligations delivered by executed IPDs `rtvdak` and `2hgxi1` (`89xjll R-1`, `89xjll R-2`, `89xjll R-3`, `89xjll R-4`, `89xjll R-5`, `89xjll R-6`, `89xjll R-7`, `89xjll R-8`) are intact in `agent_workflows/production_checks.py` (`parse_spec_requirement_ids`, `parse_spec_id_markers`, `spec_requires_requirement_ids`, `spec_plan_trace`, `spec_plan_trace_vacuity`, `spec_plan_trace_deferred`), and confirm the exact insertion anchors in `agent_workflows/specs.py` (`_evidence_resolvable`), `agent_workflows/status_set.py` (`validate_transition_allowed`), `agent_workflows/runner_shared.py` (`build_spec_production_prompt` and the `spec-plan-trace-vacuity` block), and `.aw/system/workflows/plan-review/plan-review.md` (`Step 2`).
+  - Depends on: none
+  - Expected outcome: Baseline `tests/test_production_checks_trace.py` and `tests/test_spec_production.py` pass for `89xjll R-1`, `89xjll R-2`, `89xjll R-3`, `89xjll R-4`, `89xjll R-5`, `89xjll R-6`, `89xjll R-7`, and `89xjll R-8`; `production_checks.parse_spec_requirement_ids` on the target spec (`89xjll`) extracts `R-1`..`R-9` and `AC-1`..`AC-10` as disjoint sets; and the insertion anchors in `specs.py`, `status_set.py`, `runner_shared.py`, and `plan-review.md` are verified before editing.
+  - Execution state: pending
+
+### Task group 2: Enforce the Deferred-ID implemented transition gate (89xjll R-9 / AC-10)
+
+- [ ] E-02 Implement `_deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]` in `agent_workflows/specs.py` (delegating marker extraction to `production_checks.parse_spec_id_markers(text)` per `89xjll R-8`) and wire it into `status_set.validate_transition_allowed` in `agent_workflows/status_set.py` inside the `if rec.record_type == "specs":` transition guard when `norm_status == "implemented"` (immediately after the `if auth.get("evidence"):` gate), so that both `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` (plus `aw set implemented <id6>`) refuse to transition any spec whose body still declares any `[Deferred]` requirement or acceptance ID, naming every remaining deferred ID in sorted order and leaving disk unchanged (`89xjll R-8`, `89xjll R-9`).
+  - Depends on: E-01
+  - Expected outcome: Calling `aw specs set <path> --status implemented` or `aw spec set implemented <id6>` on a spec whose body declares any `[Deferred]` ID returns exit code `1` via `status_set.validate_transition_allowed`, prints a refusal naming every remaining `[Deferred]` ID and the remedy (remove each `[Deferred]` marker and plan the ID, or delete the requirement from the spec), and writes nothing to disk (`89xjll R-8`, `89xjll R-9`).
+  - Execution state: pending
+
+### Task group 3: Wire partial-pass deferred event and qualified-citation guidance (89xjll R-5, R-6, R-7 / AC-9)
+
+- [ ] E-03 Wire `production_checks.spec_plan_trace_deferred(target_tree, item["id6"])` in `agent_workflows/runner_shared.py` immediately after the `spec_plan_trace_vacuity` check in the spec production block so that a passing `SPEC-PLAN-TRACE` evaluation on a spec with `[Deferred]` IDs appends `{"at": utc_now(), "event": "spec-plan-trace-deferred", "id6": item["id6"], "partial": True, "deferred_ids": trace_deferred}` to `run_dir / "events.jsonl"` (`89xjll R-6`, `89xjll R-7`), and add the Section 6.2b qualified-citation rule (`89xjll R-5`) to both the `approved`-spec branch of `runner_shared.build_spec_production_prompt` and `.aw/system/workflows/plan-review/plan-review.md`.
+  - Depends on: E-01
+  - Expected outcome: When `SPEC-PLAN-TRACE` passes on a spec declaring `[Deferred]` IDs, `runner_shared.py` records a distinguishable partial-pass event (`"event": "spec-plan-trace-deferred"`, `"partial": True`, `"deferred_ids": [...]`) in `events.jsonl` (`89xjll R-6`, `89xjll R-7`), and both `build_spec_production_prompt` (for `approved` as well as `implementing` specs) and `.aw/system/workflows/plan-review/plan-review.md` instruct authors and reviewers to qualify requirement and acceptance citations with the spec `id6` per `89xjll R-5` (Section 6.2b).
+  - Execution state: pending
+
+### Task group 4: Behavioral unit and runner tests for AC-9 and AC-10
+
+- [ ] E-04 Add behavioral unit and runner tests in `tests/test_production_checks_trace.py` and `tests/test_spec_production.py` covering: (1) both `aw specs set <path> --status implemented` (`specs.run_set`) and `aw spec set implemented <id6>` (`status_set.run_set_command`) refusing on a spec declaring `[Deferred]` requirement/acceptance IDs, naming the deferred IDs, leaving the file byte-identical on disk and `git status --short` clean, and succeeding once `[Deferred]` markers are removed (`89xjll R-8`, `89xjll R-9`); and (2) spec production on an `approved` post-cutover spec with `[Deferred]` IDs emitting the `spec-plan-trace-deferred` partial-pass event in `events.jsonl` and including the qualified-citation instruction in the `approved`-spec production prompt (`89xjll R-5`, `89xjll R-6`, `89xjll R-7`).
+  - Depends on: E-02, E-03
+  - Expected outcome: All existing and newly added behavioral tests in `tests/test_production_checks_trace.py` and `tests/test_spec_production.py` pass without inspecting source text (`89xjll R-5`, `89xjll R-6`, `89xjll R-8`, `89xjll R-9`).
+  - Execution state: pending
+
+### Task group 5: Transition spec 89xjll to implemented and verify repository checks
+
+- [ ] E-05 Transition `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md` in two hops via `aw specs set`: first `approved -> implementing` (`--graduated-to reqids --message "IPDs jjh4aj, rtvdak, and uiej2a in Set reqids implement spec (89xjll)" --yes --no-commit`), then `implementing -> implemented` (`--evidence .aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md --message "Implemented by IPDs rtvdak, 2hgxi1, and uiej2a: requirement-ID parser, SPEC-PLAN-TRACE verifier, partial-pass deferred event, qualified-citation prompt/review guidance, and Deferred-ID implemented gate" --yes --no-commit`), and run `aw specs check`, `aw attention --check`, and the full `python3 -m pytest` suite (`89xjll R-1`, `89xjll R-9`).
+  - Depends on: E-04
+  - Expected outcome: The target spec (`89xjll`) resides at `.aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md` with `- Status: implemented` and `- Graduated-To: reqids`; its `approved/` and `implementing/` paths are absent; `aw specs check` and `aw attention --check` exit `0`; `runner_shared._classify_backlog_carriers(Path('.'), 'vy20et')` reports `spec_all_implemented == True` and `spec_not_impl == []`; and bare `python3 -m pytest` passes (`89xjll R-1`, `89xjll R-9`).
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- **Shared status-setter dispatch (`specs.run_set` -> `status_set.run_set_command`)**: In `agent_workflows/specs.py` (`def run_set` at line 743), `aw specs set` is a thin adapter delegating to `status_set.run_set_command(..., scoped_type="specs")`. Both `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` (as well as `aw set implemented <id6>`) execute the pre-flight loop in `status_set.run_set_command` (`agent_workflows/status_set.py` line 3082), which calls `status_set.validate_transition_allowed(rec, target_status, args, repo_root)` (`agent_workflows/status_set.py` line 643) before any dry-run branch or disk write.
+- **Shared spec transition refusal pattern in `specs.py` + `status_set.py`**: In `agent_workflows/status_set.py` (`validate_transition_allowed`, lines 786-807), spec transition gates (`_review_attestation_refusal` and `_evidence_resolvable`) live in `agent_workflows/specs.py` (lines 1214-1278) and are invoked inside `if rec.record_type == "specs":` when `old_status and old_status != norm_status`. Guarding on `old_status != norm_status` ensures a same-status re-assertion is not retroactively refused.
+- **Two-hop spec transition (`approved -> implementing -> implemented`)**: In `agent_workflows/attention_contract.py` (`SPEC_TRANSITIONS`), `approved -> implemented` is not a direct edge (`"approved": frozenset({"implementing", "deferred", "parked", "superseded"})`, `"implementing": frozenset({"approved", "implemented", "deferred", "parked", "superseded"})`). As demonstrated by executed IPD `dwivqd` (`.aw/records/plans/executed/20261001-jd01a0-01-dwivqd-transition-spec-kw5y2s-to-implemented-through-implementing-w.ipd.md`), an `approved` spec transitions to `implemented` in two hops via `aw specs set`: first `approved -> implementing` (which checks `check_engine.evaluate_handoff_ready(repo_root, "spec", spec_id6)` at `status_set.py` line 3245), then `implementing -> implemented` with `--evidence <executed-ipd-path>`. Because `record_placement.resolve_transition_path` moves the spec file across status subdirectories, all three paths (`approved/`, `implementing/`, `implemented/`) must be declared in `- Scope-Paths:`.
+- **Why backlog item `vy20et` remained `open` after Set `reqids` (`9wzlou`, `jjh4aj`, `rtvdak`) executed**: `runner_shared._classify_backlog_carriers(repo, "vy20et")` (`agent_workflows/runner_shared.py` line 28445) inspects all artifacts carrying `- From-Backlog: vy20et`. Spec `89xjll` carries `- From-Backlog: vy20et` and remained at `- Status: approved`, causing `backlog_item_already_complete(repo, "vy20et")` to return `("not_complete", "spec carrier(s) not implemented: .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md")`.
+- **No code-pinning tests (GUIDING_PRINCIPLES P16)**: Tests must exercise real functions, CLI entrypoints, or subprocesses and assert on observable outputs, exit codes, and filesystem side effects; never inspect source files with `inspect`, `ast`, regex, or substring reads.
+- **Cite code by SYMBOL (`module.function`) or quoted string**: Line numbers are hints attached to a symbol or quoted string (`spec ipd-structure-and-linting` Section 10.2; `IPD-C801`).
+
+## Findings
+
+| ID | Area | Evidence | Finding | Disposition |
+| --- | --- | --- | --- | --- |
+| F-01 | Backlog `vy20et` carrier state | `agent_workflows/runner_shared.py:28445` (`runner_shared._classify_backlog_carriers`), `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md:4` (`- Status: approved`) | Backlog item `vy20et` was reopened on 2026-10-06 by `52opph` (`gradcover`). Although its initial plan Set `reqids` (`9wzlou`, `jjh4aj`, `rtvdak`) is in `.aw/records/plans/executed/`, `vy20et` could not close to `done` because spec `89xjll` carries `- From-Backlog: vy20et` and is still at `- Status: approved`. | Addressed by E-05 (transitioning `89xjll` `approved -> implementing -> implemented` once its remaining `AC-10` / `R-9` and `6.2b`/`6.3` items are in place). |
+| F-02 | Unimplemented `89xjll R-9` / Section 6.5 / `89xjll AC-10` gate | `.aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md:309` (`AC-10 (Scope fence: status setter check deferred)`), `agent_workflows/status_set.py:798` (`if auth.get("evidence"):`) | Executed IPD `rtvdak` implemented `production_checks.parse_spec_id_markers` and `production_checks.spec_plan_trace_deferred`, but explicitly deferred `89xjll R-9` / `89xjll AC-10` (refusing `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` when a spec still declares any `[Deferred]` ID) because `agent_workflows/specs.py` and `agent_workflows/status_set.py` were outside `rtvdak`'s declared `- Scope-Paths:`. | Addressed by E-02 and E-04. |
+| F-03 | Unwired `spec_plan_trace_deferred` in `runner_shared.py` (`89xjll R-6` / Section 6.3 / `89xjll AC-9`) | `agent_workflows/production_checks.py:888` (`def spec_plan_trace_deferred`), `agent_workflows/runner_shared.py:40847` (`trace_vacuity = _pc.spec_plan_trace_vacuity(target_tree, item["id6"])`) | `production_checks.spec_plan_trace_deferred` was added by `rtvdak` to list `[Deferred]` IDs on a passing `SPEC-PLAN-TRACE` check, but has zero callers in `agent_workflows/`. In `runner_shared.py`, the spec production block records `spec-plan-trace-vacuity` to `events.jsonl` but never calls `spec_plan_trace_deferred` to record a partial-pass event listing deferred IDs when `findings` is empty and `trace_deferred` is non-empty. | Addressed by E-03 and E-04. |
+| F-04 | Qualified-citation authoring guidance gap on `approved` spec prompt and `plan-review.md` (`89xjll` Section 6.2b) | `agent_workflows/runner_shared.py:29956` (`if spec_status == "implementing":`), `agent_workflows/runner_shared.py:29974` (`# Plan production from approved spec:`), `.aw/system/workflows/plan-review/plan-review.md:543` (`### G. Plan executability`) | Spec `89xjll` Section 6.2b requires that both the spec-to-plan production prompt and `/plan-review` guidance instruct authors/reviewers to qualify spec requirement and acceptance citations with the spec's `id6` (e.g. `` `89xjll` R-3 ``). Plan `2hgxi1` added this instruction only to the `spec_status == "implementing"` branch of `build_spec_production_prompt`, leaving the `approved` branch (`runner_shared.py:29974-29987`) and `.aw/system/workflows/plan-review/plan-review.md` without the `89xjll` 6.2b rule. | Addressed by E-03 and E-04. |
+| F-05 | Contention check across pending IPDs | `.aw/records/plans/pending/*.ipd.md` | Across all pending plans, zero plans declare `agent_workflows/specs.py`, `agent_workflows/status_set.py`, `.aw/system/workflows/plan-review/plan-review.md`, `tests/test_production_checks_trace.py`, `tests/test_spec_production.py`, or `89xjll`. Three unrelated pending plans (`lr6lnm`, `1qut7y`, `z2ugxc`) touch other sections of `agent_workflows/runner_shared.py`; runner worktree isolation (`isolate_worktree`) handles concurrent edits cleanly. | Verified; `- Item-Dependencies: none`. |
+
+## Proposed changes (ordered, validatable)
+
+1. **`agent_workflows/specs.py` (`_deferred_ids_refusal`, `E-02`)**:
+   - Immediately after `_evidence_resolvable` (`agent_workflows/specs.py` line 1254), define `_deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]`:
+     - Import `production_checks as _pc` and inspect `_pc.parse_spec_id_markers(text or "")`.
+     - Collect all declared IDs whose marker is `"Deferred"`: `deferred = sorted(k for k, v in markers.items() if v == "Deferred")`.
+     - If `not deferred`, return `None`.
+     - Otherwise return a clear refusal message naming the spec (`id6` or `spec_path.name`), listing every remaining `[Deferred]` ID (`", ".join(deferred)`), and stating the remedy from `89xjll` Section 6.5: remove each `[Deferred]` marker and plan the ID (or delete the requirement/acceptance criterion from the spec) before transitioning to `implemented`.
+2. **`agent_workflows/status_set.py` (`validate_transition_allowed`, `E-02`)**:
+   - In `status_set.validate_transition_allowed` (`agent_workflows/status_set.py` line 798, inside `if rec.record_type == "specs":` and `if old_status and old_status != norm_status:`), immediately after the `if auth.get("evidence"):` block (line 807), add the `->implemented` `[Deferred]`-ID gate:
+     ```python
+     if norm_status == "implemented":
+         from agent_workflows import specs as _specs
+
+         deferred_reason = _specs._deferred_ids_refusal(rec.path, rec.raw_text)
+         if deferred_reason is not None:
+             return False, deferred_reason
+     ```
+   - Because `specs.run_set` (`agent_workflows/specs.py` line 743) delegates directly to `status_set.run_set_command(..., scoped_type="specs")`, this single gate in `validate_transition_allowed` binds `aw specs set <path> --status implemented`, `aw spec set implemented <id6>`, `aw specs set implemented <id6>`, and `aw set implemented <id6>` identically before any dry-run or file write.
+3. **`agent_workflows/runner_shared.py` (`build_spec_production_prompt` and `spec-plan-trace-deferred` event, `E-03`)**:
+   - In `runner_shared.build_spec_production_prompt` (`agent_workflows/runner_shared.py` line 29974, the `approved`-spec branch), add item `8` to `## Production Contract` matching the `implementing` branch (`runner_shared.py` line 29956):
+     - Compute `uncited = _pc.spec_uncited_trace_ids(root, spec_id6)` and `uncited_str = ", ".join(uncited) if uncited else "none"`.
+     - Append `"8. Mandatory uncited requirement and acceptance items awaiting coverage: {uncited_str}. Each must be cited qualified with the spec id6 (for example \`{spec_id6} R-2\`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b."`
+   - In the spec production verification block (`agent_workflows/runner_shared.py` line 40847, right after `trace_vacuity = _pc.spec_plan_trace_vacuity(target_tree, item["id6"])`), call `trace_deferred = _pc.spec_plan_trace_deferred(target_tree, item["id6"])` and, when `trace_deferred` is non-empty, append to `run_dir / "events.jsonl"`:
+     ```python
+     trace_deferred = _pc.spec_plan_trace_deferred(target_tree, item["id6"])
+     if trace_deferred:
+         append_jsonl(
+             run_dir / "events.jsonl",
+             {
+                 "at": utc_now(),
+                 "event": "spec-plan-trace-deferred",
+                 "id6": item["id6"],
+                 "partial": True,
+                 "deferred_ids": trace_deferred,
+             },
+         )
+     ```
+4. **`.aw/system/workflows/plan-review/plan-review.md` (`Step 2` / `Engineering rubric G`, `E-03`)**:
+   - Under `### G. Plan executability` in `.aw/system/workflows/plan-review/plan-review.md` (around line 558), add a bullet stating the `89xjll` Section 6.2b qualified-citation rule: when a plan carries `- From-Spec: <spec-id6>` for a post-cutover spec (filename date `>= 20261001`), every mandatory spec requirement citation in `E-*` items and every acceptance criterion citation in `V-*` items MUST be qualified with `<spec-id6>` (for example `` `89xjll` R-3 `` or `89xjll AC-2`), because `SPEC-PLAN-TRACE` ignores unqualified tokens in both directions.
+5. **`tests/test_production_checks_trace.py` and `tests/test_spec_production.py` (`E-04`)**:
+   - In `tests/test_production_checks_trace.py`, add a `TestSpecDeferredImplementedGate` test class exercising both `aw specs set <path> --status implemented --evidence <executed-ipd> --yes --no-commit` (`specs.run_set`) and `aw spec set implemented <id6> --evidence <executed-ipd> --yes --no-commit` (`status_set.run_set_command`) on a spec declaring `[Deferred]` IDs (`R-3` and `AC-2`): assert exit code `1`, refusal text naming `AC-2` and `R-3`, byte-identical file on disk, and clean `git status --short`; then remove `[Deferred]` from `R-3` and `AC-2` and assert the transition succeeds (`exit 0`, spec moved to `implemented/` with `- Status: implemented`).
+   - In `tests/test_spec_production.py`, add a test verifying that: (a) `build_spec_production_prompt` on an `approved` post-cutover spec includes the qualified-citation instruction (`spec 89xjll 6.2b`) and lists uncited mandatory IDs; and (b) a spec production run on a post-cutover spec with `[Deferred]` IDs (`R-3 [Deferred]`, `AC-2 [Deferred]`) whose produced plan covers the non-deferred IDs passes `SPEC-PLAN-TRACE` and emits `event == "spec-plan-trace-deferred"` with `"partial": True` and `"deferred_ids": ["AC-2", "R-3"]` in `events.jsonl`.
+6. **Transition spec `89xjll` (`E-05`)**:
+   - Run `AW_NO_REEXEC=1 python3 -m agent_workflows specs set .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md --status implementing --graduated-to reqids --message "IPDs jjh4aj, rtvdak, and uiej2a in Set reqids implement spec 89xjll" --yes --no-commit`.
+   - Run `AW_NO_REEXEC=1 python3 -m agent_workflows specs set .aw/records/specs/implementing/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md --status implemented --evidence .aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md --message "Implemented by IPDs rtvdak, 2hgxi1, and uiej2a: requirement-ID parser, SPEC-PLAN-TRACE verifier, partial-pass deferred event, qualified-citation prompt/review guidance, and Deferred-ID implemented gate" --yes --no-commit`.
+
+## Deferred / out of scope (with reason)
+
+- **Retrofitting pre-cutover specs with requirement IDs**: Explicitly a non-goal of spec `89xjll` Section 1a and Section 5 (`spec_requirement_ids` cutover `20261001` grandfathers earlier specs).
+- **Corpus-wide `aw check` rule over requirement IDs or `[Deferred]` markers**: Explicitly a non-goal of spec `89xjll` Section 1a and Section 6.5 (enforced at the spec status setter on transition to `implemented`, not as a corpus check rule).
+- **Direct mutation of backlog item `vy20et`**: Prohibited by the backlog production contract; the runner transitions `vy20et` to `graduated` after plan production and closes `vy20et` to `done` via `process_backlog_close` once `uiej2a` finalizes to `executed/` and `89xjll` is in `implemented/`.
+
+## Scope check
+
+- Over-scope: none. Every change directly implements an explicit requirement or acceptance criterion of spec `89xjll` (`R-5`, `R-6`, `R-7`, `R-8`, `R-9`, `AC-9`, `AC-10`) or transitions `89xjll` to `implemented` so backlog item `vy20et` can close.
+- Under-scope: none. Together with already-executed IPDs `rtvdak` and `2hgxi1`, all nine requirements (`89xjll R-1`..`89xjll R-9`) and all ten acceptance criteria (`89xjll AC-1`..`89xjll AC-10`) are covered and verified, and `89xjll` reaches `implemented`.
+
+## Required tests / validation
+
+- Targeted test suite: `python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py`
+- Spec and attention integrity checks: `AW_NO_REEXEC=1 python3 -m agent_workflows specs check` and `AW_NO_REEXEC=1 python3 -m agent_workflows attention --check`
+- Full repository test suite: bare `python3 -m pytest` (with no `-n0`, no extra `-q`, and no `-p no:randomly`).
+
+## Spec / documentation sync
+
+- Spec `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md` transitions through `.aw/records/specs/implementing/...` to `.aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md` via `aw specs set` (`E-05`).
+- Workflow guidance `.aw/system/workflows/plan-review/plan-review.md` is updated in `E-03` to document the `89xjll` Section 6.2b qualified-citation rule for plans carrying `- From-Spec:`.
+
+## Open questions
+
+### OQ-01: Where should the `->implemented` `[Deferred]`-ID refusal live so both `aw specs set <path> --status implemented` and `aw spec set implemented <id6>` enforce it identically?
+
+- Blocking: no
+- Status: resolved
+- Owner: antigravity
+- Resolution or deferral rationale: Resolved from repository evidence in `agent_workflows/specs.py:743` (`specs.run_set`) and `agent_workflows/status_set.py:786-807` (`status_set.validate_transition_allowed`). `specs.run_set` is a thin adapter that delegates to `status_set.run_set_command(..., scoped_type="specs")`. Placing the refusal helper `_deferred_ids_refusal(spec_path, text)` in `agent_workflows/specs.py` (next to `_review_attestation_refusal` and `_evidence_resolvable`) and calling it from `status_set.validate_transition_allowed` when `rec.record_type == "specs"`, `old_status != norm_status`, and `norm_status == "implemented"` ensures every setter spelling (`aw specs set <path> --status implemented`, `aw spec set implemented <id6>`, `aw specs set implemented <id6>`, and `aw set implemented <id6>`) hits the exact same check and refusal message before any disk write.
+
+### OQ-02: Which executed IPD should be cited as `--evidence` when transitioning spec `89xjll` from `implementing` to `implemented` in `E-05`?
+
+- Blocking: no
+- Status: resolved
+- Owner: antigravity
+- Resolution or deferral rationale: Resolved from `agent_workflows/specs.py:1254` (`specs._evidence_resolvable`). `specs._evidence_resolvable` requires an existing path under `.aw/records/plans/executed/`. At the time `E-05` runs inside `uiej2a`, `uiej2a` itself is still in `.aw/records/plans/pending/` (until `aw ipd finalize` moves it at the end of the turn), whereas sibling Order-02 plan `.aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md` is already in `.aw/records/plans/executed/`. Passing `--evidence .aw/records/plans/executed/20260930-reqids-02-rtvdak-build-the-requirement-id-parser-and-wire-spec-plan-trace-int.ipd.md` satisfies `specs._evidence_resolvable` during `E-05`, while the `--message` names `rtvdak`, `2hgxi1`, and `uiej2a`.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01 (covers `89xjll AC-1`, `89xjll AC-2`, `89xjll AC-3`, `89xjll AC-4`, `89xjll AC-5`, `89xjll AC-6`, `89xjll AC-7`, `89xjll AC-8`)
+  - Required evidence: Paste the output of running `python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py` and a Python one-liner invoking `production_checks.parse_spec_requirement_ids`, `production_checks.spec_requires_requirement_ids`, and `production_checks.spec_plan_trace` to confirm at execution HEAD that: (1) `89xjll AC-1` and `89xjll AC-2` hold (disjoint requirement and acceptance ID sets extracted from declaration sites only; FORM B, FORM C, `N*`, mentions, code blocks, and foreign-spec citations excluded); (2) `89xjll AC-3` holds (`20261001` cutover boundary and non-`None` fallback constant `SPEC_REQUIREMENT_IDS_CUTOVER_DATE`); (3) `89xjll AC-4` and `89xjll AC-5` hold (pooled coverage across active and `executed/` linked plans, `superseded/` excluded, qualified citations required, unknown references rejected with the verbatim `25kzda` 4.8 template); and (4) `89xjll AC-6`, `89xjll AC-7`, and `89xjll AC-8` hold (vacuous pass on grandfathered/zero-ID specs, citation-not-implementation docstring/limit, and sibling checks `SPEC-PLAN-COUNT`, `SPEC-PLAN-CONFORMANCE`, `SPEC-PLAN-GATE-CARRY` passing unedited).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02 (covers `89xjll AC-10`)
+  - Required evidence: Reachable via `specs._deferred_ids_refusal` and `status_set.validate_transition_allowed` created in `E-02`. Paste the output of a Python/CLI verification in a temporary git repository that creates an `implementing` spec declaring `R-1`, `R-3 [Deferred]`, `AC-1`, and `AC-2 [Deferred]` plus an executed IPD evidence file, then invokes BOTH `aw specs set <path> --status implemented --evidence <executed-ipd> --yes --no-commit` (`specs.run_set`) and `aw spec set implemented <id6> --evidence <executed-ipd> --yes --no-commit` (`status_set.run_set_command`), showing: (1) both commands exit `1` and name `AC-2` and `R-3` in the refusal output; (2) the spec file on disk is byte-identical before and after each refused call and `git status --short` is empty; and (3) after removing `[Deferred]` from `R-3` and `AC-2`, re-running the transition exits `0` and moves the spec to `.aw/records/specs/implemented/` with `- Status: implemented` (`89xjll AC-10`).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03 (covers `89xjll AC-9`)
+  - Required evidence: Reachable via `runner_shared.build_spec_production_prompt`, the `spec-plan-trace-deferred` event emission in `runner_shared.py`, and `.aw/system/workflows/plan-review/plan-review.md` updated in `E-03`. Paste the output of a verification command confirming: (1) `runner_shared.build_spec_production_prompt` for an `approved` post-cutover spec includes the Section 6.2b qualified-citation instruction and the uncited mandatory IDs; (2) `.aw/system/workflows/plan-review/plan-review.md` contains the Section 6.2b (`89xjll`) qualified-citation check for plans carrying `- From-Spec:`; and (3) on a post-cutover fixture spec declaring `R-1`, `R-2 [Should]`, `R-3 [Deferred]`, `AC-1`, `AC-2 [Deferred]`, and `AC-3 [Should]`, a pooled plan covering `R-1`, `AC-1`, and `AC-3` (and citing `R-3`) passes `production_checks.spec_plan_trace` with `[]`, `spec_plan_trace_vacuity` returns `None` (not vacuous), and `spec_plan_trace_deferred` returns `['AC-2', 'R-3']` (`89xjll AC-9`).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04 (covers `89xjll AC-9`, `89xjll AC-10`)
+  - Required evidence: Paste the actual runner output of `python3 -m pytest tests/test_production_checks_trace.py tests/test_spec_production.py` showing all unit and runner integration tests (including the new tests for `89xjll AC-9` partial-pass deferred event / `approved` prompt and `89xjll AC-10` setter refusal on both CLI spellings) passing with 0 failures.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05 (covers `89xjll AC-10`)
+  - Required evidence: Reachable via the two `aw specs set` transitions performed in `E-05`. Paste the actual output of: (1) `AW_NO_REEXEC=1 python3 -m agent_workflows specs check` and `AW_NO_REEXEC=1 python3 -m agent_workflows attention --check` both exiting `0`; (2) a Python one-liner confirming `.aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md` exists with `- Status: implemented` and `- Graduated-To: reqids`, its `approved/` and `implementing/` counterparts do not exist, and `runner_shared._classify_backlog_carriers(Path('.'), 'vy20et')` reports `spec_all_implemented == True` and `spec_not_impl == []`; and (3) bare `python3 -m pytest` passing across the full repository test suite.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+- **Open questions**: All open questions (`OQ-01`, `OQ-02`) are resolved from repository evidence (`Blocking: no`, `Status: resolved`).
+- **Scope fence**: Declared `- Scope-Paths:` are `agent_workflows/specs.py`, `agent_workflows/status_set.py`, `agent_workflows/runner_shared.py`, `.aw/system/workflows/plan-review/plan-review.md`, `tests/test_production_checks_trace.py`, `tests/test_spec_production.py`, `.aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`, `.aw/records/specs/implementing/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`, `.aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md`, and `.aw/records/plans/pending/20261014-reqids-03-uiej2a-enforce-the-deferred-id-implemented-gate-and-transition-spec.ipd.md`. If an out-of-scope edit is genuinely required during execution, make the edit and justify every out-of-scope path via `--scope-reason <path>=<why>` (and every declared-but-unmodified path via `--scope-ack <path>=<why>`) at `aw ipd finalize`. Stop only on an unresolvable concurrent-edit conflict or missing prerequisite symbol.
+- **Honesty rule**: You MUST run every validation command and paste the ACTUAL runner output into each `V-*` item's `Observed evidence:`; never claim a test or check passed without running it.
+- **Commit and push contract**: Commit ONLY files modified for this plan, explicitly path-scoped via `aw commit uiej2a -- <paths>`. Never run `git add -A` or `git commit -a`, and never push.
+- **Lifecycle transition**: Every `E-*` item must reach `Execution state: performed` and every `V-*` item must reach `Result: pass` with concrete pasted evidence. When running under `aw oc run` / `aw agy run`, the runner owns `aw ipd finalize`; when executing manually outside the runner, finalize via `aw ipd finalize uiej2a` (never hand-roll `git mv` to `executed/`).
