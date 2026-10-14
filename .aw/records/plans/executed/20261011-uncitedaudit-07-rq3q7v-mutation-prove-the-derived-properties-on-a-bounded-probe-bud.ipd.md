@@ -6,7 +6,7 @@
 - Scope: IN: for each shortlisted property, run `tools/mutation_probe.py` (Order 03) twice: SURVIVOR run with the narrowed selection (reaching tests from Order 04, or the full default selection when `subprocess_only` or no reaching tests), and CONTROL run adding `--extra-test 19313eed:<deleted path>` with the deleted test as the only selection; record verdicts `guarded` (survivor `killed`), `unguarded` (survivor `survived` after a passing selection preflight, control `killed`), `unprovable` (survivor `invalid`, or control `survived`/`invalid`/`killed-by-import`: the operator does not break what the deleted test asserted; or either probe `timeout`/`error`, which `g55j1e` E-01 says are not guard evidence; record the reason and do not file), `import-only` (survivor `killed-by-import`; rerun once with an operator not yet tried, else `unprovable`). Append a `## Mutation results` table to the findings doc. OUT: filing items (Order 08); editing code or tests.
 - Scope-Paths: .aw/records/research/
 - Item-Dependencies: executed:g55j1e, executed:anzu8q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: rq3q7v
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rq3q7v verified (set uncitedaudit, attempt 2). [Scope attribution - 4 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: .aw/records/backlog/open/20261014-jodcz3-01-jodcz3-verifier-transport-failure-has-no-disposition-or-c.backlog.md, .aw/records/backlog/open/20261014-jt7ns3-01-jt7ns3-driver-runs-write-no-hash-chained-ledger-and-corru.backlog.md, .aw/records/backlog/open/20261014-w5opbr-01-w5opbr-spec-25kzda-5-5-table-contains-stale-and-non-resol.backlog.md, tests/test_fixfirst_end_to_end.py]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at HEAD 4dc9b2f82. Collect-only preflight added (a stale nodeid runs zero tests with valid junit, so the probe would report survived: demonstrated); every probe verdict mapped; one-HEAD batch with head checks; doc-only commit; whole-table V-02 reconciliation; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-07-rq3q7v-mutation-prove-the-derived-properties-on-a-bounded-probe-bud.review.md.
 
