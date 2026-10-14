@@ -6,7 +6,7 @@
 - Scope: Orchestrate four children: (01) stop launching a baseline nothing will collect; (02) one full-suite entry point, `aw suite`, with a tree-keyed result cache and a bounded xdist worker count, adopted by the runner's own suite seams and named in agent prompts; (03) a machine-wide full-suite lock whose wait emits progress the stall watchdog counts; (04) a measurement of coverage-based test selection on real `main` steps, adopted for agent iteration only if it pays. ORCHESTRATION ONLY: every deliverable belongs to a child. The full suite remains the integration authority in every child.
 - Scope-Paths: .aw/records/plans/pending/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 6867099fef6df2b3c6bf0c924a6ece40be7d6e76256927af2e05c34924b5f3ab
@@ -20,9 +20,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: z3cqvz
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set suiteeff reached executed, so the runner (run run-20261014T055523Z-2108836) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 9ec94f, 0o0wt2, xvm6no, 1qut7y.
 - 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (record `.aw/records/reviews/20261012-suiteeff-00-z3cqvz-stop-wasting-full-test-suites-one-cached-bounded-serialized.review.md`)
@@ -37,6 +37,9 @@
 Make a full test suite something the runners and agents run only when its answer is not already known, never more than the machine can carry at once, and never silently while the stall watchdog decides the turn is dead.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
