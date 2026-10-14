@@ -64,9 +64,14 @@ def test_real_child_max_turn_bound_kills_process(tmp_path: Path) -> None:
         f"child survived wait timeout (rc={rc!r} elapsed={elapsed:.3f}s "
         f"fired={watch.fired!r} record={item.get('turn_bound_expiry')})"
     )
-    assert (
-        isinstance(rc, int) and rc < 0
-    ), f"expected negative signal returncode, got {rc}"
+    if sys.platform == "win32":
+        assert (
+            isinstance(rc, int) and rc != 0
+        ), f"expected non-zero termination returncode, got {rc}"
+    else:
+        assert (
+            isinstance(rc, int) and rc < 0
+        ), f"expected negative signal returncode, got {rc}"
     assert (
         elapsed >= bound_seconds
     ), f"elapsed {elapsed:.3f}s must be >= bound {bound_seconds}s"
@@ -128,9 +133,14 @@ def test_reset_asymmetry_max_turn_survives_progress(tmp_path: Path) -> None:
         f"child survived wait timeout (rc={rc!r} elapsed={elapsed:.3f}s "
         f"fired={watch.fired!r} record={item.get('turn_bound_expiry')})"
     )
-    assert (
-        isinstance(rc, int) and rc < 0
-    ), f"expected negative signal returncode, got {rc}"
+    if sys.platform == "win32":
+        assert (
+            isinstance(rc, int) and rc != 0
+        ), f"expected non-zero termination returncode, got {rc}"
+    else:
+        assert (
+            isinstance(rc, int) and rc < 0
+        ), f"expected negative signal returncode, got {rc}"
     assert (
         elapsed >= bound_seconds
     ), f"elapsed {elapsed:.3f}s must be >= bound {bound_seconds}s"

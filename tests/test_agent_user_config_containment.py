@@ -222,12 +222,18 @@ def test_incident_end_to_end_per_host(capsys):
         orig_bytes = real_cfg.read_bytes()
 
         # Host script that writes color_depth none
-        script = tmp / "fake_agent.sh"
-        script.write_text(f"""#!/bin/sh
-AW_NO_REEXEC=1 {sys.executable} -m agent_workflows config set color_depth none >/dev/null
-exit 0
-""")
-        script.chmod(0o755)
+        from tests import support
+
+        script = support.make_fake_executable(
+            tmp / "fake_agent",
+            f"""#!/usr/bin/env python3
+import os, subprocess, sys
+env = dict(os.environ)
+env["AW_NO_REEXEC"] = "1"
+subprocess.run([{sys.executable!r}, "-m", "agent_workflows", "config", "set", "color_depth", "none"], env=env, stdout=subprocess.DEVNULL, check=True)
+sys.exit(0)
+""",
+        )
 
         run_dir = tmp / "run"
         (run_dir / "sessions").mkdir(parents=True)
@@ -359,12 +365,18 @@ def test_turn_failure_and_popen_raise_still_reconciles():
         orig_bytes = real_cfg.read_bytes()
 
         # Failing script
-        fail_script = tmp / "fail_agent.sh"
-        fail_script.write_text(f"""#!/bin/sh
-AW_NO_REEXEC=1 {sys.executable} -m agent_workflows config set color_depth none >/dev/null
-exit 42
-""")
-        fail_script.chmod(0o755)
+        from tests import support
+
+        fail_script = support.make_fake_executable(
+            tmp / "fail_agent",
+            f"""#!/usr/bin/env python3
+import os, subprocess, sys
+env = dict(os.environ)
+env["AW_NO_REEXEC"] = "1"
+subprocess.run([{sys.executable!r}, "-m", "agent_workflows", "config", "set", "color_depth", "none"], env=env, stdout=subprocess.DEVNULL, check=True)
+sys.exit(42)
+""",
+        )
 
         run_dir = tmp / "run"
         (run_dir / "sessions").mkdir(parents=True)

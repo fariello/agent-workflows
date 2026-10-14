@@ -41562,8 +41562,8 @@ def execute_item_core(
                                     )
 
                             post_turn_head = git_head(wt_handle.path)
-                            changed_paths: list[str] = []
-                            undeclared_paths: list[str] = []
+                            changed_paths = []
+                            undeclared_paths = []
                             if (
                                 pre_turn_head
                                 and post_turn_head

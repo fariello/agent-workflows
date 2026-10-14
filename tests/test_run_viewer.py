@@ -2246,7 +2246,7 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             self.assertIn("! unreached: runner exited before item started", det_str)
 
     def test_live_run_queued_and_running_steps_not_projected_and_no_issues(self):
-        import fcntl
+        from agent_workflows import platform_lock
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -2262,10 +2262,7 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
             run_dir = root / ".aw" / "records" / "runs" / "run-20260902T010000Z-100000"
             run_dir.mkdir(parents=True)
             lock_file = run_dir / "driver.lock"
-            lock_file.write_text("pid=12345\n", encoding="utf-8")
-            f = open(lock_file, "r+")
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            try:
+            with platform_lock.held(lock_file):
                 state = {
                     "run_id": "run-20260902T010000Z-100000",
                     "queue": [
@@ -2318,8 +2315,6 @@ class ProjectedStatusReadsTheRecordedOutcomeTests(TestCase):
                 for line in plain.splitlines():
                     if "item01" in line or "item02" in line:
                         self.assertTrue(line.endswith("no"))
-            finally:
-                f.close()
 
 
 class RepairReportsRecoveredProvenanceTests(TestCase):

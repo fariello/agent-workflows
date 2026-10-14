@@ -369,13 +369,14 @@ class CompletionSeamRefusalTests(unittest.TestCase):
                 "queue": [item],
             }
 
-            fake_bin = root / "fake_opencode"
-            fake_bin.write_text(
+            from tests import support
+
+            fake_bin = support.make_fake_executable(
+                root / "fake_opencode",
                 "#!/usr/bin/env python3\n"
                 "import json, sys\n"
-                "print(json.dumps({'type':'text','sessionID':'ses-1','part':{'text':'done'}}))\n"
+                "print(json.dumps({'type':'text','sessionID':'ses-1','part':{'text':'done'}}))\n",
             )
-            fake_bin.chmod(0o755)
             state["options"]["opencode"] = str(fake_bin)
 
             with mock.patch.object(

@@ -167,7 +167,7 @@ class AgyRunTargetResolutionTests(unittest.TestCase):
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = init_repo(Path(self._tmp.name) / "repo")
+        self.root = init_repo(Path(self._tmp.name).resolve() / "repo")
         (self.root / ".agents" / "plans" / "pending").mkdir(parents=True)
         (self.root / ".agents" / "plans" / "executed").mkdir(parents=True)
         (self.root / ".agents" / "docs" / "specs").mkdir(parents=True)
