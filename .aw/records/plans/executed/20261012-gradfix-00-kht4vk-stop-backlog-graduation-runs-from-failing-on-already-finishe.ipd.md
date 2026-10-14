@@ -6,7 +6,7 @@
 - Scope: Two independent root causes, one child each. Order 01: eight items had every linked plan executed but were still `open` (seven are provably finished; `vy20et` also has an unimplemented spec carrier), so the runner asked an agent to plan finished work and failed it for writing nothing. Order 02: two items were failed because other runs merged plans into main during the item's start, and the check counted those as plans this item produced. This plan coordinates and confirms both children.
 - Scope-Paths: .aw/records/plans/pending/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 3a4f6e35bc6846351ec7c250bed126471f18995341c418e876844f41ec957c0a
@@ -19,9 +19,9 @@
 - Highest E allocated: 02
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kht4vk
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set gradfix reached executed, so the runner (run run-20261014T055436Z-2108478) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 0owirm, s95x79.
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Record: .aw/records/reviews/20261012-gradfix-00-kht4vk-stop-backlog-graduation-runs-from-failing-on-already-finishe.review.md Round 1
 - 2026-10-12 coverage pass (aw oc run): fingerprint 3a4f6e35bc68, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -36,6 +36,9 @@
 No run fails a backlog graduation because the work was provably already done (every IPD carrier `executed`, every spec carrier `implemented`), or because another run merged plans at the same time. Order 01 (`0owirm` E-07) closes every stranded item its predicate reports ALREADY COMPLETE at execution time; at review that is seven of the eight Cause-1 items, and `vy20et` is NOT closable because its spec carrier `89xjll` is `approved`, not `implemented` (see Deferred). The two concurrency victims (`2rm0gz`, `iosmvn`) need no closing: they stay `open` and are re-dispatched as fresh graduation turns on the next run after Order 02 (`s95x79`) ships. Their earlier, correct plans exist only on the preserved lanes `aw/lane/2rm0gz` and `aw/lane/iosmvn` (`aw lanes list` reports both "keep: no run record"); the next run does NOT reuse them, because `runner_shared.allocate_isolation_worktree` attempt-scopes a new lane when the existing one holds work and `runner_shared.integrate_stranded_lanes` only integrates lanes recorded in the current run's state. Integrating or pruning those lanes is a human choice and is out of scope.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
