@@ -254,8 +254,8 @@ _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 # LEGACY `Dependencies:`/`Depends-on:` field no plan uses, so the canonical `- Item-Dependencies:`
 # statement was invisible and every queue item froze with `dependencies: []`. The field NAME comes
 # from `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`
-# (see `_read_item_dependencies`). Re-adding a dependency regex here is a regression guarded by
-# `tests/test_runner_item_dependencies.py`.
+# (see `_read_item_dependencies`). Re-adding a dependency regex here was guarded by
+# `tests/test_runner_item_dependencies.py` (a code pin deleted in `19313eed` under P16; will not return).
 _KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 
 _PLAN_FILENAME_RE = re.compile(
@@ -2204,9 +2204,10 @@ def _lane_record_informativeness(record: dict[str, Any]) -> tuple[int, int]:
     `commits_ahead` breaks the tie because more commits beyond base is the larger stake.
 
     THE LOCAL IS `has_integration_signal` AND NOT `signal`, DELIBERATELY. An AST guard in
-    `tests/test_runner_telemetry_integration.py` asserts this module contains NO `ast.Name` called
-    `signal`, to prove the seam installs no signal handler; a plain local of that name trips it (measured
-    while writing this). Keep the name qualified.
+    `tests/test_runner_telemetry_integration.py` (a code pin deleted in `19313eed` under P16; will not
+    return) asserted this module contains NO `ast.Name` called `signal`, to prove the seam installs
+    no signal handler. While that constraint is no longer mechanically enforced, keep the name qualified
+    for clarity.
     """
     has_integration_signal = 1 if record.get("integration_signal") else 0
     try:
@@ -13547,8 +13548,9 @@ def add_audit_parser(sub: Any, *, command: str = "aw oc run") -> Any:
     `integrate` live here too.
 
     DECLARED ON BOTH HOSTS, IMPLEMENTED ON ONE. The declaration is shared because the two hosts'
-    subparser sets are a pinned contract (`tests/test_rununify_build_parser.py`), and a verb existing
-    on one host only is exactly the surface fork `rununify` exists to prevent. The Antigravity BINDING
+    subparser sets were a pinned contract (`tests/test_rununify_build_parser.py` was a code pin
+    deleted in `19313eed` under P16; will not return), and a verb existing on one host only is exactly
+    the surface fork `rununify` exists to prevent. The Antigravity BINDING
     refuses with a message naming the OpenCode spelling rather than half-running, because wiring a
     second launch path is out of plan `mp289j`'s fence.
     """
@@ -14060,8 +14062,9 @@ def _read_order(text: str) -> int | None:
 #
 # THE FAILURE MODE HERE IS SILENT AND TYPE-SHAPED, and `818uru`'s own test says so: a shared
 # constructor that DROPPED `kind` "would silently disable orchestrator detection" rather than crash.
-# That is why the guard for this section (`tests/test_rununify_record.py`) asserts the orchestrator
-# DERIVATION end to end on both hosts rather than merely that a field exists.
+# That is why the guard for this section (`tests/test_rununify_record.py`, deleted in `19313eed`; no
+# live guard currently asserts this derivation) asserted the orchestrator DERIVATION end to end on both
+# hosts rather than merely that a field exists.
 #
 # BOTH PINS WERE INVERTED, NOT DELETED, following this repo's precedent for a pinned decision a later
 # phase deliberately reverses:
@@ -14155,7 +14158,8 @@ class PlanRecord(NamedTuple):
     DO NOT DROP `kind` to "simplify" this. It is what `action_for` reads to detect an orchestrator,
     and losing it disables orchestrator detection SILENTLY and type-shapedly rather than crashing -
     the failure mode `818uru`'s pinned test warned about and the reason
-    `tests/test_rununify_record.py` asserts the derivation end to end.
+    `tests/test_rununify_record.py` (deleted in `19313eed`; no live guard currently asserts this)
+    asserted the derivation end to end.
     """
 
     id6: str
@@ -14202,7 +14206,8 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     Both runners' historical private copies tolerated any whitespace after the `-` while `selectors`'
     STRICT internal readers require exactly one space, and that strictness is a documented `aw find`
     matching contract. rununify 01 (`2r306y`) resolved this by binding the permissive public aliases,
-    and `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` pins BOTH halves, so
+    and `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` (deleted in `19313eed`;
+    no live guard currently asserts this loose-whitespace tolerance) guarded BOTH halves, so
     swapping to the strict readers here would silently narrow which front-matter spellings both drivers
     accept.
     """
@@ -15862,7 +15867,8 @@ def manifest_entry_needs_review(
 #: `executed` IS DELIBERATELY ABSENT, because an `executed` plan is not RETIRED: its work was done,
 #: not decided against. It is a legitimate queue member, and `initial_queue_status` preserves the
 #: status verbatim (see `TERMINAL_QUEUE_STATUSES`) so the queue shows it as the executed prerequisite
-#: it is, which `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` pins.
+#: it is, which `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` asserted
+#: (deleted in `19313eed`; no live guard currently asserts this; coverage tracked by backlog `mv18lz`).
 #:
 #: DO NOT justify this omission by the 2026-09-17 dead-prerequisite incident, which is a stale reason
 #: that this comment carried until 2026-09-20 and which MEASUREMENT DISPROVED. That incident is fixed,
@@ -15909,7 +15915,8 @@ def manifest_entry_is_selectable(entry: Mapping[str, Any] | None) -> bool:
       * AN `executed` PLAN MAY BE IN THE QUEUE, because it is not RETIRED: its work was performed, not
         decided against. `initial_queue_status` preserves `executed` verbatim
         (`TERMINAL_QUEUE_STATUSES`) so the queue shows it as the executed prerequisite it is, which
-        `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` pins by asserting the
+        `tests/test_runner_item_dependencies.py::InRunExecutedDependencyTests` (deleted in `19313eed`;
+        no live guard currently asserts this; tracked by backlog `mv18lz`) asserted by checking the
         entry is PRESENT with that status.
         THE REASON IS QUEUE VISIBILITY, NOT EDGE CORRECTNESS, and the distinction is recorded because
         this docstring claimed the stronger version until 2026-09-20 and measurement disproved it. The
@@ -17344,8 +17351,9 @@ def expand_dependency_closure(
 # WHY (3) REPORTS RATHER THAN REFUSING, since the asymmetry looks like an oversight and is not.
 # Refusing on untracked content would make an unattended run unstartable in essentially any working
 # checkout (`evaluate_clean_base`'s own docstring says so, and `tests/test_lane_clean_base.py
-# ::test_case_3_an_untracked_file_does_NOT_refuse` pins it), and a gate that false-positives on
-# correct behavior trains operators to bypass it. The measured incident is the other half: a stray
+# ::test_case_3_an_untracked_file_does_NOT_refuse` asserted it before deletion in `19313eed`; no
+# live guard currently asserts this), and a gate that false-positives on correct behavior trains
+# operators to bypass it. The measured incident is the other half: a stray
 # `aw install` wrote 130+ uncommitted, largely UNTRACKED files into a working tree and on at least two
 # occasions an agent did not realize the pollution was its own. Reporting puts that in front of the
 # operator before any spend without making the run unstartable.
@@ -22336,9 +22344,10 @@ ORCH_REASON_NO_ORCHESTRATOR = "no-orchestrator"
 # carry a NEAR-MISS PAIR that differs only in word order: `RETIRE_REFUSED_UNFINISHED_CHILDREN` is
 # `unfinished-children` while `ORCH_REASON_UNFINISHED_CHILDREN` is `children-unfinished`. Two nearly
 # identical strings is exactly the shape that makes a dict-keyed mapping silently miss, which is why
-# `tests/test_orchestrator_deferral_reporting.py` asserts the translation rather than assuming it: if
-# a future branch ever forwards an untranslated `RETIRE_REFUSED_*` value, that test fails instead of
-# this mapping quietly degrading to its unknown-code fallback.
+# `tests/test_orchestrator_deferral_reporting.py` (deleted in `19313eed`; no live guard currently
+# asserts this translation) asserted the translation rather than assuming it: if a future branch
+# ever forwards an untranslated `RETIRE_REFUSED_*` value, that test caught it instead of this mapping
+# quietly degrading to its unknown-code fallback.
 #
 # NO REMEDY NAMES `--full-auto` (OQ-01, resolved at review). That flag clears a `reviewed` plan to
 # `auto-approved`, so offering it as the remedy for "children are not approved" is offering to bypass
@@ -22443,7 +22452,8 @@ def orchestrator_refusal_text(reason: str) -> tuple[str, str]:
     code VERBATIM and points at the run's own `orchestrator-deferred` event, so a vocabulary drift is
     visible to an operator on the first run that hits it rather than being smoothed into prose. What
     it must never be is empty or generic; `Refusal` itself refuses an empty field, and
-    `tests/test_orchestrator_deferral_reporting.py` pins the verbatim code and the non-empty remedy.
+    `tests/test_orchestrator_deferral_reporting.py` (deleted in `19313eed`; no live guard currently
+    asserts this fallback) asserted the verbatim code and the non-empty remedy.
     """
 
     known = _ORCH_REASON_TEXT.get(str(reason or "").strip())
@@ -23469,8 +23479,9 @@ def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
 #
 # WHY THE SEAM IS HERE RATHER THAN IN EITHER DRIVER, which is the whole point of the placement.
 # `agy_runipd` already imports dozens of names from `oc_runipd`, and
-# `tests/test_runner_refork_guard.py` pins that no runner REDEFINES an extracted symbol and that
-# every runner attribute IS the owning module's object. A telemetry helper written in `oc_runipd`
+# `tests/test_runner_refork_guard.py` (a code pin deleted in `19313eed` under P16; will not return)
+# pinned that no runner REDEFINES an extracted symbol and that every runner attribute IS the owning
+# module's object. A telemetry helper written in `oc_runipd`
 # and imported by `agy_runipd` would satisfy a reviewer reading for parity of BEHAVIOR while
 # forking the code, which is the exact defect that guard exists to catch. So both hosts reach
 # telemetry through THIS module, and neither through the other's driver.
@@ -24109,11 +24120,12 @@ def defect_report_prompt_block() -> str:
     into a structural property rather than a diff someone has to eyeball.
 
     WHERE THIS MAY BE PLACED, stated here because "append it to the prompt" is the obvious wrong
-    move and it BREAKS THE SUITE. `tests/test_reporting_contract.py` asserts that everything from the
-    reporting-contract heading TO THE END of each built prompt is byte-equal to
-    `reporting_contract.contract_text()`, on both hosts. So this block must go BEFORE
-    `reporting_contract.prompt_block()`, which must remain the LAST thing in the prompt.
-    `tests/test_lane_prompt_purity.py` additionally digest-pins a bounded EARLY block (from
+    move and would break the prompt shape. `tests/test_reporting_contract.py` (a text pin deleted in
+    `19313eed` under P16; will not return) asserted that everything from the reporting-contract
+    heading TO THE END of each built prompt is byte-equal to `reporting_contract.contract_text()`, on
+    both hosts. So this block must go BEFORE `reporting_contract.prompt_block()`, which must remain
+    the LAST thing in the prompt. `tests/test_lane_prompt_purity.py` (a digest pin deleted in
+    `19313eed` under P16; will not return) additionally digest-pinned a bounded EARLY block (from
     `Plan file at launch:` to `Prior attempt:`), so this must not land inside that window either.
     The region around the outcome-JSON literal satisfies both.
 
@@ -24955,7 +24967,8 @@ def defect_report_record(
 # the 10 `INJECTED` symbols above keep their one-line host wrapper (that wrapper IS the de-duplicated
 # form, ruled by the maintainer in `818uru` OQ-02), and `disable_lane_prompt` stays defined in both
 # runners because it writes a module-level flag through `global`. Both exclusions are asserted, in the
-# INVERSE direction, by `tests/test_rununify_lift.py`.
+# INVERSE direction, by `tests/test_rununify_lift.py` (a code pin deleted in `19313eed` under P16;
+# will not return).
 
 
 def _findings_block_reason(repo: Path, dep: str) -> str | None:
@@ -27149,9 +27162,10 @@ def handle_review_orchestrator_readiness(
 # which already draws this exact distinction: "The sign of the effect is the whole difference").
 # `tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable` and
 # `tests/test_suite_baseline_direction.py::test_forbidden_direction_is_absent` enforce this direction
-# property. Separately, `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
-# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not (a
-# dangling citation carried by `gia5i7`, deliberately left unmodified here). If you are here to add a
+# property. Separately, `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` (deleted in
+# `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces a
+# byte-identical outcome whether the failing id appears in the baseline or not (previously carried
+# by `gia5i7`, retired here under `yuhl6o`). If you are here to add a
 # comparison that makes an outcome stricter or disbelieves the agent, the four reasons above say why not.
 #
 # WHY THE MEASUREMENT IS COMPARABLE TO THE POST-WORK ONE, documented here because the next reader
@@ -27173,8 +27187,8 @@ def handle_review_orchestrator_readiness(
 # failure being the same environmental one in both. So NO neutralization layer and NO subtraction
 # list is built here, deliberately: a hand-maintained subtraction list would ROT, and building one
 # from the stale fifteen ids would MASK fifteen real failures rather than remove fifteen phantom
-# ones. `tests/test_suite_baseline.py::TheTwoMeasurementsAreComparable` is the regression test that
-# FAILS if a divergence reappears, so the premise is monitored rather than trusted.
+# ones. `tests/test_suite_baseline.py::TheTwoMeasurementsAreComparable` was a code pin deleted in
+# `19313eed` under P16 (will not return); the premise is held by review rather than monitored by a test.
 
 #: The lane-identity NAMESPACE for a baseline checkout, which is what keeps it OUT of the lane
 #: namespace entirely. Baseline checkouts are created with a plain `git worktree add --detach` under
@@ -28106,8 +28120,9 @@ evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
 # which is recoverable. Here the same mistake merges unverified work into main.
 #
 #   (a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS NOT "NOTHING NEW". This is the `32ij2j`
-#       inversion, pinned by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`,
-#       whose own docstring records that plan comparing failing sets as a subset over an ALWAYS-EMPTY
+#       inversion, guarded by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`
+#       (deleted in `19313eed`; no live guard currently asserts this), whose own docstring records
+#       that plan comparing failing sets as a subset over an ALWAYS-EMPTY
 #       string so that "every lane passed including one that broke everything" (the always-empty read
 #       was SHIPPED in `run_suite_check` until `h5pyqa`). Measured while authoring this: with a merged
 #       list of `()` and one attributed id, "a red consisting only of attributed ids" is VACUOUSLY TRUE
@@ -28176,9 +28191,10 @@ def gate_answer_is_warranted(
 
     THE PARAMETER IS `integration_signal` AND NOT `signal`, DELIBERATELY, for the reason
     `_lane_record_informativeness` already records above: an AST guard in
-    `tests/test_runner_telemetry_integration.py` asserts this module contains NO `ast.Name` called
-    `signal`, proving the seam installs no signal handler. A parameter of that name trips it (measured
-    while writing this, exactly as the earlier note predicts). Keep the name qualified.
+    `tests/test_runner_telemetry_integration.py` (a code pin deleted in `19313eed` under P16; will not
+    return) asserted this module contains NO `ast.Name` called `signal`, proving the seam installs
+    no signal handler. While that constraint is no longer mechanically enforced, keep the name qualified
+    for clarity.
 
     gatewire-01 (`h5pyqa`) E-01. ONLY the suite-failure signal is askable, and the two exclusions are
     the substance of this predicate rather than defensive padding:
@@ -28391,9 +28407,9 @@ def perform_gate_answer(
     what it does NOT contain: `baseline` appears in exactly two places, the `gate_answer_question(...)`
     call and the `gate_answer_record(...)` call. It is absent from every `if`, from the `release`
     conjunction, from the `earns_recheck` loop and from the `violation` text. That absence IS the
-    maintainer's 2026-09-08 ruling in executable form, and `tests/test_suite_baseline.py` asserts a
-    `not-mine` verdict produces an IDENTICAL `GateAnswerOutcome.release` whether the failing id is in
-    the baseline or not. Do not "finish" it into a check; see `SUITE_BASELINE_SUBDIR` for why.
+    maintainer's 2026-09-08 ruling in executable form; `tests/test_suite_baseline.py` (deleted in
+    `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces an
+    IDENTICAL `GateAnswerOutcome.release` whether the failing id is in the baseline or not. Do not "finish" it into a check; see `SUITE_BASELINE_SUBDIR` for why.
     """
 
     failures = tuple(getattr(suite_result, "failures", ()) or ())
@@ -28561,7 +28577,8 @@ REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
 # strength of a baseline, because the rejected proposal was to REFUSE a `not-mine` claim for any
 # failing id ABSENT from the baseline. That is a gate that makes an outcome WORSE using the baseline,
 # and it is still forbidden; `perform_gate_answer` still touches the baseline only to render it, and
-# `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` still holds. What happens HERE is the
+# `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` (deleted in `19313eed`; no live guard
+# currently asserts this) asserted that property. What happens HERE is the
 # opposite direction: the baseline can only ever make this gate MORE PERMISSIVE, never refuse
 # anything it would have passed, and it decides nothing about whose fault a failure is. The sign of
 # the effect is the whole difference.
@@ -28569,8 +28586,9 @@ REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
 # THE COMPARISON IN HERE IS THE ONE THAT ALREADY INVERTED THIS REPOSITORY'S INTEGRATION GATE ONCE, so
 # it is written to REFUSE TO BE THE AUTHORITY. Plan `32ij2j` compared failing SETS as a subset and
 # derived them from an always-empty string, so every lane passed INCLUDING one that broke everything;
-# `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` exists for that case and
-# calls it the most important in its file. Three rules below close the ways the subtraction can lie,
+# `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` (deleted in `19313eed`;
+# no live guard currently asserts this) existed for that case and called it the most important in its
+# file. Three rules below close the ways the subtraction can lie,
 # and each is a MEASURED hazard rather than a hypothetical one. A list may make a refusal SPECIFIC;
 # it may NEVER manufacture a pass.
 
@@ -28700,8 +28718,9 @@ def new_failures_since_baseline(
     ``suite_passed`` IS REQUIRED INFORMATION AND NOT A CONVENIENCE. Without it condition 2 cannot be
     evaluated, because "empty because green" and "empty because nothing parsed" look identical from
     the list alone - and the EXIT CODE, not the list, is this repository's authority on which one it
-    is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`). It DEFAULTS
-    False, the conservative reading, so a caller that forgets it gets `unknown` rather than a pass.
+    is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` was deleted in
+    `19313eed`; no live guard currently asserts this). It DEFAULTS False, the conservative reading, so
+    a caller that forgets it gets `unknown` rather than a pass.
     """
 
     baseline_state = (
@@ -28892,7 +28911,8 @@ def unattributed_merged_failures(
     BOTH FAIL OPEN if omitted, which is why they precede the subtraction rather than qualify it:
 
       1. AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS UNKNOWN. This is the `32ij2j` inversion
-         (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`): with a merged
+         (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`, deleted in
+         `19313eed`; no live guard currently asserts this): with a merged
          list of `()` the predicate "every failing id was attributed away" is VACUOUSLY TRUE, so a tree
          that broke everything integrates. The EXIT CODE, never the list, is this repository's authority
          on whether an empty list means "green" or "nothing parsed", which is why ``suite_passed`` is
@@ -30252,8 +30272,9 @@ def extract_session_id(log_path: Path) -> str | None:
     whereas nothing anywhere pinned agy's ordering; the standing maintainer ruling prefers oc absent a
     significant behavioral difference; and the affected shape needs an unprefixed id EARLY plus a
     `ses_` id LATER in the SAME log, which is an OpenCode id appearing in an Antigravity log and
-    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` pins this answer so a
-    future change to it is a visible test edit rather than a silent drift.
+    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` (deleted in `19313eed`;
+    no live guard currently asserts this conflict case) pinned this answer so a future change to it is
+    a visible edit rather than a silent drift.
 
     A NOTE ON WHAT WAS DELETED: agy's body carried a dead `fallback` local, initialized to `None` and
     returned at the end while every branch that could assign it returned immediately instead. It could
@@ -30368,10 +30389,11 @@ def driver_begin(
         # lanetruth Order 01 (af7i6p) + Order 02 (z2isfg): the pinned env is the BASE and the
         # baseline declaration is layered on top, so the turn measures the tree it will really
         # execute in WITHOUT unpinning the tooling. The pin's arrival at the child is asserted
-        # BEHAVIORALLY by `tests/test_lane_tool_identity.py` (it reads the env this builds and
-        # checks the pin's markers), which is strictly stronger than the source-text search that
-        # guard used before this symbol was shared -- that search was measurably satisfiable by a
-        # COMMENT, and on oc a comment is what satisfied it.
+        # BEHAVIORALLY by `tests/test_lane_tool_identity.py` (deleted in `19313eed`; no live guard
+        # currently asserts this; it read the env this builds and checked the pin's markers), which
+        # was strictly stronger than the source-text search that guard used before this symbol was
+        # shared -- that search was measurably satisfiable by a COMMENT, and on oc a comment is what
+        # satisfied it.
         env={**env_builder(), **begin_baseline_env(isolated)},
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
@@ -30440,7 +30462,8 @@ _STRIPPED_ADVISORY_PREFIXES = (
 #
 # EVERY FIELD IS JUSTIFIED BY A CALL SITE, per the plan's own rule that a field without a named
 # consumer is a parameter nobody reads. The consumers are named in the field docstrings below and
-# asserted by `tests/test_rununify_host_descriptor.py`.
+# were asserted by `tests/test_rununify_host_descriptor.py` (a code pin deleted in `19313eed` under
+# P16; will not return).
 #
 # WHAT IS DELIBERATELY *NOT* A FIELD: a variant/profile flag. `driver_actor` reads
 # `options.variant`/`options.launch_profile`, which only the OpenCode host's profile subsystem
@@ -30803,8 +30826,9 @@ def perform_carrier_verification(
 #:   (1) IS A PREREQUISITE SATISFIED IN THIS RUN?  `edge_satisfied` and
 #:       `cascade_dependency_blocked`. ONE IMPLEMENTATION, not a per-host pair: both are DEFINED in
 #:       `oc_runipd` and RE-EXPORTED into `agy_runipd` with the `as <same-name>` form, pinned by
-#:       `assertIs` in `tests/test_runner_item_dependencies.py::_SHARED_NAMES` (measured:
-#:       `agy.edge_satisfied is oc.edge_satisfied` -> True). They ALREADY select the action-aware bar
+#:       `assertIs` in `tests/test_runner_item_dependencies.py::_SHARED_NAMES` (deleted in
+#:       `19313eed`; a code pin retired under P16; no live guard currently asserts this object identity;
+#:       measured: `agy.edge_satisfied is oc.edge_satisfied` -> True). They ALREADY select the action-aware bar
 #:       (`EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES`) and were correct before zz5yxq.
 #:   (2) DID THE RUN SUCCEED OVERALL?  the exit code, handed to
 #:       `runner_stop.deliberate_stop_exit_code(success_states=...)`. ONE SITE PER HOST
@@ -30904,7 +30928,8 @@ ACTION_IMPLEMENTED = frozenset(("review", "plan"))
 #: and are still not interchangeable. HISTORICAL (pre-`6b94a4d9d`): under the legacy two-member set, substituting
 #: `EXECUTION_SUCCESS_STATES` at the exit-code site would have made
 #: `tests/test_rununify_run_queue.py::TheExitCodeReflectsTheRealOutcome::
-#: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` FAIL with `0 == 0`, because
+#: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` (deleted in `19313eed`; no
+#: live guard currently asserts this) FAIL with `0 == 0`, because
 #: that test existed precisely to pin that a `substantially-complete` item still exits NONZERO. So the
 #: dependency bar would have SILENTLY WIDENED the reporting bar while narrowing it for `reviewed` -
 #: fixing one silent success by introducing another.
@@ -31076,8 +31101,8 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     WHY A PROJECTION AND NOT A SECOND EXIT-CODE FUNCTION. `runner_stop.deliberate_stop_exit_code`
     takes ONE `success_states` container for the WHOLE queue, so it structurally cannot apply a bar
     that depends on each item's `action`. Both drivers must keep calling it (it owns the
-    deliberate-stop contract that spec `c4gd2h` A1/A4 require, and
-    `tests/test_runner_stop_levels12.py` pins that both call it), so the per-item decision is made
+    deliberate-stop contract that spec `c4gd2h` A1/A4 require; `tests/test_runner_stop_levels12.py`
+    was a code pin deleted in `19313eed` under P16; will not return), so the per-item decision is made
     HERE and handed to it already reduced.
 
     THIS REWRITES NOTHING. It returns a fresh list of argument tokens and never touches
@@ -31365,8 +31390,9 @@ def finalize_outcome(
 
     Called by BOTH hosts' `driver_finalize` as the LAST step, so the idempotence rule is defined once
     even though `driver_finalize` itself is still duplicated per host (`oc_runipd`, `agy_runipd`;
-    `tests/test_rununify_execute_item.py` tracks that duplication deliberately, so this plan does not
-    unilaterally lift those bodies while the `rununify`/`hostdedup` Sets are moving the same symbols).
+    `tests/test_rununify_execute_item.py` was a code pin deleted in `19313eed` under P16; will not
+    return; tracked that duplication deliberately, so this plan did not unilaterally lift those bodies
+    while the `rununify`/`hostdedup` Sets were moving the same symbols).
     Placing the rule here rather than in each body is what makes "the twins stay twins" true by
     construction.
 
@@ -34674,7 +34700,8 @@ def terminate_process(
     ``_SIGTERM_GRACE_SECONDS`` and its wrapper reads them AT CALL TIME, so a caller or test that tunes
     its host's ``_SIGINT_GRACE_SECONDS`` still takes effect on that host. Reading shared constants here
     instead would have silently broken that tuning seam: a test setting the host's constant would have
-    had no effect, with nothing failing to say so (`tests/test_runner_shutdown.py` tunes exactly this).
+    had no effect, with nothing failing to say so (`tests/test_runner_shutdown.py` was a code pin
+    deleted in `19313eed` under P16; will not return; tuned exactly this).
     No default is offered because a default here would let a host forget to pass its own value and
     silently inherit another's timing.
     """
@@ -35480,7 +35507,8 @@ def _record_checkpoint_stop(
     stop -- silently replacing the observed working-tree state, which is the whole evidentiary point of
     a level-3 stop record, with an error string. That was invisible precisely BECAUSE the definition was
     dead; pointing the hosts at it is what would have shipped the defect
-    (`tests/test_runner_stop.py::test_stop_isolated_git_status` catches it). Injecting the host's own
+    (`tests/test_runner_stop.py::test_stop_isolated_git_status` was deleted in `19313eed`; no live
+    guard currently asserts this). Injecting the host's own
     bound `git_status` is the seam this module already uses for exactly this dependency, and no default
     is offered so the mistake cannot recur silently.
     """
@@ -36150,7 +36178,8 @@ def reconcile_interrupted(
     DIVERGED (each host renders a different document), so a shared body cannot pick one without
     silently giving the other host the wrong report format. Each host therefore keeps a one-line
     wrapper at the ORIGINAL name and signature, binding its own; every existing call site is
-    untouched, which is what `tests/test_rununify_run_queue.py`'s wrapper assertions require.
+    untouched, which is what `tests/test_rununify_run_queue.py`'s wrapper assertions required
+    (a code pin deleted in `19313eed` under P16; will not return).
     """
 
     from agent_workflows import runner_stop
@@ -39290,8 +39319,9 @@ def execute_item_core(
                         if v_outcome_file.is_file():
                             # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
                             # fail-closed table (`map_verdict`), never by a substring test written here.
-                            # Both hosts reach this through `execute_item_core`, so there is one mapping
-                            # and `tests/test_runner_refork_guard.py` fails if a driver grows a copy.
+                            # Both hosts reach this through `execute_item_core`, so there is one mapping;
+                            # `tests/test_runner_refork_guard.py` was a code pin removed in `80db6750c`
+                            # under P16 (will not return; the file was deleted in `19313eed`).
                             #
                             # THE UNPARSEABLE ARM ROUTES THROUGH THE SAME TABLE, deliberately: a verdict
                             # the runner could not read is an UNREADABLE verdict, and `map_verdict`'s
@@ -39837,8 +39867,9 @@ def execute_item_core(
                     # reconcile_disposition(...)` would have OVERWRITTEN the first score before the
                     # improvement check could compare against it, which is the monotonicity this plan
                     # exists to guarantee. The adoption is still the tuple assignment the AST ordering
-                    # pins in `tests/test_rununify_execute_item_gates.py` resolve, because they locate a
-                    # tuple target containing a `Name` called `disposition`.
+                    # pins in `tests/test_rununify_execute_item_gates.py` (a code pin deleted in
+                    # `19313eed` under P16; will not return) resolved, because they located a tuple
+                    # target containing a `Name` called `disposition`.
                     disposition, outcome = rescored, rescored_outcome
                     attempt["disposition"] = disposition
                     item["status"] = disposition
@@ -45327,9 +45358,9 @@ def edge_satisfied(
         #
         # IT IS THE SAME OBJECT BOTH HOSTS ALREADY BIND, which is what the comment above requires:
         # `selectors.read_front_matter_status` is the shared PERMISSIVE reader, and
-        # `tests/test_runner_refork_guard.py` tables it as `selectors`-owned under both hosts' local
-        # `_read_status` spelling. Substituting another reader would change which front-matter
-        # spellings this comparison accepts.
+        # `tests/test_runner_refork_guard.py` (a code pin deleted in `19313eed` under P16; will not
+        # return) tabled it as `selectors`-owned under both hosts' local `_read_status` spelling.
+        # Substituting another reader would change which front-matter spellings this comparison accepts.
         from agent_workflows.selectors import read_front_matter_status as _read_status
 
         effective = bucket
@@ -46133,15 +46164,17 @@ def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
 # WHY THIS IS A CALLABLE AND NOT A REGISTERED HANDLER (zhr6mc DEFERRED Q1).
 #
 # E-05 as authored asked this plan to install `signal.signal` handlers for SIGINT and SIGTERM in both
-# runner modules. It may not, and the reason is recorded rather than worked around: FOUR executed
-# plans installed guards that explicitly FORBID registering a handler (a `signal` `.signal(...)`
+# runner modules. It did not, and the reason is recorded rather than worked around: FOUR executed
+# plans installed guards that explicitly forbade registering a handler (a `signal` `.signal(...)`
 # call) in these two files
-# (`tests/test_lane_allocation_idempotent.py`, `tests/test_runner_stop.py`,
-# `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`), reserving that
-# registration for `runstop` Phase 5 (`71vjbn`). One of those guards states the division of labor
-# verbatim: "`runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same
-# two files ... whichever plan registered last would silently win. This plan supplies the callable
-# those handlers will invoke, and installs none itself."
+# (`tests/test_lane_allocation_idempotent.py`, a code pin removed in `80db6750c` under P16, the file
+# deleted in `19313eed`; and `tests/test_runner_stop.py`, `tests/test_runner_stop_level3.py`,
+# `tests/test_runner_stop_level4.py`, code pins deleted in `19313eed` under P16; will not return),
+# reserving that registration for `runstop` Phase 5 (`71vjbn`). While the constraint is no longer
+# mechanically enforced, the division of labor remains as design history: `runstop` Phase 5
+# (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same two files ... whichever plan
+# registered last would silently win. This plan supplies the callable those handlers invoke, and
+# installs none itself."
 #
 # The designs are also incompatible, not merely double-registered: `71vjbn` E-01/E-02 require SIGINT
 # to ESCALATE level 1 -> 3 -> 4 through `runner_stop.request_stop_nowait` and SIGTERM to REQUEST
