@@ -32246,6 +32246,16 @@ def initialize_run_core(
         )
     write_report_fn(run_dir, state)
 
+    # cihealth Order 02 (n7xlhm) E-04: Periodic checkup at run start
+    try:
+        from agent_workflows import checkup as _checkup
+
+        _chk_line = _checkup.run_start_checkup(repo, run_dir)
+        if _chk_line:
+            state["checkup_line"] = _chk_line
+    except Exception:
+        pass
+
     # specpause-01 (`1g4i1t`) E-05: THE SPEC-EDIT ACKNOWLEDGEMENT GATE, sited HERE immediately
     # after the initial run report is written and BEFORE the `--prepare-only` early return.
     #
@@ -45342,6 +45352,26 @@ def announce_run_order(
         if _slated_table:
             print(file=out)
             print(_slated_table, file=out, end="")
+    except Exception:
+        pass
+    try:
+        from agent_workflows import checkup as _chk
+
+        _repo = Path(state.get("repo", "."))
+        _chk_line = state.get("checkup_line")
+        if not _chk_line:
+            _rec = _chk.read_checkup_record(_repo)
+            _chk_line = _chk.format_checkup_line(_rec, repo_root=_repo)
+        if _chk_line:
+            print(
+                pal(
+                    _chk_line,
+                    "yellow"
+                    if "FAILING" in _chk_line
+                    else ("cyan" if "PASSING" in _chk_line else "white"),
+                ),
+                file=out,
+            )
     except Exception:
         pass
     append_jsonl(

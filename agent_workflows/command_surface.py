@@ -483,6 +483,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
+        command="checkup",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="find",
         command_class="read",
         human_recipe="table",

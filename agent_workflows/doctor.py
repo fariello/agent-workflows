@@ -2046,6 +2046,19 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         if attn.release_blockers:
             for rb in attn.release_blockers:
                 lines.append(f"    > {term.color256(rb, 208, bold=True)}")
+
+    try:
+        from agent_workflows import checkup as _chk
+
+        _rec = _chk.read_checkup_record(repo_root)
+        _chk_line = _chk.format_checkup_line(_rec, repo_root=repo_root)
+        _is_warn = _chk.is_checkup_warning(_rec, repo_root)
+        if _is_warn:
+            lines.append(f"  Checkup:     {term.color256(_chk_line, 214, bold=True)}")
+        else:
+            lines.append(f"  Checkup:     {_chk_line}")
+    except Exception:
+        pass
     lines.append("")
 
     # 4. Security & Local Leak Sanitizer
@@ -2277,6 +2290,26 @@ def inspect_repo(
             status="clean" if not report.artifacts.all_drift else "findings",
         ),
     ]
+
+    try:
+        from agent_workflows import checkup as _chk
+
+        _rec = _chk.read_checkup_record(repo_root)
+        _chk_line = _chk.format_checkup_line(_rec, repo_root=repo_root)
+        _is_warn = _chk.is_checkup_warning(_rec, repo_root)
+        evidence.append(
+            Evidence(
+                key="checkup",
+                value={
+                    "summary": _chk_line,
+                    "warning": _is_warn,
+                    "record": _rec,
+                },
+                status="clean" if not _is_warn else "findings",
+            )
+        )
+    except Exception:
+        pass
 
     _primary_next, next_actions = resolve_next_actions(report.all_drift, repo_root)
 

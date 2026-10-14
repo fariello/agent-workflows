@@ -246,6 +246,23 @@ and an under-powered analysis REFUSES with its observed sample size instead of e
 [Run analytics](docs/run-analytics.md), whose privacy section names the shared detector's measured
 blind spots rather than implying it covers everything.
 
+### Periodic CI checkup (`aw checkup`)
+
+Run `aw checkup` to inspect GitHub Actions CI health and run registered slow checks (such as stale spec line-anchor citations) locally:
+
+```bash
+aw checkup           # human summary of latest CI result and slow checks
+aw checkup --agent   # machine-readable aw.agent/v1 result record
+```
+
+The checkup runs automatically at run start when the branch advances past the configured commit interval. Configure checkup behavior in `.aw/config/project.json`:
+
+- `ci_checkup_interval_commits`: Interval in commits between periodic run-start checkups (default `100`, `0` disables).
+- `ci_checkup_workflow`: Workflow file to inspect via `gh run list` (default `tests.yml`).
+- `ci_checkup_branch`: Target branch to inspect (default `main`).
+
+Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`.
+
 ### Concise agent reporting
 
 Installing agent-workflows also makes concise, essential-information-only reporting the

@@ -247,7 +247,8 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
                         repo, id6="plna02", backlog_id6="bkla02", bucket="executed"
                     )
                     (repo / ".gitignore").write_text(
-                        ".aw/records/runs/\n.aw/worktrees/\n", encoding="utf-8"
+                        ".aw/state/\n.aw/records/runs/\n.aw/worktrees/\n",
+                        encoding="utf-8",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(

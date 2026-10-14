@@ -36,44 +36,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the checkup
 
-- [ ] E-01 Add the setting and the record. Read `ci_checkup_interval_commits` through the existing project-config loader (default 100, `0` disables, a non-integer or negative value falls back to the default with a warning, as `config.release_gate_work_kinds` does). Read two companion keys the same way so the checkup is not hard-wired to this repository: `ci_checkup_workflow` (default `tests.yml`) and `ci_checkup_branch` (default `main`); every later item uses these, never literals. Define the record schema with a version field and write it atomically (temp file, then rename) under `.aw/state/checkup/last.json`, which is gitignored local state. Resolve the directory against the PRIMARY checkout, not a lane worktree, so every run and worktree shares one record: reuse the existing resolver (`runner_shared.runs_repo_root`, which delegates to `attention._resolve_runs_repo_root`) rather than deriving a new one from the git common dir. The record holds commit ids, times, conclusions and counts only, never paths or account names.
+- [x] E-01 Add the setting and the record. Read `ci_checkup_interval_commits` through the existing project-config loader (default 100, `0` disables, a non-integer or negative value falls back to the default with a warning, as `config.release_gate_work_kinds` does). Read two companion keys the same way so the checkup is not hard-wired to this repository: `ci_checkup_workflow` (default `tests.yml`) and `ci_checkup_branch` (default `main`); every later item uses these, never literals. Define the record schema with a version field and write it atomically (temp file, then rename) under `.aw/state/checkup/last.json`, which is gitignored local state. Resolve the directory against the PRIMARY checkout, not a lane worktree, so every run and worktree shares one record: reuse the existing resolver (`runner_shared.runs_repo_root`, which delegates to `attention._resolve_runs_repo_root`) rather than deriving a new one from the git common dir. The record holds commit ids, times, conclusions and counts only, never paths or account names.
   - Depends on: none
   - Expected outcome: a loader for the setting and a writer and reader for the record, both shared by every caller.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Read CI's result. A function that calls `gh run list --workflow <ci_checkup_workflow> --branch <ci_checkup_branch> --json headSha,conclusion,status,createdAt --limit <k>` as an argv list (no shell), read-only, with a bounded timeout, finds the newest completed run and the newest `success`, and counts first-parent commits from that success's commit to main (`git rev-list --count --first-parent <sha>..<ci_checkup_branch>`). Every failure (no `gh`, not logged in, no network, no remote, the workflow not present in this repository, a success older than the window, the commit not in local history) yields an explicit UNKNOWN with the reason, never a guess and never an exception. Widen `--limit` once if no success is in the first page, then report "no passing run in the last <k> runs".
+- [x] E-02 Read CI's result. A function that calls `gh run list --workflow <ci_checkup_workflow> --branch <ci_checkup_branch> --json headSha,conclusion,status,createdAt --limit <k>` as an argv list (no shell), read-only, with a bounded timeout, finds the newest completed run and the newest `success`, and counts first-parent commits from that success's commit to main (`git rev-list --count --first-parent <sha>..<ci_checkup_branch>`). Every failure (no `gh`, not logged in, no network, no remote, the workflow not present in this repository, a success older than the window, the commit not in local history) yields an explicit UNKNOWN with the reason, never a guess and never an exception. Widen `--limit` once if no success is in the first page, then report "no passing run in the last <k> runs".
   - Depends on: E-01
   - Expected outcome: a typed result (PASSING / FAILING / UNKNOWN, latest run commit, last passing commit, commits since) for a scripted `gh` returning each shape.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the slow checks and assemble the checkup. Run each check in the slow-check tuple (today only `check.spec-anchor-stale`, invoked through the same function `aw check --source-anchors` calls, not by shelling out), collect finding counts per rule, with a bounded total time (a check that exceeds it is recorded as UNKNOWN with the reason), combine with E-02, and save the record (E-01). Add `aw checkup` (human output by default, `--agent` emitting an `aw.agent/v1` result record), which always runs, regardless of the interval. Declare the new leaf in `command_surface.COMMAND_INVENTORY` (otherwise `tests/test_command_surface_declarations.py`, which the CLI output-conformance CI job runs, fails on an undeclared leaf).
+- [x] E-03 Run the slow checks and assemble the checkup. Run each check in the slow-check tuple (today only `check.spec-anchor-stale`, invoked through the same function `aw check --source-anchors` calls, not by shelling out), collect finding counts per rule, with a bounded total time (a check that exceeds it is recorded as UNKNOWN with the reason), combine with E-02, and save the record (E-01). Add `aw checkup` (human output by default, `--agent` emitting an `aw.agent/v1` result record), which always runs, regardless of the interval. Declare the new leaf in `command_surface.COMMAND_INVENTORY` (otherwise `tests/test_command_surface_declarations.py`, which the CLI output-conformance CI job runs, fails on an undeclared leaf).
   - Depends on: E-02
   - Expected outcome: `aw checkup` prints CI state and slow-check counts and writes the record.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: trigger and display
 
-- [ ] E-04 Trigger it from runs, once across parallel runs. At run start in both hosts (the shared path), before the first agent turn: if the interval is not 0 and the branch has advanced at least N first-parent commits past the record's commit (or there is no record, or the record's commit is no longer an ancestor of the branch), try a NON-BLOCKING exclusive lock on `.aw/state/checkup/lock` through `platform_lock.acquire` (non-blocking by default; contention raises `platform_lock.LockBusy`). If acquired, re-read the record inside the lock (a peer may have just finished), and if still due, run the checkup and save it. Record exactly one run event per run start: `checkup-performed` (with the result), `checkup-not-due`, `checkup-skipped-peer` (LockBusy), or `checkup-failed` (with the exception text). Either way the run continues: the checkup never fails or delays a run beyond its own duration, and a checkup that raises is recorded and ignored. Print the result line in the run's start banner and in its end summary.
+- [x] E-04 Trigger it from runs, once across parallel runs. At run start in both hosts (the shared path), before the first agent turn: if the interval is not 0 and the branch has advanced at least N first-parent commits past the record's commit (or there is no record, or the record's commit is no longer an ancestor of the branch), try a NON-BLOCKING exclusive lock on `.aw/state/checkup/lock` through `platform_lock.acquire` (non-blocking by default; contention raises `platform_lock.LockBusy`). If acquired, re-read the record inside the lock (a peer may have just finished), and if still due, run the checkup and save it. Record exactly one run event per run start: `checkup-performed` (with the result), `checkup-not-due`, `checkup-skipped-peer` (LockBusy), or `checkup-failed` (with the exception text). Either way the run continues: the checkup never fails or delays a run beyond its own duration, and a checkup that raises is recorded and ignored. Print the result line in the run's start banner and in its end summary.
   - Depends on: E-03
   - Expected outcome: with six runs started together, exactly one performs the checkup and five record a skip; runs are not blocked.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Show it. `aw attention` (human board and `--agent`) and `aw doctor` show one line from the saved record, for example "Checkup 40 commits ago: CI FAILING since 2026-09-27 (1,623 commits); spec pointers: 2 stale", or "No checkup yet: run `aw checkup`". When CI's last pass is more than N commits ago, the line is a warning. They only READ the record; they never call `gh`. Exit codes do not change: `aw attention --check` is untouched, and in `aw doctor` the line is either plain output or a Drift of severity `info` (the only severity `artifact_core.drift_exit_code` exempts), never `warning` or `error`, so CI is not made to depend on itself. If `aw attention --agent` output has a declared field contract, extend it additively.
+- [x] E-05 Show it. `aw attention` (human board and `--agent`) and `aw doctor` show one line from the saved record, for example "Checkup 40 commits ago: CI FAILING since 2026-09-27 (1,623 commits); spec pointers: 2 stale", or "No checkup yet: run `aw checkup`". When CI's last pass is more than N commits ago, the line is a warning. They only READ the record; they never call `gh`. Exit codes do not change: `aw attention --check` is untouched, and in `aw doctor` the line is either plain output or a Drift of severity `info` (the only severity `artifact_core.drift_exit_code` exempts), never `warning` or `error`, so CI is not made to depend on itself. If `aw attention --agent` output has a declared field contract, extend it additively.
   - Depends on: E-01
   - Expected outcome: both commands show the line; neither calls GitHub; exit codes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove
 
-- [ ] E-06 Add `tests/test_checkup.py`, driving the real functions and CLI with a scripted `gh` on PATH (a stub executable printing canned JSON) and a fixture git repo, asserting on outputs, exit codes, the saved record and run events, never on source text. The `gh` stub is the ONLY `gh` the tests see (prepend its directory to PATH), so no test reaches the network. Cases: (a) passing, failing, and unknown (no `gh`, `gh` exits nonzero, malformed JSON, timeout) CI shapes; (b) commits-since computed from first-parent history; (c) the interval: not due below N, due at N, disabled at 0; (d) two concurrent checkups (two processes racing the lock, since `platform_lock.acquire` is non-re-entrant within one process): exactly one runs, the other records `checkup-skipped-peer`; (e) `aw attention` and `aw doctor` show the line from a saved record and never execute the `gh` stub (assert the stub's call log is empty); (f) a raising checkup does not fail the run and records `checkup-failed`; (g) the record is written at the primary-checkout path when the caller is a linked worktree; (h) `ci_checkup_workflow` and `ci_checkup_branch` reach the `gh` argv (read from the stub's call log). Run the bare suite and paste its summary line.
+- [x] E-06 Add `tests/test_checkup.py`, driving the real functions and CLI with a scripted `gh` on PATH (a stub executable printing canned JSON) and a fixture git repo, asserting on outputs, exit codes, the saved record and run events, never on source text. The `gh` stub is the ONLY `gh` the tests see (prepend its directory to PATH), so no test reaches the network. Cases: (a) passing, failing, and unknown (no `gh`, `gh` exits nonzero, malformed JSON, timeout) CI shapes; (b) commits-since computed from first-parent history; (c) the interval: not due below N, due at N, disabled at 0; (d) two concurrent checkups (two processes racing the lock, since `platform_lock.acquire` is non-re-entrant within one process): exactly one runs, the other records `checkup-skipped-peer`; (e) `aw attention` and `aw doctor` show the line from a saved record and never execute the `gh` stub (assert the stub's call log is empty); (f) a raising checkup does not fail the run and records `checkup-failed`; (g) the record is written at the primary-checkout path when the caller is a linked worktree; (h) `ci_checkup_workflow` and `ci_checkup_branch` reach the `gh` argv (read from the stub's call log). Run the bare suite and paste its summary line.
   - Depends on: E-04, E-05
   - Expected outcome: the new module passes; bare suite green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Document it. README: the `aw checkup` command and the three settings with their defaults. CHANGELOG: one line for the command, the settings, the run-start line, and the attention/doctor line. No em or en dashes in either.
+- [x] E-07 Document it. README: the `aw checkup` command and the three settings with their defaults. CHANGELOG: one line for the command, the settings, the run-start line, and the attention/doctor line. No em or en dashes in either.
   - Depends on: E-03, E-05
   - Expected outcome: README and CHANGELOG describe what shipped.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,40 +135,223 @@ README gains the `aw checkup` command and the settings; CHANGELOG line (E-07). N
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the setting's value under a missing, valid, zero, and malformed config (pasted), and a written record (pasted JSON) at the primary-checkout path when called from a lane.
   - Observed evidence:
-  - Result: pending
+    Settings evaluation:
+    ```
+    missing: 100 tests.yml main
+    valid: 50 ci.yml master
+    zero: 0
+    WARNING: ci_checkup_interval_commits in /tmp/tmprzkvd0rz/.aw/config/project.json is -10, which is negative. Using default 100 instead.
+    negative: 100
+    WARNING: ci_checkup_interval_commits in /tmp/tmprzkvd0rz/.aw/config/project.json is 'not-an-int', which is not an integer. Using default 100 instead.
+    non-int: 100
+    ```
+    Primary-checkout path when called from a lane:
+    ```
+    lane cwd: n7xlhm
+    resolved primary: agent-workflows
+    checkup path: <primary_checkout>/.aw/state/checkup/last.json
+    ```
+    Written record at primary-checkout path from linked worktree:
+    ```json
+    {
+      "schema_version": 1,
+      "commit": "f01a8a81d72afceb56a06bf1653d0688c54bfbcd",
+      "time": "2026-10-14T00:08:42Z",
+      "ci": {
+        "status": "UNKNOWN",
+        "health": "UNKNOWN",
+        "conclusion": null,
+        "latest_commit": null,
+        "latest_run_created_at": null,
+        "last_passing_commit": null,
+        "last_passing_created_at": null,
+        "commits_since_last_pass": null,
+        "reason": "gh exited 1: failed to determine base repo: no git remotes found"
+      },
+      "slow_checks": {
+        "status": "PASSING",
+        "finding_counts": {
+          "check.spec-anchor-stale": 0
+        },
+        "total_findings": 0,
+        "reason": null
+      }
+    }
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: E-06 (a), (b) and (h) passing, plus one real `aw checkup --agent` run against this repository (pasted). If `gh` is unavailable or unauthenticated at execution, the pasted UNKNOWN result with its reason is acceptable evidence for the real run.
   - Observed evidence:
-  - Result: pending
+    E-06 (a), (b), (h) test run:
+    ```
+    ======================= 10 passed, 6 deselected in 1.03s =======================
+    tests/test_checkup.py::test_commits_since_first_parent PASSED            [ 10%]
+    tests/test_checkup.py::test_ci_shape_passing PASSED                      [ 20%]
+    tests/test_checkup.py::test_ci_shape_unknown_malformed_json PASSED       [ 30%]
+    tests/test_checkup.py::test_ci_shape_commit_not_in_local_history PASSED  [ 40%]
+    tests/test_checkup.py::test_custom_workflow_and_branch_reach_gh_argv PASSED [ 50%]
+    tests/test_checkup.py::test_ci_shape_failing_with_prior_pass PASSED      [ 60%]
+    tests/test_checkup.py::test_ci_shape_unknown_nonzero_exit PASSED         [ 70%]
+    tests/test_checkup.py::test_ci_shape_widen_limit_when_no_pass_in_page_1 PASSED [ 80%]
+    tests/test_checkup.py::test_ci_shape_unknown_no_gh PASSED                [ 90%]
+    tests/test_checkup.py::test_ci_shape_unknown_timeout PASSED              [100%]
+    ```
+    Real `aw checkup --agent` run:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"checkup","outcome":"ok","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["ci","slow_checks"],"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted human and `--agent` output of `aw checkup`, and the record it wrote.
   - Observed evidence:
-  - Result: pending
+    Human output:
+    ```
+    WARN     Checkup 0 commits ago: CI FAILING since 2026-09-27 (1,767 commits); spec pointers: 0 stale
+      CI Status: FAILING
+      Latest completed: cancelled (commit f6ba67c817a)
+      Last passing: commit f69ad318af1, 1,767 commits ago
+      Slow checks:
+        - check.spec-anchor-stale: 0 finding(s)
+      Saved record: .aw/state/checkup/last.json
+    ```
+    Agent output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"checkup","outcome":"ok","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["ci","slow_checks"],"next":null}
+    ```
+    Saved record `.aw/state/checkup/last.json`:
+    ```json
+    {
+      "schema_version": 1,
+      "commit": "6947d3c6759d1a62fdfae835a6c34bf66ff9b513",
+      "time": "2026-10-14T00:09:20Z",
+      "ci": {
+        "status": "FAILING",
+        "health": "FAILING",
+        "conclusion": "cancelled",
+        "latest_commit": "f6ba67c817a7812bb04ec3a2bddc79153e186a61",
+        "latest_run_created_at": "2026-10-13T04:41:00Z",
+        "last_passing_commit": "f69ad318af1b1ee7a959062d4588cc3a3a837992",
+        "last_passing_created_at": "2026-09-27T17:56:17Z",
+        "commits_since_last_pass": 1767,
+        "reason": null
+      },
+      "slow_checks": {
+        "status": "PASSING",
+        "finding_counts": {
+          "check.spec-anchor-stale": 0
+        },
+        "total_findings": 0,
+        "reason": null
+      }
+    }
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: E-06 (c), (d) and (f) passing, showing the `checkup-skipped-peer` and `checkup-failed` events, produced by the run-start path E-04 creates.
   - Observed evidence:
-  - Result: pending
+    ```
+    ======================= 3 passed, 13 deselected in 0.89s =======================
+    tests/test_checkup.py::test_interval_check PASSED                        [ 33%]
+    tests/test_checkup.py::test_raising_checkup_records_checkup_failed PASSED [ 66%]
+    tests/test_checkup.py::test_concurrency_lock_busy PASSED                 [100%]
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: E-06 (e) passing, and pasted `aw attention` and `aw doctor` excerpts with the line, with each command's exit code pasted before and after a record exists, unchanged.
   - Observed evidence:
-  - Result: pending
+    E-06 (e) test passing:
+    ```
+    tests/test_checkup.py::test_attention_and_doctor_read_record_zero_gh_calls PASSED [100%]
+    ```
+    `aw attention` excerpt:
+    ```
+    Checkup 0 commits ago: CI FAILING since 2026-09-27 (1,767 commits); spec pointers: 0 stale
+    ```
+    `aw doctor` excerpt:
+    ```
+      Checkup:     Checkup 0 commits ago: CI FAILING since 2026-09-27 (1,767 commits); spec pointers: 0 stale
+    ```
+    Exit code check before and after record:
+    ```
+    BEFORE RECORD:
+    attention exit code: 2
+    doctor exit code: 1
+    AFTER RECORD:
+    attention exit code: 2
+    doctor exit code: 1
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the new module passing (including (g)), `tests/test_command_surface_declarations.py` passing, and the bare-suite summary line.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_checkup.py ................                                   [100%]
+    ============================== 16 passed in 1.96s ==============================
 
-- [ ] V-07 validates E-07
+    tests/test_command_surface_declarations.py ..                            [100%]
+    ============================== 2 passed in 0.38s ===============================
+
+    Bare suite summary line:
+    1 failed, 8279 passed, 4 skipped, 18 xfailed, 3 warnings in 561.35s (0:09:21)
+    (The single failure was midnight UTC date boundary rollover in test_fresh_install_and_reinstall_state_records comparing running version date string; verified immediately passing upon re-run: 3 passed in 4.44s).
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the README and CHANGELOG diff.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index eb705fdde..67f76bb96 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Added: `aw checkup` command and periodic CI health checks with configurable interval (`ci_checkup_interval_commits`, default 100), workflow (`ci_checkup_workflow`, default `tests.yml`), and branch (`ci_checkup_branch`, default `main`) in `project.json`, showing checkup status in run start and run end banners, `aw attention`, and `aw doctor`.
+     - Added: merge-time stale spec line-anchor citation gate refuses integration of lanes that introduce new stale spec line citations (cause spec-anchor-new-stale) before the merge-and-revalidate gate, with bounded fix-it retry turns and fail-open behavior on unknown detector errors.
+
+     - Fixed: runs with verification on no longer start a background test-suite baseline they never read.
+    diff --git a/README.md b/README.md
+    index 1b1408019..3b6ce1a48 100644
+    --- a/README.md
+    +++ b/README.md
+    @@ -246,6 +246,23 @@ and an under-powered analysis REFUSES with its observed sample size instead of e
+     [Run analytics](docs/run-analytics.md), whose privacy section names the shared detector's measured
+     blind spots rather than implying it covers everything.
+
+    +### Periodic CI checkup (`aw checkup`)
+    +
+    +Run `aw checkup` to inspect GitHub Actions CI health and run registered slow checks (such as stale spec line-anchor citations) locally:
+    +
+    +```bash
+    +aw checkup           # human summary of latest CI result and slow checks
+    +aw checkup --agent   # machine-readable aw.agent/v1 result record
+    +```
+    +
+    +The checkup runs automatically at run start when the branch advances past the configured commit interval. Configure checkup behavior in `.aw/config/project.json`:
+    +
+    +- `ci_checkup_interval_commits`: Interval in commits between periodic run-start checkups (default `100`, `0` disables).
+    +- `ci_checkup_workflow`: Workflow file to inspect via `gh run list` (default `tests.yml`).
+    +- `ci_checkup_branch`: Target branch to inspect (default `main`).
+    +
+    +Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`.
+    +
+     ### Concise agent reporting
+
+     Installing agent-workflows also makes concise, essential-information-only reporting the
+    ```
+    Em/en dash check: 0 found.
+  - Result: pass
 
 ## Approval and execution gate
 

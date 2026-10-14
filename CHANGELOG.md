@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `aw checkup` command and periodic CI health checks with configurable interval (`ci_checkup_interval_commits`, default 100), workflow (`ci_checkup_workflow`, default `tests.yml`), and branch (`ci_checkup_branch`, default `main`) in `project.json`, showing checkup status in run start and run end banners, `aw attention`, and `aw doctor`.
 - Added: merge-time stale spec line-anchor citation gate refuses integration of lanes that introduce new stale spec line citations (cause spec-anchor-new-stale) before the merge-and-revalidate gate, with bounded fix-it retry turns and fail-open behavior on unknown detector errors.
 
 - Fixed: runs with verification on no longer start a background test-suite baseline they never read.
