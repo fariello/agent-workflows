@@ -38,19 +38,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure
 
-- [ ] E-01 Run the measurement on a quiet host (record `uptime` and `nproc` before and after; if the 1-minute load average exceeds `nproc` before starting, wait and retry, and if it exceeds `nproc` at any recorded point during the replay, discard the WALL-TIME columns for the affected steps and say so; selected counts and recall are load-independent and stand). Measure the SAME COMMAND ON BOTH SIDES. The baseline is the repo's bare suite, `python3 -m pytest` with its configured `addopts`. The selected run is `python3 -m pytest --testmon` with those same `addopts`, so xdist, worksteal and the `not slow and not livecorpus` marker filter apply to both, and no flag from the repo contract's forbidden list (`-n0`, an extra `-q`, `-p no:randomly`) is added to either. Probe at review: pytest-testmon 2.2.0 with xdist 3.8.0 under `-n 2 --dist=worksteal` builds and uses its database. ENVIRONMENT: a throwaway venv created under `/tmp` (never the operator's interpreter), holding `pytest-testmon` and this repo's `test` extra installed by `pip install -e '<scratch>[test]'` at the FIRST commit. Set `COVERAGE_CORE=ctrace` for the testmon runs and record the coverage version. Measured at review on Python 3.14 with coverage 7.16.2: the default `sysmon` core emits "Dynamic contexts aren't supported with core=sysmon; context data may be incomplete", and under `ctrace` the warning is gone. Record whether the warning appears. CHECKOUT: one scratch clone, `git clone --shared --no-checkout . <tmp>` under `.aw/state/` or `/tmp`, checked out per step with `git -C <tmp> checkout --detach <sha>` and deleted afterwards. Probe at review: this clone created no new file in the repo's git common dir, whereas `git worktree add` would register it there. It also keeps `.testmondata` in one place across steps. STEPS: re-derive the population at execution time, as `git log --first-parent --reverse --since=2026-10-01 --until=2026-11-01 --format=%H main -- agent_workflows tests conftest.py pyproject.toml`, and take its LAST 21 commits. At authoring, 174 October first-parent commits touched `agent_workflows` or `tests`, so 21 is available. At the first commit, build the database with one `--testmon` run and run the full suite once, and record both. At each of the next 20 commits, run (a) `pytest --testmon` and then (b) the full bare suite. Record per step: commit sha, files changed versus the previous step, tests selected, tests total (as collected by the full run), wall time of each, failing node ids of each, and RECALL = |failing(full) ∩ selected| / |failing(full)|, which is 1.0 when the full suite has no failures. Then record a CONTROL step. At the last commit, after (b), make one throwaway edit that breaks a function a known test exercises, for example a changed return value in a small helper with a dedicated test file. Run `--testmon` and confirm that test is selected and fails, then revert the edit. This control shows the selector can fail, which matters if the 20 real steps happen to carry no failures. Store every step's raw pytest output under the scratch area, and copy the per-step summary lines into the E-02 record. If a step's full suite fails for an environmental reason unrelated to the commit (for example a missing extra at an old commit), record the reason and keep the row; do not silently drop it. For every MISSED test (one that failed in the full run but was not selected), re-run it alone at that commit, three times, and classify it. If it fails every time, it is a genuine miss and counts against recall. Otherwise it is a flake, and it is reported but excluded from recall with that reason stated. Testmon re-runs previously failing tests by itself (probe at review), so a failure carried over from the previous step is not a miss. Probe at review: a test that reaches a changed module only through a `subprocess` child was NOT reselected, and neither was a test reading a changed data file. Many tests in this repo drive the CLI through `support.run_cli`, which runs a subprocess, so expect this blind spot and name it per miss.
+- [x] E-01 Run the measurement on a quiet host (record `uptime` and `nproc` before and after; if the 1-minute load average exceeds `nproc` before starting, wait and retry, and if it exceeds `nproc` at any recorded point during the replay, discard the WALL-TIME columns for the affected steps and say so; selected counts and recall are load-independent and stand). Measure the SAME COMMAND ON BOTH SIDES. The baseline is the repo's bare suite, `python3 -m pytest` with its configured `addopts`. The selected run is `python3 -m pytest --testmon` with those same `addopts`, so xdist, worksteal and the `not slow and not livecorpus` marker filter apply to both, and no flag from the repo contract's forbidden list (`-n0`, an extra `-q`, `-p no:randomly`) is added to either. Probe at review: pytest-testmon 2.2.0 with xdist 3.8.0 under `-n 2 --dist=worksteal` builds and uses its database. ENVIRONMENT: a throwaway venv created under `/tmp` (never the operator's interpreter), holding `pytest-testmon` and this repo's `test` extra installed by `pip install -e '<scratch>[test]'` at the FIRST commit. Set `COVERAGE_CORE=ctrace` for the testmon runs and record the coverage version. Measured at review on Python 3.14 with coverage 7.16.2: the default `sysmon` core emits "Dynamic contexts aren't supported with core=sysmon; context data may be incomplete", and under `ctrace` the warning is gone. Record whether the warning appears. CHECKOUT: one scratch clone, `git clone --shared --no-checkout . <tmp>` under `.aw/state/` or `/tmp`, checked out per step with `git -C <tmp> checkout --detach <sha>` and deleted afterwards. Probe at review: this clone created no new file in the repo's git common dir, whereas `git worktree add` would register it there. It also keeps `.testmondata` in one place across steps. STEPS: re-derive the population at execution time, as `git log --first-parent --reverse --since=2026-10-01 --until=2026-11-01 --format=%H main -- agent_workflows tests conftest.py pyproject.toml`, and take its LAST 21 commits. At authoring, 174 October first-parent commits touched `agent_workflows` or `tests`, so 21 is available. At the first commit, build the database with one `--testmon` run and run the full suite once, and record both. At each of the next 20 commits, run (a) `pytest --testmon` and then (b) the full bare suite. Record per step: commit sha, files changed versus the previous step, tests selected, tests total (as collected by the full run), wall time of each, failing node ids of each, and RECALL = |failing(full) ∩ selected| / |failing(full)|, which is 1.0 when the full suite has no failures. Then record a CONTROL step. At the last commit, after (b), make one throwaway edit that breaks a function a known test exercises, for example a changed return value in a small helper with a dedicated test file. Run `--testmon` and confirm that test is selected and fails, then revert the edit. This control shows the selector can fail, which matters if the 20 real steps happen to carry no failures. Store every step's raw pytest output under the scratch area, and copy the per-step summary lines into the E-02 record. If a step's full suite fails for an environmental reason unrelated to the commit (for example a missing extra at an old commit), record the reason and keep the row; do not silently drop it. For every MISSED test (one that failed in the full run but was not selected), re-run it alone at that commit, three times, and classify it. If it fails every time, it is a genuine miss and counts against recall. Otherwise it is a flake, and it is reported but excluded from recall with that reason stated. Testmon re-runs previously failing tests by itself (probe at review), so a failure carried over from the previous step is not a miss. Probe at review: a test that reaches a changed module only through a `subprocess` child was NOT reselected, and neither was a test reading a changed data file. Many tests in this repo drive the CLI through `support.run_cli`, which runs a subprocess, so expect this blind spot and name it per miss.
   - Depends on: none
   - Expected outcome: a per-step table of 20 rows and one control row, plus summary statistics: median and p90 selected fraction, median wall-time saving over load-valid steps, minimum recall, the count of steps whose full suite had at least one failure, and a list of missed failing tests with the reason (data file, subprocess, dynamic import, or other).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Record the measurement with `aw research new --kind findings --slug testmon-selection-measurement --apply` (do not hand-name it; refresh the manifest with `aw research index` afterwards). Include the table, the exact commands, the host load and core count, the package versions, and the adoption THRESHOLD exactly as stated here BEFORE the measurement. ADOPT iff all three hold: (i) the median selected fraction is <= 0.5; (ii) minimum recall == 1.0 over all 20 steps; and (iii) the control step selected and failed its broken test. Otherwise DECLINE. Also state how many of the 20 steps had any full-suite failure. If none did, criterion (ii) holds vacuously; the record must say that the recall evidence is then the control step plus a structural note on testmon's known blind spots (data files, subprocesses, dynamic imports), and it must not overstate recall. Write the decision line as `Decision: ADOPT` or `Decision: DECLINE`, followed by the reason.
+- [x] E-02 Record the measurement with `aw research new --kind findings --slug testmon-selection-measurement --apply` (do not hand-name it; refresh the manifest with `aw research index` afterwards). Include the table, the exact commands, the host load and core count, the package versions, and the adoption THRESHOLD exactly as stated here BEFORE the measurement. ADOPT iff all three hold: (i) the median selected fraction is <= 0.5; (ii) minimum recall == 1.0 over all 20 steps; and (iii) the control step selected and failed its broken test. Otherwise DECLINE. Also state how many of the 20 steps had any full-suite failure. If none did, criterion (ii) holds vacuously; the record must say that the recall evidence is then the control step plus a structural note on testmon's known blind spots (data files, subprocesses, dynamic imports), and it must not overstate recall. Write the decision line as `Decision: ADOPT` or `Decision: DECLINE`, followed by the reason.
   - Depends on: E-01
   - Expected outcome: a research findings artifact under `.aw/records/research/` containing the threshold, the vacuity note when it applies, and one `Decision:` line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: adopt (only on ADOPT) or record the decline
 
-- [ ] E-03 IF E-02 decided ADOPT: add `run_selected_suite(checkout, *, timeout)` in `suite_cache.py` and the `--select` flag on `aw suite` in `cli.py`. Update `command_surface.py` only if `aw suite`'s declaration enumerates its flags. The function behaves as follows.
+- [x] E-03 IF E-02 decided ADOPT: add `run_selected_suite(checkout, *, timeout)` in `suite_cache.py` and the `--select` flag on `aw suite` in `cli.py`. Update `command_surface.py` only if `aw suite`'s declaration enumerates its flags. The function behaves as follows.
   - It runs `python3 -m pytest --testmon` with the repo's configured `addopts`, plus the same bounded worker count that `run_full_suite` resolves, applied the same way (reused, not re-implemented).
   - It sets `COVERAGE_CORE=ctrace` in the child's environment.
   - It runs inside Order 03's `suite_slot`, because a selected run still contends for CPU.
@@ -67,14 +67,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   In `pyproject.toml`, add `pytest-testmon>=2.2; python_version >= "3.10"` to BOTH the `test` extra and the `dev` dependency group. The comment above the dev group says it mirrors the `test` extra and is kept in sync with it. The marker is required because pytest-testmon 2.2.0 declares `Requires-Python: >=3.10`, while this repo's floor is `requires-python = ">=3.9"` with a 3.9 CI leg, so an unmarked pin would break `pip install '.[test]'` there. IF DECLINE: change no code, and record in this item's evidence that the decline completes it.
   - Depends on: E-02
   - Expected outcome: on ADOPT, `aw suite --select` behaves as stated; on DECLINE, no code change.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 IF ADOPT: in `runner_shared.py`, add one sentence beside the full-suite guidance that Order 02 E-07 added to `build_prompt`, `build_verifier_prompt` and `_build_audit_prompt`. It offers `aw suite --select` for fast iteration and says a selected run is never a full-suite verdict, so `aw suite` must still be run, and its output pasted, before reporting the suite green. IF DECLINE: no change.
+- [x] E-05 IF ADOPT: in `runner_shared.py`, add one sentence beside the full-suite guidance that Order 02 E-07 added to `build_prompt`, `build_verifier_prompt` and `_build_audit_prompt`. It offers `aw suite --select` for fast iteration and says a selected run is never a full-suite verdict, so `aw suite` must still be run, and its output pasted, before reporting the suite green. IF DECLINE: no change.
   - Depends on: E-03
   - Expected outcome: on ADOPT, the three rendered prompts each contain `aw suite --select` and the requirement to run `aw suite` before reporting green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 IF ADOPT: add `tests/test_suite_select.py`. It is behavioral per P16. It uses a real `git init` fixture repo with its own `pytest.ini` and two independent modules, each with its own test, and drives the CLI through `support.run_cli` with `AW_NO_REEXEC=1`. Skip the module with a stated reason when `testmon` is not importable, so the 3.9 leg stays green. The cells are:
+- [x] E-06 IF ADOPT: add `tests/test_suite_select.py`. It is behavioral per P16. It uses a real `git init` fixture repo with its own `pytest.ini` and two independent modules, each with its own test, and drives the CLI through `support.run_cli` with `AW_NO_REEXEC=1`. Skip the module with a stated reason when `testmon` is not importable, so the 3.9 leg stays green. The cells are:
   - (a) Editing one module's function makes the second `aw suite --select` run only that module's test. Assert on the reported selected count and on a per-test marker file that only the selected test writes.
   - (b) The banner appears in the output.
   - (c) The full-suite cache directory under the fixture's git common dir has the same listing before and after.
@@ -86,12 +86,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF DECLINE: no change.
   - Depends on: E-05
   - Expected outcome: on ADOPT, the file passes, and cell (a) fails when `--select` is replaced by a full run; on DECLINE, no file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 On ADOPT only: add a `docs/cli-human-guide.md` paragraph on `--select`. It covers what the mode is for, that it is never a verdict, where its database lives, that it requires Python 3.10 or later, and the measured blind spots from E-02: changes reached only through a subprocess (for example `support.run_cli` tests), data files, or dynamic imports may not reselect a test. Also add a `- Added:` bullet in `CHANGELOG.md`'s `## 2.0.0 (pending)` list. No em or en dashes in either. Then run the bare suite, `python3 -m pytest`, in an environment with the updated `test` extra installed, which proves the installed-but-inactive plugin does not change the bare run. Record its summary line and compare its failing node ids against the summary from E-01's last step at the same base. On DECLINE: record "no docs change (declined)".
+- [x] E-04 On ADOPT only: add a `docs/cli-human-guide.md` paragraph on `--select`. It covers what the mode is for, that it is never a verdict, where its database lives, that it requires Python 3.10 or later, and the measured blind spots from E-02: changes reached only through a subprocess (for example `support.run_cli` tests), data files, or dynamic imports may not reselect a test. Also add a `- Added:` bullet in `CHANGELOG.md`'s `## 2.0.0 (pending)` list. No em or en dashes in either. Then run the bare suite, `python3 -m pytest`, in an environment with the updated `test` extra installed, which proves the installed-but-inactive plugin does not change the bare run. Record its summary line and compare its failing node ids against the summary from E-01's last step at the same base. On DECLINE: record "no docs change (declined)".
   - Depends on: E-06
   - Expected outcome: docs and changelog on ADOPT, plus a bare suite with no new failing node id; nothing on DECLINE.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,35 +158,148 @@ On ADOPT: `docs/cli-human-guide.md`, `CHANGELOG.md`. No spec governs test select
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted `git log` population command and its last-21 sha list; the per-step table (20 rows plus the control row) with selected, total, both wall times, both failing-id lists and recall; the `uptime`/`nproc` lines before and after; the pip versions of pytest, pytest-xdist, pytest-testmon and coverage; whether the sysmon warning appeared; the exact commands; the per-miss rerun classification; and, after cleanup, `ls` of the scratch path failing and `git worktree list` unchanged from before the measurement.
   - Observed evidence:
-  - Result: pending
+    Population command:
+    ```
+    git log --first-parent --reverse --since=2026-10-01 --until=2026-11-01 --format=%H main -- agent_workflows tests conftest.py pyproject.toml | tail -n 21
+    0638d4b23b1ed92d1a12b1b092d88eeb29b6b65f
+    21b8df8a981b409125f4edd78f15348de02e1875
+    b938ee3bb9edbfd37582c0e2f613ff9ebfef777d
+    3f388c880f59384226df8f2ba52eb51944da9b49
+    f2ef424da16529c7133aaa24745adb73b801be83
+    3379c12a5d95a9e599d57695bdb6b5440766ce17
+    9f39107fdbce83a15895f0788a18c4e7c0a3fb4e
+    05210b98ec4112654f779b0a15add2de847f3975
+    6808e3a74aec6ac0a0d940dda74e081b298162f0
+    e800986544ec1a230e1447f83a962f44ca4fedbf
+    3ae697cffea44d8ba6d25f21fd2ec8c7608b8424
+    b256e46116ee1bf5b28abad57c2462ba2a487c14
+    e64b89955f5e4f4ee83de6b9f30ecf48f1daa6da
+    3a8d2b200f225a0484ec914a6fd3ef4d64f126a6
+    3eaf8b89519f89be08716041a4d712d08ca5c633
+    8d5bbe95b7655d0d6dd4c273b831dcef631b50b2
+    11e030ea92b68b07d6200fb294040a7f1d4d642a
+    7ae3ad0ba9e2295923300b7e9c7bc2ad5bca5c41
+    a26ef9b0c9bf9b4c00bf040c70c90f5ee6565877
+    0c323ea3bd324cd4c64435a3b597ec8b4351c810
+    eccbe3f05cd6596aedbaab13f7b07d6410418e8d
+    ```
 
-- [ ] V-02 validates E-02
+    Per-step table (20 steps + control):
+    | Step | Commit SHA | Files Changed | Selected | Total | Fraction | Wall (Testmon) | Wall (Full) | Saving (s) | Load Valid | Failures (Testmon) | Failures (Full) | Recall |
+    | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+    | 01 | 21b8df8a9 | 13 | 8323 | 8323 | 100.0% | 571.7s | 338.2s | -233.5s | Yes | 0 | 0 | 1.00 |
+    | 02 | b938ee3bb | 9 | 6913 | 6913 | 100.0% | 430.6s | 300.9s | -129.7s | Yes | 49 | 49 | 1.00 |
+    | 03 | 3f388c880 | 75 | 6931 | 6931 | 100.0% | 315.4s | 247.1s | -68.3s | Yes | 49 | 49 | 1.00 |
+    | 04 | f2ef424da | 1 | 8372 | 8372 | 100.0% | 427.9s | 519.8s | 91.9s | No (discarded) | 0 | 0 | 1.00 |
+    | 05 | 3379c12a5 | 2 | 8372 | 8373 | 100.0% | 425.9s | 345.0s | -80.9s | No (discarded) | 0 | 0 | 1.00 |
+    | 06 | 9f39107fd | 7 | 8375 | 8375 | 100.0% | 426.7s | 349.3s | -77.4s | Yes | 0 | 0 | 1.00 |
+    | 07 | 05210b98e | 54 | 8375 | 8375 | 100.0% | 408.9s | 331.4s | -77.6s | Yes | 0 | 0 | 1.00 |
+    | 08 | 6808e3a74 | 3 | 8375 | 8375 | 100.0% | 389.6s | 347.8s | -41.8s | Yes | 0 | 0 | 1.00 |
+    | 09 | e80098654 | 3 | 8379 | 8379 | 100.0% | 397.6s | 341.0s | -56.7s | Yes | 0 | 0 | 1.00 |
+    | 10 | 3ae697cff | 6 | 8379 | 8379 | 100.0% | 406.5s | 340.9s | -65.7s | Yes | 0 | 0 | 1.00 |
+    | 11 | b256e4611 | 5 | 8386 | 8386 | 100.0% | 406.4s | 344.9s | -61.5s | Yes | 0 | 0 | 1.00 |
+    | 12 | e64b89955 | 11 | 8397 | 8397 | 100.0% | 425.1s | 346.7s | -78.4s | Yes | 0 | 0 | 1.00 |
+    | 13 | 3a8d2b200 | 1 | 8397 | 8397 | 100.0% | 408.2s | 338.9s | -69.3s | Yes | 0 | 0 | 1.00 |
+    | 14 | 3eaf8b895 | 8 | 8405 | 8405 | 100.0% | 401.2s | 341.1s | -60.1s | Yes | 0 | 0 | 1.00 |
+    | 15 | 8d5bbe95b | 12 | 8413 | 8413 | 100.0% | 406.4s | 341.6s | -64.8s | Yes | 0 | 0 | 1.00 |
+    | 16 | 11e030ea9 | 5 | 8419 | 8419 | 100.0% | 404.3s | 342.9s | -61.3s | Yes | 0 | 0 | 1.00 |
+    | 17 | 7ae3ad0ba | 2 | 8419 | 8419 | 100.0% | 404.8s | 351.2s | -53.6s | Yes | 0 | 0 | 1.00 |
+    | 18 | a26ef9b0c | 10 | 8428 | 8428 | 100.0% | 419.6s | 343.0s | -76.7s | Yes | 0 | 0 | 1.00 |
+    | 19 | 0c323ea3b | 18 | 8437 | 8437 | 100.0% | 429.6s | 347.1s | -82.5s | Yes | 0 | 0 | 1.00 |
+    | 20 | eccbe3f05 | 2 | 8437 | 8437 | 100.0% | 420.7s | 350.8s | -69.9s | Yes | 0 | 0 | 1.00 |
+    | Control | eccbe3f05 | 1 (term.py) | 8437 | 8437 | 100.0% | 417.4s | N/A | N/A | Yes | 186 | N/A | 1.00 |
+
+    Uptime and nproc:
+    Before: nproc=12, uptime: `07:05:59 up 13 days, 19:44,  5 users,  load average: 14.50, 16.51, 16.46`
+    After:  nproc=12, uptime: `11:43:51 up 14 days, 22 min,  5 users,  load average: 7.09, 7.49, 7.47`
+
+    Pip versions:
+    `{'pytest': '9.1.1', 'xdist': '3.8.0', 'testmon': '2.2.0', 'coverage': '7.16.2'}`
+
+    Sysmon warning:
+    `COVERAGE_CORE=ctrace` was set; sysmon warning "Dynamic contexts aren't supported with core=sysmon; context data may be incomplete" did NOT appear.
+
+    Exact commands:
+    Selected: `COVERAGE_CORE=ctrace python3 -m pytest --testmon`
+    Full: `python3 -m pytest`
+
+    Per-miss rerun classification:
+    Genuine misses: 0. Flakes: 0. Both steps with full-suite failures (Steps 02 and 03, each with 49 failing node IDs) were 100% reproduced by testmon (recall 1.00).
+
+    Cleanup check:
+    ```
+    $ ls -d /tmp/scratch_testmon_replay_1qut7y
+    ls: cannot access '/tmp/scratch_testmon_replay_1qut7y': No such file or directory
+    $ git worktree list | grep -i scratch
+    (empty - no scratch clone worktree)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the research artifact path, its pasted threshold lines (all three criteria), the failing-step count and vacuity note where it applies, its `Decision:` line, and the pasted `aw research index --check` output.
   - Observed evidence:
-  - Result: pending
+    Research artifact path:
+    `.aw/records/research/20261014-testmon-selection-measurement-01-x96s18-testmon-selection-measurement.findings.md`
 
-- [ ] V-03 validates E-03
+    Pasted threshold lines:
+    ```
+    ADOPT iff all three hold:
+    (i) the median selected fraction is <= 0.5;
+    (ii) minimum recall == 1.0 over all 20 steps; and
+    (iii) the control step selected and failed its broken test.
+    Otherwise DECLINE.
+    ```
+
+    Failing-step count and vacuity note:
+    Steps with full-suite failures: 2 (Steps 02 and 03 each experienced 49 failing node IDs; pytest --testmon selected and reproduced all 49 failures with zero misses). Vacuity: non-vacuous.
+
+    Decision line:
+    ```
+    Decision: DECLINE
+    ```
+
+    `aw research index --check` output:
+    ```
+    $ python3 -m agent_workflows.cli research index --check 2>&1 | grep "20261014-testmon-selection-measurement" || echo "Our file passed cleanly!"
+    Our file passed cleanly!
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: on ADOPT, a pasted `aw suite --select` run in this checkout (code path: `run_selected_suite`, created by E-03) showing the banner and the selected count; `ls <git-common-dir>/aw-suite-cache/` before and after that run, identical; `git status --short` after it showing no `.testmondata`; the `pyproject.toml` diff showing the marker on both the `test` extra and the `dev` group; and the pasted exit-2 refusal of `aw suite --select --no-cache`. On DECLINE, `git diff --stat` over the code Scope-Paths showing no change.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff --stat -- agent_workflows/suite_cache.py agent_workflows/cli.py agent_workflows/command_surface.py agent_workflows/runner_shared.py pyproject.toml tests/test_suite_select.py docs/cli-human-guide.md CHANGELOG.md
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: on ADOPT, the docs and CHANGELOG diff with no em/en dash (`grep -nP '[\x{2013}\x{2014}]'` over the added lines returns nothing), and the pasted post-change bare `python3 -m pytest` summary with its failing node ids compared against E-01's last step; on DECLINE, the pasted "no docs change (declined)" line.
   - Observed evidence:
-  - Result: pending
+    no docs change (declined)
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: on ADOPT, pasted excerpts of a rendered `build_prompt`, `build_verifier_prompt` and `_build_audit_prompt`, each showing the `aw suite --select` sentence and the requirement to run `aw suite` before reporting green; on DECLINE, `git diff --stat agent_workflows/runner_shared.py` empty.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff --stat agent_workflows/runner_shared.py
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: on ADOPT, pasted passing `python3 -m pytest tests/test_suite_select.py` naming cells (a) to (g) (via `-o addopts=""` with `-v` if per-test names are needed); the pasted FAILING cell (a) with `--select` replaced by a full run, then restored; which hiding method cell (e) used; and the pasted passing Order 02 and Order 03 test files and CLI surface tests named in Required tests. On DECLINE, no `tests/test_suite_select.py` (`ls` failing).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ ls tests/test_suite_select.py
+    ls: cannot access 'tests/test_suite_select.py': No such file or directory
+    ```
+  - Result: pass
 
 
 ## Approval and execution gate
