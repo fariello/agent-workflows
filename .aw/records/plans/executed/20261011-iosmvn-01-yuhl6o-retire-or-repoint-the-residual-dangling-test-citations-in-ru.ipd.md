@@ -6,7 +6,7 @@
 - Scope: IN: comment and docstring prose in `agent_workflows/runner_shared.py` only, at the 41 sites in Findings. Each site is dispositioned one of: REPOINT (a live test at HEAD asserts the same property; cite it), RETIRE-PIN (the deleted test read source or pinned structure; state that it was deleted in `19313eed` and will not return under `GUIDING_PRINCIPLES` P16), or RETIRE-UNGUARDED (the deleted test was behavioral and no live test asserts the property; state that it was deleted in `19313eed` and that no live guard currently asserts it). The design reasoning each comment carries is preserved. OUT: any executable change; restoring any test; the sites owned by other plans (`046nys`/`dtelfb`, `3tov52`/`65d5zf`, `yf1p8y`, executed `rcp8c4`), excluded by the measurement regex; filing backlog for unguarded properties (Order 04 `ellenm`).
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261011-iosmvn-01-yuhl6o-retire-or-repoint-the-residual-dangling-test-citations-in-ru.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: yuhl6o
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yuhl6o verified (set iosmvn, attempt 1).
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed.
 
