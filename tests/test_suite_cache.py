@@ -394,13 +394,24 @@ def test_collection_error_and_corrupt_or_expired_records(tmp_path: Path) -> None
 
     # Read-only cache dir fails open with one stderr note without failing the suite
     corrupt_path.unlink()
-    cache_dir.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    if os.name == "nt":
+        import shutil
+
+        shutil.rmtree(cache_dir)
+        cache_dir.write_text("not a directory", encoding="utf-8")
+    else:
+        cache_dir.chmod(stat.S_IRUSR | stat.S_IXUSR)
     try:
         ro_res = _run_aw_suite(repo, "--no-cache", "--agent")
         assert ro_res.returncode == 0
         assert "aw suite: cache write skipped" in ro_res.stderr
     finally:
-        cache_dir.chmod(stat.S_IRWXU)
+        if os.name == "nt":
+            if cache_dir.is_file():
+                cache_dir.unlink()
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            cache_dir.chmod(stat.S_IRWXU)
 
 
 def test_narrowed_selection_refused(tmp_path: Path) -> None:

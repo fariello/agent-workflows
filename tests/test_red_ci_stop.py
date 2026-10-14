@@ -12,7 +12,6 @@ import contextlib
 import io
 import json
 from pathlib import Path
-import stat
 import subprocess
 from typing import Any
 
@@ -101,9 +100,11 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def _make_fake_host(tmp_path: Path) -> tuple[Path, Path]:
+    from tests.support import make_fake_executable
+
     spawn_log = tmp_path / "spawned_agents.jsonl"
-    host_bin = tmp_path / "fake-host-agent"
-    host_bin.write_text(
+    host_bin = make_fake_executable(
+        tmp_path / "fake-host-agent",
         f"""#!/usr/bin/env python3
 import json
 import sys
@@ -115,9 +116,7 @@ with log_path.open("a", encoding="utf-8") as fh:
 print(json.dumps({{"type": "session", "sessionID": "ses-scripted-1", "session_id": "ses-scripted-1"}}))
 sys.exit(0)
 """,
-        encoding="utf-8",
     )
-    host_bin.chmod(host_bin.stat().st_mode | stat.S_IEXEC)
     return host_bin, spawn_log
 
 

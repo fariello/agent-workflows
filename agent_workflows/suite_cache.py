@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import datetime
 import hashlib
+import importlib
 import importlib.metadata
 import json
 import os
@@ -723,7 +724,7 @@ def pytest_configure(config: Any) -> None:
 
 
 try:
-    import pytest as _pytest_mod
+    _pytest_mod: Any = importlib.import_module("pytest")
 
     @_pytest_mod.hookimpl(optionalhook=True)
     def pytest_xdist_setupnodes(config: Any, specs: Sequence[Any]) -> None:
@@ -806,45 +807,89 @@ def _run_streaming_subprocess(
     deadline = time.monotonic() + float(timeout)
     timed_out = False
 
-    sel = selectors.DefaultSelector()
-    try:
-        if proc.stdout is not None:
-            sel.register(proc.stdout, selectors.EVENT_READ, data="stdout")
-        if proc.stderr is not None:
-            sel.register(proc.stderr, selectors.EVENT_READ, data="stderr")
+    if os.name == "nt":
+        import threading
 
-        while sel.get_map():
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                timed_out = True
-                with contextlib.suppress(Exception):
-                    proc.kill()
-                break
-            events = sel.select(timeout=min(0.25, remaining))
-            if not events:
-                if proc.poll() is not None and not sel.select(timeout=0.0):
+        def _drain(stream_obj: Any, buf: bytearray, out_buf: Any) -> None:
+            try:
+                while True:
+                    chunk = stream_obj.read(8192)
+                    if not chunk:
+                        break
+                    out_buf.write(chunk)
+                    out_buf.flush()
+                    if len(buf) < max_output_bytes:
+                        take = max_output_bytes - len(buf)
+                        buf.extend(chunk[:take])
+            except Exception:  # noqa: BLE001
+                pass
+
+        threads: List[threading.Thread] = []
+        if proc.stdout is not None:
+            t_out = threading.Thread(
+                target=_drain,
+                args=(proc.stdout, stdout_buf, sys.stdout.buffer),
+                daemon=True,
+            )
+            t_out.start()
+            threads.append(t_out)
+        if proc.stderr is not None:
+            t_err = threading.Thread(
+                target=_drain,
+                args=(proc.stderr, stderr_buf, sys.stderr.buffer),
+                daemon=True,
+            )
+            t_err.start()
+            threads.append(t_err)
+
+        try:
+            proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            with contextlib.suppress(Exception):
+                proc.kill()
+        for t in threads:
+            t.join(timeout=2.0)
+    else:
+        sel = selectors.DefaultSelector()
+        try:
+            if proc.stdout is not None:
+                sel.register(proc.stdout, selectors.EVENT_READ, data="stdout")
+            if proc.stderr is not None:
+                sel.register(proc.stderr, selectors.EVENT_READ, data="stderr")
+
+            while sel.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    with contextlib.suppress(Exception):
+                        proc.kill()
                     break
-                continue
-            for key, _mask in events:
-                stream_obj = key.fileobj
-                chunk = os.read(stream_obj.fileno(), 8192)  # type: ignore[union-attr]
-                if not chunk:
-                    sel.unregister(stream_obj)
+                events = sel.select(timeout=min(0.25, remaining))
+                if not events:
+                    if proc.poll() is not None and not sel.select(timeout=0.0):
+                        break
                     continue
-                if key.data == "stdout":
-                    sys.stdout.buffer.write(chunk)
-                    sys.stdout.buffer.flush()
-                    if len(stdout_buf) < max_output_bytes:
-                        take = max_output_bytes - len(stdout_buf)
-                        stdout_buf.extend(chunk[:take])
-                else:
-                    sys.stderr.buffer.write(chunk)
-                    sys.stderr.buffer.flush()
-                    if len(stderr_buf) < max_output_bytes:
-                        take = max_output_bytes - len(stderr_buf)
-                        stderr_buf.extend(chunk[:take])
-    finally:
-        sel.close()
+                for key, _mask in events:
+                    stream_obj = key.fileobj
+                    chunk = os.read(stream_obj.fileno(), 8192)  # type: ignore[union-attr]
+                    if not chunk:
+                        sel.unregister(stream_obj)
+                        continue
+                    if key.data == "stdout":
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+                        if len(stdout_buf) < max_output_bytes:
+                            take = max_output_bytes - len(stdout_buf)
+                            stdout_buf.extend(chunk[:take])
+                    else:
+                        sys.stderr.buffer.write(chunk)
+                        sys.stderr.buffer.flush()
+                        if len(stderr_buf) < max_output_bytes:
+                            take = max_output_bytes - len(stderr_buf)
+                            stderr_buf.extend(chunk[:take])
+        finally:
+            sel.close()
 
     if timed_out:
         with contextlib.suppress(Exception):
