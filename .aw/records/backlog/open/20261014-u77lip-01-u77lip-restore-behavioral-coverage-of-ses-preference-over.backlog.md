@@ -1,0 +1,11 @@
+- Id: u77lip
+- Status: open
+- Set: u77lip
+- Priority: low
+- Work-Kind: chore
+- Summary: Restore behavioral coverage of ses_ preference over earlier conversation_id hit in extract_session_id lost with tests/test_rununify_conflicts.py
+
+## Workflow history
+- 2026-10-14 created (aw backlog): Restore behavioral coverage of ses_ preference over earlier conversation_id hit in extract_session_id lost with tests/test_rununify_conflicts.py
+
+Deleted file: tests/test_rununify_conflicts.py; property: ses_ preference over earlier conversation_id hit in extract_session_id; child plan and site ids: yuhl6o S-25; 9rthek S-12; only behavioral outcomes may be restored, never a source-reading pin (P16).
