@@ -31,9 +31,26 @@ import subprocess
 import sys
 import tempfile
 import time
+import secrets
+import socket
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
+
+from agent_workflows import platform_lock
+from agent_workflows.runner_shared import INTEGRATION_LOCK_PROGRESS_SECONDS
 
 SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
 
@@ -46,6 +63,15 @@ SUITE_OUTPUT_MAX_BYTES: int = 512_000
 CACHE_MAX_AGE_SECONDS: int = 14 * 24 * 60 * 60
 
 SUITE_REFUSAL_MESSAGE: str = "aw suite runs the FULL suite only; run a narrowed selection with plain python3 -m pytest"
+
+AW_SUITE_LOCK_DIR_ENV: str = "AW_SUITE_LOCK_DIR"
+AW_SUITE_SLOT_TIMEOUT_ENV: str = "AW_SUITE_SLOT_TIMEOUT"
+DEFAULT_AW_SUITE_SLOT_TIMEOUT: float = 3600.0
+AW_SUITE_SLOT_HELD_ENV: str = "AW_SUITE_SLOT_HELD"
+AW_SUITE_HEARTBEAT_SECONDS_ENV: str = "AW_SUITE_HEARTBEAT_SECONDS"
+DEFAULT_AW_SUITE_HEARTBEAT_SECONDS: float = 60.0
+
+_HEARTBEAT_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 SUITE_KEY_ENV_VARS: Tuple[str, ...] = (
     "AW_EXECUTION_ROLE",
@@ -143,6 +169,34 @@ class SuiteKey:
 
 
 @dataclass(frozen=True)
+class SlotOutcome:
+    """Outcome of attempting to acquire a machine-wide test-suite slot (IPD xvm6no)."""
+
+    slot_acquired: bool = False
+    waited_seconds: float = 0.0
+    slot_index: Optional[int] = None
+    timeout_seconds: float = 0.0
+    acquired: Optional[bool] = None
+
+    def __post_init__(self) -> None:
+        if self.acquired is not None and not self.slot_acquired:
+            object.__setattr__(self, "slot_acquired", bool(self.acquired))
+        elif self.slot_acquired and self.acquired is None:
+            object.__setattr__(self, "acquired", bool(self.slot_acquired))
+        elif self.acquired is None:
+            object.__setattr__(self, "acquired", False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "slot_acquired": bool(self.slot_acquired),
+            "acquired": bool(self.slot_acquired),
+            "waited_seconds": round(float(self.waited_seconds), 3),
+            "slot_index": self.slot_index,
+            "timeout_seconds": round(float(self.timeout_seconds), 3),
+        }
+
+
+@dataclass(frozen=True)
 class SuiteRunResult:
     """Structured outcome of `run_full_suite`."""
 
@@ -161,6 +215,7 @@ class SuiteRunResult:
     notice: str = ""
     stdout: str = ""
     stderr: str = ""
+    slot: Optional[Dict[str, Any]] = None
 
     @property
     def passing(self) -> bool:
@@ -175,7 +230,7 @@ class SuiteRunResult:
         return int(round(self.duration_seconds * 1000))
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "passed": bool(self.passed),
             "exit_code": int(self.exit_code),
             "returncode": int(self.exit_code),
@@ -191,6 +246,9 @@ class SuiteRunResult:
             "confirmed": bool(self.confirmed),
             "reason": str(self.reason),
         }
+        if self.slot is not None:
+            d["slot"] = dict(self.slot)
+        return d
 
 
 def _normalize_argv_after_interpreter(argv: Sequence[str]) -> List[str]:
@@ -738,6 +796,333 @@ except Exception:  # noqa: BLE001
     pass
 
 
+def resolve_suite_slot_timeout(env: Optional[Mapping[str, str]] = None) -> float:
+    """Resolve `AW_SUITE_SLOT_TIMEOUT` (default 3600.0s), warning on non-positive or malformed values (E-02)."""
+    source = os.environ if env is None else env
+    raw = source.get(AW_SUITE_SLOT_TIMEOUT_ENV)
+    if raw is None or not str(raw).strip():
+        return DEFAULT_AW_SUITE_SLOT_TIMEOUT
+    try:
+        val = float(str(raw).strip())
+        if val > 0:
+            return val
+    except ValueError:
+        pass
+    print(
+        f"aw suite: invalid {AW_SUITE_SLOT_TIMEOUT_ENV}={raw!r}; falling back to default {DEFAULT_AW_SUITE_SLOT_TIMEOUT:.0f}s",
+        file=sys.stderr,
+    )
+    return DEFAULT_AW_SUITE_SLOT_TIMEOUT
+
+
+def resolve_suite_heartbeat_interval(
+    env: Optional[Mapping[str, str]] = None,
+) -> float:
+    """Resolve heartbeat interval min(60.0, AW_SUITE_HEARTBEAT_SECONDS) (E-04)."""
+    source = os.environ if env is None else env
+    raw = source.get(AW_SUITE_HEARTBEAT_SECONDS_ENV)
+    if raw is None or not str(raw).strip():
+        return DEFAULT_AW_SUITE_HEARTBEAT_SECONDS
+    try:
+        val = float(str(raw).strip())
+        if val > 0:
+            return min(DEFAULT_AW_SUITE_HEARTBEAT_SECONDS, val)
+    except ValueError:
+        pass
+    return DEFAULT_AW_SUITE_HEARTBEAT_SECONDS
+
+
+def resolve_suite_lock_dir(
+    env: Optional[Mapping[str, str]] = None,
+) -> Tuple[Optional[Path], Optional[str]]:
+    """Resolve machine-wide, per-user lock directory and verify secure ownership/permissions (E-02).
+
+    Returns (dir_path, refusal_reason). Refusal occurs if directory already exists and is
+    owned by another uid or writable by group/other.
+    """
+    source = os.environ if env is None else env
+    custom_dir = source.get(AW_SUITE_LOCK_DIR_ENV)
+    if custom_dir and str(custom_dir).strip():
+        dir_path = Path(str(custom_dir).strip())
+    elif source.get("XDG_RUNTIME_DIR") and str(source.get("XDG_RUNTIME_DIR")).strip():
+        dir_path = Path(str(source["XDG_RUNTIME_DIR"]).strip()) / "agent-workflows"
+    else:
+        if hasattr(os, "getuid"):
+            user_str = str(os.getuid())
+        else:
+            import getpass
+
+            user_str = str(getpass.getuser())
+        dir_path = Path(tempfile.gettempdir()) / f"agent-workflows-{user_str}"
+
+    try:
+        if not dir_path.exists():
+            dir_path.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if hasattr(os, "chmod") and os.name != "nt":
+                with contextlib.suppress(OSError):
+                    os.chmod(dir_path, 0o700)
+        st = dir_path.stat()
+        if hasattr(os, "getuid") and st.st_uid != os.getuid():
+            return (
+                None,
+                f"aw suite: lock directory {dir_path} owned by uid {st.st_uid} (expected {os.getuid()}); running without a slot",
+            )
+        if os.name != "nt" and (st.st_mode & 0o022) != 0:
+            return (
+                None,
+                f"aw suite: lock directory {dir_path} writable by group/other (mode {oct(st.st_mode)}); running without a slot",
+            )
+    except OSError as exc:
+        return (
+            None,
+            f"aw suite: cannot access lock directory {dir_path} ({exc}); running without a slot",
+        )
+
+    return dir_path, None
+
+
+def heartbeat_path(
+    run_id: Optional[str],
+    item_id6: Optional[str],
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> Optional[Path]:
+    """Return the machine-wide heartbeat path for (run_id, item_id6), or None if invalid (E-04)."""
+    if not run_id or not item_id6:
+        return None
+    r_str = str(run_id).strip()
+    i_str = str(item_id6).strip()
+    if not _HEARTBEAT_ID_RE.match(r_str) or not _HEARTBEAT_ID_RE.match(i_str):
+        return None
+    dir_path, refusal = resolve_suite_lock_dir(env)
+    if dir_path is None:
+        return None
+    return dir_path / f"heartbeat-{r_str}-{i_str}"
+
+
+def touch_heartbeat(
+    run_id: Optional[str] = None,
+    item_id6: Optional[str] = None,
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> None:
+    """Touch the heartbeat file for (run_id, item_id6), creating it if absent (E-04)."""
+    source = os.environ if env is None else env
+    r_str = run_id if run_id is not None else source.get("AW_RUN_ID")
+    i_str = item_id6 if item_id6 is not None else source.get("AW_ITEM_ID6")
+    if not r_str or not i_str:
+        return
+    p = heartbeat_path(r_str, i_str, env=source)
+    if p is None:
+        return
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if not p.exists():
+            p.touch()
+        else:
+            now_t = time.time()
+            os.utime(p, (now_t, now_t))
+    except OSError:
+        pass
+
+
+def remove_heartbeat_file(
+    run_id: Optional[str],
+    item_id6: Optional[str],
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> None:
+    """Remove the heartbeat file for (run_id, item_id6) if present (fail-safe, E-04/E-05)."""
+    if not run_id or not item_id6:
+        return
+    try:
+        p = heartbeat_path(run_id, item_id6, env=env)
+        if p is not None and p.is_file():
+            p.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _run_suite_heartbeat_loop(
+    stop_event: threading.Event,
+    interval: float,
+    env: Optional[Mapping[str, str]] = None,
+) -> None:
+    while not stop_event.wait(interval):
+        touch_heartbeat(env=env)
+
+
+@contextlib.contextmanager
+def suite_slot(
+    *,
+    checkout: Optional[Union[str, Path]] = None,
+    progress: Optional[Callable[[str], None]] = None,
+    heartbeat: Optional[Callable[[], None]] = None,
+    env: Optional[Mapping[str, str]] = None,
+    poll_interval: float = 1.0,
+    timeout: Optional[float] = None,
+    sleep: Optional[Callable[[float], None]] = None,
+    now: Optional[Callable[[], float]] = None,
+) -> Iterator[SlotOutcome]:
+    """Acquire one machine-wide test-suite slot for the duration of the context (E-02).
+
+    - N lock files suite-slot-<k>.lock under a machine-wide, per-user directory.
+    - Bounded loud wait: prints progress immediately on first busy poll and every 60s.
+    - Touches heartbeat on every poll.
+    - Nested guard (E-03): no-op when AW_SUITE_SLOT_HELD is set.
+    - On timeout expiry: runs anyway with loud warning and acquired=False.
+    """
+    source = os.environ if env is None else env
+    _now = now if now is not None else time.monotonic
+    _sleep = sleep if sleep is not None else time.sleep
+
+    active_poll = poll_interval
+    if "AW_SUITE_SLOT_POLL_INTERVAL" in source:
+        try:
+            active_poll = float(source["AW_SUITE_SLOT_POLL_INTERVAL"])
+        except ValueError:
+            pass
+
+    if source.get(AW_SUITE_SLOT_HELD_ENV) == "1":
+        yield SlotOutcome(acquired=True, waited_seconds=0.0, slot_index=None)
+        return
+
+    lock_dir, refusal = resolve_suite_lock_dir(source)
+    if lock_dir is None:
+        if refusal:
+            print(refusal, file=sys.stderr)
+        yield SlotOutcome(acquired=False, waited_seconds=0.0, slot_index=None)
+        return
+
+    _say = (
+        progress
+        if progress is not None
+        else (lambda msg: (sys.stderr.write(f"{msg}\n"), sys.stderr.flush()))
+    )
+    _heartbeat = (
+        heartbeat if heartbeat is not None else (lambda: touch_heartbeat(env=source))
+    )
+
+    N = resolve_suite_slots(source)
+    max_wait = (
+        float(timeout) if timeout is not None else resolve_suite_slot_timeout(source)
+    )
+
+    started = _now()
+    first_busy = True
+    last_reported = started
+    checkout_path = (
+        Path(checkout).resolve() if checkout is not None else Path.cwd().resolve()
+    )
+
+    while True:
+        acquired_slot: Optional[int] = None
+        handle: Optional[platform_lock.LockHandle] = None
+
+        for k in range(N):
+            lock_path = lock_dir / f"suite-slot-{k}.lock"
+            try:
+                handle = platform_lock.acquire(lock_path, blocking=False)
+                acquired_slot = k
+                break
+            except platform_lock.LockBusy:
+                continue
+            except Exception as exc:
+                print(
+                    f"aw suite: lock acquisition failed ({exc}); running without a slot",
+                    file=sys.stderr,
+                )
+                yield SlotOutcome(
+                    acquired=False,
+                    waited_seconds=_now() - started,
+                    slot_index=None,
+                )
+                return
+
+        if acquired_slot is not None and handle is not None:
+            holder_path = lock_dir / f"suite-slot-{acquired_slot}.holder.json"
+            holder_data = {
+                "pid": os.getpid(),
+                "host": socket.gethostname(),
+                "repo": str(checkout_path),
+                "run_id": str(source.get("AW_RUN_ID") or ""),
+                "item_id6": str(source.get("AW_ITEM_ID6") or ""),
+                "start_time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            tmp_holder = (
+                lock_dir
+                / f"suite-slot-{acquired_slot}.holder.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+            )
+            try:
+                tmp_holder.write_text(json.dumps(holder_data), encoding="utf-8")
+                os.replace(tmp_holder, holder_path)
+            except OSError:
+                pass
+
+            waited_total = _now() - started
+            try:
+                yield SlotOutcome(
+                    acquired=True,
+                    waited_seconds=waited_total,
+                    slot_index=acquired_slot,
+                )
+            finally:
+                with contextlib.suppress(OSError):
+                    if holder_path.exists():
+                        holder_path.unlink()
+                handle.release()
+            return
+
+        summaries: List[str] = []
+        for k in range(N):
+            h_path = lock_dir / f"suite-slot-{k}.holder.json"
+            summary = "unknown holder"
+            if h_path.exists():
+                try:
+                    data = json.loads(h_path.read_text(encoding="utf-8"))
+                    pid = data.get("pid")
+                    repo = data.get("repo")
+                    if pid is not None and repo:
+                        summary = f"pid {pid} ({repo})"
+                    elif pid is not None:
+                        summary = f"pid {pid}"
+                except Exception:
+                    summary = "unknown holder"
+            summaries.append(summary)
+
+        waited = _now() - started
+        holder_summary_text = ", ".join(summaries)
+        progress_msg = (
+            f"aw suite: waiting for a test-suite slot ({len(summaries)} of {N} held: "
+            f"{holder_summary_text}); waited {waited:.0f}s"
+        )
+
+        if first_busy:
+            first_busy = False
+            last_reported = _now()
+            _say(progress_msg)
+        elif _now() - last_reported >= INTEGRATION_LOCK_PROGRESS_SECONDS:
+            last_reported = _now()
+            _say(progress_msg)
+
+        _heartbeat()
+
+        if _now() - started >= max_wait:
+            print(
+                f"aw suite: timed out waiting for test-suite slot after {waited:.0f}s "
+                f"(bound {max_wait:.0f}s); running anyway without a slot",
+                file=sys.stderr,
+            )
+            yield SlotOutcome(
+                acquired=False,
+                waited_seconds=waited,
+                slot_index=None,
+            )
+            return
+
+        _sleep(active_poll)
+
+
 def build_suite_child_env(
     env: Optional[Mapping[str, str]] = None,
     *,
@@ -749,6 +1134,7 @@ def build_suite_child_env(
     existing = str(base.get("PYTEST_ADDOPTS") or "").strip()
     base["_AW_SUITE_CALLER_ADDOPTS"] = existing
     base["PYTEST_ADDOPTS"] = f"{existing} -n {workers}".strip()
+    base[AW_SUITE_SLOT_HELD_ENV] = "1"
 
     existing_plugins = str(base.get("PYTEST_PLUGINS") or "").strip()
     base["_AW_SUITE_CALLER_PLUGINS"] = existing_plugins
@@ -1063,138 +1449,132 @@ def run_full_suite(
                     notice=notice,
                 )
 
-    child_env, workers = build_suite_child_env(env)
-    started = time.monotonic()
+    with suite_slot(checkout=checkout_path, env=env) as slot_outcome:
+        slot_info = slot_outcome.to_dict()
+        child_env, workers = build_suite_child_env(env)
+        started = time.monotonic()
 
-    if run_id is not None:
-        old_addopts = os.environ.get("PYTEST_ADDOPTS")
-        old_caller = os.environ.get("_AW_SUITE_CALLER_ADDOPTS")
-        old_plugins = os.environ.get("PYTEST_PLUGINS")
-        old_caller_plugins = os.environ.get("_AW_SUITE_CALLER_PLUGINS")
-        old_pp = os.environ.get("PYTHONPATH")
+        hb_interval = resolve_suite_heartbeat_interval(env)
+        stop_hb = threading.Event()
+        hb_thread = threading.Thread(
+            target=_run_suite_heartbeat_loop,
+            args=(stop_hb, hb_interval, env),
+            daemon=True,
+        )
+        hb_thread.start()
+
         try:
-            os.environ["PYTEST_ADDOPTS"] = child_env["PYTEST_ADDOPTS"]
-            os.environ["_AW_SUITE_CALLER_ADDOPTS"] = child_env.get(
-                "_AW_SUITE_CALLER_ADDOPTS", ""
-            )
-            os.environ["PYTEST_PLUGINS"] = child_env.get("PYTEST_PLUGINS", "")
-            os.environ["_AW_SUITE_CALLER_PLUGINS"] = child_env.get(
-                "_AW_SUITE_CALLER_PLUGINS", ""
-            )
-            os.environ["PYTHONPATH"] = child_env.get("PYTHONPATH", "")
-            tool_event, _envelope = run_evidence.capture_command(
-                run_id,
-                list(argv),
-                cwd=checkout_path,
-                evidence_kind="test_report",
-                actor="runtime",
-                timeout=timeout,
-                max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
-            )
-            exit_code = int(tool_event.get("exit_code", 127))
-            stdout = str(tool_event.stdout or "")
-            stderr = str(tool_event.stderr or "")
+            if run_id is not None:
+                old_addopts = os.environ.get("PYTEST_ADDOPTS")
+                old_caller = os.environ.get("_AW_SUITE_CALLER_ADDOPTS")
+                old_plugins = os.environ.get("PYTEST_PLUGINS")
+                old_caller_plugins = os.environ.get("_AW_SUITE_CALLER_PLUGINS")
+                old_pp = os.environ.get("PYTHONPATH")
+                old_slot_held = os.environ.get(AW_SUITE_SLOT_HELD_ENV)
+                try:
+                    os.environ["PYTEST_ADDOPTS"] = child_env["PYTEST_ADDOPTS"]
+                    os.environ["_AW_SUITE_CALLER_ADDOPTS"] = child_env.get(
+                        "_AW_SUITE_CALLER_ADDOPTS", ""
+                    )
+                    os.environ["PYTEST_PLUGINS"] = child_env.get("PYTEST_PLUGINS", "")
+                    os.environ["_AW_SUITE_CALLER_PLUGINS"] = child_env.get(
+                        "_AW_SUITE_CALLER_PLUGINS", ""
+                    )
+                    os.environ["PYTHONPATH"] = child_env.get("PYTHONPATH", "")
+                    os.environ[AW_SUITE_SLOT_HELD_ENV] = "1"
+                    tool_event, _envelope = run_evidence.capture_command(
+                        run_id,
+                        list(argv),
+                        cwd=checkout_path,
+                        evidence_kind="test_report",
+                        actor="runtime",
+                        timeout=timeout,
+                        max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
+                    )
+                    exit_code = int(tool_event.get("exit_code", 127))
+                    stdout = str(tool_event.stdout or "")
+                    stderr = str(tool_event.stderr or "")
+                finally:
+                    if old_slot_held is None:
+                        os.environ.pop(AW_SUITE_SLOT_HELD_ENV, None)
+                    else:
+                        os.environ[AW_SUITE_SLOT_HELD_ENV] = old_slot_held
+                    if old_addopts is None:
+                        os.environ.pop("PYTEST_ADDOPTS", None)
+                    else:
+                        os.environ["PYTEST_ADDOPTS"] = old_addopts
+                    if old_caller is None:
+                        os.environ.pop("_AW_SUITE_CALLER_ADDOPTS", None)
+                    else:
+                        os.environ["_AW_SUITE_CALLER_ADDOPTS"] = old_caller
+                    if old_plugins is None:
+                        os.environ.pop("PYTEST_PLUGINS", None)
+                    else:
+                        os.environ["PYTEST_PLUGINS"] = old_plugins
+                    if old_caller_plugins is None:
+                        os.environ.pop("_AW_SUITE_CALLER_PLUGINS", None)
+                    else:
+                        os.environ["_AW_SUITE_CALLER_PLUGINS"] = old_caller_plugins
+                    if old_pp is None:
+                        os.environ.pop("PYTHONPATH", None)
+                    else:
+                        os.environ["PYTHONPATH"] = old_pp
+            elif stream:
+                exit_code, stdout, stderr = _run_streaming_subprocess(
+                    argv,
+                    cwd=checkout_path,
+                    env=child_env,
+                    timeout=timeout,
+                    max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
+                )
+            else:
+                exit_code, stdout, stderr = _run_captured_subprocess(
+                    argv,
+                    cwd=checkout_path,
+                    env=child_env,
+                    timeout=timeout,
+                    max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
+                )
         finally:
-            if old_addopts is None:
-                os.environ.pop("PYTEST_ADDOPTS", None)
-            else:
-                os.environ["PYTEST_ADDOPTS"] = old_addopts
-            if old_caller is None:
-                os.environ.pop("_AW_SUITE_CALLER_ADDOPTS", None)
-            else:
-                os.environ["_AW_SUITE_CALLER_ADDOPTS"] = old_caller
-            if old_plugins is None:
-                os.environ.pop("PYTEST_PLUGINS", None)
-            else:
-                os.environ["PYTEST_PLUGINS"] = old_plugins
-            if old_caller_plugins is None:
-                os.environ.pop("_AW_SUITE_CALLER_PLUGINS", None)
-            else:
-                os.environ["_AW_SUITE_CALLER_PLUGINS"] = old_caller_plugins
-            if old_pp is None:
-                os.environ.pop("PYTHONPATH", None)
-            else:
-                os.environ["PYTHONPATH"] = old_pp
-    elif stream:
-        exit_code, stdout, stderr = _run_streaming_subprocess(
-            argv,
-            cwd=checkout_path,
-            env=child_env,
-            timeout=timeout,
-            max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
-        )
-    else:
-        exit_code, stdout, stderr = _run_captured_subprocess(
-            argv,
-            cwd=checkout_path,
-            env=child_env,
-            timeout=timeout,
-            max_output_bytes=SUITE_OUTPUT_MAX_BYTES,
-        )
+            stop_hb.set()
+            hb_thread.join(timeout=2.0)
 
-    elapsed = time.monotonic() - started
-    summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
-    failures = extract_suite_failures(stdout, stderr)
-    passed = exit_code == 0
+        elapsed = time.monotonic() - started
+        summary = parse_suite_summary(stdout) or parse_suite_summary(stderr)
+        failures = extract_suite_failures(stdout, stderr)
+        passed = exit_code == 0
 
-    if exit_code == 0:
-        reason = (
-            f"suite passed in {checkout_path} ({summary or 'no summary line parsed'})"
-        )
-    elif exit_code == 124:
-        reason = (
-            f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {checkout_path}; "
-            "treated as a failure (fail-closed)"
-        )
-    elif exit_code == 127:
-        reason = (
-            f"suite could not be executed in {checkout_path} (exit 127); "
-            "treated as a failure (fail-closed)"
-        )
-    else:
-        reason = (
-            f"suite FAILED with exit {exit_code} in {checkout_path} "
-            f"({summary or 'no summary line parsed'})"
-        )
+        if exit_code == 0:
+            reason = f"suite passed in {checkout_path} ({summary or 'no summary line parsed'})"
+        elif exit_code == 124:
+            reason = (
+                f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {checkout_path}; "
+                "treated as a failure (fail-closed)"
+            )
+        elif exit_code == 127:
+            reason = (
+                f"suite could not be executed in {checkout_path} (exit 127); "
+                "treated as a failure (fail-closed)"
+            )
+        else:
+            reason = (
+                f"suite FAILED with exit {exit_code} in {checkout_path} "
+                f"({summary or 'no summary line parsed'})"
+            )
 
-    now_iso = datetime.datetime.now(datetime.timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
-    confirmed = False
+        now_iso = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        confirmed = False
 
-    if key.cacheable and key.digest and not bypass_cache:
-        if passed:
-            record: Dict[str, Any] = {
-                "digest": key.digest,
-                "head": key.head,
-                "components": dict(key.components),
-                "passed": True,
-                "exit_code": 0,
-                "summary": summary,
-                "failures": list(failures),
-                "duration_seconds": round(float(elapsed), 3),
-                "recorded_at": now_iso,
-                "worker_count": int(workers),
-                "confirmed": True,
-            }
-            write_cached_record(checkout_path, record)
-            confirmed = True
-        elif exit_code not in (124, 127):
-            node_ids = extract_failing_node_ids(failures)
-            if node_ids and _confirm_failing_node_ids(
-                checkout_path,
-                argv,
-                node_ids,
-                env=child_env,
-                timeout=timeout,
-            ):
-                confirmed = True
-                record = {
+        if key.cacheable and key.digest and not bypass_cache:
+            if passed:
+                record: Dict[str, Any] = {
                     "digest": key.digest,
                     "head": key.head,
                     "components": dict(key.components),
-                    "passed": False,
-                    "exit_code": int(exit_code),
+                    "passed": True,
+                    "exit_code": 0,
                     "summary": summary,
                     "failures": list(failures),
                     "duration_seconds": round(float(elapsed), 3),
@@ -1203,20 +1583,46 @@ def run_full_suite(
                     "confirmed": True,
                 }
                 write_cached_record(checkout_path, record)
+                confirmed = True
+            elif exit_code not in (124, 127):
+                node_ids = extract_failing_node_ids(failures)
+                if node_ids and _confirm_failing_node_ids(
+                    checkout_path,
+                    argv,
+                    node_ids,
+                    env=child_env,
+                    timeout=timeout,
+                ):
+                    confirmed = True
+                    record = {
+                        "digest": key.digest,
+                        "head": key.head,
+                        "components": dict(key.components),
+                        "passed": False,
+                        "exit_code": int(exit_code),
+                        "summary": summary,
+                        "failures": list(failures),
+                        "duration_seconds": round(float(elapsed), 3),
+                        "recorded_at": now_iso,
+                        "worker_count": int(workers),
+                        "confirmed": True,
+                    }
+                    write_cached_record(checkout_path, record)
 
-    return SuiteRunResult(
-        passed=passed,
-        exit_code=exit_code,
-        summary=summary,
-        failures=failures,
-        duration_seconds=elapsed,
-        cached=False,
-        digest=key.digest,
-        components=dict(key.components),
-        worker_count=int(workers),
-        recorded_at=now_iso,
-        confirmed=confirmed,
-        reason=reason,
-        stdout=stdout,
-        stderr=stderr,
-    )
+        return SuiteRunResult(
+            passed=passed,
+            exit_code=exit_code,
+            summary=summary,
+            failures=failures,
+            duration_seconds=elapsed,
+            cached=False,
+            digest=key.digest,
+            components=dict(key.components),
+            worker_count=int(workers),
+            recorded_at=now_iso,
+            confirmed=confirmed,
+            reason=reason,
+            stdout=stdout,
+            stderr=stderr,
+            slot=slot_info,
+        )

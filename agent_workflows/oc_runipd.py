@@ -34,6 +34,7 @@ from agent_workflows import (
     runner_shared,
     runner_shutdown,
     stall_progress,
+    suite_cache,
 )
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, whose wording and reason
@@ -3111,7 +3112,12 @@ def run_opencode(
             # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
             # (which keeps emitting housekeeping lines) is still correctly killed.
             observer = stall_progress.SubagentProgressObserver()
-            watchdog.progress_checker = observer.poll
+            suite_observer = stall_progress.SuiteHeartbeatObserver(
+                state.get("run_id"), item.get("id6")
+            )
+            watchdog.progress_checker = runner_shared.any_progress(
+                observer.poll, suite_observer.poll
+            )
 
             def _subagent_progress() -> None:
                 watchdog.touch()
@@ -3415,6 +3421,8 @@ def run_opencode(
             log.flush()
             os.fsync(log.fileno())
     finally:
+        with contextlib.suppress(Exception):
+            suite_cache.remove_heartbeat_file(state.get("run_id"), item.get("id6"))
         if user_config_handle is not None:
             discarded_records = runner_shared.reconcile_agent_user_config(
                 user_config_handle, run_dir, item

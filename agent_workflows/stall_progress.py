@@ -687,3 +687,76 @@ class AgyTranscriptProgressObserver:
                 self._last_progress = time.monotonic()
 
             return progress_observed
+
+
+class SuiteHeartbeatObserver:
+    """Best-effort progress observer for the test-suite heartbeat file (IPD xvm6no E-04).
+
+    Observes the machine-wide heartbeat file for (run_id, id6).
+    poll() returns True when the heartbeat file's mtime has advanced since the last poll.
+    The first poll records the initial mtime (or absence) and returns False, so an existing
+    file from an earlier attempt is not mistaken for progress.
+    Fail-safe: never raises, returns False on any error or missing directory.
+    """
+
+    def __init__(
+        self,
+        run_id: str | None = None,
+        id6: str | None = None,
+        *,
+        heartbeat_file: Path | None = None,
+    ) -> None:
+        self.run_id = str(run_id).strip() if run_id else None
+        self.id6 = str(id6).strip() if id6 else None
+        self._heartbeat_file = heartbeat_file
+        self._last_mtime: float | None = self._get_mtime()
+        self._first_poll: bool = True
+
+    def _resolve_path(self) -> Path | None:
+        if self._heartbeat_file is not None:
+            return self._heartbeat_file
+        if not self.run_id or not self.id6:
+            return None
+        try:
+            from agent_workflows import suite_cache
+
+            return suite_cache.heartbeat_path(self.run_id, self.id6)
+        except Exception:
+            return None
+
+    def _get_mtime(self) -> float | None:
+        try:
+            p = self._resolve_path()
+            if p is None:
+                return None
+            return float(p.stat().st_mtime)
+        except Exception:
+            return None
+
+    def poll(self) -> bool:
+        """Return True if the heartbeat file mtime advanced since the last poll."""
+        try:
+            current_mtime = self._get_mtime()
+
+            if self._first_poll:
+                self._first_poll = False
+                # If mtime advanced since __init__, progress occurred!
+                if current_mtime is not None and (
+                    self._last_mtime is None or current_mtime > self._last_mtime
+                ):
+                    self._last_mtime = current_mtime
+                    return True
+                # Otherwise record starting mtime (or absence) and return False
+                self._last_mtime = current_mtime
+                return False
+
+            if current_mtime is None:
+                return False
+
+            if self._last_mtime is None or current_mtime > self._last_mtime:
+                self._last_mtime = current_mtime
+                return True
+
+            return False
+        except Exception:
+            return False
