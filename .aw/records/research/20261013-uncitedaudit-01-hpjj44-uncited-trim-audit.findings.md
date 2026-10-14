@@ -3762,3 +3762,92 @@ Rollup of candidate items triaged but not shortlisted for mutation, categorised 
 | `tests/test_research_prompt_workflow.py` | `test-file` | `no exclusive reach` | Touches production code reached by surviving suite; deferred to Order 08 rollup |
 | `tests/test_research_surface.py` | `test-file` | `no exclusive reach` | Touches production code reached by surviving suite; deferred to Order 08 rollup |
 | `tests/test_wtiso_taxonomy_freeze.py` | `test-file` | `no exclusive reach` | Touches production code reached by surviving suite; deferred to Order 08 rollup |
+| `agent_workflows/engine.py::validate_shim_grammar` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-03`; 165 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_scorer.py::_detect_ground_truth_violations` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-04`; 159 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_gates.py::evaluate_gate` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-05`; 141 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_runners.py::RunnerDouble.run_trial` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-06`; 140 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_packet.py::build_step_packet` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-07`; 134 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_packet.py::validate_outcome_envelope` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-08`; 112 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_thresholds.py::evaluate_release_gate` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-09`; 95 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_submit.py::submit_bundle` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-10`; 90 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_export.py::write_bundle` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-11`; 89 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_cli.py::run_export_leaf` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-12`; 88 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_taxonomy.py::classify_segment` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-13`; 81 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_ablations.py::compute_paired_comparison` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-14`; 74 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_metrics.py::evaluate_trial_metrics` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-15`; 72 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/compat_migration.py::CompatMigrator.preview` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-16`; 66 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/runner_shared.py::make_integration_validation_runner._runner` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-17`; 66 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.build_command` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-18`; 64 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_submit.py::validate_bundle` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-19`; 64 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/compat_migration.py::CompatMigrator.apply` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-20`; 63 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_taxonomy.py::_closed_vocabulary` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-21`; 63 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/layout_migration.py::MigrationManager.execute_migration` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-22`; 61 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_export.py::sanitizer_blind_spot_report` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-23`; 58 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_reports.py::format_markdown_report` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-24`; 57 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/layout_migration.py::MigrationManager.status_migration` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-25`; 57 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_scorer.py::_detect_evidence_violations` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-26`; 52 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_packet.py::StepPacket.render_prompt` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-27`; 51 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_packet.py::apply_outcome_envelope` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-28`; 51 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_reports.py::compare_with_baseline` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-29`; 50 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/check_engine.py::check_system_layout` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-30`; 49 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_export.py::build_redacted_events` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-31`; 49 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_cli.py::run_submit_leaf` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-32`; 48 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/clean_delta.py::build_default_adapter_manifest` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-33`; 46 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_taxonomy.py::accumulate` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-34`; 45 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.__init__` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-35`; 45 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/layout_migration.py::MigrationManager._handle_leftovers` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-36`; 43 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_manifest.py::build_manifest` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-37`; 42 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/run_analytics_submit.py::build_receipt` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-38`; 42 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/benchmark_scorer.py::score_transcript` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-39`; 38 exclusive lines; stopped after full-suite probes) |
+| `agent_workflows/compat_migration.py::CompatMigrator.detect_state` | `production-key` | `budget-exhausted` | Budget exhausted at 3466.82s (shortlist item `PROP-40`; 38 exclusive lines; stopped after full-suite probes) |
+
+## Mutation environment
+
+- HEAD: `1ebf25cf2ae9a3dc9cd888dd9439ac6dd2c0566e`
+- Checkout status before probes (`git status --short`): clean (empty)
+- Worktree list at invocation (`git worktree list`):
+```
+<repo-root>                                      31edbf5e5 [main]
+<repo-root>/.aw/worktrees/gradfix-review  199437f35 [review/gradfix-plan-review]
+<repo-root>/.aw/worktrees/ww744p          e5fc71da7 [aw/lane/ww744p]
+<repo-root>/.aw/worktrees/1qut7y                 e972c5a19 [aw/lane/1qut7y]
+<repo-root>/.aw/worktrees/1v2e1o                 3ae697cff [aw/lane/1v2e1o]
+<repo-root>/.aw/worktrees/cihealth-fixes         3a8d2b200 [fix/cihealth-fixes]
+<repo-root>/.aw/worktrees/rq3q7v                 1ebf25cf2 [aw/lane/rq3q7v]
+<repo-root>/.aw/worktrees/vzk1iw                 113feca92 [aw/lane/vzk1iw]
+<repo-root>/.aw/worktrees/ww744p_attempt2        65247158d [aw/lane/ww744p_attempt2]
+<repo-root>/.aw/worktrees/yr3d4o                 3305faaee [aw/lane/yr3d4o]
+<repo-root>/.aw/worktrees/yr3d4o_attempt2        8d5bbe95b [aw/lane/yr3d4o_attempt2]
+<repo-root>/.aw/worktrees/yrq57q                 897a565cd [aw/lane/yrq57q]
+<repo-root>/.aw/worktrees/yxsfjc                 b8e453bf9 [aw/lane/yxsfjc]
+<repo-root>/.aw/worktrees/z28jah                 6a4ab4ada [aw/lane/z28jah]
+<repo-root>/.aw/worktrees/z2ugxc                 381a32645 [aw/lane/z2ugxc]
+```
+- Bare `python3 -m pytest` suite baseline summary line:
+```
+8414 passed, 5 skipped, 18 xfailed, 3 warnings in 653.61s (0:10:53)
+```
+
+## Mutation results
+
+Controlled mutation probe results across the shortlisted properties:
+
+| Property ID | Production Key | Operator | Selection Size | Survivor Verdict | Control Verdict | Final Verdict | Reason | Summed Wall Time (s) |
+|---|---|---|---:|---|---|---|---|---:|
+| `PROP-01` | `agent_workflows/cli.py::_run_migrate_layout` | `return-none` | 8437 | `survived` (baseline_failing: 0, mutant_failing: 0, newly_failing: 0) | `killed` (baseline_failing: 0, mutant_failing: 11, newly_failing: tests.test_layout_migration.MigrateLayoutWizardTests::test_cli_flags_override_config_file, tests.test_layout_migration.MigrateLayoutWizardTests::test_config_file_noninteractive, tests.test_layout_migration.MigrateLayoutWizardTests::test_interactive_wizard_accept_runs_migration_after_confirm) | `unguarded` | n/a | 1600.47 |
+| `PROP-02` | `agent_workflows/benchmark_metrics.py::compute_aggregate_metrics` | `return-none` | 8437 | `error` (baseline_failing: 0, mutant_failing: null, newly_failing: 0; mutant run could not produce junit XML) | `killed` (baseline_failing: 0, mutant_failing: 4, newly_failing: tests.test_benchmark_runners_reports::test_baseline_comparison_and_regression_triage, tests.test_benchmark_runners_reports::test_benchmark_reports_generation_and_formatting, tests.test_benchmark_runners_reports::test_ci_safe_offline_benchmark_runner) | `unprovable` | survivor error: mutant run could not produce junit XML | 1866.35 |
+
+## Mutation totals
+
+Summary of mutation probe outcomes across the 40 shortlisted properties:
+
+| Final Verdict | Count | Description |
+|---|---:|---|
+| `unguarded` | 1 | Survivor survived after selection; control killed by mutant |
+| `guarded` | 0 | Survivor killed by mutant |
+| `unprovable` | 1 | Survivor errored or timed out, or control survived/invalid |
+| `import-only` | 0 | Survivor killed by import error only after retry |
+| `budget-exhausted` | 38 | Unprobed shortlist items moved to triaged-not-mutated after cumulative wall time exceeded budget |
+| **Total Shortlist Rows** | **40** | Sum of final verdicts and budget-exhausted rows |
+
+- **Total Probe Wall Time**: 3466.82s (0.96h)
