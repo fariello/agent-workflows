@@ -6,7 +6,7 @@
 - Scope: Replace the long-form pointer bullet with a byte-identical copy of the single-file bullet, and convert its pointer-shape test into a byte-identity parity test. No other bullet, workflow body, spec, or production code changes.
 - Scope-Paths: .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_v_item_evidence_durability.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode/claude-opus
 - Id: xl1iko
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xl1iko verified (set vbz06g, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003. Reviewed at HEAD f8d99c044. Byte-identity test and all mutation proofs demonstrated on in-memory copies (deleted bullet raises SectionBoundError, noted); mutation word pinned to a once-per-copy token; narrowed pytest runs use -o addopts=""; manifest-hash staleness and unrelated pointer recorded (F-06, F-07). Record: .aw/records/reviews/20261011-vbz06g-01-xl1iko-reconcile-the-long-form-live-artifact-rubric-bullet-to-the-v.review.md.
