@@ -1,5 +1,5 @@
 - Id: 3ouico
-- Status: graduated
+- Status: done
 - Graduated-To: agentfindings
 - Set: agentfindings
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw.agent/v1 findings counts every Diagnostic regardless of severity, so one warning-severity diagnostic reports findings 1 on a clean repo (outcome clean, exit 0), blocking the cheap route for any advisory that should reach an agent
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD wizzis executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-agentfindings-01-wizzis-add-an-additive-per-severity-breakdown-beside-the-aw-agent-v.ipd.md); evidence .aw/records/plans/executed/20261011-agentfindings-01-wizzis-add-an-additive-per-severity-breakdown-beside-the-aw-agent-v.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: wizzis
 - 2026-10-02 created (aw backlog): Filed at authoring of plan qp8fn1 (Set awinbox, from backlog xqem10), which declined this obligation rather than absorbing it into a one-key addition.
 
