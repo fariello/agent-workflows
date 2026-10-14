@@ -6,7 +6,7 @@
 - Scope: IN: add a third, guarded match key (the facet-less stem, derived by stripping a `.<facet>.md` suffix drawn from the closed enum `artifact_naming.ARTIFACT_TYPE_FACETS`) to the shared reference planner and applier, with a sibling-collision guard that skips and warns when another record shares that facet-less stem, plus CLI-driven outcome tests and one CHANGELOG line. OUT: scanning `.json` files (measured unnecessary, F-05); scanning `README.md` files that `artifact_refs._SKIP_NAMES` excludes (filed as backlog `0u0ako`, F-06); research's own `.<model>.<kind>.md` naming (measured zero facet-less citations, F-04); any hand repair of an existing citation (that is plan `j7dsci`).
 - Scope-Paths: agent_workflows/artifact_refs.py, tests/test_artifact_refs_rewrite.py, CHANGELOG.md
 - Item-Dependencies: executed:j7dsci
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 1v2e1o
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1v2e1o verified (set xp6o3v, attempt 2).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-xp6o3v-01-1v2e1o-rewrite-facet-less-stem-citations-on-rename-guarded-against.review.md Round 1
 
