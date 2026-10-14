@@ -5,8 +5,9 @@
 - Concern: Each child in Set `fixfirst` tests its own failure kind. Nothing tests the Set's promises together: that every agent-caused kind in the amended spec actually reaches a fix-it turn through the real runner, that the message is the shared one, that a proposal stops one item while the run continues, that no failure class this Set touches aborts a run (with the shipped tool-identity abort, backlog `03y5g6`, as the one named divergence), and that spec, transcription and behavior agree. The orchestrator `lxb1ew` carries these as completion criteria and cannot perform them itself, because the runner retires it without running its checks.
 - Scope: Add one end-to-end test module and perform the Set-level measurement: one scripted run per fix-it kind on both hosts, one proposal run, one corrupt-state run (driver runs keep `state.json`, not a hash-chained ledger; F-04), a non-abort and a tool-identity run, a spec-to-code cross-check, and the bare suite. EXCLUDES changing any production behavior; a defect found here is fixed in the owning child's code only if it is a one-line slip, otherwise filed as a backlog item and the plan stops.
 - Scope-Paths: tests/test_fixfirst_end_to_end.py
+- Scope-Exceeded: .aw/records/backlog/open/20261014-jodcz3-01-jodcz3-verifier-transport-failure-has-no-disposition-or-c.backlog.md (E-05 spec 5.5 gap filed as backlog item); .aw/records/backlog/open/20261014-jt7ns3-01-jt7ns3-driver-runs-write-no-hash-chained-ledger-and-corru.backlog.md (E-05 spec 5.5 corrupt ledger exit code gap filed as backlog item); .aw/records/backlog/open/20261014-w5opbr-01-w5opbr-spec-25kzda-5-5-table-contains-stale-and-non-resol.backlog.md (E-05 spec 5.5 stale owner IDs gap filed as backlog item)
 - Item-Dependencies: executed:ytas91, executed:w9nvq4, executed:psgyzw, executed:62sdwr
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +19,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iksylm
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: iksylm verified (set fixfirst, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261014-jodcz3-01-jodcz3-verifier-transport-failure-has-no-disposition-or-c.backlog.md: E-05 spec 5.5 gap filed as backlog item; out-of-scope .aw/records/backlog/open/20261014-jt7ns3-01-jt7ns3-driver-runs-write-no-hash-chained-ledger-and-corru.backlog.md: E-05 spec 5.5 corrupt ledger exit code gap filed as backlog item; out-of-scope .aw/records/backlog/open/20261014-w5opbr-01-w5opbr-spec-25kzda-5-5-table-contains-stale-and-non-resol.backlog.md: E-05 spec 5.5 stale owner IDs gap filed as backlog item]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-11 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Reviewed at HEAD 69d6026db. E-03 statuses aligned to Order 02's shipped vocabulary; E-04 rewritten to observable driver behavior (corrupt state.json exits 2, measured; tool-identity abort asserted as the 03y5g6 divergence; push undrivable); E-01 names run_queue and per-kind counters; E-02 behavioral rule count, no source reads; E-05 covers every 5.5 row and stale owner ids; E-06 baseline pinned to 03ddbcb83; execution contract and gap carriers added. Record: .aw/records/reviews/20261007-fixfirst-08-iksylm-prove-fix-first-end-to-end-with-one-scripted-run-per-failure.review.md
 - 2026-10-07 to-review (aw set): authored review-ready from backlog coivul (maintainer rulings 2026-10-07)
