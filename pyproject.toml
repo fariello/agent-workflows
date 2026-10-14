@@ -211,6 +211,7 @@ markers = [
 # To force serial when debugging a test-isolation issue: `make test-serial`
 # (`python -m unittest discover -s tests -t .`).
 addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"
+tmp_path_retention_policy = "failed"
 
 # STATIC TYPE GATE CONFIGURATION (plan m7fllj E-02 / E-07)
 # Run via `make typecheck` or `python3 -m mypy agent_workflows`.
