@@ -1,5 +1,6 @@
 - Id: go6vzi
-- Status: open
+- Status: graduated
+- Graduated-To: go6vzi
 - Blocks-Release: next
 - Set: go6vzi
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Orchestrator coverage probe drops wrapped bullet continuation lines, so an OWNER on the second line is invisible and the run falsely refuses
 
 ## Workflow history
+- 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: u1l9rx
 - 2026-10-12 created (aw backlog): found unblocking aw oc run on m0kl28
 
 ## What happened (measured 2026-10-12)
