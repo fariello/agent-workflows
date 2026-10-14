@@ -10,9 +10,10 @@
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: sflov4
+- From-Spec: none
 - Set: runledger
 - Order: 7
-- Highest E allocated: 05
+- Highest E allocated: 07
 - Author: antigravity
 - Id: o34rb3
 
@@ -31,33 +32,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce baseline after v47z9u
 
-- [ ] E-01 Reproduce the two baseline gaps in a scratch git repo at execution HEAD (with prerequisite `v47z9u` landed). (a) Run `aw run init --workflow wf.json --run-id run-abcdef1234` and confirm `state_root(repo)/run-abcdef1234/ledger.jsonl` is created without a sibling `workflow.json`. (b) Run `aw run start run-abcdef1234 --step S-01` and `aw runs next run-abcdef1234` without `--workflow` and confirm `start` exits `2` (`error: unknown step 'S-01'`) and `next` exits `3` (`No runnable steps`). (c) Run `aw run start run-abcdef1234 --step S-01 --workflow wrong_wf.json` (where `wrong_wf.json` defines `S-01` with a different `action` and digest) and confirm it exits `0` without checking `workflow_digest`. Stop and report if `aw run init` is absent or if the behavior has already been implemented.
+- [ ] E-01 Reproduce the baseline behavior in a scratch git repo at execution HEAD after prerequisite `v47z9u` has landed: run `aw run init --workflow wf.json --run-id run-abcdef1234` and confirm `state_root(repo)/run-abcdef1234/workflow.json` is absent, `aw run start run-abcdef1234 --step S-01` without `--workflow` exits `2` (`error: unknown step 'S-01'`), `aw runs next run-abcdef1234` without `--workflow` exits `3` (`No runnable steps`), and `aw run start run-abcdef1234 --step S-01 --workflow wrong_wf.json` exits `0` without checking `workflow_digest`. Stop and report if `aw run init` is absent or if the behavior is already implemented.
   - Depends on: none
-  - Expected outcome: pasted outputs confirming `workflow.json` is not written on `aw run init`, omitting `--workflow` fails on `aw run start` (exit 2) and `aw runs next` (exit 3), and passing a mismatched `--workflow` is not refused.
+  - Expected outcome: pasted outputs confirming `workflow.json` is absent after `aw run init`, omitting `--workflow` fails on `aw run start` (exit 2) and `aw runs next` (exit 3), and passing a mismatched `--workflow` is not refused.
   - Execution state: pending
 
 ### Task group 2: persist workflow.json on init, fall back in _load_workflow_arg, and verify workflow_digest
 
-- [ ] E-02 Persist `workflow.json` in `run_cli._run_init` and fall back to it in `run_cli._load_workflow_arg`. In `agent_workflows/run_cli.py`: (a) define `WORKFLOW_FILENAME: str = "workflow.json"` and `_workflow_digest(workflow: Mapping[str, Any]) -> str` returning `store.compute_record_hash(workflow)`; (b) in `_run_init`, use `_workflow_digest(workflow)` for the `kind: "run"` header's `workflow_digest`, and after appending the initial ledger record(s) to `ledger_file`, write `json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"` to `ledger_file.parent / WORKFLOW_FILENAME` (ensuring all refusal paths exit before creating or modifying `workflow.json`); (c) update `_load_workflow_arg(args: argparse.Namespace, ledger_file: Optional[Path] = None) -> Optional[Dict[str, Any]]` so when `getattr(args, "workflow", None)` is omitted and `ledger_file is not None` and `(ledger_file.parent / WORKFLOW_FILENAME).is_file()`, it loads and returns the JSON mapping from `ledger_file.parent / WORKFLOW_FILENAME`, raising `ValueError` if a workflow file parses to a non-dict JSON value.
+- [ ] E-02 Persist `workflow.json` beside `ledger.jsonl` in `run_cli._run_init`. In `agent_workflows/run_cli.py`, define `WORKFLOW_FILENAME: str = "workflow.json"` and `_workflow_digest(workflow: Mapping[str, Any]) -> str` returning `store.compute_record_hash(workflow)`, compute the `kind: "run"` header's `workflow_digest` via `_workflow_digest(workflow)`, and write `json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"` to `ledger_file.parent / WORKFLOW_FILENAME` after appending the initial ledger record(s) while keeping all refusal paths side-effect-free.
   - Depends on: E-01
-  - Expected outcome: `aw run init --workflow wf.json` writes `state_root(repo)/<run-id>/workflow.json` beside `ledger.jsonl`, and `_load_workflow_arg(args, ledger_file)` returns that workflow mapping whenever `--workflow` is omitted on subsequent `aw run` / `aw runs` invocations.
+  - Expected outcome: `aw run init --workflow wf.json` writes `state_root(repo)/<run-id>/workflow.json` with a canonical SHA-256 digest equal to `records[0]["workflow_digest"]`, and refusal cases leave no `workflow.json` on disk.
   - Execution state: pending
 
-- [ ] E-03 Verify `workflow_digest` against the `kind: "run"` header record in `run_cli._build_engine`. In `agent_workflows/run_cli.py` inside `_build_engine(args: argparse.Namespace, ledger_file: Path)`: pass `ledger_file` to `_load_workflow_arg(args, ledger_file)`; when `workflow is not None`, read `expected_digest = str(run_rec.get("workflow_digest") or "")` from the `kind: "run"` header record (`records[0]`) and compute `actual_digest = _workflow_digest(workflow)`; if `expected_digest` is non-empty and `actual_digest != expected_digest`, return `None, records, _emit_error(args, f"workflow digest mismatch: ledger expects {expected_digest}, got {actual_digest}", EXIT_INVALID_INVOCATION)` (exit `2`). When `workflow is None` (neither `--workflow` nor sibling `workflow.json` exists), continue falling back to `_reconstruct_workflow_from_ledger(records)`.
+- [ ] E-03 Update `run_cli._load_workflow_arg` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is omitted. In `agent_workflows/run_cli.py`, add optional parameter `ledger_file: Optional[Path] = None` to `_load_workflow_arg` so that when `getattr(args, "workflow", None)` is not supplied and `ledger_file is not None` and `(ledger_file.parent / WORKFLOW_FILENAME).is_file()`, it loads and returns the JSON mapping from `ledger_file.parent / WORKFLOW_FILENAME`, raising `ValueError` if a workflow file parses to a non-dict JSON value.
   - Depends on: E-02
+  - Expected outcome: `_load_workflow_arg(args, ledger_file)` returns the persisted `workflow.json` mapping when `--workflow` is omitted on subsequent `aw run` and `aw runs` invocations, and returns `None` when neither `--workflow` nor `workflow.json` is present.
+  - Execution state: pending
+
+- [ ] E-04 Enforce `workflow_digest` verification against the `kind: "run"` header record in `run_cli._build_engine`. In `agent_workflows/run_cli.py` inside `_build_engine(args: argparse.Namespace, ledger_file: Path)`, pass `ledger_file` to `_load_workflow_arg(args, ledger_file)` and, when `workflow is not None`, compare `actual_digest = _workflow_digest(workflow)` against `expected_digest = str(run_rec.get("workflow_digest") or "")` from `records[0]`, returning `None, records, _emit_error(args, f"workflow digest mismatch: ledger expects {expected_digest}, got {actual_digest}", EXIT_INVALID_INVOCATION)` (exit `2`) when `expected_digest` is non-empty and differs from `actual_digest`.
+  - Depends on: E-03
   - Expected outcome: any `aw run` or `aw runs` leaf reaching `_build_engine` with an explicit `--workflow` or a sibling `workflow.json` whose canonical SHA-256 digest disagrees with `records[0]["workflow_digest"]` refuses with `EXIT_INVALID_INVOCATION` (`2`) and `"workflow digest mismatch"` without mutating `ledger.jsonl`.
   - Execution state: pending
 
 ### Task group 3: align test fixtures and add behavioral tests
 
-- [ ] E-04 Align hand-seeded `kind: "run"` test fixtures in `tests/test_run_recovery_cli.py` and `tests/test_run_cli_declarations.py` with their workflow digests, and add a digest-mismatch refusal row to `TestRunCliSubcommands.INVOCATIONS`. In `tests/test_run_recovery_cli.py`: update `_run_record` so `"workflow_digest"` defaults to `ledger_store.compute_record_hash(_WORKFLOW)` (matching the `_WORKFLOW` written by `_materialize` and `_workflow_file`), and add a row to `TestRunCliSubcommands.INVOCATIONS` (with a `"wrong-workflow-digest"` seed or mismatched workflow path) asserting that `aw run start` / `aw run record` with a mismatched `--workflow` exits `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch"`. In `tests/test_run_cli_declarations.py`: update `test_runs_resume_exit_3_is_reachable_and_declared` so `store_3`'s `kind: "run"` header carries `"workflow_digest": compute_record_hash(wf_dict)` matching `wf_path`.
-  - Depends on: E-03
-  - Expected outcome: `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py` passes with all existing and new digest-mismatch rows green.
+- [ ] E-05 Align hand-seeded `kind: "run"` test fixtures in `tests/test_run_recovery_cli.py` and `tests/test_run_cli_declarations.py` with their test workflow digests, and add a digest-mismatch refusal row to `TestRunCliSubcommands.INVOCATIONS`. Update `_run_record` in `tests/test_run_recovery_cli.py` so `"workflow_digest"` defaults to `ledger_store.compute_record_hash(_WORKFLOW)`, add an `INVOCATIONS` row asserting a mismatched `--workflow` exits `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch"`, and update `test_runs_resume_exit_3_is_reachable_and_declared` in `tests/test_run_cli_declarations.py` so `store_3`'s `kind: "run"` record carries `"workflow_digest": compute_record_hash(wf_dict)`.
+  - Depends on: E-04
+  - Expected outcome: `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py` passes with all existing rows and the new digest-mismatch row green.
   - Execution state: pending
 
-- [ ] E-05 Extend `tests/test_run_init.py` with end-to-end subprocess tests for persisted workflow fallback and digest verification, then run `aw sanitize --agent` and the bare test suite `python3 -m pytest`. In `tests/test_run_init.py`, assert: (a) `aw run init --workflow wf.json` creates `state_root(repo)/<id>/workflow.json` whose canonical SHA-256 digest matches `records[0]["workflow_digest"]`; (b) on a two-step workflow (`S-01` root, `S-02` with `depends_on: ["S-01"]`), running `aw runs next <id>`, `aw run start <id> --step S-02` (refused exit 3 because `S-01` is unperformed), `aw run start <id> --step S-01` (exit 0), `aw runs resume <id>` (exit 3 `unknown_outcome`), `aw run record <id> --step S-01 --state performed` (exit 0), `aw runs next <id>` (exit 0 listing `S-02`), and `aw runs status <id>` all work WITHOUT `--workflow`; (c) passing `--workflow other.json` with a different digest or tampering with `state_root(repo)/<id>/workflow.json` exits `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch"` and leaves `ledger.jsonl` byte-identical; (d) `aw run init` refusal cases leave no `workflow.json` on disk.
-  - Depends on: E-04
-  - Expected outcome: `python3 -m pytest -o addopts="" tests/test_run_init.py` passes, `aw sanitize --agent` reports `"outcome": "clean"`, and the bare suite `python3 -m pytest` passes.
+- [ ] E-06 Extend `tests/test_run_init.py` with subprocess tests covering persisted `workflow.json` creation, `--workflow`-less execution across `aw runs next`, `aw run start`, `aw runs resume`, `aw run record`, and `aw runs status` on a multi-step DAG, and exit-2 refusal on a mismatched `--workflow` or tampered `workflow.json`.
+  - Depends on: E-05
+  - Expected outcome: `python3 -m pytest -o addopts="" tests/test_run_init.py` passes with all new assertions green.
+  - Execution state: pending
+
+- [ ] E-07 Run `aw sanitize --agent` and the bare test suite `python3 -m pytest`.
+  - Depends on: E-06
+  - Expected outcome: `aw sanitize --agent` reports `"outcome": "clean"` (exit 0) and bare `python3 -m pytest` passes with zero failures.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -81,9 +92,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Proposed changes (ordered, validatable)
 
 1. Reproduce the missing sibling `workflow.json`, the `--workflow`-less `aw run start` / `aw runs next` failures, and the unchecked `--workflow` digest mismatch after `v47z9u` (E-01).
-2. Add `WORKFLOW_FILENAME = "workflow.json"` and `_workflow_digest` in `agent_workflows/run_cli.py`, persist `workflow.json` beside `ledger.jsonl` in `_run_init`, and fall back to `ledger_file.parent / WORKFLOW_FILENAME` in `_load_workflow_arg(args, ledger_file)` when `--workflow` is omitted (E-02).
-3. Enforce `workflow_digest` verification in `run_cli._build_engine` whenever a workflow is loaded from `--workflow` or from the sibling `workflow.json`, refusing mismatches with `EXIT_INVALID_INVOCATION` (`2`) (E-03).
-4. Update the hand-seeded `workflow_digest` values in `tests/test_run_recovery_cli.py` (`_run_record`) and `tests/test_run_cli_declarations.py` (`test_runs_resume_exit_3_is_reachable_and_declared`), add a digest-mismatch refusal row to `TestRunCliSubcommands.INVOCATIONS`, and extend `tests/test_run_init.py` with end-to-end tests for `--workflow`-less execution and digest mismatch refusal (E-04, E-05).
+2. Add `WORKFLOW_FILENAME = "workflow.json"` and `_workflow_digest` in `agent_workflows/run_cli.py`, and persist `workflow.json` beside `ledger.jsonl` in `_run_init` (E-02).
+3. Update `run_cli._load_workflow_arg(args, ledger_file)` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is omitted (E-03).
+4. Enforce `workflow_digest` verification in `run_cli._build_engine` whenever a workflow is loaded from `--workflow` or from the sibling `workflow.json`, refusing mismatches with `EXIT_INVALID_INVOCATION` (`2`) (E-04).
+5. Update the hand-seeded `workflow_digest` values in `tests/test_run_recovery_cli.py` (`_run_record`) and `tests/test_run_cli_declarations.py` (`test_runs_resume_exit_3_is_reachable_and_declared`), add a digest-mismatch refusal row to `TestRunCliSubcommands.INVOCATIONS`, extend `tests/test_run_init.py` with end-to-end tests for `--workflow`-less execution and digest mismatch refusal, and run `aw sanitize --agent` and bare `python3 -m pytest` (E-05..E-07).
 
 ## Deferred / out of scope (with reason)
 
@@ -139,22 +151,32 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted output from running `aw run init --workflow wf.json` in a scratch repo (exercising `run_cli._run_init` and `run_cli._load_workflow_arg` updated in E-02) showing `state_root(repo)/<id>/workflow.json` created beside `ledger.jsonl`, followed by `aw runs next <id>` and `aw run start <id> --step S-01` (both without `--workflow`) exiting `0`.
+  - Required evidence: pasted output from running `aw run init --workflow wf.json` in a scratch repo (exercising `run_cli._run_init` updated in E-02) showing `state_root(repo)/<id>/workflow.json` created beside `ledger.jsonl` with canonical SHA-256 digest matching `records[0]["workflow_digest"]`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted output from running `aw run start <id> --step S-01 --workflow wrong_wf.json` (exercising the `run_cli._build_engine` digest check added in E-03) showing exit `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch: ledger expects ..., got ..."` and an unchanged record count in `ledger.jsonl`.
+  - Required evidence: pasted output from running `aw runs next <id>` and `aw run start <id> --step S-01` without `--workflow` in a scratch repo (exercising `run_cli._load_workflow_arg` updated in E-03) showing both commands exiting `0` and resolving `S-01` from the persisted `workflow.json`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py -v` passing with all `TestRunCliSubcommands.INVOCATIONS` rows (including the new workflow-digest-mismatch row) and `test_runs_resume_exit_3_is_reachable_and_declared` green.
+  - Required evidence: pasted output from running `aw run start <id> --step S-01 --workflow wrong_wf.json` (exercising the `run_cli._build_engine` digest check added in E-04) showing exit `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch: ledger expects ..., got ..."` and an unchanged record count in `ledger.jsonl`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_run_init.py -v` passing, pasted output of `aw sanitize --agent` reporting `"outcome": "clean"`, and pasted summary line of bare `python3 -m pytest` passing with zero failures.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py -v` passing with all `TestRunCliSubcommands.INVOCATIONS` rows (including the new workflow-digest-mismatch row) and `test_runs_resume_exit_3_is_reachable_and_declared` green.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_run_init.py -v` passing with all persisted-workflow and digest-mismatch test cases green.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: pasted output of `aw sanitize --agent` reporting `"outcome": "clean"` (exit 0) and pasted summary line of bare `python3 -m pytest` passing with zero failures.
   - Observed evidence:
   - Result: pending
 
