@@ -66,9 +66,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Full-suite verification and commit
 
-- [ ] E-06 Run `python3 -m pytest -o addopts="" -v tests/test_runner_bare_verb_shim.py`, `aw check`, `aw sanitize --agent`, and the bare fast suite `python3 -m pytest`; confirm no regressions and commit only the scoped paths via `aw commit aka0li -- <paths>`.
+- [ ] E-06 Run `python3 -m pytest -o addopts="" -v tests/test_runner_bare_verb_shim.py`, `aw ipd lint --verbose .aw/records/plans/pending/20261014-2ohbkj-01-aka0li-restore-behavioral-tests-that-bare-stop-and-audit-are-not-re.ipd.md`, `aw sanitize --agent`, and the bare fast suite `python3 -m pytest`; confirm no regressions and commit only the scoped paths via `aw commit aka0li -- <paths>`.
   - Depends on: E-05
-  - Expected outcome: new test module, `aw check`, `aw sanitize --agent`, and bare `python3 -m pytest` pass; changes committed cleanly on the lane branch without pushing.
+  - Expected outcome: new test module, `aw ipd lint --verbose`, `aw sanitize --agent`, and bare `python3 -m pytest` pass; changes committed cleanly on the lane branch without pushing.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -95,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 3. Add `BareAuditNotRewrittenTests` in `tests/test_runner_bare_verb_shim.py` covering pending Set `audit` collision and unknown-plan refusal through `oc_runipd.main` and `agy_runipd.main` (E-03).
 4. Prove mutation sensitivity across all four `(host, verb)` pairs with byte-identical restoration (E-04).
 5. Update the twin `main()` shim comments in `agent_workflows/agy_runipd.py` and `agent_workflows/oc_runipd.py` to cite `tests/test_runner_bare_verb_shim.py`, and prove via AST dump comparison that no executable statement changed (E-05).
-6. Run `tests/test_runner_bare_verb_shim.py`, `aw check`, `aw sanitize --agent`, and the bare `python3 -m pytest` suite, then commit via `aw commit` (E-06).
+6. Run `tests/test_runner_bare_verb_shim.py`, `aw ipd lint --verbose`, `aw sanitize --agent`, and the bare `python3 -m pytest` suite, then commit via `aw commit` (E-06).
 
 ## Deferred / out of scope (with reason)
 
@@ -117,7 +117,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `rg -n 'main\(\["(stop|audit)"' tests/` matches `oc_runipd.main(["stop", ...])`, `agy_runipd.main(["stop", ...])`, `oc_runipd.main(["audit", ...])`, and `agy_runipd.main(["audit", ...])` in `tests/test_runner_bare_verb_shim.py` (E-05).
 - Each of the four `(host, verb)` inline-set removals in `oc_runipd.main` and `agy_runipd.main` causes `tests/test_runner_bare_verb_shim.py` to fail, and original bytes are restored with verified `sha256` equality (E-04).
 - AST comparison of `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` against the E-01 base commit prints `EQUAL` (E-05).
-- `aw check`, `aw sanitize --agent`, and a bare `python3 -m pytest` run pass without regressions (E-06).
+- `aw ipd lint --verbose`, `aw sanitize --agent`, and a bare `python3 -m pytest` run pass without regressions (E-06).
 
 ## Spec / documentation sync
 
@@ -169,7 +169,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_runner_bare_verb_shim.py`, `aw check`, `aw sanitize --agent`, the bare `python3 -m pytest` summary line (no flags added), and `git show --stat HEAD` after `aw commit aka0li -- <paths>`.
+  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_runner_bare_verb_shim.py`, `aw ipd lint --verbose .aw/records/plans/pending/20261014-2ohbkj-01-aka0li-restore-behavioral-tests-that-bare-stop-and-audit-are-not-re.ipd.md`, `aw sanitize --agent`, the bare `python3 -m pytest` summary line (no flags added), and `git show --stat HEAD` after `aw commit aka0li -- <paths>`.
   - Observed evidence:
   - Result: pending
 
