@@ -36,7 +36,10 @@ from typing import Any, Callable, Iterable, Optional
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows import runner_shutdown, stall_progress
-from agent_workflows.verifier_corroboration import agy_tool_name
+from agent_workflows.verifier_corroboration import (
+    AGY_TERMINAL_STATES,
+    agy_tool_name,
+)
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
@@ -1096,7 +1099,7 @@ def render_agy_event(
         if step_type == "tool":
             # Active tool events are suppressed to prevent double output in live streams;
             # the line is rendered once when the tool reaches a terminal state (DONE/ERROR/FAILED).
-            if state not in ("DONE", "ERROR", "FAILED"):
+            if state not in AGY_TERMINAL_STATES:
                 return None
             raw_tool_info = step.get("tool_info")
             tool_info = (
@@ -1261,7 +1264,7 @@ def render_agy_event(
             return None
 
         if step_type == "subagent":
-            if state not in ("DONE", "ERROR", "FAILED"):
+            if state not in AGY_TERMINAL_STATES:
                 return None
             subagent = step.get("subagent_info") or {}
             subagents = subagent.get("subagents", [])

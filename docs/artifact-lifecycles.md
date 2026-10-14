@@ -491,6 +491,7 @@ A release record is a thin anchor that other artifacts point at with `- Blocks-R
 ```sh
 aw releases new --version 2.1.0 --summary "why this release exists" --apply
 aw releases show            # the planned release and everything gating it
+aw releases readiness --suite-passed --residual-risk-signer <name>
 aw set releases shipped <id6>
 aw check releases           # validate
 ```

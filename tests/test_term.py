@@ -938,6 +938,7 @@ class AuthoredSixteenColorPaletteTests(unittest.TestCase):
             "verifying",
             "integrating",
             "recovering",
+            "interrupted",
             "active",
         )
         self.assertEqual(len({T.color_16_for_stage(s) for s in active_group}), 1)
@@ -951,6 +952,7 @@ class AuthoredSixteenColorPaletteTests(unittest.TestCase):
             "formative",
         )
         self.assertEqual(len({T.color_16_for_stage(s) for s in gray_group}), 1)
+        self.assertEqual(len({T.color_16_for_stage(s) for s in ("ready", "queued")}), 1)
 
         # No unnamed merges
         collapse_members = {s for group in T.EXPECTED_16_COLOR_COLLAPSES for s in group}

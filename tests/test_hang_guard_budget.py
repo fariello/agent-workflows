@@ -9,8 +9,16 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
+
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    not (hasattr(signal, "SIGALRM") and hasattr(signal, "ITIMER_REAL")),
+    reason="POSIX ITIMER_REAL/SIGALRM per-test hang guard is unavailable on Windows",
+)
 
 
 def _run_pytest_subprocess(
@@ -47,6 +55,7 @@ def _run_pytest_subprocess(
         env=env,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
 

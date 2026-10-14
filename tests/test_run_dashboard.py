@@ -585,9 +585,9 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
         for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
             self.assertEqual(dash.tool_category(name), "subagent")
 
-    def test_dashboard_schema_version_is_4(self) -> None:
-        """E-04 (n8we3u): DASHBOARD_SCHEMA_VERSION is 4."""
-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 4)
+    def test_dashboard_schema_version_is_5(self) -> None:
+        """E-04 (u3enlv): DASHBOARD_SCHEMA_VERSION is 5."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 5)
 
     def test_dashboard_conflict_and_info_only_shapes_e10(self) -> None:
         """E-10 (n8we3u): session_stats counts tools/categories/commands correctly for CONFLICT and INFO-ONLY."""
@@ -631,6 +631,88 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
             stats_info = dash.session_stats(Path(f.name))
             self.assertEqual(stats_info["tools"], {"run_command": 1})
             self.assertEqual(stats_info["commands"], {"test": 1})
+
+    def test_dashboard_failed_tool_step_e07(self) -> None:
+        """E-07 (u3enlv): session_stats on a FAILED tool log counts tool_calls=1, tool_errors=1, tool_err={'run_command': 1}, commands={'test': 1} and equals ERROR twin."""
+        with tempfile.TemporaryDirectory() as td:
+            by_state = {}
+            for state in ("ERROR", "FAILED"):
+                ev = {
+                    "event": "step_update",
+                    "step_update": {
+                        "step_index": 1,
+                        "step_type": "tool",
+                        "state": state,
+                        "tool_name": "run_command",
+                        "tool_info": {
+                            "name": "run_command",
+                            "parameters": {"CommandLine": "python3 -m pytest"},
+                        },
+                    },
+                }
+                p = Path(td) / f"tool_{state}.jsonl"
+                p.write_text(json.dumps(ev) + "\n", encoding="utf-8")
+                by_state[state] = dash.session_stats(p)
+
+            st_failed = by_state["FAILED"]
+            self.assertEqual(st_failed["tool_calls"], 1)
+            self.assertEqual(st_failed["tool_errors"], 1)
+            self.assertEqual(st_failed["tool_err"], {"run_command": 1})
+            self.assertEqual(st_failed["commands"], {"test": 1})
+            self.assertEqual(st_failed, by_state["ERROR"])
+
+    def test_dashboard_failed_agent_response_step_e07(self) -> None:
+        """E-07 (u3enlv): session_stats on a FAILED agent_response with usage counts steps=1 and tokens, equal to ERROR twin."""
+        with tempfile.TemporaryDirectory() as td:
+            by_state = {}
+            for state in ("ERROR", "FAILED"):
+                ev = {
+                    "event": "step_update",
+                    "step_update": {
+                        "step_index": 1,
+                        "step_type": "agent_response",
+                        "state": state,
+                        "duration_seconds": 2.5,
+                        "usage": {
+                            "input_tokens": 5,
+                            "output_tokens": 3,
+                            "thinking_tokens": 2,
+                            "cache_read_tokens": 1,
+                        },
+                    },
+                }
+                p = Path(td) / f"ar_{state}.jsonl"
+                p.write_text(json.dumps(ev) + "\n", encoding="utf-8")
+                by_state[state] = dash.session_stats(p)
+
+            st_failed = by_state["FAILED"]
+            self.assertEqual(st_failed["steps"], 1)
+            self.assertEqual(st_failed["input"], 5.0)
+            self.assertEqual(st_failed["output"], 3.0)
+            self.assertEqual(st_failed["reasoning"], 2.0)
+            self.assertEqual(st_failed["cache_read"], 1.0)
+            self.assertEqual(st_failed, by_state["ERROR"])
+
+    def test_dashboard_failed_error_message_step_e07(self) -> None:
+        """E-07 (u3enlv): session_stats on a FAILED error_message counts error_messages=1 and equals ERROR twin."""
+        with tempfile.TemporaryDirectory() as td:
+            by_state = {}
+            for state in ("ERROR", "FAILED"):
+                ev = {
+                    "event": "step_update",
+                    "step_update": {
+                        "step_index": 1,
+                        "step_type": "error_message",
+                        "state": state,
+                    },
+                }
+                p = Path(td) / f"em_{state}.jsonl"
+                p.write_text(json.dumps(ev) + "\n", encoding="utf-8")
+                by_state[state] = dash.session_stats(p)
+
+            st_failed = by_state["FAILED"]
+            self.assertEqual(st_failed["error_messages"], 1)
+            self.assertEqual(st_failed, by_state["ERROR"])
 
 
 if __name__ == "__main__":

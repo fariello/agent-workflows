@@ -83,19 +83,16 @@ def apply_operator(source: str, qualname: str, operator: str) -> str | None:
                     and child.name == name
                 ):
                     return child
+        compound_nodes: tuple[type[ast.AST], ...] = (
+            ast.If,
+            ast.Try,
+            ast.With,
+            ast.ExceptHandler,
+            ast.For,
+            ast.While,
+        ) + ((ast.Match,) if hasattr(ast, "Match") else ())
         for child in ast.iter_child_nodes(parent):
-            if isinstance(
-                child,
-                (
-                    ast.If,
-                    ast.Try,
-                    ast.With,
-                    ast.ExceptHandler,
-                    ast.For,
-                    ast.While,
-                    ast.Match,
-                ),
-            ):
+            if isinstance(child, compound_nodes):
                 res = find_child(child, name, is_func_only)
                 if res is not None:
                     return res
@@ -691,7 +688,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Pytest arguments to select tests (after --)",
     )
 
-    args = parser.parse_args(list(argv))
+    argv_list = list(argv)
+    if "--" in argv_list:
+        sep_idx = argv_list.index("--")
+        pre_sep = argv_list[:sep_idx]
+        post_sep = argv_list[sep_idx + 1 :]
+    else:
+        pre_sep = argv_list
+        post_sep = []
+
+    if hasattr(parser, "parse_intermixed_args"):
+        args = parser.parse_intermixed_args(pre_sep)
+    else:
+        args = parser.parse_args(pre_sep)
 
     if "::" not in args.target:
         parser.error(f"target must be <path.py>::<qualname>, got: {args.target}")
@@ -710,7 +719,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:
         parser.error("must be run inside a git repository")
 
-    pytest_args = args.pytest_args if args.pytest_args else None
+    combined_pytest_args = list(args.pytest_args) + post_sep
+    pytest_args = combined_pytest_args if combined_pytest_args else None
 
     result = probe(
         repo_root=repo_root,

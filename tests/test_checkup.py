@@ -50,9 +50,10 @@ def _init_repo(path: Path) -> Path:
 
 
 def _create_gh_stub(tmp_path: Path) -> tuple[Path, Path, Path]:
+    from tests import support
+
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
-    stub_path = bin_dir / "gh"
     log_path = tmp_path / "gh_calls.log"
     resp_path = tmp_path / "gh_response.json"
 
@@ -84,8 +85,7 @@ if os.path.exists(resp_file):
 sys.stdout.write("[]\\n")
 sys.exit(0)
 """
-    stub_path.write_text(stub_code, encoding="utf-8")
-    stub_path.chmod(0o755)
+    stub_path = support.make_fake_executable(bin_dir / "gh", stub_code)
     return stub_path, log_path, resp_path
 
 
@@ -93,7 +93,7 @@ sys.exit(0)
 def gh_env(tmp_path, monkeypatch):
     stub_path, log_path, resp_path = _create_gh_stub(tmp_path)
     old_path = os.environ.get("PATH", "")
-    monkeypatch.setenv("PATH", f"{stub_path.parent}:{old_path}")
+    monkeypatch.setenv("PATH", f"{stub_path.parent}{os.pathsep}{old_path}")
     return {"stub": stub_path, "log": log_path, "resp": resp_path}
 
 

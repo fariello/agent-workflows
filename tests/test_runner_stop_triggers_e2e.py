@@ -7,7 +7,10 @@ behavioral tests against a real spawned driver.
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
 import json
 import os
 import re
@@ -387,6 +390,7 @@ def _spawn_driver(
     return run
 
 
+@unittest.skipIf(os.name == "nt", "POSIX signal/ps/flock trigger suite")
 class _InvariantAssertions(unittest.TestCase):
     """The four Phase-0 clean-shutdown invariants, OBSERVED rather than asserted from code.
 

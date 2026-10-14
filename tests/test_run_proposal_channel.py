@@ -136,8 +136,10 @@ def _create_plan_file(
 
 def _make_fake_agent_script(tmp_path: Path) -> Path:
     """Create a fake agent script that can serve as both opencode and agy."""
-    fake_bin = tmp_path / "fake_agent"
-    fake_bin.write_text(
+    from tests import support
+
+    return support.make_fake_executable(
+        tmp_path / "fake_agent",
         """#!/usr/bin/env python3
 import json, os, re, sys
 from pathlib import Path
@@ -205,10 +207,7 @@ if all_text:
 
 sys.exit(0)
 """,
-        encoding="utf-8",
     )
-    fake_bin.chmod(0o755)
-    return fake_bin
 
 
 class TestProposalValidator(unittest.TestCase):

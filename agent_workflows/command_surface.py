@@ -1863,6 +1863,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--json", "--agent", "--apply"),
         exit_contract=(0, 2),
     ),
+    CommandDeclaration(
+        command="releases readiness",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
     # --- research verbs missing from the inventory ---
     CommandDeclaration(
         command="research pending",

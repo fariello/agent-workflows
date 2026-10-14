@@ -351,10 +351,16 @@ class RunnerSafetyProbeTests(unittest.TestCase):
             with self.subTest(case=case, capability=cap):
                 # 1. Assert helper/witness exists (naive probe would inspect this)
                 if isinstance(witness, str):
-                    self.assertIsNotNone(
-                        shutil.which(witness),
-                        f"helper executable {witness!r} must exist on PATH for test {case!r}",
-                    )
+                    if sys.platform.startswith("linux"):
+                        self.assertIsNotNone(
+                            shutil.which(witness),
+                            f"helper executable {witness!r} must exist on PATH for test {case!r}",
+                        )
+                    else:
+                        self.assertTrue(
+                            hasattr(hsp, "_probe_egress_filtering"),
+                            f"probe helper must exist for test {case!r}",
+                        )
                 elif isinstance(witness, tuple):
                     mod_name, attr_name = witness
                     mod = importlib.import_module(mod_name)
@@ -362,7 +368,9 @@ class RunnerSafetyProbeTests(unittest.TestCase):
                         hasattr(mod, attr_name),
                         f"helper {mod_name}.{attr_name} must exist for test {case!r}",
                     )
-                    if witness == ("shutil", "which"):
+                    if witness == ("shutil", "which") and sys.platform.startswith(
+                        "linux"
+                    ):
                         self.assertIsNotNone(
                             shutil.which("unshare"),
                             f"executable 'unshare' must exist on PATH for test {case!r}",
@@ -371,11 +379,16 @@ class RunnerSafetyProbeTests(unittest.TestCase):
                 # 2. For positive row where expected is True, check if host can enforce it
                 exp = expected
                 if cap == CAP_EGRESS_FILTERING and expected is True:
-                    proc = subprocess.run(
-                        ["unshare", "-Urn", "true"], capture_output=True
-                    )
-                    if proc.returncode != 0:
+                    if not sys.platform.startswith("linux") or not shutil.which(
+                        "unshare"
+                    ):
                         exp = False
+                    else:
+                        proc = subprocess.run(
+                            ["unshare", "-Urn", "true"], capture_output=True
+                        )
+                        if proc.returncode != 0:
+                            exp = False
 
                 # 3. Execute prober under arrangement and verify outcome
                 with arrange():
@@ -391,7 +404,8 @@ class RunnerSafetyProbeTests(unittest.TestCase):
         orig_abi = hsp._landlock_abi
         hsp._landlock_abi = lambda: 3
         try:
-            ok, note = hsp._probe_deny_tcp_port()
+            with unittest.mock.patch.object(hsp.sys, "platform", "linux"):
+                ok, note = hsp._probe_deny_tcp_port()
         finally:
             hsp._landlock_abi = orig_abi
         self.assertFalse(ok)

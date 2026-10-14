@@ -83,16 +83,18 @@ class UnknownFamily(LifecycleStyleError):
 # 1. The stage vocabulary (spec Section 5)
 # ======================================================================================
 
-# The twenty semantic stages, as named constants so a consumer never spells one as a bare literal.
+# The semantic stages, as named constants so a consumer never spells one as a bare literal.
 FORMATIVE = "formative"
 REVIEW_QUEUED = "review-queued"
 AUTHORITY_QUEUED = "authority-queued"
 READY = "ready"
+QUEUED = "queued"
 REVIEWING = "reviewing"
 EXECUTING = "executing"
 VERIFYING = "verifying"
 INTEGRATING = "integrating"
 RECOVERING = "recovering"
+INTERRUPTED = "interrupted"
 ACTIVE = "active"
 WAITING_INPUT = "waiting-input"
 BLOCKED = "blocked"
@@ -163,6 +165,14 @@ _STAGE_ROWS: Tuple[StageStyle, ...] = (
         True,
         "Approved, planned, open, pending, or otherwise actionable",
     ),
+    StageStyle(
+        QUEUED,
+        "⇪",
+        "^",
+        45,
+        True,
+        "Queued in a runner or communication queue and awaiting dispatch",
+    ),
     StageStyle(REVIEWING, "◎", "R", 220, True, "A review turn is active"),
     StageStyle(EXECUTING, "▶", "E", 220, True, "Implementation or execution is active"),
     StageStyle(
@@ -176,6 +186,14 @@ _STAGE_ROWS: Tuple[StageStyle, ...] = (
         220,
         True,
         "Retry, correction, resume, or recovery is active or required",
+    ),
+    StageStyle(
+        INTERRUPTED,
+        "↯",
+        "I",
+        220,
+        True,
+        "Stopped partway before completion and awaiting resume or reconciliation",
     ),
     StageStyle(ACTIVE, "●", "*", 220, True, "Active work whose subtype is unavailable"),
     StageStyle(
@@ -454,9 +472,9 @@ _RELEASES_PAIRS: Tuple[Tuple[str, str], ...] = (
 #     maps to `blocked` (`dependency-blocked`, `integration-blocked`, `merge-conflict`) leaves the
 #     item NOT integrated with NO scheduled retry; this one is the opposite case.
 _RUNNER_ITEM_PAIRS: Tuple[Tuple[str, str], ...] = (
-    ("queued", READY),
+    ("queued", QUEUED),
     ("running", ACTIVE),
-    ("interrupted", RECOVERING),
+    ("interrupted", INTERRUPTED),
     ("partial", RECOVERING),
     ("substantially-complete", RECOVERING),
     ("correction_required", RECOVERING),
@@ -551,7 +569,7 @@ _SET_STATE_PAIRS: Tuple[Tuple[str, str], ...] = (
 # remains mandatory.
 _COMMS_ACK_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("scheduled", READY),
-    ("queued", READY),
+    ("queued", QUEUED),
     ("delivered", READY),
     ("read", AUTHORITY_QUEUED),
     ("in-progress", ACTIVE),

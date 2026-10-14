@@ -43,6 +43,7 @@ def _bound_contract_action(
 
 def _setup_test_repo(root: Path) -> tuple[Path, Path]:
     """Initialize a git repo with a commit and an approved IPD plan."""
+    root = root.resolve()
     subprocess.run(
         ["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True
     )

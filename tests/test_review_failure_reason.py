@@ -317,9 +317,11 @@ class ReviewFailureReasonIntegrationTests(unittest.TestCase):
         readiness_ready: bool = True,
         extra_options: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        fake_bin = run_dir / "fake_opencode"
-        fake_bin.write_text(fake_script_content, encoding="utf-8")
-        fake_bin.chmod(0o755)
+        from tests import support
+
+        fake_bin = support.make_fake_executable(
+            run_dir / "fake_opencode", fake_script_content
+        )
 
         item = {
             "id6": id6,

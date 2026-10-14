@@ -316,13 +316,13 @@ class ReleasesParserTests(unittest.TestCase):
         # An argparse alias shares the parent's parser object.
         self.assertIs(self.choices["releases"], self.choices["release"])
 
-    def test_subcommands_are_exactly_list_show_new(self) -> None:
+    def test_subcommands_are_exactly_list_show_new_readiness(self) -> None:
         sub = next(
             a
             for a in self.choices["releases"]._actions
             if isinstance(a, argparse._SubParsersAction)
         )
-        self.assertEqual(set(sub.choices), {"list", "show", "new"})
+        self.assertEqual(set(sub.choices), {"list", "show", "new", "readiness"})
 
     def test_no_releases_check_subcommand(self) -> None:
         """ADVERSARIAL (PR-002): `aw check releases` is the canonical validator (check_engine ->
@@ -434,7 +434,7 @@ class ReleasesCompletionTests(_ReleasesRepoFixture):
         self.assertIn("releases", tree["subcommands"])
         self.assertEqual(
             set(tree["subcommands"]["releases"]["subcommands"]),
-            {"list", "show", "new"},
+            {"list", "show", "new", "readiness"},
         )
 
     def test_dynamic_show_selector_resolves_id6_version_and_next(self) -> None:

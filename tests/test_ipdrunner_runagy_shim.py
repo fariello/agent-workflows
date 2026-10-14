@@ -464,8 +464,10 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
         return repo
 
     def _write_fake_agy(self, root: Path, behavior: str = "normal") -> Path:
-        fake_agy = root / "fake_agy.py"
-        fake_agy.write_text(
+        from tests import support
+
+        return support.make_fake_executable(
+            root / "fake_agy",
             textwrap.dedent(
                 f"""\
                 #!/usr/bin/env python3
@@ -532,10 +534,7 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                     sys.exit(0)
                 """
             ),
-            encoding="utf-8",
         )
-        fake_agy.chmod(0o755)
-        return fake_agy
 
     def test_runagy_two_turn_execution_with_clean_verification(self):
         with tempfile.TemporaryDirectory() as temp:
