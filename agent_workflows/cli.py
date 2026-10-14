@@ -17750,7 +17750,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
-            return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
+            forwarded = list(getattr(args, "runipd_args", []) or [])
+            if getattr(args, "agent", False) and "--as-agent" not in forwarded:
+                forwarded.append("--as-agent")
+            return oc_runipd.main(forwarded)
         # revsweep 76gsmv E-02: the alias's parsed-namespace path. `_dispatch` intercepts `oc review`
         # before `parse_args`, so this is not the live route today; it exists so the leaf cannot
         # silently fall through to family help if that interception is ever reordered, and it calls
@@ -17819,7 +17822,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
-            return agy_runipd.main(list(getattr(args, "runipd_args", []) or []))
+            forwarded = list(getattr(args, "runipd_args", []) or [])
+            if getattr(args, "agent", False) and "--as-agent" not in forwarded:
+                forwarded.append("--as-agent")
+            return agy_runipd.main(forwarded)
         # revsweep 76gsmv E-02: the alias's parsed-namespace path, the twin of the `oc` one above and
         # calling the SAME expansion function, so neither host's spelling can drift from the other's.
         if agy_cmd == "review":

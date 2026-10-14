@@ -36,32 +36,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the stop
 
-- [ ] E-01 Add the decision as one shared predicate in `runner_shared` (both hosts call it): inputs are the saved checkup record (Order 02's reader), the setting, the selected queue, and the override reason; output is ALLOW, ALLOW-WITH-WARNING (unknown state, or overridden, with the text to print), or REFUSE (with the message). REFUSE only when the record is PRESENT, says CI's last pass is more than N commits behind the branch, no override is given, and not every selected item's `- Set:` is in `ci_red_exempt_sets`. Keep the predicate PURE: the caller passes the commits-since-last-pass count, re-counted against the CURRENT tip of Order 02's `ci_checkup_branch` (`git rev-list --count --first-parent <last-pass>..<branch>`) when the record is older than the tip, so a stale record is not read as fresher than it is; a count that cannot be computed (last-pass commit not in local history) is UNKNOWN, which warns. Read `ci_red_exempt_sets` through the project-config loader beside Order 02's settings (a list of Set ids, default `[]`, malformed values warn and fall back, as `config.release_gate_work_kinds` does), and set it to `["cihealth"]` in this repository's `.aw/config/project.json`.
+- [x] E-01 Add the decision as one shared predicate in `runner_shared` (both hosts call it): inputs are the saved checkup record (Order 02's reader), the setting, the selected queue, and the override reason; output is ALLOW, ALLOW-WITH-WARNING (unknown state, or overridden, with the text to print), or REFUSE (with the message). REFUSE only when the record is PRESENT, says CI's last pass is more than N commits behind the branch, no override is given, and not every selected item's `- Set:` is in `ci_red_exempt_sets`. Keep the predicate PURE: the caller passes the commits-since-last-pass count, re-counted against the CURRENT tip of Order 02's `ci_checkup_branch` (`git rev-list --count --first-parent <last-pass>..<branch>`) when the record is older than the tip, so a stale record is not read as fresher than it is; a count that cannot be computed (last-pass commit not in local history) is UNKNOWN, which warns. Read `ci_red_exempt_sets` through the project-config loader beside Order 02's settings (a list of Set ids, default `[]`, malformed values warn and fall back, as `config.release_gate_work_kinds` does), and set it to `["cihealth"]` in this repository's `.aw/config/project.json`.
   - Depends on: none
   - Expected outcome: a pure function returning the right verdict for each combination, and the setting loader.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire it into both runners. Add `enforce_red_ci_gate` to `runner_shared` and call it from `runner_shared.initialize_run_core` (the shared path both hosts use), after Order 02's checkup step and after the run directory exists, BEFORE the `--prepare-only` early return and before any agent turn or session, sited exactly as `enforce_spec_edit_ack_gate` is (spec `25kzda` 2.5c), so a prepared queue cannot later be resumed past the gate. On REFUSE: record a durable refusal (refusal code `red-ci`, an event in `events.jsonl`, state persisted) so it is readable in `aw runs`, raise `DriverError` with the message, exit nonzero, and emit an `aw.agent/v1` refusal record under `--agent`; spawn no session and touch no repository file. On an override, record a `red-ci-override` event with the reason and the CI state, and show the reason in the run summary.
+- [x] E-02 Wire it into both runners. Add `enforce_red_ci_gate` to `runner_shared` and call it from `runner_shared.initialize_run_core` (the shared path both hosts use), after Order 02's checkup step and after the run directory exists, BEFORE the `--prepare-only` early return and before any agent turn or session, sited exactly as `enforce_spec_edit_ack_gate` is (spec `25kzda` 2.5c), so a prepared queue cannot later be resumed past the gate. On REFUSE: record a durable refusal (refusal code `red-ci`, an event in `events.jsonl`, state persisted) so it is readable in `aw runs`, raise `DriverError` with the message, exit nonzero, and emit an `aw.agent/v1` refusal record under `--agent`; spawn no session and touch no repository file. On an override, record a `red-ci-override` event with the reason and the CI state, and show the reason in the run summary.
   - Depends on: E-01
   - Expected outcome: a refused run (including under `--prepare-only`) starts no session and its refusal is readable afterwards; an overridden run starts and its summary names the reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add the flag. Register `--allow-red-ci` as a `runner_shared.RunPolicyFlag` row (`kind="str"`, so argparse requires a value; refuse an empty or whitespace-only value; `owner="runner_shared.enforce_red_ci_gate"`; `resume_rule=RESUME_REFUSE`, because `resume` does not call `initialize_run_core` and consent accepted there would gate nothing, the reasoning recorded on the `--ack-spec-edits` row), so both `aw oc run` and `aw agy run` get it from the one table. Its help text says it waives only this gate. `--full-auto` does not imply it.
+- [x] E-05 Add the flag. Register `--allow-red-ci` as a `runner_shared.RunPolicyFlag` row (`kind="str"`, so argparse requires a value; refuse an empty or whitespace-only value; `owner="runner_shared.enforce_red_ci_gate"`; `resume_rule=RESUME_REFUSE`, because `resume` does not call `initialize_run_core` and consent accepted there would gate nothing, the reasoning recorded on the `--ack-spec-edits` row), so both `aw oc run` and `aw agy run` get it from the one table. Its help text says it waives only this gate. `--full-auto` does not imply it.
   - Depends on: E-02
   - Expected outcome: both hosts parse the flag; an empty value and a value on `resume` are refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove and document
 
-- [ ] E-03 Add `tests/test_red_ci_stop.py`, driving the real runner entry points with a scripted host and a pre-written checkup record, asserting on exit codes, output, events and spawned-agent counts, never on source text. Cases: (a) red beyond N: refused, no agent spawned, message names the last passing commit, durable refusal event present; (a2) the same under `--prepare-only`: refused; (b) same with `--allow-red-ci "fixing X"`: runs, reason in events and summary; (c) empty reason refused by the parser, and `--allow-red-ci` on resume refused; (d) every selected item in a Set listed in `ci_red_exempt_sets`: runs with no flag, and a mixed queue (one exempt, one not) is refused; (e) unknown state and missing record: runs with a warning; (f) interval 0: runs silently; (g) red but within N: runs; (g2) a record older than the branch tip whose re-count crosses N: refused; (h) both hosts behave the same for (a) and (b); (i) `--full-auto` alone does not override.
+- [x] E-03 Add `tests/test_red_ci_stop.py`, driving the real runner entry points with a scripted host and a pre-written checkup record, asserting on exit codes, output, events and spawned-agent counts, never on source text. Cases: (a) red beyond N: refused, no agent spawned, message names the last passing commit, durable refusal event present; (a2) the same under `--prepare-only`: refused; (b) same with `--allow-red-ci "fixing X"`: runs, reason in events and summary; (c) empty reason refused by the parser, and `--allow-red-ci` on resume refused; (d) every selected item in a Set listed in `ci_red_exempt_sets`: runs with no flag, and a mixed queue (one exempt, one not) is refused; (e) unknown state and missing record: runs with a warning; (f) interval 0: runs silently; (g) red but within N: runs; (g2) a record older than the branch tip whose re-count crosses N: refused; (h) both hosts behave the same for (a) and (b); (i) `--full-auto` alone does not override.
   - Depends on: E-02, E-05
   - Expected outcome: the new module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend spec `25kzda`: add `[--allow-red-ci <justification>]` to the Section 2.1 grammar and a bullet for it beside `--ack-spec-edits` (every registered `RunPolicyFlag` row must be declared in 2.1 in the same change, per the comments on the `--allow-uncovered-orchestrator-work` and `--allow-concurrent-driver` rows); add it to 2.1's "`--full-auto` ... does not imply" list; and add a section `2.5f Red-CI gate` after 2.5e stating the trigger, the exemption setting, UNKNOWN never refusing, the durable refusal, and the `--prepare-only` siting; add README and CHANGELOG lines (no em or en dashes). Run the bare suite and paste its summary line.
+- [x] E-04 Amend spec `25kzda`: add `[--allow-red-ci <justification>]` to the Section 2.1 grammar and a bullet for it beside `--ack-spec-edits` (every registered `RunPolicyFlag` row must be declared in 2.1 in the same change, per the comments on the `--allow-uncovered-orchestrator-work` and `--allow-concurrent-driver` rows); add it to 2.1's "`--full-auto` ... does not imply" list; and add a section `2.5f Red-CI gate` after 2.5e stating the trigger, the exemption setting, UNKNOWN never refusing, the durable refusal, and the `--prepare-only` siting; add README and CHANGELOG lines (no em or en dashes). Run the bare suite and paste its summary line.
   - Depends on: E-03
   - Expected outcome: the spec diff, doc lines, and a green bare suite.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -125,30 +125,68 @@ Spec `25kzda` amended (E-04: 2.1 grammar and flag bullet, the `--full-auto` non-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the predicate's verdict for each E-03 case, pasted as a table, and the `ci_red_exempt_sets` value under missing, valid and malformed config.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `runner_shared.decide_red_ci_gate` verdicts across E-03 cases (`tests/test_red_ci_stop.py::test_pure_decide_red_ci_gate_verdicts` and `test_ci_red_exempt_sets_config_loader`):
+    | Case | Verdict | `proceed` | `exempt` | `override` |
+    |---|---|---|---|---|
+    | (a)/(a2)/(h)/(i) red beyond N (`105 > 100`, non-exempt queue) | `REFUSE` | `False` | `False` | `None` |
+    | (b)/(h) red beyond N + `--allow-red-ci "fixing X"` | `ALLOW-WITH-WARNING` | `True` | `False` | `"fixing X"` |
+    | (d-exempt) all selected in `ci_red_exempt_sets` (`["cihealth"]`) | `ALLOW` | `True` | `True` | `None` |
+    | (d-mixed) mixed exempt + non-exempt queue (`["cihealth", "other"]`) | `REFUSE` | `False` | `False` | `None` |
+    | (e-missing) missing checkup record (`record=None`) | `ALLOW-WITH-WARNING` | `True` | `False` | `None` |
+    | (e-unknown) `UNKNOWN` CI state (`count=None`) | `ALLOW-WITH-WARNING` | `True` | `False` | `None` |
+    | (f) interval `0` (disabled) | `ALLOW` | `True` | `False` | `None` |
+    | (g) red within N (`80 <= 100`) | `ALLOW` | `True` | `False` | `None` |
+    | (g2) stale record re-counted beyond N (`80 -> 105 > 100`) | `REFUSE` | `False` | `False` | `None` |
+    Config loader `config.ci_red_exempt_sets`: missing config -> `[]`; valid `{"ci_red_exempt_sets": ["cihealth", "ci-hotfix"]}` -> `['cihealth', 'ci-hotfix']` (and this repository's `.aw/config/project.json` -> `['cihealth']`); malformed `{"ci_red_exempt_sets": "bad"}` -> `[]` with warning `"WARNING: ci_red_exempt_sets in <dict> is 'bad', which is not a list of strings. Using default [] instead."`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of a refused run, a refused `--prepare-only` run, and an overridden run (human and `--agent`), produced by the run-start path E-02 creates, plus the refusal as shown by `aw runs` afterwards.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Run-start outputs from `runner_shared.initialize_run_core` -> `enforce_red_ci_gate`:
+    - Refused run (`rc=2`, 0 sessions spawned): `runipd: [RUN-RED-CI] Refusing to start new run work: CI has not passed in 3 commit(s) (threshold: 2; CI status: FAILING; last passing commit: 0b85077f4652d8723d020ab3ed591f051066cd12). Two ways forward: (1) fix CI on the tracked branch or run only an exempt CI-repair Set listed in ci_red_exempt_sets (configured exempt Sets: cihealth); or (2) pass --allow-red-ci "<why>" (non-empty justification required) to override the red-CI stop for this run.`
+    - Refused `--prepare-only` run (`rc=2`, 0 sessions spawned): `runipd: [RUN-RED-CI] Refusing to start new run work: CI has not passed in 3 commit(s) (threshold: 2; CI status: FAILING; last passing commit: 0b85077f4652d8723d020ab3ed591f051066cd12). Two ways forward: (1) fix CI on the tracked branch or run only an exempt CI-repair Set listed in ci_red_exempt_sets (configured exempt Sets: cihealth); or (2) pass --allow-red-ci "<why>" (non-empty justification required) to override the red-CI stop for this run.`
+    - Refused `--agent` run (`rc=2`, stdout JSONL): `{"schema":"aw.agent/v1","kind":"result","cmd":"oc run","exit":2,"outcome":"cannot-run","verified":false,"complete":false,"summary":"[RUN-RED-CI] Refusing to start new run work: CI has not passed in 3 commit(s) (threshold: 2; CI status: FAILING; last passing commit: 9a4f0f117aea411080dcb004b1a0d29c3ff9ddbb). Two ways forward: (1) fix CI on the tracked branch or run only an exempt CI-repair Set listed in `ci_red_exempt_sets` (configured exempt Sets: cihealth); or (2) pass `--allow-red-ci \"<why>\"` (non-empty justification required) to override the red-CI stop for this run.","refusal":{"code":"red-ci","status":"FAILING","last_passing_commit":"9a4f0f117aea411080dcb004b1a0d29c3ff9ddbb","commits_since_last_pass":3,"interval":2,...}}`
+    - `aw runs` output afterwards: `Refusals (what the run declined, and what to do): ! 20261012-other-01-tst001 [red-ci]: [RUN-RED-CI] Refusing to start new run work: CI has not passed in 3 commit(s) (threshold: 2; CI status: FAILING; last passing commit: 0b85077f4652d8723d020ab3ed591f051066cd12). ... -> remedy: Two ways forward: (1) fix CI on the tracked branch or run only an exempt CI-repair Set listed in ci_red_exempt_sets (configured exempt Sets: cihealth); or (2) pass --allow-red-ci "<why>" (non-empty justification required) to override the red-CI stop for this run.`
+    - Overridden human run (`--allow-red-ci "fixing X"`, `rc=0`): summary banner displays `Checkup: Checkup 0 commits ago: CI FAILING (3 commits); spec pointers: 0 stale [red-ci-override: fixing X]`, `WARNING: [RUN-RED-CI-OVERRIDE] Proceeding past red-CI stop (CI FAILING: 3 commit(s) since last passing commit 9a4f0f117aea411080dcb004b1a0d29c3ff9ddbb, threshold 2) by explicit --allow-red-ci override: fixing X`, and `execution-report.md` records `- Red-CI override: fixing X`.
+    - Overridden `--agent` run (`--allow-red-ci "fixing X" --agent`, `rc=0`, stdout JSONL): `{"schema":"aw.agent/v1","kind":"result","cmd":"oc run","exit":0,"outcome":"ok","verified":true,"complete":true,"run_id":"run-20261014T014657Z-285867-2","summary":"Run run-20261014T014657Z-285867-2 initialized with red-CI override (fixing X).","red_ci_override":{"commits_since_last_pass":3,"interval":2,"justification":"fixing X","last_passing_commit":"9a4f0f117aea411080dcb004b1a0d29c3ff9ddbb","reason":"fixing X","status":"FAILING"}}`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the new module passing, with each case named.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -o addopts="" -v tests/test_red_ci_stop.py tests/test_spec_edit_ack_gate.py` -> `20 passed in 16.79s`:
+    - `tests/test_red_ci_stop.py::test_ci_red_exempt_sets_config_loader PASSED`
+    - `tests/test_red_ci_stop.py::test_pure_decide_red_ci_gate_verdicts PASSED`
+    - `tests/test_red_ci_stop.py::test_case_a_and_a2_red_beyond_n_refuses_and_aw_runs_shows_it PASSED`
+    - `tests/test_red_ci_stop.py::test_case_b_override_runs_and_records_reason_in_events_and_summary PASSED`
+    - `tests/test_red_ci_stop.py::test_case_c_empty_reason_and_resume_refused[agent_workflows.oc_runipd] PASSED`
+    - `tests/test_red_ci_stop.py::test_case_c_empty_reason_and_resume_refused[agent_workflows.agy_runipd] PASSED`
+    - `tests/test_red_ci_stop.py::test_case_d_exempt_set_runs_and_mixed_queue_refused PASSED`
+    - `tests/test_red_ci_stop.py::test_case_e_unknown_state_and_missing_record_run_with_warning PASSED`
+    - `tests/test_red_ci_stop.py::test_case_f_interval_zero_runs_silently PASSED`
+    - `tests/test_red_ci_stop.py::test_case_g_and_g2_within_n_runs_and_stale_record_crossing_n_refused PASSED`
+    - `tests/test_red_ci_stop.py::test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override[agent_workflows.oc_runipd] PASSED`
+    - `tests/test_red_ci_stop.py::test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override[agent_workflows.agy_runipd] PASSED`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the spec diff, the doc lines, and the bare-suite summary line.
   - Observed evidence:
-  - Result: pending
+    - Spec `25kzda` diff (`git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`): added `[--allow-red-ci <justification>]` in Section 2.1 grammar, added `--allow-red-ci` to the `--full-auto` non-implication list (`--allow-uncovered-orchestrator-work, --allow-concurrent-driver, --ack-spec-edits, --allow-red-ci, or --allow-drafts`), added the `--allow-red-ci` flag bullet beside `--ack-spec-edits` in Section 2.1, and added `### 2.5f Red-CI gate` after `2.5e` covering trigger & pure predicate (`runner_shared.decide_red_ci_gate`, `runner_shared.enforce_red_ci_gate`), `ci_red_exempt_sets` (`["cihealth"]`), `--allow-red-ci <justification>`, `UNKNOWN` / interval `0` behavior, and durable refusal (`red-ci`) sited before `--prepare-only` (`aw specs check: all specs conform. 40 specs checked.`; `spec_citations.stale_spec_anchors` -> `0` findings).
+    - `README.md` lines: `- ci_checkup_interval_commits: Interval in commits between periodic run-start checkups and the red-CI run-start gate threshold (default 100, 0 disables).`, `- ci_red_exempt_sets: List of plan Set IDs exempt from the red-CI run-start gate (default []).`, and `When the saved checkup record shows CI's last pass is more than ci_checkup_interval_commits first-parent commits behind ci_checkup_branch, aw oc run and aw agy run refuse to start new work unless every selected item belongs to a Set in ci_red_exempt_sets or --allow-red-ci "<why>" is passed (recording the reason in the run events and summary).`
+    - `CHANGELOG.md` line: `- Added: red-CI run-start gate on aw oc run and aw agy run refuses to start new run work (including under --prepare-only) when the saved checkup record reports CI's last pass is more than ci_checkup_interval_commits first-parent commits behind ci_checkup_branch, unless every selected plan belongs to a Set in ci_red_exempt_sets (default [], configured to ["cihealth"] in this repository) or --allow-red-ci "<why>" is provided with a recorded justification; unknown CI state warns without blocking, and durable red-ci refusals are shown by aw runs.`
+    - Bare test suite summary (`python3 -m pytest`): `8313 passed, 4 skipped, 18 xfailed, 3 warnings in 771.60s (0:12:51)`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted `aw oc run --help` and `aw agy run --help` excerpts showing the flag, and pasted refusals for an empty value and for the flag on resume.
   - Observed evidence:
-  - Result: pending
+    - `aw oc run --help` / `aw oc run start --help`: `exempt Set (ci_red_exempt_sets) or --allow-red-ci "<why>" is supplied on` and `[--allow-red-ci JUSTIFICATION] ... Override the red-CI run-start stop when the saved checkup record shows CI has not passed in ci_checkup_interval_commits commits, and RECORD THE SUPPLIED JUSTIFICATION for having done so. Takes a non-empty justification string (for example: --allow-red-ci "fixing flake in foo"); waives only this gate.`
+    - `aw agy run --help` / `aw agy run start --help`: `exempt Set (ci_red_exempt_sets) or --allow-red-ci "<why>" is supplied on` and `[--allow-red-ci JUSTIFICATION] ... Override the red-CI run-start stop when the saved checkup record shows CI has not passed in ci_checkup_interval_commits commits, and RECORD THE SUPPLIED JUSTIFICATION for having done so. Takes a non-empty justification string (for example: --allow-red-ci "fixing flake in foo"); waives only this gate.`
+    - Empty/whitespace justification refusal (`exit 2`): `runipd start: error: argument --allow-red-ci: requires a non-empty justification string (for example: --allow-red-ci "known flake")`
+    - `--allow-red-ci` on `resume` refusal (`exit 2`): `runipd: --allow-red-ci cannot be changed on --resume: spec 25kzda 2.1 freezes it at queue build ('the frozen value cannot change on resume'). Resume the run without it, or start a new run`
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -3820,6 +3820,12 @@ AUTOMATIC STATUS ROUTING:
   - to-review: Runs Antigravity with `/plan-review <plan_path>`.
   - approved:  Executes the plan step-by-step according to the execution runbook,
                followed by independent verification in a clean session.
+
+RED-CI GATE:
+  A new run refuses to start when the saved checkup record shows CI has not passed
+  in `ci_checkup_interval_commits` commits, unless every queued item belongs to an
+  exempt Set (`ci_red_exempt_sets`) or `--allow-red-ci "<why>"` is supplied on
+  `start` (see `start --help` for full policy flags).
 """,
     )
     sub = parser.add_subparsers(dest="command", required=False)
@@ -3975,6 +3981,14 @@ AUTOMATIC STATUS ROUTING:
     # the `rununify` Set exists to remove, and this one defaulted to the LESS safe direction.
     runner_shared.register_run_policy_flags(start)
     start.add_argument(
+        "--agent",
+        "--as-agent",
+        dest="as_agent",
+        action="store_true",
+        default=False,
+        help="Emit aw.agent/v1 JSONL run-start / refusal records on stdout",
+    )
+    start.add_argument(
         "--max-items-per-session",
         type=int,
         default=4,
@@ -4024,6 +4038,14 @@ AUTOMATIC STATUS ROUTING:
     # `--full-auto` pattern), so an OMITTED flag cannot clobber the frozen value. The opencode twin
     # carries the full note.
     runner_shared.register_run_policy_flags(resume, resume=True)
+    resume.add_argument(
+        "--agent",
+        "--as-agent",
+        dest="as_agent",
+        action="store_true",
+        default=False,
+        help="Emit aw.agent/v1 JSONL refusal records on stdout",
+    )
     resume.add_argument(
         "--max-items-per-session",
         type=int,
@@ -4229,6 +4251,24 @@ def main(argv: list[str] | None = None) -> int:
             # binding refuses and names the working spelling; see `handle_audit_command`.
             return handle_audit_command(args)
         if args.command == "start":
+            if runner_shared.is_agent_mode(args):
+                import contextlib as _contextlib
+
+                with _contextlib.redirect_stdout(sys.stderr):
+                    run_dir = initialize_run(args)
+                if args.prepare_only:
+                    runner_shared.emit_agent_run_start_record(
+                        run_dir, cmd="agy run", exit_code=0
+                    )
+                    return 0
+                with _contextlib.redirect_stdout(sys.stderr):
+                    install_stop_triggers(run_dir)
+                    with locked_run(run_dir):
+                        rc = run_queue(run_dir, retry_incomplete=False)
+                runner_shared.emit_agent_run_start_record(
+                    run_dir, cmd="agy run", exit_code=rc
+                )
+                return rc
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")
             print(f"State directory: {run_dir}")
@@ -4373,7 +4413,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Nothing awaiting review; no run started.")
         return 0
     except DriverError as exc:
-        if run_dir and (run_dir / "state.json").is_file():
+        if runner_shared.is_agent_mode(args):
+            runner_shared.emit_agent_run_refusal_record(exc, cmd="agy run")
+        elif run_dir and (run_dir / "state.json").is_file():
             try:
                 state = load_state(run_dir)
                 if not state.get("_summary_table_printed"):

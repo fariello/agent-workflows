@@ -257,11 +257,12 @@ aw checkup --agent   # machine-readable aw.agent/v1 result record
 
 The checkup runs automatically at run start when the branch advances past the configured commit interval. Configure checkup behavior in `.aw/config/project.json`:
 
-- `ci_checkup_interval_commits`: Interval in commits between periodic run-start checkups (default `100`, `0` disables).
+- `ci_checkup_interval_commits`: Interval in commits between periodic run-start checkups and the red-CI run-start gate threshold (default `100`, `0` disables).
 - `ci_checkup_workflow`: Workflow file to inspect via `gh run list` (default `tests.yml`).
 - `ci_checkup_branch`: Target branch to inspect (default `main`).
+- `ci_red_exempt_sets`: List of plan Set IDs exempt from the red-CI run-start gate (default `[]`).
 
-Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`.
+Checkup results are displayed in run-start banners, run-end summaries, `aw attention`, and `aw doctor`. When the saved checkup record shows CI's last pass is more than `ci_checkup_interval_commits` first-parent commits behind `ci_checkup_branch`, `aw oc run` and `aw agy run` refuse to start new work unless every selected item belongs to a Set in `ci_red_exempt_sets` or `--allow-red-ci "<why>"` is passed (recording the reason in the run events and summary).
 
 ### Concise agent reporting
 

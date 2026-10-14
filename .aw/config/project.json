@@ -35,5 +35,8 @@
     "setid_length": "2026-10-01",
     "release_gate_at_rest": "2026-10-01",
     "graduation_ready": "2026-10-06"
-  }
+  },
+  "ci_red_exempt_sets": [
+    "cihealth"
+  ]
 }
