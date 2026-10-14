@@ -1502,7 +1502,7 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         row1 = [ln for ln in lines_on if "111111" in ln][0]
         self.assertIn("approved ● running        plan", row1)
         row2 = [ln for ln in lines_on if "222222" in ln][0]
-        self.assertIn("to-revie ◕ queued         plan", row2)
+        self.assertIn("to-revie ⇪ queued         plan", row2)
         row3 = [ln for ln in lines_on if "333333" in ln][0]
         self.assertIn("draft    ✓ executed       plan", row3)
         row4 = [ln for ln in lines_on if "444444" in ln][0]

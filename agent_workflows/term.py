@@ -670,12 +670,14 @@ STAGE_COLOR_16: Dict[str, int] = {
     # by index, so this is the separation a derived table would lose first and the one whose loss
     # would hurt most (a board would stop distinguishing "start this" from "finished").
     "ready": _SGR_BRIGHT_CYAN,
-    # --- The six active stages: ONE yellow, by design (collapse 1) ---------------------
+    "queued": _SGR_BRIGHT_CYAN,
+    # --- The active/interrupted stages: ONE yellow, by design (collapse 1) -------------
     "reviewing": _SGR_YELLOW,
     "executing": _SGR_YELLOW,
     "verifying": _SGR_YELLOW,
     "integrating": _SGR_YELLOW,
     "recovering": _SGR_YELLOW,
+    "interrupted": _SGR_YELLOW,
     "active": _SGR_YELLOW,
     # --- The obstruction band, held apart in three colors ------------------------------
     # SEPARATION 3 of 3: `waiting-input` is BRIGHT YELLOW and `blocked` is MAGENTA. At 256 they are
@@ -711,11 +713,20 @@ REQUIRED_16_COLOR_SEPARATIONS: Tuple[Tuple[str, str], ...] = (
     ("waiting-input", "blocked"),
 )
 
-#: The two collapses R9.3a.3 declares EXPECTED, also as data. Pinning them is what stops a later
+#: The collapses R9.3a.3 declares EXPECTED, also as data. Pinning them is what stops a later
 #: change quietly re-expanding these groups into colors a 16-color terminal cannot show.
 EXPECTED_16_COLOR_COLLAPSES: Tuple[Tuple[str, ...], ...] = (
-    ("reviewing", "executing", "verifying", "integrating", "recovering", "active"),
+    (
+        "reviewing",
+        "executing",
+        "verifying",
+        "integrating",
+        "recovering",
+        "interrupted",
+        "active",
+    ),
     ("parked", "superseded", "abandoned", "unknown", "none", "formative"),
+    ("ready", "queued"),
 )
 
 

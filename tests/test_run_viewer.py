@@ -1922,10 +1922,10 @@ class SharedLifecycleRenderingTests(TestCase):
             ("ran", "\u21a9\ufe0e", "1;38;5;220"),
             ("unknown_outcome", "\u2718", "1;38;5;196"),
             ("fail-verify", "\u2718", "1;38;5;196"),
-            ("interrupted", "\u21a9\ufe0e", "1;38;5;220"),
+            ("interrupted", "\u21af", "1;38;5;220"),
             ("fail-gate", "\u26a0\ufe0e", "1;38;5;208"),
             ("failed", "\u2718", "1;38;5;196"),
-            ("queued", "\u25d5", "1;38;5;45"),
+            ("queued", "\u21ea", "1;38;5;45"),
             ("needs_input", "\u2026", "1;38;5;214"),
             ("not-run", "\u2205", "38;5;244"),
         )

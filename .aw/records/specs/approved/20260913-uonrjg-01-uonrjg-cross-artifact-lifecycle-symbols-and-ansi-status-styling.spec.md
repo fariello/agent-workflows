@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-14 note (aw specs): Add distinct queued (⇪) and interrupted (↯) lifecycle stages and glyphs to Section 5 and Section 7.2.
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-10-13 note (aw specs): AMENDED 2026-10-13 (plan mq715m / backlog 0rnvj6): A5 gained a definition of 'golden output' with two referents (the rendered output of shared lifecycle renderers across stages, depths, and modes, and every committed *.golden fixture under tests/ matched both as literal code points and JSON \uXXXX escapes); a committed-golden scan was added to tests/test_lifecycle_style.py CriterionA5VariationSelectorTests; no criterion requirement, stage, color, glyph, or mapping changed.
 - 2026-10-08 note (aw specs): AMENDED 2026-10-08 (plan xtensb / backlog nzqj6m): corrected stale citations and measurements in spec uonrjg without changing any criterion requirements or lifecycle presentation: re-pointed four line citations (S1 to symbol term.should_unicode, S2 and S6 to retracted contract doc section 9, S3 to normative 256->16->none ladder in accessibility lens); re-measured subcommand census at HEAD (253 leaves / 34 groups / 287 nodes, 29 accounted misses); marked Section 12a 25-of-219 census as pre-yaxr4i historical measurement; retired A13 former document-conflict warning as resolved with cli-output-contract agreeing with code; no criterion requirement, stage, color, glyph, or mapping changed.
@@ -179,11 +180,13 @@ glyph, id6, and status word when those elements are styled. No other SGR attribu
 | review-queued | `◔` | `Q` | 39 | no | Awaiting review |
 | authority-queued | `◑` | `A` | 147 | no | Reviewed and awaiting approval or authority |
 | ready | `◕` | `>` | 45 | yes | Approved, planned, open, pending, or otherwise actionable |
+| queued | `⇪` | `^` | 45 | yes | Queued in a runner or communication queue and awaiting dispatch |
 | reviewing | `◎` | `R` | 220 | yes | A review turn is active |
 | executing | `▶` | `E` | 220 | yes | Implementation or execution is active |
 | verifying | `◆` | `V` | 220 | yes | Tests or other verification are active |
 | integrating | `⇄` | `M` | 220 | yes | Merge or integration work is active |
 | recovering | `↩︎` | `T` | 220 | yes | Retry, correction, resume, or recovery is active or required |
+| interrupted | `↯` | `I` | 220 | yes | Stopped partway before completion and awaiting resume or reconciliation |
 | active | `●` | `*` | 220 | yes | Active work whose subtype is unavailable |
 | waiting-input | `…` | `.` | 214 | yes | Waiting for human input or another non-failure response |
 | blocked | `⚠︎` | `!` | 208 | yes | Work cannot advance until a named condition clears |
@@ -321,9 +324,10 @@ only when the subtype is genuinely unavailable.
 
 | Current item status | Semantic stage |
 |---|---|
-| `queued` | ready |
+| `queued` | queued |
 | `running` | action-aware activity from 7.1, otherwise active |
-| `interrupted`, `partial`, `substantially-complete`, `correction_required` | recovering |
+| `interrupted` | interrupted |
+| `partial`, `substantially-complete`, `correction_required` | recovering |
 | `reviewed` | authority-queued |
 | `approved` | ready |
 | `executed`, `verified`, `complete` | done |
