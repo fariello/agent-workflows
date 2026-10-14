@@ -1,5 +1,5 @@
 - Id: l5dq92
-- Status: graduated
+- Status: done
 - Graduated-To: l5dq92
 - Blocks-Release: next
 - Set: l5dq92
@@ -8,6 +8,7 @@
 - Summary: aw runs and aw runs list emit the bare payload {"runs": []} under --agent with no aw.agent/v1 record
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD t76qdk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-l5dq92-01-t76qdk-aw-runs-empty-state-agent-emits-an-aw-agent-v1-summary-recor.ipd.md); evidence .aw/records/plans/executed/20261012-l5dq92-01-t76qdk-aw-runs-empty-state-agent-emits-an-aw-agent-v1-summary-recor.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: t76qdk
 - 2026-10-02 created (aw backlog): aw runs and aw runs list emit the bare payload {"runs": []} under --agent with no aw.agent/v1 record
 
