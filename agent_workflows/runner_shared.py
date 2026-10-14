@@ -27037,6 +27037,7 @@ class SuiteBaselineRun:
         self._stdout = ""
         self._stderr = ""
         self._result: SuiteBaseline | None = None
+        self._custom_popen = popen
         spawn = popen or subprocess.Popen
         if popen is None:
             child_env = dict(os.environ)
@@ -27047,6 +27048,9 @@ class SuiteBaselineRun:
                 child_env["PYTHONPATH"] = pkg_root
             elif pkg_root not in existing_pp.split(os.pathsep):
                 child_env["PYTHONPATH"] = f"{pkg_root}{os.pathsep}{existing_pp}"
+            popen_kwargs: dict[str, Any] = {}
+            if os.name != "nt":
+                popen_kwargs["start_new_session"] = True
             self.process = spawn(
                 self.argv,
                 cwd=str(self.checkout),
@@ -27054,6 +27058,7 @@ class SuiteBaselineRun:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                **popen_kwargs,
             )
         else:
             self.process = spawn(
@@ -27066,6 +27071,36 @@ class SuiteBaselineRun:
         self._drain = threading.Thread(target=self._pump, daemon=True)
         self._drain.start()
 
+    def _kill_process(self) -> None:
+        """Kill the baseline process and any descendant processes (e.g. pytest and xdist workers)."""
+        if self._custom_popen is None:
+            pid = getattr(self.process, "pid", None)
+            if isinstance(pid, int) and pid > 0:
+                if os.name == "nt":
+                    with contextlib.suppress(Exception):
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(pid)],
+                            capture_output=True,
+                            timeout=10,
+                            check=False,
+                        )
+                elif hasattr(os, "killpg"):
+                    import signal
+
+                    killpg = getattr(os, "killpg", None)
+                    sigkill = getattr(signal, "SIGKILL", 9)
+                    if callable(killpg):
+                        with contextlib.suppress(Exception):
+                            killpg(pid, sigkill)
+        with contextlib.suppress(Exception):
+            self.process.kill()
+        if self._custom_popen is None:
+            with contextlib.suppress(Exception):
+                self.process.wait(timeout=5.0)
+            if threading.current_thread() is not self._drain:
+                with contextlib.suppress(Exception):
+                    self._drain.join(timeout=2.0)
+
     def _pump(self) -> None:
         """Drain the child's pipes so it can never block on a full buffer. NEVER raises."""
 
@@ -27076,8 +27111,7 @@ class SuiteBaselineRun:
             # produced, so a partial run still yields the ids it managed to report. The failure text
             # is appended to stderr rather than raised: this thread must never raise, because
             # nothing awaits it and an exception here would be invisible.
-            with contextlib.suppress(Exception):
-                self.process.kill()
+            self._kill_process()
             partial_out = partial_err = ""
             with contextlib.suppress(Exception):
                 partial_out, partial_err = self.process.communicate(timeout=30)
@@ -27108,8 +27142,7 @@ class SuiteBaselineRun:
         if self._drain.is_alive():
             # Still running at collection time. Abandon it rather than wait: it is a missing
             # baseline. The child is killed so it cannot outlive the turn and burn CPU unobserved.
-            with contextlib.suppress(Exception):
-                self.process.kill()
+            self._kill_process()
             self._result = suite_baseline_absent(
                 f"the baseline suite had not finished when the turn ended "
                 f"(waited {float(wait_seconds):.0f}s of a {self.timeout:.0f}s bound); "
@@ -27183,8 +27216,7 @@ class SuiteBaselineRun:
         Called from the cleanup construct so no baseline process survives its turn on ANY exit path.
         """
 
-        with contextlib.suppress(Exception):
-            self.process.kill()
+        self._kill_process()
 
 
 def attempt_validates(options: Mapping) -> bool:
