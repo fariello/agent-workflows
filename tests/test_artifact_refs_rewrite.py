@@ -284,6 +284,193 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         self.assertIn(new_name, rev.read_text(encoding="utf-8"))
         self.assertIn(new_name, tst.read_text(encoding="utf-8"))
 
+    def test_facetless_1_backlog_prose_rewritten_and_preview_shows_kind(self):
+        plan = self.plans / "20260701-testset-01-p11111-old-slug.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p11111\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        backlog_dir = self.tmp / ".aw" / "records" / "backlog" / "open"
+        backlog_dir.mkdir(parents=True, exist_ok=True)
+        backlog_file = backlog_dir / "20260701-bk0001-01-bk0001-item.backlog.md"
+        backlog_file.write_text(
+            "Executed per IPD 20260701-testset-01-p11111-old-slug in review.\n",
+            encoding="utf-8",
+        )
+
+        rc_prev, out_prev = self._run(
+            ["rename", "plans", "p11111", "--slug", "new-slug", "--no-commit"]
+        )
+        self.assertEqual(rc_prev, 0, f"preview failed with rc={rc_prev}:\n{out_prev}")
+        self.assertIn("[facetless-stem]", out_prev)
+
+        rc_app, out_app = self._run(
+            [
+                "rename",
+                "plans",
+                "p11111",
+                "--slug",
+                "new-slug",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc_app, 0, f"apply failed with rc={rc_app}:\n{out_app}")
+        self.assertEqual(
+            backlog_file.read_text(encoding="utf-8"),
+            "Executed per IPD 20260701-testset-01-p11111-new-slug in review.\n",
+        )
+
+    def test_facetless_2_all_three_forms_rewritten_no_doubled_suffix(self):
+        plan = self.plans / "20260701-testset-01-p22222-old-slug.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p22222\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        rev = self.reviews / "20260701-rev-02-r22222-rev.review.md"
+        rev.write_text(
+            "Full: 20260701-testset-01-p22222-old-slug.ipd.md\n"
+            "Bare: 20260701-testset-01-p22222-old-slug.ipd\n"
+            "Facetless: 20260701-testset-01-p22222-old-slug\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p22222",
+                "--slug",
+                "new-slug",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, f"rename failed with rc={rc}:\n{out}")
+        content = rev.read_text(encoding="utf-8")
+        self.assertIn("Full: 20260701-testset-01-p22222-new-slug.ipd.md", content)
+        self.assertIn("Bare: 20260701-testset-01-p22222-new-slug.ipd", content)
+        self.assertIn("Facetless: 20260701-testset-01-p22222-new-slug", content)
+        self.assertNotIn(".ipd.ipd", content)
+        self.assertNotIn("old-slug", content)
+
+    def test_facetless_3_sibling_shared_stem_skipped_and_warned(self):
+        plan = self.plans / "20260701-testset-01-p33333-plan-slug.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p33333\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        sibling = self.reviews / "20260701-testset-01-p33333-plan-slug.review.md"
+        sibling.write_text("# Review\n", encoding="utf-8")
+
+        test_file = self.tests_dir / "test_sibling.py"
+        test_file.write_text(
+            "Citing 20260701-testset-01-p33333-plan-slug in test.\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p33333",
+                "--slug",
+                "new-slug",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, f"rename failed with rc={rc}:\n{out}")
+        self.assertIn(
+            "--- WARNING: stem '20260701-testset-01-p33333-plan-slug' is shared by 1 other artifact(s); "
+            "facet-less citations of it were NOT rewritten ---",
+            out,
+        )
+        self.assertEqual(
+            test_file.read_text(encoding="utf-8"),
+            "Citing 20260701-testset-01-p33333-plan-slug in test.\n",
+        )
+
+    def test_facetless_4_fenced_preserved_outside_rewritten_and_bare_slug_unchanged(
+        self,
+    ):
+        plan = self.plans / "20260701-testset-01-p44444-my-plan.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p44444\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        citing_file = self.reviews / "20260701-rev-04-r44444-rev.review.md"
+        initial_content = (
+            "Outside: 20260701-testset-01-p44444-my-plan\n"
+            "Bare slug: my-plan\n"
+            "```sh\n"
+            "Inside fence: 20260701-testset-01-p44444-my-plan\n"
+            "```\n"
+        )
+        citing_file.write_text(initial_content, encoding="utf-8")
+
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p44444",
+                "--slug",
+                "new-plan",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, f"rename failed with rc={rc}:\n{out}")
+        content = citing_file.read_text(encoding="utf-8")
+        self.assertIn("Outside: 20260701-testset-01-p44444-new-plan", content)
+        self.assertIn("Bare slug: my-plan", content)
+        self.assertIn(
+            "```sh\nInside fence: 20260701-testset-01-p44444-my-plan\n```", content
+        )
+
+    def test_facetless_5_sibling_without_citation_does_not_warn(self):
+        plan = self.plans / "20260701-testset-01-p55555-plan-five.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p55555\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        sibling = self.reviews / "20260701-testset-01-p55555-plan-five.review.md"
+        sibling.write_text("# Review\n", encoding="utf-8")
+
+        test_file = self.tests_dir / "test_five.py"
+        test_file.write_text(
+            "Cites full name only: 20260701-testset-01-p55555-plan-five.ipd.md\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            ["rename", "plans", "p55555", "--slug", "new-five", "--no-commit"]
+        )
+        self.assertEqual(rc, 0, f"rename preview failed with rc={rc}:\n{out}")
+        self.assertNotIn("is shared by", out)
+        self.assertNotIn("facet-less citations of it were NOT rewritten", out)
+
+    def test_facetless_6_undated_record_stem_not_rewritten_in_prose(self):
+        from agent_workflows import artifact_refs
+
+        prompt_dir = self.tmp / ".aw" / "records" / "prompt-library"
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_file = prompt_dir / "fix-bar.prompt.md"
+        prompt_file.write_text(
+            "<!-- aw-prompt: kind=task -->\nPrompt\n", encoding="utf-8"
+        )
+
+        citing_file = self.plans / "20260701-testset-01-p66666-cite.ipd.md"
+        initial_text = "# Plan\n\nProse mentioning fix-bar in a sentence.\n"
+        citing_file.write_text(initial_text, encoding="utf-8")
+
+        edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+            self.tmp, {"fix-bar.prompt.md": "new-bar.prompt.md"}
+        )
+        self.assertFalse(any(e.kind == "facetless-stem" for e in edits))
+        artifact_refs.apply_reference_rewrites(edits)
+        self.assertEqual(citing_file.read_text(encoding="utf-8"), initial_text)
+
 
 class TestScopePathCitationRewriteHelper(_RepoTestCase):
     """Behavior tests for Scope-Paths citation rewrite helper and in-flight guard (IPD 5h3qyy E-07)."""

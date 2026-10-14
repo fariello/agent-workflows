@@ -50,6 +50,14 @@ from agent_workflows import artifact_naming as _naming
 
 FULL_NAME = "full-name"
 BARE_STEM = "bare-stem"
+FACETLESS_STEM = "facetless-stem"
+"""Kind for facet-less stem edits (stem without .<facet>.md suffix).
+
+Note: research_refs drops kind and re-derives FULL_NAME if old_name ends .md, else
+BARE_STEM, so a research rename applies facetless-stem edits with _boundaried.
+That is outcome-equivalent and affects only research records carrying a closed
+facet (F-09).
+"""
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 
@@ -60,7 +68,7 @@ _LEGACY_PREFIX_RE = re.compile(r"\A(\d{8}-\d{4}-\d{2})-")
 class RefEdit(NamedTuple):
     """A planned reference rewrite in one file.
 
-    ``kind`` is ``full-name`` or ``bare-stem``; ``old``/``new`` are the exact strings to rewrite;
+    ``kind`` is ``full-name``, ``bare-stem``, or ``facetless-stem``; ``old``/``new`` are the exact strings to rewrite;
     ``hits`` is the occurrence count.
     """
 
@@ -78,6 +86,22 @@ def _whole_stem(name: str) -> str:
     return name[:-3] if name.endswith(".md") else name
 
 
+def _facetless_stem(name: str) -> Optional[str]:
+    """Return the facet-less stem of a dated record filename, else None.
+
+    Strips a trailing ``.<facet>.md`` where ``<facet>`` is in
+    ``artifact_naming.ARTIFACT_TYPE_FACETS``. Returns None unless ``name`` is a
+    dated record name (matching ``parse_clustered`` or ``_LEGACY_TIMESTAMP_RE``).
+    """
+    if not (_naming.parse_clustered(name) or _naming._LEGACY_TIMESTAMP_RE.match(name)):
+        return None
+    for facet in _naming.ARTIFACT_TYPE_FACETS:
+        suffix = f".{facet}.md"
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return None
+
+
 def _legacy_prefix_stem(name: str):
     """The legacy ``YYYYMMDD-HHMM-NN`` prefix of ``name`` if it has one, else None."""
 
@@ -89,6 +113,17 @@ def _boundaried(stem: str) -> "re.Pattern[str]":
     """The hyphen-aware negative-lookaround matcher for a literal stem (exact plans-engine regex)."""
 
     return re.compile(r"(?<![0-9A-Za-z-])" + re.escape(stem) + r"(?![0-9A-Za-z-])")
+
+
+_FACETS_LOOKAHEAD = rf"(?!\.(?:{'|'.join(re.escape(f) for f in _naming.ARTIFACT_TYPE_FACETS)}|md)(?![0-9A-Za-z]))"
+
+
+def _facetless_boundaried(stem: str) -> "re.Pattern[str]":
+    """The hyphen-aware negative-lookaround matcher refusing following .<facet> or .md tokens."""
+
+    return re.compile(
+        r"(?<![0-9A-Za-z-])" + re.escape(stem) + r"(?![0-9A-Za-z-])" + _FACETS_LOOKAHEAD
+    )
 
 
 # A URL pinned to a commit (`.../blob/<sha>/<path>`, also `tree`/`raw`) names a file AS IT WAS at that
@@ -187,19 +222,43 @@ def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
     return count
 
 
+def _index_records_facetless_stems(repo_root: Path) -> Dict[str, List[str]]:
+    """Build a mapping of facet-less stem -> list of record filenames under .aw/records/**."""
+    records_dir = repo_root / ".aw" / "records"
+    if not records_dir.is_dir():
+        records_dir = repo_root / ".agents"
+        if not records_dir.is_dir():
+            return {}
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    index: Dict[str, List[str]] = {}
+    for p in records_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if _core.is_ignored_path(p, repo_root, ignored_dirs):
+            continue
+        stem = _facetless_stem(p.name)
+        if stem is not None:
+            index.setdefault(stem, []).append(p.name)
+    return index
+
+
 def plan_reference_rewrites_with_warnings(
     repo_root: Path,
     name_map: Dict[str, str],
     scan_roots=_core.REFERENCE_SCAN_ROOTS,
     suffixes: Tuple[str, ...] = _core._REFERENCE_TEXT_SUFFIXES,
 ) -> Tuple[List[RefEdit], List[str]]:
-    """Plan reference rewrites and collect warnings for skipped shared legacy prefixes.
+    """Plan reference rewrites and collect warnings for skipped shared legacy prefixes and stems.
 
     Returns (edits, warnings).
     """
     whole_stem_map: Dict[str, str] = {}
     legacy_stem_map: Dict[str, str] = {}
+    facetless_stem_map: Dict[str, str] = {}
+    shared_facetless_stems: Dict[str, int] = {}
     warnings: List[str] = []
+
+    records_facetless_index: Optional[Dict[str, List[str]]] = None
 
     for old_name, new_name in name_map.items():
         if old_name == new_name:
@@ -224,6 +283,28 @@ def plan_reference_rewrites_with_warnings(
                     legacy_stem_map[o_leg] = (
                         f"{m.group('date')}-{m.group('set')}-{m.group('nn')}"
                     )
+        o_facet = _facetless_stem(old_name)
+        n_facet = _facetless_stem(new_name)
+        if (
+            o_facet is not None
+            and n_facet is not None
+            and o_facet != n_facet
+            and o_facet != o_whole
+            and o_facet not in facetless_stem_map
+            and o_facet not in shared_facetless_stems
+        ):
+            if records_facetless_index is None:
+                records_facetless_index = _index_records_facetless_stems(repo_root)
+            sibling_names = [
+                name
+                for name in records_facetless_index.get(o_facet, [])
+                if name not in name_map
+            ]
+            rec_count = len(sibling_names)
+            if rec_count >= 1:
+                shared_facetless_stems[o_facet] = rec_count
+            else:
+                facetless_stem_map[o_facet] = n_facet
 
     edits: List[RefEdit] = []
     for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
@@ -255,6 +336,20 @@ def plan_reference_rewrites_with_warnings(
                 n = len(_boundaried(old_stem).findall(text))
                 if n:
                     edits.append(RefEdit(f, BARE_STEM, old_stem, new_stem, n))
+        # (d) facet-less stem. Map-driven, strict lookahead refusing following facet/md.
+        for old_stem, new_stem in facetless_stem_map.items():
+            n = len(_facetless_boundaried(old_stem).findall(text))
+            if n:
+                edits.append(RefEdit(f, FACETLESS_STEM, old_stem, new_stem, n))
+        # Sibling collision guard: emit warning only if a facet-less occurrence was found.
+        for old_stem, count in shared_facetless_stems.items():
+            if _facetless_boundaried(old_stem).search(text):
+                warn_msg = (
+                    f"--- WARNING: stem '{old_stem}' is shared by {count} other artifact(s); "
+                    f"facet-less citations of it were NOT rewritten ---"
+                )
+                if warn_msg not in warnings:
+                    warnings.append(warn_msg)
     return edits, warnings
 
 
@@ -267,10 +362,12 @@ def plan_reference_rewrites(
     """Plan every FILENAME-derived citation rewrite for a ``name_map`` (old filename -> new filename).
 
     Emits, per changed entry: (a) the full-name rewrite; (b) the whole-stem rewrite (old name minus
-    ``.md`` -> new name minus ``.md``), which also covers the range shorthand ``<stem>..NN``; and
-    (c) the legacy ``YYYYMMDD-HHMM-NN`` prefix-stem rewrite when the old name has that prefix. Stem
-    rewrites are map-driven and hyphen-boundaried, so an unrelated same-grammar stem or an embedded
-    stem inside a longer token is never matched. A bare id6/setid is never emitted.
+    ``.md`` -> new name minus ``.md``), which also covers the range shorthand ``<stem>..NN``;
+    (c) the legacy ``YYYYMMDD-HHMM-NN`` prefix-stem rewrite when the old name has that prefix; and
+    (d) the facet-less stem rewrite for dated records (filename minus ``.<facet>.md``), guarded
+    against stems shared by sibling records. Stem rewrites are map-driven and hyphen-boundaried, so
+    an unrelated same-grammar stem or an embedded stem inside a longer token is never matched. A
+    bare id6/setid is never emitted.
     """
     edits, _ = plan_reference_rewrites_with_warnings(
         repo_root, name_map, scan_roots=scan_roots, suffixes=suffixes
@@ -279,7 +376,16 @@ def plan_reference_rewrites(
 
 
 def apply_reference_rewrites(edits: List[RefEdit], *, prefix: str = ".aw-ref-") -> None:
-    """Apply planned rewrites per file: full-name first (most specific), then hyphen-boundaried stem."""
+    """Apply planned rewrites per file: full-name first (most specific), then bare-stem, then facetless-stem."""
+
+    def _edit_order(e: RefEdit) -> int:
+        if e.kind == FULL_NAME:
+            return 0
+        if e.kind == BARE_STEM:
+            return 1
+        if e.kind == FACETLESS_STEM:
+            return 2
+        return 3
 
     by_file: Dict[Path, List[RefEdit]] = {}
     for e in edits:
@@ -291,9 +397,11 @@ def apply_reference_rewrites(edits: List[RefEdit], *, prefix: str = ".aw-ref-") 
             continue
         text, restore_fenced = _mask_fenced_code(text)
         text, restore_permalinks = _mask_permalinks(text)
-        for e in sorted(file_edits, key=lambda x: 0 if x.kind == FULL_NAME else 1):
+        for e in sorted(file_edits, key=_edit_order):
             if e.kind == FULL_NAME:
                 text = text.replace(e.old, e.new)
+            elif e.kind == FACETLESS_STEM:
+                text = _facetless_boundaried(e.old).sub(e.new, text)
             else:
                 text = _boundaried(e.old).sub(e.new, text)
         restored = restore_fenced(restore_permalinks(text))
