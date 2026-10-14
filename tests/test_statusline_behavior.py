@@ -10,6 +10,7 @@ import io
 import itertools
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -1000,14 +1001,14 @@ class TestUnifiedStatuslineLayout:
             variant="high",
         )
         assert len(lines) == 4
-        # Top border has badge and Tokens
+        # Top border has badge and CWD
         assert "agy › gemini-2.5-pro (high)" in lines[0]
-        assert "Tokens" in lines[0]
+        assert "Tokens" not in lines[0]
 
         # Line 1 has Time, Timeout, and unified Tokens subheaders
         assert "Time:   " in lines[1]
         assert "Timeout:09:51" in lines[1]
-        assert "Total" in lines[1]
+        assert "Tokens" in lines[1]
         assert "In" in lines[1]
         assert "Out" in lines[1]
         assert "Cache" in lines[1]
@@ -1070,9 +1071,9 @@ class TestUnifiedStatuslineLayout:
         assert len(set(widths)) == 1
         width = widths[0]
         assert width <= 135, f"Statusbar width {width} exceeded 135 columns"
-        assert width == 123
+        assert width == 126
 
-        # Equal-sized labels keep the statusbar the exact same width across sources (both 123)
+        # Equal-sized labels keep the statusbar the exact same width across sources (both 126)
         lines_stdout = rs.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1700000000.0 - 5700.0,
@@ -1092,4 +1093,114 @@ class TestUnifiedStatuslineLayout:
             model="claude-3-7-sonnet",
             variant="thinking",
         )
-        assert _T.visible_width(lines_stdout[0]) == width == 123
+        assert _T.visible_width(lines_stdout[0]) == width == 126
+
+
+class TestCwdBadgeAndOptionARunId:
+    """Validate top-right leftward-bleeding CWD, Option A bottom-center run ID, and full-width progress bar."""
+
+    def test_format_cwd_path_home_and_middle_truncation(self) -> None:
+        home = str(Path.home())
+        # Short path under home
+        p1 = f"{home}/repos/myrepo"
+        assert rs.format_cwd_path(p1, max_chars=30) == "~/repos/myrepo"
+
+        # Long path requiring middle truncation with [...]
+        p2 = f"{home}/repos/myrepo/deep/sub/directory/feature-worktree"
+        res = rs.format_cwd_path(p2, max_chars=30)
+        assert len(res) == 30
+        assert res.startswith("~/repos/myre")
+        assert "[...]" in res
+        assert res.endswith("ture-worktree")
+
+        # Empty / None
+        assert rs.format_cwd_path("", max_chars=30) == ""
+        assert rs.format_cwd_path(None, max_chars=30) != ""
+
+    def test_top_right_cwd_standard_fits_col5(self) -> None:
+        """Standard path fits inside Column 5 with trailing dashes."""
+        pal = rs.Palette(True, use_unicode=True)
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 10.0,
+            current_idx=8,
+            total_items=8,
+            setid="iosmvn",
+            id6="cntxsm",
+            cwd="~/repo/agent-workflows",
+            pal=pal,
+            use_unicode=True,
+        )
+        assert len(lines) == 4
+        assert _T.visible_width(lines[0]) == 120
+        # CWD badge appears in top border
+        assert " ~/repo/agent-workflows " in rs._strip_ansi(lines[0])
+        # Column 5 header has "Tokens" (not "Total")
+        assert "Tokens" in lines[1]
+        assert "Total" not in lines[1]
+        # Progress bar is full width (20 blocks filling all 31 columns)
+        assert "8/8[████████████████████]100%" in rs._strip_ansi(lines[2])
+
+    def test_top_right_cwd_leftward_bleeding_preserves_interior_columns(self) -> None:
+        """Deep CWD bleeds across divider into Spend without changing interior column widths."""
+        pal = rs.Palette(True, use_unicode=True)
+        deep_cwd = "/home/user/repos/agent-workflows/.aw/worktrees/statusbar-cwd-badge"
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 10.0,
+            current_idx=8,
+            total_items=8,
+            setid="iosmvn",
+            id6="cntxsm",
+            cwd=deep_cwd,
+            pal=pal,
+            use_unicode=True,
+        )
+        assert len(lines) == 4
+        # Total width is strictly 120
+        widths = [_T.visible_width(line) for line in lines]
+        assert widths == [120, 120, 120, 120]
+        # Top border absorbs border divider but Line 1 still has the exact interior columns
+        cols_l1 = lines[1].split("│")[1:-1]
+        assert len(cols_l1) == 6
+        assert _T.visible_width(cols_l1[0]) == 17  # Col 0
+        assert _T.visible_width(cols_l1[1]) == 21  # Col 1
+        assert _T.visible_width(cols_l1[2]) == 31  # Col 2
+        assert _T.visible_width(cols_l1[3]) == 9  # Col 3
+        assert _T.visible_width(cols_l1[4]) == 7  # Col 4 (Spend NOT widened)
+        assert _T.visible_width(cols_l1[5]) == 28  # Col 5 (Tokens NOT widened)
+
+    def test_option_a_run_id_bottom_center(self) -> None:
+        """Option A: Run ID placed in dimmed slate on bottom border under Col 2."""
+        pal = rs.Palette(True, use_unicode=True)
+        run_id = "run-20261014T004917Z-3785780"
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 10.0,
+            current_idx=6,
+            total_items=8,
+            setid="iosmvn",
+            id6="cntxsm",
+            run_id=run_id,
+            items_passed=6,
+            items_failed=2,
+            stop_level=1,
+            pal=pal,
+            use_unicode=True,
+        )
+        assert len(lines) == 4
+        widths = [_T.visible_width(line) for line in lines]
+        assert widths == [120, 120, 120, 120]
+        bot_plain = rs._strip_ansi(lines[3])
+        # Tally at bottom left
+        assert bot_plain.startswith("╰─[✓ 6 ok · ✗ 2 fail]")
+        # Run ID centered in Col 2
+        assert f"─{run_id}──┴" in bot_plain
+        # Stop badge at bottom right
+        assert bot_plain.endswith("─ ⏹ STOP: finish current ─╯")

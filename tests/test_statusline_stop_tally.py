@@ -23,25 +23,25 @@ class TestBadgeFormatters:
         """Assert stop badge generates correct text across all levels in Unicode mode."""
         # Level 1: after-call
         col, plain = rs.format_stop_badge(1, use_unicode=True, color=False)
-        assert plain == "[⏹ STOP: finish current]"
+        assert plain == " ⏹ STOP: finish current "
 
         # Level 2: after-set
         col, plain = rs.format_stop_badge(2, use_unicode=True, color=False)
-        assert plain == "[⏹ STOP-SET: finish set]"
+        assert plain == " ⏹ STOP-SET: finish set "
 
         # Level 3: now
         col, plain = rs.format_stop_badge(3, use_unicode=True, color=False)
-        assert plain == "[⏹ STOP NOW: checkpoint]"
+        assert plain == " ⏹ STOP NOW: checkpoint "
 
         # Level 4: now-force
         col, plain = rs.format_stop_badge(4, use_unicode=True, color=False)
-        assert plain == "[⏹ FORCE STOP: force stop]"
+        assert plain == " ⏹ FORCE STOP: force stop "
 
         # String names
         col, plain = rs.format_stop_badge("after-call", use_unicode=True, color=False)
-        assert plain == "[⏹ STOP: finish current]"
+        assert plain == " ⏹ STOP: finish current "
         col, plain = rs.format_stop_badge("after-set", use_unicode=True, color=False)
-        assert plain == "[⏹ STOP-SET: finish set]"
+        assert plain == " ⏹ STOP-SET: finish set "
 
         # Inactive / None / 0
         assert rs.format_stop_badge(None) == ("", "")
@@ -167,7 +167,7 @@ class TestStatuslineStopTallyRendering:
         )
         bot = lines[3]
         assert "[✓ 3 ok · ✗ 1 fail]" in bot
-        assert "[⏹ STOP: finish current]" in bot
+        assert " ⏹ STOP: finish current " in bot
 
 
 class TestCursorControl:
