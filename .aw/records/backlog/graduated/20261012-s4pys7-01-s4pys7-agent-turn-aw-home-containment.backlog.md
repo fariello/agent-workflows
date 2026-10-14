@@ -1,11 +1,13 @@
 - Id: s4pys7
-- Status: open
+- Status: graduated
+- Graduated-To: s4pys7
 - Set: s4pys7
 - Priority: low
 - Work-Kind: followup
 - Summary: Agent turns can still write the operator's AW_HOME (registry, caches): decide what to contain now that user config is contained
 
 ## Workflow history
+- 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: 1vwjdl
 - 2026-10-12 created (aw backlog): filed while graduating btw02e (plan 9y27t2)
 
 ## Context
