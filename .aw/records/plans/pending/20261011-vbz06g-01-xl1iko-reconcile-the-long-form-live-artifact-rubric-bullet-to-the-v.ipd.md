@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reconcile the bullet shape
 
-- [ ] E-01 In `.aw/system/workflows/plan-review-long/review-rubric.md` `## A. Plan completeness`, replace the single line beginning `- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**` (the pointer bullet, which contains `(see ../plan-review/plan-review.md per the parity note in plan-review-long.md)`) with the EXACT bullet text from `.aw/system/workflows/plan-review/plan-review.md` `### G. Plan executability` that begins with the same bold prefix, copied byte-for-byte as it stands AT EXECUTION TIME (re-read it; do not paste the text quoted in this plan). Keep its position: it stays first among the bold rubric bullets, immediately before `- **Canonical no-error-added proof shape`. Touch no other line.
+- [x] E-01 In `.aw/system/workflows/plan-review-long/review-rubric.md` `## A. Plan completeness`, replace the single line beginning `- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**` (the pointer bullet, which contains `(see ../plan-review/plan-review.md per the parity note in plan-review-long.md)`) with the EXACT bullet text from `.aw/system/workflows/plan-review/plan-review.md` `### G. Plan executability` that begins with the same bold prefix, copied byte-for-byte as it stands AT EXECUTION TIME (re-read it; do not paste the text quoted in this plan). Keep its position: it stays first among the bold rubric bullets, immediately before `- **Canonical no-error-added proof shape`. Touch no other line.
   - Depends on: none
   - Expected outcome: the long-form bullet, sliced from its bold prefix to the next `\n- **`, is byte-identical to the single-file bullet sliced the same way; the bullet no longer contains the pointer parenthetical; the other four bullets in `## A. Plan completeness` are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the reconciled shape
 
-- [ ] E-02 In `tests/test_v_item_evidence_durability.py`, rewrite `TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity` so it asserts the VERBATIM-COPY shape instead of the pointer shape: slice the `Live-artifact` bullet out of `review-rubric.md` `## A. Plan completeness` and out of `plan-review.md` `### G. Plan executability` (both via `support.section(..., bullet_prefix, "\n- **", anchored=False)`, the same slicing the module already uses) and `assertEqual` the two slices, plus assert every entry of `SINGLE_FILE_ANCHORS` is present in the long-form slice. Remove the now-false `assertNotIn("Criteria counting **stable code facts**", ...)` "must remain a pointer" assertion and the `LONG_FORM_POINTER_ANCHORS` constant (no other module references it; re-derive that by search at execution). Update the test's docstring and the module docstring's parity wording to say the long-form carries a verbatim copy. Keep the module's existing P16 exemption paragraph, which still applies (it reads workflow bodies, not `agent_workflows/*.py`).
+- [x] E-02 In `tests/test_v_item_evidence_durability.py`, rewrite `TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity` so it asserts the VERBATIM-COPY shape instead of the pointer shape: slice the `Live-artifact` bullet out of `review-rubric.md` `## A. Plan completeness` and out of `plan-review.md` `### G. Plan executability` (both via `support.section(..., bullet_prefix, "\n- **", anchored=False)`, the same slicing the module already uses) and `assertEqual` the two slices, plus assert every entry of `SINGLE_FILE_ANCHORS` is present in the long-form slice. Remove the now-false `assertNotIn("Criteria counting **stable code facts**", ...)` "must remain a pointer" assertion and the `LONG_FORM_POINTER_ANCHORS` constant (no other module references it; re-derive that by search at execution). Update the test's docstring and the module docstring's parity wording to say the long-form carries a verbatim copy. Keep the module's existing P16 exemption paragraph, which still applies (it reads workflow bodies, not `agent_workflows/*.py`).
   - Depends on: E-01
   - Expected outcome: the test passes against the reconciled files and FAILS if either copy of the bullet is edited without the other, if the long-form bullet is deleted (the slice then raises `support.SectionBoundError`, an error rather than an assertion failure, which still fails the test), or if the long-form bullet reverts to the pointer form. Demonstrated at review on in-memory copies with the same `support.section` slicing and assertions: HEAD pointer -> FAIL (6 anchors missing, unequal); reconciled -> PASS; one-word edit to the long-form copy only -> FAIL (unequal); one-word edit to the single-file copy only -> FAIL (unequal); long-form bullet deleted -> `SectionBoundError`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: validate
 
-- [ ] E-03 Take a bare `python3 -m pytest` baseline in this lane BEFORE E-01, then after E-02 run the targeted modules and a bare full suite, and perform the three source-file mutation proofs named in `## Required tests / validation`, restoring each with an empty `git diff --stat` for the mutated path.
+- [x] E-03 Take a bare `python3 -m pytest` baseline in this lane BEFORE E-01, then after E-02 run the targeted modules and a bare full suite, and perform the three source-file mutation proofs named in `## Required tests / validation`, restoring each with an empty `git diff --stat` for the mutated path.
   - Depends on: E-02
   - Expected outcome: targeted modules pass; each mutation makes the parity test fail and is restored; the full-suite set of failing node ids after the change is a subset of the baseline set.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -125,20 +125,340 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md` showing exactly one removed line (the pointer bullet) and one added line (the full bullet), and paste the output of a one-off `python3 -c` (or heredoc) that slices the `- **Live-artifact` bullet to the next `\n- **` from both `review-rubric.md` and `plan-review.md` and prints `True` for equality, plus the list of bold bullet names in `review-rubric.md` `## A. Plan completeness` showing the same five names in the same order as before. All reachable by construction (diff, file content).
   - Observed evidence:
-  - Result: pending
+    `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review-long/review-rubric.md b/.aw/system/workflows/plan-review-long/review-rubric.md
+    index f621a2f51..11f4895b0 100755
+    --- a/.aw/system/workflows/plan-review-long/review-rubric.md
+    +++ b/.aw/system/workflows/plan-review-long/review-rubric.md
+    @@ -35,7 +35,7 @@ For an agent-executable plan (an IPD or similar with actionable steps), it must
+     verification/cross-check checklist that maps 1:1 with concrete per-item evidence; a weak or
+     absent verification checklist (one that could let an agent claim completion without doing every
+     step) is an UNDER-SCOPE finding.
+    -- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time); a collected test count is never the bar; a test name is a non-binding pointer only (see `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`).
+    +- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer). A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+     - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+       (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+       (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+    ```
+    One-off equality and ordered bold bullet check output:
+    ```text
+    $ python3 -c '
+    from pathlib import Path
+    import re
+    from tests import support
 
-- [ ] V-02 validates E-02
+    p_long = Path(".aw/system/workflows/plan-review-long/review-rubric.md").read_text(encoding="utf-8")
+    p_single = Path(".aw/system/workflows/plan-review/plan-review.md").read_text(encoding="utf-8")
+
+    sec_long = support.section(p_long, "## A. Plan completeness", "## ")
+    sec_single = support.section(p_single, "### G. Plan executability", "## ")
+
+    bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
+    b_long = support.section(sec_long, bullet_prefix, "\n- **", anchored=False)
+    b_single = support.section(sec_single, bullet_prefix, "\n- **", anchored=False)
+
+    print("Equality:", b_long == b_single)
+
+    bullets_long = re.findall(r"^- \*\*([^*]+)\*\*", sec_long, re.MULTILINE)
+    print("Bullets in review-rubric.md ## A. Plan completeness:")
+    for b in bullets_long:
+        print(" -", b)
+    '
+    Equality: True
+    Bullets in review-rubric.md ## A. Plan completeness:
+     - Live-artifact success criteria vs. stable code facts (re-derivation convention):
+     - Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):
+     - Runtime-demonstration reachability vs. unsatisfiable observation demands (reachability convention):
+     - Right-sizing and conceptual density (per E-item):
+     - Maintainer sizing signals:
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- tests/test_v_item_evidence_durability.py` showing the rewritten test with an equality assertion between the two slices and the removed pointer-only assertions, and paste the output of `rg -n LONG_FORM_POINTER_ANCHORS` across the repo showing no remaining reference. Then paste the ACTUAL output of `python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py` showing them passing. Reachable by construction (diff, search, test result).
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_v_item_evidence_durability.py`:
+    ```diff
+    diff --git a/tests/test_v_item_evidence_durability.py b/tests/test_v_item_evidence_durability.py
+    index bbebdfdf1..ae305128f 100644
+    --- a/tests/test_v_item_evidence_durability.py
+    +++ b/tests/test_v_item_evidence_durability.py
+    @@ -1,4 +1,7 @@
+    -"""Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744).
+    +"""Tests for V-item evidence durability and verbatim-copy parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744; IPD xl1iko, set vbz06g).
+    +
+    +The long-form review-rubric.md carries a byte-identical verbatim copy of the
+    +re-derivation convention bullet from plan-review.md.
 
-- [ ] V-03 validates E-03
+     Exemption from source-text-pin prohibition:
+     This module reads WORKFLOW BODIES and a SPEC, the artifacts under change, and no
+    @@ -64,16 +67,6 @@ SINGLE_FILE_ANCHORS = [
+         "Review is the only enforcement surface",
+     ]
+
+    -# Pointer anchors for the long-form parity rule:
+    -LONG_FORM_POINTER_ANCHORS = [
+    -    "Live-artifact success criteria vs. stable code facts (re-derivation convention):",
+    -    "behaviour pinned plus the mechanism that pins it",
+    -    "collected test count is never the bar",
+    -    "../plan-review/plan-review.md",
+    -    "per the parity note in `plan-review-long.md`",
+    -]
+    -
+    -
+     class TestVItemEvidenceDurability(unittest.TestCase):
+         def test_single_file_plan_review_evidence_durability(self) -> None:
+             """Assert single-file plan-review.md narrows the exemption and requires behaviour plus mechanism."""
+    @@ -114,31 +107,36 @@ class TestVItemEvidenceDurability(unittest.TestCase):
+             )
+
+         def test_long_form_plan_review_evidence_durability_parity(self) -> None:
+    -        """Assert review-rubric.md carries the parity pointer without duplicating the paragraph."""
+    -        content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+    -        section_a = support.section(content, "## A. Plan completeness", "## ")
+    +        """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+    +        content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+    +        section_a = support.section(content_long, "## A. Plan completeness", "## ")
+    +
+    +        content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+    +        section_g = support.section(content_single, "### G. Plan executability", "## ")
+
+    -        # Locate the pointer bullet
+             bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
+    -        bullet_text = support.section(
+    +        bullet_long = support.section(
+                 section_a, bullet_prefix, "\n- **", anchored=False
+             )
+    +        bullet_single = support.section(
+    +            section_g, bullet_prefix, "\n- **", anchored=False
+    +        )
+    +
+    +        # 1. Assert byte-identical verbatim copy between long-form and single-file
+    +        self.assertEqual(
+    +            bullet_long,
+    +            bullet_single,
+    +            f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+    +        )
+
+    -        # Assert pointer trio and summary anchors are present in the long-form bullet
+    -        for anchor in LONG_FORM_POINTER_ANCHORS:
+    +        # 2. Assert semantic anchors are present in the long-form copy
+    +        for anchor in SINGLE_FILE_ANCHORS:
+                 self.assertIn(
+                     anchor,
+    -                bullet_text,
+    -                f"Anchor '{anchor}' not found in pointer bullet of {REVIEW_RUBRIC_REL}",
+    +                bullet_long,
+    +                f"Anchor '{anchor}' not found in long-form bullet of {REVIEW_RUBRIC_REL}",
+                 )
+
+    -        # Confirm the long-form does NOT duplicate the full paragraph (remains a pointer)
+    -        self.assertNotIn(
+    -            "Criteria counting **stable code facts**",
+    -            bullet_text,
+    -            f"{REVIEW_RUBRIC_REL} must not duplicate the full normative paragraph from plan-review.md",
+    -        )
+    -
+         def test_spec_section_5_4_evidence_reachability(self) -> None:
+             """Assert spec Section 5.4 carries reachability rule and preserves linter boundary.
+     ```
+    Output of `rg -n LONG_FORM_POINTER_ANCHORS` across the repo:
+    ```text
+    $ rg -n LONG_FORM_POINTER_ANCHORS
+    (exit code 1, 0 matches found)
+    ```
+    ACTUAL output of targeted pytest:
+    ```text
+    $ python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py tests/test_v_item_demonstration_reachability.py tests/test_plan_review_feasibility_rule.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=280523531
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/xl1iko
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 10 items
+
+    tests/test_plan_review_feasibility_rule.py ....                          [ 40%]
+    tests/test_v_item_evidence_durability.py ...                             [ 70%]
+    tests/test_v_item_demonstration_reachability.py ...                      [100%]
+
+    ============================== 10 passed in 0.34s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste, for EACH of mutation proofs (a), (b), (c), the failing pytest output of `python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py` naming `test_long_form_plan_review_evidence_durability_parity`, followed by an empty `git diff --stat -- <mutated path>` after restoring. Paste the summary line and the failing node ids (if any) of the pre-edit baseline and of the post-change bare `python3 -m pytest`, and state that the post-change failing set is a subset of the baseline set. Reachable by construction (test results, diff).
   - Observed evidence:
-  - Result: pending
+    Mutation proof (a) [revert long-form bullet to pre-E-01 pointer text]:
+    ```text
+    $ python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1847836474
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/xl1iko
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
+
+    tests/test_v_item_evidence_durability.py .F.                             [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity _
+
+    self = <tests.test_v_item_evidence_durability.TestVItemEvidenceDurability testMethod=test_long_form_plan_review_evidence_durability_parity>
+
+        def test_long_form_plan_review_evidence_durability_parity(self) -> None:
+            """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+            content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+            section_a = support.section(content_long, "## A. Plan completeness", "## ")
+
+            content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+            section_g = support.section(content_single, "### G. Plan executability", "## ")
+
+            bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
+            bullet_long = support.section(
+                section_a, bullet_prefix, "\n- **", anchored=False
+            )
+            bullet_single = support.section(
+                section_g, bullet_prefix, "\n- **", anchored=False
+            )
+
+            # 1. Assert byte-identical verbatim copy between long-form and single-file
+    >       self.assertEqual(
+                bullet_long,
+                bullet_single,
+                f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+            )
+    E       AssertionError: '- **Live-artifact success criteria vs. s[311 chars]d`).' != "- **Live-artifact success criteria vs. s[1106 chars]ng.)"
+    E       Diff is 1512 characters long. Set self.maxDiff to None to see it. : .aw/system/workflows/plan-review-long/review-rubric.md bullet must be a byte-identical verbatim copy of .aw/system/workflows/plan-review/plan-review.md
+
+    tests/test_v_item_evidence_durability.py:126: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity
+    ========================= 1 failed, 2 passed in 0.14s ==========================
+
+    $ git checkout -- .aw/system/workflows/plan-review-long/review-rubric.md && git diff --stat -- .aw/system/workflows/plan-review-long/review-rubric.md
+    (empty output)
+    ```
+
+    Mutation proof (b) [change 'permitted' to 'allowed' in long-form bullet only]:
+    ```text
+    $ python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2266771238
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/xl1iko
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
+
+    tests/test_v_item_evidence_durability.py .F.                             [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity _
+
+    self = <tests.test_v_item_evidence_durability.TestVItemEvidenceDurability testMethod=test_long_form_plan_review_evidence_durability_parity>
+
+        def test_long_form_plan_review_evidence_durability_parity(self) -> None:
+            """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+            content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+            section_a = support.section(content_long, "## A. Plan completeness", "## ")
+
+            content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+            section_g = support.section(content_single, "### G. Plan executability", "## ")
+
+            bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
+            bullet_long = support.section(
+                section_a, bullet_prefix, "\n- **", anchored=False
+            )
+            bullet_single = support.section(
+                section_g, bullet_prefix, "\n- **", anchored=False
+            )
+
+            # 1. Assert byte-identical verbatim copy between long-form and single-file
+    >       self.assertEqual(
+                bullet_long,
+                bullet_single,
+                f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+            )
+    E       AssertionError: "- **[794 chars]e is allowed only as a non-binding pointer). A[300 chars]ng.)" != "- **[794 chars]e is permitted only as a non-binding pointer).[302 chars]ng.)"
+    E       Diff is 3933 characters long. Set self.maxDiff to None to see it. : .aw/system/workflows/plan-review-long/review-rubric.md bullet must be a byte-identical verbatim copy of .aw/system/workflows/plan-review/plan-review.md
+
+    tests/test_v_item_evidence_durability.py:126: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity
+    ========================= 1 failed, 2 passed in 0.14s ==========================
+
+    $ git checkout -- .aw/system/workflows/plan-review-long/review-rubric.md && git diff --stat -- .aw/system/workflows/plan-review-long/review-rubric.md
+    (empty output)
+    ```
+
+    Mutation proof (c) [change 'permitted' to 'allowed' in single-file plan-review.md bullet only]:
+    ```text
+    $ python3 -m pytest -o addopts="" tests/test_v_item_evidence_durability.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=681954192
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/xl1iko
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
+
+    tests/test_v_item_evidence_durability.py ..F                             [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity _
+
+    self = <tests.test_v_item_evidence_durability.TestVItemEvidenceDurability testMethod=test_long_form_plan_review_evidence_durability_parity>
+
+        def test_long_form_plan_review_evidence_durability_parity(self) -> None:
+            """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+            content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+            section_a = support.section(content_long, "## A. Plan completeness", "## ")
+
+            content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+            section_g = support.section(content_single, "### G. Plan executability", "## ")
+
+            bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
+            bullet_long = support.section(
+                section_a, bullet_prefix, "\n- **", anchored=False
+            )
+            bullet_single = support.section(
+                section_g, bullet_prefix, "\n- **", anchored=False
+            )
+
+            # 1. Assert byte-identical verbatim copy between long-form and single-file
+    >       self.assertEqual(
+                bullet_long,
+                bullet_single,
+                f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+            )
+    E       AssertionError: "- **[794 chars]e is permitted only as a non-binding pointer).[302 chars]ng.)" != "- **[794 chars]e is allowed only as a non-binding pointer). A[300 chars]ng.)"
+    E       Diff is 3933 characters long. Set self.maxDiff to None to see it. : .aw/system/workflows/plan-review-long/review-rubric.md bullet must be a byte-identical verbatim copy of .aw/system/workflows/plan-review/plan-review.md
+
+    tests/test_v_item_evidence_durability.py:126: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity
+    ========================= 1 failed, 2 passed in 0.16s ==========================
+
+    $ git checkout -- .aw/system/workflows/plan-review/plan-review.md && git diff --stat -- .aw/system/workflows/plan-review/plan-review.md
+    (empty output)
+    ```
+
+    Pre-edit baseline:
+    `8396 passed, 5 skipped, 18 xfailed, 3 warnings in 459.77s (0:07:39)`
+    Failing node ids: none
+
+    Post-change bare `python3 -m pytest`:
+    `8396 passed, 5 skipped, 18 xfailed, 3 warnings in 375.09s (0:06:15)`
+    Failing node ids: none
+
+    The post-change failing set is a subset of the baseline set (both empty).
+  - Result: pass
 
 ## Approval and execution gate
 
