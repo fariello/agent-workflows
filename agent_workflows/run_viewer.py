@@ -3749,12 +3749,55 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     # (exit stays 0). 7wei1o's stderr choice was for an unresolvable-target REFUSAL whose stated
     # reason is that a refusal must never land in a stream a caller parses on stdout. A filter
     # exclusion is a successful narrowing and stdout is the report stream.
+    #
+    # IPD t76qdk (backlog l5dq92) E-01: Under --agent, emit a validated aw.agent/v1 summary record
+    # instead of a bare dict. --json retains the bare {"runs": []} payload. Exit code remains 0.
     if not summaries and not issues_only:
-        if is_agent or is_json:
+        if is_json:
             payload: dict[str, Any] = {"runs": []}
             if excluded_data:
                 payload["excluded_runs"] = excluded_data
-            print(json.dumps(payload, indent=2 if is_json else None))
+            print(json.dumps(payload, indent=2))
+            return 0
+        elif is_agent:
+            filters: dict[str, Any] = {}
+            if set_filter:
+                filters["set"] = _agent_schema.redact_home_paths(set_filter)
+            if ipd_filter:
+                filters["ipd"] = _agent_schema.redact_home_paths(ipd_filter)
+            if status_filter:
+                filters["status"] = _agent_schema.redact_home_paths(status_filter)
+            if failed_only:
+                filters["failed"] = True
+            if active_only:
+                filters["active"] = True
+            if last_n is not None:
+                filters["last"] = last_n
+            if since_spec:
+                filters["since"] = _agent_schema.redact_home_paths(since_spec)
+            if raw_targets:
+                filters["targets"] = [
+                    _agent_schema.redact_home_paths(t) for t in raw_targets
+                ]
+
+            record: dict[str, Any] = {
+                "schema": _agent_schema.SCHEMA_VERSION,
+                "kind": "summary",
+                "cmd": "runs",
+                "outcome": "clean",
+                "exit": 0,
+                "total": 0,
+                "emitted": 0,
+                "omitted": 0,
+                "complete": True,
+                "verified": True,
+                "findings": 0,
+                "filters": filters,
+            }
+            if excluded_data:
+                record["excluded_runs"] = excluded_data
+            record["next"] = "aw runs" if filters else None
+            print(_agent_schema.render_jsonl_record(record), end="")
             return 0
         if not reportable_excluded:
             term.line("no matching runs found")
