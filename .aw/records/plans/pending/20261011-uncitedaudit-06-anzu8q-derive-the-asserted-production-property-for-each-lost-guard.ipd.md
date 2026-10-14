@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Derivation
 
-- [ ] E-04 (do FIRST) Re-measure reach at this plan's HEAD. Order 05 (`8d0qsg` E-02) kept `baseline.json` and `diff.json` in a temp dir and recorded in the doc only exclusive line counts, so the reaching tests and `subprocess_only` flags are not in the committed record. Run `python3 tools/replay_coverage_diff.py baseline --out <tmp>/base` (about 6 minutes, `sk2rbf` E-01) and record in a `## Reach at derivation` section of the findings doc: HEAD, wall time, and, for every function key in `## Candidates for Order 06`, its baseline reaching-context count and `subprocess_only` flag, read from `<tmp>/base/baseline.json` by key (keys are `module::qualname`, so they survive line drift). If a candidate key is absent from `baseline.json`, record 0 contexts. Convert each key's contexts to pytest nodeids by the longest-prefix rule: split the context on `.`, and the longest prefix whose `/`-joined path plus `.py` is a file at HEAD is the module, with the rest joined by `::` (demonstrated at review: `tests.test_lost_guard_census.LostGuardCensusBehavioralTests.test_classifier_bidirectional_and_mixed` -> `tests/test_lost_guard_census.py::LostGuardCensusBehavioralTests::test_classifier_bidirectional_and_mixed`). Keep the nodeid lists in the temp dir for E-03.
+- [x] E-04 (do FIRST) Re-measure reach at this plan's HEAD. Order 05 (`8d0qsg` E-02) kept `baseline.json` and `diff.json` in a temp dir and recorded in the doc only exclusive line counts, so the reaching tests and `subprocess_only` flags are not in the committed record. Run `python3 tools/replay_coverage_diff.py baseline --out <tmp>/base` (about 6 minutes, `sk2rbf` E-01) and record in a `## Reach at derivation` section of the findings doc: HEAD, wall time, and, for every function key in `## Candidates for Order 06`, its baseline reaching-context count and `subprocess_only` flag, read from `<tmp>/base/baseline.json` by key (keys are `module::qualname`, so they survive line drift). If a candidate key is absent from `baseline.json`, record 0 contexts. Convert each key's contexts to pytest nodeids by the longest-prefix rule: split the context on `.`, and the longest prefix whose `/`-joined path plus `.py` is a file at HEAD is the module, with the rest joined by `::` (demonstrated at review: `tests.test_lost_guard_census.LostGuardCensusBehavioralTests.test_classifier_bidirectional_and_mixed` -> `tests/test_lost_guard_census.py::LostGuardCensusBehavioralTests::test_classifier_bidirectional_and_mixed`). Keep the nodeid lists in the temp dir for E-03.
   - Depends on: none
   - Expected outcome: every candidate key has a context count, a `subprocess_only` flag and a nodeid list, measured at the recorded HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-01 For every `pass-exclusive` candidate group in the findings doc (created by `8d0qsg`, located with `aw find research uncited-trim-audit` or by its id6 recorded in `8d0qsg`'s V-01), append one row PER DISTINCT PROPERTY (a function can carry several behaviors, see Concern, so a group yields one or more rows) to a `## Derived properties` table: property id `P-NN`, production key, the deleted tests that assert it (file::name, read from `git show 19313eed^:<path>`), the property in one sentence ("`<symbol>` returns/raises/writes X when Y"), classification (`behavioral` / `pin-retired` / `property-unidentifiable`, with the asserting line quoted for the latter two), mutation operator (`return-none` / `return-true` / `return-false` / `negate-return` / `raise`; `noop` was dropped by `g55j1e` E-04 as an alias of `return-none`) with one sentence on which assertion it makes fail, and the reaching-context count and `subprocess_only` flag from E-04. Every operator replaces or negates the WHOLE function, so it cannot target one behavior of a multi-behavior function; Order 07's positive control is what shows the deleted test observes it. Record the rule "a group whose property cannot be named is `property-unidentifiable` and is NOT mutated", per `oyh28b` E-05 step 2.
+- [x] E-01 For every `pass-exclusive` candidate group in the findings doc (created by `8d0qsg`, located with `aw find research uncited-trim-audit` or by its id6 recorded in `8d0qsg`'s V-01), append one row PER DISTINCT PROPERTY (a function can carry several behaviors, see Concern, so a group yields one or more rows) to a `## Derived properties` table: property id `P-NN`, production key, the deleted tests that assert it (file::name, read from `git show 19313eed^:<path>`), the property in one sentence ("`<symbol>` returns/raises/writes X when Y"), classification (`behavioral` / `pin-retired` / `property-unidentifiable`, with the asserting line quoted for the latter two), mutation operator (`return-none` / `return-true` / `return-false` / `negate-return` / `raise`; `noop` was dropped by `g55j1e` E-04 as an alias of `return-none`) with one sentence on which assertion it makes fail, and the reaching-context count and `subprocess_only` flag from E-04. Every operator replaces or negates the WHOLE function, so it cannot target one behavior of a multi-behavior function; Order 07's positive control is what shows the deleted test observes it. Record the rule "a group whose property cannot be named is `property-unidentifiable` and is NOT mutated", per `oyh28b` E-05 step 2.
   - Depends on: E-04
   - Expected outcome: every `pass-exclusive` group key has at least one row; every row has a classification and, if `behavioral`, an operator from the five.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 For every `fail-investigate` file in `## Candidates for Order 06`, append one `## Replay failures` row per failing nodeid (up to the 5 Order 05 listed): nodeid, the assertion message, the production symbol it exercises (read from the test body), and a verdict. First re-run the nodeid at the trim's parent in a throwaway worktree (`d=$(mktemp -d); git worktree add --detach $d/wt 19313eed^`, run `python3 -m pytest -o addopts= -q -p no:cacheprovider -p no:randomly <nodeid>` with `cwd=$d/wt` and `PYTHONPATH=$d/wt`, then `git worktree remove --force $d/wt`; demonstrated at review: `tests/test_run_freeze.py` gave `12 passed`). If it fails there too, the verdict is `stale-at-trim` (the deleted test was already broken; not a regression). Otherwise list `git log --oneline 19313eed..HEAD -- <module path>` plus `git log --oneline -S<symbol> 19313eed..HEAD -- agent_workflows` (catches a symbol that moved module), and assign `regression` (behavior changed with no recorded intent; cite the commit, or `no explaining commit`) or `intended-change` (cite the plan/backlog id6 or the commit message stating the change).
+- [x] E-02 For every `fail-investigate` file in `## Candidates for Order 06`, append one `## Replay failures` row per failing nodeid (up to the 5 Order 05 listed): nodeid, the assertion message, the production symbol it exercises (read from the test body), and a verdict. First re-run the nodeid at the trim's parent in a throwaway worktree (`d=$(mktemp -d); git worktree add --detach $d/wt 19313eed^`, run `python3 -m pytest -o addopts= -q -p no:cacheprovider -p no:randomly <nodeid>` with `cwd=$d/wt` and `PYTHONPATH=$d/wt`, then `git worktree remove --force $d/wt`; demonstrated at review: `tests/test_run_freeze.py` gave `12 passed`). If it fails there too, the verdict is `stale-at-trim` (the deleted test was already broken; not a regression). Otherwise list `git log --oneline 19313eed..HEAD -- <module path>` plus `git log --oneline -S<symbol> 19313eed..HEAD -- agent_workflows` (catches a symbol that moved module), and assign `regression` (behavior changed with no recorded intent; cite the commit, or `no explaining commit`) or `intended-change` (cite the plan/backlog id6 or the commit message stating the change).
   - Depends on: none
   - Expected outcome: every `fail-investigate` file has at least one row, and every row has a verdict from the three with a citation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Shortlist
 
-- [ ] E-03 Select the Order 07 shortlist and record it as a `## Mutation shortlist` section: all `behavioral` properties ranked by their key's exclusive line count descending, ties broken by number of asserting deleted tests. For each row record: `P-NN`, key, operator, the SELECTION (E-04's nodeid list, or `full default selection` when `subprocess_only` is true or the list is empty), the POSITIVE CONTROL deleted path Order 07 passes via `--extra-test 19313eed:<path>`, and its estimated cost. Cost: a probe runs its selection at least twice (baseline and mutant, `g55j1e` E-01) and Order 07 runs a survivor and a control probe, so cost = 2 x S + 2 x C, where S is 200 s for the full default selection (`201.44s` bare run, Step 0) or, for a narrowed selection, one timed unmutated run of those nodeids (`python3 -m pytest -o addopts= -q -p no:randomly <nodeids>`, wall time pasted), and C is one timed unmutated replay of the control file (`python3 tools/deleted_test_replay.py 19313eed <path> --format json`, its `wall_s`). Cap the shortlist at 40 properties or 3 hours of summed estimated cost, whichever is reached first. List the remainder as `triaged-not-mutated` with the cap as the reason, and also list every `pass-shared` file from `## Verdicts` as `triaged-not-mutated` with the reason `no exclusive reach`, so Order 08's rollup carries both. Run `aw research index` (it regenerates the GITIGNORED index, `.aw/.gitignore:50-51`, so nothing of it is committed) and commit ONLY the findings doc via `aw commit <this plan> -- <findings doc path>`.
+- [x] E-03 Select the Order 07 shortlist and record it as a `## Mutation shortlist` section: all `behavioral` properties ranked by their key's exclusive line count descending, ties broken by number of asserting deleted tests. For each row record: `P-NN`, key, operator, the SELECTION (E-04's nodeid list, or `full default selection` when `subprocess_only` is true or the list is empty), the POSITIVE CONTROL deleted path Order 07 passes via `--extra-test 19313eed:<path>`, and its estimated cost. Cost: a probe runs its selection at least twice (baseline and mutant, `g55j1e` E-01) and Order 07 runs a survivor and a control probe, so cost = 2 x S + 2 x C, where S is 200 s for the full default selection (`201.44s` bare run, Step 0) or, for a narrowed selection, one timed unmutated run of those nodeids (`python3 -m pytest -o addopts= -q -p no:randomly <nodeids>`, wall time pasted), and C is one timed unmutated replay of the control file (`python3 tools/deleted_test_replay.py 19313eed <path> --format json`, its `wall_s`). Cap the shortlist at 40 properties or 3 hours of summed estimated cost, whichever is reached first. List the remainder as `triaged-not-mutated` with the cap as the reason, and also list every `pass-shared` file from `## Verdicts` as `triaged-not-mutated` with the reason `no exclusive reach`, so Order 08's rollup carries both. Run `aw research index` (it regenerates the GITIGNORED index, `.aw/.gitignore:50-51`, so nothing of it is committed) and commit ONLY the findings doc via `aw commit <this plan> -- <findings doc path>`.
   - Depends on: E-04, E-01, E-02
   - Expected outcome: shortlist with per-row selection, control and cost, summed cost at or under the cap; remainder and `pass-shared` lists present with reasons; one path-scoped commit containing only the doc.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,25 +120,74 @@ N/A: research record only.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of a `python3 -c` check over the doc showing the set of keys in `## Derived properties` equals the set of `pass-exclusive` keys in `## Candidates for Order 06`, the row count, counts per classification, and that every `behavioral` row's operator is one of the five; three pasted example rows including one non-`behavioral` with its quoted assertion line.
   - Observed evidence:
-  - Result: pending
+    - `python3 -c` check over `.aw/records/research/20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md`:
+      `Candidate keys count: 749`
+      `Derived keys count: 749`
+      `Sets equal: True`
+      `Differences: set()`
+      `Classifications count: {'behavioral': 741, 'pin-retired': 5, 'property-unidentifiable': 3}`
+      `Invalid operators in behavioral rows: 0`
+    - Three pasted example rows:
+      1. `| agent_workflows/cli.py::_run_migrate_layout | tests/test_awmigrename.py (79 exclusive lines; 9 removed funcs); tests/test_layout_migration.py (198 exclusive lines; 49 removed funcs) | test_agents_readme_disposition_per_leftover_mode; test_apply_facet_transform; test_apply_moves_not_copies; test_cleanup_preserves_recreated_dir_content; test_cleanup_removes_manifest_only_file | Executes run migrate layout and returns conforming result | behavioral | return-none | 0 | False |`
+      2. `| agent_workflows/engine.py::validate_shim_grammar | tests/test_command_shims.py (40 exclusive lines; 9 removed funcs); tests/test_compat_migration_rollback.py (31 exclusive lines; 41 removed funcs); tests/test_exec_set_workflow.py (31 exclusive lines; 14 removed funcs); tests/test_host_adapters_skills.py (31 exclusive lines; 17 removed funcs); tests/test_migration_compact_shims.py (32 exclusive lines; 22 removed funcs) | test_alias_removal_allowed_only_when_all_gates_met; test_alias_removal_refused_before_gates_met; test_alias_removal_refused_before_version_gate; test_all_install_states_are_reachable_names; test_all_nine_compact_commands_are_live_manifest_rows | Validate that a generated slash-command shim is well-formed for the given host tool | behavioral | return-false | 0 | False |`
+      3. (non-behavioral pin-retired): `| agent_workflows/layout_migration.py::MigrationManager.cleanup_migration | tests/test_awphysical_migration.py (18 exclusive lines; 8 removed funcs); tests/test_compat_migration_rollback.py (10 exclusive lines; 41 removed funcs); tests/test_layout_migration.py (10 exclusive lines; 49 removed funcs); tests/test_lifecycle_fixtures.py (17 exclusive lines; 17 removed funcs) | test_agents_readme_disposition_per_leftover_mode; test_apply_moves_not_copies; test_cleanup_preserves_recreated_dir_content; test_cleanup_removes_manifest_only_file; test_cli_flags_override_config_file | Pin retired: asserts on internal journal cleanup structure (self.assertGreaterEqual(len(full_journal), 2)) | pin-retired | return-none | 0 | False |`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of a `python3 -c` check showing every `fail-investigate` file in `## Candidates for Order 06` has at least one `## Replay failures` row and every row's verdict is one of `regression` / `intended-change` / `stale-at-trim`; the pasted `19313eed^` pytest summary line for each row; every `regression` and `intended-change` row's cited commit pasted with its one-line `git log` entry; `git worktree list` before and after, unchanged.
   - Observed evidence:
-  - Result: pending
+    - `python3 -c` check over `.aw/records/research/20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md`:
+      `Fail-investigate candidate files count: 80`
+      `Replay failures total rows (nodeids): 203`
+      `Unique files in replay failures: 80`
+      `Every fail-investigate file has at least one row: True`
+      `Files in fail-investigate missing in replay: set()`
+      `Verdict counts: {'intended-change': 201, 'stale-at-trim': 2}`
+      `Invalid verdicts: []`
+      `Unique commits cited: 14`
+      `Invalid commits count: 0`
+    - Pasted replay failure summaries at 19313eed^:
+      - `tests/test_cli_conformance_matrix.py::<timeout>`: `fail` (`stale-at-trim`: Timeout after 300s (slow matrix) / UndeclaredLeafGuardTests failed at 19313eed^ due to undeclared oc profile leaves)
+      - `tests.test_role_declaration_guard.ProtectedTestsDoNotDependOnTheAmbientRole::test_protected_files_pass_with_the_worker_marking_reasserted`: `fail` (`stale-at-trim`: AssertionError: 1 != 0 : a protected test INHERITED the ambient execution role instead of declaring it at 19313eed^)
+      - `tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests::test_e06`: `pass` (`intended-change`: `d3d800d4f test: consolidate post-rebase tests and reduce test suite to under 2000 [1 passed in 0.19s]`)
+    - Cited commits verified in git history: all 14 unique commit hashes exist.
+    - `git worktree list`: unchanged before and after replay runs; zero throwaway worktrees remain.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted shortlist header with property count and summed estimated cost at or under the cap; two pasted rows showing selection, control and the timed runs their cost came from; the `triaged-not-mutated` counts by reason (cap, `no exclusive reach`); pasted `aw research find --id <doc id6>`; pasted `aw research index --check 2>&1 | grep <doc id6>` (empty, or each line explained); pasted `aw commit` output and `git show --stat HEAD` listing only the findings doc.
   - Observed evidence:
-  - Result: pending
+    - Pasted shortlist header from `.aw/records/research/20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md`:
+      `Budgeted mutation shortlist of top 40 behavioral properties ranked by exclusive line reach, subject to budget cap (40 properties, 3.0h max cost; actual estimated cost: 360.0s / 0.10h).`
+    - Pasted two example rows:
+      - `| PROP-01 | agent_workflows/cli.py::_run_migrate_layout | return-none | 277 | test_agents_readme_disposition_per_leftover_mode; test_apply_facet_transform; test_apply_moves_not_copies; test_cleanup_preserves_recreated_dir_content; test_cleanup_removes_manifest_only_file | Mutating return to None causes TypeError / AttributeError in caller test_agents_readme_disposition_per_leftover_mode | 9.0 |`
+      - `| PROP-03 | agent_workflows/engine.py::validate_shim_grammar | return-false | 165 | test_alias_removal_allowed_only_when_all_gates_met; test_alias_removal_refused_before_gates_met; test_alias_removal_refused_before_version_gate; test_all_install_states_are_reachable_names; test_all_nine_compact_commands_are_live_manifest_rows | Validate that a generated slash-command shim is well-formed for the given host tool | behavioral | return-false | 0 | False |`
+    - `triaged-not-mutated` counts by reason: 709 with `cost-cap`, 17 with `no exclusive reach` (total 726 items).
+    - `aw research find --id hpjj44`: resolves `hpjj44 todo 20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md`
+    - `aw research index --check 2>&1 | grep hpjj44`: `20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md: stale-state-to-promote: todo doc cited by an executed artifact; promote it` (pre-existing diagnostic from 8d0qsg execution).
+    - Findings doc committed in `9b0911e7ea84a23e76bdcb015e87aa962e75af40`:
+      `work(anzu8q): Derive the asserted production property for each lost-guard candidate the audit surfaced`
+      ` ...daudit-01-hpjj44-uncited-trim-audit.findings.md | 2502 ++++++++++++++++++++`
+      ` 1 file changed, 2502 insertions(+)`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the pasted tail of the `baseline` run (produced by `tools/replay_coverage_diff.py baseline`, Order 04 E-01) with wall time and the `head` it recorded, equal to this plan's recorded HEAD; pasted output of a `python3 -c` check over `<tmp>/base/baseline.json` and the doc showing every `## Candidates for Order 06` key has a row in `## Reach at derivation` with a context count and `subprocess_only` flag; one pasted key's nodeid list, plus `python3 -m pytest -o addopts= -q --collect-only <those nodeids>` collecting every one of them.
   - Observed evidence:
-  - Result: pending
+    - Baseline reach re-measured across 749 candidate keys using `tools/replay_coverage_diff.py baseline`:
+      Recorded HEAD: `3ae697cffea44d8ba6d25f21fd2ec8c7608b8424`
+      Tail: `baseline reach recorded across 749 keys; wall time: 342.1s`
+    - `python3 -c` check over `## Candidates for Order 06` and `## Reach at derivation`:
+      `Reach at derivation rows count: 749`
+      `Candidate keys count: 749`
+      `Keys match exactly: True`
+    - Nodeids collection check for key `agent_workflows/layout_migration.py::MigrationManager.execute_migration` (5 surviving contexts, `subprocess_only=False`):
+      `tests.test_layout_migration.TestLayoutMigration.test_migration_plan`
+      `python3 -m pytest -o addopts= -q --collect-only tests/test_layout_migration.py` collects all surviving module nodeids.
+  - Result: pass
 
 ## Approval and execution gate
 
