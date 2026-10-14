@@ -36015,10 +36015,30 @@ def execute_item_core(
         "save_state",
         lambda r, s: globals()["save_state"](r, s, write_report=write_report),
     )
-    integration_is_earned = getattr(driver_module, "integration_is_earned", None)
+    integration_is_earned = getattr(
+        driver_module,
+        "integration_is_earned",
+        globals().get("integration_is_earned"),
+    )
 
     driver_begin = getattr(driver_module, "driver_begin", globals().get("driver_begin"))
-    driver_finalize = getattr(driver_module, "driver_finalize", None)
+    driver_finalize = getattr(
+        driver_module,
+        "driver_finalize",
+        lambda repo, plan_path, id6, actor, message, *, run_id=None: globals()[
+            "driver_finalize"
+        ](
+            repo,
+            plan_path,
+            id6,
+            actor,
+            message,
+            labels=host_labels,
+            env_builder=globals()["pinned_child_env"],
+            argv_builder=globals()["pinned_module_argv"],
+            run_id=run_id,
+        ),
+    )
     if observe_host_model is None and driver_module is not None:
         observe_host_model = getattr(driver_module, "observe_host_model", None)
     assert_child_tool_identity = getattr(
@@ -36061,7 +36081,15 @@ def execute_item_core(
     integrate_review_lane_branch = getattr(
         driver_module,
         "integrate_review_lane_branch",
-        globals().get("integrate_review_lane_branch"),
+        lambda repo, handle, id6: globals()["integrate_lane_branch"](
+            repo,
+            handle,
+            id6,
+            None,
+            host_label=host_labels.command,
+            run_checked=run_checked,
+            action_kind=INTEGRATION_ACTION_REVIEW,
+        ),
     )
     acquire_review_sweep_lane = getattr(
         driver_module,
@@ -36100,7 +36128,20 @@ def execute_item_core(
             repo, handle, id6, run_checked=run_checked
         ),
     )
-    set_plan_approved = getattr(driver_module, "set_plan_approved", None)
+    set_plan_approved = getattr(
+        driver_module,
+        "set_plan_approved",
+        lambda repo, id6, message=FULL_AUTO_APPROVAL_MESSAGE: globals()[
+            "set_plan_approved"
+        ](
+            repo,
+            id6,
+            message,
+            labels=host_labels,
+            argv_builder=globals()["pinned_module_argv"],
+            run_checked=run_checked,
+        ),
+    )
     is_plan_review_approved = getattr(
         driver_module, "is_plan_review_approved", is_plan_review_approved
     )
