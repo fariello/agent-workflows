@@ -1,11 +1,13 @@
 - Id: c4q9e8
-- Status: open
+- Status: graduated
+- Graduated-To: c4q9e8
 - Set: c4q9e8
 - Priority: low
 - Work-Kind: followup
 - Summary: aw runs does not show discarded agent user-config changes recorded by a run
 
 ## Workflow history
+- 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: swpf3q
 - 2026-10-12 created (aw backlog): filed while graduating btw02e (plan 9y27t2)
 
 ## Context
