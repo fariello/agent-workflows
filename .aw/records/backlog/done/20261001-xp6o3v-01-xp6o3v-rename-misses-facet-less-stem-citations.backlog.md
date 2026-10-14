@@ -1,5 +1,5 @@
 - Id: xp6o3v
-- Status: graduated
+- Status: done
 - Graduated-To: xp6o3v
 - Set: xp6o3v
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw rename/group never rewrite a facet-less filename citation, so a rename silently leaves prose citing the old name
 
 ## Workflow history
+- 2026-10-14 done (aw backlog): closed by aw agy run: IPD 1v2e1o executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-xp6o3v-01-1v2e1o-rewrite-facet-less-stem-citations-on-rename-guarded-against.ipd.md); evidence .aw/records/plans/executed/20261012-xp6o3v-01-1v2e1o-rewrite-facet-less-stem-citations-on-rename-guarded-against.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: 1v2e1o
 - 2026-10-01 created (aw backlog): Found while authoring plan j7dsci (graduating tf4jz5): measured that the three citations tf4jz5 names as the propagated damage are all unreachable by the rewriter.
 
