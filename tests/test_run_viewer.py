@@ -2887,14 +2887,20 @@ class FilterExclusionReportingTests(TestCase):
                 # 2. Agent surface
                 out_ag_empty, _, code_ag_empty = _run_viewer(empty_root, ["--agent"])
                 self.assertEqual(code_ag_empty, 0)
-                self.assertEqual(out_ag_empty.strip(), '{"runs": []}')
+                data_ag_empty = json.loads(out_ag_empty.strip())
+                self.assertEqual(data_ag_empty["kind"], "summary")
+                self.assertEqual(data_ag_empty["outcome"], "clean")
+                self.assertEqual(data_ag_empty["exit"], 0)
+                self.assertEqual(data_ag_empty["total"], 0)
+                self.assertNotIn("excluded_runs", data_ag_empty)
 
                 out_ag_total, _, code_ag_total = _run_viewer(
                     root, ["probe", "--status", "nosuchstatus", "--agent"]
                 )
                 self.assertEqual(code_ag_total, 0)
                 data_ag_total = json.loads(out_ag_total.strip())
-                self.assertEqual(data_ag_total["runs"], [])
+                self.assertEqual(data_ag_total["kind"], "summary")
+                self.assertEqual(data_ag_total["total"], 0)
                 self.assertIn("excluded_runs", data_ag_total)
                 self.assertEqual(len(data_ag_total["excluded_runs"]), 3)
                 excluded_ids = [e["run_id"] for e in data_ag_total["excluded_runs"]]

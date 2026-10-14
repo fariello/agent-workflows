@@ -573,13 +573,7 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
 # a valid typed reason and resolvable citation.
 # Allowed reason_kind is "known_broken" only. Citations must resolve to a live backlog item.
 
-FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    "runs": Exemption(
-        reason_kind="known_broken",
-        citation="l5dq92",
-        reason='bare payload {"runs": []} with no aw.agent/v1 envelope',
-    ),
-}
+FAMILY_ROOT_EXEMPTION_REGISTRY: Dict[str, Exemption] = {}
 
 # --------------------------------------------------------------------------------------------------
 # Declared unreachable command allow-set (declabsent Order 01 gm9baj E-02)

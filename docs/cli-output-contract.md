@@ -183,6 +183,8 @@ Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run c
 
 Commands in the run-execution family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`) manage and inspect multi-step orchestration runs, ledgers, and execution queues. These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records, and they use a wider exit code vocabulary to distinguish operational, corruption, and workflow states.
 
+The `aw runs` viewer's read paths (bare `aw runs` and its identical leaf `aw runs list`) return exit `0` or `2`, and its opt-in mutating `aw runs repair` may also return `1`, so the viewer stays inside the three-state vocabulary and is not part of either wider table below; its unresolvable-target refusal already emits a conforming `kind: "error"` record, and its empty result emits a conforming `kind: "summary"` record with `outcome: "clean"` and `exit: 0` under `--agent` (Section 11.1), while `--json` keeps the bare `{"runs": [...]}` payload. Its non-empty `--agent` stream is not yet enveloped (tracked as backlog `4d3ynu`).
+
 Two distinct live exit tables govern these verbs and disagree on the meaning of codes `3` and `4`. They are not reconciled into a single table:
 
 1. **The `aw runs` inspection and step lifecycle table** (defined by constants `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER` in `agent_workflows/run_cli.py`):
