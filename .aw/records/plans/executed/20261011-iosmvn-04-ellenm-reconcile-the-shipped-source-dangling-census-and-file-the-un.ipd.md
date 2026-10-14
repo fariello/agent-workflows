@@ -6,7 +6,7 @@
 - Scope: IN: (1) whole-population measurement over every tracked `agent_workflows/*.py` and `tools/*.py`; (2) cross-check of the three children's disposition tables against that measurement; (3) filing, with `aw backlog new`, one backlog item per cluster of RETIRE-UNGUARDED properties (grouped by deleted test file), each `Work-Kind: chore` unless the child recorded a user-perceptible defect, citing the child plan and site ids, unless an existing live item already owns the file (then record that owner instead). OUT: writing any test (each filed item's own work); editing production source; the sibling-owned clusters, whose own plans carry them.
 - Scope-Paths: .aw/records/backlog/open/, .aw/records/plans/pending/20261011-iosmvn-04-ellenm-reconcile-the-shipped-source-dangling-census-and-file-the-un.ipd.md
 - Item-Dependencies: executed:yuhl6o, executed:9rthek, executed:ev7t1w
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ellenm
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ellenm verified (set iosmvn, attempt 1).
 - 2026-10-13 approved (aw set): status set to approved
 - 2026-10-13 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed.
 
