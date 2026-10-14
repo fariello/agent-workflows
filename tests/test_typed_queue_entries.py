@@ -646,7 +646,7 @@ class TestPreQueueSeams(unittest.TestCase):
                     docs_dir.mkdir(parents=True, exist_ok=True)
                     outside_path = docs_dir / p.name
                     p.rename(outside_path)
-                    rel_path = str(outside_path.relative_to(repo))
+                    rel_path = outside_path.relative_to(repo).as_posix()
 
                     manifest = {
                         "schema_version": runner_shared.SCHEMA_VERSION,

@@ -329,9 +329,9 @@ def test_c_find_plans_setid_matches_oracle_and_shard_ordering(
             set_txt = f"{e.set_id or '-':<14}"
             full_p = (plans_dir / e.path).resolve()
             try:
-                rel_p = str(full_p.relative_to(tmp_repo.resolve()))
+                rel_p = full_p.relative_to(tmp_repo.resolve()).as_posix()
             except Exception:
-                rel_p = str(e.path)
+                rel_p = str(e.path).replace("\\", "/")
             disp_p = cli._highlight_filename_matches(rel_p, [selector], term)
             oracle_lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
 

@@ -595,7 +595,7 @@ def _repo_root_of(artifact_path: Path) -> Path:
     already-resolved root. Same marker set and same shape as `specs._repo_root_of`, kept local rather
     than imported so this module gains no dependency on the specs verb for one path walk.
     """
-    p = artifact_path.resolve()
+    p = (Path.cwd() / artifact_path).resolve()
     for anc in [p] + list(p.parents):
         if (
             (anc / ".aw").is_dir()

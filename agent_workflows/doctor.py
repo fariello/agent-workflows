@@ -1098,6 +1098,7 @@ def check_stale_build(
         dir_path = Path(dir_str)
         if not dir_path.is_dir():
             return None
+        dir_str = dir_path.as_posix()
     except Exception:
         return None
 

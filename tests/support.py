@@ -338,7 +338,22 @@ def pinned_env(env: dict[str, str] | None = None) -> dict[str, str]:
     merged_env.setdefault("PYTHONUTF8", "1")
     merged_env.setdefault("PYTHONIOENCODING", "utf-8")
     if os.name == "nt":
-        for k in ("SYSTEMROOT", "PATH", "COMSPEC", "PATHEXT", "TEMP", "TMP"):
+        if "HOME" in merged_env and "USERPROFILE" not in merged_env:
+            merged_env["USERPROFILE"] = merged_env["HOME"]
+        for k in (
+            "SYSTEMROOT",
+            "PATH",
+            "COMSPEC",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+            "USERPROFILE",
+            "HOMEDRIVE",
+            "HOMEPATH",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "USERNAME",
+        ):
             if k not in merged_env and k in os.environ:
                 merged_env[k] = os.environ[k]
     existing_pp = merged_env.get("PYTHONPATH", "")

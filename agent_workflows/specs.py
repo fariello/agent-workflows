@@ -206,7 +206,7 @@ SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
 def _repo_root_of(spec_path: Path) -> Path:
     """Walk up from a spec file to the repo root (a dir containing `.aw` or `.agents` or `.git`),
     falling back to spec_path parent. Used to locate the repo root and global history sidecar."""
-    p = spec_path.resolve()
+    p = (Path.cwd() / spec_path).resolve()
     for anc in [p] + list(p.parents):
         if (
             (anc / ".aw").is_dir()
