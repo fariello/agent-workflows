@@ -6,7 +6,7 @@
 - Scope: replace those four `None` defaults with working pre-bound fallbacks that delegate to the ONE shared definition each host wrapper already delegates to, preserving the `getattr` host preference; update the limit-pin test that currently asserts the `integration_is_earned` wall, and add behavioral coverage for each new fallback.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_fallback_bindings.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: u3ji9d
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: u3ji9d verified (set 877qmy, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261012-877qmy-01-u3ji9d-give-the-four-none-defaulted-execute-item-core-bindings-work.review.md Round 1
 
