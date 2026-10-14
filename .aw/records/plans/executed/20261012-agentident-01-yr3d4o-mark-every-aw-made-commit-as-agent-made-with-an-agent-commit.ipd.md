@@ -5,8 +5,9 @@
 - Concern: You cannot tell from `git log` which commits an agent made and which you made. Every commit is authored and committed as the user. The only agent marker is an `AW-Run:` trailer, and most aw-made commits lack it: measured 2026-10-11, 2,509 of 9,520 commits on `main` carry it, and only 127 of the last 300. Unmarked aw-made commits include runner merges (`integrate(...)`), plan finalize commits (`lifecycle(...)`), some runner work commits (e.g. `0dd8c3a3e`), and everything an interactive agent session commits through `aw commit`.
 - Scope: Every commit and merge that aw makes keeps the user as AUTHOR and records `AW Agent (<model>) <local+aw@domain>` as COMMITTER, where the address is the user's own email with `+aw` added before the `@`. Each such commit carries `AW-Runner: <runner>` (`aw oc run`, `aw agy run` or `aw commit`) when the runner is known, plus `AW-Run` and `AW-Item` when they are known; a commit from another aw verb (e.g. `aw ipd set --commit`) outside a run gets the committer label and no invented runner. A commit the user makes with plain `git commit` is unchanged. No new accounts, keys, GitHub settings or required configuration.
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/commit_lock.py, agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/work_cmd.py, agent_workflows/coverage_record.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/worktree_lease.py, tests/test_agent_commit_identity.py, docs/commit-identity.md, CHANGELOG.md
+- Scope-Exceeded: conftest.py (scrub agent committer and runner env vars so child tests are clean); tests/test_commit_run_trailers_env.py (update byte identity test to expect AW-Runner trailer from aw commit)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5.5-1m-us
 - Id: yr3d4o
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yr3d4o verified (set agentident, attempt 2). [Scope reconciliation - out-of-scope conftest.py: scrub agent committer and runner env vars so child tests are clean; out-of-scope tests/test_commit_run_trailers_env.py: update byte identity test to expect AW-Runner trailer from aw commit]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed.
 - 2026-10-12 to-review (aw set): authored from backlog aluots on the maintainer's instruction (plans preferred to backlog items); design decided by the maintainer 2026-10-11
