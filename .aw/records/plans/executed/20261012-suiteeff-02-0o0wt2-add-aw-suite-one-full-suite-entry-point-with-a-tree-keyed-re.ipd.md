@@ -6,7 +6,7 @@
 - Scope: IN: a new `agent_workflows/suite_cache.py` (key computation, store, lookup) and a new `aw suite` command that runs the repository's bare full suite through it with a bounded worker count; route the three runner seams through the same library function; update the execute and verify prompt templates to direct full-suite runs to `aw suite`; docs and CHANGELOG. OUT: narrowed runs (`aw suite` refuses a test selection and points at plain pytest, so quick checks stay fast and uncached); the machine-wide lock (Order 03); test selection (Order 04); changing `pyproject.toml` `addopts` for humans.
 - Scope-Paths: agent_workflows/suite_cache.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, tests/test_suite_cache.py, tests/conformance_matrix.py, docs/cli-human-guide.md, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:9ec94f
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0o0wt2
-- Approval: 2026-10-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-4-Argon-High): aw agy run self-finalize: 0o0wt2 verified (set suiteeff, attempt 1). [Scope reconciliation - in-scope-unmodified tests/conformance_matrix.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-13 approved (aw set): status set to approved
 
 - 2026-10-13 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-011 (record `.aw/records/reviews/20261012-suiteeff-02-0o0wt2-add-aw-suite-one-full-suite-entry-point-with-a-tree-keyed-re.review.md`)
