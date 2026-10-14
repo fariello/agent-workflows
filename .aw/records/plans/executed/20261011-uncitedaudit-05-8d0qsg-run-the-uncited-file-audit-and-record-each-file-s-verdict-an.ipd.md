@@ -6,7 +6,7 @@
 - Scope: IN: run `lost_guard_census.py --uncited --format json 19313eed` (Order 01), `deleted_test_replay.py --from-json` over that inventory (Order 02), and `replay_coverage_diff.py baseline` plus `diff --from-json` (Order 04); assign every file exactly one verdict from the closed set below by the precedence rule in E-03; write the inventory, verdicts, per-file touched-function data and every command with its pasted summary into ONE research findings doc created with `aw research new --kind findings`; refresh the (gitignored, local) research index. Verdicts: `recreated` (path exists at HEAD; compare test names, record overlap), `subject-retired` (an import failure on an `agent_workflows` module or symbol absent everywhere at HEAD), `api-moved` (an import failure on an `agent_workflows` symbol that exists elsewhere at HEAD; name where), `replay-env-limited` (a failure caused by the replay environment, not the product, including an import of a `tests.*` helper that the same trim deleted, a `no-tests` or `error` replay verdict, or a fixture absent at HEAD; name the cause), `fail-investigate` (at least one product-caused failure, i.e. a failing test whose message is not an import or environment failure, or an unexplained `timeout`; list failing nodeids), `pass-exclusive` (the tests that ran without an import or environment failure pass, and the replay touches at least one function with non-empty `exclusive_lines`), `pass-shared` (as `pass-exclusive`, but every touched function is fully shared), `no-product-reach` (touches no `agent_workflows` function; record what it does exercise). OUT: deriving properties (Order 06), mutation (Order 07), filing items (Order 08), editing any test or production file.
 - Scope-Paths: .aw/records/research/
 - Item-Dependencies: executed:1ub8ex, executed:nzzu8n, executed:sk2rbf
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8d0qsg
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-4-Argon-High): aw agy run self-finalize: 8d0qsg verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Reviewed at HEAD 550035bde. E-03 gets ordered verdict rules that read failing-test import messages (function-local imports report fail, demonstrated) and route trim-deleted tests.* helpers to replay-env-limited; index is gitignored so only the doc is committed; one-HEAD pinning and replay.json authority; V-items demand path-set and function-sum reconciliation; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-05-8d0qsg-run-the-uncited-file-audit-and-record-each-file-s-verdict-an.review.md.
 
