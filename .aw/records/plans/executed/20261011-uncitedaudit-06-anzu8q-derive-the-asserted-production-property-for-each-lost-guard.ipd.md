@@ -6,7 +6,7 @@
 - Scope: IN: for each candidate group in the findings doc's `## Candidates for Order 06` section, read the reaching deleted test functions (`git show 19313eed^:<path>`), state the asserted property in one sentence naming the production symbol, classify it (`behavioral`, `pin-retired` when the only assertion is a code-structure pin per P16, `property-unidentifiable` when the assertions do not determine a checkable behavior), choose a mutation operator from Order 03's set (`g55j1e` E-04 `OPERATORS`: `return-none`, `return-true`, `return-false`, `negate-return`, `raise`) whose effect the deleted test's assertion would observe, and for `fail-investigate` files decide `regression` vs `intended-change` vs `stale-at-trim` from a replay at `19313eed^` and `git log` of the production symbol since `19313eed`, citing the commit; re-measure the reaching-test selection at this plan's HEAD because Order 05's coverage JSON lived in a temp dir; append all of it to the SAME findings doc. Then select the mutation shortlist for Order 07, recording each row's narrowed selection as pytest nodeids. OUT: running mutants (Order 07), filing items (Order 08), editing any code or test.
 - Scope-Paths: .aw/records/research/
 - Item-Dependencies: executed:8d0qsg
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: anzu8q
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: anzu8q verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008. Reviewed at HEAD 2f4c97052. New E-04 re-measures reach (Order 05 kept no reaching-test data) and maps contexts to nodeids; noop dropped per g55j1e; stale-at-trim verdict via a 19313eed^ replay; defined cost model; one row per property; doc-only commit; pass-shared carried to xmr5qj; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-06-anzu8q-derive-the-asserted-production-property-for-each-lost-guard.review.md.
 
