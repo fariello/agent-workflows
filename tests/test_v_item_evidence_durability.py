@@ -1,4 +1,7 @@
-"""Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744).
+"""Tests for V-item evidence durability and verbatim-copy parity rules (IPD vtup6x, set nos070; IPD 5q9a6a, set ezv744; IPD xl1iko, set vbz06g).
+
+The long-form review-rubric.md carries a byte-identical verbatim copy of the
+re-derivation convention bullet from plan-review.md.
 
 Exemption from source-text-pin prohibition:
 This module reads WORKFLOW BODIES and a SPEC, the artifacts under change, and no
@@ -64,15 +67,6 @@ SINGLE_FILE_ANCHORS = [
     "Review is the only enforcement surface",
 ]
 
-# Pointer anchors for the long-form parity rule:
-LONG_FORM_POINTER_ANCHORS = [
-    "Live-artifact success criteria vs. stable code facts (re-derivation convention):",
-    "behaviour pinned plus the mechanism that pins it",
-    "collected test count is never the bar",
-    "../plan-review/plan-review.md",
-    "per the parity note in `plan-review-long.md`",
-]
-
 
 class TestVItemEvidenceDurability(unittest.TestCase):
     def test_single_file_plan_review_evidence_durability(self) -> None:
@@ -114,30 +108,35 @@ class TestVItemEvidenceDurability(unittest.TestCase):
         )
 
     def test_long_form_plan_review_evidence_durability_parity(self) -> None:
-        """Assert review-rubric.md carries the parity pointer without duplicating the paragraph."""
-        content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
-        section_a = support.section(content, "## A. Plan completeness", "## ")
+        """Assert review-rubric.md carries a byte-identical verbatim copy of the plan-review.md bullet."""
+        content_long = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+        section_a = support.section(content_long, "## A. Plan completeness", "## ")
 
-        # Locate the pointer bullet
+        content_single = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        section_g = support.section(content_single, "### G. Plan executability", "## ")
+
         bullet_prefix = "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**"
-        bullet_text = support.section(
+        bullet_long = support.section(
             section_a, bullet_prefix, "\n- **", anchored=False
         )
+        bullet_single = support.section(
+            section_g, bullet_prefix, "\n- **", anchored=False
+        )
 
-        # Assert pointer trio and summary anchors are present in the long-form bullet
-        for anchor in LONG_FORM_POINTER_ANCHORS:
+        # 1. Assert byte-identical verbatim copy between long-form and single-file
+        self.assertEqual(
+            bullet_long,
+            bullet_single,
+            f"{REVIEW_RUBRIC_REL} bullet must be a byte-identical verbatim copy of {PLAN_REVIEW_REL}",
+        )
+
+        # 2. Assert semantic anchors are present in the long-form copy
+        for anchor in SINGLE_FILE_ANCHORS:
             self.assertIn(
                 anchor,
-                bullet_text,
-                f"Anchor '{anchor}' not found in pointer bullet of {REVIEW_RUBRIC_REL}",
+                bullet_long,
+                f"Anchor '{anchor}' not found in long-form bullet of {REVIEW_RUBRIC_REL}",
             )
-
-        # Confirm the long-form does NOT duplicate the full paragraph (remains a pointer)
-        self.assertNotIn(
-            "Criteria counting **stable code facts**",
-            bullet_text,
-            f"{REVIEW_RUBRIC_REL} must not duplicate the full normative paragraph from plan-review.md",
-        )
 
     def test_spec_section_5_4_evidence_reachability(self) -> None:
         """Assert spec Section 5.4 carries reachability rule and preserves linter boundary.
