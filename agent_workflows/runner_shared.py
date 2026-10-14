@@ -8439,7 +8439,12 @@ def finalize_refusal_is_lock_contention(fin_msg: str) -> bool:
     from agent_workflows.ipd_lifecycle import FINALIZE_LOCK_BUSY_SUMMARY
 
     text = (fin_msg or "").strip()
-    if not text or FINALIZE_LOCK_BUSY_SUMMARY not in text:
+    if not text:
+        return False
+    if (
+        FINALIZE_LOCK_BUSY_SUMMARY not in text
+        and "index.lock': File exists" not in text
+    ):
         return False
     # If there are any IPD- finding lines, it is a mixed gate failure, not pure contention
     if any(line.strip().startswith("IPD-") for line in text.splitlines()):
@@ -35827,7 +35832,7 @@ def review_has_positive_evidence(
 
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "--no-optional-locks", "status", "--porcelain"],
             cwd=source,
             capture_output=True,
             text=True,

@@ -1436,3 +1436,18 @@ class FinalizeLockContentionTests(unittest.TestCase):
             self.assertEqual(idx, ev["attempt"])
             self.assertEqual(402458, ev["pid"])
             self.assertEqual("git_commit_helper.offer_commit", ev["owner"])
+
+    def test_git_index_lock_refusal_is_classified_as_lock_contention(self):
+        """A git index.lock refusal during fast-forward landing is classified as lock contention."""
+        msg = (
+            "refused: lifecycle commit did not happen (git rc=1: git REFUSED to fast-forward "
+            "the shared checkout onto 0a6920596cc6 because the git index lock (index.lock) was "
+            "held in the target checkout. git said: error: Unable to create "
+            "'/repo/.git/worktrees/lane/index.lock': File exists.)"
+        )
+        item = _item()
+        state = _state([item], retry_budget=2)
+        dec = runner_shared.finalize_retry_decision(item, state, msg)
+        self.assertTrue(dec.lock_contention)
+        self.assertFalse(dec.retry)
+        self.assertFalse(dec.exhausted)

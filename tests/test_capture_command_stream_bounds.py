@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from pathlib import Path
 
 from agent_workflows import host_runner, run_evidence, run_ledger_schema
 
 
-def test_symmetric_stream_bounds() -> None:
+def test_symmetric_stream_bounds(tmp_path: Path) -> None:
     """A command writing 100 bytes to each stream under max_output_bytes=10 bounds both streams."""
     cmd = [
         sys.executable,
@@ -24,6 +25,7 @@ def test_symmetric_stream_bounds() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=10,
         actor="executor",
     )
@@ -43,7 +45,7 @@ def test_symmetric_stream_bounds() -> None:
     assert tool_event.stderr == "E" * 10
 
 
-def test_asymmetric_stderr_over_bound() -> None:
+def test_asymmetric_stderr_over_bound(tmp_path: Path) -> None:
     """Stdout under bound, stderr over bound: stderr is truncated and flags are honest."""
     cmd = [
         sys.executable,
@@ -53,6 +55,7 @@ def test_asymmetric_stderr_over_bound() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=100,
         actor="executor",
     )
@@ -69,7 +72,7 @@ def test_asymmetric_stderr_over_bound() -> None:
     assert tool_event.stderr == "E" * 100
 
 
-def test_asymmetric_stdout_over_bound() -> None:
+def test_asymmetric_stdout_over_bound(tmp_path: Path) -> None:
     """Stdout over bound, stderr under bound: stdout is truncated and flags are honest."""
     cmd = [
         sys.executable,
@@ -79,6 +82,7 @@ def test_asymmetric_stdout_over_bound() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=100,
         actor="executor",
     )
@@ -95,7 +99,7 @@ def test_asymmetric_stdout_over_bound() -> None:
     assert tool_event.stderr == "E" * 5
 
 
-def test_unbounded_default_preserves_full_output() -> None:
+def test_unbounded_default_preserves_full_output(tmp_path: Path) -> None:
     """Omitting max_output_bytes leaves both streams unbounded and per-stream flags False."""
     cmd = [
         sys.executable,
@@ -106,6 +110,7 @@ def test_unbounded_default_preserves_full_output() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         actor="executor",
     )
 
@@ -120,7 +125,7 @@ def test_unbounded_default_preserves_full_output() -> None:
     assert tool_event.stderr == "E" * 100
 
 
-def test_timeout_diagnostic_carve_out() -> None:
+def test_timeout_diagnostic_carve_out(tmp_path: Path) -> None:
     """Command exceeding timeout preserves exit 124 and appended timeout sentinel on stderr."""
     cmd = [
         sys.executable,
@@ -130,6 +135,7 @@ def test_timeout_diagnostic_carve_out() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         timeout=0.5,
         max_output_bytes=10,
         actor="executor",
@@ -142,12 +148,13 @@ def test_timeout_diagnostic_carve_out() -> None:
     assert tool_event["truncated"] is True
 
 
-def test_spawn_failure_diagnostic_carve_out() -> None:
+def test_spawn_failure_diagnostic_carve_out(tmp_path: Path) -> None:
     """Nonexistent binary returns exit 127 with full exception text exempt from truncation."""
     cmd = ["/nonexistent_binary_for_test/12345"]
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=10,
         actor="executor",
     )
@@ -162,7 +169,7 @@ def test_spawn_failure_diagnostic_carve_out() -> None:
     assert tool_event["truncated"] is False
 
 
-def test_mid_character_byte_boundary() -> None:
+def test_mid_character_byte_boundary(tmp_path: Path) -> None:
     """Mid-character byte truncation on stderr matches stdout raw-byte replacement behavior."""
     # '\u00e9' is 2 bytes in UTF-8 (0xc3 0xa9). 5 characters = 10 bytes.
     # Slicing at 3 bytes keeps first character (2 bytes) + 1 partial byte -> 'é\ufffd'.
@@ -179,12 +186,14 @@ def test_mid_character_byte_boundary() -> None:
     event_stderr, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd_stderr,
+        cwd=tmp_path,
         max_output_bytes=3,
         actor="executor",
     )
     event_stdout, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd_stdout,
+        cwd=tmp_path,
         max_output_bytes=3,
         actor="executor",
     )
@@ -196,7 +205,7 @@ def test_mid_character_byte_boundary() -> None:
     assert event_stderr.stderr == event_stdout.stdout
 
 
-def test_ledger_validator_accepts_widened_record() -> None:
+def test_ledger_validator_accepts_widened_record(tmp_path: Path) -> None:
     """A record carrying the two new per-stream truncation keys validates ok under schema."""
     cmd = [
         sys.executable,
@@ -206,6 +215,7 @@ def test_ledger_validator_accepts_widened_record() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=10,
         actor="executor",
     )
@@ -264,7 +274,7 @@ def test_legacy_build_tool_event_call_shape() -> None:
     assert rec3["stderr_truncated"] is False
 
 
-def test_declared_bound_evidence_gate_pair() -> None:
+def test_declared_bound_evidence_gate_pair(tmp_path: Path) -> None:
     """Declared-bound exemption admits stderr truncation; deleting max_bytes rejects."""
     cmd_asym = [
         sys.executable,
@@ -274,6 +284,7 @@ def test_declared_bound_evidence_gate_pair() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd_asym,
+        cwd=tmp_path,
         max_output_bytes=100,
         actor="executor",
     )

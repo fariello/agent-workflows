@@ -32,6 +32,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import (
@@ -3560,6 +3561,108 @@ def _parse_merge_refusal_paths(text: str) -> Tuple[str, ...]:
     return tuple(paths)
 
 
+def _resolve_index_lock_path(repo_root: Path) -> Optional[Path]:
+    """Return ``<git-dir>/index.lock`` for ``repo_root`` without spawning git, or ``None``."""
+    dot_git = Path(repo_root) / ".git"
+    try:
+        if dot_git.is_dir():
+            return dot_git / "index.lock"
+        if dot_git.is_file():
+            raw = dot_git.read_text(encoding="utf-8", errors="replace").strip()
+            if raw.startswith("gitdir:"):
+                gitdir = raw[len("gitdir:") :].strip()
+                gitdir_path = Path(gitdir)
+                if not gitdir_path.is_absolute():
+                    gitdir_path = (Path(repo_root) / gitdir_path).resolve()
+                return gitdir_path / "index.lock"
+    except OSError:
+        return None
+    return None
+
+
+def _is_lockfile_open_by_live_process(lock_path: Path) -> Optional[bool]:
+    """Return True if a live same-UID process holds ``lock_path`` open, False if none does,
+    or None when ``/proc`` is unavailable."""
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return None
+    try:
+        target_stat = lock_path.stat()
+        target_key = (target_stat.st_dev, target_stat.st_ino)
+    except OSError:
+        return False
+    uid = os.getuid() if hasattr(os, "getuid") else None
+    try:
+        entries = list(os.scandir(proc_root))
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            if uid is not None and entry.stat(follow_symlinks=False).st_uid != uid:
+                continue
+            fd_dir = proc_root / entry.name / "fd"
+            for fd_entry in os.scandir(fd_dir):
+                try:
+                    st = fd_entry.stat(follow_symlinks=True)
+                    if (st.st_dev, st.st_ino) == target_key:
+                        return True
+                except OSError:
+                    continue
+        except OSError:
+            continue
+    return False
+
+
+def _clear_stale_or_wait_index_lock(
+    repo_root: Path,
+    *,
+    max_wait_seconds: float = 2.0,
+    poll_seconds: float = 0.05,
+    stale_age_seconds: float = 5.0,
+) -> Optional[str]:
+    """Wait briefly for a live ``index.lock`` holder or reclaim an orphaned 0-byte ``index.lock``.
+
+    A read-only ``git status`` killed by ``SIGKILL`` on timeout (if invoked without
+    ``--no-optional-locks``) leaves a 0-byte ``<git-dir>/index.lock`` with no open file descriptor.
+    Because coordinator mutations happen in a throwaway worktree, ``aw ipd finalize`` only hits the
+    target worktree's ``index.lock`` at ``_release_own_plan_edit_before_landing`` and
+    ``land_worktree_commit`` (``git merge --ff-only``).
+
+    Safety invariants:
+      * Fast path: if ``<git-dir>/index.lock`` does not exist, returns ``None`` immediately with no
+        subprocess call and no ``/proc`` scan.
+      * Never unlinks a non-empty ``index.lock`` (``st_size > 0`` means a writer wrote index bytes).
+      * Never unlinks a lockfile held open by a live process (verified via ``/proc/<pid>/fd`` inode
+        match on Linux, or by requiring ``age >= stale_age_seconds`` when ``/proc`` is unavailable).
+    """
+    lock_path = _resolve_index_lock_path(repo_root)
+    if lock_path is None or not lock_path.exists():
+        return None
+
+    deadline = time.monotonic() + max(0.0, float(max_wait_seconds))
+    while True:
+        try:
+            st = lock_path.stat()
+        except OSError:
+            return None
+
+        if st.st_size == 0:
+            held = _is_lockfile_open_by_live_process(lock_path)
+            age = max(0.0, time.time() - st.st_mtime)
+            if held is False or (held is None and age >= stale_age_seconds):
+                try:
+                    lock_path.unlink()
+                    return f"reclaimed orphaned 0-byte {lock_path.name}"
+                except OSError:
+                    return None
+
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(poll_seconds)
+
+
 def _release_own_plan_edit_before_landing(
     repo_root: Path,
     plan_rel: str,
@@ -3615,6 +3718,7 @@ def _release_own_plan_edit_before_landing(
         # The landed commit does not demonstrably carry these bytes, so clearing them could lose
         # content. Fail closed: leave the tree alone and let the merge refuse.
         return None
+    _clear_stale_or_wait_index_lock(repo_root)
     # THE MINIMAL OPERATION: restore this ONE path to what HEAD already says, which is the state the
     # fast-forward expects to rename FROM. It is not `reset --hard`, not `checkout -f`, and not a
     # forced merge: it is a single path whose current content is provably carried by the commit about
@@ -3641,13 +3745,15 @@ def land_worktree_commit(
     * CLEAN (rc=0): "Updating <old>..<new> / Fast-forward". An unrelated peer's dirty or staged file
       is untouched and its bytes are verbatim.
     * REFUSED (rc=1, `error:`): a local change to (or an untracked squatter at) a path the merge would
-      write. HEAD is NOT advanced and the working tree keeps the peer's content.
+      write, or an active `index.lock` that could not be acquired. HEAD is NOT advanced and the working
+      tree keeps the peer's content.
     * RACED (rc=128, `fatal: Not possible to fast-forward`): a peer commit landed since the snapshot,
       so the branch DIVERGED and no fast-forward exists. HEAD is NOT advanced and the tree is clean.
 
     ``expected_base`` is optional and diagnostic only: when given and the branch has already moved off
     it, the RACED detail says so explicitly instead of leaving the operator to infer it.
     """
+    _clear_stale_or_wait_index_lock(repo_root)
     rc, out, err = _git(repo_root, ["merge", "--ff-only", landed])
     combined = f"{out}\n{err}".strip()
     if rc == 0:
@@ -3683,6 +3789,20 @@ def land_worktree_commit(
                 f"command once contention clears). Coordinator commit: {landed[:12]}. git said: {combined}"
             ),
             paths,
+        )
+
+    if "index.lock" in lowered:
+        return ReconcileLanding(
+            RECONCILED_REFUSED,
+            rc,
+            (
+                f"git REFUSED to fast-forward the shared checkout onto {landed[:12]} because the git "
+                "index lock (index.lock) was held in the target checkout. The branch was NOT advanced "
+                "and the working tree is intact; that refusal is CORRECT and must not be forced. "
+                "Re-running the same command once the contention clears is sufficient (re-run the "
+                f"command once contention clears). Coordinator commit: {landed[:12]}. git said: {combined}"
+            ),
+            ("index.lock",),
         )
 
     detail = (

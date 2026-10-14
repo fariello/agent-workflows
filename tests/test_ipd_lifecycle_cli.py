@@ -2604,6 +2604,71 @@ class TheContendedFastForwardRefusalRollsBackCleanly(unittest.TestCase):
             "agent evidence must not overwrite peer",
         )
 
+    def test_06_orphaned_zero_byte_index_lock_is_reclaimed_and_finalize_succeeds(self):
+        """An orphaned 0-byte index.lock (from a SIGKILLed git status) is reclaimed so finalize lands."""
+        self._begin_and_work()
+        # Agent leaves uncommitted evidence edit on the plan file (exercises _release_own_plan_edit_before_landing)
+        original = self.plan.read_text(encoding="utf-8")
+        self.plan.write_text(
+            original + "\nAGENT EVIDENCE BEFORE FINALIZE\n", encoding="utf-8"
+        )
+        lock_path = self.root / ".git" / "index.lock"
+        lock_path.write_bytes(b"")
+        self.assertTrue(lock_path.exists())
+
+        res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            res.exit_code,
+            LC.EXIT_OK,
+            f"finalize should reclaim 0-byte index.lock and succeed: {res.message}",
+        )
+        self.assertFalse(lock_path.exists(), "orphaned 0-byte index.lock must be gone")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertTrue(exec_path.is_file())
+        self.assertIn(
+            "AGENT EVIDENCE BEFORE FINALIZE",
+            exec_path.read_text(encoding="utf-8"),
+        )
+
+    def test_07_active_nonempty_index_lock_is_classified_as_refused_not_diverged(self):
+        """A non-empty index.lock (active writer) refuses with RECONCILED_REFUSED, not DIVERGED."""
+        self._begin_and_work()
+        lock_path = self.root / ".git" / "index.lock"
+
+        real_land = LC.land_worktree_commit
+        seen_landing = {}
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            lock_path.write_bytes(b"DIRC\x00\x00\x00\x02")
+            with mock.patch.object(
+                LC,
+                "_clear_stale_or_wait_index_lock",
+                return_value=None,
+            ):
+                out = real_land(repo_root, landed, expected_base=expected_base)
+            seen_landing["landing"] = out
+            return out
+
+        try:
+            with mock.patch.object(LC, "land_worktree_commit", spy_land):
+                res = LC.finalize(
+                    self.root, self.plan, "opencode/test", "m", apply=True
+                )
+        finally:
+            lock_path.unlink(missing_ok=True)
+
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        landing = seen_landing["landing"]
+        self.assertEqual(landing.status, LC.RECONCILED_REFUSED)
+        self.assertIn("index.lock", landing.detail)
+        self.assertNotIn("DIVERGED", landing.detail)
+        self.assertIsNone(
+            LC.read_finalize_journal(self.root, "abc123"),
+            "journal must be cleared because shared tree was untouched",
+        )
+
 
 class DelegationAndBypassRemovalTests(unittest.TestCase):
     """ipdgates Order wezhxg: `aw set executed <plan>` delegates into aw ipd finalize (no raw bypass)."""

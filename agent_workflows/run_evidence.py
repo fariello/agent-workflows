@@ -161,8 +161,11 @@ def get_git_head(repo_dir: Union[str, Path] = ".") -> str:
 def get_git_dirty_digest(repo_dir: Union[str, Path] = ".") -> str:
     """Compute deterministic SHA-256 digest of git porcelain status or 'clean'."""
     try:
+        # --no-optional-locks prevents read-only `git status` from creating `<git-dir>/index.lock`
+        # to refresh cached stat entries; without it, a `TimeoutExpired` SIGKILL strands a 0-byte
+        # `index.lock` that blocks subsequent `git merge --ff-only` / `aw ipd finalize`.
         proc = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "--no-optional-locks", "status", "--porcelain"],
             cwd=str(repo_dir),
             capture_output=True,
             text=True,
@@ -190,8 +193,9 @@ def _porcelain_paths(repo_dir: Union[str, Path] = ".") -> Optional[List[str]]:
         # -uall lists untracked files INDIVIDUALLY rather than collapsing a wholly-new directory to
         # its directory name, so a new in-scope file (e.g. a fresh tests/test_x.py under a new dir) is
         # attributable to the exact path a Scope-Paths matcher can compare.
+        # --no-optional-locks prevents read-only status checks from creating `<git-dir>/index.lock`.
         proc = subprocess.run(
-            ["git", "status", "--porcelain", "-uall"],
+            ["git", "--no-optional-locks", "status", "--porcelain", "-uall"],
             cwd=str(repo_dir),
             capture_output=True,
             text=True,

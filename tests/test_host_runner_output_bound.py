@@ -9,6 +9,7 @@ host_launchers.host_result_can_finalize to accept declared, honored output bound
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 
 from agent_workflows import (
@@ -25,13 +26,20 @@ from agent_workflows import (
 class TestHostRunnerOutputBound(unittest.TestCase):
     """Pin output bound enforcement on both real spawn and runner double branches."""
 
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.cwd = self._tmp.name
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
     def test_real_spawn_output_bound_enforced(self):
         packet = hr.TaskPacket(
             run_id="run-abc123ff",
             step_id="step-1",
             lane_id="lane-1",
             argv=("python3", "-c", "print('A'*50000)"),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=100,
         )
         res = hr.run_worker_process(packet)
@@ -46,7 +54,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("python3", "-c", "print('A'*50000)"),
-            cwd=".",
+            cwd=self.cwd,
         )
         self.assertIsNone(packet.max_output_bytes)
         res = hr.run_worker_process(packet)
@@ -60,7 +68,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("echo", "double"),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=100,
         )
 
@@ -82,7 +90,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("python3", "-c", cmd),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=6,
         )
         r6 = hr.run_worker_process(p6)
@@ -94,7 +102,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("python3", "-c", cmd),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=7,
         )
         r7 = hr.run_worker_process(p7)
@@ -110,7 +118,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("echo", "double"),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=6,
         )
         r6 = hr.run_worker_process(p6, runner=double_runner)
@@ -122,7 +130,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("echo", "double"),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=7,
         )
         r7 = hr.run_worker_process(p7, runner=double_runner)
@@ -136,7 +144,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
             step_id="step-1",
             lane_id="lane-1",
             argv=("python3", "-c", cmd),
-            cwd=".",
+            cwd=self.cwd,
             max_output_bytes=2,
         )
         res = hr.run_worker_process(packet)
@@ -158,11 +166,19 @@ class TestHostRunnerOutputBound(unittest.TestCase):
 class TestEvidenceGateBoundedOutput(unittest.TestCase):
     """Pin evidence gate and finalization behavior on bounded captures."""
 
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.cwd = self._tmp.name
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
     def test_gate_accepts_bounded_capture_carrying_max_bytes(self):
         # Case (a): bounded capture whose record carries max_bytes passes the gate
         event, _ = ev.capture_command(
             "run-abc123ff",
             ["python3", "-c", "print('A'*50000)"],
+            cwd=self.cwd,
             max_output_bytes=100,
         )
         self.assertIn("max_bytes", event)
@@ -176,6 +192,7 @@ class TestEvidenceGateBoundedOutput(unittest.TestCase):
         event, _ = ev.capture_command(
             "run-abc123ff",
             ["python3", "-c", "print('A'*50000)"],
+            cwd=self.cwd,
             max_output_bytes=100,
         )
         modified_event = dict(event)
@@ -191,6 +208,7 @@ class TestEvidenceGateBoundedOutput(unittest.TestCase):
         event, _ = ev.capture_command(
             "run-abc123ff",
             ["python3", "-c", "print('A'*10)"],
+            cwd=self.cwd,
             max_output_bytes=0,
         )
         self.assertIn("max_bytes", event)
@@ -205,6 +223,7 @@ class TestEvidenceGateBoundedOutput(unittest.TestCase):
         event, _ = ev.capture_command(
             "run-abc123ff",
             ["python3", "-c", "import sys; print('fail'); sys.exit(2)"],
+            cwd=self.cwd,
             max_output_bytes=100,
         )
         gate_res = hr.evidence_gate(event)
@@ -216,6 +235,7 @@ class TestEvidenceGateBoundedOutput(unittest.TestCase):
         event, _ = ev.capture_command(
             "run-abc123ff",
             ["python3", "-c", "print('A'*50000)"],
+            cwd=self.cwd,
             max_output_bytes=100,
         )
         raw = hr.RawWorkerResult(

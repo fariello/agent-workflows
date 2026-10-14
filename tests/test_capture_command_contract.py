@@ -89,7 +89,7 @@ def test_captured_tool_event_type_contract() -> None:
         event.undeclared_attribute = "forbidden"  # type: ignore[attr-defined]
 
 
-def test_capture_command_producer_contract() -> None:
+def test_capture_command_producer_contract(tmp_path: Path) -> None:
     """Real capture_command returns (CapturedToolEvent, envelope) with out-of-band text."""
     cmd = [
         sys.executable,
@@ -99,6 +99,7 @@ def test_capture_command_producer_contract() -> None:
     tool_event, envelope = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         actor="executor",
     )
 
@@ -121,18 +122,21 @@ def test_capture_command_producer_contract() -> None:
     assert envelope["stdout_sha256"] == tool_event["stdout_sha256"]
 
 
-def test_capture_command_key_set_per_call_shape() -> None:
+def test_capture_command_key_set_per_call_shape(tmp_path: Path) -> None:
     """Emitted key set matches BASE_SCHEMA_KEYS for unbounded, and adds max_bytes for bounded."""
     cmd = [sys.executable, "-c", "pass"]
 
     # Unbounded call shape (e.g. used by run_worker_process)
-    tool_event_unbounded, _ = run_evidence.capture_command("run-abc123ff", cmd)
+    tool_event_unbounded, _ = run_evidence.capture_command(
+        "run-abc123ff", cmd, cwd=tmp_path
+    )
     assert set(tool_event_unbounded.keys()) == BASE_SCHEMA_KEYS
 
     # Bounded call shape (e.g. used by run_suite_check with max_output_bytes=512_000)
     tool_event_bounded, _ = run_evidence.capture_command(
         "run-abc123ff",
         cmd,
+        cwd=tmp_path,
         max_output_bytes=512_000,
     )
     assert set(tool_event_bounded.keys()) == BASE_SCHEMA_KEYS | {"max_bytes"}
@@ -142,7 +146,7 @@ def test_capture_command_key_set_per_call_shape() -> None:
         assert key not in tool_event_bounded
 
 
-def test_capture_command_persistence_clean_in_real_store() -> None:
+def test_capture_command_persistence_clean_in_real_store(tmp_path: Path) -> None:
     """Appending a CapturedToolEvent to a real RunLedgerStore writes no text keys."""
     large_cmd = [
         sys.executable,
@@ -152,6 +156,7 @@ def test_capture_command_persistence_clean_in_real_store() -> None:
     tool_event, _ = run_evidence.capture_command(
         "run-abc123ff",
         large_cmd,
+        cwd=tmp_path,
         actor="executor",
     )
 
@@ -201,14 +206,14 @@ def test_capture_command_persistence_clean_in_real_store() -> None:
         assert tool_event.stderr == "Y" * 500
 
 
-def test_mock_shape_hazard_per_consumer() -> None:
+def test_mock_shape_hazard_per_consumer(tmp_path: Path) -> None:
     """A plain-dict mock fails loudly at run_worker_process and fails closed at run_suite_check."""
     packet = host_runner.TaskPacket(
         run_id="run-abc123ff",
         step_id="step-1",
         lane_id="lane-1",
         argv=[sys.executable, "-c", "pass"],
-        cwd=".",
+        cwd=str(tmp_path),
         timeout_seconds=30.0,
     )
 
@@ -226,19 +231,20 @@ def test_mock_shape_hazard_per_consumer() -> None:
         "agent_workflows.run_evidence.capture_command",
         return_value=({"exit_code": 0}, {}),
     ):
-        res = runner_shared.run_suite_check(Path("."), "run-abc123ff")
+        res = runner_shared.run_suite_check(tmp_path, "run-abc123ff")
         assert res.passing is False
         assert res.exit_code == 127
         assert "suite check could not run (fail-closed)" in res.reason
         assert "stdout" in res.reason
 
 
-def test_capture_command_error_paths() -> None:
+def test_capture_command_error_paths(tmp_path: Path) -> None:
     """Exit 127 on nonexistent argv and 124 on timeout without raising."""
     # Nonexistent command -> exit 127 with error on stderr
     tool_event_127, _ = run_evidence.capture_command(
         "run-abc123ff",
         ["/nonexistent_binary_xyz987"],
+        cwd=tmp_path,
     )
     assert tool_event_127.get("exit_code") == 127
     assert (
@@ -250,13 +256,14 @@ def test_capture_command_error_paths() -> None:
     tool_event_124, _ = run_evidence.capture_command(
         "run-abc123ff",
         [sys.executable, "-c", "import time; time.sleep(2)"],
+        cwd=tmp_path,
         timeout=0.1,
     )
     assert tool_event_124.get("exit_code") == 124
     assert "Command timed out." in tool_event_124.stderr
 
 
-def test_capture_command_decode_asymmetry() -> None:
+def test_capture_command_decode_asymmetry(tmp_path: Path) -> None:
     """Decoded characters and raw byte length/digest diverge correctly."""
     # Multi-byte UTF-8 character ('é' is 2 bytes in UTF-8: b'\xc3\xa9')
     multi_byte_cmd = [
@@ -267,6 +274,7 @@ def test_capture_command_decode_asymmetry() -> None:
     ev_mb, _ = run_evidence.capture_command(
         "run-abc123ff",
         multi_byte_cmd,
+        cwd=tmp_path,
         actor="executor",
     )
     assert ev_mb["stdout_len"] == 2
@@ -284,6 +292,7 @@ def test_capture_command_decode_asymmetry() -> None:
     ev_inv, _ = run_evidence.capture_command(
         "run-abc123ff",
         invalid_byte_cmd,
+        cwd=tmp_path,
         actor="executor",
     )
     assert ev_inv.stdout == "\ufffd\ufffd\ufffd"
@@ -352,7 +361,7 @@ def test_run_suite_check_records_are_schema_valid() -> None:
     assert result.summary == "1 passed in 0.01s"
 
 
-def test_run_worker_process_consumer_contract() -> None:
+def test_run_worker_process_consumer_contract(tmp_path: Path) -> None:
     """run_worker_process reads attributes in real spawn, and RunnerFn branch is untouched."""
     # Real subprocess execution
     real_cmd = [
@@ -365,7 +374,7 @@ def test_run_worker_process_consumer_contract() -> None:
         step_id="step-1",
         lane_id="lane-1",
         argv=real_cmd,
-        cwd=".",
+        cwd=str(tmp_path),
         timeout_seconds=30.0,
     )
     res_real = host_runner.run_worker_process(packet)
@@ -383,3 +392,34 @@ def test_run_worker_process_consumer_contract() -> None:
     assert res_injected.exit_code == 42
     assert res_injected.stdout == "runner_fn_stdout"
     assert res_injected.stderr == "runner_fn_stderr"
+
+
+def test_git_dirty_probes_use_no_optional_locks(tmp_path: Path) -> None:
+    """get_git_dirty_digest and _porcelain_paths use --no-optional-locks so read-only probes never create index.lock."""
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("v1\n", encoding="utf-8")
+    sp.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    sp.run(["git", "commit", "-q", "-m", "init"], cwd=tmp_path, check=True)
+
+    # Even if an index.lock is held or read-only status runs, --no-optional-locks is passed
+    seen_argv: list[list[str]] = []
+    real_run = sp.run
+
+    def spy_run(argv, *args, **kwargs):
+        seen_argv.append(list(argv))
+        return real_run(argv, *args, **kwargs)
+
+    with mock.patch("agent_workflows.run_evidence.subprocess.run", side_effect=spy_run):
+        assert run_evidence.get_git_dirty_digest(tmp_path) == "clean"
+        assert run_evidence._porcelain_paths(tmp_path) == []
+
+    assert seen_argv == [
+        ["git", "--no-optional-locks", "status", "--porcelain"],
+        ["git", "--no-optional-locks", "status", "--porcelain", "-uall"],
+    ]
+    assert not (tmp_path / ".git" / "index.lock").exists()
