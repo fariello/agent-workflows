@@ -6,7 +6,7 @@
 - Scope: IN: amend ONE table cell (spec `25kzda` 5.2 guarantee row 4, `Enforcement or proof`) so it says what WOULD prove the guarantee, what runs today, and that the guarantee is not in force as a host-enforced property; add ONE behavioral regression test class pinning the measurements the cell will assert; record the amendment with `aw specs note`. OUT: rows 1, 2, 3 and 5; the `Bucket` column; the 5.2 host-requirement bullets, action table and 5.6 packet example; `UNREPRESENTED_SPEC_CAPABILITIES` and every production module; building any new capability field or probe.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: opencode/claude-opus
 - Id: sa13no
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-14 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: sa13no verified (set b7tlsh, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED
 
