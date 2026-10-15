@@ -6,7 +6,7 @@
 - Scope: IN: file one backlog item per ROOT-CAUSE GROUP (same production module plus same remedy shape: restore a behavioral test, or fix a regression) with `aw backlog new`, naming every property `P-NN` and deleted test it covers; file ONE rollup item enumerating every remaining outcome that needs a carrier (E-03 (d) defines the set) if non-empty; cap at 10 grouped items plus the rollup (remaining groups go into the rollup by name); justify each `- Work-Kind:` (`chore` for an absent test by default; `bug` with `- Blocks-Release: next` when Order 06 recorded `regression` with user-visible wrong behavior, per the repository's gating rule); record every filed id6 and a final reconciliation in the findings doc; dedupe against live items before filing. Also verify, as the Set's whole-Set checks, that every inventory file has a verdict and every non-`guarded` outcome has a carrier, and that the Set's own commits changed no code or test file outside the four tool files, their tests and `tools/README.md`. OUT: writing replacement tests or fixing regressions (each filed item's own work); changing backlog `e486tz`'s status.
 - Scope-Paths: .aw/records/backlog/, .aw/records/research/
 - Item-Dependencies: executed:rq3q7v
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xmr5qj
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xmr5qj verified (set uncitedaudit, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Reviewed at HEAD 9f8eb0db7. Check (e) attributes by commit subject (range diff already caught 6 other-Set files); carrier-needed/free sets made explicit over upstream verdicts incl. stale-at-trim; dedupe by grep plus advisory detector (aw find is not text search); --priority added; aw check compared against a captured baseline; exact-file commit; gate itemized. Record: .aw/records/reviews/20261011-uncitedaudit-08-xmr5qj-file-each-unguarded-or-regressed-property-as-grouped-backlog.review.md.
 
