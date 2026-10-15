@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: The D52 drift guard that asserted every plan in this repository's own `.aw/records/plans/` tree carries a recognized readiness `- Status:` token, and that every plan in a terminal directory carries the matching terminal status, was deleted with `tests/test_plan_status.py` in commit `19313eed`, so a plan with a misspelled or directory-mismatched status (for example `- Status: aproved`, or an `executed/` plan still reading `approved`) would now go undetected.
 - Scope: Recreate `tests/test_plan_status.py` as a behavioral test module: a status-drift checker over a given plans directory that reuses `agent_workflows.plans` (`DISPOSITION_DIRS`, `read_status`, `RECOGNIZED`, `DIR_TERMINAL`, `LEGACY_GROUP`); synthetic-tree tests proving the checker reports unrecognized tokens, missing statuses and terminal/directory mismatches (and stays silent on a clean tree); `livecorpus`-marked tests applying the checker to the live repository plans tree; and a `normalize_status` behavior test for `auto-approved`. Then replace the stale "no live guard currently asserts this" remark in the `agent_workflows/plans.py` module docstring.
-- Scope-Paths: tests/test_plan_status.py, agent_workflows/plans.py
+- Scope-Paths: tests/test_plan_status.py, agent_workflows/plans.py, .aw/records/plans/pending/20261014-7h2he0-01-sat4he-restore-behavioral-coverage-of-the-repository-plans-recogniz.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 7h2he0
@@ -17,7 +18,8 @@
 - Id: sat4he
 
 ## Workflow history
-
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-7h2he0-01-sat4he)
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog 7h2he0; review-ready.
 
@@ -31,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: drift checker and its synthetic-tree tests
 
-- [ ] E-01 Create `tests/test_plan_status.py` with a module-level helper `status_drift(plans_dir: Path) -> tuple[list[str], list[str]]` that iterates `plans_mod.DISPOSITION_DIRS` under `plans_dir`, skips missing directories and `README.md`, reads each `*.md` file's status with `plans_mod.read_status(path)`, and returns `(unrecognized, mismatched)`: `unrecognized` lists `"<rel>: Status=<value>"` for every file whose status is `None` or `plans_mod.LEGACY_GROUP`; `mismatched` lists files under a directory present in `plans_mod.DIR_TERMINAL` whose status differs from the mapped terminal value. Add a `unittest.TestCase` (each test with its own `tempfile.TemporaryDirectory`, xdist-safe; `support.declare_execution_role(self)` in `setUp` if the existing plan-tree tests do so) that writes synthetic plan files and asserts: a clean tree (`pending/` with `draft`, `to-review`, `approved`, `auto-approved`; `executed/` with `executed` and legacy `DONE`; `superseded/` with `superseded`; `not-executed/` with `not-executed`; `reusable/` with `reusable`; a `README.md` with no status) yields `([], [])`; a `pending/` file with `- Status: aproved` and one with no status line both appear in `unrecognized`; an `executed/` file with `- Status: approved` appears in `mismatched` and not in `unrecognized`; a `pending/` file with `- Status: approved` is not reported as mismatched.
+- [ ] E-01 Create `tests/test_plan_status.py` with a module-level helper `status_drift(plans_dir: Path) -> tuple[int, list[str], list[str]]` that iterates `plans_mod.DISPOSITION_DIRS` under `plans_dir`, skips missing directories and any file named `README.md`, reads the status of every `*.md` file RECURSIVELY (`rglob("*.md")`, sorted, because `plans_archive` moves terminal plans into `YYYYMM/` shards inside `executed/`/`superseded/`/`not-executed/`, and a flat `glob` would silently exempt every sharded plan) with `plans_mod.read_status(path)`, and returns `(examined, unrecognized, mismatched)`: `examined` is the count of plan files read; `unrecognized` lists `"<rel>: Status=<value>"` for every file whose status is `None` or `plans_mod.LEGACY_GROUP`; `mismatched` lists every OTHER file (one already in `unrecognized` is not repeated) under a top-level directory present in `plans_mod.DIR_TERMINAL` whose status differs from the mapped terminal value. Add a `unittest.TestCase` (each test with its own `tempfile.TemporaryDirectory` cleaned up via `addCleanup`, xdist-safe; no execution-role declaration, since the checker is read-only and invokes no lifecycle verb) that writes synthetic plan files and asserts: a clean tree (`pending/` with `draft`, `to-review`, `approved`, `auto-approved`; `executed/` with `executed` and legacy `DONE`; `superseded/` with `superseded`; `not-executed/` with `not-executed`; `reusable/` with `reusable`; a `README.md` with no status) yields `([], [])`; a `pending/` file with `- Status: aproved` and one with no status line both appear in `unrecognized`; an `executed/` file with `- Status: approved` appears in `mismatched` and not in `unrecognized`; a `pending/` file with `- Status: approved` is not reported as mismatched; and a SHARDED file `executed/202609/<name>.ipd.md` with `- Status: approved` appears in `mismatched` (proving shards are scanned), while `examined` equals the number of non-README files written.
   - Depends on: none
-  - Expected outcome: the module exists and its synthetic-tree tests pass, proving the checker detects each drift class and is silent on a clean tree.
+  - Expected outcome: the module exists and its synthetic-tree tests pass, proving the checker detects each drift class (including inside a shard) and is silent on a clean tree.
   - Execution state: pending
 
 ### Task group 2: live-corpus guard and auto-approved behavior
 
-- [ ] E-02 In the same module add two tests decorated `@pytest.mark.livecorpus` (the marker registered in `pyproject.toml` for tests asserting a property over this repository's own `.aw/records/` tree, deselected from the default fast run and run by `make test-all` and release-review): `test_every_repository_plan_has_a_recognized_status` and `test_repository_terminal_plan_status_matches_directory`, each calling `status_drift(support.SOURCE_PLANS)` and asserting the respective list is empty, with the offender list in the failure message. Each asserts first that `support.SOURCE_PLANS` is a directory and that at least one plan file was examined, so the guard cannot pass vacuously on a missing tree. Also add a default-suite test asserting `plans_mod.normalize_status("auto-approved") == "auto-approved"` and `plans_mod.normalize_status("AUTO-APPROVED") == "auto-approved"` (D65 readiness token stays recognized through the runtime normalizer), replacing the deleted constant-membership assertions with an observed outcome.
+- [ ] E-02 In the same module add two tests decorated `@pytest.mark.livecorpus` (the marker registered in `pyproject.toml` for tests asserting a property over this repository's own `.aw/records/` tree, deselected from the default fast run and run by `make test-all` and release-review): `test_every_repository_plan_has_a_recognized_status` and `test_repository_terminal_plan_status_matches_directory`, each calling `status_drift(support.SOURCE_PLANS)` and asserting the respective list is empty, with the offender list in the failure message. Each asserts first that `support.SOURCE_PLANS` is a directory and that `examined > 0`, so the guard cannot pass vacuously on a missing tree. Also add a default-suite test asserting `plans_mod.normalize_status("auto-approved") == "auto-approved"` and `plans_mod.normalize_status("AUTO-APPROVED") == "auto-approved"` (D65 readiness token stays recognized through the runtime normalizer), replacing the deleted constant-membership assertions with an observed outcome.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest -o addopts="" -m livecorpus tests/test_plan_status.py` passes against the current tree, and the auto-approved test passes in the default run.
   - Execution state: pending
@@ -76,8 +78,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Any change to `plans.py` behavior or the status vocabulary: this is a coverage-restoration chore.
+  - Carrier-Declined: deliberate non-goal (coverage restoration only), not an outstanding obligation.
 - Restoring other site rows of `ev7t1w`: each has its own backlog item; backlog `7h2he0` names only S-19.
+  - Carrier-Declined: owned by the per-site backlog items filed from `ev7t1w`, not by this plan.
 - Editing `DECISIONS.md`: it is a historical decision record, and its citation becomes accurate again once the module exists.
+  - Carrier-Declined: no obligation remains; recreating the module at the cited path discharges the stale citation.
 
 ## Scope check
 
@@ -87,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -v tests/test_plan_status.py` (all tests including `livecorpus`) passes (V-01, V-02).
-- Non-vacuity: synthetic drift cases are reported (V-01), and a temporary `- Status: aproved` edit to a copy of a live pending plan in a temp tree is reported (V-02).
+- Non-vacuity: synthetic drift cases, including a sharded terminal plan, are reported (V-01), and a temporary `- Status: aproved` edit to a copy of a live pending plan in a temp tree is reported (V-02); the live repository tree is never edited.
 - Full bare suite `python3 -m pytest` passes with no new failures (V-03).
 
 ## Spec / documentation sync
@@ -100,14 +105,14 @@ N/A: no spec or user-facing documentation describes this test; the only text cha
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: marked `livecorpus`. The `pyproject.toml` marker description states that tests asserting a property over every artifact in this repo's own `.aw/records/` tree are deselected by default because one red such test blocks integration for every concurrent runner lane (measured 2026-09-19). The detection logic itself is covered in the default suite by the synthetic-tree tests of E-01, so the default run still guards the checker.
 
 ### OQ-02: New module name or recreate the deleted path?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: recreate `tests/test_plan_status.py`, because `DECISIONS.md` and the `plans.py` docstring already cite that path as the drift guard, so restoring it makes both references accurate.
 
 ## Validation and cross-check (verify before reporting done)
@@ -115,7 +120,7 @@ N/A: no spec or user-facing documentation describes this test; the only text cha
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_plan_status.py -m "not livecorpus"` showing each synthetic-tree test (clean tree, unrecognized token, missing status, terminal mismatch, pending not mismatched) PASSED; plus pasted output of `grep -nE "import inspect|import ast|plans\.py" tests/test_plan_status.py` showing no source-reading match.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_plan_status.py -m "not livecorpus"` showing each synthetic-tree behavior (clean tree, unrecognized token, missing status, terminal mismatch, pending not mismatched, sharded terminal mismatch, examined count) PASSED; plus pasted output of `rg -n "import inspect|from inspect|import ast|getsource|agent_workflows/plans\.py.*read_text|__file__" tests/test_plan_status.py` showing no source-reading match.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -132,4 +137,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the two Scope-Paths files through `aw commit sat4he -- <paths>`; never push. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+Execute only after human approval (`aw ipd set approved sat4he --by-human`); OQ-01 and OQ-02 are resolved and no question blocks. Begin with `aw ipd begin sat4he`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/plans.py` that cannot be safely combined, or a live-tree test going red on landing (a real drift in a plan this plan does not own; report it rather than editing that plan).
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. The V-02 throwaway check runs only on a temp copy and is never committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit sat4he -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, run `aw ipd finalize sat4he` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
