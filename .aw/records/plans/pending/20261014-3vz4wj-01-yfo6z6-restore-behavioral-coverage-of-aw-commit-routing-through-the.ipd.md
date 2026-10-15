@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that drives `aw commit` through `cli.main` against a throwaway git repo and asserts (a) the shared helper is invoked exactly once with only the requested paths and `on_unrelated_staged="scope"`, for both plan-governed and `--no-plan` modes, and (b) with the helper stubbed to commit nothing, no `git commit` subprocess is spawned and HEAD is unchanged; then remove the now-stale "no live guard currently asserts this" remark in `work_cmd.run_commit`.
 - Scope-Paths: tests/test_work_commit_routes_through_shared_helper.py, agent_workflows/work_cmd.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 3vz4wj
@@ -17,6 +18,7 @@
 - Id: yfo6z6
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog 3vz4wj; review-ready.
@@ -31,11 +33,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: delegation tests
 
-- [ ] E-01 Create `tests/test_work_commit_routes_through_shared_helper.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and builds a throwaway git repo carrying an approved plan `wk0001` with `- Scope-Paths: src/, tests/` (same fixture shape as `tests/test_commit_default_message.py` `_PLAN` / `CommitDefaultMessageTest.setUp`). Add tests that wrap the real `git_commit_helper.offer_commit` in a recording spy via `mock.patch.object(gch, "offer_commit", spy)` and drive `cli.main(["commit", "wk0001", "--dir", <root>, "-m", "add feature", "--", "src/feature.py"])` and the plan-less form `cli.main(["commit", "--no-plan", "-m", "...", "--dir", <root>, "--", "src/feature.py"])`, asserting: exit code 0; the spy was called exactly once; the recorded repo root equals the fixture root; the recorded paths equal exactly `["src/feature.py"]`; the recorded `on_unrelated_staged` kwarg equals `"scope"`; and `git show --name-only HEAD` lists `src/feature.py` and no other path. Also add a co-worker case: a second, unrelated path is pre-staged before the plan-less commit, and the test asserts it is absent from the new HEAD commit and still staged afterward.
+- [ ] E-01 Create `tests/test_work_commit_routes_through_shared_helper.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and builds a throwaway git repo carrying an approved plan `wk0001` with `- Scope-Paths: src/, tests/` (same fixture shape as `tests/test_commit_default_message.py` `_PLAN` / `CommitDefaultMessageTest.setUp`). Add tests that wrap the real `git_commit_helper.offer_commit` in a recording spy via `mock.patch.object(gch, "offer_commit", spy)` and drive `cli.main(["commit", "wk0001", "--dir", <root>, "-m", "add feature", "--", "src/feature.py"])` and the plan-less form `cli.main(["commit", "--no-plan", "-m", "...", "--dir", <root>, "--", "src/feature.py"])`, asserting: exit code 0; the spy was called exactly once; the recorded repo root equals the fixture root; the recorded paths equal exactly `["src/feature.py"]`; the recorded `on_unrelated_staged` kwarg equals `"scope"`; and `git show --name-only --format= HEAD` (the empty `--format=` suppresses the header and message, so the output is exactly the path list) prints exactly `src/feature.py`. Each mode must commit a FRESH change: use a separate test method per mode (each gets its own `setUp` repo), or rewrite `src/feature.py` before the second mode, because an unchanged path yields `nothing-to-commit` and exit 1. Also add a co-worker case: a second, unrelated path is pre-staged before the plan-less commit, and the test asserts it is absent from the new HEAD commit and still staged afterward.
   - Depends on: none
   - Expected outcome: the new module exists and its delegation tests pass against the current `work_cmd.run_commit`.
   - Execution state: pending
 - [ ] E-02 In the same module add a no-fork test: stub `gch.offer_commit` to return `gch.CommitOutcome(status=gch.STATUS_NOTHING_TO_COMMIT, message="stubbed", staged=[], commit=None)` and wrap `subprocess.Popen` with a recording wrapper that still calls the real `Popen` (the `_GitArgvRecorder` approach used by the deleted module at `19313eed^:tests/test_work_primitives.py`, re-implemented locally, recognizing the git subcommand after skipping `-C <dir>` / `-c <cfg>` globals). Drive both the plan-governed and `--no-plan` forms and assert: exit code 1; no recorded git subcommand equals `commit`; HEAD before equals HEAD after. Add a sanity sub-assertion that the recorder DOES observe a `commit` subcommand when the real helper is left unstubbed, so the absence assertion cannot pass vacuously.
+  - Measured at review (HEAD `4ead57c34`, prototype of E-01/E-02 under gitignored `.aw/state/`, deleted afterwards): unmutated `5 passed` (both delegation modes, co-worker, both no-fork modes, sanity); with `work_cmd._gch` rebound to a shim whose `offer_commit` runs its own `git add` + `git commit`, `2 failed, 3 passed` (delegation `0 != 1`; no-fork exit `0 != 1`).
   - Depends on: E-01
   - Expected outcome: the no-fork tests pass, and the sanity check proves the recorder sees real `git commit` invocations.
   - Execution state: pending
@@ -72,7 +75,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restoring the other tests deleted with `tests/test_work_primitives.py` (`aw work begin`, `aw test`, `aw finish`): not part of backlog `3vz4wj`, which names only the `run_commit` routing property.
+  - Carrier-Declined: outside backlog `3vz4wj`'s named property (`ev7t1w` site S-27 only); other deleted sites carry their own `ev7t1w` dispositions.
 - Any change to `run_commit` or `git_commit_helper` behavior: this is a coverage-restoration chore.
+  - Carrier-Declined: permanent non-goal of this plan; no behavior change is wanted.
 
 ## Scope check
 
@@ -82,8 +87,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_work_commit_routes_through_shared_helper.py` passes (V-01, V-02).
-- Mutation check: temporarily replace the `_gch.offer_commit(...)` call in `run_commit` with a direct `git commit` and confirm the new tests FAIL, then revert (V-02).
-- Full bare suite `python3 -m pytest` passes with no new failures (V-03).
+- Mutation check: temporarily replace the `_gch.offer_commit(...)` call in `run_commit` with a direct `git add -- <paths>` + `git commit` subprocess returning a `committed` outcome, run the new module and confirm the delegation and no-fork tests FAIL, then revert with `git checkout -- agent_workflows/work_cmd.py` BEFORE applying E-03 (or re-apply E-03 after reverting), and show the diff (V-02).
+- Full bare suite `python3 -m pytest` passes with no new failures, run LAST after E-03 (V-03).
 
 ## Spec / documentation sync
 
@@ -95,7 +100,7 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: a new, purpose-named module `tests/test_work_commit_routes_through_shared_helper.py`. Existing modules (`tests/test_commit_default_message.py`, `tests/test_commit_scope_reason.py`) are each scoped to one other behavior by their docstrings, and a dedicated module makes the guard discoverable by name, which is what the E-03 comment cites.
 
 ## Validation and cross-check (verify before reporting done)
@@ -103,7 +108,7 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_work_commit_routes_through_shared_helper.py` showing each delegation test (plan mode, `--no-plan` mode, co-worker staged path) PASSED, plus a `grep -nE "inspect|ast\.|read_text\(.*work_cmd" tests/test_work_commit_routes_through_shared_helper.py` returning no source-reading match.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_work_commit_routes_through_shared_helper.py` showing each delegation test (plan mode, `--no-plan` mode, co-worker staged path) PASSED, plus `grep -nE "^\s*(import|from)\s+(inspect|ast)\b|\binspect\.|\bast\.(parse|walk|Name)|getsource|read_text\(" tests/test_work_commit_routes_through_shared_helper.py` returning no match (the tightened pattern does not false-match prose such as "last."; any `read_text(` hit must be shown to read only the fixture repo, never `agent_workflows/*.py`).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -120,4 +125,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the two Scope-Paths files through `aw commit yfo6z6 -- <paths>`; never push. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+- **Execution contract**: Execute only after explicit human approval (`Status: approved`). All open questions are resolved. Start with `aw ipd begin yfo6z6`, and run E-01..E-03 in dependency order. Do not mark an `E-*` `performed` before doing it, and do not mark a `V-*` `pass` without pasting the observed command output into `Observed evidence:`. You MUST paste the actual runner output for every test or check you report; never claim a result you did not run. Run the full suite bare as `python3 -m pytest` (never `-n0`, never an extra `-q`, never `-p no:randomly`).
+- **Scope fence**: `- Scope-Paths:` declares the intended edit set. An edit outside it is allowed when the work requires it, but it must be justified at finalize (`--scope-reason` per out-of-scope path, `--scope-ack` per declared-but-unmodified path). The mutation must never be committed. Delete any scratch files.
+- **Commit**: Commit only your own paths via `aw commit yfo6z6 -- <paths>`; never push.
+- **Post-gate lifecycle move**: Under `aw oc run` / `aw agy run`, the runner finalizes after its merge-and-revalidate gate, so do NOT run `aw ipd finalize` yourself. When executing by hand, once every `E-*` is `performed`, every `V-*` is `pass`, and `aw ipd lint --phase pre-transition` reports no errors, finalize via `aw ipd finalize yfo6z6`. Never hand-`git mv` the plan to `executed/`.
