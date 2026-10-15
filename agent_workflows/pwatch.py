@@ -32,6 +32,11 @@ C_RESET = "\033[0m"
 C_BOLD = "\033[1m"
 C_DIM = "\033[2m"
 
+# Exit status returned on SIGTERM (aligned with render_stream.install_exit_signal_handler
+# and oc_runipd.main's 'return 143 if is_sigterm else 130').
+EXIT_SIGTERM = 143
+
+
 # Tree box-drawing guides
 C_TREE = "\033[38;5;241m"  # Slate gray for branch connectors
 
@@ -1044,7 +1049,12 @@ def main(argv: list[str] | None = None) -> int:
     # answers.
     color_enabled = not args.no_color and term.should_color(sys.stdout)
 
-    def stop_cleanly(_signum: int, _frame: object) -> None:
+    old_sigint = signal.getsignal(signal.SIGINT)
+    old_sigterm = signal.getsignal(signal.SIGTERM)
+
+    def stop_cleanly(signum: int, _frame: object) -> None:
+        if signum == signal.SIGTERM:
+            raise SystemExit(EXIT_SIGTERM)
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, stop_cleanly)
@@ -1174,12 +1184,19 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             time.sleep(args.interval)
 
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt:
         return 0
+    except SystemExit as exc:
+        code = exc.code
+        return code if isinstance(code, int) else 0
     except RuntimeError as error:
         print(f"pwatch: {error}", file=sys.stderr)
         return 1
     finally:
+        if old_sigint is not None:
+            signal.signal(signal.SIGINT, old_sigint)
+        if old_sigterm is not None:
+            signal.signal(signal.SIGTERM, old_sigterm)
         if is_interactive:
             sys.stdout.write(LEAVE_ALT_SCREEN)
             sys.stdout.flush()

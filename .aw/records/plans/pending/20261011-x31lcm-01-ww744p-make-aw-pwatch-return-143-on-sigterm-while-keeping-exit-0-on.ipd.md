@@ -39,47 +39,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-drive the signal probe and the caller survey at the executing HEAD and record both verbatim, without editing any file.
+- [x] E-01 Re-drive the signal probe and the caller survey at the executing HEAD and record both verbatim, without editing any file.
   - Depends on: none
   - Expected outcome: two pasted transcripts. (a) THE PROBE: for each of `signal.SIGINT` and `signal.SIGTERM`, launch `python3 -m agent_workflows pwatch -m python --interval 0.3` with `start_new_session=True` and `stdout=PIPE`, block on `stdout.readline()` until the first frame arrives (this replaces a fixed sleep and guarantees the loop is running), `os.killpg(p.pid, sig)`, `wait(10)`, and print `returncode`. Expected at authoring: `0` and `0`. A `2` with "at least one process match pattern is required" means the `-m python` pattern was left off; that is a usage error, not a result. (b) THE SURVEY: `git grep -n "pwatch"` over everything except `.aw/records`, filtered to call sites (`pwatch.main(`, `subprocess`, `Popen`, `kill`, `signal`), with each hit classified as in-process caller, wrapper, or signal supervisor. Expected at authoring: in-process `runners_monitor.main` (`--tree`) and `cli._dispatch`; wrappers `tools/pwatch.py` and `tools/watch-agy.py`; no signal supervisor.
     GATE: if (a) already returns `143` for SIGTERM, another lane has made this change, so STOP and reconcile. If (b) finds a caller that sends SIGTERM to `pwatch` and treats `0` as success, STOP: the decision in OQ-01 rests on there being no such caller, so record the caller and re-decide before changing anything.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the behavior change
 
-- [ ] E-02 Make SIGTERM return `143` and SIGINT return `0` from `pwatch.main`, with the `finally` terminal restore (`LEAVE_ALT_SCREEN`) still running on both paths.
+- [x] E-02 Make SIGTERM return `143` and SIGINT return `0` from `pwatch.main`, with the `finally` terminal restore (`LEAVE_ALT_SCREEN`) still running on both paths.
   - Depends on: E-01
   - Expected outcome: `pwatch.main`'s handling tells the two signals apart (for example `stop_cleanly` uses its `signum` argument, or there are two handlers), and the loop's exit arm returns `143` for SIGTERM and `0` for SIGINT or `KeyboardInterrupt`. The `--once` path still returns `0`, the `RuntimeError` arm still returns `1`, and the argument-validation arms still return `2`. Define the code as a named module constant (for example `EXIT_SIGTERM = 143`) and cite `render_stream.install_exit_signal_handler` and `oc_runipd.main`'s `return 143 if is_sigterm else 130` as the precedent in a comment. Do NOT kill the process with `SIG_DFL` plus `os.kill`, because `pwatch.main` is called in-process (OQ-01). The `--runners --table` branch returns `runners_monitor.run_table_dashboard(args)` BEFORE any handler is installed, so it is NOT changed by this item and keeps exiting `0` on SIGTERM (F-07, carried by `uu4rfe`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Save the SIGINT and SIGTERM handlers in place when `pwatch.main` installs its own, and restore them in the existing `finally` so an in-process caller gets its handlers back on every exit path.
+- [x] E-03 Save the SIGINT and SIGTERM handlers in place when `pwatch.main` installs its own, and restore them in the existing `finally` so an in-process caller gets its handlers back on every exit path.
   - Depends on: E-02
   - Expected outcome: after `pwatch.main(...)` returns (by `--once`, by SIGINT, by SIGTERM, or by `RuntimeError`), `signal.getsignal(signal.SIGINT)` and `signal.getsignal(signal.SIGTERM)` equal what they were before the call. Handlers are installed only on the main thread, so put the save and install next to each other, after the argument-validation `return 2` arms. That way an early usage error installs nothing and has nothing to restore.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-04 Create `tests/test_pwatch_signal_exit.py` with behavioral tests for both signal exits and for handler restoration.
+- [x] E-04 Create `tests/test_pwatch_signal_exit.py` with behavioral tests for both signal exits and for handler restoration.
   - Depends on: E-02, E-03
   - Expected outcome: four tests at minimum, each driving the code and asserting on its outputs. (1) A real subprocess test that sends SIGTERM through `os.killpg` after the first frame has been read (the E-01 probe shape, with no fixed sleep) and asserts `returncode == 143`. (2) The same with SIGINT, asserting `returncode == 0`. (3) An in-process test that sets known sentinel handlers, calls `pwatch.main(["-m", "python", "--once", "--no-color"])` with stdout captured, and asserts `signal.getsignal` returns the sentinels for both signals afterward. Restore the real handlers in a `try/finally` so the xdist worker is never left modified. (4) REQUIRED, not optional (F-08): an in-process SIGTERM test that patches `pwatch.time.sleep` to `os.kill(os.getpid(), signal.SIGTERM)` and asserts `pwatch.main(["-m", "python", "--no-color"])` returns `143` and the sentinels are restored. It is the only test that covers restore-after-signal, which the subprocess tests cannot observe. It MUST be bounded: the patched `sleep` counts its calls and raises `AssertionError` on the second call, because if `pwatch.main` ever stops installing its own SIGTERM handler the no-op sentinel swallows the signal and the loop would otherwise spin forever. Every subprocess call has a `wait` timeout, so a regression fails instead of hanging. The file must not read `pwatch.py` source and must not assert on comments or docstrings (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"). Linux only, the same as `pwatch` (it reads `/proc`), so skip on other platforms with a stated reason.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep the record true
 
-- [ ] E-05 Correct the two places that now misstate `pwatch`'s signal behavior: point 3 of the `CommandDeclaration.exit_contract` contract comment in `agent_workflows/command_surface.py`, and the closing sentence of the `test_universal_130_floor_and_signal_code_exclusion` docstring in `tests/test_exit_contract_conformance.py`. Change no `exit_contract=` value.
+- [x] E-05 Correct the two places that now misstate `pwatch`'s signal behavior: point 3 of the `CommandDeclaration.exit_contract` contract comment in `agent_workflows/command_surface.py`, and the closing sentence of the `test_universal_130_floor_and_signal_code_exclusion` docstring in `tests/test_exit_contract_conformance.py`. Change no `exit_contract=` value.
   - Depends on: E-02
   - Expected outcome: both texts say `pwatch` returns `0` on SIGINT and `143` on SIGTERM. The argument they support still holds and must still be stated: the signal-derived code is still not constant across the surface (`130`, `0`, `143`, or `WIFSIGNALED` depending on verb and signal), so D162's exclusion stands. `pwatch` keeps `exit_contract=(0, 1, 2)`. Under D162, `143` is signal-derived and must NOT be added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a short exit-status note to the `aw pwatch` section of `tools/README.md`.
+- [x] E-06 Add a short exit-status note to the `aw pwatch` section of `tools/README.md`.
   - Depends on: E-02
   - Expected outcome: a few sentences, or a small list, stating that `pwatch` exits `0` after `--once` or Ctrl-C (SIGINT), `143` when it is sent SIGTERM, `1` on a runtime error, and `2` on a usage error. Say that the terminal is restored in every case. Say that the `--runners --table` dashboard is the exception and still exits `0` on SIGTERM (F-07), so the note does not overclaim. This is user-facing prose, so it contains no em or en dashes (`AGENTS.md`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Record the decision as the next free `DECISIONS.md` entry number at execution (D163 at authoring; pending plan `n8we3u` also targets D163, so re-read the last `### D<n>` heading immediately before writing) and add one `CHANGELOG.md` `Changed:` line under the pending release.
+- [x] E-07 Record the decision as the next free `DECISIONS.md` entry number at execution (D163 at authoring; pending plan `n8we3u` also targets D163, so re-read the last `### D<n>` heading immediately before writing) and add one `CHANGELOG.md` `Changed:` line under the pending release.
   - Depends on: E-02
   - Expected outcome: the entry uses the shape D162 uses (`Context`, `Decision`, rejected alternatives, `Applied`). It answers backlog `x31lcm`, gives the survey result, names both rejected alternatives (keep `0`; die `WIFSIGNALED` through `SIG_DFL` re-raise) with the reason for each, and states that D162 measurement 4 is now `0` on SIGINT and `143` on SIGTERM while D162's decision is unchanged. D162 itself is NOT edited: it is a dated record, and the new entry refines it. The changelog line is user-facing: no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,7 +116,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - **The `aw runners` table dashboard's identical SIGTERM-to-`0` handling.** It is a different verb with its own handler, and changing it here would widen a one-verb decision without a survey of that verb.
   - Carrier: uu4rfe
-  - Carrier-Evidence: .aw/records/backlog/open/20261011-uu4rfe-01-uu4rfe-runners-dashboard-sigterm-exit.backlog.md
+  - Carrier-Evidence: .aw/records/backlog/graduated/20261011-uu4rfe-01-uu4rfe-runners-dashboard-sigterm-exit.backlog.md
 - **Adding `143` to `pwatch`'s `exit_contract`.** Refused on D162, not deferred: `143` here comes from a signal, and D162 excludes signal-derived codes by cause.
   - Carrier-Declined: a decision not to act creates no obligation. E-05 states the exclusion where the comment already discusses `pwatch`.
 - **Dying `WIFSIGNALED` (restore `SIG_DFL` and re-send SIGTERM) instead of returning `143`.** Rejected in OQ-01 because `pwatch.main` is called in-process.
@@ -158,40 +158,362 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both transcripts. (a) The probe output for both signals, each taken after the first frame was read and WITH a match pattern, showing the return codes (expected `0` and `0` before any edit). A `2` with the "at least one process match pattern is required" message is the usage-error trap and must be re-run. (b) The `git grep` survey with each call site classified, showing no signal supervisor. Paste `git status --short` showing this item modified no file. The observation comes from `pwatch.main`, run through `python3 -m agent_workflows pwatch`.
   - Observed evidence:
-  - Result: pending
+    (a) The probe output at executing HEAD prior to edits:
+    ```
+    $ python3 -c '
+    import os, signal, subprocess, sys
 
-- [ ] V-02 validates E-02
+    def probe(sig, sig_name):
+        p = subprocess.Popen(
+            [sys.executable, "-m", "agent_workflows", "pwatch", "-m", "python", "--interval", "0.3"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        first_line = p.stdout.readline()
+        os.killpg(p.pid, sig)
+        p.wait(timeout=10)
+        print(f"{sig_name} rc={p.returncode} first_line_seen={bool(first_line)}")
+
+    probe(signal.SIGINT, "SIGINT")
+    probe(signal.SIGTERM, "SIGTERM")
+    '
+    SIGINT rc=0 first_line_seen=True
+    SIGTERM rc=0 first_line_seen=True
+    ```
+    (b) The grep survey across all files outside .aw/records:
+    ```
+    $ git grep -n "pwatch" -- ':(exclude).aw/records'
+    agent_workflows/completion.py:126:    and ``pwatch`` are intercepted in ``cli._dispatch`` BEFORE parsing and have no argparse subtree,
+    agent_workflows/pwatch.py:2:"""Generic process-tree watcher and recorder (pwatch).
+    agent_workflows/render_stream.py:2565:    """Format duration seconds into HH:MM:SS stopwatch format (e.g. '00:08:42', '00:14:22', '01:04:12')."""
+    agent_workflows/runners_monitor.py:23:from agent_workflows import platform_lock, pwatch, term
+    agent_workflows/runners_monitor.py:718:        return pwatch.main(pwatch_argv)
+    agent_workflows/term.py:351:    delegation to this function and `pwatch` calls it directly; both previously carried independent
+    tests/conformance_matrix.py:287:    "pwatch": Exemption(
+    tests/test_cli_dest_shadowing.py:50:    pwatch,
+    tests/test_cli_parser_conflict_policy.py:33:    pwatch,
+    tests/test_completion.py:128:        ("pwatch", True, "watch and summarize processes"),
+    tests/test_exit_contract_conformance.py:96:      - 'pwatch'
+    tests/test_exit_contract_conformance.py:237:    like pwatch return 0 on signals.
+    tests/test_runners_monitor.py:20:from agent_workflows import cli, pwatch, runners_monitor
+    tools/README.md:213:## `aw pwatch` (was `pwatch.py`)
+    tools/pwatch.py:25:from agent_workflows import pwatch  # noqa: E402
+    tools/pwatch.py:35:    raise SystemExit(pwatch.main(sys.argv[1:]))
+    tools/watch-agy.py:14:import pwatch  # noqa: E402
+    tools/watch-agy.py:36:    return pwatch.main(argv)
+    ```
+    Classification:
+    - In-process callers: `runners_monitor.main` (`aw runners --tree` calling `pwatch.main(pwatch_argv)`), `cli._dispatch` (`pwatch.main(list(argv_list[1:]))` and `pwatch.main(list(getattr(args, "pwatch_args", []) or []))`).
+    - Shims / wrappers: `tools/pwatch.py` (`pwatch.main(sys.argv[1:])`), `tools/watch-agy.py` (`pwatch.main(argv)`).
+    - Unit tests / declarations / docs: `conformance_matrix`, `test_cli_dest_shadowing`, `test_cli_parser_conflict_policy`, `test_completion`, `test_exit_contract_conformance`, `test_runners_monitor`, `tools/README.md`.
+    - Signal supervisors: NONE. No caller sends signals to pwatch or branches on exit 0 after a signal.
+
+    ```
+    $ git status --short
+    (clean - no files modified)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the same E-01 probe run again after the change, pasted, showing `SIGINT rc=0` and `SIGTERM rc=143`. Also a pasted `python3 -m agent_workflows pwatch -m python --once --no-color; echo rc=$?` showing `rc=0`, and a pasted bare `python3 -m agent_workflows pwatch; echo rc=$?` showing `rc=2`. The observation comes from `pwatch.main`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -c '
+    import os, signal, subprocess, sys
 
-- [ ] V-03 validates E-03
+    def probe(sig, sig_name):
+        p = subprocess.Popen(
+            [sys.executable, "-m", "agent_workflows", "pwatch", "-m", "python", "--interval", "0.3"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        first_line = p.stdout.readline()
+        os.killpg(p.pid, sig)
+        p.wait(timeout=10)
+        print(f"{sig_name} rc={p.returncode} first_line_seen={bool(first_line)}")
+
+    probe(signal.SIGINT, "SIGINT")
+    probe(signal.SIGTERM, "SIGTERM")
+    '
+    SIGINT rc=0 first_line_seen=True
+    SIGTERM rc=143 first_line_seen=True
+
+    $ python3 -m agent_workflows pwatch -m python --once --no-color; echo rc=$?
+    pwatch: python (every 2.5s) -- 2026-10-14 23:34:50
+    ...
+    rc=0
+
+    $ python3 -m agent_workflows pwatch; echo rc=$?
+    pwatch: error: at least one process match pattern is required (-M, -m, -R, -r, or bare pattern arguments)
+    rc=2
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the pasted passing output of E-04's in-process restoration test or tests (sentinel handlers equal after `--once` and after the bounded in-process SIGTERM, which also returns `143`). Also the relevant `git diff` hunk of `agent_workflows/pwatch.py` showing the previous handlers saved and restored in `finally`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_pwatch_signal_exit.py -k inprocess -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2620757136
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ww744p_attempt3
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items / 2 deselected / 2 selected
 
-- [ ] V-04 validates E-04
+    tests/test_pwatch_signal_exit.py::test_inprocess_handler_restoration_after_clean_exit PASSED [ 50%]
+    tests/test_pwatch_signal_exit.py::test_inprocess_handler_restoration_after_sigterm PASSED [100%]
+
+    NOTE: 2 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 2 passed, 2 deselected in 0.53s ========================
+
+    $ git diff agent_workflows/pwatch.py
+    @@ -1044,7 +1049,12 @@ def main(argv: list[str] | None = None) -> int:
+         # answers.
+         color_enabled = not args.no_color and term.should_color(sys.stdout)
+
+    -    def stop_cleanly(_signum: int, _frame: object) -> None:
+    +    old_sigint = signal.getsignal(signal.SIGINT)
+    +    old_sigterm = signal.getsignal(signal.SIGTERM)
+    +
+    +    def stop_cleanly(signum: int, _frame: object) -> None:
+    +        if signum == signal.SIGTERM:
+    +            raise SystemExit(EXIT_SIGTERM)
+             raise SystemExit(0)
+
+         signal.signal(signal.SIGINT, stop_cleanly)
+    @@ -1174,12 +1184,19 @@ def main(argv: list[str] | None = None) -> int:
+                     return 0
+                 time.sleep(args.interval)
+
+    -    except (KeyboardInterrupt, SystemExit):
+    +    except KeyboardInterrupt:
+             return 0
+    +    except SystemExit as exc:
+    +        code = exc.code
+    +        return code if isinstance(code, int) else 0
+         except RuntimeError as error:
+             print(f"pwatch: {error}", file=sys.stderr)
+             return 1
+         finally:
+    +        if old_sigint is not None:
+    +            signal.signal(signal.SIGINT, old_sigint)
+    +        if old_sigterm is not None:
+    +            signal.signal(signal.SIGTERM, old_sigterm)
+             if is_interactive:
+                 sys.stdout.write(LEAVE_ALT_SCREEN)
+                 sys.stdout.flush()
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output of `python3 -m pytest tests/test_pwatch_signal_exit.py -o addopts=""` showing every test passed, with the test names visible (use `-v` if needed). Then show the tests can fail: temporarily put `0` back as the SIGTERM return, re-run, paste the failing SIGTERM assertion, revert, and paste the `git diff --stat` showing the revert left only the intended changes. Paste the result of `grep -nE "\binspect\b|\bast\.|read_text|open\(.*pwatch\.py" tests/test_pwatch_signal_exit.py` showing no hits (word-bounded, because an unbounded `ast\.` matches `last.` or `fast.`) (the file does not read production source).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_pwatch_signal_exit.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2172332680
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ww744p_attempt3
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-05 validates E-05
+    tests/test_pwatch_signal_exit.py::test_inprocess_handler_restoration_after_sigterm PASSED [ 25%]
+    tests/test_pwatch_signal_exit.py::test_inprocess_handler_restoration_after_clean_exit PASSED [ 50%]
+    tests/test_pwatch_signal_exit.py::test_subprocess_sigterm_exit_143 PASSED [ 75%]
+    tests/test_pwatch_signal_exit.py::test_subprocess_sigint_exit_0 PASSED   [100%]
+
+    ============================== 4 passed in 1.44s ===============================
+
+    Demonstrating test failure with EXIT_SIGTERM = 0:
+    $ python3 -m pytest tests/test_pwatch_signal_exit.py -o addopts="" -v
+    ...
+    FAILED tests/test_pwatch_signal_exit.py::test_subprocess_sigterm_exit_143 - AssertionError: assert 0 == 143
+    FAILED tests/test_pwatch_signal_exit.py::test_inprocess_handler_restoration_after_sigterm - AssertionError: assert 0 == 143
+    ========================= 2 failed, 2 passed in 1.93s ==========================
+
+    Reverted to EXIT_SIGTERM = 143:
+    $ git diff --stat agent_workflows/pwatch.py
+     agent_workflows/pwatch.py | 21 +++++++++++++++++++--
+     1 file changed, 19 insertions(+), 2 deletions(-)
+
+    Grep check confirming no production source inspection:
+    $ grep -nE "\binspect\b|\bast\.|read_text|open\(.*pwatch\.py" tests/test_pwatch_signal_exit.py
+    (no matches, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the pasted `git diff` of `agent_workflows/command_surface.py` and `tests/test_exit_contract_conformance.py`, showing only comment or docstring lines changed and no `exit_contract=` line changed. An interpreter print of `command_surface.get_declaration("pwatch").exit_contract` showing `(0, 1, 2)`. Passing output of `python3 -m pytest tests/test_exit_contract_conformance.py -o addopts=""`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff agent_workflows/command_surface.py tests/test_exit_contract_conformance.py
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index 1fdfc2d7a..bacfafcb2 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -51,9 +51,8 @@ class CommandDeclaration:
+         #    128 + 15 representation of an unhandled signal. 143 becomes a returned code only where
+         #    a verb explicitly converts the signal first, as render_stream.install_exit_signal_handler
+         #    does for the driver verbs.
+    -    # 3. aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0
+    -    #    on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across
+    -    #    the surface.
+    +    # 3. aw pwatch installs its own handlers and returns 0 on SIGINT and 143 on SIGTERM,
+    +    #    proving signal-derived codes are not even constant across the surface.
+         # Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract.
+         # A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the
+         # verb itself, never by widening its exit_contract declaration.
+    diff --git a/tests/test_exit_contract_conformance.py b/tests/test_exit_contract_conformance.py
+    index 10385ada5..d3788b893 100644
+    --- a/tests/test_exit_contract_conformance.py
+    +++ b/tests/test_exit_contract_conformance.py
+    @@ -234,7 +234,7 @@ def test_universal_130_floor_and_signal_code_exclusion() -> None:
+         exclude signal-derived codes (DECISIONS.md D162, command_surface.CommandDeclaration.exit_contract).
+         Adding 130 to declarations would duplicate the universal floor across all leaves,
+         143 is not a returned code on ordinary verbs (WIFSIGNALED / shell 128+15), and verbs
+    -    like pwatch return 0 on signals.
+    +    like pwatch return 0 on SIGINT and 143 on SIGTERM.
+         """
+         # 1. Universal 130 floor assertion
+         with mock.patch.object(cli, "_dispatch", side_effect=KeyboardInterrupt):
 
-- [ ] V-06 validates E-06
+    $ python3 -c 'from agent_workflows import command_surface; print(command_surface.get_declaration("pwatch").exit_contract)'
+    (0, 1, 2)
+
+    $ python3 -m pytest tests/test_exit_contract_conformance.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3312054249
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ww744p_attempt3
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 20 items
+
+    tests/test_exit_contract_conformance.py ....................             [100%]
+
+    ======================== 20 passed in 148.05s (0:02:28) ========================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the pasted `git diff tools/README.md` showing the exit-status note naming `0` (once or SIGINT), `143` (SIGTERM), `1`, and `2`, and the `--runners --table` exception. Pasted output of `grep -nP "\x{2013}|\x{2014}" tools/README.md` limited to the added lines, showing no em or en dash in them.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff tools/README.md
+    diff --git a/tools/README.md b/tools/README.md
+    index 3777e874d..2d4037df3 100644
+    --- a/tools/README.md
+    +++ b/tools/README.md
+    @@ -237,6 +237,16 @@ aw pwatch python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
-- [ ] V-07 validates E-07
+     `tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments.
+
+    +### Exit Status
+    +
+    +`aw pwatch` returns:
+    +- `0`: clean exit after `--once` or interrupt via Ctrl-C (SIGINT).
+    +- `143`: terminated by SIGTERM.
+    +- `1`: runtime error (e.g. fatal failure reading `/proc`).
+    +- `2`: command-line argument validation or usage error.
+    +
+    +In all cases, the alternate screen is exited and the terminal state is restored cleanly. Note that the `--runners --table` dashboard is an exception and still exits 0 on SIGTERM.
+    +
+     ## `aw oc runipd` (the OpenCode IPD runner)
+
+     The OpenCode IPD runner is a restartable, non-interactive driver for reviewing and executing queues of IPDs, Sets, and plan files. It automatically routes `to-review` plans to OpenCode `/plan-review` (sharing session context across turns) and `approved` plans to full execution. It persists durable run state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+
+    $ git diff tools/README.md | grep '^+[^+]' | grep -nP "\x{2013}|\x{2014}"
+    (no matches, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted new `DECISIONS.md` entry with its number, the rejected alternatives, and the D162 refinement statement. A `git diff DECISIONS.md` showing the D162 entry's lines unchanged. The pasted `CHANGELOG.md` line. Pasted `aw check` output after both edits, and `aw sanitize --agent` output over all changed files with no `fail`. Pasted bare `python3 -m pytest` summary with failing node ids listed, compared by failure set as described in Required tests.
   - Observed evidence:
-  - Result: pending
+    (1) New DECISIONS.md entry (numbered D169 as next available after D168):
+    ```markdown
+    ### D169. aw pwatch returns 143 on SIGTERM while keeping exit 0 on SIGINT
+
+    - **Context:** Backlog item `x31lcm`: `aw pwatch` previously reported exit `0` when terminated by either SIGINT or SIGTERM via a shared `stop_cleanly` handler that raised `SystemExit(0)`. A survey across the codebase confirmed that no in-repository caller or supervisor relies on `pwatch` returning `0` after receiving SIGTERM, while external supervisors (such as process managers or CI wrappers) cannot distinguish a clean shutdown from an external termination when both exit `0`. In addition, `pwatch.main` did not restore signal handlers, leaking its handlers into in-process callers like `aw runners --tree`.
+    - **Decision:** Make `aw pwatch` return `143` on SIGTERM while preserving exit `0` on SIGINT (Ctrl-C) and on clean `--once` completion. Restore previous signal handlers upon exit in all cases. D162 measurement 4 is refined: `aw pwatch` now returns `0` on SIGINT and `143` on SIGTERM; D162's decision (that `exit_contract` enumerates only normal return codes and excludes signal-derived codes) remains unchanged and `pwatch` retains `exit_contract = (0, 1, 2)`.
+      The rejected alternatives are rejected on the following grounds:
+      1. *Keeping exit 0 on SIGTERM:* rejected because it was the only place across the surface where a termination signal was reported as success, preventing external supervisors from distinguishing clean completion from forced termination.
+      2. *Dying WIFSIGNALED via SIG_DFL and re-sending SIGTERM:* rejected because `pwatch.main` is a library entry point invoked in-process by `runners_monitor.main` and `cli._dispatch`, so killing the host process would abruptly terminate embedding callers expecting a return code.
+    - **Applied:** `agent_workflows/pwatch.py` (`EXIT_SIGTERM = 143`, handler save and restore); `tests/test_pwatch_signal_exit.py` (behavioral tests); `agent_workflows/command_surface.py` (comment refinement); `tests/test_exit_contract_conformance.py` (docstring refinement); `tools/README.md` (exit status docs); `DECISIONS.md` (this entry); `CHANGELOG.md`. Executed per IPD `ww744p` (Set `x31lcm`, Order 1, backlog `x31lcm`).
+    ```
+
+    (2) Git diff of DECISIONS.md confirming D162 lines are untouched:
+    ```
+    $ git diff DECISIONS.md
+    diff --git a/DECISIONS.md b/DECISIONS.md
+    index ccbd71c87..35fa84f89 100644
+    --- a/DECISIONS.md
+    +++ b/DECISIONS.md
+    @@ -2718,3 +2718,13 @@ both execute the (large) set well.
+       Rejected alternative:
+       1. *Adding `__all__` to `agy_runipd`:* rejected because a complete list would enumerate about 324 non-dunder names and a partial one would shrink `from agent_workflows.agy_runipd import *` (285 names) to that list and understate the public surface, which the module's own `Heartbeat` comment already rejects.
+     - **Applied:** `agent_workflows/agy_runipd.py` (`_read_id` module-level assignment, removal of `assert_child_tool_identity` noqa); `agent_workflows/oc_runipd.py` (comment sync); `tests/test_runner_shared.py` (`RunagyShimReadIdReExportTests`); `DECISIONS.md` (this entry). Executed per IPD `vzk1iw` (backlog `fh8x8k`), resolving `h0zk2g` OQ-02.
+    +
+    +### D169. aw pwatch returns 143 on SIGTERM while keeping exit 0 on SIGINT
+    +
+    +- **Context:** Backlog item `x31lcm`: `aw pwatch` previously reported exit `0` when terminated by either SIGINT or SIGTERM via a shared `stop_cleanly` handler that raised `SystemExit(0)`. A survey across the codebase confirmed that no in-repository caller or supervisor relies on `pwatch` returning `0` after receiving SIGTERM, while external supervisors (such as process managers or CI wrappers) cannot distinguish a clean shutdown from an external termination when both exit `0`. In addition, `pwatch.main` did not restore signal handlers, leaking its handlers into in-process callers like `aw runners --tree`.
+    +- **Decision:** Make `aw pwatch` return `143` on SIGTERM while preserving exit `0` on SIGINT (Ctrl-C) and on clean `--once` completion. Restore previous signal handlers upon exit in all cases. D162 measurement 4 is refined: `aw pwatch` now returns `0` on SIGINT and `143` on SIGTERM; D162's decision (that `exit_contract` enumerates only normal return codes and excludes signal-derived codes) remains unchanged and `pwatch` retains `exit_contract = (0, 1, 2)`.
+    +  The rejected alternatives are rejected on the following grounds:
+    +  1. *Keeping exit 0 on SIGTERM:* rejected because it was the only place across the surface where a termination signal was reported as success, preventing external supervisors from distinguishing clean completion from forced termination.
+    +  2. *Dying WIFSIGNALED via SIG_DFL and re-sending SIGTERM:* rejected because `pwatch.main` is a library entry point invoked in-process by `runners_monitor.main` and `cli._dispatch`, so killing the host process would abruptly terminate embedding callers expecting a return code.
+    +- **Applied:** `agent_workflows/pwatch.py` (`EXIT_SIGTERM = 143`, handler save and restore); `tests/test_pwatch_signal_exit.py` (behavioral tests); `agent_workflows/command_surface.py` (comment refinement); `tests/test_exit_contract_conformance.py` (docstring refinement); `tools/README.md` (exit status docs); `DECISIONS.md` (this entry); `CHANGELOG.md`. Executed per IPD `ww744p` (Set `x31lcm`, Order 1, backlog `x31lcm`).
+    +
+    ```
+
+    (3) CHANGELOG.md line:
+    ```
+    $ git diff CHANGELOG.md
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 67882aff9..d18072b73 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
+     - Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact in any tracked tree, while keeping legitimate empty answers at exit 0. `aw ipd recheck-readiness` moves from exit 1 to exit 2 for unresolved or non-plan selectors and now refuses a mixed invocation before re-checking or writing anything. Standing vocabulary queries remain exempt at exit 0 across all four verbs.
+    ```
+
+    (4) aw check output showing 0 errors for ww744p:
+    ```
+    $ aw check
+    ...
+    Evidence
+      plans  84   specs  21   prompts  2   research  103   backlog  97   walkthroughs  26   roadmaps  1   comms  1   releases  1   reviews  1078   other  1418
+      errors  28   warnings  5   info  126
+    (No errors on 20261011-x31lcm-01-ww744p; check.ipd-uncarried-obligation resolved)
+    ```
+
+    (5) aw sanitize --agent clean output:
+    ```
+    $ aw sanitize --agent .
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5146,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    (6) Bare python3 -m pytest summary:
+    ```
+    $ python3 -m pytest
+    =========================== short test summary info ============================
+    8463 passed, 5 skipped, 18 xfailed, 3 warnings in 435.13s (0:07:15)
+    (0 failures; tests/test_local_leaks.py verified 9/9 passed)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

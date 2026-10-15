@@ -234,7 +234,7 @@ def test_universal_130_floor_and_signal_code_exclusion() -> None:
     exclude signal-derived codes (DECISIONS.md D162, command_surface.CommandDeclaration.exit_contract).
     Adding 130 to declarations would duplicate the universal floor across all leaves,
     143 is not a returned code on ordinary verbs (WIFSIGNALED / shell 128+15), and verbs
-    like pwatch return 0 on signals.
+    like pwatch return 0 on SIGINT and 143 on SIGTERM.
     """
     # 1. Universal 130 floor assertion
     with mock.patch.object(cli, "_dispatch", side_effect=KeyboardInterrupt):
