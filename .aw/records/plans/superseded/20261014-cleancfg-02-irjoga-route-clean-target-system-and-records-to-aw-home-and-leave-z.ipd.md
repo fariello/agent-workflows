@@ -1,3 +1,5 @@
+RETIRED 2026-10-15: one plan could not reach its goal (review PR-001: records/system paths are hard-wired across ~41 modules); maintainer chose to build it as a Set; superseded by orchestrator ucr3h8 (Set cleantgt).
+
 # IPD: Route clean-target system and records to AW_HOME and leave zero target delta
 
 - Date: 2026-10-14
@@ -6,7 +8,7 @@
 - Scope: Add pure `project_system_dir` and `project_records_dir` locators in `agent_workflows/project_context.py`, recognize home-configured clean-target repositories in `is_project_dir`, `find_project_root`, `doctor.probe_environment`, and `cli._collect_repo_status_details`, route `system` and `records` installation/readers to their resolved physical classes in `agent_workflows/engine.py` and `agent_workflows/manifest.py`, skip target-repo-only writes/staging/commits when `delivery_mode == "clean-delta"`, extend `aw uninstall` to clean up home `system` and `--deep` home `records`, restore the zero-target-delta pre-write plan line in `agent_workflows/install_wizard.py`, update `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` and `CHANGELOG.md`, and lock the behavior with subprocess tests in `tests/test_clean_target_config_home.py` and `tests/test_install_consent_truth.py`.
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/engine.py, agent_workflows/manifest.py, agent_workflows/cli.py, agent_workflows/doctor.py, agent_workflows/install_wizard.py, tests/test_clean_target_config_home.py, tests/test_install_consent_truth.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:p425hv
-- Status: to-review
+- Status: superseded
 - Readiness: no-go
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +21,7 @@
 - Id: irjoga
 
 ## Workflow history
+- 2026-10-15 superseded (aw set): superseded by Set cleantgt (orchestrator ucr3h8, children kfnfji 4gn1ka fnnwj3 qk0ew6 3m8aix xoy5yg nwporz) per maintainer decision 2026-10-15 on OQ-03 (build as a Set)
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008 (PR-001 and PR-002 OPEN, escalated as blocking OQ-03 and OQ-04; PR-003..PR-008 fixed in place). Reviewed at HEAD `cf0e740fe`; baseline reproduced (rc 0, target HEAD advanced by an auto-commit of 356 files).
 - 2026-10-14 to-review (aw set): ready for review (from backlog kvwwt0)
 
