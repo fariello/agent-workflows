@@ -1,5 +1,5 @@
 - Id: 23p80m
-- Status: graduated
+- Status: done
 - Graduated-To: scoperewrite
 - Blocks-Release: next
 - Set: scoperewrite
@@ -8,6 +8,7 @@
 - Summary: aw rename rewrites citing Scope-Paths entries with no in-flight begin-receipt guard, so renaming an artifact can stale an executing plan's frozen contract and strand its lane at finalize
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): status set to done
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 69pxm5
 - 2026-10-02 created (aw backlog): aw rename rewrites citing Scope-Paths entries with no in-flight begin-receipt guard, so renaming an artifact can stale an executing plan's frozen contract and strand its lane at finalize
 

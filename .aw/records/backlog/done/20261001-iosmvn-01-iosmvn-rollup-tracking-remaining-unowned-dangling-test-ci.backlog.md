@@ -1,5 +1,5 @@
 - Id: iosmvn
-- Status: graduated
+- Status: done
 - Graduated-To: iosmvn
 - Set: iosmvn
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Rollup tracking remaining unowned dangling test citations from the 19313eed suite trim
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): status set to done
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 6jp1ox, ellenm
 - 2026-10-01 created (aw backlog): Rollup tracking remaining unowned dangling test citations from the 19313eed suite trim
 

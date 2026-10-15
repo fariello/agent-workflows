@@ -1,11 +1,8 @@
 # Spec: clean-delta contribution and artifact-tracking modes for agent-workflows
 
 - Date: 2026-07-26
-- Status: deferred
+- Status: parked
 - Id: or061f
-- Gate-Kind: todo
-- Gate-Ref: m15n3k
-- Gate-Summary: clean-delta build phases pending (backlog item m15n3k)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Evidence: `.agents/docs/research/20260726-0054-aw-delivery-and-clean-delta-research/` (clean-delta reconciliation `...-0054-05`, host-probe reconciliation `...-1045-05`, and eight underlying model reports). Documentation-graded as of 2026-07-26; no live host fixture was run, so "Followed" means documented, not reproduced.
 - Supersedes/extends: `.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md` (IPD 05's tier spec, whose open per-host questions this resolves).
@@ -135,6 +132,7 @@ This spec builds nothing. The build is a sequence of separate IPDs, each with it
 - Sibling-companion read/write/commit under each host's default sandbox.
 
 ## Workflow history
+- 2026-10-15 parked (aw set): status set to parked
 
 - 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`)
 - 2026-09-18 deferred (aw specs): IPD diof9n E-03: repointed the dangling gate off the retired TODO.md work surface onto backlog item m15n3k, created by this plan because the spec's awaited condition (its Section 11 build phases, gated on the Phase 0 conformance harness) had no carrier at all. Gate-Kind changed artifact->todo because an id6 survives the item moving between backlog lifecycle directories while a path does not. No other field of this spec changed.

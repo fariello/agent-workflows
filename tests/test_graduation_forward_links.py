@@ -410,6 +410,34 @@ class GraduationForwardLinksTests(unittest.TestCase):
         self.assertEqual(cluster_spec.forward_count, 1)
         self.assertEqual(cluster_spec.forward_artifacts[0].id6, "plan30")
 
+    def test_parse_graduated_to_ignores_body_and_code_fence(self) -> None:
+        """parse_graduated_to bounds search to metadata_region so code fence examples in plan bodies are ignored."""
+        text = (
+            "# IPD: Example Plan\n\n"
+            "- Id: plan99\n"
+            "- Status: executed\n"
+            "- Set: realset\n\n"
+            "## Description\n\n"
+            "Here is an example in a code block:\n\n"
+            "```markdown\n"
+            "- Graduated-To: set401\n"
+            "```\n"
+        )
+        self.assertEqual(releases.parse_graduated_to(text), [])
+
+        text_with_header = (
+            "# IPD: Example Plan\n\n"
+            "- Id: plan99\n"
+            "- Status: executed\n"
+            "- Graduated-To: realset\n"
+            "- Set: realset\n\n"
+            "## Description\n\n"
+            "```markdown\n"
+            "- Graduated-To: set401\n"
+            "```\n"
+        )
+        self.assertEqual(releases.parse_graduated_to(text_with_header), ["realset"])
+
 
 if __name__ == "__main__":
     unittest.main()

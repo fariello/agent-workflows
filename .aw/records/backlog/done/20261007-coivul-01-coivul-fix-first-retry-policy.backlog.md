@@ -1,5 +1,5 @@
 - Id: coivul
-- Status: graduated
+- Status: done
 - Blocks-Release: f33nrj
 - Set: coivul
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Fix first: send every agent-caused run failure back to the agent with what went wrong, instead of failing the item or the run
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): status set to done
 - 2026-10-07 graduated (aw set): status set to graduated
 - 2026-10-07 created (aw backlog): Maintainer ruling 2026-10-07 (session on plan p47qfu / spec 25kzda 5.5, 5.7)
 

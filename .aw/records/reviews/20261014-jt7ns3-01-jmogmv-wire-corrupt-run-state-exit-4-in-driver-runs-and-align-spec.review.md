@@ -36,4 +36,4 @@ Two throwaway probes ran under the gitignored `.aw/state/` and were deleted:
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Keep the `run_queue` handler as defense in depth? | Remove it | Keep it (dead code with a false rationale) | `oc_runipd.py:4295` item-local `try` body; review probe | yes |
 | D-2 | How should the declaration change be tested without a literal pin? | Observed exit is a member of `get_declaration(...).exit_contract` | Literal tuple equality (P16 pin) | AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; `command_surface.get_declaration` at `command_surface.py:2496` | yes |
-| D-3 | Resolve the agent-surface question myself? | No: escalated as blocking OQ-01 | Pick (a) silently | It is a public CLI contract (plan-review 3.1: never guess a human decision) | n/a (escalated) |
+| D-3 | Resolve the agent-surface question myself? | No: escalated as blocking OQ-01 | Pick (a) silently | It is a public CLI contract (plan-review 3.1: never guess a human decision) | no |

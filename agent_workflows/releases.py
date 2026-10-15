@@ -732,7 +732,7 @@ def parse_graduated_to(text: str) -> List[str]:
     owns malformed-versus-dangling, via the EXISTING `plans.is_set_id_valid` authority.
     """
 
-    m = _ITEM_GRADUATED_TO_RE.search(text)
+    m = _ITEM_GRADUATED_TO_RE.search(_sel.metadata_region(text))
     if m is None:
         return []
     return [part.strip() for part in m.group(1).split(",") if part.strip()]

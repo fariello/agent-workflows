@@ -1,5 +1,5 @@
 - Id: e486tz
-- Status: graduated
+- Status: done
 - Graduated-To: uncitedaudit
 - Set: e486tz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Audit and mutation-prove behavioral coverage across the 207 trim-deleted test files uncited in comments
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): status set to done
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: 1ub8ex, 8d0qsg, anzu8q, g55j1e, k93w2g, nzzu8n, rq3q7v, sk2rbf, xmr5qj
 - 2026-10-01 created (aw backlog): Audit and mutation-prove behavioral coverage across the 207 trim-deleted test files uncited in comments
 

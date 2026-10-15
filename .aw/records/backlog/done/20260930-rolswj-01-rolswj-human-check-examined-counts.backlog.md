@@ -1,5 +1,5 @@
 - Id: rolswj
-- Status: graduated
+- Status: done
 - Graduated-To: rolswj
 - Set: rolswj
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Report examined counts in human check surfaces for backlog, attention, research, and sanitize
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): status set to done
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: akhwp7
 - 2026-09-30 created (aw backlog): Report examined counts in human check surfaces for backlog, attention, research, and sanitize
 
