@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_runner_shared.py, DECISIONS.md
 - Item-Dependencies: none
 - From-Spec: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vzk1iw
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vzk1iw verified (set fh8x8k, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 
