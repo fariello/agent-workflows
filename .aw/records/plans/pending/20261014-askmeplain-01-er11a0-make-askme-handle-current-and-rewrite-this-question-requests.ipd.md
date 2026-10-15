@@ -6,7 +6,7 @@
 - Scope: Replace `.aw/system/workflows/askme/askme.md` with a procedure-only workflow that recognizes four request scopes (rewrite the previous question, ask a supplied question, examine named records, use the current conversation); move its historical rationale to a sibling `rationale.md`; update the `askme` manifest row (description + arg-hint), the index paragraph and README; make `engine.shim_body` emit a supported-alias note instead of the deprecation note for `askme` only; add an inline-request rule to `engine.agents_pointer_prose` and align its "Ask self-contained questions" paragraph; extend `reporting_contract._CONTRACT` with a communication (plain language, necessary context) section and a decision-question exception to the word cap; revise GUIDING_PRINCIPLES P12 and clarify P13; regenerate shims and this repo's managed `AGENTS.md`/`GEMINI.md` sections via `aw install .`; add outcome tests; record DECISIONS and CHANGELOG entries; note the relocation on spec `6kwd2e`. DOES NOT change the deprecation note for any other command, the shim pointer line, `ipd_lint` behavior, or runner behavior.
 - Scope-Paths: .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, .aw/system/workflows/askme/README.md, .aw/system/workflows/index.md, .opencode/commands/askme.md, .claude/commands/askme.md, agent_workflows/engine.py, agent_workflows/reporting_contract.py, agent_workflows/migration_inventory.py, docs/reporting-contract.md, GUIDING_PRINCIPLES.md, AGENTS.md, GEMINI.md, README.md, DECISIONS.md, CHANGELOG.md, tests/test_askme_command_delivery.py, .aw/records/specs/approved/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md, .aw/system/managed-sections.json
 - Item-Dependencies: none
-- Status: approved
+- Status: to-review
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: next
@@ -15,9 +15,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: er11a0
-- Approval: 2026-10-15, human ("approved"): maintainer instruction 2026-10-14: ingest y0vcm9 and execute it in an isolated worktree so it is done
 
 ## Workflow history
+- 2026-10-15 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: returned to to-review: approval preceded the required /plan-review (IPD-M113); re-approve after review
 - 2026-10-15 approved (aw set, --by-human): maintainer instruction 2026-10-14: ingest y0vcm9 and execute it in an isolated worktree so it is done
 - 2026-10-15 to-review (aw set): authored from research y0vcm9 at HEAD cc01eee7a
 
