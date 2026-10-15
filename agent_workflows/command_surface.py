@@ -854,8 +854,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         # like `ipd scaffold`/`ipd sync`, because the preview is what lets a human read the computed
         # per-condition reasons before anything is written. Its write target is pinned to
         # `go-pending-approval`, which still requires human approval, so this verb can never clear a
-        # plan to execute. Exit 0 swept (a REFUSAL is a correct outcome, not an error) / 1 a named
-        # selector resolved to nothing / 2 cannot-run.
+        # plan to execute. Exit 0 swept (a REFUSAL is a correct outcome, not an error) / 2 cannot-run
+        # (including an unresolvable or non-plan selector).
         command="ipd recheck-readiness",
         command_class="mutation",
         human_recipe="preview",
@@ -863,7 +863,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="dry_run_default",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--apply", "--stale-findings", "--actor", "--dir"),
-        exit_contract=(0, 1, 2),
+        exit_contract=(0, 2),
     ),
     CommandDeclaration(
         # ipdgates Order xjbvu2: fail-closed execution-start receipt. A check-class gate: it

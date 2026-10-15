@@ -233,10 +233,11 @@ def run_decisions(args) -> int:
     """`aw reviews decisions [<selector>]`: print the decisions agents made without asking.
 
     Read-only. Exit contract is ``(0, 2)``: 0 whether or not any decision was found (an empty audit
-    trail is a legitimate answer, not a failure), and 2 only for a usage error such as conflicting
-    output flags. There is deliberately NO exit 1: this verb REPORTS, it does not judge, and the
-    judging is `check.review-decision-unescalated`'s job. Declaring an exit-1 contract would also
-    oblige a `domain_failure` conformance scenario this printer cannot produce.
+    trail is a legitimate answer, not a failure), and 2 for an unresolvable selector token (naming no
+    artifact anywhere in the repo) or a usage error such as conflicting output flags. There is
+    deliberately NO exit 1: this verb REPORTS, it does not judge, and the judging is
+    `check.review-decision-unescalated`'s job. Declaring an exit-1 contract would also oblige a
+    `domain_failure` conformance scenario this printer cannot produce.
     """
     from agent_workflows.project_context import resolve_verb_repo_root
     from agent_workflows.renderers import get_renderer
@@ -258,6 +259,22 @@ def run_decisions(args) -> int:
     if selector:
         resolved, note = _resolve_selector_paths(repo_root, selector)
         paths = list(resolved)
+        if not paths:
+            from agent_workflows.cli import (
+                emit_zero_match_selector_refusal,
+                selector_tokens_naming_no_artifact,
+            )
+
+            refusable = selector_tokens_naming_no_artifact(repo_root, [selector])
+            if refusable:
+                return emit_zero_match_selector_refusal(
+                    ctx=ctx,
+                    cmd="reviews decisions",
+                    tokens=refusable,
+                    next_cmd="aw reviews decisions",
+                    next_desc="list all decisions without selector filter",
+                    searched="all artifact types",
+                )
 
     rows, diags = collect_decisions(repo_root, paths=paths)
     if only_irreversible:

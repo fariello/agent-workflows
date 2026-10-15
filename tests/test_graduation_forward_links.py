@@ -282,6 +282,20 @@ class GraduationForwardLinksTests(unittest.TestCase):
 
     def test_case_6_no_source_at_all(self) -> None:
         """(6) No source at all: 'nothing yet ... Proceed.' still printed (affirmative zero answer)."""
+        b_file = (
+            self.root
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "graduated"
+            / "20260927-none-01-none01-item.backlog.md"
+        )
+        b_file.parent.mkdir(parents=True, exist_ok=True)
+        b_file.write_text(
+            "# Backlog: Item\n\n- Id: none01\n- Status: graduated\n",
+            encoding="utf-8",
+        )
+
         cluster = check_engine.graduation_cluster(self.root, "none01")
         if hasattr(cluster, "has_any_link"):
             self.assertFalse(cluster.has_any_link)

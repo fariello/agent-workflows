@@ -124,6 +124,12 @@ def test_fact_parity_non_vacuous(leaf: str, tmp_path: Path) -> None:
     """Human vs agent outcome families must match, and the human banner must not be empty (E-05)."""
     extra = FACT_PARITY_LEAVES[leaf]
     (tmp_path / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+    if leaf == "record-history":
+        p_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
+        p_dir.mkdir(parents=True, exist_ok=True)
+        (p_dir / "20261012-test-01-f36de0-plan.ipd.md").write_text(
+            "# IPD: Test\n\n- Id: f36de0\n- Status: to-review\n", encoding="utf-8"
+        )
     env_overrides = {
         "HOME": str(tmp_path),
         "XDG_CONFIG_HOME": str(tmp_path),
