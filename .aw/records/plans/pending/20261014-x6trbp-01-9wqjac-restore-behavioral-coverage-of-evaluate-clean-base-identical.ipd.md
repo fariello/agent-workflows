@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that calls `evaluate_clean_base` (pure) and `runner_shared.evaluate_clean_base_for_launch` (against a throwaway git repository) on both paths and asserts the classification is identical while the consequence differs; repoint the stale "no live guard currently asserts this" citation in the `evaluate_clean_base` docstring at the new test.
 - Scope-Paths: tests/test_clean_base_tracked_scope.py, agent_workflows/lane_containment.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: x6trbp
@@ -17,6 +18,7 @@
 - Id: 9wqjac
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog `x6trbp`; findings from `19313eed^:tests/test_dirty_base_gate.py`, `lane_containment.evaluate_clean_base`, `runner_shared.evaluate_clean_base_for_launch`, and executed plan `ev7t1w` site S-16.
@@ -38,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Real-repository coverage through the launch wrapper
 
-- [ ] E-02 In the same module, add a test that builds a throwaway git repository in a `tempfile.TemporaryDirectory` (git init, configure a local user, commit one tracked file), and for three tree shapes (clean; tracked file modified; untracked file only) calls `runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False)` and `(..., shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two paths; the modified shape yields `clean is False` with the tracked path in `dirty_paths` on both paths; the untracked-only shape yields `clean is True` on both paths. The test must never operate on this checkout.
+- [ ] E-02 In the same module, add a test that builds a throwaway git repository in a `tempfile.TemporaryDirectory` (git init, configure a local user, commit one tracked file), (prefer `tests.support.init_repo`, which already pins a deterministic identity and verifies the repository's git dir is its own), and for three tree shapes (clean; tracked file modified; untracked file only) calls `runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False)` and `(..., shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two paths; the modified shape yields `clean is False` with the tracked path in `dirty_paths` on both paths; the untracked-only shape yields `clean is True` on both paths. The test must never operate on this checkout: `runner_shared._run_git` inherits `os.environ` and ignores git's return code (a failing `git status` yields empty output, which reads as `clean=True`), so the test MUST remove the local git environment variables (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the rest of `git rev-parse --local-env-vars`; e.g. `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, tests.support.clean_git_env(), clear=True)`) for the duration of the calls, so a run under a git hook cannot silently query another repository. The tracked-modified shape's `clean is False` assertion is what proves the call reached the fixture repository rather than an empty or failed status (review PR-001).
   - Depends on: E-01
   - Expected outcome: The second test passes and exercises the real `git status --porcelain --untracked-files=no` call path.
   - Execution state: pending
@@ -47,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 In the `lane_containment.evaluate_clean_base` docstring, replace the clause citing `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` "(deleted in `19313eed`; no live guard currently asserts this)" with a citation of the new test in `tests/test_clean_base_tracked_scope.py`. Docstring text only; no behavior change.
   - Depends on: E-01, E-02
-  - Expected outcome: `rg -n "no live guard currently asserts this" agent_workflows/lane_containment.py` no longer matches inside `evaluate_clean_base`'s docstring and the docstring names the new test.
+  - Expected outcome: `rg -n "no live guard currently asserts this" agent_workflows/lane_containment.py` no longer matches inside `evaluate_clean_base`'s docstring and the docstring names the new test. The same phrase also appears in an unrelated comment above `MISSING_INPUT_VERDICT_REFUSED` (about `tests/test_missing_input_repair.py`); that one is out of scope and stays, so exactly one `rg` hit remains (review PR-003).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -89,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - Run `python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts=""` and paste output showing every new test passing.
-- Mutation check: temporarily make `evaluate_clean_base` return `clean=True` when `shared_tree` is True, rerun the new module, paste the failure, then revert and paste `git diff --stat agent_workflows/lane_containment.py` showing only the E-03 docstring change.
+- Mutation check: record `sha256sum agent_workflows/lane_containment.py`, temporarily make `evaluate_clean_base` return `clean=True` when `shared_tree` is True, rerun the new module, paste the failure, then revert, paste the matching `sha256sum`, and paste `git diff --stat agent_workflows/lane_containment.py` showing only the E-03 docstring change.
 - Run the full suite bare, `python3 -m pytest`, and paste the summary line.
 
 ## Spec / documentation sync
@@ -105,12 +107,12 @@ None. The tested property, inputs, and call path are fully determined by the del
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted `python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts="" -v` output showing the pure-rule test PASSED, plus pasted failing output from the mutation check (shared path forced `clean=True`) proving the test detects divergence, plus `rg -n "inspect|ast\.|read_text" tests/test_clean_base_tracked_scope.py` output showing no source-reading of production modules.
+  - Required evidence: Pasted `python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts="" -v` output showing the pure-rule test PASSED, plus pasted failing output from the mutation check (shared path forced `clean=True`) proving the test detects divergence, with before/after `sha256sum agent_workflows/lane_containment.py` matching after revert, plus `rg -n "inspect|ast\.|read_text" tests/test_clean_base_tracked_scope.py` output showing no source-reading of production modules.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted pytest `-v` output showing the real-repository test PASSED, and a pasted excerpt of the test showing it builds its repository under `TemporaryDirectory` and calls `runner_shared.evaluate_clean_base_for_launch` with both `shared_tree=False` and `shared_tree=True`, covering clean, tracked-modified, and untracked-only shapes.
+  - Required evidence: Pasted pytest `-v` output showing the real-repository test PASSED, and a pasted excerpt of the test showing it builds its repository under `TemporaryDirectory` and calls `runner_shared.evaluate_clean_base_for_launch` with both `shared_tree=False` and `shared_tree=True`, covering clean, tracked-modified, and untracked-only shapes, and the excerpt that strips the local git environment variables around those calls.
   - Observed evidence:
   - Result: pending
 
@@ -124,4 +126,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit only the two Scope-Paths files via `aw commit 9wqjac -- tests/test_clean_base_tracked_scope.py agent_workflows/lane_containment.py`; never push. Move the plan to `executed/` only after `aw ipd lint --phase pre-transition` conforms and every V-* records pasted evidence with `Result: pass`.
+Execution contract:
+
+- Execute only after human approval (`- Status: approved`, set with `aw ipd set approved 9wqjac --by-human ...`). No open questions remain.
+- Order: E-01, E-02, E-03.
+- Scope fence (a declaration, not a stop condition): changes are limited to `- Scope-Paths:`. An out-of-scope edit that proves necessary is made and then justified to the finalize scope gate (`--scope-reason`).
+- Honesty rule: every `V-*` MUST carry the ACTUAL pasted command and runner output; never claim a pass that was not run.
+- Commit only the Scope-Paths files via `aw commit 9wqjac -- tests/test_clean_base_tracked_scope.py agent_workflows/lane_containment.py`; never `git add -A`; never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner owns begin/finalize, so do not run `aw ipd finalize` there. In a hand execution, run `aw ipd finalize 9wqjac` once every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-`git mv` the plan to `executed/` or hand-edit `- Status:`.
