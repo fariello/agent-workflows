@@ -35,29 +35,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Classification against the current tree
 
-- [ ] E-01 Re-measure: run the bare default suite collection over the two files (`python3 -m pytest --collect-only -q tests/test_verbose_flag_reach.py tests/test_typecheck_gate.py`) and confirm both wc5c5e nodes are deselected by the default marker filter; record the output in V-01.
+- [x] E-01 Re-measure: run the bare default suite collection over the two files (`python3 -m pytest --collect-only -q tests/test_verbose_flag_reach.py tests/test_typecheck_gate.py`) and confirm both wc5c5e nodes are deselected by the default marker filter; record the output in V-01.
   - Depends on: none
   - Expected outcome: neither named node appears in the default collection (`python3 -m pytest --collect-only tests/test_verbose_flag_reach.py tests/test_typecheck_gate.py`, node ids listed), and both appear under `python3 -m pytest -o addopts="" -m '' --collect-only -q <same files>`. That proves the default gate every lane is judged against no longer contains either node. The `N tests were deselected` line is context, not the bar: it counts every deselected node in the two files and moves if a sibling test gains a marker.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Close the test-all budget gap for the live-corpus node
 
-- [ ] E-02 Add `@pytest.mark.timeout(300)` to `VerboseFlagReachTests.test_verbose_flag_end_to_end_observable_difference` in `tests/test_verbose_flag_reach.py`, directly beside its existing `@pytest.mark.livecorpus` marker, and extend the existing comment above it with one sentence stating the budget reason HONESTLY: the guard's CPU arm (`_DEFAULT_TEST_CPU_TIMEOUT = 60.0`) counts CPU, not wall, and the node's CPU cost grows with the live corpus (measured at review: about 16.4s CPU for 17.2s wall at load 1.1), while the 27s-135s figures are WALL times under contention against the 240s wall ceiling; the marker gives headroom for corpus growth on both arms (CPU 300s, wall floored at 300s) while still catching a true hang. Do NOT write that 27s-135s exceeds the 60s CPU arm: that compares a wall time to a CPU budget.
+- [x] E-02 Add `@pytest.mark.timeout(300)` to `VerboseFlagReachTests.test_verbose_flag_end_to_end_observable_difference` in `tests/test_verbose_flag_reach.py`, directly beside its existing `@pytest.mark.livecorpus` marker, and extend the existing comment above it with one sentence stating the budget reason HONESTLY: the guard's CPU arm (`_DEFAULT_TEST_CPU_TIMEOUT = 60.0`) counts CPU, not wall, and the node's CPU cost grows with the live corpus (measured at review: about 16.4s CPU for 17.2s wall at load 1.1), while the 27s-135s figures are WALL times under contention against the 240s wall ceiling; the marker gives headroom for corpus growth on both arms (CPU 300s, wall floored at 300s) while still catching a true hang. Do NOT write that 27s-135s exceeds the 60s CPU arm: that compares a wall time to a CPU budget.
   - Depends on: E-01
   - Expected outcome: the node carries an explicit budget matching its sibling `TypecheckGateTests.test_typecheck_gate_clean_exit` (`@pytest.mark.timeout(300)`), so under `-m ''` with `-n auto` corpus growth or contention does not trip the per-test hang guard, while a true hang is still caught.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the file under the full-suite marker selection in parallel mode (`python3 -m pytest -m '' -n auto tests/test_verbose_flag_reach.py`) and confirm every test in it passes, including the live-corpus node. Then run the bare suite (`python3 -m pytest`) at the execution base AND after E-02, and compare failures BY NAME.
+- [x] E-03 Run the file under the full-suite marker selection in parallel mode (`python3 -m pytest -m '' -n auto tests/test_verbose_flag_reach.py`) and confirm every test in it passes, including the live-corpus node. Then run the bare suite (`python3 -m pytest`) at the execution base AND after E-02, and compare failures BY NAME.
   - Depends on: E-02
   - Expected outcome: the `-m ''` run reports zero failed with the live-corpus node among those passed (the file holds 4 tests at review, measured `4 passed in 19.66s`; the count is context, not the bar); the post-change bare suite has no failing test absent from the base-commit failure list (any newly red node is re-run alone at the base before being called pre-existing).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: File the standing typecheck failure separately
 
-- [ ] E-04 First search for an existing item: `aw find backlog mypy`, `grep -rliE 'mypy|typecheck|type gate' .aw/records/backlog/open`. At review this found exactly one related open item, `2rm0gz` (open, `Work-Kind: bug`, `Blocks-Release: next`), which covers ONE error in `render_stream.py`; `render_stream.py` is NOT among the 15 errors measured at review (attention 1, backlog 1, cli 6, releases 2, research_archive 1, research_refs 1, runner_shared 2, specs 1), so it does not cover this failure. If no open item covers the gate as a whole, file one with `aw backlog new --summary "mypy gate (python -m mypy agent_workflows) reports errors at HEAD; tests.yml typecheck job and test_typecheck_gate_clean_exit fail" --work-kind bug --priority high --blocks-release next --slug mypy-gate-red --body <body> --apply` (`aw backlog new` is a dry run without `--apply`). The body pastes the measured `Found N errors in M files` line, the per-file error counts, the HEAD, the local Python and mypy versions, the same count under `--python-version 3.12` (the CI job's Python, `.github/workflows/tests.yml` "Set up Python \"3.12\""), and names `2rm0gz` as a related item whose own error may already be fixed. If an existing item covers the whole gate, cite its id6 in V-04 instead and file nothing.
+- [x] E-04 First search for an existing item: `aw find backlog mypy`, `grep -rliE 'mypy|typecheck|type gate' .aw/records/backlog/open`. At review this found exactly one related open item, `2rm0gz` (open, `Work-Kind: bug`, `Blocks-Release: next`), which covers ONE error in `render_stream.py`; `render_stream.py` is NOT among the 15 errors measured at review (attention 1, backlog 1, cli 6, releases 2, research_archive 1, research_refs 1, runner_shared 2, specs 1), so it does not cover this failure. If no open item covers the gate as a whole, file one with `aw backlog new --summary "mypy gate (python -m mypy agent_workflows) reports errors at HEAD; tests.yml typecheck job and test_typecheck_gate_clean_exit fail" --work-kind bug --priority high --blocks-release next --slug mypy-gate-red --body <body> --apply` (`aw backlog new` is a dry run without `--apply`). The body pastes the measured `Found N errors in M files` line, the per-file error counts, the HEAD, the local Python and mypy versions, the same count under `--python-version 3.12` (the CI job's Python, `.github/workflows/tests.yml` "Set up Python \"3.12\""), and names `2rm0gz` as a related item whose own error may already be fixed. If an existing item covers the whole gate, cite its id6 in V-04 instead and file nothing.
   - Depends on: E-01
   - Expected outcome: an open, release-gated (`- Blocks-Release: next`) `Work-Kind: bug` backlog item tracks the whole-gate mypy failure, as required by AGENTS.md "Every live bug gates the next release", and it names `2rm0gz` so the two are not read as duplicates.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -139,25 +139,144 @@ N/A: no spec governs per-test timeout markers; the `livecorpus`/`slow` marker do
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted actual output of the default collection (node ids) showing neither `test_verbose_flag_end_to_end_observable_difference` nor `test_typecheck_gate_clean_exit`, and of the `-o addopts="" -m ''` collection showing both. Either node present in the default collection fails this item.
   - Observed evidence:
-  - Result: pending
+    Default collection:
+    ```
+    $ python3 -m pytest --collect-only tests/test_verbose_flag_reach.py tests/test_typecheck_gate.py
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_derived_reach_every_agent_leaf_accepts_verbose
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_acceptance_check_plans
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_synthetic_observable_difference
+    tests/test_typecheck_gate.py::VerifyAndContinueNoticeTests::test_verify_and_continue_notice_behavior
+    tests/test_typecheck_gate.py::VerifyAndContinueNoticeTests::test_verify_and_continue_notice_false_case
 
-- [ ] V-02 validates E-02
+    NOTE: 2 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    5/7 tests collected (2 deselected) in 0.29s
+    ```
+
+    All-tests collection (-o addopts="" -m ''):
+    ```
+    $ python3 -m pytest -o addopts="" -m '' --collect-only -q tests/test_verbose_flag_reach.py tests/test_typecheck_gate.py
+    tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    tests/test_typecheck_gate.py::VerifyAndContinueNoticeTests::test_verify_and_continue_notice_false_case
+    tests/test_typecheck_gate.py::VerifyAndContinueNoticeTests::test_verify_and_continue_notice_behavior
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_synthetic_observable_difference
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_acceptance_check_plans
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_derived_reach_every_agent_leaf_accepts_verbose
+    tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+
+    7 tests collected in 0.29s
+    ```
+    Neither node appears in the default collection; both appear in the full collection.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff -- tests/test_verbose_flag_reach.py` showing `@pytest.mark.timeout(300)` added on `test_verbose_flag_end_to_end_observable_difference` beside `@pytest.mark.livecorpus`, plus the comment sentence, and no other hunk.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    $ git diff -- tests/test_verbose_flag_reach.py
+    diff --git a/tests/test_verbose_flag_reach.py b/tests/test_verbose_flag_reach.py
+    index 2276985b7..443e1ccea 100644
+    --- a/tests/test_verbose_flag_reach.py
+    +++ b/tests/test_verbose_flag_reach.py
+    @@ -170,6 +170,12 @@ class VerboseFlagReachTests(unittest.TestCase):
+         # this repository's live .aw/records/ tree in-process (costing ~27s-135s).
+         # Its key-presence/absence contract is covered in the fast suite by the synthetic-repo
+         # twin test_verbose_flag_synthetic_observable_difference. Still run in make test-all.
+    +    # Budgeted at 300s because the guard's CPU arm (_DEFAULT_TEST_CPU_TIMEOUT = 60.0) counts
+    +    # CPU, not wall, and the node's CPU cost grows with the live corpus (measured at review:
+    +    # about 16.4s CPU for 17.2s wall at load 1.1), while the 27s-135s figures are wall times
+    +    # under contention against the 240s wall ceiling; the marker gives headroom for corpus
+    +    # growth on both arms (CPU 300s, wall floored at 300s) while still catching a true hang.
+    +    @pytest.mark.timeout(300)
+         @pytest.mark.livecorpus
+         def test_verbose_flag_end_to_end_observable_difference(self) -> None:
+             """Drive check plans in-process and assert compact vs verbose observable difference.
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted actual runner output of `python3 -m pytest -m '' -n auto -rA tests/test_verbose_flag_reach.py` showing zero failed and `PASSED ...test_verbose_flag_end_to_end_observable_difference`; plus the base-commit and post-change bare `python3 -m pytest` summary lines and failure lists, with a by-name diff showing no new failure (any difference re-run alone at the base, output pasted).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -m '' -n auto -rA tests/test_verbose_flag_reach.py
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ....                                                                     [100%]
+    ==================================== PASSES ====================================
+    =========================== short test summary info ============================
+    PASSED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_derived_reach_every_agent_leaf_accepts_verbose
+    PASSED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_acceptance_check_plans
+    PASSED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_synthetic_observable_difference
+    PASSED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    4 passed in 12.29s
+    ```
 
-- [ ] V-04 validates E-04
+    Base-commit bare `python3 -m pytest`:
+    Summary line: `8517 passed, 5 skipped, 18 xfailed, 3 warnings in 404.39s (0:06:44)`
+    Failures: none (0 failed)
+
+    Post-change bare `python3 -m pytest`:
+    Summary line: `8517 passed, 5 skipped, 18 xfailed, 3 warnings in 379.19s (0:06:19)`
+    Failures: none (0 failed)
+
+    By-name diff of failure lists:
+    No failures at base, no failures post-change. Diff is empty; zero regressions.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the pasted search output; the path of the filed (or pre-existing) backlog item and its pasted front matter showing `- Work-Kind: bug` and `- Blocks-Release: next`; its body containing a pasted `Found N errors in M files` mypy line, the `--python-version 3.12` count and a reference to `2rm0gz`; and pasted `aw backlog check` output reporting conformance.
   - Observed evidence:
-  - Result: pending
+    Backlog search:
+    ```
+    $ aw find backlog mypy
+    ✗ FAIL  no artifact matched selector 'mypy'
+
+    $ grep -rliE 'mypy|typecheck|type gate' .aw/records/backlog/open
+    (no matches)
+
+    $ aw find backlog 2rm0gz
+    ✓  done          2rm0gz  .aw/records/backlog/done/20261002-2rm0gz-01-2rm0gz-typecheck-gate-error-in-render-stream-py-due-to-op.backlog.md
+
+    $ aw find backlog 5st6e5
+    ●  graduated     5st6e5  .aw/records/backlog/graduated/20261012-cihealth-01-5st6e5-ci-red-unseen.backlog.md
+    ```
+
+    Existing backlog item covering the whole-gate mypy failure: `5st6e5`
+    Path: `.aw/records/backlog/graduated/20261012-cihealth-01-5st6e5-ci-red-unseen.backlog.md`
+    Front matter:
+    ```markdown
+    - Id: 5st6e5
+    - Status: graduated
+    - Blocks-Release: next
+    - Set: cihealth
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: CI has failed on every push since 2026-09-27 (about 1,600 main commits) and nothing on this machine shows it
+    ```
+    Body cites: "Root causes in run 38168033704: ... mypy gate reports 15 errors; ... Graduated to Set cihealth."
+    Graduated to child plan `ezyb4a` (`.aw/records/plans/executed/20261012-cihealth-01-ezyb4a-make-ci-pass-again-on-every-leg.ipd.md`), which resolved all 15 mypy errors in E-05 (commits `9b9885867`, `173d3f644`, `6808e3a74`).
+    Related item `2rm0gz` (narrow error in `render_stream.py`) is already closed as `done`.
+    Current gate measurements at execution HEAD:
+    ```
+    $ python3 -m mypy agent_workflows
+    agent_workflows/cli.py:953: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+    Success: no issues found in 196 source files
+
+    $ python3 -m mypy agent_workflows --python-version 3.12
+    agent_workflows/cli.py:953: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+    Success: no issues found in 196 source files
+
+    $ python3 -m pytest tests/test_typecheck_gate.py -m ''
+    3 passed in 1.58s
+    ```
+    Backlog conformance check:
+    ```
+    $ aw backlog check
+    aw backlog check: all backlog items conform. 1029 backlog items checked.
+    ```
+    Because pre-existing backlog item `5st6e5` already covered the whole-gate mypy failure (and was executed via `ezyb4a`), per E-04 instructions ("If an existing item covers the whole gate, cite its id6 in V-04 instead and file nothing"), `5st6e5` is cited and no redundant bug item was filed.
+  - Result: pass
 
 ## Approval and execution gate
 

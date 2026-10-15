@@ -170,6 +170,12 @@ class VerboseFlagReachTests(unittest.TestCase):
     # this repository's live .aw/records/ tree in-process (costing ~27s-135s).
     # Its key-presence/absence contract is covered in the fast suite by the synthetic-repo
     # twin test_verbose_flag_synthetic_observable_difference. Still run in make test-all.
+    # Budgeted at 300s because the guard's CPU arm (_DEFAULT_TEST_CPU_TIMEOUT = 60.0) counts
+    # CPU, not wall, and the node's CPU cost grows with the live corpus (measured at review:
+    # about 16.4s CPU for 17.2s wall at load 1.1), while the 27s-135s figures are wall times
+    # under contention against the 240s wall ceiling; the marker gives headroom for corpus
+    # growth on both arms (CPU 300s, wall floored at 300s) while still catching a true hang.
+    @pytest.mark.timeout(300)
     @pytest.mark.livecorpus
     def test_verbose_flag_end_to_end_observable_difference(self) -> None:
         """Drive check plans in-process and assert compact vs verbose observable difference.
