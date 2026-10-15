@@ -5,8 +5,9 @@
 - Concern: Four selector-taking verbs answer a selector that names NO artifact anywhere in the repository with a success-shaped or wrong-code answer, so a caller cannot tell a typo from a legitimately empty answer. Re-measured in this lane at HEAD `ebcbf0676` with token `zzzzzz` (which resolves to nothing under any `artifact_types.ARTIFACT_TYPES` member): `aw reviews decisions zzzzzz` exits 0 on human, `--agent` (`outcome:clean, verified:true`) and `--json`; `aw record-history zzzzzz` exits 0 on all three (`✓ CLEAN  no sidecar history for id6 zzzzzz`); `aw graduation zzzzzz` exits 0 on all three and tells the operator `nothing yet ... Proceed.`; `aw ipd recheck-readiness zzzzzz` exits 1 on all three (`outcome:findings`, rule `readiness.selector-unresolved`). Spec `25kzda` Section 2.3 rules "Zero matches return exit 2", Section 2.4a exempts only standing-question selectors, and `docs/cli-output-contract.md` Section 11.1 already states the read-verb convention (a named-artifact assertion that matches nothing is a `cannot-run` at exit 2). `aw find`, `aw attention` and `aw runs` conform; these four do not.
 - Scope: Make the four verbs refuse, at exit 2 with a `cannot-run` outcome naming each offending token on every surface they have (human, `--agent`, `--json`), a selector token that matches NO artifact in any tracked record tree AND is not a standing-vocabulary token, through ONE shared predicate and ONE shared emitter. Keep every legitimately empty answer at exit 0: a selector naming a REAL artifact that simply has no review, no sidecar history, or no linked plan/spec is a correct "nothing yet" answer, not an error. Update the `ipd recheck-readiness` exit contract declaration and docstring, the `graduation` help text that promises it "never refuses", the one shipped test that pins the defect, the read-verb contract doc, and the CHANGELOG. Does NOT touch `aw find`, `aw attention`, `aw runs`, `aw show` (filed separately as `upryxf`), any mutating `set`/`rename`/`group` verb, or what any verb matches when the selector DOES resolve.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/reviews.py, agent_workflows/readiness_recheck.py, agent_workflows/command_surface.py, tests/test_read_verb_zero_match_refusal.py, tests/test_graduation_forward_links.py, docs/cli-output-contract.md, CHANGELOG.md
+- Scope-Exceeded: tests/test_live_conformance_sweep.py (fixture setup for record-history in test_fact_parity_non_vacuous)
 - Item-Dependencies: executed:zyj8io
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct-pt3-claude-opus-5.5-1m-us
 - Id: yxsfjc
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yxsfjc verified (set selquiet, attempt 1). [Scope reconciliation - out-of-scope tests/test_live_conformance_sweep.py: fixture setup for record-history in test_fact_parity_non_vacuous]
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261012-selquiet-02-yxsfjc-make-reviews-decisions-record-history-graduation-and-ipd-rec.review.md Round 1
 
