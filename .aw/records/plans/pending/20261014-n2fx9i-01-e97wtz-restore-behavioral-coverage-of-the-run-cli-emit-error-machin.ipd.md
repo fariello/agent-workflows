@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that drives `cli.main` in-process across several `aw run`/`aw runs` leaves and both machine renderers, reaching `_emit_error` through three distinct emit paths (unknown target via `_emit_ledger_not_found`, explicit absent path, and empty ledger via the engine builder), asserting on the returned exit code and on the parsed payload's exact key set and values; then update the stale "deleted in `19313eed`; no live guard currently asserts this" remark in the `_emit_error` docstring to name the new module.
 - Scope-Paths: tests/test_run_cli_error_payload_keys.py, agent_workflows/run_cli.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: n2fx9i
@@ -17,6 +18,7 @@
 - Id: e97wtz
 
 ## Workflow history
+- 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog n2fx9i; review-ready.
@@ -38,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: other bare emit paths
 
-- [ ] E-02 In the same module add `test_explicit_absent_path_payload_has_exactly_the_three_keys` (`runs verify-ledger <tmp>/nowhere/ledger.jsonl --agent`: rc 2, exact key set, `error` contains `"not found"` and does NOT contain `"no driver run writes one"`) and `test_empty_ledger_payload_has_exactly_the_three_keys` (create an empty `<tmp>/ledger.jsonl`; for each leaf in (`runs next`, `runs status`, `runs resume`, `run cancel`) with `--agent`, as `subTest`: rc 2, exact key set, `payload["error"] == "ledger is empty"`, `payload["exit_code"] == rc`). Add `test_human_stream_is_not_json` (`runs status totalgibberish --dir <tmp>` with no renderer flag: rc 2, stdout starts with `"error: "`, and `json.loads` of the stdout raises `ValueError`), proving the key-set contract is renderer-gated rather than leaking into human output.
+- [ ] E-02 In the same module add `test_explicit_absent_path_payload_has_exactly_the_three_keys` (`runs verify-ledger <tmp>/nowhere/ledger.jsonl --agent`: rc 2, exact key set, `error` contains `"not found"` and does NOT contain `"no driver run writes one"`) and `test_empty_ledger_payload_has_exactly_the_three_keys` (create an empty `<tmp>/ledger.jsonl` and pass that path as the positional target, i.e. `<leaf> <tmp>/ledger.jsonl --agent`; for each leaf in (`runs next`, `runs status`, `runs resume`, `run cancel`), as `subTest`: rc 2, exact key set, `payload["error"] == "ledger is empty"`, `payload["exit_code"] == rc`). Add `test_human_stream_is_not_json` (`runs status totalgibberish --dir <tmp>` with no renderer flag: rc 2, stdout starts with `"error: "`, and `json.loads` of the stdout raises `ValueError`), proving the key-set contract is renderer-gated rather than leaking into human output.
   - Depends on: E-01
   - Expected outcome: the three tests pass against current code.
   - Execution state: pending
@@ -110,10 +112,12 @@ N/A: `docs/cli-output-contract.md` already describes `_emit_error` payloads as b
 
 ## Validation and cross-check (verify before reporting done)
 
+Test function names below are non-binding POINTERS, not the bar: the bar is the behavior each item names (exact bare key set, `ok is False`, `exit_code == rc`, renderer gating) plus the mutation run proving the test detects its violation; a renamed test that pins the same behavior satisfies the item. Re-derive at execution time.
+
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_run_cli_error_payload_keys.py` showing `test_unknown_target_payload_has_exactly_the_three_keys` PASSED; pasted output of the temporary `"detail": None` mutation run showing that test FAILED, followed by `git diff --stat agent_workflows/run_cli.py` after revert proving only the E-03 docstring change remains; plus `grep -nE "inspect|import ast|read_text" tests/test_run_cli_error_payload_keys.py` returning no match.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_run_cli_error_payload_keys.py` showing `test_unknown_target_payload_has_exactly_the_three_keys` PASSED; pasted output of the temporary `"detail": None` mutation run showing that test FAILED, followed by `git diff --stat agent_workflows/run_cli.py` after revert proving only the E-03 docstring change remains; plus `grep -nE "^\s*(import|from) (inspect|ast)\b|\.read_text\(|getsource" tests/test_run_cli_error_payload_keys.py` returning no match (P16: the module reads no production source).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -130,4 +134,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the two Scope-Paths files through `aw commit e97wtz -- <paths>`; never push. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+Execute only after explicit human approval (`Status: approved`). Open questions: OQ-01 is resolved; none remain. Start a hand execution with `aw ipd begin e97wtz`.
+
+- Scope fence: `- Scope-Paths:` is a DECLARATION reconciled at finalize. The only production edit is the E-03 docstring sentence; an out-of-scope edit that proves necessary is made and then justified with `--scope-reason`, not treated as a reason to stop. The V-01/V-02 mutations are TEMPORARY in-tree edits to `agent_workflows/run_cli.py` that MUST be reverted before any commit; never commit a mutation.
+- Honesty rule (hard MUST): every `V-*` `Observed evidence` block pastes the ACTUAL runner output; a claimed pass without pasted output does not satisfy the item. Do not weaken an assertion to make a test pass.
+- Commit: only through `aw commit e97wtz -- tests/test_run_cli_error_payload_keys.py agent_workflows/run_cli.py <this plan path>` (never `git add -A`, `-a`, or `--no-verify`); verify the staged set with `git diff --cached --name-only` first; never push.
+- Lifecycle transition (mandatory; owner conditional): when dispatched by `aw oc run` / `aw agy run`, the runner performs the finalize (path-scoped commit and move to `executed/`) after its merge-and-revalidate gate, so the executor must NOT run `aw ipd finalize`; in a hand execution the executor runs `aw ipd finalize e97wtz`. Never hand-`git mv` the plan into `executed/` or hand-edit `- Status:`. The transition happens only after `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+- Release gate: backlog `n2fx9i` is `Work-Kind: chore` and carries no `- Blocks-Release:`, so none is inherited and none may be invented; it reaches `done` through the `- From-Backlog: n2fx9i` handoff, so do not close it by hand.
