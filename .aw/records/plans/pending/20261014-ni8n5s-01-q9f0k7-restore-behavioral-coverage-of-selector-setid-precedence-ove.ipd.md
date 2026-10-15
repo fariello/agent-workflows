@@ -6,7 +6,7 @@
 - Scope: Add one new outcome-only test module that drives `selectors.resolve` on temporary fixture trees and asserts which rule wins when a token is both a Set id (or Status) and a filename fragment; repoint the stale "no live guard" code comment in `agent_workflows/selectors.py` to the new module.
 - Scope-Paths: tests/test_selector_precedence_outcomes.py, agent_workflows/selectors.py, .aw/records/plans/pending/20261014-ni8n5s-01-q9f0k7-restore-behavioral-coverage-of-selector-setid-precedence-ove.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: OpenCode Claude Opus
 - Id: q9f0k7
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-ni8n5s-01-q9f0k7)
 - 2026-10-15 draft (OpenCode Claude Opus): created.

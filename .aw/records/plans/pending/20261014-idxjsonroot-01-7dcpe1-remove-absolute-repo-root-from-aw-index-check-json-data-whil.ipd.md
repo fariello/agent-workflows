@@ -6,7 +6,7 @@
 - Scope: Add an out-of-band repo_root attribute on CommandResult so Diagnostic.to_dict, Change.to_dict, Evidence.to_dict, and HumanRenderer resolve repo_root without requiring data["repo_root"]; remove "repo_root" and non-human "human_rendered" from emit_index_check_result data while normalizing drift diagnostic locations against repo_root; pass repo_root out of band on emit_index_write_result without changing its data keys.
 - Scope-Paths: agent_workflows/result_types.py, agent_workflows/renderers.py, agent_workflows/artifact_core.py, tests/test_index_check_agent_records.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: aavf6a
 - Blocks-Release: next
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: Antigravity Agent
 - Id: 7dcpe1
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-14 to-review (aw set): status set to to-review

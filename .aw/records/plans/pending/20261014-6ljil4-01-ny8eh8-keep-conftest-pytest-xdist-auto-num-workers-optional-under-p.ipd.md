@@ -6,7 +6,7 @@
 - Scope: Document the `optionalhook=True` contract on `conftest.pytest_xdist_auto_num_workers` (`conftest.py`, lines 1-20 and 89-96); convert `tests/test_xdist_auto_workers.py` to a `unittest.TestCase` class (`XdistAutoWorkersTests`) so both `pytest` and `unittest discover` (`make test-serial`) execute all tests; scrub `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` in the `-p no:xdist` subprocess helper (keeping the production `-p no:xdist` argv) and contain the import-time side effects of `import conftest` under `unittest`; and add behavioral tests verifying both ambient-`PYTEST_ADDOPTS` isolation and in-process `pytest.PytestPluginManager.check_pending()` validation of `conftest` without `xdist` hookspecs.
 - Scope-Paths: conftest.py, tests/test_xdist_auto_workers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: 6ljil4
 - Blocks-Release: next
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: Antigravity
 - Id: ny8eh8
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD ny8eh8 from backlog 6ljil4

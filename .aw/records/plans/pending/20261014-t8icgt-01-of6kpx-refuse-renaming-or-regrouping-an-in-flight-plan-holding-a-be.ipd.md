@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-measuring the unguarded self-rename and self-regroup baseline at execution HEAD (E-01); (b) adding `_in_flight_target_error` in `agent_workflows/plans_refs.py` that reuses `artifact_refs.classify_citing_plans_for_rewrite` as the single liveness predicate (F-06) and calling it at ONE site, the top of `plans_refs.apply_renames`, which every plans rename/regroup path already reaches (F-07), so both preview and `--apply`, single-target and batch, `--rename` and metadata-only `--no-rename` refuse fail-closed with `artifact_types.EXIT_CANNOT_RUN` (exit 2, diagnostic rule `in-flight-plan`) before touching any file (E-02); (c) replacing the baseline test `test_i_renaming_the_in_flight_plan_itself_still_succeeds` in `tests/test_rename_receipt_guard.py` with outcome tests covering `aw rename plans` (apply and preview), `aw group plans` (`--rename`, metadata-only, and multi-target batch atomicity), `--agent`/`--json` machine diagnostics, and post-receipt-removal recovery (E-03); (d) recording the refuse-over-skip decision in `DECISIONS.md` (E-04); (e) adding one sentence to Section 4.5 of `.aw/records/specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md` (E-05); and (f) adding one `Fixed:` line to `CHANGELOG.md` (E-06). OUT: citation rewrites into in-flight plans when *another* artifact is renamed (already skipped and reported by `69pxm5` / D163); `plans_archive` weekly-shard archival (operates only on `TERMINAL_DIRS = ("executed", "superseded", "not-executed")`, never on in-flight pending plans); non-plan artifact types (`specs`, `research`, `walkthroughs`, `prompts`, `comms`, which do not use `ipd_lifecycle` begin receipts); and any `--force` flag to override the live-receipt refusal (see OQ-01).
 - Scope-Paths: agent_workflows/plans_refs.py, tests/test_rename_receipt_guard.py, DECISIONS.md, .aw/records/specs/implemented/20260808-0004-01-artifact-organization-plans-adopter.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:69pxm5
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: of6kpx
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-14 to-review (Antigravity): graduated from backlog `t8icgt`. Authoring measured all four self-rename/self-regroup execution geometries against `ipd_lifecycle` and `oc_runipd.integrate_lane_branch` (F-01 through F-05), proving that self-rename/regroup strands an isolated lane in `fail-merge` with its receipt already consumed, breaks `aw index plans --check` on metadata-only `group`, and corrupts or blocks same-tree `finalize`; resolved OQ-01 in favor of fail-closed refusal (`EXIT_CANNOT_RUN`, exit 2, rule `in-flight-plan`) reusing `artifact_refs.classify_citing_plans_for_rewrite` (F-06).

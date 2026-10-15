@@ -6,7 +6,7 @@
 - Scope: Verify on the current tree with pasted runner output that `tools/ipdrunner/test_runagy.py` has been relocated to `tests/test_ipdrunner_runagy_shim.py`, that all 10 historical failures across its three failure shapes remain repaired and every collected test in `tests/test_ipdrunner_runagy_shim.py` passes, that no stale `tools/ipdrunner/test_runagy.py` exemption or code citation remains in `agent_workflows/`, `tests/`, or `tools/` (with `tests/test_uncollected_test_modules.py` passing), and conditionally repair `tests/test_ipdrunner_runagy_shim.py` or `tests/test_uncollected_test_modules.py` only if verification reveals test drift or a residual reference (a product regression is filed as a release-gating `bug` instead, never repaired by editing the test; see E-03), so `3rj8wr` can close with a verified carrier.
 - Scope-Paths: tests/test_ipdrunner_runagy_shim.py, tests/test_uncollected_test_modules.py, .aw/records/plans/pending/20261014-3rj8wr-01-oi9kr8-verify-and-close-test-runagy-triage-relocation-and-collectio.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: oi9kr8
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (review record 20261014-3rj8wr-01-oi9kr8)
 - 2026-10-14 to-review (aw set): authored review-ready from backlog 3rj8wr; commit b417e9c2d (plan g0u7f9) already triaged, repaired, relocated, and collected tools/ipdrunner/test_runagy.py

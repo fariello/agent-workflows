@@ -6,7 +6,7 @@
 - Scope: (1) In `agent_workflows/run_cli.py`, add `WORKFLOW_FILENAME = "workflow.json"` and `_workflow_digest(workflow)`, have `_run_init` persist the canonical workflow JSON to `ledger_file.parent / WORKFLOW_FILENAME` alongside `ledger.jsonl`, and update `_load_workflow_arg(args, ledger_file=None)` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is not supplied. (2) In `agent_workflows/run_cli.py` inside `_build_engine`, verify that any workflow loaded from `--workflow` or from the persisted `workflow.json` matches the `kind: "run"` header's `workflow_digest`, refusing a mismatch with `EXIT_INVALID_INVOCATION` (exit 2). (3) Align the one hand-seeded `kind: "run"` fixture that the new check actually reaches (`tests/test_run_recovery_cli.py` `_run_record`, F-04) with its test workflow digest, and add behavioral coverage in `tests/test_run_init.py` and `tests/test_run_recovery_cli.py`. (4) Update the `--workflow` help text in `agent_workflows/cli.py`, the `aw run` exit-2 description in `docs/cli-output-contract.md` Section 3.1, and add a CHANGELOG line. OUT, each carried by its own plan in Set `runledger`: adding `aw run init` itself (`v47z9u`), amending spec `25kzda` (`9epp40`), adding ledger leaves to `LIVE_SAFE_LEAVES` (`g5s94t`), writing `requirement_set` / `verifier_decision` records (`um0twl`), and rendering ledger-only directories in the `aw runs` viewer (`3a3hh9`).
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/cli.py, tests/test_run_init.py, tests/test_run_recovery_cli.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:v47z9u
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: antigravity
 - Id: o34rb3
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-14 to-review (aw set): Authored review-ready IPD from backlog sflov4
 

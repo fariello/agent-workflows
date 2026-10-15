@@ -6,7 +6,7 @@
 - Scope: Add one new behavior-only test module, `tests/test_suite_exit_code_authority.py`, that calls the real `integration_is_earned` (both hosts), `gate_answer_is_warranted`, `SuiteCheckResult.failing_text`/`gate_answer_question`, `new_failures_since_baseline`, and `unattributed_merged_failures` and asserts their returned verdicts; then repoint the four `runner_shared.py` comments that cite the deleted guard as "no live guard currently asserts this" to the new module (comment and docstring text only; no behavior change).
 - Scope-Paths: tests/test_suite_exit_code_authority.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: OpenCode Claude Opus
 - Id: xssw86
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
 - 2026-10-14 draft (OpenCode Claude Opus): created.

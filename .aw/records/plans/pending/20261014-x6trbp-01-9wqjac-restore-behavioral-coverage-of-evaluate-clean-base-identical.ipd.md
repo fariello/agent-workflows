@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that calls `evaluate_clean_base` (pure) and `runner_shared.evaluate_clean_base_for_launch` (against a throwaway git repository) on both paths and asserts the classification is identical while the consequence differs; repoint the stale "no live guard currently asserts this" citation in the `evaluate_clean_base` docstring at the new test.
 - Scope-Paths: tests/test_clean_base_tracked_scope.py, agent_workflows/lane_containment.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 9wqjac
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-15 draft (opencode): created.

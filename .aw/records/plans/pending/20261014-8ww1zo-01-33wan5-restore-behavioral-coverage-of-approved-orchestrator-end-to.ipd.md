@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module exercising the real functions and the real queue build on both hosts, and repoint the three source comments that currently say "no live guard currently asserts this" at the new module. No production behavior change.
 - Scope-Paths: tests/test_orchestrator_kind_derivation.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending/20261014-8ww1zo-01-33wan5-restore-behavioral-coverage-of-approved-orchestrator-end-to.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 33wan5
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete; PR-001..PR-006 fixed
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (E-04 control made non-vacuous via mock-patched queue build, E-05/V-05 made checkable, execution contract added, E-03 manifest fixture specified, V-* bars re-based on behavior); review record `.aw/records/reviews/20261014-8ww1zo-01-33wan5-restore-behavioral-coverage-of-approved-orchestrator-end-to.review.md`.

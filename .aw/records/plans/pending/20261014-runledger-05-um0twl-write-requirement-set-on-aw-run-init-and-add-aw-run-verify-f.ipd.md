@@ -6,7 +6,7 @@
 - Scope: (1) Add `run_freeze.freeze_workflow_requirements(workflow)` so a workflow mapping's `requirements` list (`[{"id": "R-01", ...}, ...]`) freezes into a `RequirementSet` preserving its explicit `R-NN` ids rather than minting `M-NN` ids, and have `aw run init` (plan `v47z9u`) append the resulting `run_freeze.requirement_set_record` immediately after the `kind: "run"` header record (`seq=1`) with the shared `requirement_digest`. (2) Add the `aw run verify <target> --requirement <id> --result <satisfied|partial|failed|not_verifiable> [--actor verifier]` CLI leaf calling `RunEngine.record_verifier_decision`, registered in `cli.py` and declared in `command_surface.py`, so an operator-created ledger can record verifier decisions and reach `aw run finalize` exit 0. (3) Update `tests/test_run_init.py`, `tests/test_run_recovery_cli.py`, conformance/boundary registries (`tests/conformance_matrix.py`, `tests/test_exit_vocabulary_boundary.py`, `tests/test_usage_refusal_agent_record.py`), `docs/cli-output-contract.md`, and `CHANGELOG.md`. OUT, each carried by its own backlog item: persisting the workflow beside the ledger (`sflov4`), rendering a ledger-only run directory in the `aw runs` viewer (`nf84rt`), and converting the ledger leaves into live conformance-harness scenario rows (`a4tjxc`).
 - Scope-Paths: agent_workflows/run_freeze.py, agent_workflows/run_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_run_freeze.py, tests/test_run_init.py, tests/test_run_recovery_cli.py, tests/conformance_matrix.py, tests/test_exit_vocabulary_boundary.py, tests/test_usage_refusal_agent_record.py, tests/test_completion.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:v47z9u
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: 8l1hgw
 - Work-Kind: chore
@@ -16,8 +16,10 @@
 - Highest E allocated: 10
 - Author: antigravity
 - Id: um0twl
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
 - 2026-10-14 to-review (aw set): ready for review
 

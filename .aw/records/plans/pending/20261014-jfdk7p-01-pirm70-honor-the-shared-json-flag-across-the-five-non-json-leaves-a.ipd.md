@@ -6,7 +6,7 @@
 - Scope: Teach `agent_workflows/cli._emit_config_agent_error`, the `upgrade-test` `HarnessError` handlers in `agent_workflows/cli._dispatch` and `agent_workflows/upgrade_rehearsal.main`, `agent_workflows/upgrade_rehearsal.cmd_env`, and `agent_workflows/upgrade_rehearsal.cmd_clean` to emit parseable, home-path-redacted JSON on stdout whenever `--json` is passed, remove the five `(leaf, "--json"): "jfdk7p"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN`, add branch-level behavioral regression coverage in `tests/test_shared_flag_honored.py`, and add one `Fixed:` line to `CHANGELOG.md`. Every `--json` error branch reuses the canonical `renderers.emit_usage_refusal` (a `CommandResult` rendered by `JsonRenderer`, `summary` home-redacted), so no new error shape is introduced.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/upgrade_rehearsal.py, tests/test_shared_flag_honored.py, CHANGELOG.md, .aw/records/plans/pending/20261014-jfdk7p-01-pirm70-honor-the-shared-json-flag-across-the-five-non-json-leaves-a.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: jfdk7p
 - Blocks-Release: next
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: agy/gemini-4-argon-high
 - Id: pirm70
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-14 to-review (agy/gemini-4-argon-high): Authored review-ready child IPD from backlog item jfdk7p
 

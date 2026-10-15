@@ -6,7 +6,7 @@
 - Scope: (1) In `tests/conformance_matrix.py`, add `seed_ledger_fixture` (invoking `aw run init --workflow <root>/wf.json --run-id run-abcdef1234 --dir <root>` and seeding the Set projection files `decisions.md` and `open-questions.md`) and `live_leaf_argv`, add the eight `aw runs` leaves to `LIVE_SAFE_LEAVES`, add `"run init": ["--workflow", "wf.json"]` to `RUNNABLE_ARGV`, write `wf.json` into the installed-project template (and nothing else, so mutation clones stay a clean `aw install` tree), and update the eight `EXEMPTION_REGISTRY` and four `MUTATION_EXEMPTION_REGISTRY` rationales. (2) In `tests/test_agent_surface_conformance.py`, pass `RUNNABLE_ARGV.get(leaf, [])` in `test_agent_surface_conformance_mutation` so `run init` executes in `MUTATION_UNIVERSE` with its required `--workflow` flag. (3) In `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py`, route every `LIVE_SAFE_LEAVES` invocation through `live_leaf_argv` against a session-scoped `live_ledger_dir` fixture, and add non-vacuous live conformance tests for the eight `aw runs` leaves and the four `aw run` writers. OUT: migrating `run_cli._emit_machine` from bare JSON dicts (`docs/cli-output-contract.md` Section 3.1, pinned by `tests/test_run_recovery_cli.py`) to `aw.agent/v1` envelopes or collapsing the 8-code run-execution exit vocabulary `{0..7}` into `{0, 1, 2}`; giving `runs decisions` / `runs questions` a machine (`--agent`/`--json`) branch (F-07, filed as a new backlog item by E-07); redacting the absolute ledger path that `runs evidence` and `runs verify-ledger` print (F-08, same backlog item); writing `requirement_set` / `verifier_decision` records (`8l1hgw` / `um0twl`); persisting the workflow beside the ledger (`sflov4` / `o34rb3`); viewer rendering of ledger-only directories (`nf84rt` / `3a3hh9`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_live_conformance_sweep.py, tests/test_exit_contract_conformance.py, tests/test_agent_surface_conformance.py, .aw/records/backlog/open
 - Item-Dependencies: executed:v47z9u
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: a4tjxc
 - Work-Kind: chore
@@ -16,8 +16,10 @@
 - Highest E allocated: 09
 - Author: agent:antigravity
 - Id: g5s94t
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-14 to-review (agent:antigravity): authored review-ready IPD from backlog a4tjxc
 

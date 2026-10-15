@@ -6,7 +6,7 @@
 - Scope: Update the human output block of `prompts_index.run_index` in `agent_workflows/prompts_index.py` to render the four `(json_changed, md_changed)` outcome states (`up to date`, `wrote`, and `updated` for `INDEX.md` or `INDEX.json`) with `Term(color=_color)` and the styled repo-relative prompts directory prefix matching `plans_index.run_index` and `research_index.run_index`; add in-process change-detection and ANSI/outcome-word tests in `tests/test_prompts_index.py`; update `HUMAN_FIRST_RUN["prompts"]` and `HUMAN_SECOND_RUN["prompts"]` and add partial-update human subprocess assertions in `tests/test_index_write_agent_records.py`; and record the fix in `CHANGELOG.md`.
 - Scope-Paths: agent_workflows/prompts_index.py, tests/test_prompts_index.py, tests/test_index_write_agent_records.py, CHANGELOG.md, .aw/records/plans/pending/20261014-promptidxword-01-whri6h-report-up-to-date-and-partial-update-outcomes-in-aw-index-pr.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: whri6h
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Record: .aw/records/reviews/20261014-promptidxword-01-whri6h-report-up-to-date-and-partial-update-outcomes-in-aw-index-pr.review.md Round 1
 - 2026-10-14 to-review (aw set): status set to to-review
 

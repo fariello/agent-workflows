@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module asserting the default on the real parser, its propagation through `initialize_run` into frozen run options, and its effect on BOTH launch sites that read the frozen option: the real `agy_runipd.run_agy_turn` argv (with `subprocess.Popen` faked) and the real `runner_shared.probe_argv(host="agy")` argv. Then repoint the S-14 comment in `agy_runipd.run_agy_turn` at the new module. No production behavior change.
 - Scope-Paths: tests/test_agy_skip_permissions_default.py, agent_workflows/agy_runipd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: ba6z1a
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

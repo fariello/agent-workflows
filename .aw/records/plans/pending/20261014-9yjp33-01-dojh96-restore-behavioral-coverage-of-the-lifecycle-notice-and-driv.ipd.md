@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that renders the real execution, recovery, and verifier prompts through both host drivers (`oc_runipd`, `agy_runipd`) under both `self_finalize` settings, and the notice itself, and asserts on the rendered text: every string is pure ASCII and every prompt embeds the exact notice for its run's ownership mode. Then repoint the one docstring sentence in `ipd_lifecycle.runner_owns_lifecycle_notice` that claims "no live guard currently asserts this" at the new module. No executable production change.
 - Scope-Paths: tests/test_driver_prompt_ascii.py, agent_workflows/ipd_lifecycle.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: dojh96
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 

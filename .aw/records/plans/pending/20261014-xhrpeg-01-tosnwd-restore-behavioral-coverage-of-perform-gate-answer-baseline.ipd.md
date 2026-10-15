@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that calls `runner_shared.perform_gate_answer` with a stub `ask` and asserts on the returned `GateAnswerOutcome` (`release` and `record`) across corroborating, contradicting, absent and unsupplied baselines, for `not-mine` and `mine` answers, and correct the one now-stale sentence in `runner_shared.perform_gate_answer`'s docstring that says no live guard asserts this property. No behavior change; no source-reading assertions.
 - Scope-Paths: tests/test_gate_answer_baseline_indifference.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: OpenCode Claude Opus
 - Id: tosnwd
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-15 draft (OpenCode Claude Opus): created.

@@ -6,7 +6,7 @@
 - Scope: Replace the three bare count assertions (`assert len(rs.TERMINAL_STATES_CANONICAL) == 14`, `assert len(rs.TERMINAL_STATUS_ALIASES) == 10`, `assert len(runner_shutdown.KNOWN_ITEM_STATUSES) == 28`) in `tests/test_runwire_verifier_authority.py::test_set_level_checks` part (c) with the single count-free, transcription-free partition equality `assert runner_shutdown.KNOWN_ITEM_STATUSES == (rs.TERMINAL_STATES_CANONICAL | set(rs.TERMINAL_STATUS_ALIASES) | rs.IN_FLIGHT_QUEUE_STATUSES)`. Keep limbs (a), (b), (d), and (e) of `test_set_level_checks`, its docstring, and every other test in `tests/test_runwire_verifier_authority.py` untouched. EXCLUDES any hand-transcribed status-name table in `tests/test_runwire_verifier_authority.py` (refused in OQ-01 per `44c42h` PR-402 / F-12); EXCLUDES the stale comment above `KNOWN_ITEM_STATUSES` in `agent_workflows/runner_shutdown.py` and the stale prose counts in `agent_workflows/runner_shared.py` and `tests/test_terminal_status_vocabulary.py`; EXCLUDES any production code change.
 - Scope-Paths: tests/test_runwire_verifier_authority.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 01
 - Author: antigravity/Gemini-4-Argon-High
 - Id: 8e7xrj
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (review record 20261014-structpin-08-8e7xrj)
 - 2026-10-14 to-review (aw set): Authored from backlog 2n9y3f at HEAD f8f77f848; replaces the three bare count literals in test_runwire_verifier_authority::test_set_level_checks (c) with the count-free partition equality after measuring that plain deletion loses shrink coverage on running and integration-deferred.

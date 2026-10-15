@@ -6,7 +6,7 @@
 - Scope: Update `ipd_lint.unattached_section_prose` to keep indented non-subfield continuation lines that immediately continue an unattached prose bullet or paragraph and join them onto the preceding kept line while still dropping indented lines that follow a checklist leaf, a `- Key: value` subfield, a heading, or a blank line; update the `runner_shared.probe_cache_payload` and `runner_shared.probe_cache_digest` docstrings to reflect the narrowed exclusion; and add behavioral tests in `tests/test_orchestrator_probe_payload.py` pinning wrapped `OWNER: <child-id6>` bullet extraction, `E-*` continuation exclusion, and subfield-continuation exclusion.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, tests/test_orchestrator_probe_payload.py, .aw/records/plans/pending/20261014-go6vzi-01-u1l9rx-keep-wrapped-prose-bullet-and-paragraph-continuations-in-una.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: go6vzi
 - Blocks-Release: next
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: Antigravity
 - Id: u1l9rx
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-go6vzi-01-u1l9rx)
 - 2026-10-14 to-review (aw set): authored review-ready plan for go6vzi

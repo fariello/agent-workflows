@@ -9,7 +9,7 @@
 - Scope: IN: (1) re-measure the subprocess signal exits on both `aw runners` and `aw pwatch --runners --table` and re-run the caller survey at the executing HEAD as a gate (E-01); (2) make `SIGTERM` return `143` (`EXIT_SIGTERM = 143`) and keep `SIGINT` and `KeyboardInterrupt` at `0` in `runners_monitor.run_table_dashboard`, with the `finally` terminal restore (`pwatch.LEAVE_ALT_SCREEN`) running on both paths (E-02); (3) save and restore the previous `SIGINT` and `SIGTERM` handlers in `runners_monitor.run_table_dashboard`'s `finally` block so every in-process caller gets its handlers back on every exit path (E-03); (4) add behavioral subprocess signal tests (`aw runners` `SIGTERM -> 143`, `aw runners` `SIGINT -> 0`, `aw pwatch --runners --table` `SIGTERM -> 143`) and in-process handler-restoration tests (`--once` and bounded patched-`sleep` `SIGTERM -> 143`) to `tests/test_runners_monitor.py` (E-04); (5) update `tools/README.md` to remove the `--runners --table` exception added by `ww744p` E-06 and document `aw runners` (`tools/watch-runners.py`) exit statuses and shim compatibility (E-05); (6) record the decision as the next free `DECISIONS.md` entry and add one `CHANGELOG.md` line (E-06). OUT: `agent_workflows/pwatch.py` (owned by `ww744p`), any `exit_contract` tuple change in `agent_workflows/command_surface.py` (forbidden by D162 because `143` is signal-derived), and any spec edit.
 - Scope-Paths: agent_workflows/runners_monitor.py, tests/test_runners_monitor.py, tools/README.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:ww744p
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -19,8 +19,10 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: 9380pe
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-14 to-review (antigravity): authored from backlog item uu4rfe; measured signal exits and handler leak at HEAD cb0f36161; ran caller survey; resolved OQ-01 from repository evidence
 

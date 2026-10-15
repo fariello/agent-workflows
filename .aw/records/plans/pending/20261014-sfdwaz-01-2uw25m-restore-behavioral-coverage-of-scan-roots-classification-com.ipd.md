@@ -6,7 +6,7 @@
 - Scope: IN: a new behavioral test module `tests/test_scan_root_classification.py` that exercises `artifact_core.iter_scan_files`, `attention._classify_tree` and `attention.scan` on synthesized temp repositories and asserts their outputs; repointing the one comment above `artifact_core.SCAN_ROOTS` from "no live guard currently asserts this" to the new test. OUT: any change to `SCAN_ROOTS`, `TREE_POLICY`, `attention._classify_tree`, `attention.scan` or `attention_contract.is_exempt_unclassified` behavior; restoring any other deleted test; any source-reading assertion (P16).
 - Scope-Paths: tests/test_scan_root_classification.py, agent_workflows/artifact_core.py, .aw/records/plans/pending/20261014-sfdwaz-01-2uw25m-restore-behavioral-coverage-of-scan-roots-classification-com.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 2uw25m
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete; PR-001..PR-005 fixed
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (E-03 split into E-03/E-05 with corrected sort order, E-02 mechanism clarified, V-* bars re-based on behavior); review record `.aw/records/reviews/20261014-sfdwaz-01-2uw25m-restore-behavioral-coverage-of-scan-roots-classification-com.review.md`.

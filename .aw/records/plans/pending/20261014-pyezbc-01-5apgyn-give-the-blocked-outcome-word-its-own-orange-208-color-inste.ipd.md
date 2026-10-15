@@ -6,7 +6,7 @@
 - Scope: Give the `BLOCKED` outcome word an explicit branch in `render_stream.render_run_summary_table` that styles it through the shared lifecycle resolver as stage `blocked` (orange 208, `\033[38;5;208m` at depth 256, the authored 16-color code at depth 16, plain at depth none) instead of falling through to the cyan (`\033[36m`) else-branch, and pin SGR codes for `BLOCKED` and all sibling ladder outcome words in `tests/test_zero_dispatch_outcome.py`.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 02
 - Author: antigravity
 - Id: 5apgyn
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-14 to-review (antigravity): created review-ready plan from backlog item `pyezbc` (`064awu` Finding F-06).

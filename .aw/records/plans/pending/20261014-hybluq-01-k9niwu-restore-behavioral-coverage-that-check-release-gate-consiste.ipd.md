@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that builds isolated tmp repos and calls `check_engine.check_release_gate_consistency` directly, asserting zero `check.from-backlog-gate-mismatch` findings for a live gated plan carrier and a live gated spec carrier under an ungated item, plus anti-vacuity rows proving the rule still fires for a gated item with a live ungated or differently-gated carrier on the same fixture shape; then update the stale "no live guard currently asserts this directly" remark in the `check_release_gate_consistency` docstring to name the new module.
 - Scope-Paths: tests/test_release_gate_one_way_mismatch.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: k9niwu
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003

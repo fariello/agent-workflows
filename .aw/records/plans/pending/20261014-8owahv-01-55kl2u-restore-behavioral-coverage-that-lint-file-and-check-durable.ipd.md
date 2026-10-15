@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that (a) replaces `check_engine.evaluate_durable_carrier` with a sentinel and asserts the sentinel's detail surfaces on both `lint_file --phase pre-transition` and `check_durable_carrier`, and (b) spies the real evaluator and asserts `lint_file` reaches it exactly once while `lint_text`/`check_checkpoint` reach it zero times at every checkpoint; then update the stale "no live guard currently asserts this" remark in the `evaluate_durable_carrier` docstring.
 - Scope-Paths: tests/test_durable_carrier_shared_predicate.py, agent_workflows/check_engine.py, .aw/records/plans/pending/20261014-8owahv-01-55kl2u-restore-behavioral-coverage-that-lint-file-and-check-durable.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 55kl2u
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete; PR-001..PR-005 fixed
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (fixture isolation claim corrected and diagnostics filtered by code, mutation check extended to the lint consumer, P16 grep made precise, V-* bars re-based on behavior, execution contract added); review record `.aw/records/reviews/20261014-8owahv-01-55kl2u-restore-behavioral-coverage-that-lint-file-and-check-durable.review.md`.

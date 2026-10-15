@@ -6,7 +6,7 @@
 - Scope: Add `emit_index_missing_dir_refusal` in `agent_workflows/artifact_core.py` that emits a structured `cannot-run` (`exit: 2`, `kind: "error"`, `outcome: "cannot-run"`, `applied: False`, `verified: False`, `complete: False`) result across `--agent`, `--json`, human (`stderr`), and `quiet=True` callers, naming the RESOLVED (sanitized) directory and choosing its recovery advice from `project_context.nonsurveyable_root_refusal`; guard the write branch of `plans_index.run_index`, `prompts_index.run_index`, and `research_index.run_index` when `not <dir>.is_dir()`; add subprocess and in-process behavior tests in `tests/test_index_write_agent_records.py`; and record the fix in `CHANGELOG.md`. The `aw index all` single aggregate record is NOT in scope (owned by `7i4zba`).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/research_index.py, tests/test_index_write_agent_records.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: fbdxmh
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-14 to-review (aw set): status set to to-review

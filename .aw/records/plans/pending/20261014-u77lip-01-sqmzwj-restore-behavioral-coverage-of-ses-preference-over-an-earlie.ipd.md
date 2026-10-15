@@ -6,7 +6,7 @@
 - Scope: Add behavioral tests to `tests/test_runner_shared.py` that write mixed JSONL logs and assert the value `extract_session_id` returns, reached through `runner_shared` and through both host modules; then repoint the two source comments that currently say "no live guard currently asserts this conflict case" at the new test.
 - Scope-Paths: tests/test_runner_shared.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending/20261014-u77lip-01-sqmzwj-restore-behavioral-coverage-of-ses-preference-over-an-earlie.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: OpenCode Claude Opus
 - Id: sqmzwj
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-u77lip-01-sqmzwj)
 - 2026-10-15 draft (OpenCode Claude Opus): created.

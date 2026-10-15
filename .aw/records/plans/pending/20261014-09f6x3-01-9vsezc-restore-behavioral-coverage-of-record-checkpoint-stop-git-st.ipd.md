@@ -6,7 +6,7 @@
 - Scope: Add behavioral tests that call `_record_checkpoint_stop` (both host wrappers and the shared definition) against a real dirty git repository and assert on the returned record, the item's `stopped` field, and the appended `events.jsonl` line; then repoint the one docstring sentence in `runner_shared._record_checkpoint_stop` that claims "no live guard currently asserts this" at the new tests. No executable production change.
 - Scope-Paths: tests/test_liftaudit_stop_halts_run.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: OpenCode Claude Opus
 - Id: 9vsezc
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 

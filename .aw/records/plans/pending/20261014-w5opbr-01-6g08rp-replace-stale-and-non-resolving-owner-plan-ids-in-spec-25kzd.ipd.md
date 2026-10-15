@@ -6,7 +6,7 @@
 - Scope: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md Section 5.5 ("### 5.5 Retry policy") and tests/test_fixfirst_end_to_end.py
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, tests/test_fixfirst_end_to_end.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - From-Backlog: w5opbr
@@ -18,8 +18,10 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: 6g08rp
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-14 to-review (aw set): Ready for review; addresses backlog w5opbr
 

@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `aw commit` through `cli.main` against a throwaway git repo and asserts (a) the shared helper is invoked exactly once with only the requested paths and `on_unrelated_staged="scope"`, for both plan-governed and `--no-plan` modes, and (b) with the helper stubbed to commit nothing, no `git commit` subprocess is spawned and HEAD is unchanged; then remove the now-stale "no live guard currently asserts this" remark in `work_cmd.run_commit`.
 - Scope-Paths: tests/test_work_commit_routes_through_shared_helper.py, agent_workflows/work_cmd.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: yfo6z6
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-14 draft (opencode): created.

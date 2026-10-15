@@ -6,7 +6,7 @@
 - Scope: Add behavioral tests to `tests/test_run_exit_aggregate.py` that drive the real `oc_runipd.run_queue` and `agy_runipd.run_queue` over a synthetic one-item `state.json` with only the agent turn (`execute_item`) stubbed, and assert the returned exit code per terminal item status. Test-only; no production change.
 - Scope-Paths: tests/test_run_exit_aggregate.py, .aw/records/plans/pending/20261014-bzjclz-01-eg6r2t-restore-behavioral-coverage-that-run-queue-exits-nonzero-on.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: OpenCode Claude Opus
 - Id: eg6r2t
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed; readiness GO - PENDING HUMAN APPROVAL
 
 - 2026-10-14 draft (OpenCode Claude Opus): created.

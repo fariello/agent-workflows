@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/check_engine.py`, add `_evidence_spec_unshipped(repo_root, evidence) -> bool` (returning `True` when a citation resolves inside a specs tree and is not a file carrying `- Status: implemented` or lives in a non-`implemented` status subdirectory under that specs root), wire `_evidence_spec_unshipped` into `evaluate_blocking_close`'s `SATISFIED` arm alongside `_evidence_plan_unshipped`, and wire both `_evidence_plan_unshipped` and `_evidence_spec_unshipped` into `evaluate_carrier_obligation`'s `SATISFIED` arm (an unshipped citation on a row that also names `- Carrier:` falls through to the `HANDOFF` arm instead of being refused, F-08) with single-line refusal reasons that satisfy `attention_contract.is_safe_descriptive` and `attention_contract.MAX_DESCRIPTIVE_LEN` (`300`). Keep `resolve_evidence_artifact`'s return value unchanged, update its docstring and `agent_workflows/ipd_schema.py`'s `CARRIER_EVIDENCE_FIELD` comment, add behavioral tests in `tests/test_backlog_close_evidence_plan_disposition.py` and `tests/test_check_engine.py`, update repo-local `AGENTS.md`, `.aw/records/backlog/README.md`, and `CHANGELOG.md`, and record the decision and grandfathering analysis in `DECISIONS.md`.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_schema.py, tests/test_backlog_close_evidence_plan_disposition.py, tests/test_check_engine.py, AGENTS.md, .aw/records/backlog/README.md, CHANGELOG.md, DECISIONS.md, .aw/records/plans/pending/20261014-evidpend-02-3392n9-require-executed-plans-in-carrier-evidence-and-implemented-s.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: bkprhk
 - Work-Kind: followup
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: antigravity
 - Id: 3392n9
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed (review record 20261014-evidpend-02-3392n9)
 - 2026-10-14 to-review (aw set): authored review-ready child IPD 3392n9 graduating backlog bkprhk at HEAD bb28b833a

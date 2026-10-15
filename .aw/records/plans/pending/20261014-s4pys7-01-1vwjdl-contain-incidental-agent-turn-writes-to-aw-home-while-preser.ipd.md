@@ -6,7 +6,7 @@
 - Scope: Measure what execute turns write to `AW_HOME`. Fix the latent `project_registry.find_project` default so it honors `AW_HOME` when both `registry_data` and `aw_home` are omitted. Add a selective per-turn `AW_HOME` sandbox to `runner_shared.py` (`prepare_agent_aw_home`, `reconcile_agent_aw_home`, `report_discarded_aw_home`). The sandbox isolates `<AW_HOME>/config/registry.json` and incidental `<AW_HOME>/projects/<other_pid>/` writes, such as the run directories that scratch temp-dir probes mint. It symlinks each project directory the turn's repository (and its lane worktree) already resolves to under the real `AW_HOME`, so home-backend records keep their current location. Wire both runners (`oc_runipd.run_opencode`, `agy_runipd.run_agy_turn`, and both `run_queue` summaries), add regression tests, and update `CHANGELOG.md` and `docs/security.md`.
 - Scope-Paths: agent_workflows/project_registry.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_agent_aw_home_containment.py, CHANGELOG.md, docs/security.md, .aw/records/plans/pending/20261014-s4pys7-01-1vwjdl-contain-incidental-agent-turn-writes-to-aw-home-while-preser.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 09
 - Author: Antigravity
 - Id: 1vwjdl
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 fixed (review record 20261014-s4pys7-01-1vwjdl)
 - 2026-10-14 to-review (aw set): Review-ready IPD for graduating backlog item s4pys7 (agent-turn AW_HOME containment).

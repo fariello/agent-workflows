@@ -6,7 +6,7 @@
 - Scope: (1) In `agent_workflows/run_cli.py`, widen `_reconstruct_workflow_from_ledger` to recover step IDs from `kind in ("step_started", "step_attempt")` records so started-but-not-yet-attempted steps surface as `running` in `RunEngine.reconstruct_state()`. This helper is SHARED: `run_cli._build_engine` calls it for every ledger leaf invoked without `--workflow`, so the widening also changes those leaves (F-05), and those changes are named, intended, and pinned by tests here. (2) In `agent_workflows/run_viewer.py`, add `ledger: dict[str, Any] | None = None` to `RunSummary`, add `_load_ledger_run_summary(run_dir, ledger_file)` verifying and reconstructing `ledger.jsonl` via `RunLedgerStore.read_records(verify=True)` and `RunEngine.reconstruct_state()` (returning `None` on corrupt/invalid/empty ledgers so `run_viewer_cli` records `unreadable_state`; no driver PID inference, F-07), and branch `load_run_summary` to call `_load_ledger_run_summary` when neither `state.json` nor `execution-report.md` is present and `(run_dir / "ledger.jsonl").is_file()`. (3) In `agent_workflows/run_viewer.py`, extend `resolve_target_runs_detailed` to resolve explicit directory paths containing `ledger.jsonl` and explicit file paths named `ledger.jsonl`. (4) Update `run_viewer_cli` filter predicates (`active_only`, `status_filter`, `failed_only`) to evaluate `summary.ledger` and `summary.counts` on ledger runs. (5) Update `format_run_human` to render ledger-only runs with the ledger model (`[ledger]`, `ledger: state=..., records=..., workflow=...`, step tally and per-step lines or `ledger steps: 0 recorded`, and the signpost `inspect: aw runs status <run_id> | aw runs show <run_id>`) instead of `0 steps: 0 steps`. (6) In `tests/test_run_viewer.py`, add `LedgerRunViewerTests` covering header-only and progressed ledger runs across human, `--json`, and `--agent` outputs, explicit path resolution, filter flags, and fail-closed `unreadable_state` exclusion. (7) In `tests/test_run_recovery_cli.py`, pin the ledger-leaf behavior the shared-helper widening changes (F-05). (8) One CHANGELOG line. OUT: adding `aw run init` itself (`v47z9u`), amending spec `25kzda` (`9epp40`), adding ledger leaves to `LIVE_SAFE_LEAVES` (`g5s94t`), writing `requirement_set` on init or adding `aw run verify` (`um0twl`), persisting `workflow.json` beside the ledger (`sflov4` / `o34rb3`), and widening explicit-path resolution for `execution-report.md`-only driver directories (not traceable to `nf84rt`; bare-name resolution already matches them).
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/run_cli.py, tests/test_run_viewer.py, tests/test_run_recovery_cli.py, CHANGELOG.md
 - Item-Dependencies: executed:v47z9u
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 09
 - Author: antigravity
 - Id: 3a3hh9
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
 - 2026-10-14 to-review (aw set): authored review-ready IPD from backlog nf84rt
 

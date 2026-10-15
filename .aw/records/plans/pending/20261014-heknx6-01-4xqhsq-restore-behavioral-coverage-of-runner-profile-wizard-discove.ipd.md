@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module driving `runner_profile_wizard._report_catalog`, `select_model`, `ask_model_manual` and `run_wizard` through a scripted injected `WizardIO` (no TTY, no OpenCode, no user config), asserting on emitted lines, returned models, `WizardResult` fields and store write counts; then update the stale "no live guard currently asserts these five behaviors" remark in the module docstring to name the new module for behavior 1 and manual entry.
 - Scope-Paths: tests/test_runner_profile_wizard_discovery.py, agent_workflows/runner_profile_wizard.py, .aw/records/plans/pending/20261014-heknx6-01-4xqhsq-restore-behavioral-coverage-of-runner-profile-wizard-discove.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 4xqhsq
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-heknx6-01-4xqhsq)
 - 2026-10-14 draft (opencode): created.

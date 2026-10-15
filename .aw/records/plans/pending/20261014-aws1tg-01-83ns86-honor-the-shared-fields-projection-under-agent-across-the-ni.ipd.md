@@ -6,7 +6,7 @@
 - Scope: Fix the five distinct bypass mechanisms across those nine leaves (plus `upgrade-test new` and the `oc sync-models` alias, which share the same handlers) so every `aw.agent/v1` terminal record they emit under `--agent` filters through `agent_schema.filter_record_fields` when `--fields` is supplied, while leaving `--json` payloads unprojected. Remove the nine `(leaf, "--fields"): "aws1tg"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN` and add branch-complete behavioral regression coverage (present without `--fields`, absent with `--fields`) in `tests/test_shared_flag_honored.py`. EXCLUDES the five `--json` parseability failures owned by `jfdk7p` and the four parser usage-refusal `--fields` failures owned by `4y614a`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/oc_models.py, agent_workflows/orchestrator_readiness.py, agent_workflows/partition.py, agent_workflows/upgrade_rehearsal.py, tests/test_shared_flag_honored.py, .aw/records/plans/pending/20261014-aws1tg-01-83ns86-honor-the-shared-fields-projection-under-agent-across-the-ni.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: agy/gemini-4-argon-high
 - Id: 83ns86
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-14 to-review (agy/gemini-4-argon-high): Authored review-ready child IPD from backlog item aws1tg
 

@@ -6,7 +6,7 @@
 - Scope: (1) Add `aw run init`, which creates a new run ledger at `runner_shared.state_root(repo) / <run-id> / ledger.jsonl` and writes exactly one conformant `kind: "run"` header record through `RunLedgerStore.append`, from a `--workflow` file. (2) Record the storage location decision in spec `25kzda` Section 6.2 (the "durable storage location for run ledgers" bullet). (3) Behavior tests. OUT, each carried by its own backlog item: writing `requirement_set` / `verifier_decision` records (`8l1hgw`), persisting the workflow beside the ledger (`sflov4`), the runs viewer's rendering of a ledger-only directory (`nf84rt`), conformance-harness rows for the ledger leaves (`a4tjxc`), and reconciling spec `25kzda` 1.2 step 8 and 5.1 with the `rdjka2` decision (`66ls4r`). Driver runs (`aw oc run` / `aw agy run`) keep `state.json` / `events.jsonl` and do not write a ledger (`rdjka2` option (b), decision record `utb2qr`).
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_run_init.py, tests/test_usage_refusal_agent_record.py, tests/test_completion.py, tests/test_exit_vocabulary_boundary.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: v47z9u
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-12 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): completed by hand at the maintainer's direction. The authoring turn in run-20261012T005641Z-2321995 created this skeleton and filed carriers 66ls4r, 8l1hgw, a4tjxc, nf84rt and sflov4, then its host session timed out ("UnknownError: The operation timed out.") before writing the body; the skeleton reached main via 95a7b41db. Body written from that session's recorded measurements, re-checked against main at 34b6e3a10.
 - 2026-10-12 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

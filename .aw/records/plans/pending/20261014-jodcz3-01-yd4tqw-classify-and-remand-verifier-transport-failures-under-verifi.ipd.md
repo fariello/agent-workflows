@@ -6,7 +6,7 @@
 - Scope: Define `VERIFY_REFUSAL_CODE_TRANSPORT_ERROR = "verifier-transport-error"` and `verifier_transport_refusal_text`, include it in `VERIFICATION_RETRYABLE_REFUSAL_CODES`, catch verifier spawn/transport errors and nonzero exit crashes in `_run_verifier_turn`, re-export across both host drivers (`oc_runipd`, `agy_runipd`), add unit and end-to-end tests in `tests/test_verification_sendback.py` and `tests/test_fixfirst_end_to_end.py`, and sync spec `25kzda` Section 5.5.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_verification_sendback.py, tests/test_fixfirst_end_to_end.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/plans/pending/20261014-jodcz3-01-yd4tqw-classify-and-remand-verifier-transport-failures-under-verifi.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: yd4tqw
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 
 - 2026-10-15 reviewed (/plan-review, opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-14 draft (Antigravity): created.

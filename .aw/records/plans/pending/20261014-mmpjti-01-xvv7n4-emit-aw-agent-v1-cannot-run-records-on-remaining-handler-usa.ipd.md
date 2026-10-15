@@ -6,7 +6,7 @@
 - Scope: Route all remaining early `return 2` usage and input-validation refusal branches in `agent_workflows/backlog.py` (`backlog.run_new`, 11 arms), `agent_workflows/specs.py` (`specs.run_new`, 5 arms), `agent_workflows/prompts.py` (`prompts.run_new`, 5 arms), and `agent_workflows/ipd_authoring.py` (`ipd_authoring.run_scaffold` and `ipd_authoring._setid_length_guard`, 13 arms) through `renderers.emit_usage_refusal`, update `tests/test_backlog_descriptive_safety.py` (`BacklogDescriptiveSafetyTests.test_agent_mode_refusal_shape`), and expand `tests/test_usage_refusal_agent_record.py` (`HandlerRefusalRecordTests`) to cover every branch under `--agent`, `--json`, and human mode.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/prompts.py, agent_workflows/ipd_authoring.py, tests/test_backlog_descriptive_safety.py, tests/test_usage_refusal_agent_record.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: antigravity
 - Id: xvv7n4
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
 - 2026-10-14 to-review (antigravity): created from backlog item mmpjti, ready for review.

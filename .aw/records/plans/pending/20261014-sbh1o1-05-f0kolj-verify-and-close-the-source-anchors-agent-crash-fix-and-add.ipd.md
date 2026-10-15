@@ -6,7 +6,7 @@
 - Scope: (1) Verify with pasted runner output on the current tree that commit `44696b524` (`fz3i3m` `E-02`) repaired `cli._run_check`'s `--source-anchors` branch, that both `aw check --source-anchors --agent` and `aw check specs --source-anchors --agent` succeed on the real tree, and that all existing tests in `tests/test_spec_citation_anchors.py` pass (`E-01`). (2) Add two behavioral tests (`test_g` and `test_h`) to `tests/test_spec_citation_anchors.py` over self-written fixtures (`temp_spec_repo`) covering bare `aw check --source-anchors --agent --verbose` with attributed and unattributed findings (`outcome: "conforms"`, `exit: 0`, and `evidence` statuses/counts) and the non-`info` severity arm (`outcome: "findings"`, `exit: 1`, and `evidence` statuses/counts), then run the module and the bare test suite (`E-02`), so `g3ropl` closes through its `From-Backlog: g3ropl` / `Blocks-Release: next` carrier. EXCLUDES any edit to `agent_workflows/cli.py` or `agent_workflows/spec_citations.py` unless `E-01` uncovers a regression, EXCLUDES changing the registered severity of `check.spec-anchor-stale` in `agent_workflows/check_engine.py`, and EXCLUDES any live-tree census assertion in tests.
 - Scope-Paths: tests/test_spec_citation_anchors.py
 - Item-Dependencies: executed:fz3i3m
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 02
 - Author: antigravity/Gemini-4-Argon-High
 - Id: f0kolj
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-14 to-review (aw set): Authored review-ready from backlog g3ropl at HEAD 89413ed93; verifies the fz3i3m crash fix in cli._run_check and adds bare-command verbose and non-info severity tests in tests/test_spec_citation_anchors.py

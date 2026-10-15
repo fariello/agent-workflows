@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives the real `evaluate_clean_base_for_launch` on both hosts against a real temporary git repository and the real `runner_shared.clean_base_launch_decision`, and repoint the one source comment that says "no live guard currently asserts this" for this property. No production behavior change.
 - Scope-Paths: tests/test_clean_base_untracked.py, agent_workflows/runner_shared.py, .aw/records/plans/pending/20261014-dc80rp-01-og11nj-restore-behavioral-coverage-that-evaluate-clean-base-does-no.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: og11nj
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-dc80rp-01-og11nj)
 - 2026-10-14 draft (opencode): created.

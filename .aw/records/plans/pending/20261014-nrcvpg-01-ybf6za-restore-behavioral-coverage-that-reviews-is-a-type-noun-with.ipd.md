@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives the real CLI router and the real public helpers (`artifact_types.backend_name`/`resolve_backend`, `selectors.resolve`, `runner_shared.describe_unresolved_plan_selector`) against a temporary git repository holding a real `.review.md` record, plus a comment-only repoint of the `artifact_types.py` module docstring that says "no live guard currently asserts this". No production behavior change.
 - Scope-Paths: tests/test_reviews_type_noun_surface.py, agent_workflows/artifact_types.py, .aw/records/plans/pending/20261014-nrcvpg-01-ybf6za-restore-behavioral-coverage-that-reviews-is-a-type-noun-with.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: ybf6za
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261014-nrcvpg-01-ybf6za-restore-behavioral-coverage-that-reviews-is-a-type-noun-with.review.md Round 1
 
 - 2026-10-15 draft (opencode): created.

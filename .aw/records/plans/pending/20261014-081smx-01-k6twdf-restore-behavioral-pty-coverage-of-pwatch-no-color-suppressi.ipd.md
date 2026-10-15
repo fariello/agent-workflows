@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that runs the packaged `agent_workflows.pwatch` on a real pty and asserts on emitted bytes: `--no-color` suppresses ANSI, a control case without the flag emits ANSI, and `TERM=dumb` stays plain. The only production edit is a comment-only update to the now-stale "no live guard" note in `pwatch.main` (E-04); no behavior change.
 - Scope-Paths: tests/test_pwatch_tty_color.py, agent_workflows/pwatch.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: OpenCode Claude Opus
 - Id: k6twdf
+- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
