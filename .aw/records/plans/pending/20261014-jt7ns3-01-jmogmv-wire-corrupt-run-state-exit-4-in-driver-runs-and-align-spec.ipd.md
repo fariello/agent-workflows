@@ -135,12 +135,12 @@ The ledger-substrate question (`ledger.jsonl` vs `state.json`/`events.jsonl` on 
 
 - Blocking: yes
 - Finding: PR-001
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Context: under `--agent`, `oc_runipd.main` / `agy_runipd.main` today emit an `aw.agent/v1` refusal record with `exit: 2` (measured at review). `docs/cli-output-contract.md` Section 3 binds every `aw.agent/v1` record to exits `{0, 1, 2}` with exit parity (`agent_schema.render_jsonl_record` raises on `exit: 4`, measured), while the same section says a condition returns the same code on every audience surface. Exit `4` on the human surface and exit parity on the agent surface cannot both hold.
 - Options: (a) agent mode keeps exit `2` with outcome `cannot-run` and a summary naming the corrupt run state, and the doc records this as a deliberate audience divergence; (b) agent mode emits no record and exits `4`, and the doc says run-family `--agent` surfaces are exempt from parity for exit `4`; (c) widen the `aw.agent/v1` exit vocabulary for the run family (a schema change out of this plan's scope).
 - Recommendation: (a). It keeps every agent consumer's schema valid and changes no agent-visible behavior.
-- Resolution or deferral rationale: pending maintainer decision; a public CLI contract decision the repository cannot answer.
+- Resolution or deferral rationale: RESOLVED by the maintainer 2026-10-15 (interactive /askme): exit 2 in EVERY output mode (human, --json, --agent), so a corrupt run state is 'could not run' everywhere and exit parity holds; the spec 25kzda Section 5.6 exit 4 for this condition is dropped (spec amendment needed). The message must name the corrupt file and give recovery guidance: start a new run; work already merged to main is kept; the old run's record of finished items is lost so the new run re-checks them. The structural-corruption case (valid JSON, wrong shape) must produce the same clean exit-2 message instead of a traceback. Context supplied to the maintainer: state.json is written atomically (runner_shared.atomic_write_json), and a scan of all 462 state.json files under .aw/records/runs found 0 corrupt; the only observed corruption is synthetic, in tests. This changes E-items that assumed exit 4; the plan must be re-reviewed before approval.
 
 ## Validation and cross-check (verify before reporting done)
 
