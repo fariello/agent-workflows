@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: `ipd_lint.unattached_section_prose` drops all indented lines (`if raw[:1].isspace(): continue`), truncating hard-wrapped prose bullets and paragraphs in allowlisted orchestrator sections (`## Completion criteria (the whole Set is done only when)`, `## Cross-IPD validation`, `## Required tests / validation`, etc.) at their first newline and hiding child-owner attributions (`OWNER: <child-id6>`) that wrap onto continuation lines.
 - Scope: Update `ipd_lint.unattached_section_prose` to keep indented non-subfield continuation lines that immediately continue an unattached prose bullet or paragraph and join them onto the preceding kept line while still dropping indented lines that follow a checklist leaf, a `- Key: value` subfield, a heading, or a blank line; update the `runner_shared.probe_cache_payload` and `runner_shared.probe_cache_digest` docstrings to reflect the narrowed exclusion; and add behavioral tests in `tests/test_orchestrator_probe_payload.py` pinning wrapped `OWNER: <child-id6>` bullet extraction, `E-*` continuation exclusion, and subfield-continuation exclusion.
-- Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, tests/test_orchestrator_probe_payload.py
+- Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, tests/test_orchestrator_probe_payload.py, .aw/records/plans/pending/20261014-go6vzi-01-u1l9rx-keep-wrapped-prose-bullet-and-paragraph-continuations-in-una.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - From-Backlog: go6vzi
 - Blocks-Release: next
 - Work-Kind: bug
@@ -18,6 +19,8 @@
 - Id: u1l9rx
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-go6vzi-01-u1l9rx)
 - 2026-10-14 to-review (aw set): authored review-ready plan for go6vzi
 
 - 2026-10-14 draft (Antigravity): created.
@@ -39,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Update the docstrings of `runner_shared.probe_cache_payload` (`def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:` in `agent_workflows/runner_shared.py`) and `runner_shared.probe_cache_digest` (`def probe_cache_digest(orchestrator_text: str) -> str:` in `agent_workflows/runner_shared.py`) so the `WHAT THE ALLOWLIST AND EXTRACTOR DO NOT REACH` and `NOT COVERED` notes state that indented continuation lines of unattached prose bullets and paragraphs are joined and covered while indented lines following a checklist leaf or `- Key: value` subfield remain excluded from `prose_sections` (pinned by `c3`).
   - Depends on: E-01
-  - Expected outcome: Both docstrings in `agent_workflows/runner_shared.py` accurately describe the narrowed residual indented-line exclusion and note the one-time coverage-fingerprint shift for orchestrators with wrapped prose bullets (`go6vzi`).
+  - Expected outcome: Both docstrings in `agent_workflows/runner_shared.py` accurately describe the narrowed residual indented-line exclusion and note the one-time coverage-fingerprint shift for orchestrators with wrapped prose bullets (`go6vzi`). The `probe_cache_payload` residual-gap bullet's measured figures ("476 lines (74,625 characters) ... 14 hazard hits") describe the OLD all-indented exclusion and become false; either RE-MEASURE them against the new extractor at execution time (indented non-subfield lines inside allowlisted sections that still reach neither extractor, over all `- Kind: orchestrator` plans) and record the new figures with the date, or replace them with a qualitative statement. Do not leave the old numbers.
   - Execution state: pending
 
 ### Task group 2: Behavioral regression tests in `tests/test_orchestrator_probe_payload.py`
@@ -90,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- None.
+None.
 
 ## Scope check
 
@@ -121,17 +124,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Paste the output of a `python3 -c` command calling `ipd_lint.unattached_section_prose` and `runner_shared.orchestrator_probe_excerpt` on a synthetic orchestrator whose `## Completion criteria (the whole Set is done only when)` bullet wraps `OWNER: syn002 (executed).` onto a 2-space indented continuation line and whose `E-01` leaf carries a 2-space indented continuation line, showing the joined single-line bullet (including `OWNER: syn002 (executed).`) in `unattached_section_prose` and `orchestrator_probe_excerpt` while `E-01`'s continuation line appears only under `### Checklist item action text` and not under `### Unattached prose sections`.
+  - Required evidence: Paste the output of a `python3 -c` command calling `ipd_lint.unattached_section_prose` and `runner_shared.orchestrator_probe_excerpt` on a synthetic orchestrator whose `## Completion criteria (the whole Set is done only when)` bullet wraps `OWNER: syn002 (executed).` onto a 2-space indented continuation line and whose `E-01` leaf carries a 2-space indented continuation line, showing the joined single-line bullet (including `OWNER: syn002 (executed).`) in `unattached_section_prose` and `orchestrator_probe_excerpt` while `E-01`'s continuation line appears only under `### Checklist item action text` and not under `### Unattached prose sections`. ALSO paste a fingerprint-impact measurement RE-DERIVED at execution time (not the authoring figures in F-03): for every `- Kind: orchestrator` plan currently in `.aw/records/plans/pending/`, its `runner_shared.probe_cache_digest` under the pre-change and post-change extractor (e.g. via `git stash`-free comparison against `git show HEAD:agent_workflows/ipd_lint.py` loaded under a scratch module name in `.aw/state/`), naming any pending orchestrator whose digest moved; a moved digest is acceptable but must be named so its `- Coverage:` record is known to re-probe.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Paste `git diff -- agent_workflows/ipd_lint.py agent_workflows/runner_shared.py` showing the implementation in `unattached_section_prose` and the updated docstrings in `unattached_section_prose`, `probe_cache_payload`, and `probe_cache_digest`.
+  - Required evidence: Paste `git diff -- agent_workflows/ipd_lint.py agent_workflows/runner_shared.py` showing the implementation in `unattached_section_prose` and the updated docstrings in `unattached_section_prose`, `probe_cache_payload`, and `probe_cache_digest`, with the old "476 lines (74,625 characters)" figures removed or replaced by re-measured, dated figures (and the measurement command output pasted if re-measured).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Paste the actual runner output from (1) `python3 -m pytest tests/test_orchestrator_probe_payload.py tests/test_orchestrator_shape_composed.py tests/test_orchestrator_shape_gate.py -o addopts=""`, (2) `python3 -m pytest tests/test_orchestrator_probe_payload.py -m livecorpus -o addopts=""`, (3) `aw sanitize --agent`, and (4) bare `python3 -m pytest`.
+  - Required evidence: Paste the actual runner output showing the new wrapped-bullet, digest-equality, digest-sensitivity and leaf/subfield-exclusion tests PASSED by name (names are pointers, the behaviors are the bar), and that the existing `test_synthetic_c3_indented_line_residual_gap` still passes, from (1) `python3 -m pytest tests/test_orchestrator_probe_payload.py tests/test_orchestrator_shape_composed.py tests/test_orchestrator_shape_gate.py -o addopts=""`, (2) `python3 -m pytest tests/test_orchestrator_probe_payload.py -m livecorpus -o addopts=""`, (3) `aw sanitize --agent`, and (4) bare `python3 -m pytest`.
   - Observed evidence:
   - Result: pending
 
@@ -140,4 +143,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Do not execute implementation steps until this IPD reaches `- Status: approved` (or is dispatched by an authorized runner turn). Execute only within `- Scope-Paths:` (`agent_workflows/ipd_lint.py`, `agent_workflows/runner_shared.py`, `tests/test_orchestrator_probe_payload.py`), verify the staged set with `git diff --cached --name-only` before committing via `aw commit`, and upon completion of all `E-*` and `V-*` items and passing validation gates, finalize the IPD to `executed` via `aw ipd finalize`.
+Execute only after human approval (`aw ipd set approved u1l9rx --by-human`) or dispatch by an authorized runner turn; OQ-01 is resolved and no question blocks. Begin with `aw ipd begin u1l9rx`. This plan carries `- Blocks-Release: next` inherited from backlog `go6vzi`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/ipd_lint.py` or `agent_workflows/runner_shared.py` that cannot be safely combined, or the Group A/B/C live-corpus invariants failing under the new extractor (which would mean the disjointness premise of F-02 no longer holds).
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. Scratch comparison modules live under the gitignored `.aw/state/` and are never committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit u1l9rx -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, run `aw ipd finalize u1l9rx` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
