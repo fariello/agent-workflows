@@ -104,7 +104,9 @@ E-01 through E-08 in order; each is validated by its `V-*` twin.
 ## Deferred / out of scope (with reason)
 
 - Live interactive trials per host/model (y0vcm9 "Actual questions produced by agents"): a maintainer activity requiring a human answering prompts; not reproducible in an unattended execution. Recorded as not run.
+  - Carrier: jymlaw
 - Changing the shim pointer line or other commands' deprecation notices: separate decisions, not requested.
+  - Carrier-Declined: not an obligation; no one asked for it and the current behavior for other commands is intended.
 
 ## Scope check
 
