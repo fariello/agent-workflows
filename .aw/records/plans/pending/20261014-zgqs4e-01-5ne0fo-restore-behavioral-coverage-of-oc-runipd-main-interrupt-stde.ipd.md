@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: The `KeyboardInterrupt` handler in `agent_workflows.oc_runipd.main` prints the operator-facing exit notice ("Interrupted; durable run state was preserved.", the SIGTERM variant, and the no-cleanup variant) and returns 130/143, but no live test exercises it since `tests/test_interrupt_menu.py` was deleted in `19313eed`.
 - Scope: Add one new behavioral test module that drives the real `oc_runipd.main` into its `KeyboardInterrupt` handler and asserts on captured stderr and the exit code; repoint the now-stale "no live guard currently asserts this" comment in `oc_runipd.main` at the new test.
-- Scope-Paths: tests/test_oc_runipd_main_interrupt.py, agent_workflows/oc_runipd.py
+- Scope-Paths: tests/test_oc_runipd_main_interrupt.py, agent_workflows/oc_runipd.py, .aw/records/plans/pending/20261014-zgqs4e-01-5ne0fo-restore-behavioral-coverage-of-oc-runipd-main-interrupt-stde.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: zgqs4e
@@ -17,7 +18,8 @@
 - Id: 5ne0fo
 
 ## Workflow history
-
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-zgqs4e-01-5ne0fo)
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog `zgqs4e`; prototype of the test approach run against the current tree.
 
@@ -31,16 +33,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral test of the interrupt exit notice
 
-- [ ] E-01 Create `tests/test_oc_runipd_main_interrupt.py` with a `unittest.TestCase` that calls the real `oc_runipd.main(["resume", "run-fake"])` with `run_queue` patched to raise `KeyboardInterrupt(<msg>)` (and `emit_shutdown_report`, `resolve_run_dir`, `load_state`, `locked_run`, `install_stop_triggers` patched exactly as the deleted test did, `resolve_run_dir` returning a nonexistent temp path so the summary-table branch is skipped), capturing `sys.stderr`. Three cases: (a) `"clean-up-and-terminate"` asserts exit 130 and stderr contains `"Interrupted; durable run state was preserved."`; (b) `"Terminated by SIGTERM"` asserts exit 143 and stderr contains `"Terminated by SIGTERM; durable run state was preserved."`; (c) `"just-terminate-no-cleanup"` asserts exit 130, stderr contains `"Terminated without clean up; worktree and lanes left in place."` and does NOT contain `"durable run state was preserved"`. Each case also asserts `emit_shutdown_report` was called once with `to_stderr=True`. No `inspect`/`ast`/source reading.
+- [ ] E-01 Create `tests/test_oc_runipd_main_interrupt.py` with a `unittest.TestCase` that calls the real `oc_runipd.main(["resume", "run-fake"])` with `run_queue` patched to raise `KeyboardInterrupt(<msg>)` (and `emit_shutdown_report`, `resolve_run_dir`, `load_state`, `locked_run`, `install_stop_triggers` patched exactly as the deleted test did, `resolve_run_dir` returning a nonexistent temp path so the summary-table branch is skipped), capturing `sys.stderr` AND `sys.stdout` (so nothing leaks into pytest output), with the temp path created via `tempfile.TemporaryDirectory()` cleaned up per test. Use `subTest` or three test methods. Three cases: (a) `"clean-up-and-terminate"` asserts exit 130 and stderr contains `"Interrupted; durable run state was preserved."`; (b) `"Terminated by SIGTERM"` asserts exit 143 and stderr contains `"Terminated by SIGTERM; durable run state was preserved."`; (c) `"just-terminate-no-cleanup"` asserts exit 130, stderr contains `"Terminated without clean up; worktree and lanes left in place."` and does NOT contain `"durable run state was preserved"`. Each case also asserts `emit_shutdown_report` was called once with `to_stderr=True`. Assert the notice by `assertIn` on the full sentence only; do NOT pin the following `runner_stop.stop_interrupt_hint` line or the full stderr bytes (that line is owned by `wqq8ua` and would make this test brittle to an unrelated wording change). No `inspect`/`ast`/source reading.
   - Depends on: none
-  - Expected outcome: the new module exists, contains only calls into `oc_runipd.main` and assertions on its return value, captured stderr and mock calls, and passes.
+  - Expected outcome: the new module exists, contains only calls into `oc_runipd.main` and assertions on its return value, captured stderr and mock calls, and its three cases pass.
   - Execution state: pending
 
 ### Task group 2: Repoint the stale comment
 
-- [ ] E-02 In `agent_workflows/oc_runipd.py` `main`, edit only the comment block under "stopdisc (`wqq8ua`) E-03" that reads "which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted (deleted in `19313eed`; no live guard currently asserts this)" so it names `tests/test_oc_runipd_main_interrupt.py` as the live guard. No executable line changes.
+- [ ] E-02 In `agent_workflows/oc_runipd.py` `main` (the `except KeyboardInterrupt as exc:` handler), edit only the comment block under "stopdisc (`wqq8ua`) E-03" that reads "which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted (deleted in `19313eed`; no live guard currently asserts this)" so it names `tests/test_oc_runipd_main_interrupt.py` as the live guard. No executable line changes.
   - Depends on: E-01
-  - Expected outcome: `git diff agent_workflows/oc_runipd.py` shows only comment lines changed; `rg -n "no live guard currently asserts this" agent_workflows/oc_runipd.py` no longer matches the S-07 comment.
+  - Expected outcome: `git diff agent_workflows/oc_runipd.py` shows only comment lines changed; the S-07 comment inside the `except KeyboardInterrupt` handler no longer contains "no live guard currently asserts this" (other occurrences of that phrase elsewhere in the file, for unrelated sites, are untouched).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -57,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Id | Finding | Evidence |
 |---|---|---|
 | F-01 | No live test asserts the preservation notice. | `rg -n "durable run state was preserved" tests/` returns nothing (also recorded in `9rthek` V-02 for S-07). |
-| F-02 | The deleted test's mock set still drives the current `main` to the handler. | Prototype run 2026-10-15 in this worktree printed: `clean-up-and-terminate 130 'Interrupted; durable run state was preserved.\n...'`, `Terminated by SIGTERM 143 'Terminated by SIGTERM; durable run state was preserved.\n...'`, `just-terminate-no-cleanup 130 'Terminated without clean up; worktree and lanes left in place.\n...'`. |
+| F-02 | The deleted test's mock set still drives the current `main` to the handler. | Re-run at review 2026-10-15 with a nonexistent temp `resolve_run_dir` path: all three cases reproduced the exit codes and sentences below, `emit_shutdown_report` was called exactly once with `to_stderr=True`, stdout stayed empty, and each stderr ended with the `stop_interrupt_hint` line. Author's prototype printed: `clean-up-and-terminate 130 'Interrupted; durable run state was preserved.\n...'`, `Terminated by SIGTERM 143 'Terminated by SIGTERM; durable run state was preserved.\n...'`, `just-terminate-no-cleanup 130 'Terminated without clean up; worktree and lanes left in place.\n...'`. |
 | F-03 | The SIGTERM variant (exit 143) was never covered by the deleted test; adding it is within the same property. | Deleted test exercised only the two SIGINT messages. |
 | F-04 | `agy_runipd.main` has the twin handler, but backlog `zgqs4e` names only `oc_runipd.main` (S-07). | Backlog body: "property: oc_runipd.main interrupt stderr preservation notice". |
 
@@ -68,9 +70,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- The `agy_runipd.main` twin handler: not named by backlog `zgqs4e`; adding it would broaden scope. A follow-up backlog item may be filed if desired.
+- The `agy_runipd.main` twin handler: not named by backlog `zgqs4e`; adding it would broaden scope.
+  - Carrier-Declined: backlog `zgqs4e` scopes the property to `oc_runipd.main` (site S-07); no defect is known in the agy twin, which is a coverage question the maintainer can file separately if wanted.
 - The `stop_interrupt_hint` sentence: already its own concern (`wqq8ua`); not asserted here beyond not breaking.
+  - Carrier-Declined: owned by the executed `wqq8ua` work; asserting it here would couple this test to a different property.
 - Any change to the handler's behavior: none intended.
+  - Carrier-Declined: deliberate non-goal (coverage restoration only), not an outstanding obligation.
 
 ## Scope check
 
@@ -80,7 +85,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -q tests/test_oc_runipd_main_interrupt.py` passes with 3 tests (V-01).
-- Mutation check: temporarily changing the handler's notice string in a scratch copy makes the test fail (V-01), then reverted.
+- Mutation check: temporarily change `"durable run state was preserved."` in `agent_workflows/oc_runipd.py` itself (a scratch copy would not be imported), confirm the test FAILS, then revert with `git checkout -- agent_workflows/oc_runipd.py` BEFORE E-02 edits that file (V-01).
+- `aw ipd lint --phase pre-transition` conforms (the Deferred rows carry `Carrier-Declined`).
 - Full suite `python3 -m pytest` passes (V-02).
 
 ## Spec / documentation sync
@@ -93,7 +99,7 @@ N/A: no spec governs this test or the comment; no behavior or user-facing docume
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Backlog `zgqs4e` scopes the property to `oc_runipd.main` (S-07); the agy twin is out of scope (see Deferred).
 
 ## Validation and cross-check (verify before reporting done)
@@ -101,7 +107,7 @@ N/A: no spec governs this test or the comment; no behavior or user-facing docume
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -q tests/test_oc_runipd_main_interrupt.py` showing `3 passed`; pasted output of `rg -n "inspect|import ast|read_text|getsource" tests/test_oc_runipd_main_interrupt.py` showing no source-reading use; pasted failing output of the same pytest run after temporarily altering `"durable run state was preserved."` in `agent_workflows/oc_runipd.py` (then `git diff --stat agent_workflows/oc_runipd.py` showing the mutation reverted).
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -q tests/test_oc_runipd_main_interrupt.py` showing `3 passed`; pasted output of `rg -n "inspect|import ast|read_text|getsource" tests/test_oc_runipd_main_interrupt.py` showing no source-reading use; pasted failing output of the same pytest run after temporarily altering `"durable run state was preserved."` in `agent_workflows/oc_runipd.py` (then an empty `git diff --stat agent_workflows/oc_runipd.py`, run BEFORE E-02, showing the mutation reverted).
   - Observed evidence:
   - Result: pending
 
@@ -115,4 +121,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit through `aw commit 5ne0fo -- tests/test_oc_runipd_main_interrupt.py agent_workflows/oc_runipd.py`; never push. Move to `executed/` only after `aw ipd lint --phase pre-transition` conforms and V-01/V-02 are `pass` with pasted evidence.
+Execute only after human approval (`aw ipd set approved 5ne0fo --by-human`); OQ-01 is resolved and no question blocks. Begin with `aw ipd begin 5ne0fo`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/oc_runipd.py` that cannot be safely combined, or the `except KeyboardInterrupt as exc:` handler in `oc_runipd.main` no longer containing the cited sentences.
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. The mutation is temporary and MUST be reverted before E-02; it is never committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit 5ne0fo -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, run `aw ipd finalize 5ne0fo` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
