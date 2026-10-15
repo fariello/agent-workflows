@@ -6,8 +6,7 @@
 - Scope: Define `CORRUPT_RUN_LEDGER_ABORT_CLASS` and `CorruptRunStateError(DriverError)` in `agent_workflows/runner_shared.py`, raise `CorruptRunStateError` from `load_state` on unparseable or structurally corrupt `state.json`, pass `run_wide_abort_class` through `runner_shared.run_exit_code` to `run_evidence.aggregate_run_exit`, catch `CorruptRunStateError` in `main` of `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` (it already propagates out of `run_queue`) to abort the run and exit `4`, with the `--agent` surface handled per OQ-01, widen `oc runipd` and `agy runipd` `exit_contract` to `(0, 1, 2, 3, 4)` in `agent_workflows/command_surface.py`, sync spec `25kzda` Sections 5.5 and 5.6 and `docs/cli-output-contract.md` Section 3.1, and update `tests/test_fixfirst_end_to_end.py`, `tests/test_run_exit_aggregate.py`, and `tests/test_exit_vocabulary_boundary.py`.
 - Scope-Paths: .aw/records/plans/pending/20261014-jt7ns3-01-jmogmv-wire-corrupt-run-state-exit-4-in-driver-runs-and-align-spec.ipd.md, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/command_surface.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, docs/cli-output-contract.md, tests/test_fixfirst_end_to_end.py, tests/test_run_exit_aggregate.py, tests/test_exit_vocabulary_boundary.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: to-review
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: jt7ns3
@@ -20,6 +19,7 @@
 - Id: jmogmv
 
 ## Workflow history
+- 2026-10-15 to-review (aw set): demoted reviewed -> to-review: returned to to-review: maintainer resolved OQ-01 on 2026-10-15 (exit 2 everywhere + recovery text), which inverts the plan's exit-4 design; it must be re-reviewed against that answer
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-002..PR-008 fixed; PR-001 open as blocking OQ-01; readiness NO-GO
 
 - 2026-10-14 draft (Antigravity): created.
