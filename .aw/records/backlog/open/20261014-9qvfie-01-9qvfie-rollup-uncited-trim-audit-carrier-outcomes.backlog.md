@@ -1,0 +1,26 @@
+- Id: 9qvfie
+- Status: open
+- Set: 9qvfie
+- Priority: low
+- Work-Kind: chore
+- Summary: Rollup of uncited trim-deleted test audit carrier-needed outcomes
+
+## Workflow history
+- 2026-10-15 created (aw backlog): Rollup of uncited trim-deleted test audit carrier-needed outcomes
+
+Rollup carrier for 770 carrier-needed outcomes from the uncited trim-deleted test audit (findings doc hpjj44, .aw/records/research/20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md).
+
+Carrier-needed outcomes covered:
+1. unprovable (1 property):
+   - PROP-02: agent_workflows/benchmark_metrics.py::compute_aggregate_metrics (reached by tests/test_benchmark_runners_reports.py; survivor error: mutant run could not produce junit XML; control killed).
+2. triaged-not-mutated (764 items):
+   - 38 budget-exhausted candidate keys from the mutation shortlist (details in hpjj44 ## Triaged not mutated and ## Mutation totals).
+   - 709 cost-cap candidate keys exceeding the top-40 shortlist budget (details in hpjj44 ## Triaged not mutated).
+   - 17 pass-shared test files with no exclusive reach (details in hpjj44 ## Triaged not mutated: test_agy_runipd_shim.py, test_askme_blocking_gate.py, test_attention_compact.py, test_auto_index_on_mutation.py, test_awretrofit_install_selfheal.py, test_check_clean_worktree_untracked_repo_root.py, test_cli_attention_live.py, test_cli_commands.py, test_cli_ipd_board.py, test_cli_plans_board.py, test_dirty_clean_detection.py, test_format_run_summary.py, test_git_integration_lock.py, test_integration_lock_contention.py, test_lane_merge_conflicts.py, test_precommit_unstaged_preservation.py, test_runner_phase_timing.py).
+3. replay-env-limited (1 test file):
+   - tests/test_run_evidence_completion.py (84 removed funcs; replay requires specialized multi-agent environment).
+4. recreated with missing test names (4 test files):
+   - tests/test_lane_input_manifest.py (4 missing deleted test names: test_its_docstring_states_it_has_no_consumer, test_part_i_the_manifest_file_has_no_write_bit, test_part_ii_every_materialized_input_has_no_write_bit, test_part_iii_lane_inputs_file_has_no_write_bit).
+   - tests/test_release_readiness.py (19 missing deleted test names).
+   - tests/test_run_analytics_cli.py (79 missing deleted test names).
+   - tests/test_run_summary_table.py (34 missing deleted test names).

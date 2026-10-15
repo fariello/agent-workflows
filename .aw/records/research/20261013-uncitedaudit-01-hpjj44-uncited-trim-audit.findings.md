@@ -3851,3 +3851,179 @@ Summary of mutation probe outcomes across the 40 shortlisted properties:
 | **Total Shortlist Rows** | **40** | Sum of final verdicts and budget-exhausted rows |
 
 - **Total Probe Wall Time**: 3466.82s (0.96h)
+
+## Filing plan
+
+Plan for grouping and filing all `unguarded` properties (Order 07) and `regression` replay failures (Order 06 `## Replay failures`).
+
+| Group | Production Module | Production Key | Property ID | Exclusive Lines | Remedy Shape | Dedupe Judgement | Work-Kind | Priority | Justification | Action |
+|---|---|---|---|---:|---|---|---|---|---|---|
+| 1 | `agent_workflows/cli.py` | `agent_workflows/cli.py::_run_migrate_layout` | `PROP-01` | 277 | Restore behavioral test coverage | `non-owned` | `chore` | `low` | An absent test is chore by default since no user-perceptible wrong behavior or regression was observed; restoring behavioral test coverage is preventive maintenance. | `filed` |
+
+### Dedupe search details
+
+Search command for live items matching module stem `cli` and reaching deleted test basenames (`test_awmigrename`, `test_layout_migration`):
+```sh
+grep -rlnwF -e "cli" -e "test_awmigrename" -e "test_layout_migration" .aw/records/backlog/open .aw/records/backlog/graduated .aw/records/backlog/blocked .aw/records/backlog/parked .aw/records/plans/pending
+```
+
+Search hits and ownership evaluations:
+- `6kczjg` (`.aw/records/backlog/done/20260923-6kczjg-01-6kczjg-decide-default-leftovers-disposition.backlog.md`): `owned-rejected` (decides interactive/non-interactive default leftover disposition for install; does not restore behavioral tests for `_run_migrate_layout`).
+- `719lyq` (`.aw/records/plans/pending/20261014-byz9pj-01-719lyq-repair-scenario-token-bindings-relocate-test-awphysical-tool.ipd.md`): `owned-rejected` (relocates `tools/awphysical/test_awphysical_tools.py` into `tests/` and rebinds scenario tokens; does not cover `agent_workflows/cli.py::_run_migrate_layout`).
+- Generic word matches on `cli` (`83ns86`, `7dcpe1`, `pirm70`, `whri6h`, `jmogmv`, `61lsze`, `ksmdcd`, `7i4zba`, `xvv7n4`, `swpf3q`, `fbdxmh`, `9380pe`, `3jg79f`): all `owned-rejected` (unrelated CLI leaves or flags, none touching layout migration or `_run_migrate_layout`).
+- Advisory duplicate detector check:
+  `aw backlog new --summary "Restore behavioral test coverage for _run_migrate_layout" --priority low --work-kind chore`
+  Output: `no duplicate candidates detected. ADVISORY ONLY: this silence means nothing matched the signal, not that the defect is definitely new.`
+
+### Grouped outcomes count check
+
+- Grouped outcomes: 1 (`PROP-01`)
+- `unguarded` rows in `## Mutation results`: 1 (`PROP-01`)
+- `regression` rows in `## Replay failures`: 0
+- Sum: 1 + 0 = 1 (reconciliation check passes).
+
+## Filed items
+
+Filed backlog items for non-owned groups and the carrier-needed rollup:
+
+| Item Id | File Path | Scope | Work-Kind | Priority | Summary |
+|---|---|---|---|---|---|
+| `5slmvq` | `.aw/records/backlog/open/20261014-5slmvq-01-5slmvq-restore-behavioral-test-coverage-for-run-migrate-l.backlog.md` | Group 1 | `chore` | `low` | Restore behavioral test coverage for _run_migrate_layout |
+| `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` | Rollup | `chore` | `low` | Rollup of uncited trim-deleted test audit carrier-needed outcomes |
+
+No group was filed as `bug` because `PROP-01` represents an absent behavioral test without observed regression or user-visible failure; therefore, neither item gates a release (`- Blocks-Release: next` omitted).
+
+### Pasted filing outputs
+
+Group 1 (`5slmvq`):
+```text
+aw backlog new: no duplicate candidates detected.
+  ADVISORY ONLY: this silence means nothing matched the signal, not that the defect is definitely new.
+  What it can and cannot tell you:
+    - exact identifier and token overlap: DETECTABLE - items sharing distinctive identifiers (e.g. test node ids, function names, environment variables) or distinctive summary tokens are reported
+    - paraphrased defect descriptions: PARTLY DETECTABLE - defects described with entirely different vocabulary and no shared distinctive identifiers cannot be matched mechanically
+    - distinct issues referencing the same test or symbol: NOT DETECTABLE - items citing the same test or symbol may be distinct concerns (e.g. different assertions or triage lists); human review is required
+  Searched: BACKLOG ITEMS across all statuses (open, graduated, blocked, parked, done), matched by distinctive token overlap and co-occurrence. Items outside the backlog tree or using disjoint vocabulary are not indexed.
+aw backlog new: wrote /mnt/md1/VC/agent-workflows/.aw/worktrees/xmr5qj_attempt2/.aw/records/backlog/open/20261014-5slmvq-01-5slmvq-restore-behavioral-test-coverage-for-run-migrate-l.backlog.md
+```
+
+Rollup item (`9qvfie`):
+```text
+aw backlog new: no duplicate candidates detected.
+  ADVISORY ONLY: this silence means nothing matched the signal, not that the defect is definitely new.
+  What it can and cannot tell you:
+    - exact identifier and token overlap: DETECTABLE - items sharing distinctive identifiers (e.g. test node ids, function names, environment variables) or distinctive summary tokens are reported
+    - paraphrased defect descriptions: PARTLY DETECTABLE - defects described with entirely different vocabulary and no shared distinctive identifiers cannot be matched mechanically
+    - distinct issues referencing the same test or symbol: NOT DETECTABLE - items citing the same test or symbol may be distinct concerns (e.g. different assertions or triage lists); human review is required
+  Searched: BACKLOG ITEMS across all statuses (open, graduated, blocked, parked, done), matched by distinctive token overlap and co-occurrence. Items outside the backlog tree or using disjoint vocabulary are not indexed.
+aw backlog new: wrote /mnt/md1/VC/agent-workflows/.aw/worktrees/xmr5qj_attempt2/.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-of-uncited-trim-deleted-test-audit-carrier-.backlog.md
+```
+*Note: Slug subsequently normalized via `aw rename backlog 9qvfie --slug rollup-uncited-trim-audit-carrier-outcomes --apply` to eliminate trailing hyphen identified by `aw check`.*
+
+
+## Reconciliation
+
+Set-wide reconciliation across Orders 01 through 08.
+
+### (a) Inventory file count vs Verdict totals
+- `## Inventory` file count: `208` files holding `3573` removed functions (`lost_guard_census.py --uncited --format json 19313eed`).
+- `## Verdict totals` sum of files:
+  - `recreated`: 4
+  - `subject-retired`: 2
+  - `api-moved`: 0
+  - `replay-env-limited`: 1
+  - `fail-investigate`: 80
+  - `pass-exclusive`: 95
+  - `pass-shared`: 17
+  - `no-product-reach`: 9
+  - Sum: 4 + 2 + 0 + 1 + 80 + 95 + 17 + 9 = `208` files holding `3573` removed functions.
+- Equality: `208 == 208` (PASS).
+
+### (b) Candidates vs Derived properties and Fail-investigate vs Replay failures
+- Set of `pass-exclusive` keys in `## Candidates for Order 06`: `749` keys across 95 files.
+- Set of keys in `## Derived properties`: `749` keys across 95 files.
+- Key set equality: `cand_keys == dp_keys` is `True` (PASS).
+- `fail-investigate` files count in `## Verdicts`: `80` files.
+- `fail-investigate` files with rows in `## Replay failures`: `80` files (spanning 203 failing nodeids).
+- Every `fail-investigate` file has a replay row: `True` (PASS).
+
+### (c) Behavioral properties accounted for in Mutation results or Triaged not mutated
+- Total `behavioral` properties in `## Derived properties`: `741` properties (out of 749 total keys; 5 are `pin-retired` and 3 are `property-unidentifiable`).
+- Behavioral keys in `## Mutation results`: `2` (`PROP-01`, `PROP-02`).
+- Behavioral keys in `## Triaged not mutated`: `739` (38 `budget-exhausted` + 701 `cost-cap`).
+- Union count: 2 + 739 = `741` behavioral properties.
+- Missing behavioral properties: `0` (PASS).
+
+### (d) Carrier-needed outcomes coverage
+Per-verdict outcome classification:
+- Carrier-free: `guarded` (0), `pin-retired` (5 in candidates, 0 all-pin files), `subject-retired` (2 files), `no-product-reach` (9 files), `intended-change` (201 nodeids in 78 files), `stale-at-trim` (2 nodeids in 2 files), `recreated` with all names present (0).
+- Carrier-needed:
+  - `unguarded`: 1 property (`PROP-01`)
+  - `regression`: 0
+  - `unprovable`: 1 property (`PROP-02`)
+  - `import-only`: 0
+  - `property-unidentifiable`: 3 properties (in `## Triaged not mutated`)
+  - `triaged-not-mutated`: 764 items (747 production keys [including the 3 property-unidentifiable keys] + 17 pass-shared test files)
+  - `replay-env-limited`: 1 file (`tests/test_run_evidence_completion.py`)
+  - `api-moved`: 0
+  - `recreated` with missing names: 4 files (`tests/test_lane_input_manifest.py`, `tests/test_release_readiness.py`, `tests/test_run_analytics_cli.py`, `tests/test_run_summary_table.py`)
+
+Carrier assignment table:
+
+| Outcome Verdict / Category | Outcomes Count | Carrier Id | Carrier File Path |
+|---|---:|---|---|
+| `unguarded` (`PROP-01`) | 1 | `5slmvq` | `.aw/records/backlog/open/20261014-5slmvq-01-5slmvq-restore-behavioral-test-coverage-for-run-migrate-l.backlog.md` |
+| `unprovable` (`PROP-02`) | 1 | `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` |
+| `triaged-not-mutated` (keys) | 747 | `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` |
+| `triaged-not-mutated` (`pass-shared` files) | 17 | `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` |
+| `replay-env-limited` | 1 | `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` |
+| `recreated` (missing test names) | 4 | `9qvfie` | `.aw/records/backlog/open/20261014-9qvfie-01-9qvfie-rollup-uncited-trim-audit-carrier-outcomes.backlog.md` |
+| **Total Carrier-Needed Outcomes** | **771** | | Every outcome named by a carrier (PASS) |
+
+### (e) Commit scope check across Set uncitedaudit
+Commits attributed to Set `uncitedaudit` (`k93w2g`, `1ub8ex`, `nzzu8n`, `g55j1e`, `sk2rbf`, `8d0qsg`, `anzu8q`, `rq3q7v`, `xmr5qj`):
+
+Exact command from plan:
+```sh
+git log --name-only --format= -E --grep '^[a-z-]+(\(| )(k93w2g|1ub8ex|nzzu8n|g55j1e|sk2rbf|8d0qsg|anzu8q|rq3q7v|xmr5qj)\b' -- agent_workflows tests tools | sort -u
+```
+Output:
+```text
+tests/test_replay_coverage_diff.py
+tools/README.md
+tools/replay_coverage_diff.py
+```
+Attributed commits (`--format="%h %s"`):
+```text
+07248f203 work(sk2rbf): Add a coverage differential that finds production lines only the replayed deleted tests reach
+```
+
+Broad word-boundary match capturing all 4 instrument authoring commits:
+```sh
+git log --name-only --format= -E --grep '\b(k93w2g|1ub8ex|nzzu8n|g55j1e|sk2rbf|8d0qsg|anzu8q|rq3q7v|xmr5qj)\b' -- agent_workflows tests tools | sort -u
+```
+Output:
+```text
+tests/test_deleted_test_replay.py
+tests/test_lost_guard_census.py
+tests/test_mutation_probe.py
+tests/test_replay_coverage_diff.py
+tools/README.md
+tools/deleted_test_replay.py
+tools/lost_guard_census.py
+tools/mutation_probe.py
+tools/replay_coverage_diff.py
+```
+Attributed commits (`--format="%h %s"`):
+```text
+013fd3a58 integrate(aw agy run): merge verified lane sk2rbf to main
+07248f203 work(sk2rbf): Add a coverage differential that finds production lines only the replayed deleted tests reach
+c24d211e8 integrate(aw agy run): merge verified lane nzzu8n to main
+71b3a94a4 Add deleted-test replay harness and tests (uncitedaudit nzzu8n)
+44dba9fc4 integrate(aw agy run): merge verified lane g55j1e to main
+7ce48464e uncitedaudit (Order 3, g55j1e): add worktree-isolated mutation probe
+3abc2ec97 integrate(aw agy run): merge verified lane 1ub8ex to main
+8be9fce0d chore(census): add uncited deleted file inventory (1ub8ex)
+```
+
+Verification: Every file touched across the Set's commits is within the nine declared files (`tools/README.md` and the four instruments with their tests). Zero production files in `agent_workflows/` or test files outside the instruments were modified (PASS).
