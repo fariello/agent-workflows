@@ -294,9 +294,9 @@ from agent_workflows.runner_shared import (
 # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the RE-HOMED host-neutral names. Each of these
 # used to be DEFINED here and imported BY `agy_runipd`, which made this module a library for the
 # other host driver; they now have ONE definition in `runner_shared` and BOTH drivers bind it. The
-# moves are PURE (byte-identical bodies, proven by AST fingerprint in
-# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests`), so no call site in this module
-# changed.
+# moves are PURE (byte-identical bodies; the AST-fingerprint check in
+# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests` was a one-time move-time check deleted in
+# `19313eed7`), so no call site in this module changed.
 #
 # THE `as <same-name>` FORM IS LOAD-BEARING HERE, not cosmetic. `ruff --fix` is a pre-commit hook in
 # this repository and DELETES a plain unused import while LEAVING a redundant alias; it removed six

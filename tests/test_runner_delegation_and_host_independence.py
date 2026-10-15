@@ -43,8 +43,9 @@ drivers (`oc_runipd` and `agy_runipd`) and `runner_shared`:
    - It does NOT restore the 56-name import classification table or AST walkers from
      `tests/test_runner_layering.py`; the oc-to-agy import set is already empty, so the table
      is moot.
-   - It does NOT restore the remaining 2,703 deleted lines of behavioral coverage from
-     `test_runner_backlog_close.py` (which is tracked under backlog item yf1p8y).
+   - The remaining residual behavioral coverage from deleted `test_runner_backlog_close.py`
+     (tracked under backlog item yf1p8y) is restored in
+     `tests/test_runner_backlog_close_behavior.py`.
    - For host-independence, driving `run_checked` proves that the executed path is free of
      lazy peer imports, but does not prove every conceivable uncalled lazy path is clean.
 """
