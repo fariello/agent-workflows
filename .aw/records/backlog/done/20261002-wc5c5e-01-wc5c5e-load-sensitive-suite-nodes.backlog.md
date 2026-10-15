@@ -1,5 +1,5 @@
 - Id: wc5c5e
-- Status: graduated
+- Status: done
 - Graduated-To: wc5c5e
 - Set: wc5c5e
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Two suite nodes fail under the parallel default run but pass in isolation: classify and either fix or document
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): closed by aw agy run: IPD z28jah executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-wc5c5e-01-z28jah-classify-the-two-load-sensitive-suite-nodes-and-close-the-re.ipd.md); evidence .aw/records/plans/executed/20261012-wc5c5e-01-z28jah-classify-the-two-load-sensitive-suite-nodes-and-close-the-re.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: z28jah
 - 2026-10-02 created (aw backlog): filed from mflqqf plan authoring; measured at HEAD 4fbbc8386
 
