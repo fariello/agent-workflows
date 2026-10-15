@@ -114,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: `upryxf` scopes only the zero-match exit code (`1` -> `2` with standing-vocabulary `0` exemption) and `exit_contract` declaration of `aw show`; changing which artifact trees `aw show` displays on a match would alter positive-match behavior outside `upryxf`'s scope.
 - Changing zero-match behavior on `aw reviews decisions`, `aw record-history`, `aw graduation`, or `aw ipd recheck-readiness`:
   - Carrier: yxsfjc
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-selquiet-02-yxsfjc-make-reviews-decisions-record-history-graduation-and-ipd-rec.ipd.md
 
 ## Scope check
 
