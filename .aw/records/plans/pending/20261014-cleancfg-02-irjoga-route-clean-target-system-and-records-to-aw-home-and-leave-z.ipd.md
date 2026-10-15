@@ -189,10 +189,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-03: The plan routes only `system` and `records` writes, but the record READERS and other producers are hard-wired to `<repo>/.aw/records` and `<repo>/.agents/...`. Is this a bounded bug fix or spec `or061f` Phase 3, and how should it be decomposed?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: OPEN. Raised at review 2026-10-15 as PR-001 (BLOCKER). Repository evidence cannot resolve it: this is a scope and sequencing decision, and backlog `kvwwt0` itself ends "Decision for the maintainer: build Phase 3, or refuse/relabel the preset until it exists." THE FACTS, measured at HEAD `cf0e740fe`:
+- Resolution or deferral rationale: RESOLVED by the maintainer 2026-10-15 (interactive /askme): option (A), build it now as an ordered Set of children (reader routing through one records-root accessor, then system routing, then the zero-delta installer, then uninstall, then consent text). This plan must be restructured into that Set (this plan becomes the orchestrator or one child) before execution. Original review text follows. Raised at review 2026-10-15 as PR-001 (BLOCKER). Repository evidence cannot resolve it: this is a scope and sequencing decision, and backlog `kvwwt0` itself ends "Decision for the maintainer: build Phase 3, or refuse/relabel the preset until it exists." THE FACTS, measured at HEAD `cf0e740fe`:
   (1) I SIMULATED the plan's end state. I ran a real `completely-clean-target` install, moved `<repo>/.aw/system` and `<repo>/.aw/records` to `<aw_home>/projects/<id>/`, and deleted `<repo>/.aw`. With E-02's root-recognition change shimmed in (`is_project_dir`/`find_project_root` also accepting `project_config_dir(repo)/project.json`), `aw check all` and `aw attention` run. However:
   - `aw index prompts --agent` crashes with `FileNotFoundError` on `<repo>/.aw/records/prompts/INDEX.json`, because `prompts.prompts_root` is repo-only.
   - `aw backlog new --apply` writes `<repo>/.agents/backlog/open/...` and `<repo>/.aw/records/history.jsonl` INTO THE TARGET (`backlog.BACKLOG_ROOTS`).
@@ -210,10 +210,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-04: Spec `20260810-1447-01` Section 5 says per-machine control state (`.aw/state/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) "stays IN the target repository", as decided by plan `wmuu4k`. Does zero target delta for clean-delta override that decision?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-002
-- Resolution or deferral rationale: OPEN. Raised at review 2026-10-15 as PR-002 (HIGH). The two requirements conflict:
+- Resolution or deferral rationale: RESOLVED by the maintainer 2026-10-15 (interactive /askme), after a deeper analysis: in clean-delta mode BOTH per-machine control state (run state, receipts, locks, journals: `ipd_lifecycle.checkout_control_root` / `runner_shared.state_root`) AND isolated worktrees (`worktree_lease.WORKTREES_SUBDIR`) live under `AW_HOME/projects/<project_id>/` (`state/` and `worktrees/<id6>/`), so the target working tree contains nothing from agent-workflows, ignored or not, and no `.git/info/exclude` entry is used. Rationale given by the maintainer: clean-target exists so a person or group can use agent-workflows on a public repository without its presence being visible; an ignored in-repo `.aw/` still visibly pollutes the checkout. Accepted residual trace: git's own `.git/worktrees/<name>` admin entry while a lane exists (never committed, removed on prune) and `git worktree list` showing the external path. `wmuu4k`'s in-repo decision stands for every non-clean-delta mode; spec 20260810-1447-01 Section 5 must be amended to name clean-delta as the exception, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged. Original review text follows. Raised at review 2026-10-15 as PR-002 (HIGH). The two requirements conflict:
   - E-05 promises that `git status --porcelain --ignored` is EMPTY after install, and skips `.aw/workflow-artifacts/README.md` and `.aw/.gitignore`.
   - The implemented spec requires that state, and its `.aw/.gitignore` cover, to stay in the target. Section 5: "Per-machine control state ... stays IN the target repository and is covered by the framework-owned `.aw/.gitignore` ... relocation out of the repo (retired `58ha43`) is not pursued", decided by `wmuu4k`.
   Without `.aw/.gitignore`, the first `aw oc run` or `aw ipd begin` in a clean-target repo creates UNIGNORED `.aw/state/` and `.aw/worktrees/` in the target. Because this is a contradiction between two maintainer decisions, a reviewer must not pick one.
