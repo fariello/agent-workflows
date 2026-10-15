@@ -6678,6 +6678,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_lanes = sub.add_parser(
         "lanes",
+        aliases=["lane"],
         parents=[common],
         help="Manage worker and review sweep lanes (list, prune).",
         formatter_class=_AlphaHelpFormatter,
@@ -18490,14 +18491,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # Bare `aw releases` (and explicit `list`) both list: OQ-01 resolved to list, matching
         # `aw backlog`-family conventions, so the family help is NOT shown for a bare invocation.
         return releases_mod.run_list(args)
-    if args.command == "lanes":
+    if args.command in ("lanes", "lane"):
         from agent_workflows import lanes_cli
 
-        lanes_cmd = getattr(args, "lanes_command", None)
+        lanes_cmd = getattr(args, "lanes_command", None) or getattr(
+            args, "lane_command", None
+        )
         if lanes_cmd == "list":
-            return lanes_cli.run_list(args)
+            return lanes_cli.run_list(args, term=term)
         if lanes_cmd == "prune":
-            return lanes_cli.run_prune(args)
+            return lanes_cli.run_prune(args, term=term)
         return _show_family_help(parser, "lanes", "aw lanes list", term, context)
     if args.command in ("specs", "spec"):
         specs_cmd = getattr(args, "specs_command", None) or getattr(

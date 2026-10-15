@@ -742,3 +742,89 @@ def test_resolve_lane_to_run(tmp_path: Path) -> None:
         repo, "aw/lane/unrecorded", ".aw/worktrees/unrecorded"
     )
     assert res_none is None
+
+
+def test_lanes_table_formatting_and_colors() -> None:
+    """Validate aw att standard styling, colors, and lifecycle glyphs in render_lanes_table."""
+    from agent_workflows import term as term_mod
+    from agent_workflows.term import strip_ansi
+
+    rows = [
+        lanes_cli.LaneRow(
+            lane="mrg001",
+            branch="aw/lane/mrg001",
+            worktree=".aw/worktrees/mrg001",
+            owner_run_pid="run-20261015T... (1234)",
+            live="no",
+            commits_not_landed="0",
+            uncommitted="no",
+            verdict="removable",
+        ),
+        lanes_cli.LaneRow(
+            lane="unm001",
+            branch="aw/lane/unm001",
+            worktree=".aw/worktrees/unm001",
+            owner_run_pid="run-20261015T...",
+            live="no",
+            commits_not_landed="3",
+            uncommitted="no",
+            verdict="keep: unmerged work",
+        ),
+        lanes_cli.LaneRow(
+            lane="drt001",
+            branch="aw/lane/drt001",
+            worktree=".aw/worktrees/drt001",
+            owner_run_pid="run-20261015T...",
+            live="yes",
+            commits_not_landed="0",
+            uncommitted="yes",
+            verdict="keep: uncommitted changes",
+        ),
+        lanes_cli.LaneRow(
+            lane="liv001",
+            branch="aw/lane/liv001",
+            worktree=".aw/worktrees/liv001",
+            owner_run_pid="run-20261015T... (5678)",
+            live="yes",
+            commits_not_landed="0",
+            uncommitted="no",
+            verdict="keep: live owner",
+        ),
+    ]
+
+    # 1. Colored output
+    t_col = term_mod.Term(color=True)
+    colored_out = lanes_cli.render_lanes_table(rows, term=t_col)
+
+    # Header is bold, TitleCase, first column is "  Verdict", no separator dashes
+    assert "\033[1m" in colored_out or "\033[1;" in colored_out
+    assert "  Verdict" in colored_out
+    assert "---" not in colored_out
+
+    # Glyphs present
+    assert "✓" in colored_out
+    assert "⚠︎" in colored_out
+    assert "▶" in colored_out
+
+    # 2. Plain output
+    t_plain = term_mod.Term(color=False)
+    plain_out = lanes_cli.render_lanes_table(rows, term=t_plain)
+    assert "\033[" not in plain_out
+    assert "---" not in plain_out
+
+    # Invariant: stripping ANSI escapes from colored table matches plain table character for character
+    assert strip_ansi(colored_out) == plain_out
+
+
+def test_lane_alias_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Validate aw lane list works as an alias for aw lanes list."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    with mock.patch("sys.argv", ["aw", "lane", "list"]):
+        with mock.patch("os.getcwd", return_value=str(repo)):
+            rc = main()
+            assert rc == 0
+            captured = capsys.readouterr()
+            assert "Verdict" in captured.out
+            assert "Lane" in captured.out

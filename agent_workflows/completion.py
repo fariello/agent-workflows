@@ -84,6 +84,28 @@ from agent_workflows import versioning as _versioning
 # The three console-script entrypoints (pyproject.toml [project.scripts]). Completion binds all three.
 ENTRYPOINTS = ("aw", "agentwf", "agent-workflows")
 
+# Command aliases recognized across dynamic and static shell completions.
+_COMMAND_ALIASES: Dict[str, str] = {
+    "lane": "lanes",
+    "spec": "specs",
+    "release": "releases",
+    "conf": "config",
+    "att": "next",
+    "todo": "next",
+    "attention": "next",
+    "sanitize": "check-local-leaks",
+    "doctor": "checkup",
+    "opencode": "oc",
+    "antigravity": "agy",
+}
+
+
+def _aliases_for(command: str) -> List[str]:
+    """Return all known aliases mapping to canonical ``command``."""
+    return sorted(
+        [alias for alias, canon in _COMMAND_ALIASES.items() if canon == command]
+    )
+
 
 def _visible_subcommands(
     action: argparse._SubParsersAction,
@@ -296,8 +318,10 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
         candidates = _node_candidates(top[name])
         if candidates:
             sub_names = " ".join(_bash_word(s) for s in candidates)
+            patterns = [_bash_word(name)] + [_bash_word(a) for a in _aliases_for(name)]
+            pattern_str = "|".join(patterns)
             second_cases.append(
-                f"        {_bash_word(name)})\n"
+                f"        {pattern_str})\n"
                 f'            COMPREPLY=( $(compgen -W {shlex.quote(sub_names)} -- "$cur") )\n'
                 f"            return 0 ;;"
             )
@@ -320,6 +344,9 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
         "    fi",
         "    if [[ $COMP_CWORD -eq 1 ]]; then",
         f'        COMPREPLY=( $(compgen -W {shlex.quote(top_names)} -- "$cur") )',
+        "        return 0",
+        "    fi",
+        "    if [[ $COMP_CWORD -ne 2 ]]; then",
         "        return 0",
         "    fi",
         '    case "${COMP_WORDS[1]}" in',
@@ -358,8 +385,10 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
         candidates = _node_candidates(top[name])
         if candidates:
             sub_specs = " ".join(f"'{s}'" for s in candidates)
+            patterns = [name] + _aliases_for(name)
+            pattern_str = "|".join(patterns)
             second_cases.append(
-                f"                ({name})\n"
+                f"                ({pattern_str})\n"
                 f"                    _values 'subcommand' {sub_specs} ;;"
             )
 
@@ -407,12 +436,13 @@ def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
                 f"complete -c {entry} -n __fish_use_subcommand -a {_fish_word(name)}"
             )
         for name in sorted(top):
-            for s in _node_candidates(top[name]):
-                lines.append(
-                    f"complete -c {entry} -n "
-                    f"{_fish_word('__fish_seen_subcommand_from ' + name)} "
-                    f"-a {_fish_word(s)}"
-                )
+            for cmd_name in [name] + _aliases_for(name):
+                for s in _node_candidates(top[name]):
+                    lines.append(
+                        f"complete -c {entry} -n "
+                        f"{_fish_word('__fish_seen_subcommand_from ' + cmd_name)} "
+                        f"-a {_fish_word(s)}"
+                    )
     lines.append("")
     return "\n".join(lines)
 
@@ -597,6 +627,35 @@ def release_selector_candidates(repo_root: Optional[Path] = None) -> List[str]:
     return out
 
 
+def lane_candidates(repo_root: Optional[Path] = None) -> List[str]:
+    """Lane IDs and lane branches: extracted from refs/heads/aw/lane/."""
+    root = _repo_root(repo_root)
+    try:
+        proc = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/aw/lane/"],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=1,
+        )
+        if proc.returncode != 0:
+            return []
+        cands = set()
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            cands.add(line)
+            lane_id = line.removeprefix("aw/lane/")
+            if lane_id:
+                cands.add(lane_id)
+        return sorted(cands)
+    except Exception:
+        return []
+
+
 def entity_id6_candidates(
     record_type: str, repo_root: Optional[Path] = None
 ) -> List[str]:
@@ -719,7 +778,8 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     if cur.startswith("-"):
         node = tree
         for tok in words[1:cword]:
-            sub = node.get("subcommands", {}).get(tok)
+            norm_tok = _COMMAND_ALIASES.get(tok, tok)
+            sub = node.get("subcommands", {}).get(norm_tok)
             if sub is None:
                 break
             node = sub
@@ -731,7 +791,8 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     # Nested position: walk to words[cword-1]'s node and offer ITS own arguments.
     node = tree
     for tok in words[1:cword]:
-        sub = node.get("subcommands", {}).get(tok)
+        norm_tok = _COMMAND_ALIASES.get(tok, tok)
+        sub = node.get("subcommands", {}).get(norm_tok)
         if sub is None:
             return []
         node = sub
@@ -791,6 +852,18 @@ def complete_query(
     ):
         try:
             return _prefix_filter(release_selector_candidates(repo_root), prefix)
+        except Exception:
+            return []
+
+    # 2c. `aw oc integrate <lane>` / `aw agy integrate <lane>` -> lane ids + branches.
+    if (
+        cword >= 3
+        and len(words) > 2
+        and words[1] in ("oc", "opencode", "agy", "antigravity")
+        and words[2] == "integrate"
+    ):
+        try:
+            return _prefix_filter(lane_candidates(repo_root), prefix)
         except Exception:
             return []
 

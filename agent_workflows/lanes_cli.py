@@ -14,8 +14,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from agent_workflows import lane_containment, run_viewer, runner_shared, worktree_lease
-from agent_workflows.term import strip_ansi
+from agent_workflows import (
+    lane_containment,
+    lifecycle_style,
+    run_viewer,
+    runner_shared,
+    worktree_lease,
+)
+from agent_workflows import term as term_mod
+from agent_workflows.term import pad_visible, visible_width
 
 
 def _run_git(cwd: Path, args: Sequence[str]) -> tuple[int, str, str]:
@@ -393,40 +400,106 @@ def collect_lane_rows(repo: Path) -> list[LaneRow]:
     return rows
 
 
-def render_lanes_table(rows: Sequence[LaneRow]) -> str:
-    """Format lane rows as an aligned table."""
-    headers = [
-        "LANE",
-        "OWNER RUN/PID",
-        "LIVE",
-        "COMMITS NOT LANDED",
-        "UNCOMMITTED",
-        "VERDICT",
-    ]
-    data = [
-        [
-            r.lane,
-            r.owner_run_pid,
-            r.live,
-            r.commits_not_landed,
-            r.uncommitted,
-            r.verdict,
-        ]
-        for r in rows
-    ]
+def _resolve_lane_verdict(verdict: str) -> lifecycle_style.Resolved:
+    """Resolve a lane verdict into a shared lifecycle presentation stage."""
+    if verdict == "removable":
+        stage = lifecycle_style.DONE
+    elif verdict == "keep: live owner":
+        stage = lifecycle_style.EXECUTING
+    elif verdict in ("keep: unmerged work", "keep: uncommitted changes"):
+        stage = lifecycle_style.BLOCKED
+    elif verdict.startswith("broken:"):
+        stage = lifecycle_style.FAILED
+    elif verdict in ("keep: no run record", "keep: unknown owner"):
+        stage = lifecycle_style.UNKNOWN
+    else:
+        stage = lifecycle_style.NONE
+    return lifecycle_style.Resolved(
+        stage=stage,
+        style=lifecycle_style.style_for(stage),
+        family="lane",
+        native_status=verdict,
+    )
 
-    col_widths = [len(h) for h in headers]
-    for row in data:
-        for i, val in enumerate(row):
-            col_widths[i] = max(col_widths[i], len(strip_ansi(str(val))))
 
-    lines = []
-    hdr_line = "  ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
-    lines.append(hdr_line)
-    sep_line = "  ".join("-" * col_widths[i] for i in range(len(headers)))
-    lines.append(sep_line)
-    for row in data:
-        row_line = "  ".join(str(val).ljust(col_widths[i]) for i, val in enumerate(row))
+def render_lanes_table(
+    rows: Sequence[LaneRow],
+    term: term_mod.Term | None = None,
+) -> str:
+    """Format lane rows as an aligned table matching aw att styling."""
+    if term is None:
+        term = term_mod.Term(stream=sys.stdout)
+    colored = bool(getattr(term, "color", False))
+
+    verdict_w = max(len("Verdict"), max((len(r.verdict) for r in rows), default=0))
+    lane_w = max(len("Lane"), max((len(r.lane) for r in rows), default=0))
+    owner_w = max(
+        len("Owner Run/PID"), max((len(r.owner_run_pid) for r in rows), default=0)
+    )
+    live_w = max(len("Live"), max((len(r.live) for r in rows), default=0))
+    commits_w = max(
+        len("Commits"), max((len(r.commits_not_landed) for r in rows), default=0)
+    )
+    uncommitted_w = max(
+        len("Uncommitted"), max((len(r.uncommitted) for r in rows), default=0)
+    )
+
+    hdr_verdict = "  " + "Verdict".ljust(verdict_w)
+    hdr_lane = "Lane".ljust(lane_w)
+    hdr_owner = "Owner Run/PID".ljust(owner_w)
+    hdr_live = "Live".ljust(live_w)
+    hdr_commits = "Commits".rjust(commits_w)
+    hdr_uncommitted = "Uncommitted".ljust(uncommitted_w)
+
+    header = f"{hdr_verdict}  {hdr_lane}  {hdr_owner}  {hdr_live}  {hdr_commits}  {hdr_uncommitted}"
+    lines = [term.colorize(header, "bold") if colored else header]
+
+    for r in rows:
+        res = _resolve_lane_verdict(r.verdict)
+        marker = term.format_lifecycle_marker(res, width=2, style=colored)
+        v_styled = term.style_lifecycle_text(r.verdict, res) if colored else r.verdict
+        col_verdict = marker + pad_visible(v_styled, verdict_w)
+
+        l_styled = term.style_lifecycle_text(r.lane, res) if colored else r.lane
+        col_lane = pad_visible(l_styled, lane_w)
+
+        if r.owner_run_pid == "-":
+            o_styled = term.color256("-", 244) if colored else "-"
+        else:
+            o_styled = r.owner_run_pid
+        col_owner = pad_visible(o_styled, owner_w)
+
+        if r.live == "yes":
+            live_styled = term.color256("yes", 46, bold=True) if colored else "yes"
+        elif r.live == "no":
+            live_styled = term.color256("no", 244) if colored else "no"
+        elif r.live == "unknown":
+            live_styled = term.color256("unknown", 214) if colored else "unknown"
+        else:
+            live_styled = term.color256("-", 244) if colored else "-"
+        col_live = pad_visible(live_styled, live_w)
+
+        if r.commits_not_landed == "0":
+            c_styled = term.color256("0", 244) if colored else "0"
+        elif r.commits_not_landed == "-":
+            c_styled = term.color256("-", 244) if colored else "-"
+        else:
+            c_styled = (
+                term.color256(r.commits_not_landed, 214, bold=True)
+                if colored
+                else r.commits_not_landed
+            )
+        col_commits = (" " * max(0, commits_w - visible_width(c_styled))) + c_styled
+
+        if r.uncommitted == "yes":
+            u_styled = term.color256("yes", 196, bold=True) if colored else "yes"
+        elif r.uncommitted == "no":
+            u_styled = term.color256("no", 244) if colored else "no"
+        else:
+            u_styled = term.color256("-", 244) if colored else "-"
+        col_uncommitted = pad_visible(u_styled, uncommitted_w)
+
+        row_line = f"{col_verdict}  {col_lane}  {col_owner}  {col_live}  {col_commits}  {col_uncommitted}"
         lines.append(row_line)
 
     return "\n".join(lines)
@@ -466,8 +539,10 @@ def _emit_agent_record(
     sys.stdout.write(agent_schema.render_jsonl_record(rec))
 
 
-def run_list(args: argparse.Namespace) -> int:
+def run_list(args: argparse.Namespace, term: term_mod.Term | None = None) -> int:
     """Implementation of aw lanes list (E-03)."""
+    if term is None:
+        term = term_mod.Term(color=False if getattr(args, "no_color", False) else None)
     repo = Path(getattr(args, "dir", None) or os.getcwd()).resolve()
     rows = collect_lane_rows(repo)
     as_agent = getattr(args, "agent", False)
@@ -496,12 +571,14 @@ def run_list(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
         return 0
 
-    print(render_lanes_table(rows))
+    print(render_lanes_table(rows, term=term))
     return 0
 
 
-def run_prune(args: argparse.Namespace) -> int:
+def run_prune(args: argparse.Namespace, term: term_mod.Term | None = None) -> int:
     """Implementation of aw lanes prune [--apply] (E-04)."""
+    if term is None:
+        term = term_mod.Term(color=False if getattr(args, "no_color", False) else None)
     repo = Path(getattr(args, "dir", None) or os.getcwd()).resolve()
     rows = collect_lane_rows(repo)
     as_agent = getattr(args, "agent", False)
@@ -513,7 +590,7 @@ def run_prune(args: argparse.Namespace) -> int:
     no_record_rows = [r for r in rows if r.verdict == "keep: no run record"]
 
     if not as_agent and not as_json:
-        print(render_lanes_table(rows))
+        print(render_lanes_table(rows, term=term))
         print()
 
     if not apply_mode:

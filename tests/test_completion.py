@@ -411,6 +411,18 @@ class BashCompletionDrivenTests(unittest.TestCase):
             "returned `include index install` before, and a test merely checking that `install` is "
             "present would have PASSED against the broken build. `index` must not appear",
         ),
+        (
+            "aw lanes <TAB>",
+            ["aw", "lanes", ""],
+            ["list", "prune"],
+            "lanes subcommands completed in slot 2",
+        ),
+        (
+            "aw lane <TAB>",
+            ["aw", "lane", ""],
+            ["list", "prune"],
+            "lane alias completes the same subcommands as lanes",
+        ),
     )
 
     def test_bash_completion_driven_and_script_invariants(self) -> None:
@@ -548,6 +560,16 @@ class CompletionSurfaceParityTests(unittest.TestCase):
             ["aw", "pwatch", ""],
             2,
             "pwatch command: both surfaces agree on offering nothing for positionals",
+        ),
+        (
+            ["aw", "lanes", ""],
+            2,
+            "lanes subcommands parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "lane", ""],
+            2,
+            "lane alias subcommands parity across static and dynamic surfaces",
         ),
     )
 
