@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that builds isolated tmp repos and calls `check_engine.check_release_gate_consistency` directly, asserting zero `check.from-backlog-gate-mismatch` findings for a live gated plan carrier and a live gated spec carrier under an ungated item, plus anti-vacuity rows proving the rule still fires for a gated item with a live ungated or differently-gated carrier on the same fixture shape; then update the stale "no live guard currently asserts this directly" remark in the `check_release_gate_consistency` docstring to name the new module.
 - Scope-Paths: tests/test_release_gate_one_way_mismatch.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: hybluq
@@ -17,7 +18,9 @@
 - Id: k9niwu
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): plan-review applied revisions
 
+- 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog hybluq; review-ready.
 
@@ -35,9 +38,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the module exists and the zero-finding test passes against current code.
   - Execution state: pending
-- [ ] E-02 In the same module add `test_forward_direction_still_fires`, the anti-vacuity half, using the same helpers: (a) gated item (`next`) with a live `pending/` plan carrying NO gate, and (b) gated item (`next`) with a live plan gated to a DIFFERENT, unresolvable release string (for example `v9z9z9`); assert each yields exactly one `"check.from-backlog-gate-mismatch"` finding whose `location` is the carrier path and whose `detail` names the item id6. Add (c) gated item with a matching-gated live plan and assert zero findings, so a rule flagging every carrier cannot pass both tests.
+- [ ] E-02 In the same module add `test_forward_direction_still_fires`, the anti-vacuity half, using the same helpers: (a) gated item (`next`) with a live `pending/` plan carrying NO gate, and (b) gated item (`next`) with a live plan gated to a DIFFERENT, unresolvable release string (for example `v9z9z9`); assert each yields exactly one `"check.from-backlog-gate-mismatch"` finding whose `location` is the carrier path and whose `detail` names the item id6. Add (c) gated item with a matching-gated live plan and assert zero findings, so a rule flagging every carrier cannot pass both tests. Add (d) gated item (`next`) with a SPEC carrier gated to `v9z9z9`, built with the SAME spec helper E-01(b) uses, and assert exactly one `"check.from-backlog-gate-mismatch"` finding at the spec path whose `detail` contains `spec`: this is the spec-side anti-vacuity row, without which a spec helper writing to a path `_iter_spec_records` never scans would let E-01(b) pass vacuously (PR-001).
   - Depends on: E-01
-  - Expected outcome: the anti-vacuity test passes against current code, proving the E-01 fixtures are capable of producing the finding.
+  - Expected outcome: the anti-vacuity test passes against current code, proving BOTH the plan and the spec fixtures of E-01 are capable of producing the finding.
   - Execution state: pending
 
 ### Task group 2: stale remark
@@ -83,7 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_release_gate_one_way_mismatch.py` passes (V-01, V-02).
-- Mutation check: temporarily change Rule 2's `item_gate` population in `check_release_gate_consistency` so ungated items are included (e.g. `if item_id:` storing `(gate or "", str(f))`), confirm `test_gated_carrier_under_ungated_item_is_not_a_mismatch` FAILS, then revert (V-01).
+- Mutation check (demonstrated at review 2026-10-15 in a scratch copy of the package: with `if item_id:` storing `(gate or "", str(f))`, both a pending plan and a spec carrying `- Blocks-Release: next` under an ungated item yield `check.from-backlog-gate-mismatch`; unmutated code yields none): temporarily change Rule 2's `item_gate` population in `check_release_gate_consistency` so ungated items are included (e.g. `if item_id:` storing `(gate or "", str(f))`), confirm `test_gated_carrier_under_ungated_item_is_not_a_mismatch` FAILS, then revert (V-01).
 - Full bare suite `python3 -m pytest` with no new failures (V-03).
 
 ## Spec / documentation sync
@@ -108,7 +111,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `-v` pytest output showing `test_forward_direction_still_fires` PASSED.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" -v tests/test_release_gate_one_way_mismatch.py` output showing the forward-direction test PASSED, with its rows visibly covering (a) ungated plan, (b) differently-gated plan, (c) matching plan with zero findings, and (d) differently-gated SPEC with the finding at the spec path; test names are non-binding pointers, the evidence is the behaviors pinned.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -121,4 +124,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the two Scope-Paths files through `aw commit k9niwu -- <paths>`; never push. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+EXECUTION CONTRACT. Open questions: OQ-01 is resolved; none remain. HONESTY RULE: every `V-*` item MUST paste the ACTUAL runner output; a claimed pass with no pasted output does not satisfy it. Execute only after explicit human approval (`aw ipd set approved k9niwu`); start with `aw ipd begin k9niwu`. Commit ONLY the two Scope-Paths files through `aw commit k9niwu -- <paths>`; never `git add -A`, never `-a`, never push, never `--no-verify`; verify the staged set with `git diff --cached --name-only` first. The V-01 mutation is temporary and MUST NOT be committed: revert it before any commit and show `git diff --stat agent_workflows/check_engine.py` touching only the E-03 docstring.
+
+SCOPE FENCE. The declared `- Scope-Paths:` are the expected edit set; an out-of-scope edit that proves necessary is made and justified with `aw ipd finalize --scope-reason`. No behavior change to `check_engine.check_release_gate_consistency`.
+
+POST-GATE LIFECYCLE. On completion every `V-*` carries pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` must conform before the plan moves to `.aw/records/plans/executed/`: under `aw oc run`/`aw agy run` the runner owns that finalize, so the executor must NOT run it; executed by hand, run `aw ipd finalize k9niwu`. Never hand-roll the move or `git mv` the plan.
