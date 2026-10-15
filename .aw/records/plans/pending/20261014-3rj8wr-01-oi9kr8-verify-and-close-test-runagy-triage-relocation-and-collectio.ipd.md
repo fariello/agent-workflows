@@ -80,6 +80,7 @@ Measured at starting HEAD `73e295d27` in this lane.
   - Carrier: byz9pj
 - Rewriting `_read_id` re-export bindings in `agent_workflows/agy_runipd.py` to remove `# noqa: F401`: separate concern owned by sibling plan `vzk1iw` (backlog `fh8x8k`), outside `3rj8wr`'s scope.
   - Carrier: vzk1iw
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-fh8x8k-01-vzk1iw-justify-agy-runipd-re-exports-by-its-same-name-idiom-and-rec.ipd.md
 - Modifying runner behavior in `agent_workflows/agy_runipd.py`, `agent_workflows/oc_runipd.py`, or `agent_workflows/runner_shared.py`: all 10 failures in `test_runagy.py` were stale test fixtures/assertions, not runner defects (F-02).
   - Carrier-Declined: nothing defective was found in the runner; every failure was test drift already repaired in commit b417e9c2d.
 
