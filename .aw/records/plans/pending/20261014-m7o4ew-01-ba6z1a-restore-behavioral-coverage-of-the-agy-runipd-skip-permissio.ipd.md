@@ -3,21 +3,24 @@
 - Date: 2026-10-14
 - Kind: child
 - Concern: Commit `19313eed` deleted `tests/test_lane_permission_posture.py`, and with it `TestAntigravitySkipPermissionsDefaultIsPinned`, the only behavioral guard that `agy_runipd.build_parser()` defaults `dangerously_skip_permissions` to True (spec R4.1c, a decided maintainer constraint: running agy without `--dangerously-skip-permissions` was measured to deadlock unattended turns). Executed plan `9rthek` recorded site S-14 (`agy_runipd.run_agy_turn` comment) as RETIRE-UNGUARDED. A silent flip of the default would make every unattended agy turn hang on an interactive permission prompt nobody answers.
-- Scope: Add one new behavioral test module asserting the default on the real parser, its propagation through `initialize_run` into frozen run options, and its effect on the real `run_agy_turn` argv (with `subprocess.Popen` faked); then repoint the S-14 comment in `agy_runipd.run_agy_turn` at the new module. No production behavior change.
+- Scope: Add one new behavioral test module asserting the default on the real parser, its propagation through `initialize_run` into frozen run options, and its effect on BOTH launch sites that read the frozen option: the real `agy_runipd.run_agy_turn` argv (with `subprocess.Popen` faked) and the real `runner_shared.probe_argv(host="agy")` argv. Then repoint the S-14 comment in `agy_runipd.run_agy_turn` at the new module. No production behavior change.
 - Scope-Paths: tests/test_agy_skip_permissions_default.py, agent_workflows/agy_runipd.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: m7o4ew
 - Set: m7o4ew
 - Order: 1
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode
 - Id: ba6z1a
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): plan-review applied revisions
 
+- 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog `m7o4ew`; review-ready.
 
@@ -38,20 +41,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: the default reaches the agy command line
 
-- [ ] E-02 In the same module, add a test that drives the real `agy_runipd.run_agy_turn` with a temp run dir (same fixture shape as `tests/test_turn_bounds.py` `_setup_launcher_run_dir`, `state["options"]["agy"] = sys.executable`) and `subprocess.Popen` patched to a recording fake process (pattern from `tests/test_turn_bounds.py` `test_launcher_uniform_arming_antigravity`), and asserts: with options that OMIT `dangerously_skip_permissions` the captured argv contains `--dangerously-skip-permissions`; with `dangerously_skip_permissions: True` it contains it; with `False` it does not.
+- [ ] E-02 In the same module, add a test that drives the real `agy_runipd.run_agy_turn` with a temp run dir (same fixture shape as `tests/test_turn_bounds.py` `_setup_launcher_run_dir`, `state["options"]["agy"] = sys.executable`) and `subprocess.Popen` patched to a recording fake process (pattern from `tests/test_turn_bounds.py` `test_launcher_uniform_arming_antigravity`). The fake records EVERY call's argv. `run_agy_turn` also spawns `git config --get ...` helpers through `Popen`, measured at review as 4 git calls plus 1 agy call, so the test MUST select the agy launch as the single recorded argv whose `argv[0] == agy_runipd.resolve_agy(sys.executable)`. It must also assert exactly one such argv exists, so a test that inspects a git argv cannot pass vacuously. It then asserts: with options that OMIT `dangerously_skip_permissions` the captured argv contains `--dangerously-skip-permissions`; with `dangerously_skip_permissions: True` it contains it; with `False` it does not.
   - Depends on: E-01
   - Expected outcome: Argv test passes, proving the absent-key default is also True at the launch site (`options.get("dangerously_skip_permissions", True)`).
   - Execution state: pending
 
-- [ ] E-03 In the same module, add a test that the parser default survives run initialization: parse `["start", <selector>, "--prepare-only"]` (plus `--repo` pointing at a temp git repo holding one approved child plan, as existing `initialize_run` tests such as `tests/test_orchestrator_retirement.py` build) with the real `agy_runipd.build_parser()`, call the real `agy_runipd.initialize_run(args)`, read the written `state.json`, and assert `state["options"]["dangerously_skip_permissions"] is True`. If constructing a real run in a temp repo proves infeasible for `initialize_run` without network or host binaries, record the reason in the plan and cover the freeze step by passing an `argparse.Namespace` lacking the attribute instead, asserting the frozen option is still True.
+- [ ] E-03 In the same module, add a test that the parser default survives run initialization, following the demonstrated precedent `tests/test_runner_shared.py` `VerificationPolarityTests.frozen_options` (reuse its fixture shape; do not import a private helper from another test module). The test does the following:
+  - Set `XDG_CONFIG_HOME` to a fresh temp dir with `mock.patch.dict(os.environ, ...)`, so no ambient `runner-profiles.json` (`runner_profiles.STORE_NAME`) can supply or override options.
+  - Build a temp git repo holding one `Status: approved` child plan (that test's `make_repo`/`PLAN` shape), with `.aw/records/runs/` gitignored.
+  - Parse `["start", <id6>, "--repo", <repo>]` with the real `agy_runipd.build_parser()` and set `args.prepare_only = True`.
+  - Call the real `agy_runipd.initialize_run(args)`, and read the frozen options with `runner_shared.load_state(run_dir)["options"]`.
+  - Assert `options["dangerously_skip_permissions"] is True`, and that the same flow with `--no-dangerously-skip-permissions` yields `False`. The False case proves the frozen value comes from the parser and is not a constant.
+  Feasibility was demonstrated at review: this flow returned `True` (no flag) and `False` (opt-out) with no network or host binary. The earlier `argparse.Namespace` fallback is REMOVED, because it would re-create the vacuous `getattr` test that OQ-01 rejects.
   - Depends on: E-01
-  - Expected outcome: The frozen run option is True when the operator passes no flag.
+  - Expected outcome: The frozen run option written by `initialize_run` is True when the operator passes no flag and False only with the opt-out flag, under an isolated config home.
+  - Execution state: pending
+
+- [ ] E-05 In the same module, add a test that the coverage-probe launch site also defaults on: call the real `runner_shared.probe_argv({"options": {"agy": "agy"}}, host="agy", prompt="p", repo=str(tmp))` and assert `"--dangerously-skip-permissions" in argv`. With `"dangerously_skip_permissions": False` in options, assert it is absent. This second consumer carries the same `options.get("dangerously_skip_permissions", True)` fallback, and a flip there would hang the unattended coverage probe the same way (precedent call shape: `tests/test_runner_finalize_message.py` `test_agy_probe_print_timeout_carries_a_duration_unit`).
+  - Depends on: E-01
+  - Expected outcome: Probe-argv test passes for the absent-key, True, and False cases.
   - Execution state: pending
 
 ### Task group 3: comment repointing
 
 - [ ] E-04 Repoint the S-14 comment in `agy_runipd.run_agy_turn` (the block beginning "NO PERMISSION POLICY DOCUMENT IS SUPPLIED HERE" whose text reads "`tests/test_lane_permission_posture.py` was deleted in `19313eed`; no live guard currently asserts this default") so it names `tests/test_agy_skip_permissions_default.py` as the live guard, keeping the "Do NOT \"harden\" it" instruction and its R4.1c reason. Comment-only edit.
-  - Depends on: E-02
+  - Depends on: E-02, E-03, E-05
   - Expected outcome: `rg -n "no live guard currently asserts this default" agent_workflows/agy_runipd.py` returns no matches; no statement change.
   - Execution state: pending
 
@@ -59,7 +73,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Tests must exercise behavior (P16, AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); no `inspect`, `ast`, or reading `.py` source.
 - The deleted guard was `TestAntigravitySkipPermissionsDefaultIsPinned` in `git show 19313eed^:tests/test_lane_permission_posture.py`. Its `test_options_default_to_true_when_the_attribute_is_absent` only tested `getattr` on an empty `argparse.Namespace` (vacuous; it never exercised driver code) and `test_this_plan_did_not_change_the_default` pinned `DEFAULT_TIMEOUT`, unrelated to this property; E-02/E-03 replace the former with real driver calls and the latter is not restored.
-- The option is declared in `agy_runipd.build_parser` on the `start` subparser (`dest="dangerously_skip_permissions"`, `default=True`, opt-out `--no-dangerously-skip-permissions`), frozen in `agy_runipd.initialize_run` (`getattr(args, "dangerously_skip_permissions", True)`), and consumed in `agy_runipd.run_agy_turn` (`if options.get("dangerously_skip_permissions", True): argv.append("--dangerously-skip-permissions")`).
+- The option is declared in `agy_runipd.build_parser` on the `start` subparser (`dest="dangerously_skip_permissions"`, `default=True`, opt-out `--no-dangerously-skip-permissions`). It is frozen in `agy_runipd.initialize_run` (`getattr(args, "dangerously_skip_permissions", True)`) and consumed at TWO launch sites: `agy_runipd.run_agy_turn` and `runner_shared.probe_argv` (`host == "agy"` branch, the orchestrator-coverage probe). Both read `if options.get("dangerously_skip_permissions", True): argv.append("--dangerously-skip-permissions")`.
+- Measured at review (HEAD `9f4e0f477`):
+  - `build_parser().parse_args(["start","x"])` yields `True`; `--no-dangerously-skip-permissions` yields `False`; `--dangerous` and `--dangerously-skip-permissions` yield `True`.
+  - `run_agy_turn` under a recording `Popen` fake made 5 calls (4 `git config --get ...` and 1 agy launch). The agy argv contained the flag for absent and True options and omitted it for False.
+  - `probe_argv` contains the flag for `{}` options and omits it for `False`.
+  - The `VerificationPolarityTests.frozen_options` flow on `agy_runipd` returned `True` with no flag and `False` with the opt-out.
 - `tests/test_agy_run.py` covers the lower-level `agy_run.run_agy(skip_permissions=True)` argv only, not the `agy_runipd` default; `rg -n dangerously_skip_permissions tests/` returns no matches.
 - Suite is run bare: `python3 -m pytest`.
 
@@ -68,10 +87,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Site | Lost test | Live coverage today |
 |---|---|---|
 | 9rthek S-14 (`agy_runipd.run_agy_turn` comment) | `TestAntigravitySkipPermissionsDefaultIsPinned.test_option_still_defaults_to_true_on_the_parser` | None for the `agy_runipd` default; only `agy_run.run_agy` explicit `skip_permissions=True` argv in `tests/test_agy_run.py`. |
+| `runner_shared.probe_argv` agy branch | (never guarded) | None; `tests/test_runner_finalize_message.py` checks only `--print-timeout`. |
 
 ## Proposed changes (ordered, validatable)
 
-1. New `tests/test_agy_skip_permissions_default.py` (E-01..E-03).
+1. New `tests/test_agy_skip_permissions_default.py` (E-01, E-02, E-03, E-05).
 2. Comment repoint in `agent_workflows/agy_runipd.py` (E-04).
 
 ## Deferred / out of scope (with reason)
@@ -82,17 +102,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none; no production logic changes.
-- Under-scope: none; the one cited site (S-14) gets a behavioral guard at parser, freeze, and launch layers.
+- Under-scope: none; the cited site (S-14) gets a behavioral guard at the parser, freeze, and launch layers, and the second launch site (`runner_shared.probe_argv`) is guarded too (E-05).
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -v tests/test_agy_skip_permissions_default.py` passes.
-- Non-vacuity: in a scratch uncommitted edit set `default=False` on the `--dangerously-skip-permissions` argument in `agy_runipd.build_parser` and change the `run_agy_turn` fallback to `options.get("dangerously_skip_permissions", False)`; the E-01, E-02 (absent-key case) and E-03 tests fail; revert and show `git diff --stat agent_workflows/agy_runipd.py` empty apart from the E-04 comment.
+- Non-vacuity, performed BEFORE E-04 so the revert cannot discard the comment edit:
+  - In a scratch uncommitted edit, set `default=False` on the `--dangerously-skip-permissions` argument in `agy_runipd.build_parser`, and change BOTH fallbacks (`agy_runipd.run_agy_turn` and `runner_shared.probe_argv`) to `options.get("dangerously_skip_permissions", False)`.
+  - Run the module. The E-01 default test, the E-02 absent-key case, the E-03 no-flag case, and the E-05 absent-key case must fail with `AssertionError`.
+  - Revert with `git checkout -- agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` (safe: neither file has other edits yet).
+  - Show `git diff --stat -- agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` empty before starting E-04.
 - Full suite `python3 -m pytest` passes.
 
 ## Spec / documentation sync
 
-N/A: test-only addition plus a comment repoint; the governing spec (R4.1c) is unchanged.
+N/A: test-only addition plus a comment repoint; the governing spec (R4.1c) is unchanged. No CHANGELOG entry, because nothing user-visible changes.
 
 ## Open questions
 
@@ -100,7 +124,7 @@ N/A: test-only addition plus a comment repoint; the governing spec (R4.1c) is un
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. It exercised no driver code; E-02 (absent option key at `run_agy_turn`) and E-03 (freeze through `initialize_run`) test the same intent behaviorally. Backlog `m7o4ew` permits only behavioral outcomes (P16).
 
 ## Validation and cross-check (verify before reporting done)
@@ -118,12 +142,21 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Pasted pytest output showing the freeze test passing, with the frozen option read from the `state.json` written by `agy_runipd.initialize_run` (or, if the documented fallback was taken, the recorded infeasibility reason and the Namespace-based test passing); plus scratch non-vacuity output showing it FAIL.
+  - Required evidence: Pasted pytest output showing the freeze test passing for both the no-flag (`True`) and opt-out (`False`) cases. The frozen option is read via `runner_shared.load_state` from the run dir created by `agy_runipd.initialize_run`, under an isolated `XDG_CONFIG_HOME`. Also paste scratch non-vacuity output showing the no-flag case FAIL.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted `git diff agent_workflows/agy_runipd.py` showing only comment lines changed and naming `tests/test_agy_skip_permissions_default.py`; pasted `rg -n "import ast|import inspect|read_text\(.*\.py" tests/test_agy_skip_permissions_default.py` returning no matches; pasted bare `python3 -m pytest` summary line showing the full suite passing.
+  - Required evidence: paste:
+    - `git diff agent_workflows/agy_runipd.py` showing only comment lines changed and naming `tests/test_agy_skip_permissions_default.py`;
+    - `git diff --stat -- agent_workflows/runner_shared.py` showing nothing;
+    - `rg -n "import ast|import inspect|read_text\(.*\.py" tests/test_agy_skip_permissions_default.py` returning no matches;
+    - the bare `python3 -m pytest` summary line, showing zero failures that are absent at the execution base (compare by name).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: Pasted pytest output showing the probe-argv test passing for the absent-key, True, and False cases; the observed argv is produced by `runner_shared.probe_argv` (`host="agy"`). Also paste scratch non-vacuity output (probe fallback `False`) showing the absent-key case FAIL.
   - Observed evidence:
   - Result: pending
 
@@ -132,4 +165,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit <plan> -- <paths>`; never push. After every `V-*` item records pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle (`aw ipd finalize`).
+Execute only after explicit human approval (`Status: approved`).
+
+EXECUTION CONTRACT. OQ-01 is resolved; none remain. When executing by hand, start with `aw ipd begin ba6z1a`. Commit only the `- Scope-Paths:` files plus this plan, through `aw commit ba6z1a -- <paths>`. Never use `git add -A` or `-a`, never `--no-verify`, never push. Verify the staged set with `git diff --cached --name-only` first. HONESTY RULE: every `V-*` MUST paste the ACTUAL runner output; a claimed pass with no pasted output does not satisfy it.
+
+SCOPE FENCE. `agent_workflows/runner_shared.py` is touched ONLY by the reverted non-vacuity scratch edit and must show no committed diff. No production statement changes anywhere. An out-of-scope edit that proves necessary is made and then justified with `aw ipd finalize --scope-reason`.
+
+POST-GATE LIFECYCLE. When every `E-*` is `performed`, every `V-*` is `Result: pass` with pasted evidence, and `aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/`. Under `aw oc run`/`aw agy run` the runner owns that finalize, so the executor must NOT run it. When executing by hand, run `aw ipd finalize ba6z1a`. Never hand-roll the move with `git mv`.
