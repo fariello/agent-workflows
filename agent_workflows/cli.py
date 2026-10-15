@@ -506,7 +506,7 @@ _DESCRIPTIONS = {
         "Pre-graduation view: report every PLAN and SPEC that already carries a `- From-Spec:` or "
         "`- From-Backlog:` bullet naming the given source id6, with each artifact's type, status and "
         "Set, so whoever is about to graduate that source sees what exists before authoring another "
-        "plan for it. Read-only and ADVISORY: it shows and never refuses, and it adds no uniqueness "
+        "plan for it. Read-only and ADVISORY: it refuses only a source id6 that names no artifact, and adds no uniqueness "
         "rule, because a source decomposing into several children of one Set is correct. Every answer "
         "states which of the three cases it can detect (legitimate decomposition), can only partly "
         "detect (accidental duplication across different Sets), and cannot detect at all (already "
@@ -12633,6 +12633,18 @@ def _run_record_history(
 
     id6 = args.id6
     records = rh.read_for(repo_root, id6)
+    if not records:
+        refusable = selector_tokens_naming_no_artifact(repo_root, [id6])
+        if refusable:
+            return emit_zero_match_selector_refusal(
+                ctx=ctx,
+                cmd="record-history",
+                tokens=refusable,
+                next_cmd=f"aw find {id6}",
+                next_desc=f"search for artifact {id6}",
+                searched="all artifact types",
+                term=term,
+            )
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="record-history",
@@ -12740,6 +12752,18 @@ def _run_graduation(
     source_kind = getattr(args, "source_kind", None)
 
     cluster = ce.graduation_cluster(repo_root, source, source_kind=source_kind)
+    if not cluster.has_any_link:
+        refusable = selector_tokens_naming_no_artifact(repo_root, [source])
+        if refusable:
+            return emit_zero_match_selector_refusal(
+                ctx=ctx,
+                cmd="graduation",
+                tokens=refusable,
+                next_cmd=f"aw find {source}",
+                next_desc=f"search for artifact {source}",
+                searched="all artifact types",
+                term=term,
+            )
     artifacts = [a._asdict() for a in cluster.artifacts]
     terminal = cluster.terminal_artifacts
     fwd_terminal = [
@@ -14112,6 +14136,141 @@ def find_selector_match_facts(
         unmatched=tuple(unmatched),
         vocabulary=tuple(vocab),
     )
+
+
+def selector_tokens_naming_no_artifact(
+    repo_root: Path, tokens: Sequence[str]
+) -> Tuple[str, ...]:
+    """Compute which selector tokens name NO artifact in any tracked record tree (IPD yxsfjc E-02).
+
+    Returns a tuple of refusable tokens (empty tuple if all tokens name an artifact, are an
+    existing file path, or are in the standing vocabulary).
+
+    Built strictly from `find_selector_match_facts` and `find_selector_vocabulary`.
+    Drops vocabulary tokens (case-folded) and existing file paths first at zero resolution cost,
+    then loops `artifact_types.ARTIFACT_TYPES` in order, stopping as soon as all tokens match (F-11).
+    """
+    from agent_workflows import artifact_types as at
+
+    root = Path(repo_root)
+    vocab = find_selector_vocabulary()
+    remaining: List[str] = []
+    for tok in tokens:
+        clean = str(tok).strip()
+        if not clean:
+            continue
+        if clean.lower() in vocab:
+            continue
+        # Drop tokens that are an existing file path at zero resolution cost
+        try:
+            cand = Path(clean)
+            if cand.is_file():
+                continue
+            if not cand.is_absolute() and (root / clean).is_file():
+                continue
+        except OSError:
+            pass
+        remaining.append(clean)
+
+    for t in at.ARTIFACT_TYPES:
+        if not remaining:
+            break
+        facts = find_selector_match_facts(repo_root, [t], remaining, vocabulary=())
+        matched_set = {m.lower() for m in facts.matched}
+        remaining = [tok for tok in remaining if tok.lower() not in matched_set]
+
+    return tuple(remaining)
+
+
+def emit_zero_match_selector_refusal(
+    ctx: Any,
+    cmd: str,
+    tokens: Sequence[str],
+    next_cmd: str,
+    next_desc: str,
+    searched: str = "all artifact types",
+    term: Optional[Any] = None,
+) -> int:
+    """Render a zero-match selector refusal at exit 2 across all surfaces (IPD yxsfjc E-02).
+
+    Follows the refusal contract established in `_run_find`:
+      - `--agent`: hand-builds valid `aw.agent/v1` error record (outcome cannot-run, exit 2).
+      - `--json`: CommandResult(status="cannot-run", exit_code=2) with data carrying tokens.
+      - human: Term.format_empty_result(..., status="fail") to stderr with stdout empty.
+
+    Every token is passed through `agent_schema.redact_home_paths` before entering any record
+    or message string. Returns 2.
+    """
+    import json
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import CommandResult, NextAction
+    from agent_workflows.term import Term
+
+    redacted_tokens = [str(_schema.redact_home_paths(t)) for t in tokens]
+    redacted_next_cmd = str(_schema.redact_home_paths(next_cmd))
+    redacted_next_desc = str(_schema.redact_home_paths(next_desc))
+    noun = "selector" if len(redacted_tokens) == 1 else "selectors"
+    quoted = ", ".join(repr(t) for t in redacted_tokens)
+    error_msg = f"no artifact matched {noun} {quoted}; searched {searched}"
+
+    if ctx.is_agent:
+        record = {
+            "schema": _schema.SCHEMA_VERSION,
+            "kind": "error",
+            "cmd": cmd,
+            "outcome": "cannot-run",
+            "exit": 2,
+            "verified": False,
+            "complete": False,
+            "findings": len(redacted_tokens),
+            "unresolved_selectors": redacted_tokens,
+            "unresolved_targets": redacted_tokens,
+            "error": error_msg,
+            "next": redacted_next_cmd,
+        }
+        _schema.assert_valid_agent_record(record)
+        ctx.stdout.write(json.dumps(record, ensure_ascii=False) + "\n")
+        ctx.stdout.flush()
+        return 2
+
+    if ctx.is_json:
+        res = CommandResult(
+            command=cmd,
+            status="cannot-run",
+            exit_code=2,
+            summary=error_msg,
+            verified=False,
+            complete=False,
+            next_actions=[
+                NextAction(command=redacted_next_cmd, description=redacted_next_desc)
+            ],
+            data={
+                "unresolved_selectors": redacted_tokens,
+                "unresolved_targets": redacted_tokens,
+                "searched": searched,
+            },
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    # Human surface: format_empty_result on stderr with stdout empty
+    err_term = (
+        Term(stream=sys.stderr, color=term.color, unicode=term.unicode)
+        if term is not None
+        else Term(stream=sys.stderr)
+    )
+    refusal_filters: List[Tuple[str, Any]] = [
+        (f"unmatched {noun}", list(redacted_tokens)),
+        ("searched", searched),
+    ]
+    msg = err_term.format_empty_result(
+        summary=f"no artifact matched {noun} {quoted}",
+        filters=refusal_filters,
+        next_action=(redacted_next_cmd, redacted_next_desc),
+        status="fail",
+    )
+    err_term.line(msg)
+    return 2
 
 
 def _build_find_continuation_parts(

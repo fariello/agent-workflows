@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import sys
 from typing import List, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
@@ -191,14 +192,16 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
     """Recompute, report per condition, and write only when every condition is clear.
 
     Exit contract: 0 when the sweep completed (whether or not anything was written; a REFUSAL is a
-    correct outcome and not an error), 1 when a named selector resolved to nothing, 2 when the verb
-    could not run at all.
+    correct outcome and not an error), and 2 when a selector resolved to nothing (or to a non-plan
+    artifact) or the verb could not run at all. There is deliberately NO exit 1: unresolved selectors
+    are refused upfront at exit 2 with cannot-run before any write.
     """
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         Change,
         CommandResult,
         Diagnostic,
+        NextAction,
         select_output,
     )
 
@@ -213,7 +216,64 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
     selectors = list(getattr(args, "selectors", None) or [])
     paths, missing = _resolve(repo_root, selectors)
 
-    if not paths and not missing:
+    if missing:
+        from agent_workflows.cli import (
+            emit_zero_match_selector_refusal,
+            find_selector_vocabulary,
+            selector_tokens_naming_no_artifact,
+        )
+
+        vocab = find_selector_vocabulary()
+        non_vocab_missing = [tok for tok in missing if tok.lower() not in vocab]
+        if non_vocab_missing:
+            refusable = selector_tokens_naming_no_artifact(repo_root, non_vocab_missing)
+            if refusable:
+                return emit_zero_match_selector_refusal(
+                    ctx=ctx,
+                    cmd="ipd recheck-readiness",
+                    tokens=refusable,
+                    next_cmd="aw find plans",
+                    next_desc="search for plans",
+                    searched="plans",
+                )
+            # All non_vocab_missing tokens name real artifacts that are not plans (F-12)
+            diagnostics = [
+                Diagnostic(
+                    location=tok,
+                    rule="readiness.selector-unresolved",
+                    detail="selector matched no plan",
+                    severity="error",
+                )
+                for tok in non_vocab_missing
+            ]
+            summary = "selector matched no plan: {0}".format(
+                ", ".join(non_vocab_missing)
+            )
+            if ctx.is_agent or ctx.is_json:
+                return get_renderer(ctx).emit(
+                    CommandResult(
+                        command="ipd recheck-readiness",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=summary,
+                        diagnostics=diagnostics,
+                        next_actions=[
+                            NextAction(
+                                command="aw find plans",
+                                description="search for plans",
+                            )
+                        ],
+                        data={"unresolved_selectors": non_vocab_missing},
+                        verified=False,
+                        complete=False,
+                    ),
+                    ctx,
+                )
+            for tok in non_vocab_missing:
+                sys.stderr.write("error: selector matched no plan: {0}\n".format(tok))
+            return 2
+
+    if not paths:
         summary = "no plans to re-check (swept {0})".format(
             ", ".join(SWEEP_DISPOSITIONS)
         )
@@ -306,20 +366,11 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
             )
             for r in refused
         ]
-        diagnostics.extend(
-            Diagnostic(
-                location=tok,
-                rule="readiness.selector-unresolved",
-                detail="selector matched no plan",
-                severity="error",
-            )
-            for tok in missing
-        )
         return get_renderer(ctx).emit(
             CommandResult(
                 command="ipd recheck-readiness",
-                status="findings" if missing else "clean",
-                exit_code=1 if missing else 0,
+                status="clean",
+                exit_code=0,
                 summary=summary,
                 changes=changes,
                 diagnostics=diagnostics,
@@ -329,8 +380,6 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
             ctx,
         )
 
-    for tok in missing:
-        print("error: selector matched no plan: {0}".format(tok))
     for r in rows:
         print("")
         print("{0}  [{1}]".format(r.result.id6 or r.path.name, r.action))
@@ -357,4 +406,4 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
     print(summary)
     if not apply and (would or any(r.stale for r in rows)):
         print("(dry-run: nothing was written. Pass --apply to write.)")
-    return 1 if missing else 0
+    return 0
