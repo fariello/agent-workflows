@@ -51,9 +51,8 @@ class CommandDeclaration:
     #    128 + 15 representation of an unhandled signal. 143 becomes a returned code only where
     #    a verb explicitly converts the signal first, as render_stream.install_exit_signal_handler
     #    does for the driver verbs.
-    # 3. aw pwatch installs its own handlers and stop_cleanly raises SystemExit(0), returning 0
-    #    on both SIGINT and SIGTERM, proving signal-derived codes are not even constant across
-    #    the surface.
+    # 3. aw pwatch installs its own handlers and returns 0 on SIGINT and 143 on SIGTERM,
+    #    proving signal-derived codes are not even constant across the surface.
     # Imperative for future editors: do NOT add 130 or 143 to any command's exit_contract.
     # A verb whose signal behavior is unusual (such as pwatch) documents that behavior at the
     # verb itself, never by widening its exit_contract declaration.

@@ -1,5 +1,5 @@
 - Id: x31lcm
-- Status: graduated
+- Status: done
 - Graduated-To: x31lcm
 - Set: x31lcm
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether aw pwatch should exit 0 when SIGTERM'd, since a supervisor cannot distinguish that from a clean finish
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): closed by aw agy run: IPD ww744p executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-x31lcm-01-ww744p-make-aw-pwatch-return-143-on-sigterm-while-keeping-exit-0-on.ipd.md); evidence .aw/records/plans/executed/20261011-x31lcm-01-ww744p-make-aw-pwatch-return-143-on-sigterm-while-keeping-exit-0-on.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005606Z-2321569: ww744p
 - 2026-10-01 created (aw backlog): Decide whether aw pwatch should exit 0 when SIGTERM'd, since a supervisor cannot distinguish that from a clean finish
 

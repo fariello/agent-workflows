@@ -237,6 +237,16 @@ aw pwatch python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
 `tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments.
 
+### Exit Status
+
+`aw pwatch` returns:
+- `0`: clean exit after `--once` or interrupt via Ctrl-C (SIGINT).
+- `143`: terminated by SIGTERM.
+- `1`: runtime error (e.g. fatal failure reading `/proc`).
+- `2`: command-line argument validation or usage error.
+
+In all cases, the alternate screen is exited and the terminal state is restored cleanly. Note that the `--runners --table` dashboard is an exception and still exits 0 on SIGTERM.
+
 ## `aw oc runipd` (the OpenCode IPD runner)
 
 The OpenCode IPD runner is a restartable, non-interactive driver for reviewing and executing queues of IPDs, Sets, and plan files. It automatically routes `to-review` plans to OpenCode `/plan-review` (sharing session context across turns) and `approved` plans to full execution. It persists durable run state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
