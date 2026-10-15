@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the eight children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261011-uncitedaudit-00-k93w2g-audit-and-mutation-prove-behavioral-coverage-across-the-unci.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: d726a52ad65c242b8ed20406c3bd86645978472bac3872090f938c7e8a2c51af
@@ -19,9 +19,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k93w2g
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set uncitedaudit reached executed, so the runner (run run-20261015T011924Z-3874138) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 1ub8ex, nzzu8n, g55j1e, sk2rbf, 8d0qsg, anzu8q, rq3q7v, xmr5qj.
 - 2026-10-12 approved (aw set): status set to approved
 - 2026-10-12 reviewed (aw set): plan-review complete: APPROVE WITH REVISIONS APPLIED
 
@@ -36,6 +36,9 @@
 Answer, reproducibly, which behaviors the 209 uncited `19313eed`-deleted test files guarded that no surviving test now guards, proving "guarded" by mutation with a positive control, and leave every gap as a tracked backlog item.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
