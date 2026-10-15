@@ -113,7 +113,7 @@ Orders 01, 02 and 03 are mutually independent. They all touch `tools/README.md`,
 ## Deferred / out of scope (with reason)
 
 - Writing replacement tests and fixing regressions found: each filed item's own work.
-  - Carrier: xmr5qj
+  - Carrier: 5slmvq, 9qvfie
 - The cited deleted files: handled by the census citation axes and plan `oyh28b`'s filed items.
   - Carrier-Evidence: .aw/records/plans/executed/20260930-xvp5vx-01-oyh28b-build-a-reproducible-lost-guard-census-over-the-two-suite-tr.ipd.md
 - Tests removed from MODIFIED files (`19313eed` modified 20 test files, removing 1,412 functions = 7,402 DM-multiset minus 5,990 D-only): the item's subject is the deleted files.
