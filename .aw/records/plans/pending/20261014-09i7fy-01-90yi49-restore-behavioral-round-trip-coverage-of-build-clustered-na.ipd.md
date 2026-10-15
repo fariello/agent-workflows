@@ -6,7 +6,8 @@
 - Scope: IN: a new behavioral test module that calls `build_clustered_name` and `parse_clustered` and asserts the round-trip identity in both directions, plus a builder-rejects-unknown-facet outcome and a parser-rejects-typo-facet outcome; repointing the "no live guard currently asserts this" clause in the `artifact_naming` module docstring (site `ev7t1w` S-03) at the new test. OUT: any source-reading, `ast`, regex-over-source or symbol-census check (P16); the structural single-source assertions the deleted file also carried (`SingleSourceStructuralTests`, `NormalizerDriftGuardTests`), which were code pins; the research-grammar round trip (`research_contract`) and the `prompts.build_prompt_name` delegation round trip, which are separate properties not named by backlog `09i7fy`; the docstrings at `prompts.build_prompt_name` (`ev7t1w` S-20-family) and `attention.py` (S-05), which cite the structural single-source property rather than the round trip; any change to the grammar or to executable code.
 - Scope-Paths: tests/test_artifact_naming_round_trip.py, agent_workflows/artifact_naming.py, .aw/records/plans/pending/20261014-09i7fy-01-90yi49-restore-behavioral-round-trip-coverage-of-build-clustered-na.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 09i7fy
@@ -17,6 +18,8 @@
 - Id: 90yi49
 
 ## Workflow history
+- 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
+- 2026-10-15 reviewed (aw set): plan-review applied revisions
 
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored review-ready from backlog `09i7fy`.
@@ -31,12 +34,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral round-trip tests
 
-- [ ] E-01 Create `tests/test_artifact_naming_round_trip.py` with a build-then-parse test: call `artifact_naming.build_clustered_name(date="20260823", set_id="myset", order=3, id6="abc123", slug="a-slug", artifact_type="ipd")`, assert the exact returned string `20260823-myset-03-abc123-a-slug.ipd.md`, then assert `parse_clustered` of it is not `None` and its `date`, `set`, `nn`, `id6`, `slug`, `type` groups equal the inputs (`int(nn) == 3`). Repeat for `artifact_type=None` (bare `.md`, `type` group `None`) and for every member of `artifact_naming.ARTIFACT_TYPE_FACETS` via `subTest`.
+- [ ] E-01 Create `tests/test_artifact_naming_round_trip.py` with a build-then-parse test: call `artifact_naming.build_clustered_name(date="20260823", set_id="myset", order=3, id6="abc123", slug="a-slug", artifact_type="ipd")`, assert the exact returned string `20260823-myset-03-abc123-a-slug.ipd.md`, then assert `parse_clustered` of it is not `None` and its `date`, `set`, `nn`, `id6`, `slug`, `type` groups equal the inputs (`int(nn) == 3`). Repeat for `artifact_type=None` (bare `.md`, `type` group `None`) and for every member of `artifact_naming.ARTIFACT_TYPE_FACETS` via `subTest`. Import the module (`from agent_workflows import artifact_naming`) and call both functions through the module attribute (`artifact_naming.build_clustered_name(...)`, `artifact_naming.parse_clustered(...)`), never `from agent_workflows.artifact_naming import build_clustered_name`, so the falsifiability probe in V-01 can substitute a mutant without editing production source.
   - Depends on: none
   - Expected outcome: the test calls the real builder and parser and asserts on their returned values only; it reads no source file.
   - Execution state: pending
 
-- [ ] E-02 In the same module add a parse-then-build identity test over a fixed corpus of conformant names, at minimum `20260823-myset-03-abc123-a-slug.ipd.md`, `20260823-myset-03-abc123-a-slug.md`, `20260823-my-set-11-zzz999-longer-slug.spec.md`, and the lazy-quantifier case `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md` (canonical reading set `foo`, order `12`, per the `_CLUSTERED_PREFIX_RE` comment in `artifact_naming`): for each, parse, rebuild from the groups with `build_clustered_name`, and assert the rebuilt string equals the input byte for byte.
+- [ ] E-02 In the same module add a parse-then-build identity test over a fixed corpus of conformant names, at minimum `20260823-myset-03-abc123-a-slug.ipd.md`, `20260823-myset-03-abc123-a-slug.md`, `20260823-my-set-11-zzz999-longer-slug.spec.md`, and the lazy-quantifier case `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md` (canonical reading set `foo`, order `12`, per the `_CLUSTERED_PREFIX_RE` comment in `artifact_naming`): for each, parse, rebuild from the groups with `build_clustered_name`, and assert the rebuilt string equals the input byte for byte. For the lazy-quantifier entry also assert `set == "foo"`, `nn == "12"` and `slug == "bar-01-def456-slug"`, because a greedy set group still round-trips that name byte for byte (it reads set `foo-12-abc123-bar`, order `01`), so identity alone would not catch the regression the `_CLUSTERED_PREFIX_RE` comment ("THE LAZY QUANTIFIER IS LOAD-BEARING") warns about.
   - Depends on: E-01
   - Expected outcome: `build(parse(name)) == name` holds for every corpus entry, including a hyphenated set id and an embedded `-NN-id6-` lookalike inside the slug.
   - Execution state: pending
@@ -68,6 +71,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | `rg -n "build_clustered_name" tests/` returns no hits; `parse_clustered` appears in `tests/test_attention.py`, `tests/test_artifact_adopt.py`, `tests/test_plans_rename_selectors.py`, but none of them calls `build_clustered_name` and asserts the inverse relation. | The round-trip property is unguarded, as `ev7t1w` S-03 recorded. |
 | F-02 | `artifact_naming.build_clustered_name` kebab-cases `set_id` and `slug` via `artifact_core.kebab` and formats `order` as `{order:02d}`; `artifact_naming._CLUSTERED_RE` uses a lazy `set` group and a closed `_FACET_ALT` facet group. | The inverse relation holds only for already-kebab, two-digit-order inputs; the test corpus must use conformant inputs (which is what the deleted test asserted). |
+| F-04 | Review probe: under a greedy `set` group (`[a-z0-9-]+` instead of `[a-z0-9-]+?` in `artifact_naming._CLUSTERED_RE`), `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md` parses as set `foo-12-abc123-bar`, order `01`, slug `slug`, and still rebuilds byte for byte. | Identity alone cannot guard the lazy quantifier; E-02 pins the canonical groups for that entry, and the V-02 probe proves it. |
+| F-05 | `git show 80db6750c^:tests/test_naming_authority_single_source.py` and `git show 19313eed7^:...` both contain `RoundTripTests`, so the round-trip tests survived `80db6750c` and were removed in `19313eed`. | The E-04 docstring may keep naming `19313eed` as the deletion commit for the round trip. |
 | F-03 | The `artifact_naming` module docstring currently reads "no live guard currently asserts this" for both properties. | After E-01..E-03 that is false for the round trip, so E-04 corrects it, keeping the structural property honestly marked unguarded. |
 
 ## Proposed changes (ordered, validatable)
@@ -78,8 +83,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Structural single-source assertions (regex defined in exactly one module, normalizer byte-identity drift guard): these read source text and are code pins forbidden by P16.
+  - Carrier-Declined: P16 forbids restoring source-reading pins, so there is no obligation to carry; the property stays deliberately unguarded and the module docstring says so (E-04).
 - Research grammar round trip and `prompts.build_prompt_name` delegation round trip: valid behavioral properties but not the property named by backlog `09i7fy`; they belong to their own backlog items if wanted.
+  - Carrier-Declined: not named by backlog `09i7fy` and no defect is recorded against them, so filing one is a maintainer's choice, not an obligation of this plan (OQ-01).
 - `prompts.py` and `attention.py` "no live guard" docstrings: they cite the structural property, which stays unguarded, so they remain accurate.
+  - Carrier-Declined: the docstrings are accurate as written, so nothing is outstanding.
 
 ## Scope check
 
@@ -89,9 +97,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" tests/test_artifact_naming_round_trip.py -v` passes, listing each new test.
-- Falsifiability: temporarily changing the builder's `{order:02d}` to `{order:03d}` in a scratch copy (not committed) makes the new tests fail; revert before commit.
-- `rg -n "inspect|import ast|read_text|__file__" tests/test_artifact_naming_round_trip.py` returns no hits (no source reading).
-- Full bare suite `python3 -m pytest` passes.
+- Falsifiability, WITHOUT editing production source: a throwaway `python3 -c` driver (not committed) that imports the new test module, substitutes a mutant through the module attribute, runs the tests with `unittest`, and prints the failures. Two mutants: (a) a builder emitting `{order:03d}` (e.g. wrapping the real `artifact_naming.build_clustered_name` and replacing `-03-` with `-003-`), which must fail the E-01 and E-02 tests; (b) `artifact_naming._CLUSTERED_RE` recompiled with the lazy `set` group `[a-z0-9-]+?` made greedy, which must fail the E-02 lazy-quantifier group assertions (measured at review: under that mutant the lazy-quantifier name still round-trips byte for byte, reading set `foo-12-abc123-bar` / order `01`, so only the explicit group assertions catch it). The working tree's `agent_workflows/artifact_naming.py` must be unchanged by the probe (`git diff --stat` shows only the E-04 docstring edit).
+- `rg -n "inspect|import ast|read_text|__file__|open\(" tests/test_artifact_naming_round_trip.py` returns no hits (no source reading, P16).
+- Full bare suite `python3 -m pytest` shows no failure that does not also fail on the base commit (another party's failure must not block a correct execution; compare failing test ids by name against a base-commit run when anything fails).
 - `git diff -- agent_workflows/artifact_naming.py` shows only docstring lines changed.
 
 ## Spec / documentation sync
@@ -104,7 +112,7 @@ N/A: no spec describes these tests, and the grammar contract is unchanged. The o
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author (opencode); confirmed by /plan-review
 - Resolution or deferral rationale: No. Backlog `09i7fy` names only `build_clustered_name`/`parse_clustered`; the other round trips are separate properties and adding them would broaden scope (runbook Section 9 "Do not broaden scope opportunistically").
 
 ## Validation and cross-check (verify before reporting done)
@@ -112,12 +120,12 @@ N/A: no spec describes these tests, and the grammar contract is unchanged. The o
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_artifact_naming_round_trip.py -v` output showing the build-then-parse test(s) PASSED, plus pasted output of the same run against a scratch builder mutation (`{order:03d}`) showing it FAILED, proving the test is falsifiable.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_artifact_naming_round_trip.py -v` output showing the build-then-parse test(s) PASSED (including one `subTest` per `ARTIFACT_TYPE_FACETS` member and the `None` facet), plus the pasted output of the mutant (a) probe driver described under Required tests showing those tests FAILED under the `{order:03d}` builder, and `git diff --stat -- agent_workflows/artifact_naming.py` after the probe showing no executable change.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted pytest output showing the parse-then-build identity test PASSED, and the test source excerpt showing the four corpus names including `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md`.
+  - Required evidence: pasted pytest output showing the parse-then-build identity test PASSED, the test source excerpt showing the four corpus names and the explicit `set == "foo"` / `nn == "12"` / `slug == "bar-01-def456-slug"` assertions on `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md`, and the pasted output of the mutant (b) greedy-regex probe showing the lazy-quantifier assertion FAILED.
   - Observed evidence:
   - Result: pending
 
@@ -127,7 +135,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `git diff -- agent_workflows/artifact_naming.py` showing only module-docstring lines changed and naming `tests/test_artifact_naming_round_trip.py`, plus the pasted `N passed` summary line of a bare `python3 -m pytest` run.
+  - Required evidence: pasted `git diff -- agent_workflows/artifact_naming.py` showing only module-docstring lines changed and naming `tests/test_artifact_naming_round_trip.py`, plus the pasted summary line of a bare `python3 -m pytest` run, with any failure shown to fail identically on the base commit.
   - Observed evidence:
   - Result: pending
 
@@ -136,4 +144,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths through `aw commit 90yi49 -- <paths>`; never push. Move to `.aw/records/plans/executed/` through the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted observed evidence with `Result: pass`.
+EXECUTION CONTRACT. Open questions: OQ-01 is resolved; none remain. HONESTY RULE: every `V-*` item MUST paste the ACTUAL runner output; a claimed pass with no pasted output does not satisfy it. Start with `aw ipd begin 90yi49`. Commit ONLY the `- Scope-Paths:`, through `aw commit 90yi49 -- <paths>`; never `git add -A`, never `-a`, never push, never `--no-verify`. Verify the staged set with `git diff --cached --name-only` before committing. The falsifiability probes substitute mutants in-process only; never commit, or leave on disk, a mutated `artifact_naming.py`.
+
+DO NOT WIDEN. Do not change any executable line of `artifact_naming.py` or the grammar, do not restore the structural single-source or normalizer tests (P16), do not add the research or prompts round trips (OQ-01), and do not edit the `prompts.build_prompt_name` or `attention.py` docstrings or executed plan `ev7t1w`. An out-of-scope edit that proves necessary is made and justified with `aw ipd finalize --scope-reason`.
+
+POST-GATE LIFECYCLE. Execution requires explicit human approval (`aw ipd set approved 90yi49`). On completion every `V-*` carries pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` must conform before the plan moves to `.aw/records/plans/executed/`: under `aw oc run`/`aw agy run` the runner owns that finalize, so the executor must NOT run it; executed by hand, run `aw ipd finalize 90yi49`. Never hand-roll the move or `git mv` the plan.
