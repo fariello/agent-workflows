@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that builds temp-repo Set fixtures, drives the real `evaluate_set_retirement`, `decide_orchestrator_dispatch`, `dispatch_orchestrator_item`, and `orchestrator_refusal_text`, and asserts on their returned values and the item's rendered `Refusal`. Test-only; no production change.
 - Scope-Paths: tests/test_orchestrator_refusal_reason_translation.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: dxe6w1
@@ -17,7 +18,9 @@
 - Id: qrzowp
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 
+- 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 - 2026-10-14 draft (OpenCode Claude Opus): created.
 - 2026-10-14 to-review (OpenCode Claude Opus): authored from backlog `dxe6w1`; Step 0 evidence gathered; ready for `/plan-review`.
 
@@ -31,12 +34,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Translation at the dispatch decision (S-10)
 
-- [ ] E-01 Create `tests/test_orchestrator_refusal_reason_translation.py` with a temp-repo fixture helper (pattern: `tests/test_orchestrator_not_approved_reason.py` `_make_repo`, writing plans under `.aw/records/plans/pending/` with `- Id:`, `- Set:`, `- Order:`, `- Kind:`, `- Status:` and an orchestrator `## Child IPDs` table) and a table-driven test, one `subTest` per retirement-refusal branch, that builds the Set shape which makes `runner_shared.evaluate_set_retirement` refuse with each of its four reasons: no orchestrator (children only), no children (orchestrator only), unauthored child row (table declares Orders `01` and `02` while only the Order-01 child exists on disk with `- Status: executed`, because the unfinished-children check runs BEFORE the unauthored-row check and a non-terminal child would mask it; verified during authoring), and unfinished children (one `approved` child queued as `queued`). For each, assert that `evaluate_set_retirement(repo, setid).reason` is the expected `RETIRE_REFUSED_*` constant, that `decide_orchestrator_dispatch(...)` (with `terminal_states=runner_shared.TERMINAL_STATES`, `success_states=oc_runipd.EXECUTION_SUCCESS_STATES`) returns a `reason` that is NOT equal to the input `RETIRE_REFUSED_*` value whenever the two vocabularies differ, and that `orchestrator_refusal_text(decision.reason)[0]` does not contain `THIS VERSION OF THE RUNNER DOES NOT RECOGNIZE`.
+- [ ] E-01 Create `tests/test_orchestrator_refusal_reason_translation.py` with a temp-repo fixture helper (pattern: `tests/test_orchestrator_not_approved_reason.py` `_make_repo`, writing plans under `.aw/records/plans/pending/` with `- Id:`, `- Set:`, `- Order:`, `- Kind:`, `- Status:` and, where the branch needs one, an orchestrator child table under the EXACT heading `## Child IPDs, sequence, and dependencies` (`runner_shared._CHILD_IPDS_HEADING`) with an `| Order | Id | Child |` header and one row per declared Order; a shorter `## Child IPDs` heading is NOT parsed and refuses every Set as `unauthored-child-rows`, verified at review) and a table-driven test, one `subTest` per retirement-refusal branch, that builds the Set shape which makes `runner_shared.evaluate_set_retirement` refuse with each of its four reasons: no orchestrator (children only), no children (orchestrator only), unauthored child row (table declares Orders `01` and `02` while only the Order-01 child exists on disk with `- Status: executed`, because the unfinished-children check runs BEFORE the unauthored-row check and a non-terminal child would mask it; verified during authoring), and unfinished children (one `approved` child on disk, present in the queue with run status `queued`, table declaring only Order `01`). For each, assert that `evaluate_set_retirement(repo, setid).reason` is the expected `RETIRE_REFUSED_*` constant (compared to the module constant, never to a string literal), that `decide_orchestrator_dispatch(...)` (with `terminal_states=runner_shared.TERMINAL_STATES`, `success_states=oc_runipd.EXECUTION_SUCCESS_STATES`) returns the expected `ORCH_REASON_*` constant and outcome (`ORCH_DISPATCH_TERMINATE` for the first three, `ORCH_DISPATCH_RECONSIDER` for unfinished), and that `orchestrator_refusal_text(decision.reason)[0]` does not contain `THIS VERSION OF THE RUNNER DOES NOT RECOGNIZE`. Add one control subtest: the Order-01-only table with that child `executed` makes `evaluate_set_retirement(...).eligible` True, proving the fixture's table is parsed (so the unauthored-row subtest refuses because of the missing Order-02 child and not because of an unparseable table). Expected mapping, measured at review on `461fdf679`: `no-orchestrator -> no-orchestrator`, `no-children -> no-children`, `unauthored-child-rows -> unauthored-child-rows` (all TERMINATE), `unfinished-children -> children-unfinished` (RECONSIDER).
   - Depends on: none
-  - Expected outcome: every refusal that `evaluate_set_retirement` can produce reaches the reporting mapping as a mapped code; the unfinished-children branch observably yields `ORCH_REASON_UNFINISHED_CHILDREN` (RECONSIDER) from an input of `RETIRE_REFUSED_UNFINISHED_CHILDREN`.
+  - Expected outcome: every refusal that `evaluate_set_retirement` can produce reaches the reporting mapping as a mapped code with the expected outcome; the unfinished-children branch observably yields `ORCH_REASON_UNFINISHED_CHILDREN` (RECONSIDER) from an input of `RETIRE_REFUSED_UNFINISHED_CHILDREN`; the eligible control passes.
   - Execution state: pending
 
-- [ ] E-02 Add a test in the same file proving the translation end to end through the read surface: drive the real `runner_shared.dispatch_orchestrator_item` for the unfinished-children fixture (orchestrator `queued`, child `queued`, `state.json` written as in `test_case_08_read_surface_via_dispatch_orchestrator_item`), then assert `render_stream.refusal_of_item(orch_item)` is not None, its `code` equals `runner_shared.ORCH_REASON_UNFINISHED_CHILDREN`, its `code` does not equal `runner_shared.RETIRE_REFUSED_UNFINISHED_CHILDREN`, and its `reason` does not contain `NOT RECOGNIZE`; and that `runner_shared.orchestrator_refusal_text(runner_shared.RETIRE_REFUSED_UNFINISHED_CHILDREN)[0]` DOES contain `NOT RECOGNIZE`, which demonstrates that forwarding the untranslated value would degrade the rendered refusal to the fallback.
+- [ ] E-02 Add a test in the same file proving the translation end to end through the read surface: drive the real `runner_shared.dispatch_orchestrator_item` for the unfinished-children fixture (orchestrator `queued`, child `queued`, `state.json` written as in `test_case_08_read_surface_via_dispatch_orchestrator_item`), then assert the returned decision's `outcome` is `runner_shared.ORCH_DISPATCH_RECONSIDER` and `orch_item["status"]` is still `queued` (RECONSIDER writes no status), `render_stream.refusal_of_item(orch_item)` is not None, its `code` equals `runner_shared.ORCH_REASON_UNFINISHED_CHILDREN`, its `code` does not equal `runner_shared.RETIRE_REFUSED_UNFINISHED_CHILDREN`, and its `reason` does not contain `NOT RECOGNIZE`; and that `runner_shared.orchestrator_refusal_text(runner_shared.RETIRE_REFUSED_UNFINISHED_CHILDREN)[0]` DOES contain `NOT RECOGNIZE`, which demonstrates that forwarding the untranslated value would degrade the rendered refusal to the fallback.
   - Depends on: E-01
   - Expected outcome: the refusal an operator reads for a deferred orchestrator carries the translated, mapped code, and the untranslated value is observably not mapped.
   - Execution state: pending
@@ -48,7 +51,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: an unknown code produces a loud, actionable, renderable record rather than an exception or generic prose.
   - Execution state: pending
 
-- [ ] E-04 Add a test calling `runner_shared.orchestrator_refusal_text` with `""` and with `None` and asserting each returns two non-empty strings, the reason contains `(no reason recorded)` and `NOT RECOGNIZE`, and the pair constructs a `render_stream.Refusal` without raising.
+- [ ] E-04 Add a test calling `runner_shared.orchestrator_refusal_text` with `""` and with `None` and asserting each returns two non-empty strings, the reason contains `(no reason recorded)` and `NOT RECOGNIZE`, and the pair constructs a `render_stream.Refusal` without raising (use `code="(no reason recorded)"` or any non-empty code for the record itself: `Refusal` refuses an empty `code`, verified at review, so the test must not pass the raw `""` as `code`).
   - Depends on: E-03
   - Expected outcome: an empty or missing reason is handled by the fallback rather than raising or producing an empty field that `Refusal` would refuse.
   - Execution state: pending
@@ -81,9 +84,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Editing the production comments saying "no live guard currently asserts this": production source outside Scope-Paths and a comment edit, not behavior; leave for a separate chore.
+- Editing the production comments saying "no live guard currently asserts this" (the `runner_shared` comment above `_ORCH_REASON_TEXT` and the `orchestrator_refusal_text` docstring): production source outside Scope-Paths and a comment edit, not behavior. The same stale phrase appears in roughly 50 production comments repo-wide (review grep), so editing two of them here would be piecemeal.
+  - Carrier-Declined: comment-only text with no behavioral effect; a repo-wide sweep of the `19313eed` "no live guard" comments is a separate housekeeping decision, not an obligation this coverage restoration creates.
 - The deleted module's other classes (`DeferralRecordTests`, `TerminateRecordTests`, `StaleDeferralRecordTests`) and the remaining `ReasonMappingTests` prose checks (distinctness, verbs, no `--full-auto`, no host command): not the property this backlog item names (S-10/S-11 only).
+  - Carrier-Declined: yuhl6o classified only S-10 and S-11 as needing restoration for this item; the other deleted classes are outside backlog `dxe6w1`'s stated property.
 - Literal constant-value pins from the deleted test: code-pinning under P16; replaced by behavioral translation assertions (see Step 0).
+  - Carrier-Declined: prohibited by P16 (AGENTS.md "NO CODE-PINNING TESTS"); deliberately never restored.
 
 ## Scope check
 
@@ -93,7 +99,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" tests/test_orchestrator_refusal_reason_translation.py -v` shows every new test passing.
-- Mutation check (temporary, not committed, reverted): in a scratch edit of `runner_shared.decide_orchestrator_dispatch`, return `reason=decision.reason` on the RECONSIDER branch instead of `ORCH_REASON_UNFINISHED_CHILDREN`, and confirm E-01's unfinished-children subtest and E-02 FAIL; revert and confirm they pass.
+- Mutation check A (S-10; temporary, not committed, reverted): in a scratch edit of `runner_shared.decide_orchestrator_dispatch`, return `reason=decision.reason` on the RECONSIDER branch instead of `ORCH_REASON_UNFINISHED_CHILDREN`, and confirm E-01's unfinished-children subtest and E-02 FAIL; revert and confirm they pass.
+- Mutation check B (S-11; temporary, not committed, reverted): in a scratch edit of `runner_shared.orchestrator_refusal_text`, replace the fallback `return (...)` with `raise KeyError(reason)`, and confirm the E-03 and E-04 tests FAIL; revert and confirm they pass.
+- After both reverts, `git diff -- agent_workflows/` is empty.
 - Full suite bare: `python3 -m pytest` passes with no new failures.
 
 ## Spec / documentation sync
@@ -106,7 +114,7 @@ N/A: test-only change restoring coverage; no spec or user-facing behavior change
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: a new module, `tests/test_orchestrator_refusal_reason_translation.py`, named for the property it guards; reviving `tests/test_orchestrator_deferral_reporting.py` would imply restoring the whole deleted module, which the suite trim deliberately removed and which is out of scope (F-1, Deferred).
 
 ## Validation and cross-check (verify before reporting done)
@@ -114,22 +122,22 @@ N/A: test-only change restoring coverage; no spec or user-facing behavior change
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_orchestrator_refusal_reason_translation.py -v` output showing the E-01 test PASSED; plus pasted output of the mutation check (RECONSIDER branch forwarding `decision.reason`) showing the unfinished-children subtest FAILED, then passing after revert.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_orchestrator_refusal_reason_translation.py -v` output showing the E-01 test PASSED (all four refusal subtests plus the eligible control); plus pasted output of mutation check A (RECONSIDER branch forwarding `decision.reason`) showing the unfinished-children subtest FAILED, then passing after revert, and a pasted empty `git diff -- agent_workflows/` after revert.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted pytest output showing the E-02 test PASSED, and the test source excerpt showing the call to `runner_shared.dispatch_orchestrator_item` (the code path producing the dispatch observation) followed by `render_stream.refusal_of_item(orch_item)` and the code/`NOT RECOGNIZE` assertions.
+  - Required evidence: pasted pytest output showing the E-02 test PASSED and also FAILING under mutation check A, and the test source excerpt showing the call to `runner_shared.dispatch_orchestrator_item` (the code path producing the dispatch observation) followed by `render_stream.refusal_of_item(orch_item)` and the code/`NOT RECOGNIZE` assertions.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted pytest output showing the E-03 unknown-code test PASSED, and the test source excerpt showing the verbatim-code, `events.jsonl`, and `render_stream.Refusal` construction assertions.
+  - Required evidence: pasted pytest output showing the E-03 unknown-code test PASSED, and FAILING under mutation check B (fallback replaced by `raise KeyError(reason)`) then passing after revert, and the test source excerpt showing the verbatim-code, `events.jsonl`, and `render_stream.Refusal` construction assertions.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted pytest output showing the E-04 empty/None test PASSED; plus pasted output of a bare `python3 -m pytest` run showing the `N passed` summary with no new failures; plus pasted `git diff --stat` and new-file content showing no `inspect`/`ast` import and no read of any `agent_workflows/*.py` source file (P16).
+  - Required evidence: pasted pytest output showing the E-04 empty/None test PASSED, and FAILING under mutation check B then passing after revert, with a pasted empty `git diff -- agent_workflows/` after revert; plus pasted `python3 -m unittest -v tests.test_orchestrator_refusal_reason_translation` output showing the module also runs under stdlib unittest (the suite's dual-runner contract, `pyproject.toml` "also run under `python -m unittest discover`"); plus pasted output of a bare `python3 -m pytest` run showing the `N passed` summary with no new failures; plus pasted `git diff --stat` and new-file content showing no `inspect`/`ast` import and no read of any `agent_workflows/*.py` source file (P16).
   - Observed evidence:
   - Result: pending
 
@@ -138,4 +146,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only `tests/test_orchestrator_refusal_reason_translation.py` via `aw commit <this plan> -- tests/test_orchestrator_refusal_reason_translation.py`; never push. Move the plan to `executed/` through the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+- **Execution contract**: execute `E-01`..`E-04` in dependency order inside an isolated worktree, only after `- Status: approved`. Open questions: OQ-01 is resolved; none remain open. Mark an `E-*` `performed` only after doing it and a `V-*` `pass` only with concrete pasted evidence; paste the ACTUAL runner output for every test claim and never claim a pass you did not run. Run the full suite bare as `python3 -m pytest` (never `-n0`, an extra `-q`, or `-p no:randomly`). The test module is a `unittest.TestCase` subclass (like `tests/test_orchestrator_not_approved_reason.py`). Mutation checks A and B are temporary edits to `agent_workflows/runner_shared.py` and MUST NOT be committed.
+- **Scope fence** (a declaration, not a stop condition): the only declared path is `tests/test_orchestrator_refusal_reason_translation.py`. An edit outside it must be justified at finalize with `--scope-reason <path>=<why>`.
+- **Commit**: `aw commit qrzowp -- tests/test_orchestrator_refusal_reason_translation.py` (plus this IPD); never `git add -A`, never push.
+- **Post-gate lifecycle move**: once every `E-*` is `performed`, every `V-*` is `pass`, and `aw ipd lint --phase pre-transition` reports no errors, the plan must reach `.aw/records/plans/executed/`: under `aw oc run` / `aw agy run` the runner owns that transition; when executed by hand outside a runner, the executor runs `aw ipd finalize qrzowp`. Never hand-`git mv` the plan.
