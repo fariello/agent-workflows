@@ -1,5 +1,5 @@
 - Id: ho7qjb
-- Status: graduated
+- Status: done
 - Graduated-To: scoperewrite
 - Set: scoperewrite
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether to teach the status-agnostic Scope-Paths glob spelling as author guidance, which prevents stale record scope targets at the source with no code
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): closed by aw agy run: IPD yrq57q executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-scoperewrite-03-yrq57q-teach-the-status-agnostic-glob-spelling-for-record-scope-pat.ipd.md); evidence .aw/records/plans/executed/20261012-scoperewrite-03-yrq57q-teach-the-status-agnostic-glob-spelling-for-record-scope-pat.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005617Z-2321742: yrq57q
 - 2026-10-02 created (aw backlog): Decide whether to teach the status-agnostic Scope-Paths glob spelling as author guidance, which prevents stale record scope targets at the source with no code
 

@@ -176,6 +176,16 @@ only the name/grouping is mutable via the stable `Id`).
   flat. Shards are created on demand by this deliberate verb (never a background side effect); the
   manifest scan is recursive so sharded plans stay visible.
 
+## Declaring records in Scope-Paths
+
+When declaring a `.aw/records/` artifact in `- Scope-Paths:`, use the status-agnostic glob form:
+
+```text
+.aw/records/backlog/**/20261002-scoperewrite-01-ho7qjb-x.backlog.md
+```
+
+instead of a literal status path like `.aw/records/backlog/open/20261002-scoperewrite-01-ho7qjb-x.backlog.md`. The glob form survives status moves between disposition directories and is recommended but optional. Adding a glob entry mid-execution is not widening-eligible under an active receipt, so declare globs at authoring. A mistyped glob is not caught by `aw check` or the runner's dispatch refusal, surfacing only at finalize reconciliation. This spelling applies only to `.aw/records/` artifacts, never to source paths, where literal entries keep the scope fence tight. See Section 4.5 of the IPD structure spec (`20260802-1904-01-ipd-structure-and-linting.spec.md`).
+
 ## Execution contract in every plan's gate
 
 Every IPD's `Approval and execution gate` MUST carry an execution contract so the plan is
