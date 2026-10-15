@@ -1,0 +1,32 @@
+# Review findings: plan of6kpx
+
+- Subject-Id: of6kpx
+- Subject-Type: ipd
+- Reviewed-At: 2026-10-15
+- Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+
+Reviewed in an isolated review lane. The plan was committed and unchanged (`3905e8af6`), so no snapshot was needed. `aw ipd lint --phase author` was clean before review; `--phase review-finalize` is clean after the revisions.
+
+Baseline re-driven at HEAD `27826fbac` in a scratch git repo under the system temp dir with a receipt at `ipd_lifecycle.receipt_path_for(tmp, "p22222")`: `aw group plans p22222 --set newset --apply --no-commit` -> rc 0, filename unchanged, `Set: newset` written; `aw rename plans p22222 --slug renamed --apply --no-commit` -> rc 0, file moved. An existing exit-2 plans refusal under `--agent` emitted `"kind":"error","outcome":"cannot-run","exit":2,"applied":false`; under `--json` it emitted `"status": "cannot-run", "exit_code": 2`. The cited authoring HEAD `640fe1825` resolves neither as a ref nor in `git fsck --connectivity-only` dangling output.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | IN-SCOPE | G. Executability / A. Correctness | `agent_workflows/plans_refs.py:167` `class MutationDiagnostic(NamedTuple): location, rule, detail, severity`; `agent_workflows/plans_refs.py:174` `class MutationResult(NamedTuple): rc: int ...`; `agent_workflows/artifact_types.py:143-145` defines only `EXIT_*` | E-02 prescribed `_types.MutationResult(applied=False, returncode=..., diagnostics=[_types.MutationDiagnostic(message=...)])`. `artifact_types` has no `MutationResult`/`MutationDiagnostic`, the real NamedTuples have no `returncode` or `message` fields, and `plans_refs` does not import `artifact_types`. Executed literally, E-02 raises at import or call time. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now names the `plans_refs`-local `MutationResult(rc, ...)` and `MutationDiagnostic(location, rule, detail, severity)`, and an explicit `EXIT_CANNOT_RUN` import from `artifact_types`. Conventions bullet corrected. |
+| PR-002 | MEDIUM | IN-SCOPE | E. Testing | `agent_workflows/cli.py:13131` `if exit_code == 2: status = "cannot-run"`; `agent_workflows/result_types.py:362` `is_error = self.exit_code == 2 ...`; review measurement above | E-03 (m) required `status == "fail"` for `--agent`/`--json`. An rc-2 mutation result maps to `cannot-run` (`--json` `status`) and `kind=error, outcome=cannot-run` (`--agent`), so the test as specified could never pass without changing unrelated machine-output contracts. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-03 (m) now demands the measured shape for each mode separately, plus the `in-flight-plan` diagnostic rule. Scope-check and Conventions wording corrected. |
+| PR-003 | MEDIUM | IN-SCOPE | C. Architecture (one canonical path) / A. Correctness | `agent_workflows/plans_refs.py:808` `return apply_renames(` in `run_set_assign`; `plans_refs.py:420-422` `RenamePlan(src, src, id6, order=order)  # metadata-only (no rename)`; `plans_refs.py:1005` `return apply_renames(` in `run_mv`; `plans_refs.py:792-802` `rule="plan-error"` | Authoring claimed metadata-only `rename=False` "never calls `apply_renames`" and therefore wired three sites. False: both backends unconditionally reach `apply_renames`. The three-site design was redundant, and the `plan_set_assign` site returned a string through `(None, err)`, which `run_set_assign` reports under rule `plan-error`, contradicting the required `in-flight-plan` rule. E-02 also referenced a nonexistent `resolve_target_plan`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added F-07. E-02 now guards ONE site, a pre-write loop at the top of `apply_renames` (before preview and before any write), leaving `run_mv`/`plan_set_assign`/`run_set_assign` unchanged. Scope, Goal, Proposed changes, F-01, F-03, Conventions, E-02 outcome and V-02 swept. |
+| PR-004 | LOW | IN-SCOPE | E. Evidence accuracy | `plans_refs.py:546-547` prints `--- would rename ... ---`; `plans_refs.py:607` prints `renamed ... -> ...`; `git rev-parse 640fe1825` fails, no dangling match | E-03 (j) asserted "no `rename:` preview line", a string never printed, so it was vacuously true. F-01 quoted `rename:` / `set-assign (no rename):` output lines that `plans_refs` does not print, at a HEAD that does not resolve. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | (j) now asserts absence of `--- would rename`. F-01 annotated with the discrepancy; a dated review re-measurement line added below the Findings table. |
+| PR-005 | LOW | IN-SCOPE | F. UX recovery / B. Fail-closed | `agent_workflows/artifact_refs.py:715-716` `must_skip.append((path, f"cannot read plan file: {exc}"))` | E-02 did not say how to treat the predicate's `cannot read plan file` reason, and the refusal hint said "remove the stale receipt" without saying where it lives. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now fails closed on every reason except `_CLASSIFY_MISSING_ID_REASON`, and the message names `.aw/state/ipd-lifecycle/`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Guard at one choke point or at the three authored sites? | One site, top of `apply_renames` | Three sites (redundant; wrong rule via `plan_set_assign`); guard only in `run_mv`/`run_set_assign` (misses programmatic `apply_renames` callers) | `plans_refs.py:808`, `plans_refs.py:1005`, `plans_refs.py:420-422` | yes |
+| D-2 | Which machine-output shape must E-03 (m) pin? | The existing rc-2 shape (`cannot-run`) | Change the mapper to emit `fail` (out of scope; alters every rc-2 verb) | `cli.py:13131`, `result_types.py:362`, review measurement | yes |
+| D-3 | Treat an unreadable target plan as in-flight? | Yes, refuse (fail closed) | Ignore like missing-Id | `artifact_refs.classify_citing_plans_for_rewrite` docstring "Fail CLOSED"; an unreadable file cannot be renamed safely anyway | yes |
+| D-4 | Accept OQ-01 (refuse, exit 2, no `--force`)? | Yes, as authored | Skip-and-report exit 0 | OQ-01 reasoning; batch atomicity in `apply_renames` "IPD yqv6b7 E-03" comment at `plans_refs.py:586` | yes |
