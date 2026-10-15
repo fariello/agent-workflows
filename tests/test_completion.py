@@ -423,6 +423,90 @@ class BashCompletionDrivenTests(unittest.TestCase):
             ["list", "prune"],
             "lane alias completes the same subcommands as lanes",
         ),
+        (
+            "aw oc <TAB>",
+            ["aw", "oc", ""],
+            [
+                "integrate",
+                "profile",
+                "profiles",
+                "review",
+                "run",
+                "runipd",
+                "sync-models",
+                "update-models",
+            ],
+            "oc subcommands and aliases completed in slot 2",
+        ),
+        (
+            "aw oc profile <TAB>",
+            ["aw", "oc", "profile", ""],
+            [
+                "add",
+                "default",
+                "list",
+                "ls",
+                "remove",
+                "rm",
+                "show",
+                "validate-default",
+            ],
+            "level 3 subcommands and aliases completed under oc profile",
+        ),
+        (
+            "aw oc profile validate-default <TAB>",
+            ["aw", "oc", "profile", "validate-default", ""],
+            ["off", "on", "unset"],
+            "level 4 positional choices completed under oc profile validate-default",
+        ),
+        (
+            "aw opencode profiles <TAB>",
+            ["aw", "opencode", "profiles", ""],
+            [
+                "add",
+                "default",
+                "list",
+                "ls",
+                "remove",
+                "rm",
+                "show",
+                "validate-default",
+            ],
+            "nested subcommands completed when using top-level and level 2 aliases",
+        ),
+        (
+            "aw config exclude <TAB>",
+            ["aw", "config", "exclude", ""],
+            ["add", "list", "rm"],
+            "config exclude subcommands completed in slot 3",
+        ),
+        (
+            "aw ipd dependencies <TAB>",
+            ["aw", "ipd", "dependencies", ""],
+            ["remove", "set"],
+            "ipd dependencies subcommands completed in slot 3 without id6 hijacking",
+        ),
+        (
+            "aw agy profile <TAB>",
+            ["aw", "agy", "profile", ""],
+            [
+                "add",
+                "default",
+                "list",
+                "ls",
+                "remove",
+                "rm",
+                "show",
+                "validate-default",
+            ],
+            "level 3 subcommands and aliases completed under agy profile",
+        ),
+        (
+            "aw specs <TAB>",
+            ["aw", "specs", ""],
+            ["check", "migrate", "new", "note", "scaffold", "set"],
+            "specs subcommands and scaffold alias completed in slot 2",
+        ),
     )
 
     def test_bash_completion_driven_and_script_invariants(self) -> None:
@@ -570,6 +654,41 @@ class CompletionSurfaceParityTests(unittest.TestCase):
             ["aw", "lane", ""],
             2,
             "lane alias subcommands parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "oc", ""],
+            2,
+            "oc subcommands and aliases parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "oc", "profile", ""],
+            3,
+            "oc profile level 3 subcommands parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "oc", "profile", "validate-default", ""],
+            4,
+            "oc profile validate-default level 4 choices parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "opencode", "profiles", ""],
+            3,
+            "opencode profiles alias parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "config", "exclude", ""],
+            3,
+            "config exclude subcommands parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "ipd", "dependencies", ""],
+            3,
+            "ipd dependencies subcommands parity across static and dynamic surfaces",
+        ),
+        (
+            ["aw", "agy", "profile", ""],
+            3,
+            "agy profile level 3 subcommands parity across static and dynamic surfaces",
         ),
     )
 
@@ -1011,6 +1130,34 @@ class CompleteQueryTests(_DynamicRepoFixture):
             3,
             (("equals", []),),
             "no candidates is a normal answer, not an error: the shell must get an empty list",
+        ),
+        (
+            "nested subcommands under ipd dependencies",
+            ["aw", "ipd", "dependencies", ""],
+            3,
+            (("equals", ["remove", "set"]),),
+            "nested subcommands completed under ipd dependencies rather than being hijacked by plan id6s",
+        ),
+        (
+            "plan id6 under ipd dependencies set",
+            ["aw", "ipd", "dependencies", "set", "b"],
+            4,
+            (("equals", ["bja8og"]),),
+            "plan selector under ipd dependencies set completes plan id6s",
+        ),
+        (
+            "nested subcommands under config exclude",
+            ["aw", "config", "exclude", ""],
+            3,
+            (("equals", ["add", "list", "rm"]),),
+            "nested subcommands completed under config exclude",
+        ),
+        (
+            "positional choices under oc profile validate-default",
+            ["aw", "oc", "profile", "validate-default", ""],
+            4,
+            (("equals", ["off", "on", "unset"]),),
+            "positional choices completed under oc profile validate-default",
         ),
     )
 

@@ -189,8 +189,8 @@ def _positional_choices(parser: argparse.ArgumentParser) -> List[str]:
 def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
     """Recursively extract the user-facing command tree from an argparse parser (bja8og E-01).
 
-    Returns ``{"flags": [...], "subcommands": {name: <same shape>}, "choices": [...]}`` without
-    mutating the parser. Models the recursion on ``cli._apply_descriptions`` (it walks
+    Returns ``{"flags": [...], "subcommands": {name: <same shape>}, "choices": [...], "subcommand_aliases": {alias: primary}}``
+    without mutating the parser. Models the recursion on ``cli._apply_descriptions`` (it walks
     ``_SubParsersAction.choices``), but applies the ``_visible_subcommands`` policy so internal gate
     commands and hidden aliases are absent from the tree.
 
@@ -206,11 +206,19 @@ def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
         tree: Dict[str, Any] = {
             "flags": _flags_of(node),
             "subcommands": {},
+            "subcommand_aliases": {},
             "choices": _positional_choices(node),
         }
         for action in node._actions:
             if isinstance(action, argparse._SubParsersAction):
-                for name in _visible_subcommands(action):
+                primary_names = _visible_subcommands(action)
+                for k, sub in action.choices.items():
+                    if k not in primary_names:
+                        for prim in primary_names:
+                            if action.choices.get(prim) is sub:
+                                tree["subcommand_aliases"][k] = prim
+                                break
+                for name in primary_names:
                     sub = action.choices.get(name)
                     if sub is not None:
                         tree["subcommands"][name] = walk(sub)
@@ -220,15 +228,16 @@ def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
 
 
 def _node_candidates(node: Dict[str, Any]) -> List[str]:
-    """The tokens valid in the slot right after ``node``'s command name: subcommands + choices.
+    """The tokens valid in the slot right after ``node``'s command name: subcommands + choices + subcommand_aliases.
 
-    compargs 4y95tp E-03. MERGED, not either/or, so a command that ever gains both kinds completes
-    both. MEASURED at authoring: no command has both today (the two choices-bearing commands,
-    ``migrate-layout`` and ``path``, have no subparsers), so the merge path is LATENT by construction
-    and is untested against a real both-kinds command; it is written because the alternative is a
-    silent wrong answer the day one appears.
+    compargs 4y95tp E-03. MERGED, not either/or, so a command that ever gains multiple kinds completes
+    all of them.
     """
-    return sorted(set(node.get("subcommands", {})) | set(node.get("choices", []) or []))
+    return sorted(
+        set(node.get("subcommands", {}))
+        | set(node.get("choices", []) or [])
+        | set(node.get("subcommand_aliases", {}))
+    )
 
 
 def _all_command_paths(tree: Dict[str, Any]) -> List[List[str]]:
@@ -295,11 +304,12 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a self-contained Bash completion script binding all three entrypoints (bja8og E-02).
 
     Emits a single ``_aw_completion`` function that offers the top-level commands in the command
-    slot, then, in the slot after a command, THAT COMMAND'S OWN arguments: its nested subcommands and
-    the fixed ``choices`` vocabulary of its first positional. A command with NEITHER offers NOTHING,
-    so bash falls back to its own default (filenames) instead of proposing a token that cannot be
-    valid there. Flags are offered when the current word starts with ``-``. Every command, choice and
-    flag token is ``shlex.quote``d before being placed in the completion word list.
+    slot, then, in the slot after a command, THAT COMMAND'S OWN arguments: its nested subcommands,
+    subcommand aliases, and the fixed ``choices`` vocabulary of its first positional. A command with
+    none of these offers NOTHING, so bash falls back to its own default (filenames) instead of
+    proposing a token that cannot be valid there. Flags are offered when the current word starts with
+    ``-``. Every command, choice and flag token is ``shlex.quote``d before being placed in the
+    completion word list.
 
     THE FALL-THROUGH IS GONE ON PURPOSE (compargs 4y95tp E-01). This function used to end its `case`
     with an unconditional top-level ``COMPREPLY=``, so any command without a `case` arm (31 of 48 when
@@ -312,23 +322,61 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     top = tree.get("subcommands", {})
     top_names = " ".join(_bash_word(n) for n in sorted(top))
 
-    # Second-level: `case` over the first command -> its own subcommands AND positional choices.
-    second_cases: List[str] = []
-    for name in sorted(top):
-        candidates = _node_candidates(top[name])
-        if candidates:
-            sub_names = " ".join(_bash_word(s) for s in candidates)
-            patterns = [_bash_word(name)] + [_bash_word(a) for a in _aliases_for(name)]
-            pattern_str = "|".join(patterns)
-            second_cases.append(
-                f"        {pattern_str})\n"
-                f'            COMPREPLY=( $(compgen -W {shlex.quote(sub_names)} -- "$cur") )\n'
-                f"            return 0 ;;"
+    def emit_level(node: Dict[str, Any], depth: int, indent: str) -> List[str]:
+        subcmds = node.get("subcommands", {})
+        sub_aliases = node.get("subcommand_aliases", {})
+        lines: List[str] = []
+
+        children_with_content = []
+        for name in sorted(subcmds):
+            child = subcmds[name]
+            has_cands = bool(_node_candidates(child))
+            has_sub = any(
+                bool(_node_candidates(sc)) or bool(sc.get("subcommands"))
+                for sc in child.get("subcommands", {}).values()
             )
-    # All flags across the tree, offered when $cur starts with '-'.
+            if has_cands or has_sub:
+                children_with_content.append((name, child))
+
+        if not children_with_content:
+            return lines
+
+        lines.append(f'{indent}case "${{COMP_WORDS[{depth}]}}" in')
+        for name, child in children_with_content:
+            patterns = [_bash_word(name)]
+            if depth == 1:
+                patterns += [_bash_word(a) for a in _aliases_for(name)]
+            else:
+                patterns += [
+                    _bash_word(a) for a, target in sub_aliases.items() if target == name
+                ]
+            pattern_str = "|".join(patterns)
+
+            cands = _node_candidates(child)
+            lines.append(f"{indent}    {pattern_str})")
+            if cands:
+                cands_str = " ".join(_bash_word(c) for c in cands)
+                lines.append(
+                    f"{indent}        if [[ $COMP_CWORD -eq {depth + 1} ]]; then"
+                )
+                lines.append(
+                    f'            COMPREPLY=( $(compgen -W {shlex.quote(cands_str)} -- "$cur") )'
+                )
+                lines.append("            return 0")
+                lines.append(f"{indent}        fi")
+
+            child_lines = emit_level(child, depth + 1, indent + "        ")
+            if child_lines:
+                lines.extend(child_lines)
+            lines.append(f"{indent}        ;;")
+        lines.append(f"{indent}esac")
+        return lines
+
     all_flags = set()
     _collect_flags(tree, all_flags)
     flags_str = " ".join(_bash_word(f) for f in sorted(all_flags))
+
+    cases = emit_level(tree, 1, "    ")
 
     lines = [
         "# bash completion for aw (agent-workflows). Generated by `aw completion bash`.",
@@ -346,12 +394,7 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
         f'        COMPREPLY=( $(compgen -W {shlex.quote(top_names)} -- "$cur") )',
         "        return 0",
         "    fi",
-        "    if [[ $COMP_CWORD -ne 2 ]]; then",
-        "        return 0",
-        "    fi",
-        '    case "${COMP_WORDS[1]}" in',
-        *second_cases,
-        "    esac",
+        *cases,
         # compargs 4y95tp E-01: NO default arm and NO post-`esac` fallback. A command with no arm
         # leaves COMPREPLY empty, which is bash's signal to use its own default completion.
         "    return 0",
@@ -366,7 +409,7 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a native Zsh ``#compdef`` completion script binding all three entrypoints (bja8og E-02).
 
     Uses ``_arguments`` + ``_values`` with escaped ``'name:description'`` specs for the top-level
-    commands, and a nested ``case`` for the second level. Descriptions are ``_zsh_desc``-escaped.
+    commands, and nested ``case`` blocks for deeper levels. Descriptions are ``_zsh_desc``-escaped.
 
     The second level offers a command's OWN arguments - subcommands plus its first positional's fixed
     ``choices`` (compargs 4y95tp E-03) - and nothing when it declares neither. Zsh never had bash's
@@ -380,17 +423,54 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
         f"'{name}'" for name in sorted(top)
     )  # names are word-safe (command tokens)
 
-    second_cases: List[str] = []
-    for name in sorted(top):
-        candidates = _node_candidates(top[name])
-        if candidates:
-            sub_specs = " ".join(f"'{s}'" for s in candidates)
-            patterns = [name] + _aliases_for(name)
-            pattern_str = "|".join(patterns)
-            second_cases.append(
-                f"                ({pattern_str})\n"
-                f"                    _values 'subcommand' {sub_specs} ;;"
+    def emit_level(node: Dict[str, Any], depth: int, indent: str) -> List[str]:
+        subcmds = node.get("subcommands", {})
+        sub_aliases = node.get("subcommand_aliases", {})
+        lines: List[str] = []
+
+        children_with_content = []
+        for name in sorted(subcmds):
+            child = subcmds[name]
+            has_cands = bool(_node_candidates(child))
+            has_sub = any(
+                bool(_node_candidates(sc)) or bool(sc.get("subcommands"))
+                for sc in child.get("subcommands", {}).values()
             )
+            if has_cands or has_sub:
+                children_with_content.append((name, child))
+
+        if not children_with_content:
+            return lines
+
+        lines.append(f'{indent}case "$line[{depth}]" in')
+        for name, child in children_with_content:
+            patterns = [name]
+            if depth == 1:
+                patterns += _aliases_for(name)
+            else:
+                patterns += [a for a, target in sub_aliases.items() if target == name]
+            pattern_str = "|".join(patterns)
+
+            lines.append(f"{indent}    ({pattern_str})")
+            child_lines = emit_level(child, depth + 1, indent + "        ")
+            if child_lines:
+                lines.extend(child_lines)
+            else:
+                cands = _node_candidates(child)
+                sub_specs = " ".join(f"'{s}'" for s in cands)
+                if sub_specs:
+                    lines.append(f"{indent}        _values 'subcommand' {sub_specs} ;;")
+            lines.append(f"{indent}        ;;")
+        if depth > 1:
+            parent_cands = _node_candidates(node)
+            parent_specs = " ".join(f"'{s}'" for s in parent_cands)
+            if parent_specs:
+                lines.append(f"{indent}    (*)")
+                lines.append(f"{indent}        _values 'subcommand' {parent_specs} ;;")
+        lines.append(f"{indent}esac")
+        return lines
+
+    cases = emit_level(tree, 1, "            ")
 
     lines = [
         f"#compdef {' '.join(ENTRYPOINTS)}",
@@ -403,9 +483,8 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
         "        cmd)",
         f"            _values 'command' {top_specs} ;;",
         "        args)",
-        '            case "$line[1]" in',
-        *second_cases,
-        "            esac ;;",
+        *cases,
+        "            ;;",
         "    esac",
         "}",
         '_aw_completion "$@"',
@@ -418,7 +497,7 @@ def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a native Fish ``complete -c`` completion script binding all three entrypoints (E-02).
 
     Top-level commands complete only as the first token (a ``__fish_use_subcommand`` condition);
-    each command's own arguments - its subcommands and its first positional's fixed ``choices``
+    each command's own arguments - its subcommands, subcommand aliases, and its first positional's fixed ``choices``
     (compargs 4y95tp E-03) - complete after it (``__fish_seen_subcommand_from``). Command tokens and
     description bodies are Fish-escaped. Every emitted line is conditional, so fish never had bash's
     top-level fall-through and E-01 has no counterpart here.
@@ -435,14 +514,31 @@ def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
             lines.append(
                 f"complete -c {entry} -n __fish_use_subcommand -a {_fish_word(name)}"
             )
-        for name in sorted(top):
-            for cmd_name in [name] + _aliases_for(name):
-                for s in _node_candidates(top[name]):
+
+        def walk_fish(node: Dict[str, Any], ancestor_patterns: List[str]) -> None:
+            subcmds = node.get("subcommands", {})
+            sub_aliases = node.get("subcommand_aliases", {})
+            for name in sorted(subcmds):
+                child = subcmds[name]
+                if not ancestor_patterns:
+                    patterns = [name] + _aliases_for(name)
+                else:
+                    patterns = [name] + [
+                        a for a, target in sub_aliases.items() if target == name
+                    ]
+
+                cond_clause = "__fish_seen_subcommand_from " + " ".join(patterns)
+                current_ancestors = ancestor_patterns + [cond_clause]
+                full_cond = "; and ".join(current_ancestors)
+
+                for c in _node_candidates(child):
                     lines.append(
-                        f"complete -c {entry} -n "
-                        f"{_fish_word('__fish_seen_subcommand_from ' + cmd_name)} "
-                        f"-a {_fish_word(s)}"
+                        f"complete -c {entry} -n {_fish_word(full_cond)} -a {_fish_word(c)}"
                     )
+                walk_fish(child, current_ancestors)
+
+        walk_fish(tree, [])
+
     lines.append("")
     return "\n".join(lines)
 
@@ -758,9 +854,10 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     """Static subcommand/flag candidates for the command position, reusing the introspected tree.
 
     Position 1 -> top-level commands; position 2 -> the first command's own arguments (its
-    subcommands AND its first positional's fixed ``choices``); a word starting with ``-`` -> that
-    context's flags. This mirrors the generated static scripts so `__complete` and the offline
-    scripts agree on the static layer.
+    subcommands, subcommand aliases, AND its first positional's fixed ``choices``); position 3+ ->
+    nested subcommands/choices along the command path; a word starting with ``-`` -> that context's flags.
+    This mirrors the generated static scripts so `__complete` and the offline scripts agree on the
+    static layer.
 
     THE CHOICES HALF IS WHY THAT PARITY SENTENCE IS STILL TRUE (compargs 4y95tp E-05). When the static
     generators learned to emit positional ``choices``, this function had to learn it in the same
@@ -781,6 +878,10 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
             norm_tok = _COMMAND_ALIASES.get(tok, tok)
             sub = node.get("subcommands", {}).get(norm_tok)
             if sub is None:
+                alias_target = node.get("subcommand_aliases", {}).get(tok)
+                if alias_target:
+                    sub = node.get("subcommands", {}).get(alias_target)
+            if sub is None:
                 break
             node = sub
         return [f["flag"] for f in node.get("flags", [])]
@@ -793,6 +894,10 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     for tok in words[1:cword]:
         norm_tok = _COMMAND_ALIASES.get(tok, tok)
         sub = node.get("subcommands", {}).get(norm_tok)
+        if sub is None:
+            alias_target = node.get("subcommand_aliases", {}).get(tok)
+            if alias_target:
+                sub = node.get("subcommands", {}).get(alias_target)
         if sub is None:
             return []
         node = sub
@@ -832,10 +937,14 @@ def complete_query(
 
     # 2. Entity id6 positions (aw ipd/specs/backlog/find ...). Only when PAST the subcommand slot
     #    (cword >= 3 so a real selector/positional is being typed, e.g. `aw ipd lint <id6>`); the
-    #    token in the subcommand slot itself is completed by the static layer (step 4). This is a
-    #    pure dynamic answer for the same correctness + latency reasons as step 1.
+    #    token in the subcommand slot itself is completed by the static layer (step 4). If the
+    #    nested position declares static subcommands or choices (e.g. `aw ipd dependencies <TAB>`),
+    #    those take precedence over id6 enumeration.
     entity_rt = _entity_record_type(words, cword)
     if entity_rt is not None and cword >= 3:
+        static_cands = _subcommand_candidates(words, cword)
+        if static_cands:
+            return _prefix_filter(static_cands, prefix)
         try:
             return _prefix_filter(entity_id6_candidates(entity_rt, repo_root), prefix)
         except Exception:
