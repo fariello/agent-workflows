@@ -6,7 +6,7 @@
 - Scope: IN: (a) recover the deleted file from `19313eed7^` and produce a per-test triage of all 58 tests into PIN (code/AST/text/census, stays deleted), COVERED (a named live test already asserts the outcome), or UNGUARDED; (b) mutation-test every candidate UNGUARDED property against the live tree to confirm it is really unguarded; (c) restore each confirmed-unguarded property as a BEHAVIORAL test in ONE new module, `tests/test_runner_backlog_close_behavior.py`, which drives real callables, real subprocesses and real git fixtures and asserts outputs, exit codes, files and ledger records; (d) prove each restored test is sensitive by a recorded mutation; (e) correct the two stale `runner_shared.py` guard citations and the `oc_runipd.py` twin into retirement statements; (f) re-point the one-line "tracked under backlog item yf1p8y" pointer in `tests/test_runner_delegation_and_host_independence.py` to the new module. OUT: any code, AST, text, caller-count or census pin (GUIDING_PRINCIPLES P16 and the `xvp5vx`/`pn7rw3`/`s4jctz`/`aced01` rulings); restoring `tests/test_runner_layering.py`; reading `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json`; any change to an executable statement in any production module; the dangling-citation check rule (`j7daih`); the other dangling citations `65d5zf` (backlog `3tov52`) and `dtelfb` (backlog `046nys`) own.
 - Scope-Paths: tests/test_runner_backlog_close_behavior.py, tests/test_runner_delegation_and_host_independence.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 11
 - Author: opencode Claude Opus
 - Id: z2ugxc
-- Approval: 2026-10-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-15 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z2ugxc verified (set yf1p8y, attempt 1).
 - 2026-10-12 approved (aw set): status set to approved
 
 - 2026-10-12 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed.
