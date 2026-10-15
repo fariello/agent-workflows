@@ -1,5 +1,5 @@
 - Id: fh8x8k
-- Status: graduated
+- Status: done
 - Graduated-To: fh8x8k
 - Set: fh8x8k
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: agy_runipd has no __all__, so its deliberate re-exports can only be justified by noqa comments
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): closed by aw agy run: IPD vzk1iw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261011-fh8x8k-01-vzk1iw-justify-agy-runipd-re-exports-by-its-same-name-idiom-and-rec.ipd.md); evidence .aw/records/plans/executed/20261011-fh8x8k-01-vzk1iw-justify-agy-runipd-re-exports-by-its-same-name-idiom-and-rec.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005650Z-2322198: vzk1iw
 - 2026-09-30 created (aw backlog): agy_runipd has no __all__, so its deliberate re-exports can only be justified by noqa comments
 
