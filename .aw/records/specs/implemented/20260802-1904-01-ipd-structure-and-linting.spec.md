@@ -195,6 +195,8 @@ Value grammar. The `Scope-Paths` value is EITHER the reserved sentinel `grandfat
 
 Implicit lifecycle-artifact allowances. A plan's own lifecycle artifacts are always in scope and need NOT be listed: the plan file itself under `.aw/records/plans/**` and the manifest/index refresh (`.aw/records/plans/INDEX.md`, `.aw/records/**/index.md`). A GENERATED file the plan produces is NOT implicitly exempt; it MUST be declared like any other path.
 
+Status-agnostic record entries (recommended, optional). A `.aw/records/` artifact SHOULD be declared as `.aw/records/<type>/**/<exact-filename>` so a status move does not stale it. The form is legal under the existing grammar and matches only that basename across any status directory. Two costs apply: an entry ADDED in that form mid-execution is not widening-eligible (under the anti-neutering rule), while one declared at authoring is frozen in the receipt and needs no widening; and neither `check.scope-path-target-stale` nor the runner's dispatch-time stale-target refusal examines glob entries, so a mistyped one is neither reported nor refused and surfaces only at finalize as declared-but-unmodified, which a runner auto-acknowledges (F-03, F-06, D170). The literal form stays valid.
+
 The grandfather sentinel. To introduce `Scope-Paths` without retroactively blocking the already-reviewed pending backlog, a pre-cutoff plan carries the explicit per-plan marker `Scope-Paths: grandfathered` (a reserved value of the field). The lint gate treats `grandfathered` as advisory-satisfied (non-blocking); a plan declaring a real allowlist is validated against the grammar above (a malformed allowlist is a blocking error); a plan with NO `Scope-Paths` field at all is hard-required (blocked) at the ready-to-execute gate. The marker is stored in the plan's own metadata block so it travels with the plan and is auditable in git. New or independently re-reviewed plans are expected to declare a real allowlist rather than carry the sentinel.
 
 ## 5. Stable execution and validation identifiers
@@ -833,6 +835,7 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
+- 2026-10-15 note (aw specs): Section 4.5 amended (scoperewrite yrq57q E-04): recommend optional status-agnostic glob spelling for .aw/records/ Scope-Paths entries (D170)
 - 2026-10-09 note (aw specs): Section 4.4 amended (fixfirst psgyzw E-04): document optional post-execution field - Scope-Exceeded: with syntax `<path> (<reason>); ...`, recorded on finalize when out-of-scope changed paths are reconciled.
 - 2026-10-07 note (aw specs): Section 4.4 and Section 10 amended (rdyreq fhinri E-08): record IPD-M113 requiring non-empty - Readiness: at reviewed and ready-to-execute status (approved, auto-approved) at every checkpoint
 - 2026-10-07 note (aw specs): Section 5.4 amended (ezv744 5q9a6a E-02): record the runtime-demonstration reachability property of Required evidence: beside durability, specifying acceptable discharges, UNDER-SCOPE consequence, review enforcement, and Section 9.2 disambiguation
