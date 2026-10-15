@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Commit `19313eed` deleted `tests/test_lane_clean_base.py`, and with it `test_case_3_an_untracked_file_does_NOT_refuse` and `test_both_drivers_agree_on_every_case`, the only behavioral tests that an UNTRACKED file in the target checkout leaves the R5.4 clean-base guard CLEAN (no refusal, no dirty path) on BOTH hosts. Executed plan `yuhl6o` recorded that site as S-09 RETIRE-UNGUARDED. A regression is silent and costly: if the `--untracked-files=no` scope were dropped, every unattended run in an ordinary working checkout would be classified dirty (refused on the shared-tree path), the exact failure spec R5.4 / finding F-4 forbids.
 - Scope: Add one new behavioral test module that drives the real `evaluate_clean_base_for_launch` on both hosts against a real temporary git repository and the real `runner_shared.clean_base_launch_decision`, and repoint the one source comment that says "no live guard currently asserts this" for this property. No production behavior change.
-- Scope-Paths: tests/test_clean_base_untracked.py, agent_workflows/runner_shared.py
+- Scope-Paths: tests/test_clean_base_untracked.py, agent_workflows/runner_shared.py, .aw/records/plans/pending/20261014-dc80rp-01-og11nj-restore-behavioral-coverage-that-evaluate-clean-base-does-no.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: dc80rp
@@ -17,7 +18,8 @@
 - Id: og11nj
 
 ## Workflow history
-
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-dc80rp-01-og11nj)
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog `dc80rp`; review-ready.
 
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: untracked files leave the base clean (yuhl6o S-09)
 
-- [ ] E-01 Create `tests/test_clean_base_untracked.py` with a `setUp` that `git init`s a temp repo, configures a local user, commits one tracked file (`tracked.txt`), and a test that writes two untracked files (`scratch.log`, `notes.md`) plus one untracked file inside a new subdirectory, then for each host in (`oc_runipd`, `agy_runipd`) and each `shared_tree` in (`False`, `True`) calls `driver.evaluate_clean_base_for_launch(repo, shared_tree=...)` and asserts `result.clean is True`, `result.dirty_paths == ()`, and `result.refuses is False`, and that `runner_shared.clean_base_launch_decision(result).verdict == runner_shared.CLEAN_BASE_PROCEED`.
+- [ ] E-01 Create `tests/test_clean_base_untracked.py` (`unittest.TestCase`) with a `setUp` that creates a `tempfile.TemporaryDirectory` (cleaned up via `addCleanup`), initializes it with `tests.support.init_repo` (local identity, `commit.gpgsign false`), removes every inherited local git variable from `os.environ` for the test's duration (`mock.patch.dict(os.environ, tests.support.clean_git_env(), clear=True)`, because the production `runner_shared._run_git` inherits `os.environ` and an inherited `GIT_DIR`/`GIT_INDEX_FILE` would point it at the wrong repository), commits one tracked file (`tracked.txt`), and a test that writes two untracked files (`scratch.log`, `notes.md`) plus one untracked file inside a new subdirectory, then for each host in (`oc_runipd`, `agy_runipd`) and each `shared_tree` in (`False`, `True`) calls `driver.evaluate_clean_base_for_launch(repo, shared_tree=...)` and asserts `result.clean is True`, `result.dirty_paths == ()`, and `result.refuses is False`, and that `runner_shared.clean_base_launch_decision(result).verdict == runner_shared.CLEAN_BASE_PROCEED`.
   - Depends on: none
-  - Expected outcome: New module exists; the untracked test passes for all four host x path subtests.
+  - Expected outcome: New module exists; the untracked test passes for all four host x path subtests (`self.subTest(host=..., shared_tree=...)`). Then, BEFORE E-04 touches the same file, perform the non-vacuity mutation: edit `--untracked-files=no` to `--untracked-files=all` in `runner_shared.evaluate_clean_base_for_launch` in place, run the module and observe the untracked test FAIL, then revert with `git checkout -- agent_workflows/runner_shared.py` and confirm `git diff --stat agent_workflows/runner_shared.py` is empty. The mutation is never committed.
   - Execution state: pending
 
 ### Task group 2: non-vacuity and host agreement
@@ -77,7 +79,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The deleted file's other classes (no-spawn-before-refusal ordering, shared-tree message wording): not named by backlog `dc80rp`, which is scoped to untracked non-refusal only.
+  - Carrier-Declined: backlog `dc80rp` scopes this work to the yuhl6o S-09 untracked non-refusal property; no defect is known in the other classes, which the maintainer can file separately if wanted.
 - Any production change to the guard: the behavior is correct; only its guard is missing.
+  - Carrier-Declined: deliberate non-goal (coverage restoration only), not an outstanding obligation.
 
 ## Scope check
 
@@ -87,7 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -v tests/test_clean_base_untracked.py` passes.
-- Non-vacuity: in a scratch, uncommitted edit, change `--untracked-files=no` to `--untracked-files=all` in `runner_shared.evaluate_clean_base_for_launch`; the E-01 and E-03 tests fail; revert.
+- Non-vacuity: BEFORE E-04, in an in-place uncommitted edit, change `--untracked-files=no` to `--untracked-files=all` in `runner_shared.evaluate_clean_base_for_launch`; the E-01 test fails (E-02/E-03 may also fail, which is expected); revert with `git checkout -- agent_workflows/runner_shared.py` and confirm an empty diff before E-04 edits that file.
 - Full suite `python3 -m pytest` passes.
 
 ## Spec / documentation sync
@@ -100,7 +104,7 @@ N/A: test-only addition plus a comment repoint; no spec text changes.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. Backlog `dc80rp` names only the untracked non-refusal property and states "only behavioral outcomes may be restored, never a source-reading pin (P16)".
 
 ## Validation and cross-check (verify before reporting done)
@@ -108,7 +112,7 @@ N/A: test-only addition plus a comment repoint; no spec text changes.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_clean_base_untracked.py` showing the untracked test passing; plus pasted output of the scratch non-vacuity run (`--untracked-files=all` in `runner_shared.evaluate_clean_base_for_launch`) showing it FAIL, then `git diff --stat agent_workflows/runner_shared.py` showing the scratch edit reverted.
+  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_clean_base_untracked.py` showing the untracked test passing on all four subtests; plus pasted output of the in-place non-vacuity run (`--untracked-files=all` in `runner_shared.evaluate_clean_base_for_launch`), made BEFORE E-04, showing the untracked test FAIL with the untracked names in `dirty_paths`; then pasted `git diff --stat agent_workflows/runner_shared.py` printing nothing (reverted, and E-04 not yet applied).
   - Observed evidence:
   - Result: pending
 
@@ -132,4 +136,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit <plan> -- <paths>`; never push. After every `V-*` item records pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle (`aw ipd finalize`).
+Execute only after human approval (`aw ipd set approved og11nj --by-human`); OQ-01 is resolved and no question blocks. Begin with `aw ipd begin og11nj`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/runner_shared.py` that cannot be safely combined, or `runner_shared.evaluate_clean_base_for_launch` no longer running `git status --porcelain --untracked-files=no` (the premise of this plan).
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. The non-vacuity mutation is temporary, MUST be reverted before E-04, and is never committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit og11nj -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, run `aw ipd finalize og11nj` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
