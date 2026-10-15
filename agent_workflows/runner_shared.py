@@ -43672,19 +43672,21 @@ def execute_item_core(
 # `oc_runipd` and be imported BY `agy_runipd`, which made one host driver a LIBRARY for the other:
 # a fix to any of them landed in oc's file, and agy received it only for as long as nobody broke
 # the import. Nothing in the suite noticed the coupling growing (40 names on 2026-09-03, 56 on
-# 2026-09-22, green throughout), which is what `tests/test_runner_layering.py` now freezes.
+# 2026-09-22, green throughout); the freezing import-table test in `tests/test_runner_layering.py` was
+# a code pin deleted in `19313eed7` that will not return.
 #
 # `runnerlayer` Order 01 (`9kmbr0`) classified all 56 against a stated criterion ("a name is
 # opencode-specific only if its BODY references an opencode-only concept: the `opencode` binary,
 # its CLI flags, its session format, or its JSON stream shape") and found ZERO opencode-specific
 # names. These are the ones that moved.
 #
-# EVERY MOVE HERE IS A PURE MOVE. The bodies are byte-identical lifts, and
-# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests` proves it by comparing each
-# definition's docstring-stripped AST fingerprint against a capture taken BEFORE the move, plus
-# object identity across `oc_runipd`, `agy_runipd` and this module. Do NOT reformat, rename a
-# local, add a type hint, or "improve" a docstring in this block: that would break the proof that
-# the move changed no behavior, which is the only reason the move was safe to make.
+# EVERY MOVE HERE IS A PURE MOVE. The bodies are byte-identical lifts; the AST-fingerprint proof in
+# `tests/test_runner_shared.py::ReHomedHostNeutralNameTests` was a one-time move-time check, deleted in
+# `19313eed7`, `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json` is a retained historical
+# capture no test reads, and byte-identity was a property of the move commits (`13760db4a`..`edcbbe275`),
+# not a live assertion. Do NOT reformat, rename a local, add a type hint, or "improve" a docstring in
+# this block without good reason: preserving original bodies maintains the property that the move
+# introduced no behavioral divergence.
 #
 # THE `as <same-name>` RE-EXPORT FORM IN BOTH DRIVERS IS LOAD-BEARING, not cosmetic. `ruff` (a
 # pre-commit hook here, with `--fix`) DELETES an unused plain import while LEAVING a redundant

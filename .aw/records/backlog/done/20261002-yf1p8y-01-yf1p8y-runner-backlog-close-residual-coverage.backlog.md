@@ -1,5 +1,5 @@
 - Id: yf1p8y
-- Status: graduated
+- Status: done
 - Graduated-To: yf1p8y
 - Set: yf1p8y
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Triage the behavioral coverage tests/test_runner_backlog_close.py held beyond the delegation guard (shutdown report, signal safety, exit codes, child kill)
 
 ## Workflow history
+- 2026-10-15 done (aw backlog): closed by aw agy run: IPD z2ugxc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-yf1p8y-01-z2ugxc-triage-and-restore-the-residual-behavioral-coverage-of-the-d.ipd.md); evidence .aw/records/plans/executed/20261012-yf1p8y-01-z2ugxc-triage-and-restore-the-residual-behavioral-coverage-of-the-d.ipd.md
 - 2026-10-12 graduated (aw backlog): graduated by run run-20261012T005641Z-2321995: z2ugxc
 - 2026-10-02 created (aw backlog): Triage the behavioral coverage tests/test_runner_backlog_close.py held beyond the delegation guard (shutdown report, signal safety, exit codes, child kill)
 
