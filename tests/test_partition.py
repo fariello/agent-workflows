@@ -359,6 +359,17 @@ def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
     )
     assert {it.id for it in candidates_app} == {"pln001", "pln002"}
 
+    # 3b. Status-not filter & invalid status-not error
+    candidates_not_app = part.collect(
+        plan_fixture_repo, artifact_type="plans", statuses_not=["approved"]
+    )
+    assert {it.id for it in candidates_not_app} == {"pln003"}
+
+    with pytest.raises(
+        ValueError, match="status 'bogus' is not valid for artifact type 'plans'"
+    ):
+        part.collect(plan_fixture_repo, artifact_type="plans", statuses_not=["bogus"])
+
     # 4. Priority filter & invalid priority error
     candidates_pri = part.collect(
         plan_fixture_repo, artifact_type="plans", priorities=["high"]

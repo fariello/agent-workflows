@@ -181,6 +181,18 @@ class FindTests(unittest.TestCase):
         res = I.query(entries, status="reference")
         self.assertEqual([e.id6 for e in res], ["bbbbbb"])
 
+    def test_find_by_status_not(self):
+        entries, _ = I._scan_docs(self.rroot)
+        res = I.query(entries, status_not="reference")
+        self.assertEqual({e.id6 for e in res}, {"aaaaaa", "aaaaab"})
+
+        # Multiple and comma-separated
+        res_one = I.query(entries, status_not="reference,active")
+        self.assertEqual([e.id6 for e in res_one], ["aaaaaa"])
+
+        res_none = I.query(entries, status_not=["reference", "active", "todo"])
+        self.assertEqual(res_none, [])
+
     def test_find_by_id(self):
         entries, _ = I._scan_docs(self.rroot)
         res = I.query(entries, id6="aaaaab")

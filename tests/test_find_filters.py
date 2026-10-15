@@ -250,3 +250,82 @@ class TestFindFilters(unittest.TestCase):
         self.assertEqual(rc, 0)
         lines = [line.strip() for line in out.splitlines() if line.strip()]
         self.assertEqual(len(lines), 3)
+
+    def test_12_find_specs_filter_status_not(self):
+        """(12) find specs --status-not to-review prints only non-to-review specs."""
+        rc, out = self.run_find(["specs", "--status-not", "to-review", "-p"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("spc003", lines[0])
+
+    def test_13_find_specs_filter_status_not_short_flag(self):
+        """(13) find specs -S to-review uses the -S shorthand for --status-not."""
+        rc, out = self.run_find(["specs", "-S", "to-review", "-p"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("spc003", lines[0])
+
+    def test_14_find_backlog_filter_status_not_comma_and_repeat(self):
+        """(14) find backlog --status-not supports single, comma-separated, and repeated flags."""
+        # Single
+        rc, out = self.run_find(["backlog", "--status-not", "done", "-p"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("bkl001", lines[0])
+
+        # Comma-separated
+        rc_comma, out_comma = self.run_find(
+            ["backlog", "--status-not", "open,done", "-p"]
+        )
+        self.assertEqual(rc_comma, 0)
+        lines_comma = [line.strip() for line in out_comma.splitlines() if line.strip()]
+        self.assertEqual(len(lines_comma), 0)
+
+        # Repeated flags
+        rc_rep, out_rep = self.run_find(
+            ["backlog", "--status-not", "open", "--status-not", "done", "-p"]
+        )
+        self.assertEqual(rc_rep, 0)
+        lines_rep = [line.strip() for line in out_rep.splitlines() if line.strip()]
+        self.assertEqual(len(lines_rep), 0)
+
+    def test_15_find_plans_filter_status_not(self):
+        """(15) find plans --status-not draft prints only non-draft plans."""
+        rc, out = self.run_find(["plans", "--status-not", "draft", "-p"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("pln001", lines[0])
+
+    def test_16_find_specs_status_not_bogusvalue_refused_exit_2(self):
+        """(16) find specs --status-not bogusvalue exits 2 and lists valid statuses."""
+        rc, out = self.run_find(["specs", "--status-not", "bogusvalue", "--json"])
+        self.assertEqual(rc, 2)
+        data = json.loads(out)
+        self.assertEqual(data.get("exit_code"), 2)
+        self.assertEqual(data.get("status"), "cannot-run")
+        summary = data.get("summary", "")
+        self.assertIn("to-review", summary)
+        self.assertIn("approved", summary)
+
+    def test_17_find_all_status_not_accepted(self):
+        """(17) find all --status-not filters across types without upfront enum refusal."""
+        rc, out = self.run_find(["all", "--status-not", "open", "-p"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("bkl001", out)
+        self.assertIn("bkl002", out)
+
+        # Enum-less types in 'all' disable upfront validation for --status-not as well
+        rc_bogus, out_bogus = self.run_find(["all", "--status-not", "bogusvalue", "-p"])
+        self.assertEqual(rc_bogus, 0)
+
+    def test_18_find_walkthroughs_status_not_accepted(self):
+        """(18) find walkthroughs --status-not anything is accepted (exit 0) and returns rows."""
+        rc, out = self.run_find(["walkthroughs", "--status-not", "anything", "-p"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("wlk001", lines[0])

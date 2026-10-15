@@ -20,7 +20,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
@@ -335,6 +335,7 @@ def query(
     topic: Optional[str] = None,
     status: Optional[str] = None,
     position: Optional[str] = None,
+    status_not: Optional[str | Sequence[str]] = None,
 ) -> List[DocEntry]:
     """Filter entries by any combination of id/set/topic/status/position (deterministic order)."""
 
@@ -351,6 +352,23 @@ def query(
         want = R.normalize_status(status).value or status
         out = [
             e for e in out if (R.normalize_status(e.status).value or e.status) == want
+        ]
+    if status_not:
+        if isinstance(status_not, str):
+            not_list = [s.strip() for s in status_not.split(",") if s.strip()]
+        else:
+            not_list = []
+            for item in status_not:
+                if item:
+                    not_list.extend(
+                        s.strip() for s in str(item).split(",") if s.strip()
+                    )
+        not_set = {(R.normalize_status(s).value or s).lower() for s in not_list}
+        out = [
+            e
+            for e in out
+            if (R.normalize_status(e.status).value or e.status or "").lower()
+            not in not_set
         ]
     if position:
         positions = derive_pipeline_positions(entries)
@@ -1050,13 +1068,14 @@ def run_find(args: argparse.Namespace) -> int:
         topic=getattr(args, "topic", None),
         status=getattr(args, "status", None),
         position=getattr(args, "position", None),
+        status_not=getattr(args, "status_not", None),
     )
     if not results:
         from agent_workflows.term import Term
         from agent_workflows.result_types import NextAction
 
         filters_dict = {}
-        for k in ("id", "set", "topic", "status", "position"):
+        for k in ("id", "set", "topic", "status", "status_not", "position"):
             v = getattr(args, k, None)
             if v:
                 filters_dict[k] = v

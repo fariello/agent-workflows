@@ -301,3 +301,53 @@ class SearchOptionsTests(unittest.TestCase):
         self.assertEqual(data["data"]["filters"]["full"], True)
         self.assertEqual(data["data"]["filters"]["type"], "plans")
         self.assertEqual(data["data"]["filters"]["pattern"], "BETA_BODY")
+
+    def test_status_not_filter(self):
+        """Negative status filter --status-not excludes matching artifacts."""
+        # Without status-not, ALPHA_SECRET matches both pln001 and pln002
+        rc, out = self._run("search", "-t", "plan", "-p", "ALPHA_SECRET")
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
+        self.assertEqual(len(lines), 2)
+
+        # With --status-not executed, only pln001 matches
+        rc_not, out_not = self._run(
+            "search", "-t", "plan", "-p", "--status-not", "executed", "ALPHA_SECRET"
+        )
+        self.assertEqual(rc_not, 0)
+        lines_not = [
+            line.strip() for line in out_not.strip().split("\n") if line.strip()
+        ]
+        self.assertEqual(len(lines_not), 1)
+        self.assertIn("pln001", lines_not[0])
+
+        # Comma-separated --status-not approved,executed excludes both
+        rc_both, out_both = self._run(
+            "search",
+            "-t",
+            "plan",
+            "-p",
+            "--status-not",
+            "approved,executed",
+            "ALPHA_SECRET",
+        )
+        self.assertEqual(rc_both, 1)
+        self.assertIn("no matching lines for 'ALPHA_SECRET'", out_both)
+
+    def test_status_not_json_metadata(self):
+        """JSON output contains status_not in filters data when supplied."""
+        rc, out = self._run(
+            "search",
+            "-t",
+            "plan",
+            "--status-not",
+            "executed",
+            "--json",
+            "ALPHA_SECRET",
+        )
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(data["command"], "search")
+        self.assertEqual(data["status"], "clean")
+        self.assertIn("status_not", data["data"]["filters"])
+        self.assertEqual(data["data"]["filters"]["status_not"], ["executed"])

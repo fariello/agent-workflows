@@ -711,6 +711,7 @@ def collect(
     artifact_type: str = "plans",
     selectors: Sequence[str] = (),
     statuses: Sequence[str] = (),
+    statuses_not: Sequence[str] = (),
     priorities: Sequence[str] = (),
     max_count: Optional[int] = None,
     stdin_ids: Optional[Sequence[str]] = None,
@@ -734,6 +735,15 @@ def collect(
     if statuses:
         valid_statuses = _status_set.TYPE_STATUSES.get(artifact_type, set())
         for s in statuses:
+            if s.lower() not in valid_statuses:
+                sorted_valid = ", ".join(f"'{st}'" for st in sorted(valid_statuses))
+                raise ValueError(
+                    f"status {s!r} is not valid for artifact type {artifact_type!r}. Valid statuses: {sorted_valid}"
+                )
+
+    if statuses_not:
+        valid_statuses = _status_set.TYPE_STATUSES.get(artifact_type, set())
+        for s in statuses_not:
             if s.lower() not in valid_statuses:
                 sorted_valid = ", ".join(f"'{st}'" for st in sorted(valid_statuses))
                 raise ValueError(
@@ -859,6 +869,15 @@ def collect(
             if (getattr(it, "status", None) or it.native_status).lower() in status_set
         ]
 
+    if statuses_not:
+        status_not_set = {s.lower() for s in statuses_not}
+        candidates = [
+            it
+            for it in candidates
+            if (getattr(it, "status", None) or it.native_status).lower()
+            not in status_not_set
+        ]
+
     if priorities:
         candidates = [
             it for it in candidates if (it.priority or "").lower() in norm_priorities
@@ -953,6 +972,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
 
     selectors = list(getattr(args, "selectors", []) or [])
     statuses = list(getattr(args, "status", []) or [])
+    statuses_not = list(getattr(args, "status_not", []) or [])
     priorities = list(getattr(args, "priority", []) or [])
     allow_partial_sets = bool(getattr(args, "allow_partial_sets", False))
 
@@ -975,6 +995,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 artifact_type=artifact_type,
                 selectors=selectors,
                 statuses=statuses,
+                statuses_not=statuses_not,
                 priorities=priorities,
                 max_count=None,
                 stdin_ids=stdin_ids,
@@ -1107,6 +1128,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 artifact_type=artifact_type,
                 selectors=selectors,
                 statuses=statuses,
+                statuses_not=statuses_not,
                 priorities=priorities,
                 max_count=max_count,
                 stdin_ids=stdin_ids,

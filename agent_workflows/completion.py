@@ -804,6 +804,14 @@ def status_candidates(record_type: str) -> List[str]:
         from agent_workflows import backlog
 
         return sorted(backlog.STATUSES)
+    if record_type == "research":
+        from agent_workflows import research_contract
+
+        return sorted(research_contract.STATUSES)
+    if record_type == "all":
+        from agent_workflows import attention
+
+        return sorted(attention.selector_vocabulary())
     return []
 
 
@@ -835,15 +843,40 @@ def _is_status_position(words: List[str], cword: int) -> Optional[str]:
       * ``aw specs set --status <status>``           -> spec statuses right after ``--status``
       * ``aw specs set <path> --status <status>``    (same)
       * ``aw backlog set <selector> --status <s>``   -> backlog statuses after ``--status``
-    We complete a status when the PREVIOUS token is ``--status``, or in the ``ipd set`` positional
-    slot (index 3, i.e. the token right after ``set``).
+      * ``aw find <type> --status-not <status>``     -> type statuses after ``--status-not``
+      * ``aw att --status-not <status>``            -> attention statuses after ``--status-not``
+    We complete a status when the PREVIOUS token is ``--status``, ``--status-not``, ``-s``, or ``-S``,
+    or in the ``ipd set`` positional slot (index 3, i.e. the token right after ``set``).
     """
-    if cword >= 1 and words[cword - 1] == "--status":
+    if cword >= 1 and words[cword - 1] in ("--status", "--status-not", "-s", "-S"):
         # Find the owning entity command earlier in the line.
         if len(words) > 1:
-            rt = _ENTITY_RECORD_TYPE.get(words[1])
+            cmd = words[1]
+            rt = _ENTITY_RECORD_TYPE.get(cmd)
             if rt:
                 return rt
+            if cmd in ("find", "index"):
+                if len(words) > 2 and words[2] in (
+                    "plans",
+                    "specs",
+                    "backlog",
+                    "research",
+                ):
+                    return words[2]
+                return "all"
+            if cmd in ("research",):
+                return "research"
+            if cmd in ("partition",):
+                for i in range(len(words) - 1):
+                    if words[i] in ("-t", "--type") and words[i + 1] in (
+                        "plans",
+                        "specs",
+                        "backlog",
+                    ):
+                        return words[i + 1]
+                return "plans"
+            if cmd in ("attention", "att", "next", "todo", "search"):
+                return "all"
     # `aw ipd set <status>` positional (status is the first positional after `set`).
     if cword == 3 and len(words) > 2 and words[1] == "ipd" and words[2] == "set":
         return "plans"

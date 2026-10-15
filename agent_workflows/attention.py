@@ -4405,6 +4405,10 @@ def run(args) -> int:
     if status_filters:
         items = [it for it in items if matches_status(it, status_filters)]
 
+    status_not_filters = parse_status_filters(getattr(args, "status_not", None))
+    if status_not_filters:
+        items = [it for it in items if not matches_status(it, status_not_filters)]
+
     priority_filters = parse_priority_filters(getattr(args, "priority", None))
     if priority_filters:
         items = [it for it in items if matches_priority(it, priority_filters)]
@@ -4484,6 +4488,7 @@ def run(args) -> int:
         any(
             (
                 status_filters,
+                status_not_filters,
                 priority_filters,
                 blocking_filters,
                 readiness_filters,

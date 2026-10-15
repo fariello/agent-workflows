@@ -7,10 +7,12 @@ Covers grouping/counts by disposition + readiness, legacy free-text tolerance, t
 from __future__ import annotations
 
 import io
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from agent_workflows import cli
 from agent_workflows import plans as plans_mod
 from agent_workflows.term import Term
 from tests import support
@@ -192,6 +194,52 @@ class SetOrderTests(unittest.TestCase):
             _fixture(root)  # none of these declare Set:
             out = plans_mod.render_status_index(root, plans_mod.scan(root))
             self.assertNotIn("## Sets", out)
+
+
+class BoardCliFilterTests(unittest.TestCase):
+    def test_ipd_board_status_not(self):
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plans = root / ".agents" / "plans"
+            _write(plans / "pending" / "20260101-0000-01-a.md", "draft")
+            _write(plans / "pending" / "20260101-0001-01-b.md", "approved")
+            _write(plans / "executed" / "20260101-0002-01-c.md", "executed")
+
+            # Run with --status-not draft --json
+            buf = io.StringIO()
+            with unittest.mock.patch("sys.stdout", buf):
+                rc = cli.main(
+                    [
+                        "ipd",
+                        "board",
+                        "--dir",
+                        str(root),
+                        "--status-not",
+                        "draft",
+                        "--json",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            plan_statuses = [p["status"] for p in data["data"]["plans"]]
+            self.assertNotIn("draft", plan_statuses)
+            self.assertIn("approved", plan_statuses)
+
+            # Test invalid status refused with exit 2
+            buf_bad = io.StringIO()
+            with unittest.mock.patch("sys.stdout", buf_bad):
+                rc_bad = cli.main(
+                    [
+                        "ipd",
+                        "board",
+                        "--dir",
+                        str(root),
+                        "--status-not",
+                        "bogusvalue",
+                        "--json",
+                    ]
+                )
+            self.assertEqual(rc_bad, 2)
 
 
 if __name__ == "__main__":

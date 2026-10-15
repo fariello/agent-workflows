@@ -19,7 +19,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -252,6 +252,7 @@ def query(
     set_id: Optional[str] = None,
     status: Optional[str] = None,
     disposition: Optional[str] = None,
+    status_not: Optional[str | Sequence[str]] = None,
 ) -> List[PlanEntry]:
     out = list(entries)
     if plan_id:
@@ -259,9 +260,30 @@ def query(
     if set_id:
         out = [e for e in out if e.set_id == set_id]
     if status:
-        out = [e for e in out if e.status == status]
+        out = [e for e in out if e.status == status or e.disposition == status]
     if disposition:
         out = [e for e in out if e.disposition == disposition]
+    if status_not:
+        from agent_workflows import plans as _p_mod
+
+        if isinstance(status_not, str):
+            not_list = [s.strip() for s in status_not.split(",") if s.strip()]
+        else:
+            not_list = []
+            for item in status_not:
+                if item:
+                    not_list.extend(
+                        s.strip() for s in str(item).split(",") if s.strip()
+                    )
+        not_set = {s.lower() for s in not_list}
+        out = [
+            e
+            for e in out
+            if (e.status or "").lower() not in not_set
+            and (e.disposition or "").lower() not in not_set
+            and (_p_mod.normalize_status(e.status) or "").lower() not in not_set
+            and (_p_mod.normalize_status(e.disposition) or "").lower() not in not_set
+        ]
     return sorted(out, key=lambda e: (e.set_id or "", e.order or 0, e.path))
 
 
@@ -560,13 +582,14 @@ def run_find(args: argparse.Namespace) -> int:
         set_id=getattr(args, "set", None),
         status=getattr(args, "status", None),
         disposition=getattr(args, "disposition", None),
+        status_not=getattr(args, "status_not", None),
     )
     if not results:
         from agent_workflows.result_types import NextAction
         from agent_workflows.term import Term
 
         filters_dict = {}
-        for k in ("id", "set", "status", "disposition"):
+        for k in ("id", "set", "status", "status_not", "disposition"):
             v = getattr(args, k, None)
             if v:
                 filters_dict[k] = v

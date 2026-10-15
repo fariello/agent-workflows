@@ -1964,6 +1964,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Filter by disposition (e.g. executed, pending, reusable).",
     )
+    p_ipd_board.add_argument(
+        "--status-not",
+        dest="status_not_filter",
+        default=None,
+        help="Filter out by disposition (e.g. executed, superseded). Supports comma-separated list.",
+    )
 
     p_ipd_set = ipd_sub.add_parser(
         "set",
@@ -3691,6 +3697,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_find.add_argument("--topic", default=None, help="Filter by topic.")
     p_research_find.add_argument("--status", default=None, help="Filter by status.")
     p_research_find.add_argument(
+        "--status-not",
+        default=None,
+        help="Filter out by status (comma-separated or single status).",
+    )
+    p_research_find.add_argument(
         "--position",
         default=None,
         help="Filter by derived prompt pipeline position (unrun/partial/synthesized).",
@@ -4498,6 +4509,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by artifact status (repeatable, exact match).",
     )
     p_partition.add_argument(
+        "--status-not",
+        dest="status_not",
+        action="append",
+        default=[],
+        help="Filter out by artifact status (repeatable, exact match).",
+    )
+    p_partition.add_argument(
         "-p",
         "--priority",
         dest="priority",
@@ -4707,6 +4725,13 @@ def _build_parser() -> argparse.ArgumentParser:
                 help="Filter by artifact status (e.g. open, to-review, reviewed, approved). Supports multiple flags or comma-separated lists (e.g. -s open,to-review or -s open -s to-review).",
             )
             _p.add_argument(
+                "--status-not",
+                dest="status_not",
+                action="append",
+                default=[],
+                help="Filter out by artifact status (e.g. graduated, done). Supports multiple flags or comma-separated lists (e.g. --status-not graduated,done).",
+            )
+            _p.add_argument(
                 "--full",
                 "-F",
                 dest="full",
@@ -4722,6 +4747,14 @@ def _build_parser() -> argparse.ArgumentParser:
         )
         if _verb != "search":
             _p.add_argument("--status", default=None, help="Filter/selector: status.")
+            _p.add_argument(
+                "--status-not",
+                "-S",
+                dest="status_not",
+                action="append",
+                default=[],
+                help="Filter out by artifact status (e.g. graduated, done). Supports multiple flags or comma-separated lists (e.g. -S graduated,done or -S graduated -S done).",
+            )
         _p.add_argument("--id", default=None, help="Filter/selector: id6.")
         _p.add_argument("--set", default=None, help="Filter/selector: Set id.")
         _p.add_argument(
@@ -5220,6 +5253,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Filter by artifact status (e.g. to-review, draft, open, approved). Supports multiple flags or comma-separated lists (e.g. --status to-review,draft or --status to-review --status draft).",
+    )
+    p_attention.add_argument(
+        "--status-not",
+        "-S",
+        dest="status_not",
+        action="append",
+        default=[],
+        help="Filter out by artifact status (e.g. graduated, done). Supports multiple flags or comma-separated lists (e.g. --status-not graduated,done or -S graduated -S done).",
     )
     p_attention.add_argument(
         "--priority",
@@ -11188,6 +11229,29 @@ def _run_plans(
         )
         return 2
 
+    status_not_filter = getattr(args, "status_not_filter", None)
+    status_not_set = set()
+    if status_not_filter:
+        parts = [p.strip() for p in status_not_filter.split(",") if p.strip()]
+        for p in parts:
+            norm = plans_mod.normalize_status(p)
+            if norm not in plans_mod.RECOGNIZED:
+                valid = ", ".join(
+                    plans_mod.PRE_TERMINAL + plans_mod.TERMINAL + plans_mod.STANDING
+                )
+                err_msg = f"Unrecognized --status-not '{p}'. Valid readiness statuses: {valid}."
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="ipd board",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=err_msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                term.status("warn", err_msg)
+                return 2
+            status_not_set.add(norm)
+
     # Layout-aware (IPD awretrofit Order 01): resolve the plans dir (.aw/records/plans with a
     # legacy .agents/plans read-fallback) rather than gating on the vanished legacy path.
     plans_dir = plans_mod._resolve_area_dir(root, "plans")
@@ -11228,6 +11292,12 @@ def _run_plans(
     if status_filter:
         want = plans_mod.normalize_status(status_filter)
         records = [r for r in records if r.status == want]
+    if status_not_set:
+        records = [
+            r
+            for r in records
+            if r.status not in status_not_set and r.disposition not in status_not_set
+        ]
 
     if getattr(args, "write_index", False):
         index_path = plans_dir / "STATUS.md"
@@ -11262,6 +11332,8 @@ def _run_plans(
             filters_map["disposition"] = "pending"
         if status_filter:
             filters_map["status"] = status_filter
+        if status_not_filter:
+            filters_map["status_not"] = status_not_filter
         next_act = (
             [NextAction(command="aw ipd board", description="view full board")]
             if filters_map and not records
@@ -11296,6 +11368,8 @@ def _run_plans(
             filters_map["disposition"] = "pending"
         if status_filter:
             filters_map["status"] = status_filter
+        if status_not_filter:
+            filters_map["status_not"] = status_not_filter
         next_act = (
             NextAction(command="aw ipd board", description="view full board")
             if filters_map
@@ -13690,6 +13764,7 @@ def _find_type_records(
         explicit_set = getattr(args, "set", None)
         explicit_status = getattr(args, "status", None)
         explicit_disp = getattr(args, "disposition", None)
+        explicit_status_not = getattr(args, "status_not", None)
         type_matches: List[_FindMatch] = []
 
         if selectors_list:
@@ -13709,13 +13784,20 @@ def _find_type_records(
                 res = pi.plan_entry(plans_dir, p, ignored_dirs=ignored_dirs)
                 if res is not None:
                     results.append(res[0])
-            if explicit_set or explicit_status or explicit_disp or explicit_id:
+            if (
+                explicit_set
+                or explicit_status
+                or explicit_disp
+                or explicit_id
+                or explicit_status_not
+            ):
                 results = pi.query(
                     results,
                     plan_id=explicit_id,
                     set_id=explicit_set,
                     status=explicit_status,
                     disposition=explicit_disp,
+                    status_not=explicit_status_not,
                 )
         else:
             entries, _drift = pi.scan_plans(plans_dir)
@@ -13725,6 +13807,7 @@ def _find_type_records(
                 set_id=explicit_set,
                 status=explicit_status,
                 disposition=explicit_disp,
+                status_not=explicit_status_not,
             )
 
         lines = []
@@ -13773,6 +13856,7 @@ def _find_type_records(
         explicit_set = getattr(args, "set", None)
         explicit_topic = getattr(args, "topic", None)
         explicit_status = getattr(args, "status", None)
+        explicit_status_not = getattr(args, "status_not", None)
         type_matches = []
 
         if selectors_list:
@@ -13796,13 +13880,20 @@ def _find_type_records(
                 )
                 if entry is not None:
                     results.append(entry)
-            if explicit_set or explicit_status or explicit_topic or explicit_id:
+            if (
+                explicit_set
+                or explicit_status
+                or explicit_topic
+                or explicit_id
+                or explicit_status_not
+            ):
                 results = ri.query(
                     results,
                     id6=explicit_id,
                     set_id=explicit_set,
                     topic=explicit_topic,
                     status=explicit_status,
+                    status_not=explicit_status_not,
                 )
         else:
             entries, _drift = ri._scan_docs(research_root)
@@ -13812,6 +13903,7 @@ def _find_type_records(
                 set_id=explicit_set,
                 topic=explicit_topic,
                 status=explicit_status,
+                status_not=explicit_status_not,
             )
 
         lines = []
@@ -13853,6 +13945,19 @@ def _find_type_records(
     explicit_id = getattr(args, "id", None)
     explicit_set = getattr(args, "set", None)
     explicit_status = getattr(args, "status", None)
+    explicit_status_not = getattr(args, "status_not", None)
+    status_not_tokens = set()
+    if explicit_status_not:
+        if isinstance(explicit_status_not, str):
+            status_not_tokens = {
+                s.strip().lower() for s in explicit_status_not.split(",") if s.strip()
+            }
+        else:
+            for item in explicit_status_not:
+                if item:
+                    status_not_tokens.update(
+                        s.strip().lower() for s in str(item).split(",") if s.strip()
+                    )
 
     type_matches = []
     if selectors_list:
@@ -13883,6 +13988,14 @@ def _find_type_records(
             if (
                 status == "-"
                 or status.strip().lower() != explicit_status.strip().lower()
+            ):
+                continue
+        if status_not_tokens:
+            norm_st = status.strip().lower()
+            if (
+                norm_st in status_not_tokens
+                or norm_st.replace("_", "-") in status_not_tokens
+                or norm_st.replace("-", "_") in status_not_tokens
             ):
                 continue
         raw_set = _find_prompt_setid(p, text, artifact_type) or sel_mod._read_setid(
@@ -14310,6 +14423,13 @@ def _build_find_continuation_parts(
         parts.append(f"--set {_sanitize(args.set)}")
     if getattr(args, "status", None):
         parts.append(f"--status {_sanitize(args.status)}")
+    if getattr(args, "status_not", None):
+        st_not = getattr(args, "status_not", None)
+        if isinstance(st_not, (list, tuple)):
+            for item in st_not:
+                parts.append(f"--status-not {_sanitize(item)}")
+        else:
+            parts.append(f"--status-not {_sanitize(st_not)}")
     if getattr(args, "topic", None):
         parts.append(f"--topic {_sanitize(args.topic)}")
     if getattr(args, "disposition", None):
@@ -14377,7 +14497,8 @@ def _run_find(
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
 
     status_filter = getattr(args, "status", None)
-    if status_filter:
+    status_not_filter = getattr(args, "status_not", None)
+    if status_filter or status_not_filter:
         # Status validation (IPD wja06w E-04 / F-7 / OQ-01):
         # Collect the enums of the resolved types. If ANY resolved type has NO enum
         # (e.g. prompts, walkthroughs, roadmaps, comms, reviews, other, or 'all' which
@@ -14404,9 +14525,11 @@ def _run_find(
             union_valid: set[str] = set()
             for ev in valid_enums:
                 union_valid.update(ev)
-            if status_filter.strip().lower() not in {s.lower() for s in union_valid}:
-                sorted_valid = sorted(union_valid)
-                types_label = norm if norm != "all" else ", ".join(sorted(types))
+            valid_lowers = {s.lower() for s in union_valid}
+            sorted_valid = sorted(union_valid)
+            types_label = norm if norm != "all" else ", ".join(sorted(types))
+
+            if status_filter and status_filter.strip().lower() not in valid_lowers:
                 err_msg = (
                     f"Unrecognized --status '{status_filter}' for {types_label}. "
                     f"Valid statuses: {', '.join(sorted_valid)}."
@@ -14427,6 +14550,42 @@ def _run_find(
                     return 2
                 term.status("fail", err_msg)
                 return 2
+
+            if status_not_filter:
+                raw_not_tokens: list[str] = []
+                if isinstance(status_not_filter, str):
+                    raw_not_tokens = [
+                        s.strip() for s in status_not_filter.split(",") if s.strip()
+                    ]
+                else:
+                    for item in status_not_filter:
+                        if item:
+                            raw_not_tokens.extend(
+                                s.strip() for s in str(item).split(",") if s.strip()
+                            )
+                for tok in raw_not_tokens:
+                    if tok.lower() not in valid_lowers:
+                        err_msg = (
+                            f"Unrecognized --status-not '{tok}' for {types_label}. "
+                            f"Valid statuses: {', '.join(sorted_valid)}."
+                        )
+                        if ctx.is_agent or ctx.is_json:
+                            res = CommandResult(
+                                command="find",
+                                status="cannot-run",
+                                exit_code=2,
+                                summary=err_msg,
+                            )
+                            return get_renderer(ctx).emit(res, ctx)
+                        if getattr(args, "paths", False):
+                            Term(
+                                stream=sys.stderr,
+                                color=term.color,
+                                unicode=term.unicode,
+                            ).status("fail", err_msg)
+                            return 2
+                        term.status("fail", err_msg)
+                        return 2
 
     # IPD okiso1 E-03 / OQ-02: Validate --limit upfront.
     # Non-positive limit (<= 0) is refused at exit 2 with cannot-run record, matching
@@ -14467,6 +14626,7 @@ def _run_find(
         id=getattr(args, "id", None),
         set=getattr(args, "set", None),
         status=getattr(args, "status", None),
+        status_not=getattr(args, "status_not", None),
         topic=getattr(args, "topic", None),
         disposition=getattr(args, "disposition", None),
         dir=getattr(args, "dir", None),
@@ -14491,6 +14651,14 @@ def _run_find(
     filters_dict = {"type": norm}
     if selectors:
         filters_dict["selector"] = " ".join(selectors)
+    if status_filter:
+        filters_dict["status"] = status_filter
+    if status_not_filter:
+        filters_dict["status_not"] = (
+            ",".join(status_not_filter)
+            if isinstance(status_not_filter, (list, tuple))
+            else str(status_not_filter)
+        )
 
     if selectors:
         next_cmd = f"aw find {norm}" if norm != "all" else "aw find"
@@ -14857,6 +15025,9 @@ def _build_search_continuation(
     flag_status = list(getattr(args, "status", None) or [])
     if flag_status:
         parts.extend(["--status", ",".join(flag_status)])
+    flag_status_not = list(getattr(args, "status_not", None) or [])
+    if flag_status_not:
+        parts.extend(["--status-not", ",".join(flag_status_not)])
     if getattr(args, "full", False):
         parts.append("--full")
 
@@ -15050,6 +15221,7 @@ def _run_search(
     raw_selector = list(getattr(args, "selector", None) or [])
     flag_types = list(getattr(args, "types", None) or [])
     flag_status = list(getattr(args, "status", None) or [])
+    flag_status_not = list(getattr(args, "status_not", None) or [])
     full_search = bool(getattr(args, "full", False))
     line_numbers = bool(getattr(args, "line_numbers", False))
     short_format = bool(getattr(args, "short", False))
@@ -15134,6 +15306,7 @@ def _run_search(
         return EXIT_CANNOT_RUN
     types = [t for t in at.ARTIFACT_TYPES if t in types_set]
     status_filters = att.parse_status_filters(flag_status)
+    status_not_filters = att.parse_status_filters(flag_status_not)
 
     hits = 0
     json_results = []
@@ -15181,7 +15354,7 @@ def _run_search(
         return "-"
 
     item_map = None
-    if short_format or status_filters:
+    if short_format or status_filters or status_not_filters:
         try:
             items_scanned, _ = att.scan(repo_root)
             item_map = {(repo_root / it.path).resolve(): it for it in items_scanned}
@@ -15229,6 +15402,15 @@ def _run_search(
                     if (
                         norm_st not in status_filters
                         and norm_st.replace("_", "-") not in status_filters
+                    ):
+                        continue
+
+                if status_not_filters:
+                    norm_st = file_status.lower()
+                    if (
+                        norm_st in status_not_filters
+                        or norm_st.replace("_", "-") in status_not_filters
+                        or norm_st.replace("-", "_") in status_not_filters
                     ):
                         continue
 
@@ -15383,6 +15565,8 @@ def _run_search(
     filters_data = {"type": norm, "pattern": pattern}
     if status_filters:
         filters_data["status"] = sorted(status_filters)
+    if status_not_filters:
+        filters_data["status_not"] = sorted(status_not_filters)
     if full_search:
         filters_data["full"] = True
 

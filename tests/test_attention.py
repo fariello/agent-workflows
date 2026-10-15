@@ -1097,6 +1097,14 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(parser.parse_args(["att", "--open-questions"]).open_questions)
         self.assertTrue(parser.parse_args(["att", "--oqs"]).open_questions)
 
+        args_not = parser.parse_args(
+            ["attention", "--status-not", "graduated", "--status-not", "done"]
+        )
+        self.assertEqual(args_not.status_not, ["graduated", "done"])
+
+        args_short = parser.parse_args(["att", "-S", "graduated,done"])
+        self.assertEqual(args_short.status_not, ["graduated,done"])
+
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
             args_run = argparse.Namespace(
@@ -1121,6 +1129,32 @@ class AttentionFilteringTests(unittest.TestCase):
             data = json.loads(buf.getvalue())
             for item in data["items"]:
                 self.assertIn(item["native_status"], ("to-review", "draft"))
+
+            # Test --status-not filtering
+            args_run_not = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=[],
+                status_not=["draft"],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf_not = io.StringIO()
+            with mock.patch("sys.stdout", buf_not):
+                rc_not = att.run(args_run_not)
+            self.assertEqual(rc_not, 0)
+            data_not = json.loads(buf_not.getvalue())
+            statuses_seen = [item["native_status"] for item in data_not["items"]]
+            self.assertNotIn("draft", statuses_seen)
+            self.assertIn("approved", statuses_seen)
 
         # Open questions filter and research blocks release frontmatter vs body
         with tempfile.TemporaryDirectory() as td:
