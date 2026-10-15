@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Commit `19313eed` deleted `tests/test_awcmdsurf_vocab_and_parsers.py`, and with it `DerivedVocabularyTests.test_reviews_has_no_backend_and_no_status_lifecycle`, the only test that `reviews` (an accepted type noun since the `wslayout` union ruling) stays OUT of `artifact_types.TYPE_BACKENDS` and OUT of `selectors.KNOWN_PRIMARY_TYPES`. Executed plan `ev7t1w` recorded that site as S-04 RETIRE-UNGUARDED. A regression is silent: a `reviews` backend would let `aw rename|group|index reviews` mutate review records that have no lifecycle, and a `reviews` primary type would make the plan-selector diagnostics and `run_selection_policy` treat a review as a selectable work item.
 - Scope: Add one new behavioral test module that drives the real CLI router and the real public helpers (`artifact_types.backend_name`/`resolve_backend`, `selectors.resolve`, `runner_shared.describe_unresolved_plan_selector`) against a temporary git repository holding a real `.review.md` record, plus a comment-only repoint of the `artifact_types.py` module docstring that says "no live guard currently asserts this". No production behavior change.
-- Scope-Paths: tests/test_reviews_type_noun_surface.py, agent_workflows/artifact_types.py
+- Scope-Paths: tests/test_reviews_type_noun_surface.py, agent_workflows/artifact_types.py, .aw/records/plans/pending/20261014-nrcvpg-01-ybf6za-restore-behavioral-coverage-that-reviews-is-a-type-noun-with.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: nrcvpg
@@ -17,6 +18,7 @@
 - Id: ybf6za
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Record: .aw/records/reviews/20261014-nrcvpg-01-ybf6za-restore-behavioral-coverage-that-reviews-is-a-type-noun-with.review.md Round 1
 
 - 2026-10-15 draft (opencode): created.
 - 2026-10-14 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog `nrcvpg`; review-ready. Every behavior the tests will assert was measured in this lane before authoring (Findings F-02..F-04).
@@ -31,28 +33,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: no backend (TYPE_BACKENDS absence)
 
-- [ ] E-01 Create `tests/test_reviews_type_noun_surface.py` with a pytest fixture that `git init`s a `tmp_path` repo and writes one review record `.aw/records/reviews/20260929-demo-01-ab12cd-x.review.md` (content `# Review: x\n\n- Subject-Id: ab12cd\n`). Add a test parametrized over `rename` (`reviews <path> --slug zz`), `group` (`reviews x`), and `index` (`reviews`) that calls `cli.main(["--no-interactive", <verb>, ..., "--dir", <repo>])` under `redirect_stdout`/`redirect_stderr` and asserts rc == 2, the combined output contains `'<verb>' is not supported for reviews.`, and the review file still exists with identical bytes and the reviews directory listing is unchanged. Add a second test that, for every verb in the union of verbs any type routes (computed at test time as `{v for t in at.ARTIFACT_TYPES for v in ("new","index","find","rename","group","archive","check") if at.backend_name(t, v)}`), asserts `at.backend_name("reviews", v) is None` and `at.resolve_backend("reviews", v) is None`, and asserts that same union is non-empty and that `at.backend_name("plans", "rename")` is not None (positive control).
+- [ ] E-01 Create `tests/test_reviews_type_noun_surface.py` with a pytest fixture that `git init`s a `tmp_path` repo and writes one review record `.aw/records/reviews/20260929-demo-01-ab12cd-x.review.md` (content `# Review: x\n\n- Subject-Id: ab12cd\n`). Add a test parametrized over `rename` (`reviews <absolute path to the review> --slug zz`), `group` (`reviews x`), and `index` (`reviews`) that calls `cli.main(["--no-interactive", <verb>, ..., "--dir", <repo>])` under `redirect_stdout`/`redirect_stderr` (catching `SystemExit` and taking its code) and asserts rc == 2, the combined output contains `'<verb>' is not supported for reviews.`, and the review file still exists with identical bytes and the reviews directory listing is unchanged. Add a second test that, for every verb in the union of verbs any type routes (computed at test time as `{v for t in at.ARTIFACT_TYPES for v in ("new","index","find","rename","group","archive","check") if at.backend_name(t, v)}`), asserts `at.backend_name("reviews", v) is None` and `at.resolve_backend("reviews", v) is None`, and asserts that same union is non-empty and that `at.backend_name("plans", "rename")` is not None (positive control). Add a third, in-module non-vacuity test that uses `unittest.mock.patch.dict(at.TYPE_BACKENDS, {"reviews": {"rename": "artifact_rename.run_rename_other"}})` and asserts that, under the patch, `at.backend_name("reviews", "rename")` is not None and the same `rename` invocation's output no longer contains `is not supported for reviews.` (measured at review: it then reaches the backend and refuses for a different reason, `other verb cannot act on ...`). The patch is in-process only and is undone on exit, so no source file is ever edited.
   - Depends on: none
-  - Expected outcome: Both tests pass; each refused verb leaves the record byte-identical.
+  - Expected outcome: All three tests pass; each refused verb leaves the record byte-identical; the patched case proves the refusal assertion depends on `TYPE_BACKENDS` lacking `reviews`.
   - Execution state: pending
 
-- [ ] E-02 In the same module, add a positive control proving the noun itself is ACCEPTED (so the refusals in E-01 are "no backend", not "unknown type"): `at.normalize_type("reviews") == "reviews"`, `at.normalize_type("review") == "reviews"`, `at.is_type_token("reviews")` is True, and `cli.main(["--no-interactive", "find", "reviews", "ab12cd", "--dir", <repo>])` returns 0 with the review's repo-relative path in its output.
+- [ ] E-02 In the same module, add a positive control proving the noun itself is ACCEPTED (so the refusals in E-01 are "no backend", not "unknown type"): `at.normalize_type("reviews") == "reviews"`, `at.normalize_type("review") == "reviews"`, `at.is_type_token("reviews")` is True, and `cli.main(["--no-interactive", "find", "reviews", "ab12cd", "--dir", <repo>])` returns 0 with the review's repo-relative path in its output. Also drive one unknown-noun contrast, `cli.main(["--no-interactive", "rename", "nosuchtype", "x", "--slug", "zz", "--dir", <repo>])`, and assert rc == 2 with `unknown artifact type 'nosuchtype'` in the output and `is not supported for` absent (measured at review), so the two refusal modes are shown distinct by observation rather than asserted by prose.
   - Depends on: E-01
-  - Expected outcome: Control passes; the E-01 refusal message is distinguishable from the unknown-type error.
+  - Expected outcome: Control passes; the E-01 refusal message is observably distinct from the unknown-type error.
   - Execution state: pending
 
 ### Task group 2: no status lifecycle (KNOWN_PRIMARY_TYPES absence)
 
-- [ ] E-03 In the same module, add a test that drives the primary-type consumer `runner_shared.describe_unresolved_plan_selector(repo, "20260929-demo-01-ab12cd-x.review")` (which iterates `selectors.KNOWN_PRIMARY_TYPES` to label a non-plan match) and asserts the message does NOT contain `not an IPD plan` and does NOT name a `reviews record`, while a control in the same repo with a spec `.aw/records/specs/20260929-qq12cd-01-qq12cd-y.spec.md` (`# Spec: y\n\n- Id: qq12cd\n- Status: draft\n`) yields a message containing `is a spec` and `not an IPD plan`. Also assert, by calling `selectors.resolve`, that the review IS resolvable as `reviews` (`.is_match` True) and is NOT claimed by the `other` catch-all (`.is_match` False), and that `"reviews" not in selectors.KNOWN_PRIMARY_TYPES` while `"reviews" in selectors.NON_PRIMARY_RECORD_DIRS` (the three public-constant assertions the deleted test made, restored alongside the outcome checks; these are value assertions on public data, not source reads). Do not read source files, use `ast`/`inspect`, or count symbols.
+- [ ] E-03 In the same module, add a test that drives the primary-type consumer `runner_shared.describe_unresolved_plan_selector(repo, "20260929-demo-01-ab12cd-x.review")` (which iterates `selectors.KNOWN_PRIMARY_TYPES` to label a non-plan match) and asserts the message does NOT contain `not an IPD plan` and does NOT name a `reviews record`, while a control in the same repo with a spec `.aw/records/specs/20260929-qq12cd-01-qq12cd-y.spec.md` (`# Spec: y\n\n- Id: qq12cd\n- Status: draft\n`) yields a message containing `is a spec` and `not an IPD plan`. Also assert, by calling `selectors.resolve`, that the review IS resolvable as `reviews` (`.is_match` True) and is NOT claimed by the `other` catch-all (`.is_match` False), and that `"reviews" not in selectors.KNOWN_PRIMARY_TYPES` while `"reviews" in selectors.NON_PRIMARY_RECORD_DIRS` (the three public-constant assertions the deleted test made, restored alongside the outcome checks; these are value assertions on public data, not source reads). Add an in-module non-vacuity test that patches `selectors.KNOWN_PRIMARY_TYPES` with `unittest.mock.patch.object(selectors, "KNOWN_PRIMARY_TYPES", selectors.KNOWN_PRIMARY_TYPES | {"reviews"})` and asserts the review stem's message then DOES contain `is a reviews record` and `not an IPD plan` (measured at review), proving the unpatched assertion depends on the constant. Do not read source files, use `ast`/`inspect`, or count symbols.
   - Depends on: E-02
-  - Expected outcome: Test passes; the spec control proves the diagnostic path is live.
+  - Expected outcome: Tests pass; the spec control proves the diagnostic path is live, and the patched case proves the review assertion is not vacuous.
   - Execution state: pending
 
 ### Task group 3: comment repointing
 
-- [ ] E-04 Edit the `agent_workflows/artifact_types.py` module docstring sentence "(`tests/test_awcmdsurf_vocab_and_parsers.py` was deleted in `19313eed`; no live guard currently asserts this)" so it instead names `tests/test_reviews_type_noun_surface.py` as the live guard. Docstring-only edit.
+- [ ] E-04 Edit the `agent_workflows/artifact_types.py` module docstring sentence "(`tests/test_awcmdsurf_vocab_and_parsers.py` was deleted in `19313eed`; no live guard currently asserts this)" so it instead names `tests/test_reviews_type_noun_surface.py` as the live guard for the `TYPE_BACKENDS` and `selectors.KNOWN_PRIMARY_TYPES` halves. The same sentence also says reviews stays "out of `aw set`", which is FALSE today (measured at review: `aw set approved <review path>` exits 0 and writes `- Status: approved` into the review; filed as backlog `9pu7sf`). Rewrite that clause honestly, e.g. "`aw set` does not yet refuse a review path (backlog `9pu7sf`)", rather than leaving a false claim beside the new guard pointer. Docstring-only edit.
   - Depends on: E-03
-  - Expected outcome: `rg -n "test_awcmdsurf_vocab_and_parsers|no live guard currently asserts this" agent_workflows/artifact_types.py` returns no matches; no code change.
+  - Expected outcome: `rg -n "test_awcmdsurf_vocab_and_parsers|no live guard currently asserts this" agent_workflows/artifact_types.py` returns no matches; the docstring names `tests/test_reviews_type_noun_surface.py` and `9pu7sf`; no code change.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -71,7 +73,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | No live test touches `TYPE_BACKENDS` for `reviews`; `tests/test_layout.py::test_primary_types_equal_the_live_known_primary_types` guards the KNOWN_PRIMARY_TYPES half only transitively (via `layout` equality), not on any user-visible surface. | `rg -n "TYPE_BACKENDS\|backend_name" tests` lists only `test_group_verb_policy.py` and `test_prompts_new.py`, neither naming `reviews`. |
 | F-03 | Measured in this lane against a temp repo with one `.review.md`: `rename`/`group`/`index reviews` each return 2 with `'<verb>' is not supported for reviews.` and leave the file in place; `find reviews ab12cd` returns 0 listing the file. | Ad-hoc `cli.main` driver run in this lane. |
 | F-04 | Measured: `describe_unresolved_plan_selector(repo, <review stem>)` returns the generic "No IPD plan, Set, or file matching ..." message, while a spec stem yields "'<stem>' is a spec (...), not an IPD plan."; `selectors.resolve(repo, "reviews", stem).is_match` is True and `resolve(repo, "other", stem).is_match` is False. | Ad-hoc driver run in this lane. |
-| F-05 | Observed but out of scope: `aw set approved <review path> --dry-run` exits 0 and classifies the review as type `other`. | Ad-hoc driver run; see Deferred. |
+| F-05 | Observed but out of scope: `aw set approved <review path> --dry-run` exits 0 and classifies the review as type `other`. Re-measured at review WITHOUT `--dry-run` (`--no-commit`): exit 0 and the review file is rewritten with `- Status: approved` plus a `## Workflow history` line. This contradicts the `artifact_types.py` docstring's "out of `aw set`" claim. | Review-time prototype under `.aw/state/`; filed as backlog `9pu7sf` (`Work-Kind: bug`, `Blocks-Release: next`). |
+| F-06 | The planned assertions are feasible as written. | Review-time prototype of E-01..E-03 against a temp repo: 6 passed, including both in-process non-vacuity patches. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -80,9 +83,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- F-05 (`aw set` dry-run accepts a review path as `other`): a separate `aw set` / `status_set.detect_artifact_type` behavior, not the `TYPE_BACKENDS`/`KNOWN_PRIMARY_TYPES` property backlog `nrcvpg` names; asserting on it here would pin behavior that may itself be a defect. Not filed by this authoring turn; a reviewer may file it.
-- The deleted file's other tests (vocabulary non-narrowing, `records` carve-out, `all` token): not named by backlog `nrcvpg`; `tests/test_layout.py` already covers most of them.
-- Any production change: the behavior is correct; only its guard is missing.
+- F-05 (`aw set` accepts and mutates a review path as `other`): a separate `aw set` / `status_set` behavior, not the `TYPE_BACKENDS`/`KNOWN_PRIMARY_TYPES` property backlog `nrcvpg` names; asserting on it here would pin a defect.
+  - Carrier: 9pu7sf
+  - Carrier-Evidence: .aw/records/backlog/open/20261014-9pu7sf-01-9pu7sf-aw-set-mutates-review-record.backlog.md
+- The deleted file's other tests (vocabulary non-narrowing, `records` carve-out, `all` token):
+  - Carrier-Declined: not named by backlog `nrcvpg`, and `tests/test_layout.py` already covers most of them; restoring them here would widen a single-property guard into a general vocabulary suite.
+- Any production change:
+  - Carrier-Declined: for the two halves this plan guards, the behavior is already correct and only its guard is missing; the one incorrect behavior found (`aw set`) is carried by `9pu7sf`.
 
 ## Scope check
 
@@ -92,7 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -v tests/test_reviews_type_noun_surface.py` passes.
-- Non-vacuity: in a scratch, uncommitted edit, add `"reviews": {"rename": "artifact_rename.run_rename_other"}` to `artifact_types.TYPE_BACKENDS`; the E-01 tests fail; revert and confirm `git diff --stat agent_workflows/artifact_types.py` shows only the E-04 docstring change.
+- Non-vacuity: built into the module as in-process `mock.patch` tests (E-01 `TYPE_BACKENDS`, E-03 `KNOWN_PRIMARY_TYPES`); no source file is edited, so there is nothing to revert.
 - Full suite `python3 -m pytest` passes.
 
 ## Spec / documentation sync
@@ -105,7 +112,7 @@ N/A: test-only addition plus a docstring repoint; no spec text changes.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. P16 forbids reading source (`inspect`/`ast`/regex), symbol censuses, and text pins. Asserting the value of a public runtime constant is an observation of program state, and E-03 pairs it with outcome checks (`describe_unresolved_plan_selector`, `selectors.resolve`) so the test does not rest on the constants alone.
 
 ## Validation and cross-check (verify before reporting done)
@@ -113,22 +120,22 @@ N/A: test-only addition plus a docstring repoint; no spec text changes.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_reviews_type_noun_surface.py` showing the three parametrized refusal cases and the backend-helper test passing; plus pasted output of the scratch non-vacuity run (a `reviews` entry added to `artifact_types.TYPE_BACKENDS`) showing those tests FAIL, then `git diff --stat agent_workflows/artifact_types.py` after revert.
+  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_reviews_type_noun_surface.py` showing the three parametrized refusal cases, the backend-helper test, and the `TYPE_BACKENDS` non-vacuity patch test passing; plus the pasted body of the non-vacuity test showing it uses `mock.patch.dict` (in-process) and asserts the refusal text disappears under the patch, and `git status --short` showing no source file other than the Scope-Paths was touched.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted pytest output showing the accepted-noun control test passing.
+  - Required evidence: Pasted `python3 -m pytest -o addopts="" -v tests/test_reviews_type_noun_surface.py` output showing the accepted-noun control test passing, including the `nosuchtype` contrast that asserts `unknown artifact type` is present and `is not supported for` is absent.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Pasted pytest output showing the primary-type test (review vs spec control) passing, and `rg -n "import ast|import inspect|getsource|read_text\(.*\.py" tests/test_reviews_type_noun_surface.py` returning no matches.
+  - Required evidence: Pasted pytest output showing the primary-type test (review vs spec control) and the `KNOWN_PRIMARY_TYPES` non-vacuity patch test passing, and pasted output of `python3 -m pytest tests/test_no_code_structure_pins.py` passing (the repo's own P16 guard) alongside `rg -n "import ast|import inspect|getsource|read_text\(.*\.py" tests/test_reviews_type_noun_surface.py` returning no matches.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted `git diff agent_workflows/artifact_types.py` showing only docstring lines changed and naming `tests/test_reviews_type_noun_surface.py`; pasted `rg -n "test_awcmdsurf_vocab_and_parsers" agent_workflows/` with no matches; pasted bare `python3 -m pytest` summary line showing the full suite passing.
+  - Required evidence: Pasted `git diff agent_workflows/artifact_types.py` showing only docstring lines changed, naming `tests/test_reviews_type_noun_surface.py`, and replacing the false "out of `aw set`" claim with a pointer to `9pu7sf`; pasted `rg -n "test_awcmdsurf_vocab_and_parsers" agent_workflows/` with no matches; pasted bare `python3 -m pytest` summary line showing the full suite passing.
   - Observed evidence:
   - Result: pending
 
@@ -137,4 +144,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit <plan> -- <paths>`; never push. After every `V-*` item records pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle (`aw ipd finalize`).
+Execute only after human approval (`aw ipd set approved ybf6za --by-human`); no open questions remain. Begin with `aw ipd begin ybf6za`, then perform E-01..E-04 in dependency order.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to a scoped file that cannot be safely combined, or a measured behavior in F-03/F-04 no longer holding at HEAD (report it; do not weaken an assertion to fit).
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. Non-vacuity is proved by in-process patches only; no source file is ever temporarily edited.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit ybf6za -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the RUNNER owns finalize, so do not run it yourself; when executing by hand, after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms, run `aw ipd finalize ybf6za`. Never hand-roll a `git mv`.
