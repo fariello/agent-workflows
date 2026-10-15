@@ -851,7 +851,7 @@ from agent_workflows.runner_shared import (
 # (though modern and hook-pinned ruff v0.4.4 both recognize `as <same-name>` as an intentional export).
 # Because this module defines `__all__` containing leading-underscore names, `_read_id` is now
 # declared in `__all__`, providing an export mechanism that ruff honors without a noqa directive.
-# In contrast, `agy_runipd` has no `__all__` and retains a noqa F401 directive.
+# In contrast, `agy_runipd` has no `__all__` and binds `_read_id` by module-level assignment instead (DECISIONS.md D168).
 # Consumer asymmetry: `agy_runipd._read_id` has a live caller via `tools/ipdrunner/runagy.py`
 # consumed in `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`; `oc_runipd._read_id` has no local caller, but is
 # retained for cross-host symmetry and guarded by `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
