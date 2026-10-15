@@ -226,6 +226,22 @@ class CrossHostReadIdReExportTests(unittest.TestCase):
                 self.assertEqual(host_fn(tab_separated), "abc123")
 
 
+class RunagyShimReadIdReExportTests(unittest.TestCase):
+    """vzk1iw / fh8x8k E-04: tools/ipdrunner/runagy.py re-exports agy_runipd._read_id."""
+
+    def test_runagy_shim_reexports_permissive_read_id(self):
+        import uuid
+
+        shim_name = f"test_runagy_shim_{uuid.uuid4().hex}"
+        self.addCleanup(sys.modules.pop, shim_name, None)
+        shim = load_module(
+            shim_name,
+            REPO_ROOT / "tools" / "ipdrunner" / "runagy.py",
+        )
+        self.assertIs(shim._read_id, agy_runipd._read_id)
+        self.assertEqual(shim._read_id("-\tId: abc123"), "abc123")
+
+
 class BehaviorThroughWrapperTests(unittest.TestCase):
     """The behavior half the injected symbols' fingerprint exemption is backed by."""
 

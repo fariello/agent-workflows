@@ -74,18 +74,7 @@ from agent_workflows.run_selection_policy import (
 # functions under the private names their call sites use, so a fix reaches both. The aliases are
 # deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
 # `selectors`' strict internal readers back `aw find` and are unchanged.
-#
-# `_read_id` F401 suppression is retained per s4jctz (h0zk2g / sznlsf).
-# Once `parse_plan_file` moved to `runner_shared` this module stopped calling `_read_id` directly,
-# but `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), so noqa F401 remains the
-# mechanism keeping the re-export alive.
-# The re-export has one live reader in the tree: `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
-# which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
-# `vars(agy_runipd)` wholesale into its own globals.
-# In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
-# `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
-# (Note: _read_status is exposed on neither host; status reading is done via selectors.)
-from agent_workflows.selectors import read_front_matter_id as _read_id  # noqa: F401 - re-export for tools/ipdrunner/runagy.py, read as driver._read_id in tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set
+from agent_workflows import selectors as _selectors
 
 from agent_workflows.render_stream import (
     Statusline,
@@ -634,7 +623,7 @@ from agent_workflows.runner_shared import (
 # commit, so the `except ToolIdentityError` below now catches a raise from either path.
 from agent_workflows.runner_shared import (
     ToolIdentityError,
-    assert_child_tool_identity as assert_child_tool_identity,  # noqa: F401
+    assert_child_tool_identity as assert_child_tool_identity,
     pinned_child_env,
     pinned_module_argv,
 )
@@ -801,6 +790,20 @@ from agent_workflows.runner_shared import (
     _lane_commit_subjects as _lane_commit_subjects,
 )
 from agent_workflows import agy_models
+
+# `_read_id` is bound by module-level assignment rather than an import alias (vzk1iw / fh8x8k, resolving
+# h0zk2g OQ-02). Once `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id`
+# directly. Because `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), binding it as a
+# module-level assignment avoids relying on a suppression directive (which ruff never reports as an unused import).
+# The re-export binds the permissive reader `read_front_matter_id` (preserving whitespace tolerance).
+# Its one live reader in the tree is `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
+# which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
+# `vars(agy_runipd)` wholesale into its own globals.
+# In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
+# `tests/test_runner_shared.py::CrossHostReadIdReExportTests` and `tests/test_runner_shared.py::RunagyShimReadIdReExportTests`.
+# For the rule governing deliberate re-exports in host runner modules, see DECISIONS.md D168.
+# (Note: _read_status is exposed on neither host; status reading is done via selectors.)
+_read_id = _selectors.read_front_matter_id
 
 # No model is hardcoded in code; default model is dynamically resolved from the
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
