@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: The env and argv that `runner_shared.driver_begin` hands the `aw ipd begin` child (tool-identity pin from `pinned_child_env`/`pinned_module_argv`, plus the `begin_baseline_env` isolated-baseline overlay, plus `stdin=DEVNULL`) have had no live test since `tests/test_lane_tool_identity.py` was deleted in `19313eed`.
 - Scope: Add one new behavioral test module that drives both hosts' real `driver_begin` with `subprocess.run` spied, and repoint the now-stale comment in `runner_shared.driver_begin` at it. No production behavior changes.
-- Scope-Paths: tests/test_driver_begin_child_env.py, agent_workflows/runner_shared.py
+- Scope-Paths: tests/test_driver_begin_child_env.py, agent_workflows/runner_shared.py, .aw/records/plans/pending/20261014-o0gy5v-01-lyqn1t-restore-behavioral-coverage-of-driver-begin-child-env-pin-an.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: o0gy5v
@@ -17,7 +18,8 @@
 - Id: lyqn1t
 
 ## Workflow history
-
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-o0gy5v-01-lyqn1t)
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog o0gy5v; review-ready.
 
@@ -31,22 +33,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral test module
 
-- [ ] E-01 Create `tests/test_driver_begin_child_env.py` with a `subprocess.run` spy class (records argv, kwargs, call count; returns an object with `returncode=0`, `stdout`, `stderr`) and a test that, for each host in (`oc_runipd`, `agy_runipd`) and each `isolated` in (False, True), calls `module.driver_begin(Path("/nonexistent"), "aaa111", "actor", isolated=isolated)` with `runner_shared.subprocess.run` patched, and asserts: exactly one launch; `env["AW_PIN_KEEP_ROOT"] == runner_shared.runner_package_root()`; that root is an element of `env["PYTHONPATH"].split(os.pathsep)`; `argv[:len(prefix)] == runner_shared.pinned_module_argv([])`; argv contains `ipd`, `begin`, `aaa111`, `--actor`, `actor`, `--dir`; `kwargs["stdin"] is subprocess.DEVNULL`; `cwd == "/nonexistent"`.
+- [ ] E-01 Create `tests/test_driver_begin_child_env.py` with a `subprocess.run` spy class (records argv, kwargs, call count; returns `subprocess.CompletedProcess(argv, 0, stdout="", stderr="")`) and a test parametrized with `pytest.mark.parametrize` over host (`oc_runipd`, `agy_runipd`, ids `oc`/`agy`) and `isolated` (False, True), so `-v` shows four distinct passing ids (unittest `subTest` is NOT used: `pytest-subtests` is not installed, so subtests would not appear in `-v` output). Each case runs under `unittest.mock.patch.dict(os.environ, <os.environ minus AW_PIN_KEEP_ROOT, PYTHONPATH, AW_ISOLATED_BASELINE>, clear=True)` because the runner, and any lane it spawns, inherits `AW_PIN_KEEP_ROOT` and a `PYTHONPATH` containing the package root from its own pin, so without clearing them an unpinned builder would still pass these assertions when the suite runs from the main checkout. Inside that, with `runner_shared.subprocess.run` patched, call `module.driver_begin(Path("/nonexistent"), "aaa111", "actor", isolated=isolated)` and assert: return code 0 and exactly one launch; `env["AW_PIN_KEEP_ROOT"] == runner_shared.runner_package_root()`; that root is an element of `env["PYTHONPATH"].split(os.pathsep)`; `argv[:len(prefix)] == runner_shared.pinned_module_argv([])`; argv after the prefix equals `["ipd", "begin", "aaa111", "--actor", "actor", "--dir", "/nonexistent"]`; `kwargs["stdin"] is subprocess.DEVNULL`; `kwargs["cwd"] == "/nonexistent"`.
   - Depends on: none
   - Expected outcome: test passes on both hosts in both isolation modes.
   - Execution state: pending
-- [ ] E-02 In the same module, add a test asserting the baseline overlay: `env.get("AW_ISOLATED_BASELINE") == "1"` when `isolated=True` and the key is absent when `isolated=False` (with `AW_ISOLATED_BASELINE` removed from `os.environ` via `unittest.mock.patch.dict` so an inherited value cannot mask the result), on both hosts; plus a `run_id="run-x"` case asserting argv ends with `--run-id run-x`.
+- [ ] E-02 In the same module, add a test asserting the baseline overlay: `env.get("AW_ISOLATED_BASELINE") == "1"` when `isolated=True` and the key is absent when `isolated=False` (under the same cleared `os.environ` as E-01, so an inherited value cannot mask the result), parametrized over both hosts and both isolation modes; plus a `run_id="run-x"` case on both hosts asserting `argv[-2:] == ["--run-id", "run-x"]`, and that without `run_id` the argv contains no `--run-id`.
   - Depends on: E-01
   - Expected outcome: overlay and run-id propagation asserted on both hosts.
   - Execution state: pending
-- [ ] E-03 In the same module, add a non-vacuity test: call `runner_shared.driver_begin(...)` with an injected `env_builder` returning `os.environ` minus `AW_PIN_KEEP_ROOT`/`PYTHONPATH` and an `argv_builder` returning `[sys.executable, "-m", "agent_workflows", *args]`, and assert the spied env lacks `AW_PIN_KEEP_ROOT` and the argv prefix differs from `pinned_module_argv([])`, proving the E-01 assertions can fail.
+- [ ] E-03 In the same module, add a non-vacuity test: under the same cleared `os.environ` as E-01, call `runner_shared.driver_begin(...)` with an injected `env_builder=lambda: dict(os.environ)` (an unpinned builder) and an `argv_builder` returning `[sys.executable, "-m", "agent_workflows", *args]`, and assert the spied env lacks `AW_PIN_KEEP_ROOT`, the package root is not on its `PYTHONPATH`, and the argv prefix differs from `pinned_module_argv([])`, proving the E-01 assertions can fail through the real launcher. (Measured at review: WITHOUT the cleared environ, this unpinned builder's env carried the runner's inherited `AW_PIN_KEEP_ROOT`, so the clearing is load-bearing.)
   - Depends on: E-01
   - Expected outcome: an unpinned builder is observably distinguishable through the real launcher.
   - Execution state: pending
 
 ### Task group 2: Comment repoint
 
-- [ ] E-04 In `runner_shared.driver_begin`, replace the comment text "(deleted in `19313eed`; no live guard currently asserts this; it read the env this builds and checked the pin's markers)" so it names `tests/test_driver_begin_child_env.py` as the live behavioral guard (restored by o0gy5v). Comment-only edit; no code change.
+- [ ] E-04 In `runner_shared.driver_begin`, replace the comment text "(deleted in `19313eed`; no live guard currently asserts this; it read the env this builds and checked the pin's markers)" (it wraps across two `#` comment lines inside the `subprocess.run(` call, just above `env={**env_builder(), **begin_baseline_env(isolated)}`) so it names `tests/test_driver_begin_child_env.py` as the live behavioral guard (restored by o0gy5v). Comment-only edit; no code change.
   - Depends on: E-01
   - Expected outcome: the comment no longer claims the pin is unguarded.
   - Execution state: pending
@@ -76,8 +78,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Object-identity assertions on injected builders: structure pin, excluded by P16 and the backlog item text ("only behavioral outcomes may be restored").
+  - Carrier-Declined: P16 forbids this pin; it will not be restored, so no obligation remains.
 - Other launch sites and the AST launch-site guard from the deleted file: not part of S-26.
+  - Carrier-Declined: the AST guard is a code pin that will not return under P16; other launch sites are separate yuhl6o sites with their own dispositions, not an obligation of backlog `o0gy5v`.
 - A real-subprocess end-to-end identity probe (three-package fixture): tool-identity mismatch handling is tested by `tests/test_tool_identity_item_failure.py` (s2tn4q); S-26 concerns only the env/argv handed to the begin child, which the spy-based tests cover.
+  - Carrier-Declined: already covered by `tests/test_tool_identity_item_failure.py`; deliberate non-goal, not an outstanding obligation.
 
 ## Scope check
 
@@ -101,7 +106,7 @@ N/A: test-only restoration plus a code comment; no spec or user-facing doc descr
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The backlog item restricts restoration to behavioral outcomes (P16); identity of the injected object is a wiring pin, and the env/argv assertions already fail if a host injects a different or unpinned builder.
 
 ## Validation and cross-check (verify before reporting done)
@@ -109,11 +114,11 @@ N/A: test-only restoration plus a code comment; no spec or user-facing doc descr
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_driver_begin_child_env.py -v` output showing the pin test PASSED (with subtests for both hosts and both isolation modes), plus the pasted test body.
+  - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_driver_begin_child_env.py -v` output showing the pin test PASSED as four distinct parametrized ids (oc/agy x isolated False/True), plus the pasted test body showing the cleared `os.environ` patch.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted pytest output showing the baseline-overlay and run-id test(s) PASSED, plus a pasted one-off run where `begin_baseline_env` is temporarily patched to `lambda _i: {}` showing the overlay test FAILS (then reverted).
+  - Required evidence: pasted pytest output showing the baseline-overlay and run-id test(s) PASSED, plus a pasted one-off in-process mutation run that leaves the source untouched (so it cannot collide with E-04's edit of the same file): `python3 -c "import sys, pytest; from unittest import mock; from agent_workflows import runner_shared; mock.patch.object(runner_shared, 'begin_baseline_env', lambda _i: {}).start(); sys.exit(pytest.main(['-o', 'addopts=', '-p', 'no:randomly', '<overlay test node id(s)>']))"` showing the `isolated=True` overlay cases FAIL, and `git status --short agent_workflows/` afterwards showing nothing beyond E-04's change.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -130,4 +135,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit through `aw commit lyqn1t -- tests/test_driver_begin_child_env.py agent_workflows/runner_shared.py`; never push. After every V-* is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, finalize through the tooled lifecycle into `.aw/records/plans/executed/`.
+Execute only after human approval (`aw ipd set approved lyqn1t --by-human`); OQ-01 is resolved and no question blocks. Begin with `aw ipd begin lyqn1t`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/runner_shared.py` that cannot be safely combined, or `runner_shared.driver_begin` no longer launching through `subprocess.run` with `env={**env_builder(), **begin_baseline_env(isolated)}`.
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. The V-02 mutation is in-process only and is never written to source or committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit lyqn1t -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: after every `V-*` is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/` through the tooled lifecycle. Under `aw oc run` / `aw agy run` the RUNNER owns finalize, so do not run it yourself; when executing by hand, run `aw ipd finalize lyqn1t`. Never hand-roll a `git mv`.
