@@ -20,7 +20,7 @@
   WHY `followup` AND NO RELEASE GATE IS INVENTED. Backlog item `uypgvi` carries `- Work-Kind: followup`, `- Priority: low`, and no `- Blocks-Release:`; all three are preserved without inventing a release gate.
 - Scope: IN: (1) add `READINESS_ATTESTATION_GATES`, `READINESS_STANDING_WAIVABLE_GATES`, `READINESS_HARD_GATES`, `RECOMMENDATION_GO`, `RECOMMENDATION_CONDITIONAL_GO`, `RECOMMENDATION_NO_GO`, `ReadinessVerification`, and `ReleaseReviewCoordinator.verify_readiness` (entering `STAGE_VERIFY`) plus readiness enforcement in `ReleaseReviewCoordinator.authorize_release` (at `STAGE_RELEASE`) in `agent_workflows/migration_complex.py`; (2) add behavioral and falsifiability tests in `tests/test_release_review_readiness.py` (shown RED against pre-change `migration_complex.py` first); (3) wire `aw releases readiness` and the standing-`NO-GO` rules into `.aw/system/workflows/release-review/08-final-ship-review.md`, `.aw/system/workflows/release-review/09-release-execution.md`, `.aw/system/workflows/release-review/templates/final-response.md`, and `RELEASING.md`. OUT: modifying `agent_workflows/release_readiness.py` (owned by sibling pending plan `w9l8ph`), `.aw/system/workflows/conformance/tools/host_matrix.json` (owned by sibling pending plan `8ru81x`), `.github/workflows/tests.yml`, or `.pre-commit-config.yaml`; and any tag, publish, push, or release action (`assert_no_release_action`).
 - Scope-Paths: agent_workflows/migration_complex.py, .aw/system/workflows/release-review/08-final-ship-review.md, .aw/system/workflows/release-review/09-release-execution.md, .aw/system/workflows/release-review/templates/final-response.md, RELEASING.md, tests/test_release_review_readiness.py
-- Item-Dependencies: none
+- Item-Dependencies: state:backlog:done:v1re2z
 - Status: reviewed
 - Readiness: no-go
 - Work-Kind: followup
@@ -33,6 +33,7 @@
 - Id: kmmoca
 
 ## Workflow history
+- 2026-10-15 same-status (aw set): plan-review: depend on v1re2z (not-applicable gate change) per OQ-03 answer
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-002 OPEN (escalated OQ-03); PR-001, PR-003, PR-004, PR-005 fixed
 - 2026-10-14 to-review (aw set): Authored from backlog uypgvi at HEAD 53eb3077e: consume release_readiness in release-review Section 8, Section 9, RELEASING.md, and ReleaseReviewCoordinator.
 
