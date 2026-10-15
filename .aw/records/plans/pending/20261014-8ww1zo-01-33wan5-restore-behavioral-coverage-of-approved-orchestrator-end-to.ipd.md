@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Commit `19313eed` deleted `tests/test_rununify_record.py`, and with it the only behavioral tests that (a) an APPROVED ORCHESTRATOR derives `orchestrate` end to end through `discover_plans` -> `build_dynamic_manifest` -> `action_for` on BOTH hosts, and (b) a LEGACY hand-written manifest that omits the `kind` key still derives `orchestrate` on both hosts via `runner_shared.resolve_manifest_kind` / `plan_kind_from_file`. Executed plans `yuhl6o` (S-04, S-05) and `9rthek` (S-11) recorded those sites as RETIRE-UNGUARDED. A regression here is silent: an approved orchestrator would be agent-executed (a paid turn on a plan that authors no code), the defect `pgq326` fixed.
 - Scope: Add one new behavioral test module exercising the real functions and the real queue build on both hosts, and repoint the three source comments that currently say "no live guard currently asserts this" at the new module. No production behavior change.
-- Scope-Paths: tests/test_orchestrator_kind_derivation.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py
+- Scope-Paths: tests/test_orchestrator_kind_derivation.py, agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending/20261014-8ww1zo-01-33wan5-restore-behavioral-coverage-of-approved-orchestrator-end-to.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 8ww1zo
@@ -18,6 +19,8 @@
 
 ## Workflow history
 
+- 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete; PR-001..PR-006 fixed
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (E-04 control made non-vacuous via mock-patched queue build, E-05/V-05 made checkable, execution contract added, E-03 manifest fixture specified, V-* bars re-based on behavior); review record `.aw/records/reviews/20261014-8ww1zo-01-33wan5-restore-behavioral-coverage-of-approved-orchestrator-end-to.review.md`.
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog `8ww1zo`; review-ready.
 
@@ -31,33 +34,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: end-to-end derivation from a real plan tree (yuhl6o S-04, S-05)
 
-- [ ] E-01 Create `tests/test_orchestrator_kind_derivation.py` with a fixture helper that writes synthetic plan files (one `- Kind: orchestrator` Order 0, one `- Kind: child` Order 1, both `- Status: approved`) under a temp `.aw/records/plans/pending/`, and a test class that, for each host module in (`oc_runipd`, `agy_runipd`), calls `discover_plans(root)` -> `build_dynamic_manifest(root, found)` -> `action_for(entry["kind"], entry["status"])` and asserts `orchestrate` for the orchestrator and `execute` for the child, plus asserts both hosts produce equal manifests for the same tree.
+- [ ] E-01 Create `tests/test_orchestrator_kind_derivation.py` with a fixture helper that writes synthetic plan files (one `- Kind: orchestrator` Order 0, one `- Kind: child` Order 1, both `- Status: approved`) under a temp `.aw/records/plans/pending/`, and a test class named `ApprovedOrchestratorDerivesOrchestrateEndToEnd` that, for each host module in (`oc_runipd`, `agy_runipd`), calls `discover_plans(root)` -> `build_dynamic_manifest(root, found)` -> `action_for(entry["kind"], entry["status"])` and asserts `orchestrate` for the orchestrator and `execute` for the child, plus asserts both hosts produce equal manifests for the same tree.
   - Depends on: none
   - Expected outcome: New module exists; the end-to-end class passes on both hosts via `subTest(host=...)`.
   - Execution state: pending
 
 ### Task group 2: legacy manifest kind fallback (9rthek S-11)
 
-- [ ] E-02 In the same module, add a test class for the legacy fallback that calls the real `resolve_manifest_kind` on each host with a manifest entry that OMITS `kind` (asserting the fixture omits it) pointing at the real orchestrator plan file, and asserts `action_for(kind, "approved") == "orchestrate"` (action first, then `kind == "orchestrator"`); a test that an entry WITH `kind: "child"` returns `child` given a nonexistent path (no file read needed); a test that a missing file yields `plan_kind_from_file(...) is None` and `action_for(resolve_manifest_kind({}, missing), "approved") == "execute"` (safe direction); and a test that both hosts resolve the orchestrator and child entries identically.
+- [ ] E-02 In the same module, add a test class for the legacy fallback that calls the real `resolve_manifest_kind` on each host with a manifest entry that OMITS `kind` (asserting the fixture omits it) pointing at the real orchestrator plan file, and asserts `action_for(kind, "approved") == "orchestrate"` (action first, then `kind == "orchestrator"`); a test that an entry WITH `kind: "child"` returns `child` given a nonexistent path (no file read needed); a test that a missing file yields `plan_kind_from_file(...) is None` and `action_for(resolve_manifest_kind({}, missing), "approved") == "execute"` (safe direction); and a test that both hosts resolve the orchestrator and child entries identically. Name the class `LegacyManifestKindFallback`.
   - Depends on: E-01
   - Expected outcome: Fallback class passes on both hosts.
   - Execution state: pending
 
-- [ ] E-03 In the same module, add a queue-build test that, for each host, creates a temp git repo with an approved orchestrator plan (and its executed child, plus a coverage record via `coverage_record.write` as `tests/test_orchestrator_retirement.py` `TheActionDecisionIsSHAREDCode` does), writes a hand-written manifest JSON with `schema_version` 1 and plan entries carrying `set`, `file`, `dependencies` but NO `kind`, invokes the host's real `initialize_run` with `manifest=<that path>` and `prepare_only=True`, and asserts the orchestrator's `state.json` queue entry has `action == "orchestrate"` and `kind == "orchestrator"`.
+- [ ] E-03 In the same module, add a queue-build test that, for each host, creates a temp git repo with an approved orchestrator plan (and its executed child, plus a coverage record via `coverage_record.write` as `tests/test_orchestrator_retirement.py` `TheActionDecisionIsSHAREDCode` does), writes a hand-written manifest JSON with `schema_version` equal to `runner_shared.SCHEMA_VERSION` and a plan entry carrying `set`, `file`, `dependencies` but NO `kind` (assert the written JSON omits the key), plus a `sets` entry ordering it, invokes the host's real `initialize_run` with an `argparse.Namespace` shaped like the one in `TheActionDecisionIsSHAREDCode` but `manifest=<that path>` and `prepare_only=True`, and asserts the orchestrator's `state.json` queue entry has `action == "orchestrate"` and `kind == "orchestrator"`. Factor the repo-plus-manifest fixture and the `initialize_run` call into a helper E-04 reuses.
   - Depends on: E-02
   - Expected outcome: Legacy-manifest queue build derives `orchestrate` on both hosts through `runner_shared.initialize_run_core`.
   - Execution state: pending
 
 ### Task group 3: non-vacuity and comment repointing
 
-- [ ] E-04 Add a non-vacuity control in the module that, in-process and without editing shipped source, substitutes a pass-through resolver (`lambda entry, _p: entry.get("kind")`) for the legacy entry and asserts `runner_shared.action_for(None, "approved") == "execute"`, proving the E-02/E-03 assertions would fail if the fallback were removed. Do not read source files, use `ast`/`inspect`, or pin symbol identity/counts.
-  - Depends on: E-02
-  - Expected outcome: Control passes, showing the derivation flips without the fallback.
+- [ ] E-04 Add a non-vacuity control test that reruns the E-03 helper for each host under `unittest.mock.patch.object(runner_shared, "resolve_manifest_kind", lambda entry, _p: entry.get("kind"))` (in-process, no shipped-source edit) and asserts the orchestrator's queue entry then has `action == "execute"` and `kind is None`, proving the E-03 assertion depends on the fallback. Patching `runner_shared` reaches the queue build because `initialize_run_core` resolves the name from `runner_shared`'s globals. Do not read source files, use `ast`/`inspect`, or pin symbol identity/counts.
+  - Depends on: E-03
+  - Expected outcome: Control passes on both hosts (measured at review HEAD `eaafddbcb` with a one-off probe: unpatched `orchestrate`/`orchestrator`, patched `execute`/`None`, on both hosts).
   - Execution state: pending
 
 - [ ] E-05 Repoint the three comment sites that say the guard was deleted and "no live guard currently asserts" this (in `runner_shared.py` near the `PlanRecord` section banner "THE FAILURE MODE HERE IS SILENT AND TYPE-SHAPED", in the `PlanRecord` docstring "DO NOT DROP `kind`", and in `agy_runipd.py` after "`_plan_kind` HAD TWO CALLERS") so they name `tests/test_orchestrator_kind_derivation.py` as the live guard. Comment-only edits.
   - Depends on: E-03
-  - Expected outcome: `rg -n "no live guard currently asserts" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` returns no matches for these three sites; no code change.
+  - Expected outcome: each of the three comments names `tests/test_orchestrator_kind_derivation.py` as the live guard and keeps the `19313eed` deletion history; other "no live guard" comments in these files (which describe unrelated deleted tests) are untouched; no code change. Note the `runner_shared.py` banner wraps the phrase across two lines ("no" / "live guard currently asserts this derivation"), so locate it by the banner text, not by a one-line grep.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -94,7 +97,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -q tests/test_orchestrator_kind_derivation.py` passes.
-- Non-vacuity: temporarily (in a scratch, uncommitted edit) make `runner_shared.resolve_manifest_kind` return `entry.get("kind")`; the E-02 and E-03 tests fail naming `execute` vs `orchestrate`; revert.
+- Non-vacuity, permanent: the E-04 mock-patched control test (in the suite).
+- Non-vacuity, one-off: temporarily (in a scratch, uncommitted edit) make `runner_shared.resolve_manifest_kind` return `entry.get("kind")`; the orchestrator-fallback tests in E-02 and the E-03 test fail naming `execute` vs `orchestrate`; revert. (The E-02 explicit-kind and missing-file tests are expected to keep passing.)
 - Full suite `python3 -m pytest` passes.
 
 ## Spec / documentation sync
@@ -107,7 +111,7 @@ N/A: test-only addition plus comment repointing; no spec describes these tests.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The backlog item states "only behavioral outcomes may be restored, never a source-reading pin (P16)".
 
 ## Validation and cross-check (verify before reporting done)
@@ -115,12 +119,12 @@ N/A: test-only addition plus comment repointing; no spec describes these tests.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_orchestrator_kind_derivation.py -k EndToEnd` showing the orchestrator and child derivation tests passing with both `host=oc_runipd` and `host=agy_runipd` subtests (or per-host parametrized ids).
+  - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_orchestrator_kind_derivation.py` showing the test(s) pinning "an approved orchestrator derives `orchestrate` and an approved child `execute` through `discover_plans` -> `build_dynamic_manifest` -> `action_for`, identically on both hosts" PASSED with zero failed (the class name is a pointer, not the bar; the per-host loop must cover both `oc_runipd` and `agy_runipd`).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted pytest output showing the legacy-fallback class tests passing; plus pasted output of the scratch non-vacuity run (resolver changed to `entry.get("kind")`) showing these tests FAIL with `execute` != `orchestrate`, then `git diff --stat agent_workflows/runner_shared.py` showing the scratch edit reverted.
+  - Required evidence: Pasted pytest output showing the legacy-fallback tests (kind-less entry -> `orchestrate`; explicit `child`; missing file -> `None`/`execute`; host agreement) PASSED; plus pasted output of the scratch non-vacuity run (resolver changed to `entry.get("kind")`) showing the kind-less-entry orchestrator test FAIL with `execute` != `orchestrate`, then pasted `git diff --stat agent_workflows/runner_shared.py` showing the scratch edit reverted (empty, or only the E-05 comment change).
   - Observed evidence:
   - Result: pending
 
@@ -130,12 +134,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted pytest output showing the control test passing, and `rg -n "import ast|import inspect|read_text\(.*\.py" tests/test_orchestrator_kind_derivation.py` returning no matches (no source reading).
+  - Required evidence: Pasted pytest output showing the mock-patched control test PASSED on both hosts (asserting `execute`/`None` under the pass-through resolver), and pasted `rg -n "import ast|import inspect|read_text\(.*\.py" tests/test_orchestrator_kind_derivation.py` returning no matches (no source reading).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted `git diff agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` showing only comment/docstring lines changed and naming `tests/test_orchestrator_kind_derivation.py`; pasted bare `python3 -m pytest` summary line showing the full suite passing.
+  - Required evidence: Pasted `git diff agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` showing only comment/docstring lines changed, exactly the three named sites (section banner, `PlanRecord` docstring, the `_plan_kind` HAD TWO CALLERS comment), each naming `tests/test_orchestrator_kind_derivation.py`; pasted bare `python3 -m pytest` summary line showing zero failures.
   - Observed evidence:
   - Result: pending
 
@@ -144,4 +148,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the Scope-Paths files through `aw commit <plan> -- <paths>`; never push. After every `V-*` item records pasted evidence with `Result: pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle (`aw ipd finalize`).
+Execute only after explicit human approval recorded through `aw ipd set approved`. OQ-01 is resolved; no open question remains.
+
+EXECUTION CONTRACT. Scope fence: the declared Scope-Paths; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a stop. The one-off scratch edit in V-02 must be reverted before any commit. Commit only those paths through `aw commit 33wan5 -- <paths>`; never `git add -A`, bare, or `-a`, never `--no-verify`, never push; verify `git diff --cached --name-only` before committing. Paste the ACTUAL runner output for every test claim; never claim a pass you did not run.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms: under `aw oc run`/`aw agy run` the runner performs `aw ipd begin`/`aw ipd finalize`; in a manual run use `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan or hand-edit `- Status:`. Backlog `8ww1zo` carries no `- Blocks-Release:` to inherit.
