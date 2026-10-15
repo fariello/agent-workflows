@@ -6,7 +6,8 @@
 - Scope: Orchestrate seven children in strict order: (01) one records-root accessor adopted by every records reader/writer; (02) one system-root accessor adopted by every system-bundle reader/writer; (03) recognize a clean-target project with no in-repo `.aw`, including from a worktree outside the repo; (04) put clean-target control state and isolated worktrees under `AW_HOME`; (05) make the installer write nothing into the target and restore the truthful consent text; (06) make uninstall remove the home trees, keeping records unless `--deep`; (07) prove zero target delta end to end through ordinary use on both presets, and amend spec `20260810-1447-01` plus CHANGELOG. Replaces the single plan `irjoga`, which is retired as superseded by this Set. This plan carries orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261015-cleantgt-00-ucr3h8-make-clean-target-installs-leave-zero-agent-workflows-files.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 4ec980a2c583c03acc9a8b58e37a26e96af8b656e2e88b0ed81afcfdce38dd3d
 - Coverage-Checked: 2026-10-15 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +22,8 @@
 - Id: ucr3h8
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-003)
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-15 to-review (aw set): authored as the replacement for irjoga per maintainer decision 2026-10-15 (irjoga OQ-03 option A)
 
 - 2026-10-15 coverage pass (aw oc run): fingerprint 4ec980a2c583, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -48,7 +51,7 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
   - Execution state: pending
 - [ ] E-03 CONFIRM fnnwj3 REACHED executed
   - Depends on: E-02
-  - Expected outcome: `fnnwj3` is in `executed/`, with its own V-items showing a clean-target root, its subdirectories and an external worktree resolving to the project with no in-repo `.aw`.
+  - Expected outcome: `fnnwj3` is in `executed/` (it also waits on the OUT-OF-SET plan `ivq0nr`, see the Child IPDs note), with its own V-items showing a clean-target root, its subdirectories and an external worktree resolving to the project with no in-repo `.aw`.
   - Execution state: pending
 - [ ] E-04 CONFIRM qk0ew6 REACHED executed
   - Depends on: E-03
@@ -79,6 +82,8 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
 | 06 | `xoy5yg` | `20261015-cleantgt-06-xoy5yg-make-uninstall-remove-clean-target-home-trees-keeping-record.ipd.md` | Uninstall removes home trees, keeps records unless `--deep` | executed:3m8aix |
 | 07 | `nwporz` | `20261015-cleantgt-07-nwporz-prove-clean-target-zero-target-delta-end-to-end-through-ordi.ipd.md` | Ordinary-use end-to-end proof, spec amendment, CHANGELOG | executed:xoy5yg |
 
+EXTERNAL DEPENDENCY. `fnnwj3` (Order 03) also declares `executed:ivq0nr`, a plan OUTSIDE this Set (Set `nj13xp`). At review (2026-10-15) `ivq0nr` was `reviewed` with `Readiness: no-go` because its OQ-01 is `Blocking: yes`, `Owner: maintainer` (should `find_project_root` stop climbing at a `.git` boundary with no AW marker). Until a human answers that question and `ivq0nr` is approved and executed, the runner marks `fnnwj3` `dependency-blocked` and Orders 04-07 wait behind it; Orders 01-02 can run first.
+
 ## Completion criteria (the whole Set is done only when)
 
 - A clean-target install of both presets leaves zero target delta. Owner: 3m8aix
@@ -93,6 +98,8 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
 
 ## Deferred / out of scope (with reason)
 
+- Closing backlog `kvwwt0` as `done` after the Set ships. This is a backlog-record act, not orchestrator work. The automatic HANDOFF close will ALWAYS refuse, because the superseded plan `irjoga` still carries `- From-Backlog: kvwwt0` and a superseded carrier can never become executed (measured at review: `runner_shared.evaluate_backlog_close(..., 'kvwwt0')` lists the `superseded/` irjoga path among "IPD carrier(s) not executed", and `check_engine.evaluate_blocking_close` refuses `done` without evidence). The item stays `graduated` and release-blocking, which is visible in `aw attention`. Once `nwporz` is executed, close it with `aw backlog set done kvwwt0 --evidence <nwporz's executed/ path>` (the SATISFIED route, which accepts an executed plan; verified at review against an executed plan). Do NOT edit irjoga's `From-Backlog` to unblock the HANDOFF route, because that rewrites a terminal record.
+  - Carrier: kvwwt0
 - Global user-scope host adapter delivery (`~/.config/opencode/`, `~/.claude/`) for clean-delta installs: spec `or061f` names it a separate feature; this Set only stops target writes.
   - Carrier-Declined: independent feature owned by deferred spec `or061f`, not required for zero target delta.
 
@@ -152,4 +159,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Orchestration only: run the Set with `aw oc run cleantgt` (each child in its own isolated worktree, in dependency order) after review and approval. Children are not run by hand on the main checkout. Never push or tag.
+Orchestration only: run the Set with `aw oc run cleantgt` (each child in its own isolated worktree, in dependency order) after review and approval of each plan, or by hand through the `exec-set` workflow, executing each child in its own isolated worktree (`aw work begin <id6>`) in the Order shown and never on the shared main checkout. This plan's items are confirmations only: tick E-NN and fill V-NN only from the child's own `executed/` file, quoting its pasted V-item results (HONESTY: never record a pass you did not read). Scope fence: `- Scope-Paths:` is a declaration; an out-of-scope edit is justified at finalize with `--scope-reason`. Commits go only through `aw commit ucr3h8 -- <this plan path>` after checking `git diff --cached --name-only`; never `git add -A`, never push, never tag. Lifecycle: under a runner, the runner retires this orchestrator to `executed/` once every child is executed on disk; by hand, after every V-item passes and `aw ipd lint --phase pre-transition` conforms, run `aw ipd finalize ucr3h8`. Never hand-`git mv` it.
