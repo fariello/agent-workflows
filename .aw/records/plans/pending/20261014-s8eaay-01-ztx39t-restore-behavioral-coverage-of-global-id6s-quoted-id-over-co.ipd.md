@@ -6,7 +6,8 @@
 - Scope: Add one behavioral test module that drives `global_id6s` and `mint_id6` against a temp records tree and asserts the over-collection outcome; refresh the stale "no live guard" sentence in the `global_id6s` docstring.
 - Scope-Paths: tests/test_id6_global_mint.py, agent_workflows/artifact_core.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: s8eaay
@@ -17,6 +18,7 @@
 - Id: ztx39t
 
 ## Workflow history
+- 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-15 draft (opencode): created.
 - 2026-10-15 to-review (opencode): authored from backlog s8eaay; behavior measured in-lane before writing.
@@ -35,9 +37,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the new test exists, uses only `tempfile`, `pathlib` and `agent_workflows.artifact_core` calls, and reads no production source (no `inspect`, `ast`, regex or substring search over `.py` files).
   - Execution state: pending
-- [ ] E-02 In the same module add a second test that drives `artifact_core.mint_id6(root, _rng=...)` against the same tree with an `_rng` pinned to emit `qut111` on the first draw and a known free value (e.g. `fre111`) on the second, and asserts the minted id6 is the free value (the quoted id6 is refused), proving the over-collection reaches the mint seam.
+- [ ] E-02 In the same module add a second test that drives `artifact_core.mint_id6(root, _rng=...)` against the same tree. NOTE THE RNG GRANULARITY: `generate_id6` calls `_rng(ID6_ALPHABET)` once PER CHARACTER (six calls per candidate), so the pinned `_rng` must be a per-character iterator, e.g. `chars = iter("qut111" "fre111"); _rng = lambda _alphabet: next(chars)`, which yields candidate `qut111` first and `fre111` second. Assert the minted id6 is `fre111` (the quoted id6 is refused). In the same test, as the in-suite negative control, run the identical pinned `_rng` (fresh iterator) against a sibling tree whose fixture omits the fenced quote and assert it mints `qut111`, so the test proves the refusal comes from the quotation and not from the rng.
   - Depends on: E-01
-  - Expected outcome: test asserts `mint_id6` returns the second-draw value, not `qut111`.
+  - Expected outcome: the test asserts `mint_id6` returns `fre111` on the quoting tree and `qut111` on the non-quoting tree. Demonstrated at review (HEAD `6372c22ef`): exactly those two values were returned, and `global_id6s` returned `['own111', 'qut111']` and `['own111']` respectively.
   - Execution state: pending
 
 ### Task group 2: Docstring accuracy
@@ -81,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- Run `python3 -m pytest tests/test_id6_global_mint.py` and paste the `passed` summary (2 tests).
+- Run `python3 -m pytest -o addopts="" -v tests/test_id6_global_mint.py` and paste the output showing both named tests passing.
 - Run the full suite bare `python3 -m pytest` and paste the summary line showing no new failures.
 - Negative check: temporarily point the test at a tree whose quoted id is removed (or invert one assertion locally, not committed) to confirm the test can fail; paste the failing output, then revert.
 
@@ -98,11 +100,11 @@ None. Whether to restore the signature pin was resolved from AGENTS.md/P16 (no);
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest tests/test_id6_global_mint.py` showing the over-collection test passing, plus pasted output of a local (uncommitted) negative run where the `qut111` assertion fails when the quoted block is removed from the fixture; and `rg -n "inspect|import ast|read_text\(.*\.py" tests/test_id6_global_mint.py` returning no match.
+  - Required evidence: pasted output of `python3 -m pytest tests/test_id6_global_mint.py` showing the over-collection test passing, plus pasted output of a local (uncommitted) negative run where the `qut111` assertion fails when the quoted block is removed from the fixture; and `rg -n "import inspect|inspect\.|import ast|ast\.parse|read_text\(.*\.py" tests/test_id6_global_mint.py` returning no match (exit 1).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted pytest output showing the `mint_id6` refusal test passing, and the test source excerpt showing the pinned `_rng` emits `qut111` first and the assertion targets the second-draw value.
+  - Required evidence: pasted pytest output showing the `mint_id6` refusal test passing, and the test source excerpt showing the per-character pinned `_rng`, the `fre111` assertion on the quoting tree, and the `qut111` assertion on the non-quoting control tree.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -115,4 +117,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit through `aw commit ztx39t -- tests/test_id6_global_mint.py agent_workflows/artifact_core.py`; never push. After every V-* item records `pass` with pasted evidence and `aw ipd lint --phase pre-transition` conforms, transition the plan to `executed/` through the lifecycle tooling.
+Execute only after human approval (`Status: approved`). Open questions: none. Scope fence: Scope-Paths is a declaration; an out-of-scope edit is made and then justified at finalize (`--scope-reason`), and a declared path left untouched is acknowledged (`--scope-ack`). Commit only your own paths through `aw commit ztx39t -- tests/test_id6_global_mint.py agent_workflows/artifact_core.py`, verifying `git diff --cached --name-only` first; never push. Paste the actual runner output for every test claim; a claim without pasted output is not evidence. Revert any temporary negative-check edit before committing. Lifecycle: when run by `aw oc run` / `aw agy run`, the runner finalizes; when executed by hand, finish with `aw ipd finalize ztx39t` only after every `V-*` records `pass` and `aw ipd lint --phase pre-transition` conforms.
