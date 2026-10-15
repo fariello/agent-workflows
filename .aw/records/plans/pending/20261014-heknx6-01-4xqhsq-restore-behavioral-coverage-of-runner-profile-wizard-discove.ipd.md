@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: `runner_profile_wizard` guarantees (module docstring behavior 1) that a failed model discovery is reported with its NAMED reason and falls through to EXACT MANUAL ENTRY rather than refusing or green-washing, and that manual entry is always reachable, schema-validated, and bounded; the behavioral tests for these flows were deleted with `tests/test_runner_profile_wizard.py` in `19313eed`, and the only surviving coverage (`tests/test_cli.py` `test_wizard_failure_is_reported_not_raised`) mocks `run_session` away entirely, so a regression in either flow would now go undetected.
 - Scope: Add one new behavioral test module driving `runner_profile_wizard._report_catalog`, `select_model`, `ask_model_manual` and `run_wizard` through a scripted injected `WizardIO` (no TTY, no OpenCode, no user config), asserting on emitted lines, returned models, `WizardResult` fields and store write counts; then update the stale "no live guard currently asserts these five behaviors" remark in the module docstring to name the new module for behavior 1 and manual entry.
-- Scope-Paths: tests/test_runner_profile_wizard_discovery.py, agent_workflows/runner_profile_wizard.py
+- Scope-Paths: tests/test_runner_profile_wizard_discovery.py, agent_workflows/runner_profile_wizard.py, .aw/records/plans/pending/20261014-heknx6-01-4xqhsq-restore-behavioral-coverage-of-runner-profile-wizard-discove.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: heknx6
@@ -17,7 +18,8 @@
 - Id: 4xqhsq
 
 ## Workflow history
-
+- 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-heknx6-01-4xqhsq)
 - 2026-10-14 draft (opencode): created.
 - 2026-10-14 to-review (opencode): authored from backlog heknx6; review-ready.
 
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: discovery-failure tests
 
-- [ ] E-01 Create `tests/test_runner_profile_wizard_discovery.py` with local helpers re-implemented from `19313eed7^:tests/test_runner_profile_wizard.py` `_Script` (scripted `ask` popping answers and raising `EOFError` when exhausted; `emit` recording lines) and `_Store` (injected `load`/`save` counting writes), and a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)`. Add `test_every_failure_reason_is_named_on_screen`: for each of `oc_models.CATALOG_MISSING_BINARY`, `CATALOG_TIMED_OUT`, `CATALOG_NONZERO_EXIT`, `CATALOG_UNPARSEABLE`, `CATALOG_NO_MODELS` (as `subTest`), build `oc_models.ModelCatalog(source=CATALOG_SOURCE_NONE, reason=R, detail="d-R")`, call `runner_profile_wizard._report_catalog`, and assert the emitted text contains `R` and `d-R` and an instruction to enter an exact provider/model id, and does NOT contain `"Found "` (no green-wash). Add `test_config_fallback_still_names_the_cli_failure`: a `CATALOG_SOURCE_CONFIG` catalog with two models and `reason=CATALOG_TIMED_OUT` emits that reason AND the model count. Add `test_dead_catalog_falls_through_to_manual_entry_and_saves`: drive `run_wizard(io)` with a `CATALOG_SOURCE_NONE` catalog and the script `["gem", "example/private-model", "", "", "", "", ""]` (name, manual model, variant default, no agent, save default yes, default-profile and default-runner answers), and assert `result.saved is True`, `result.profile.model == "example/private-model"`, the store recorded exactly one write, the emitted text names the failure reason, and no prompt listing numbered models (`"  [1] "`) was emitted before the manual-entry prompt.
+- [ ] E-01 Create `tests/test_runner_profile_wizard_discovery.py` with local helpers re-implemented from `19313eed7^:tests/test_runner_profile_wizard.py` `_Script` (scripted `ask` popping answers and raising `EOFError` when exhausted; `emit` recording lines) and `_Store` (injected `load`/`save` counting writes), and a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)`. Add `test_every_failure_reason_is_named_on_screen`: for each of `oc_models.CATALOG_MISSING_BINARY`, `CATALOG_TIMED_OUT`, `CATALOG_NONZERO_EXIT`, `CATALOG_UNPARSEABLE`, `CATALOG_NO_MODELS` (as `subTest`), build `oc_models.ModelCatalog(source=CATALOG_SOURCE_NONE, reason=R, detail=f"detail-{i}")` (the detail MUST NOT contain the reason string, or a mutation dropping `catalog.reason` would still pass via the detail), call `runner_profile_wizard._report_catalog`, and assert the emitted text contains `R` and `detail-{i}` and an instruction to enter an exact provider/model id (`"exact provider/model"`), and does NOT contain `"Found "` (no green-wash). Add `test_config_fallback_still_names_the_cli_failure`: a `CATALOG_SOURCE_CONFIG` catalog with two models and `reason=CATALOG_TIMED_OUT` emits that reason AND the model count. Add `test_dead_catalog_falls_through_to_manual_entry_and_saves`: drive `run_wizard(io)` with a `CATALOG_SOURCE_NONE` catalog and the script `["gem", "example/private-model", "", "", "", "", ""]` (name, manual model, variant default, no agent, save default yes, default-profile and default-runner answers: with an empty store both default questions are asked, so all seven answers are consumed), and assert the script is exhausted, `result.saved is True`, `result.profile.model == "example/private-model"`, the store recorded exactly one write, the emitted text names the failure reason, and no numbered model line (`"  [1] "`) was emitted before the manual-entry prompt (record `ask` and `emit` calls in one ordered event list so "before" is checkable; the variant menu legitimately emits `"  [1] "` afterwards).
   - Depends on: none
   - Expected outcome: the module exists and all three tests pass against current code.
   - Execution state: pending
@@ -61,6 +63,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Executed plan `ev7t1w` (`.aw/records/plans/executed/20261011-iosmvn-03-ev7t1w-retire-or-repoint-the-dangling-test-citations-in-the-non-run.ipd.md`) row S-25: `runner_profile_wizard.py` / module docstring / `tests/test_runner_profile_wizard.py` / `19313eed` / RETIRE-UNGUARDED; "`tests/test_cli.py` only tests error handling in the setup flow".
 - `19313eed7^:tests/test_runner_profile_wizard.py` held `test_the_dead_catalog_report_names_the_reason_it_failed` and `ManualEntryTests.test_manual_entry_gives_up_after_a_bounded_number_of_attempts`, both scripted-IO behavioral tests; they are the model for E-01/E-02.
+- Verified at review by a scripted-IO probe against current code: the E-01 end-to-end script consumes all seven answers and saves once with `model == "example/private-model"`; `select_model` on a dead catalog with `["bad"] * 7` raises `WizardCancelled` after exactly 5 prompts; `run_wizard` with a name plus 5 invalid ids returns `saved=False, cancelled=True, reason="cancelled"` with zero writes; `["", "not a model", "example/ok"]` returns `example/ok` and emits `A model identifier is required` and `invalid model 'not a model'`; `["m", "example/unlisted"]` on a live catalog returns `example/unlisted`.
 - `runner_profile_wizard.select_model` returns `ask_model_manual(io)` immediately when `not catalog.available`, and on input `m` otherwise; `ask_model_manual` validates via `runner_profiles.validate_model` and raises `WizardCancelled("too many invalid model identifiers")` after `MAX_ATTEMPTS`.
 - `runner_profile_wizard._report_catalog` has three branches keyed on `catalog.source` (`CATALOG_SOURCE_CLI`, `CATALOG_SOURCE_CONFIG`, otherwise), each emitting different text; E-01 covers the two degraded branches.
 - `rg -l runner_profile_wizard tests/` returns only `tests/test_cli.py`, whose single use patches `run_session` with a `RuntimeError` side effect.
@@ -88,8 +91,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_runner_profile_wizard_discovery.py` passes (V-01, V-02).
-- Mutation check: temporarily make `_report_catalog`'s final branch omit `catalog.reason`, confirm `test_every_failure_reason_is_named_on_screen` FAILS, then revert (V-01).
-- Mutation check: temporarily make `ask_model_manual` loop `MAX_ATTEMPTS + 1` times, confirm `test_manual_entry_is_bounded` FAILS, then revert (V-02).
+- Mutation check: temporarily make `_report_catalog`'s final branch omit `catalog.reason` (keep the detail), confirm `test_every_failure_reason_is_named_on_screen` FAILS, then revert with `git checkout -- agent_workflows/runner_profile_wizard.py` BEFORE E-03 edits that file (V-01).
+- Mutation check: temporarily make `ask_model_manual` loop `MAX_ATTEMPTS + 1` times, confirm `test_manual_entry_is_bounded` FAILS, then revert with `git checkout -- agent_workflows/runner_profile_wizard.py` BEFORE E-03 (V-02).
 - Full bare suite `python3 -m pytest` with no new failures (V-03).
 
 ## Spec / documentation sync
@@ -102,7 +105,7 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: a new purpose-named module `tests/test_runner_profile_wizard_discovery.py`. Re-creating the deleted name would imply all five behaviors are guarded again, which the docstring would then misstate; sibling restoration plans (`55kl2u`, `yfo6z6`) likewise use purpose-named modules.
 
 ## Validation and cross-check (verify before reporting done)
@@ -110,11 +113,11 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py` showing the three E-01 tests PASSED; pasted output of the temporary `_report_catalog` mutation run showing `test_every_failure_reason_is_named_on_screen` FAILED, followed by `git diff --stat agent_workflows/runner_profile_wizard.py` proving only the E-03 docstring change remains; plus `grep -nE "inspect|import ast|read_text" tests/test_runner_profile_wizard_discovery.py` returning no match.
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py` showing the three E-01 tests PASSED; pasted output of the temporary `_report_catalog` mutation run showing `test_every_failure_reason_is_named_on_screen` FAILED (with all five subTests reporting the missing reason), followed by an empty `git diff --stat agent_workflows/runner_profile_wizard.py` proving the mutation was reverted; plus `grep -nE "inspect|import ast|read_text" tests/test_runner_profile_wizard_discovery.py` returning no match.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `-v` pytest output showing the four `ManualEntryTests` PASSED; pasted output of the temporary `ask_model_manual` bound mutation showing `test_manual_entry_is_bounded` FAILED, then reverted.
+  - Required evidence: pasted `-v` pytest output showing the four `ManualEntryTests` PASSED; pasted output of the temporary `ask_model_manual` bound mutation showing `test_manual_entry_is_bounded` FAILED, followed by an empty `git diff --stat agent_workflows/runner_profile_wizard.py` proving it was reverted.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -127,4 +130,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only the two Scope-Paths files through `aw commit 4xqhsq -- <paths>`; never push. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and V-01..V-03 carry pasted observed evidence with `Result: pass`.
+Execute only after explicit human approval (`aw ipd set approved 4xqhsq --by-human`); OQ-01 is resolved and no question blocks. Begin with `aw ipd begin 4xqhsq`.
+
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; an edit outside it is made and justified at finalize with `--scope-reason <path>=<why>`. STOP only for a genuinely unsafe condition: a concurrent edit to `agent_workflows/runner_profile_wizard.py` that cannot be safely combined, or a cited symbol (`_report_catalog`, `select_model`, `ask_model_manual`, `run_wizard`, `MAX_ATTEMPTS`) that no longer exists.
+
+Honesty: you MUST paste the ACTUAL output of every command and test in each `V-*`; never claim a result you did not run. Both mutations are temporary and MUST be reverted before E-03; no mutation may be committed.
+
+Commits: commit only the Scope-Paths files you changed through `aw commit 4xqhsq -- <paths>`; never `git add -A`, never push, never tag. Verify the staged set with `git diff --cached --name-only` before committing.
+
+Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize; when executed by hand, run `aw ipd finalize 4xqhsq` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. Never hand-edit `- Status:` or hand-roll a `git mv` into `executed/`.
