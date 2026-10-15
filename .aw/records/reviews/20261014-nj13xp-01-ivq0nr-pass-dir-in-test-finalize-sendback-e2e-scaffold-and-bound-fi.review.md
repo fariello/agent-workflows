@@ -41,6 +41,6 @@ Re-verified at review HEAD:
 
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
-| D-1 | Can the reviewer settle whether discovery stops at an enclosing `.git`? | No. Escalated as blocking OQ-01 to the maintainer. | Accepting the author's resolution; descoping E-04 by reviewer authority, which is itself option (b). | AGENTS.md: ask the human for public contracts; the documented git-blind rule at `project_context.py:449-453` | no (escalated: OQ-01 `Blocking: yes`) |
+| D-1 | Can the reviewer settle whether discovery stops at an enclosing `.git`? | No. Escalated as blocking OQ-01 to the maintainer. | Accepting the author's resolution; descoping E-04 by reviewer authority, which is itself option (b). | AGENTS.md: ask the human for public contracts; the documented git-blind rule at `project_context.py:449-453`; escalated as plan OQ-01 `Blocking: yes` (`Finding: PR-001`), which `aw ipd lint` refuses at every checkpoint until the maintainer answers | no |
 | D-2 | Do E-01..E-03 fix the reported leak independently of E-04? | Yes. | Treating E-04 as required for the fix. | `resolve_verb_repo_root` honors an explicit `--dir` verbatim, and begin/finalize already accept `--dir` | yes |
 | D-3 | In E-02, which path mechanism should the derived destination use? | Substitute into the existing composition. | `resolve_record_path` with a fallback, as the plan proposed. | `ipd_authoring.run_scaffold` derived-destination block; one-mechanism convention | yes |
