@@ -6,7 +6,7 @@
 - Scope: Add `emit_index_missing_dir_refusal` in `agent_workflows/artifact_core.py` that emits a structured `cannot-run` (`exit: 2`, `kind: "error"`, `outcome: "cannot-run"`, `applied: False`, `verified: False`, `complete: False`) result across `--agent`, `--json`, human (`stderr`), and `quiet=True` callers, naming the RESOLVED (sanitized) directory and choosing its recovery advice from `project_context.nonsurveyable_root_refusal`; guard the write branch of `plans_index.run_index`, `prompts_index.run_index`, and `research_index.run_index` when `not <dir>.is_dir()`; add subprocess and in-process behavior tests in `tests/test_index_write_agent_records.py`; and record the fix in `CHANGELOG.md`. The `aw index all` single aggregate record is NOT in scope (owned by `7i4zba`).
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/research_index.py, tests/test_index_write_agent_records.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: fbdxmh
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fbdxmh verified (set indexmissdir, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
@@ -37,27 +37,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared missing-directory refusal helper and index write-path guards
 
-- [ ] E-01 In `agent_workflows/artifact_core.py`, add `emit_index_missing_dir_refusal(args: Any, repo_root: Path, index_dir: Path, *, target: str) -> int` immediately after `emit_index_write_result`, implemented exactly as Proposed change 1: (a) when `getattr(args, "quiet", False)` is truthy, return `2` and emit nothing; (b) compute `rel_dir` as `index_dir.relative_to(repo_root).as_posix()` when that succeeds, else `agent_schema.normalize_repo_path(index_dir)` (so a home-backend path renders as `.aw/projects/<slug>-<hash>/records/<type>` with no absolute or home prefix); (c) compute the recovery advice from `project_context.nonsurveyable_root_refusal(f"index {target}", repo_root, explicit_dir=bool(getattr(args, "dir", None)))`: when it reports `may_proceed is False`, reuse its `summary` (path-free) and its `next_action` (which is `aw install .` only when the git root has no AW project, and `None` for an explicit `--dir` inside a project); when it reports `may_proceed is True` (a real project root whose records tree is incomplete), use `next_actions=[NextAction("aw install .", "restore the missing records directories")]`; (d) in human mode write `f"error: aw index {target}: records directory {rel_dir} does not exist; nothing was written.\n"` followed by the refusal's `human_message` (non-root case) or `"Run 'aw install .' at the project root to restore it.\n"` (root case) to `ctx.stderr`, and return `2`; (e) in machine modes build the `CommandResult` of Proposed change 1 (`status="cannot-run"`, `exit_code=2`, `applied=False`, `verified=False`, `complete=False`, one `Diagnostic(rule="records-dir-missing", severity="error")` at `rel_dir`, `data={"target": target, "index_dir": rel_dir}`), and if `isinstance(getattr(args, "_index_result_sink", None), list)` append it and return `2`, else return `get_renderer(ctx).emit(result, ctx)`. Do NOT edit `aggregate_index_results` (owned by `7i4zba`; see Deferred).
+- [x] E-01 In `agent_workflows/artifact_core.py`, add `emit_index_missing_dir_refusal(args: Any, repo_root: Path, index_dir: Path, *, target: str) -> int` immediately after `emit_index_write_result`, implemented exactly as Proposed change 1: (a) when `getattr(args, "quiet", False)` is truthy, return `2` and emit nothing; (b) compute `rel_dir` as `index_dir.relative_to(repo_root).as_posix()` when that succeeds, else `agent_schema.normalize_repo_path(index_dir)` (so a home-backend path renders as `.aw/projects/<slug>-<hash>/records/<type>` with no absolute or home prefix); (c) compute the recovery advice from `project_context.nonsurveyable_root_refusal(f"index {target}", repo_root, explicit_dir=bool(getattr(args, "dir", None)))`: when it reports `may_proceed is False`, reuse its `summary` (path-free) and its `next_action` (which is `aw install .` only when the git root has no AW project, and `None` for an explicit `--dir` inside a project); when it reports `may_proceed is True` (a real project root whose records tree is incomplete), use `next_actions=[NextAction("aw install .", "restore the missing records directories")]`; (d) in human mode write `f"error: aw index {target}: records directory {rel_dir} does not exist; nothing was written.\n"` followed by the refusal's `human_message` (non-root case) or `"Run 'aw install .' at the project root to restore it.\n"` (root case) to `ctx.stderr`, and return `2`; (e) in machine modes build the `CommandResult` of Proposed change 1 (`status="cannot-run"`, `exit_code=2`, `applied=False`, `verified=False`, `complete=False`, one `Diagnostic(rule="records-dir-missing", severity="error")` at `rel_dir`, `data={"target": target, "index_dir": rel_dir}`), and if `isinstance(getattr(args, "_index_result_sink", None), list)` append it and return `2`, else return `get_renderer(ctx).emit(result, ctx)`. Do NOT edit `aggregate_index_results` (owned by `7i4zba`; see Deferred).
   - Depends on: none
   - Expected outcome: `artifact_core.emit_index_missing_dir_refusal` returns `2` in all four audiences, writes nothing to `stdout` in human and `quiet=True` modes, and every emitted machine record passes `agent_schema.validate_agent_record` with no absolute or home-directory path in any field.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/plans_index.py` (`run_index`), `agent_workflows/prompts_index.py` (`run_index`), and `agent_workflows/research_index.py` (`run_index`), insert a missing-directory guard immediately after the `if getattr(args, "check", False):` block and before the `scan_plans` / `scan_prompts` / `_scan_docs` call: `if not plans_dir.is_dir(): return _core.emit_index_missing_dir_refusal(args, repo_root, plans_dir, target="plans")`, and the analogues with `prompts_dir` / `target="prompts"` and `research_root` / `target="research"`. Do NOT touch the `--check` branch, `_dirs`, `_roots`, or `prompts.prompts_root`, and add no `mkdir`.
+- [x] E-02 In `agent_workflows/plans_index.py` (`run_index`), `agent_workflows/prompts_index.py` (`run_index`), and `agent_workflows/research_index.py` (`run_index`), insert a missing-directory guard immediately after the `if getattr(args, "check", False):` block and before the `scan_plans` / `scan_prompts` / `_scan_docs` call: `if not plans_dir.is_dir(): return _core.emit_index_missing_dir_refusal(args, repo_root, plans_dir, target="plans")`, and the analogues with `prompts_dir` / `target="prompts"` and `research_root` / `target="research"`. Do NOT touch the `--check` branch, `_dirs`, `_roots`, or `prompts.prompts_root`, and add no `mkdir`.
   - Depends on: E-01
   - Expected outcome: `aw index <plans|prompts|research>` (without `--check`) on a missing resolved directory returns exit `2` through `emit_index_missing_dir_refusal` before any `write_text`; `--check` on the same tree keeps today's output (`outcome: "conforms"`, exit `0`, `check.stale-index-missing` info findings, measured at review).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Subprocess and in-process behavior tests and changelog
 
-- [ ] E-03 In `tests/test_index_write_agent_records.py`, add behavioral tests. Every subprocess test runs `run_cli(..., env_overrides=...)` with `HOME` set to a temp dir and `AW_HOME`, `XDG_CONFIG_HOME`, and `AW_CONFIG_DIR` removed from the child env (build the env with `tests.conformance_matrix._pinned_env` or pop them explicitly; `run_cli` otherwise inherits the parent's values), on a fresh `git init` temp repo, never the live tree. Cover: (a) BARE GIT REPO (no `.aw/`), for each verb in `VERBS`, `aw index <verb> --agent` exits `2`, `stderr` contains no `Traceback`, `stdout` is exactly one line that passes `agent_schema.validate_agent_record(rec) == []` with `kind == "error"`, `cmd == "index"`, `target == <verb>`, `outcome == "cannot-run"`, `exit == 2`, `verified is False`, `complete is False`, `applied is False`, `next == "aw install ."`, one `records-dir-missing` diagnostic, and no line containing the temp `HOME` or repo absolute path; and afterwards no new directory exists under the repo (outside `.git`) or under `HOME`; (b) PARTIAL TREE (the `o6cbp7` reproduction): only `.aw/records/plans/` created, then `aw index all --agent` exits `2` with no `Traceback` on `stderr`, every `stdout` line passes `validate_agent_record`, and the LAST line has `kind == "error"`, `outcome == "cannot-run"`, `exit == 2`; assert only these properties so the test holds both before and after `7i4zba` lands (before it the stream is per-type lines; after it one aggregate line); (c) `--json` for each verb on a bare git repo: exit `2`, `json.loads(stdout)` succeeds with `status == "cannot-run"` and `exit_code == 2`, and `data["index_dir"]` is a relative path; human mode for each verb: exit `2`, `stdout == ""`, `stderr` names the records directory and `aw install`; (d) EXPLICIT `--dir` INSIDE A PROJECT: install a fixture project with `aw install . -y --no-interactive` (isolated `HOME`), create `sub/`, run `aw index plans --dir sub --agent` from the project root: exit `2`, no `Traceback`, `outcome == "cannot-run"`, and `next` is NOT `"aw install ."` (the refusal must not advise creating a nested project), and no `sub/.aw` is created; (e) in-process `quiet=True`: call each module's `run_index(argparse.Namespace(dir=<bare git repo>, check=False, agent=False, json=False, limit=None, quiet=True))` with `contextlib.redirect_stdout`/`redirect_stderr` and with `HOME`/`AW_HOME` patched to the temp dir, asserting the return value `2` and empty captured `stdout` and `stderr`.
+- [x] E-03 In `tests/test_index_write_agent_records.py`, add behavioral tests. Every subprocess test runs `run_cli(..., env_overrides=...)` with `HOME` set to a temp dir and `AW_HOME`, `XDG_CONFIG_HOME`, and `AW_CONFIG_DIR` removed from the child env (build the env with `tests.conformance_matrix._pinned_env` or pop them explicitly; `run_cli` otherwise inherits the parent's values), on a fresh `git init` temp repo, never the live tree. Cover: (a) BARE GIT REPO (no `.aw/`), for each verb in `VERBS`, `aw index <verb> --agent` exits `2`, `stderr` contains no `Traceback`, `stdout` is exactly one line that passes `agent_schema.validate_agent_record(rec) == []` with `kind == "error"`, `cmd == "index"`, `target == <verb>`, `outcome == "cannot-run"`, `exit == 2`, `verified is False`, `complete is False`, `applied is False`, `next == "aw install ."`, one `records-dir-missing` diagnostic, and no line containing the temp `HOME` or repo absolute path; and afterwards no new directory exists under the repo (outside `.git`) or under `HOME`; (b) PARTIAL TREE (the `o6cbp7` reproduction): only `.aw/records/plans/` created, then `aw index all --agent` exits `2` with no `Traceback` on `stderr`, every `stdout` line passes `validate_agent_record`, and the LAST line has `kind == "error"`, `outcome == "cannot-run"`, `exit == 2`; assert only these properties so the test holds both before and after `7i4zba` lands (before it the stream is per-type lines; after it one aggregate line); (c) `--json` for each verb on a bare git repo: exit `2`, `json.loads(stdout)` succeeds with `status == "cannot-run"` and `exit_code == 2`, and `data["index_dir"]` is a relative path; human mode for each verb: exit `2`, `stdout == ""`, `stderr` names the records directory and `aw install`; (d) EXPLICIT `--dir` INSIDE A PROJECT: install a fixture project with `aw install . -y --no-interactive` (isolated `HOME`), create `sub/`, run `aw index plans --dir sub --agent` from the project root: exit `2`, no `Traceback`, `outcome == "cannot-run"`, and `next` is NOT `"aw install ."` (the refusal must not advise creating a nested project), and no `sub/.aw` is created; (e) in-process `quiet=True`: call each module's `run_index(argparse.Namespace(dir=<bare git repo>, check=False, agent=False, json=False, limit=None, quiet=True))` with `contextlib.redirect_stdout`/`redirect_stderr` and with `HOME`/`AW_HOME` patched to the temp dir, asserting the return value `2` and empty captured `stdout` and `stderr`.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_index_write_agent_records.py` passes with the new tests pinning (a) through (e) and every pre-existing test unchanged and green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add ONE `- Fixed:` bullet to `CHANGELOG.md` under the current pending release heading (`## 2.0.0 (pending) ...`, beside the other `- Fixed:` bullets; the file has no `## [Unreleased]` or `### Fixed` section) stating that `aw index plans|prompts|research|all` now refuse with exit code `2` (`cannot-run`) and a structured record when the records directory does not exist, instead of crashing with a `FileNotFoundError` traceback; write it with no em or en dashes. Then run the verification commands named in V-04.
+- [x] E-04 Add ONE `- Fixed:` bullet to `CHANGELOG.md` under the current pending release heading (`## 2.0.0 (pending) ...`, beside the other `- Fixed:` bullets; the file has no `## [Unreleased]` or `### Fixed` section) stating that `aw index plans|prompts|research|all` now refuse with exit code `2` (`cannot-run`) and a structured record when the records directory does not exist, instead of crashing with a `FileNotFoundError` traceback; write it with no em or en dashes. Then run the verification commands named in V-04.
   - Depends on: E-03
   - Expected outcome: `CHANGELOG.md` carries the bullet with zero em/en dashes; the bare `python3 -m pytest` shows no failure that does not also fail on the base commit; `python3 -m agent_workflows check all --agent` shows no new rule id and no increased per-rule count versus the base commit (the live corpus already exits `1` at base, so exit `0` is NOT the bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -231,25 +231,268 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff agent_workflows/artifact_core.py` showing `emit_index_missing_dir_refusal` with the `quiet` early return, the relative/normalized `rel_dir`, the `nonsurveyable_root_refusal` call and both advice branches, the human `ctx.stderr` write, the `CommandResult` fields named in E-01(e), and the `_index_result_sink` branch; PLUS pasted output of a `python3 -c` call that invokes `emit_index_missing_dir_refusal` with `argparse.Namespace(agent=True, dir=None)` and a `repo_root` that is a bare `git init` temp dir and `index_dir` under a temp `HOME` (`<home>/.aw/projects/x-abc123/records/plans`), with `stdout` captured, showing the return value `2`, the emitted line, `agent_schema.validate_agent_record(json.loads(line)) == []`, `next == "aw install ."`, and that the line contains neither the temp `HOME` nor the repo absolute path. (Reachable: the call drives E-01's function directly.)
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+index de36ecfe3..72193b60f 100644
+--- a/agent_workflows/artifact_core.py
++++ b/agent_workflows/artifact_core.py
+@@ -1094,6 +1094,94 @@ def emit_index_write_result(
+     return get_renderer(ctx).emit(result, ctx)
 
-- [ ] V-02 validates E-02
+
++def emit_index_missing_dir_refusal(
++    args: Any,
++    repo_root: Path,
++    index_dir: Path,
++    *,
++    target: str,
++) -> int:
++    """Refuse an index WRITE with exit 2 (cannot-run) when the resolved records dir is absent.
++
++    Creates nothing: a mkdir here would write under $HOME/.aw/projects/ for a home-backend
++    resolution and permanently shadow a later in-repo tree (plan fbdxmh). Recovery advice
++    comes from project_context.nonsurveyable_root_refusal, so an explicit --dir inside a
++    project is never told to run 'aw install .' (which would nest a new project there).
++    """
++    if getattr(args, "quiet", False):
++        return 2
++    from agent_workflows import agent_schema as _schema
++    from agent_workflows.project_context import nonsurveyable_root_refusal
++    from agent_workflows.renderers import get_renderer
++    from agent_workflows.result_types import (
++        CommandResult,
++        Diagnostic,
++        NextAction,
++        select_output,
++    )
++
++    ctx = select_output(args)
++    try:
++        rel_dir = index_dir.relative_to(repo_root).as_posix()
++    except ValueError:
++        rel_dir = _schema.normalize_repo_path(index_dir)
++
++    refusal = nonsurveyable_root_refusal(
++        f"index {target}", repo_root, explicit_dir=bool(getattr(args, "dir", None))
++    )
++    if refusal.may_proceed:
++        reason = "the project's records tree is incomplete"
++        next_actions = [
++            NextAction(
++                command="aw install .",
++                description="restore the missing records directories",
++            )
++        ]
++        human_tail = "Run 'aw install .' at the project root to restore it.\n"
++    else:
++        reason = refusal.summary or "no AW project root at this directory"
++        next_actions = [
++            NextAction(command=n.command, description=n.description)
++            for n in refusal.next_actions
++        ]
++        human_tail = (refusal.human_message or "") + "\n"
++
++    if ctx.is_human:
++        ctx.stderr.write(
++            f"error: aw index {target}: records directory {rel_dir} does not exist; "
++            "nothing was written.\n"
++        )
++        ctx.stderr.write(human_tail)
++        return 2
++
++    result = CommandResult(
++        command="index",
++        target=target,
++        status="cannot-run",
++        exit_code=2,
++        summary=f"refusing to write {target} index: records directory {rel_dir} does not exist ({reason})",
++        applied=False,
++        diagnostics=[
++            Diagnostic(
++                location=rel_dir,
++                rule="records-dir-missing",
++                detail=f"records directory {rel_dir} does not exist; nothing was written",
++                severity="error",
++                fix=next_actions[0].command if next_actions else None,
++            )
++        ],
++        next_actions=next_actions,
++        data={"target": target, "index_dir": rel_dir},
++        verified=False,
++        complete=False,
++    )
++    sink = getattr(args, "_index_result_sink", None)
++    if isinstance(sink, list):
++        sink.append(result)
++        return result.exit_code
++    return get_renderer(ctx).emit(result, ctx)
++
++
+ def aggregate_index_results(
+     results: Sequence[CommandResult],
+     *,
+```
+```
+$ python3 -c '...'
+rc: 2
+line: {"schema":"aw.agent/v1","kind":"error","cmd":"index","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"applied":false,"target":"plans","findings":1,"findings_by_severity":{"error":1,"warning":0,"info":0},"diagnostics":[{"location":".aw/projects/x-abc123/records/plans","rule":"records-dir-missing"}],"next":"aw install ."}
+validation errors: []
+next: aw install .
+home in line: False
+repo in line: False
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/plans_index.py agent_workflows/prompts_index.py agent_workflows/research_index.py` showing the guard placed after the `--check` block and before the scan in all three `run_index` functions, with no `mkdir` added; PLUS pasted stdout, stderr, and return code of `python3 -m agent_workflows index prompts --agent` and `python3 -m agent_workflows index prompts --check --agent` run in a fresh `git init` temp repo with isolated `HOME` and `AW_HOME`/`XDG_CONFIG_HOME`/`AW_CONFIG_DIR` unset, showing rc `2` with a `cannot-run` line and no traceback for the write, and rc `0` with `outcome: "conforms"` for `--check`. (Reachable: the dispatch path is `cli._run_noun_verb` -> `prompts_index.run_index`, guarded by E-02.)
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/plans_index.py b/agent_workflows/plans_index.py
+index 235385f45..8dcb18a7c 100644
+--- a/agent_workflows/plans_index.py
++++ b/agent_workflows/plans_index.py
+@@ -462,6 +462,10 @@ def run_index(args: argparse.Namespace) -> int:
+             command="index",
+             target="plans",
+         )
++    if not plans_dir.is_dir():
++        return _core.emit_index_missing_dir_refusal(
++            args, repo_root, plans_dir, target="plans"
++        )
+     entries, drift = scan_plans(plans_dir)
+     json_path = plans_dir / INDEX_JSON
+     md_path = plans_dir / INDEX_MD
+diff --git a/agent_workflows/prompts_index.py b/agent_workflows/prompts_index.py
+index 98123e41a..795cb44cf 100644
+--- a/agent_workflows/prompts_index.py
++++ b/agent_workflows/prompts_index.py
+@@ -307,6 +307,10 @@ def run_index(args: argparse.Namespace) -> int:
+             command="index",
+             target="prompts",
+         )
++    if not prompts_dir.is_dir():
++        return _core.emit_index_missing_dir_refusal(
++            args, repo_root, prompts_dir, target="prompts"
++        )
+     entries, drift = scan_prompts(prompts_dir)
+     json_path = prompts_dir / INDEX_JSON
+     md_path = prompts_dir / INDEX_MD
+diff --git a/agent_workflows/research_index.py b/agent_workflows/research_index.py
+index 87e704900..b58db5d9c 100644
+--- a/agent_workflows/research_index.py
++++ b/agent_workflows/research_index.py
+@@ -955,6 +955,10 @@ def run_index(args: argparse.Namespace) -> int:
+             target="research",
+         )
+     # Regenerate.
++    if not research_root.is_dir():
++        return _core.emit_index_missing_dir_refusal(
++            args, repo_root, research_root, target="research"
++        )
+     entries, drift = _scan_docs(research_root, repo_root=repo_root)
+     from agent_workflows.result_types import select_output
+```
+```
+$ python3 -m agent_workflows index prompts --agent
+rc: 2
+stdout: {"schema":"aw.agent/v1","kind":"error","cmd":"index","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"applied":false,"target":"prompts","findings":1,"findings_by_severity":{"error":1,"warning":0,"info":0},"diagnostics":[{"location":".aw/records/prompts","rule":"records-dir-missing"}],"next":"aw install ."}
+stderr:
 
-- [ ] V-03 validates E-03
+$ python3 -m agent_workflows index prompts --check --agent
+rc: 0
+stdout: {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"prompts","findings":2,"findings_by_severity":{"error":0,"warning":0,"info":2},"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}
+stderr:
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_index_write_agent_records.py` showing every test passing, with the new tests visibly covering E-03 (a) bare-repo `--agent` per verb with no-creation check, (b) partial-tree `aw index all --agent`, (c) `--json` and human per verb, (d) explicit `--dir` inside a project with `next != "aw install ."` and no `sub/.aw`, and (e) `quiet=True` per module. Test names are non-binding pointers; the evidence is the behaviors pinned.
   - Observed evidence:
-  - Result: pending
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+cachedir: .pytest_cache
+Using --randomly-seed=1160429453
+rootdir: <repo_root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 19 items
 
-- [ ] V-04 validates E-04
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_research PASSED [  5%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_refusal_research_invalid_frontmatter PASSED [ 10%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_research PASSED [ 15%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_human_invariance_per_verb PASSED [ 21%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_human_invariance PASSED [ 26%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_unsupported_type_specs PASSED [ 31%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_plans PASSED [ 36%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_prompts PASSED [ 42%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_drift_plans_missing_id PASSED [ 47%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_mixed_outcome_refusal PASSED [ 52%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_first_and_second_run PASSED [ 57%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_plans PASSED [ 63%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_prompts PASSED [ 68%]
+tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_verbose_and_json_paths PASSED [ 73%]
+tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_partial_tree_all_write_refusal PASSED [ 78%]
+tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_bare_repo_agent_refusal_per_verb PASSED [ 84%]
+tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_inprocess_quiet_true PASSED [ 89%]
+tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_bare_repo_json_and_human_refusal_per_verb PASSED [ 94%]
+tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_explicit_dir_inside_project PASSED [100%]
+
+============================= 19 passed in 19.03s ==============================
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `git diff CHANGELOG.md` showing the one new `- Fixed:` bullet under `## 2.0.0 (pending)`, plus `grep -nP '[\x{2013}\x{2014}]'` over the added line returning nothing; pasted output of `python3 -m pytest -o addopts="" tests/test_index_check_agent_records.py tests/test_nv_backend_args_climb.py` passing; pasted summary line of the bare `python3 -m pytest`, with any failure shown to fail identically on the base commit; and the per-rule error/warning counts of `python3 -m agent_workflows check all --agent --verbose` on the base commit and after the change, showing no new rule id and no increased count.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 878a7633f..187665e52 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+
+ - Fixed: the shipped conformance host matrix (.aw/system/workflows/conformance/tools/host_matrix.json) no longer carries unproven supported booleans, so aw releases readiness no longer reports 19 stale capability claims; host support is established only by probe evidence recorded in the capability registry.
+ - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
++- Fixed: aw index plans, prompts, research, and all now refuse with exit code 2 (cannot-run) and a structured record when the records directory does not exist, instead of crashing with a FileNotFoundError traceback.
+ - Fixed: aw index <type> --check --json no longer puts the absolute repository path (repo_root) or the human report text (human_rendered) in data; diagnostic locations stay repo-relative.
+ - Fixed: aw ipd scaffold now accepts --dir and no longer writes a plan into an enclosing project, and project discovery stops at an enclosing git repository that has no agent-workflows install.
+ - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
+```
+```
+$ git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'
+(empty, exit 1: no em or en dashes)
+
+$ python3 -m pytest -o addopts="" tests/test_index_check_agent_records.py tests/test_nv_backend_args_climb.py
+============================= 20 passed in 37.34s ==============================
+
+$ python3 -m pytest
+NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+702 passed in 21.09s
+(Base commit: 702 passed in 29.38s; zero failures on both)
+
+Baseline check diagnostics (84 total):
+  check.ipd-carrier-finished-unverified (None): 7
+  check.ipd-carrier-ungated (None): 2
+  check.ipd-uncarried-obligation (None): 2
+  check.lifecycle-transition-unvalidated (None): 29
+  check.source-test-citation-dangling (None): 42
+  check.spec-criteria-uncovered (None): 1
+  check.system-layout-missing (None): 1
+
+Post-change check diagnostics (84 total, identical counts, no new rule id):
+  check.ipd-carrier-finished-unverified (None): 7
+  check.ipd-carrier-ungated (None): 2
+  check.ipd-uncarried-obligation (None): 2
+  check.lifecycle-transition-unvalidated (None): 29
+  check.source-test-citation-dangling (None): 42
+  check.spec-criteria-uncovered (None): 1
+  check.system-layout-missing (None): 1
+```
+  - Result: pass
 
 ## Approval and execution gate
 
