@@ -397,7 +397,12 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(repo, id6="bkla02", status="open")
+                    _write_backlog_item(
+                        repo,
+                        id6="bkla02",
+                        status="open",
+                        summary="Test backlog item for already complete closure",
+                    )
                     _write_conforming_plan(
                         repo, id6="plna02", backlog_id6="bkla02", bucket="executed"
                     )
@@ -477,6 +482,60 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
                     )
                     self.assertEqual(len(bkl_files), 1)
                     self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
+
+                    # Assert backlog transition commit, event, show, clean porcelain, and lane teardown
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+                    self.assertTrue(tx_commit)
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    tx_events = [
+                        e
+                        for e in events
+                        if e.get("event") == "backlog-transition-committed"
+                    ]
+                    self.assertEqual(len(tx_events), 1)
+                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+                    self.assertNotIn("preserved_worktree", item)
+                    rc_anc = subprocess.run(
+                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+                        cwd=repo,
+                    ).returncode
+                    self.assertEqual(rc_anc, 0)
+                    show_out = subprocess.check_output(
+                        [
+                            "git",
+                            "show",
+                            "--name-status",
+                            "-M",
+                            "--format=%s",
+                            tx_commit,
+                        ],
+                        cwd=repo,
+                        text=True,
+                    )
+                    show_lines = [
+                        line.strip() for line in show_out.splitlines() if line.strip()
+                    ]
+                    self.assertEqual(
+                        show_lines[0], "transition(backlog): move bkla02 -> done"
+                    )
+                    r_lines = [line for line in show_lines[1:] if line.startswith("R")]
+                    self.assertEqual(len(r_lines), 1)
+                    self.assertIn("backlog/open/", r_lines[0])
+                    self.assertIn("backlog/done/", r_lines[0])
+                    st = subprocess.check_output(
+                        ["git", "status", "--porcelain"], cwd=repo, text=True
+                    )
+                    self.assertNotIn("bkla02", st)
 
     def test_case_b_one_carrier_pending(self):
         """Case (b): one carrier pending: agent called and item graduates as today."""

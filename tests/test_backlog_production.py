@@ -20,6 +20,7 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    cli,
     oc_runipd,
     production_checks,
     runner_shared,
@@ -479,6 +480,196 @@ class TestBacklogProductionUnitE10(unittest.TestCase):
             self.assertEqual(f_orph, [])
             self.assertIn("check.orphaned-live-blocker", buf_orph.getvalue())
 
+    def test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback(
+        self,
+    ) -> None:
+        # 1. Staged git mv rename (RM <old> -> <new>)
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            _write_backlog_item(repo, id6="bkl010", status="open", gate="next")
+            _write_conforming_plan(
+                repo, id6="pln010", backlog_id6="bkl010", gate="next"
+            )
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add bkl010 and pln010"], cwd=repo, check=True
+            )
+
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "bkl010",
+                    "--status",
+                    "graduated",
+                    "--message",
+                    "graduated by run run-unit-1: pln010",
+                    "--no-commit",
+                    "--dir",
+                    str(repo),
+                ]
+            )
+            self.assertEqual(rc, 0)
+            st = subprocess.check_output(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=repo,
+                text=True,
+            )
+            self.assertTrue(
+                any(
+                    "RM" in line
+                    and "backlog/open/" in line
+                    and "backlog/graduated/" in line
+                    for line in st.splitlines()
+                )
+            )
+
+            sha, paths = runner_shared.commit_backlog_transition_output(
+                repo,
+                "bkl010",
+                status_label="graduated",
+                run_id="run-unit-1",
+                host_label="aw oc run",
+            )
+            self.assertTrue(sha)
+            self.assertEqual(len(paths), 2)
+            show_body = subprocess.check_output(
+                ["git", "show", "--name-status", "-M", "--format=%B", "HEAD"],
+                cwd=repo,
+                text=True,
+            )
+            self.assertIn("transition(backlog): move bkl010 -> graduated", show_body)
+            self.assertIn("AW-Run: run-unit-1", show_body)
+            self.assertIn("AW-Item: bkl010", show_body)
+            self.assertIn("AW-Committed-By: driver", show_body)
+            self.assertIn("AW-Runner: aw oc run", show_body)
+            r_lines = [line for line in show_body.splitlines() if line.startswith("R")]
+            self.assertEqual(len(r_lines), 1)
+            self.assertIn("backlog/open/", r_lines[0])
+            self.assertIn("backlog/graduated/", r_lines[0])
+            st_after = subprocess.check_output(
+                ["git", "status", "--porcelain"], cwd=repo, text=True
+            )
+            self.assertNotIn("backlog/open/", st_after)
+            self.assertNotIn("backlog/graduated/", st_after)
+
+            # 3. Rollback staged rename (graduated -> open, status_label="open")
+            rc_rb = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "bkl010",
+                    "--status",
+                    "open",
+                    "--message",
+                    "handoff incomplete: BACKLOG-CROSS-TREE",
+                    "--no-commit",
+                    "--dir",
+                    str(repo),
+                ]
+            )
+            self.assertEqual(rc_rb, 0)
+            st_rb = subprocess.check_output(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=repo,
+                text=True,
+            )
+            self.assertTrue(
+                any(
+                    "RM" in line
+                    and "backlog/graduated/" in line
+                    and "backlog/open/" in line
+                    for line in st_rb.splitlines()
+                )
+            )
+            sha3, paths3 = runner_shared.commit_backlog_transition_output(
+                repo,
+                "bkl010",
+                status_label="open",
+                run_id="run-unit-3",
+                host_label="aw oc run",
+            )
+            self.assertTrue(sha3)
+            self.assertEqual(len(paths3), 2)
+            show_s3 = subprocess.check_output(
+                ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+                cwd=repo,
+                text=True,
+            )
+            lines3 = [line.strip() for line in show_s3.splitlines() if line.strip()]
+            self.assertEqual(lines3[0], "transition(backlog): move bkl010 -> open")
+            r_lines3 = [line for line in lines3[1:] if line.startswith("R")]
+            self.assertEqual(len(r_lines3), 1)
+            self.assertIn("backlog/graduated/", r_lines3[0])
+            self.assertIn("backlog/open/", r_lines3[0])
+            st_after3 = subprocess.check_output(
+                ["git", "status", "--porcelain"], cwd=repo, text=True
+            )
+            self.assertNotIn("backlog/open/", st_after3)
+            self.assertNotIn("backlog/graduated/", st_after3)
+
+        # 2. Unstaged move ( D <old> + ?? <new>)
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            _write_backlog_item(repo, id6="bkl011", status="open")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "add bkl011"], cwd=repo, check=True)
+
+            old_file = next(repo.glob(".aw/records/backlog/open/*bkl011*.backlog.md"))
+            grad_dir = repo / ".aw" / "records" / "backlog" / "graduated"
+            grad_dir.mkdir(parents=True, exist_ok=True)
+            new_file = grad_dir / old_file.name
+            new_file.write_text(old_file.read_text(encoding="utf-8"), encoding="utf-8")
+            old_file.unlink()
+
+            st2 = subprocess.check_output(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=repo,
+                text=True,
+            )
+            self.assertTrue(
+                any(
+                    " D " in line and "backlog/open/" in line
+                    for line in st2.splitlines()
+                )
+            )
+            self.assertTrue(
+                any(
+                    "??" in line and "backlog/graduated/" in line
+                    for line in st2.splitlines()
+                )
+            )
+
+            sha2, paths2 = runner_shared.commit_backlog_transition_output(
+                repo,
+                "bkl011",
+                status_label="graduated",
+                run_id="run-unit-2",
+                host_label="aw agy run",
+            )
+            self.assertTrue(sha2)
+            self.assertEqual(len(paths2), 2)
+            show_s2 = subprocess.check_output(
+                ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+                cwd=repo,
+                text=True,
+            )
+            lines2 = [line.strip() for line in show_s2.splitlines() if line.strip()]
+            self.assertEqual(lines2[0], "transition(backlog): move bkl011 -> graduated")
+            r_lines2 = [line for line in lines2[1:] if line.startswith("R")]
+            self.assertEqual(len(r_lines2), 1)
+            self.assertIn("backlog/open/", r_lines2[0])
+            self.assertIn("backlog/graduated/", r_lines2[0])
+            self.assertFalse(
+                any(line.startswith("A") or line.startswith("D") for line in lines2[1:])
+            )
+            st_tracked2 = subprocess.check_output(
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                cwd=repo,
+                text=True,
+            )
+            self.assertEqual(st_tracked2.strip(), "")
+
 
 class TestBacklogProductionE07(unittest.TestCase):
     """Spec 5.5c matrix on both hosts (E-07)."""
@@ -558,6 +749,55 @@ class TestBacklogProductionE07(unittest.TestCase):
                     self.assertEqual(len(gen_acts), 1)
                     self.assertEqual(gen_acts[0]["id6"], "pln101")
                     self.assertEqual(gen_acts[0]["from_backlog"], "bkl101")
+
+                    # Assert backlog transition commit, event, show, and clean porcelain
+                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+                    self.assertTrue(tx_commit)
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    tx_events = [
+                        e
+                        for e in events
+                        if e.get("event") == "backlog-transition-committed"
+                    ]
+                    self.assertEqual(len(tx_events), 1)
+                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+                    rc_anc = subprocess.run(
+                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+                        cwd=repo,
+                    ).returncode
+                    self.assertEqual(rc_anc, 0)
+                    show_out = subprocess.check_output(
+                        [
+                            "git",
+                            "show",
+                            "--name-status",
+                            "-M",
+                            "--format=%s",
+                            tx_commit,
+                        ],
+                        cwd=repo,
+                        text=True,
+                    )
+                    show_lines = [
+                        line.strip() for line in show_out.splitlines() if line.strip()
+                    ]
+                    self.assertEqual(
+                        show_lines[0], "transition(backlog): move bkl101 -> graduated"
+                    )
+                    r_lines = [line for line in show_lines[1:] if line.startswith("R")]
+                    self.assertEqual(len(r_lines), 1)
+                    self.assertIn("backlog/open/", r_lines[0])
+                    self.assertIn("backlog/graduated/", r_lines[0])
+                    st = subprocess.check_output(
+                        ["git", "status", "--porcelain"], cwd=repo, text=True
+                    )
+                    self.assertNotIn("bkl101", st)
 
                     # Resume spawns nothing: patched to fail if called
                     def fail_spawn(*args, **kwargs):
@@ -1033,6 +1273,48 @@ class TestBacklogProductionE08(unittest.TestCase):
                         )
                     )
                     self.assertEqual(len(grad_files), 0)
+
+                    # Assert rollback commit on HEAD, event, show, and clean porcelain
+                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+                    self.assertTrue(tx_commit)
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    tx_events = [
+                        e
+                        for e in events
+                        if e.get("event") == "backlog-transition-committed"
+                    ]
+                    self.assertEqual(len(tx_events), 1)
+                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+                    rc_anc = subprocess.run(
+                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+                        cwd=repo,
+                    ).returncode
+                    self.assertEqual(rc_anc, 0)
+                    show_out = subprocess.check_output(
+                        ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+                        cwd=repo,
+                        text=True,
+                    )
+                    show_lines = [
+                        line.strip() for line in show_out.splitlines() if line.strip()
+                    ]
+                    self.assertEqual(
+                        show_lines[0], "transition(backlog): move bkl203 -> open"
+                    )
+                    r_lines = [line for line in show_lines[1:] if line.startswith("R")]
+                    self.assertEqual(len(r_lines), 1)
+                    self.assertIn("backlog/graduated/", r_lines[0])
+                    self.assertIn("backlog/open/", r_lines[0])
+                    st = subprocess.check_output(
+                        ["git", "status", "--porcelain"], cwd=repo, text=True
+                    )
+                    self.assertNotIn("bkl203", st)
 
     def test_case5d_legitimacy_discrimination_achieved_vs_refused_attempt(self):
         """Case (5d): discrimination between an achieved illegitimate state and a blocked attempt.

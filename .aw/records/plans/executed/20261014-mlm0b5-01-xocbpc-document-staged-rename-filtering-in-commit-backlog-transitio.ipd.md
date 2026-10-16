@@ -6,7 +6,7 @@
 - Scope: Document the `add_paths` staged-rename source filtering and `_gch._in_index` unstaged-deletion staging in `runner_shared.commit_backlog_transition_output` (`agent_workflows/runner_shared.py`, lines 4158-4165) citing `mlm0b5` and `git_commit_helper.offer_commit`; add direct unit coverage of `runner_shared.commit_backlog_transition_output` in `TestBacklogProductionUnitE10` (`tests/test_backlog_production.py`, line 210) across staged `git mv` renames (`RM`), unstaged moves (` D` + `??`), and post-transition rollback renames (`graduated -> open`); and tighten `TestBacklogProductionE07.test_5_5c_case1_success` (`tests/test_backlog_production.py`, line 486), `TestBacklogProductionE08.test_case5c_rollback_lands_on_disk` (`tests/test_backlog_production.py`, line 954), and `TestBacklogAlreadyCompleteIntegrationE05.test_case_a_with_isolate_worktree` (`tests/test_backlog_already_complete.py`, line 237) on both hosts (`oc` and `agy`) to assert `backlog_transition_commit`, the `backlog-transition-committed` event, the `R` rename commit in git history, clean tracked porcelain status, and clean lane teardown.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_backlog_production.py, tests/test_backlog_already_complete.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: xocbpc
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xocbpc verified (set mlm0b5, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review, opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD xocbpc from backlog mlm0b5
@@ -36,35 +36,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Document commit_backlog_transition_output and pin backlog-transition commits
 
-- [ ] E-01 Update `runner_shared.commit_backlog_transition_output` (`def commit_backlog_transition_output(` in `agent_workflows/runner_shared.py`, lines 4158-4165) to add a comment above `add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]` explaining why an already-staged `git mv` rename source (`(wt / p).exists() == False` and `_gch._in_index(wt, p) == False`) is excluded from `git add` (preventing `git add` `rc == 128` pathspec failure after `status_set._offer_self_commit` preserves the staged rename under `--no-commit`, backlog `mlm0b5`) while an unstaged tracked deletion (`_gch._in_index(wt, p) == True`) is staged before `git commit`, matching `git_commit_helper.offer_commit` (`def offer_commit(` in `agent_workflows/git_commit_helper.py`, the `add_paths = [` block near line 1192). The comment MUST state that the `_in_index` branch is parity/index-consistency, not a correctness requirement of the resulting commit, because `git commit -- <paths>` stages a pathspec'd tracked deletion itself (F-05). BEFORE editing, record the pre-edit bare-suite baseline: run bare `python3 -m pytest` and record its summary line and every failing node id; E-03 compares against it by node id.
+- [x] E-01 Update `runner_shared.commit_backlog_transition_output` (`def commit_backlog_transition_output(` in `agent_workflows/runner_shared.py`, lines 4158-4165) to add a comment above `add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]` explaining why an already-staged `git mv` rename source (`(wt / p).exists() == False` and `_gch._in_index(wt, p) == False`) is excluded from `git add` (preventing `git add` `rc == 128` pathspec failure after `status_set._offer_self_commit` preserves the staged rename under `--no-commit`, backlog `mlm0b5`) while an unstaged tracked deletion (`_gch._in_index(wt, p) == True`) is staged before `git commit`, matching `git_commit_helper.offer_commit` (`def offer_commit(` in `agent_workflows/git_commit_helper.py`, the `add_paths = [` block near line 1192). The comment MUST state that the `_in_index` branch is parity/index-consistency, not a correctness requirement of the resulting commit, because `git commit -- <paths>` stages a pathspec'd tracked deletion itself (F-05). BEFORE editing, record the pre-edit bare-suite baseline: run bare `python3 -m pytest` and record its summary line and every failing node id; E-03 compares against it by node id.
   - Depends on: none
   - Expected outcome: `runner_shared.commit_backlog_transition_output` documents the `(wt / p).exists() or _gch._in_index(wt, p)` invariant, its `mlm0b5` / `git_commit_helper.offer_commit` provenance, and the F-05 limit, without altering runtime behavior (the diff touches comment lines only); the pre-edit bare-suite baseline is recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add direct unit coverage of `runner_shared.commit_backlog_transition_output` in `tests/test_backlog_production.py`:
+- [x] E-02 Add direct unit coverage of `runner_shared.commit_backlog_transition_output` in `tests/test_backlog_production.py`:
   - In `TestBacklogProductionUnitE10` (`class TestBacklogProductionUnitE10(unittest.TestCase):` in `tests/test_backlog_production.py`, line 210), add `test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback(self) -> None` covering three cases in scratch git repositories (`_make_test_repo`):
     1. **Staged `git mv` rename (`RM <old> -> <new>`)**: commit an `open` backlog item (`bkl010`, `gate="next"`) and a linked conforming plan (`pln010`, `gate="next"`), run `cli.main(["backlog", "set", "bkl010", "--status", "graduated", "--message", "graduated by run run-unit-1: pln010", "--no-commit", "--dir", str(repo)])`, assert `git status --porcelain --untracked-files=all` contains an `RM` rename line `backlog/open/... -> backlog/graduated/...`, then invoke `runner_shared.commit_backlog_transition_output(repo, "bkl010", status_label="graduated", run_id="run-unit-1", host_label="aw oc run")`. Assert it returns `(sha, (new_rel, old_rel))` with a non-empty `sha`, `git show --name-status -M --format=%B HEAD` records subject `transition(backlog): move bkl010 -> graduated`, trailers `AW-Run: run-unit-1`, `AW-Item: bkl010`, `AW-Committed-By: driver`, and `AW-Runner: aw oc run`, and a single `R` rename line `backlog/open/... -> backlog/graduated/...`, and `git status --porcelain` has no tracked entries (`backlog/open/` and `backlog/graduated/` absent).
     2. **Unstaged move (` D <old>` + `?? <new>`)**: commit an `open` backlog item (`bkl011`), move it to `backlog/graduated/` via filesystem write and `unlink()` without `git mv` (assert porcelain shows ` D .aw/records/backlog/open/...` and `?? .aw/records/backlog/graduated/...`), and invoke `runner_shared.commit_backlog_transition_output(repo, "bkl011", status_label="graduated", run_id="run-unit-2", host_label="aw agy run")`. Assert it returns `(sha, (new_rel, old_rel))` with a non-empty `sha`, that `git show --name-status -M --format=%s HEAD` records `transition(backlog): move bkl011 -> graduated` with a single `R` rename (no separate `A`/`D` pair), and that `git status --porcelain --untracked-files=no` is empty. Do NOT wrap or patch `runner_shared._run_git` to observe the intermediate index: that pins the internal call sequence (P16), and F-05 measured that the committed outcome is identical with or without the `_in_index` branch.
     3. **Rollback staged rename (`graduated -> open`, `status_label="open"`)**: on the `graduated` item (`bkl010`), run `cli.main(["backlog", "set", "bkl010", "--status", "open", "--message", "handoff incomplete: BACKLOG-CROSS-TREE", "--no-commit", "--dir", str(repo)])`, assert `git status --porcelain --untracked-files=all` contains an `RM` rename line `backlog/graduated/... -> backlog/open/...`, and invoke `runner_shared.commit_backlog_transition_output(repo, "bkl010", status_label="open", run_id="run-unit-3", host_label="aw oc run")`. Assert it returns `(sha, (new_rel, old_rel))` and `git show --name-status -M --format=%s HEAD` records `transition(backlog): move bkl010 -> open` with a single `R` rename `backlog/graduated/... -> backlog/open/...`.
   - Depends on: E-01
   - Expected outcome: `TestBacklogProductionUnitE10` directly drives `commit_backlog_transition_output` across a staged `git mv` rename, an unstaged move, and a rollback rename, and asserts the returned sha, the commit subject and trailers, a single `R` rename line, and a clean tracked status.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Perform failure-sensitivity verification and run full repository validation:
+- [x] E-03 Perform failure-sensitivity verification and run full repository validation:
   - Sensitivity check (1) (pre-fix bug from `mlm0b5`): temporarily replace the `add_paths` block in `runner_shared.commit_backlog_transition_output` (`agent_workflows/runner_shared.py`, the `add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]` block) with `rc, _out, _err = _run_git(wt, ["add", "--", *allowed]); if rc != 0: return None, ()`, run `python3 -m pytest -o addopts="" tests/test_backlog_production.py tests/test_backlog_already_complete.py -k "test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback or test_5_5c_case1_success or test_case5c_rollback_lands_on_disk or test_case_a_with_isolate_worktree"`, and verify all four tests fail. (Measured at review by forcing the filter to pass every path: the three end-to-end tests' `commit_backlog_transition_output` calls returned `None` on both hosts and the existing on-disk assertions already failed, so this check is satisfiable.)
   - NO sensitivity check is required for the `_in_index` branch alone. Measured at review HEAD `f94003c03` (F-05): with `_gch._in_index` forced to `False`, an unstaged move (` D <old>` + `?? <new>`) still commits a single `R100` rename and leaves a clean tracked status, because `git commit -- <old> <new>` records the pathspec'd deletion itself; the three end-to-end tests also pass. No observable outcome distinguishes the branch, so a test claiming to pin it would either be vacuous or pin the internal `git add` call sequence (P16). The E-01 comment records this limit instead. Restore the E-01 implementation after check (1) and confirm `git diff -- agent_workflows/runner_shared.py` shows comment lines only.
   - Run `python3 -m pytest -o addopts="" tests/test_backlog_production.py tests/test_backlog_already_complete.py tests/test_production_baseline_same_commit.py tests/test_production_set_check.py tests/test_production_resume_handoff.py`, `python3 -m unittest discover -s tests -t . -p test_backlog_production.py -v`, `python3 -m unittest discover -s tests -t . -p test_backlog_already_complete.py -v`, `aw check release-gates`, `aw sanitize --agent`, and the bare repository test suite (`python3 -m pytest`).
   - Depends on: E-01, E-02, E-04
   - Expected outcome: Sensitivity check (1) fails all four tests when the pre-fix `git add -- *allowed` is restored and they pass once E-01 is restored; the runtime diff is comment-only; the targeted pytest modules, `unittest discover`, `aw check release-gates`, and `aw sanitize --agent` exit `0`; and bare `python3 -m pytest` shows no failing node id absent from the E-01 baseline.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Tighten the existing end-to-end runner tests on both hosts (`oc` and `agy`) so they assert the backlog-transition COMMIT, not only the on-disk location:
+- [x] E-04 Tighten the existing end-to-end runner tests on both hosts (`oc` and `agy`) so they assert the backlog-transition COMMIT, not only the on-disk location:
   - In `TestBacklogProductionE07.test_5_5c_case1_success` (`def test_5_5c_case1_success(self):` in `tests/test_backlog_production.py`, line 486, non-isolated on both `oc` and `agy`), assert that `item["attempts"][0].get("backlog_transition_commit")` is a non-empty commit SHA, `events.jsonl` contains a `"backlog-transition-committed"` event with `"commit": item["attempts"][0]["backlog_transition_commit"]`, `git show --name-status -M --format=%s <backlog_transition_commit>` has subject `transition(backlog): move bkl101 -> graduated` and a single `R` rename line `backlog/open/... -> backlog/graduated/...`, and `git status --porcelain` has no tracked entry for `bkl101`.
   - In `TestBacklogProductionE08.test_case5c_rollback_lands_on_disk` (`def test_case5c_rollback_lands_on_disk(self):` in `tests/test_backlog_production.py`, line 954, non-isolated on both `oc` and `agy`), assert that `git show --name-status -M --format=%s HEAD` has subject `transition(backlog): move bkl203 -> open` and a single `R` rename line `backlog/graduated/... -> backlog/open/...`, and `git status --porcelain` has no tracked entry for `bkl203`.
   - In `TestBacklogAlreadyCompleteIntegrationE05.test_case_a_with_isolate_worktree` (`def test_case_a_with_isolate_worktree(self):` in `tests/test_backlog_already_complete.py`, line 237, isolated worktree on both `oc` and `agy`), assert that `item["attempts"][0].get("backlog_transition_commit")` is a non-empty commit SHA, `events.jsonl` contains a `"backlog-transition-committed"` event with `"commit": item["attempts"][0]["backlog_transition_commit"]`, `"preserved_worktree"` is not in `item` (lane tore down cleanly), the sha is reachable from `repo`'s `HEAD` (`git merge-base --is-ancestor <sha> HEAD` exits `0`, since the lane commit arrives by integration), and `git show --name-status -M --format=%s <backlog_transition_commit>` in `repo` after integration has subject `transition(backlog): move bkla02 -> done` and a single `R` rename line `backlog/open/... -> backlog/done/...`.
   - Depends on: E-01
   - Expected outcome: The three end-to-end tests assert, on both hosts, a non-empty `backlog_transition_commit` reachable from `HEAD` (`git merge-base --is-ancestor`), exactly one `backlog-transition-committed` event carrying that sha (rollback: the recorded sha is the `-> graduated` commit and the `-> open` rollback commit is `HEAD`, because only the forward transition records `backlog_transition_commit`), the subject and a single `R` rename line, no tracked porcelain entry for the item, and (isolated case) no `preserved_worktree` key. Measured at review HEAD `f94003c03`: every one of these properties already holds on both hosts, so the tightened tests pass against current code.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -127,25 +127,524 @@ N/A for `.spec.md` files and `CHANGELOG.md`: spec `25kzda` Section 4.9 / 5.5c al
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pre-edit bare-suite summary line and failing node ids (or an explicit empty list), plus the pasted `git diff -- agent_workflows/runner_shared.py` showing only added comment lines (no changed code line) in `runner_shared.commit_backlog_transition_output` documenting `add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]` with the explanatory comment citing `mlm0b5`, `git_commit_helper.offer_commit`, and the F-05 limit (the `_in_index` branch is index parity, not commit correctness).
   - Observed evidence:
-  - Result: pending
+    Pre-edit bare-suite baseline:
+    `707 passed in 25.40s`
+    Failing node ids: [] (0 failing tests).
 
-- [ ] V-02 validates E-02
+    `git diff -- agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index ea31c7acd..dffe78291 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -4162,6 +4162,16 @@ def commit_backlog_transition_output(
+
+         from agent_workflows import git_commit_helper as _gch
+
+    +    # Filter out an already-staged `git mv` rename source: when status_set._offer_self_commit
+    +    # preserves the staged rename under --no-commit (backlog mlm0b5), `old` is already gone
+    +    # from disk ((wt / p).exists() == False) and already gone from HEAD's index working set
+    +    # (_gch._in_index(wt, p) == False). Passing such a path to `git add --` fails with rc 128
+    +    # ("fatal: pathspec did not match any files") and aborts the transition commit.
+    +    # Conversely, for an unstaged tracked deletion (_gch._in_index(wt, p) == True), staging it
+    +    # here matches git_commit_helper.offer_commit (line 1192) and maintains index consistency
+    +    # between `git add` and `git commit`. Note that the `_in_index` branch is for index consistency
+    +    # and offer_commit parity rather than commit correctness (F-05), because the trailing
+    +    # `git commit -- *allowed` pathspec stages tracked deletions itself.
+         add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]
+         if add_paths:
+             rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -- tests/test_backlog_production.py` limited to the new unit test, and pasted output of `python3 -m pytest -o addopts="" -v tests/test_backlog_production.py -k test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback` (the name is a non-binding pointer) showing it passing, where the diff shows the three subcases asserting the returned sha, the subject and the four trailers, a single `R` rename line, and an empty tracked porcelain status, and shows NO patch or wrapper of `runner_shared._run_git`. Reachable via `runner_shared.commit_backlog_transition_output` called directly.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_backlog_production.py` (limited to the new unit test):
+    ```diff
+    +    def test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback(
+    +        self,
+    +    ) -> None:
+    +        # 1. Staged git mv rename (RM <old> -> <new>)
+    +        with tempfile.TemporaryDirectory() as td:
+    +            repo = _make_test_repo(Path(td))
+    +            _write_backlog_item(repo, id6="bkl010", status="open", gate="next")
+    +            _write_conforming_plan(repo, id6="pln010", backlog_id6="bkl010", gate="next")
+    +            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    +            subprocess.run(
+    +                ["git", "commit", "-qm", "add bkl010 and pln010"], cwd=repo, check=True
+    +            )
+    +
+    +            rc = cli.main(
+    +                [
+    +                    "backlog",
+    +                    "set",
+    +                    "bkl010",
+    +                    "--status",
+    +                    "graduated",
+    +                    "--message",
+    +                    "graduated by run run-unit-1: pln010",
+    +                    "--no-commit",
+    +                    "--dir",
+    +                    str(repo),
+    +                ]
+    +            )
+    +            self.assertEqual(rc, 0)
+    +            st = subprocess.check_output(
+    +                ["git", "status", "--porcelain", "--untracked-files=all"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            self.assertTrue(
+    +                any(
+    +                    "RM" in line
+    +                    and "backlog/open/" in line
+    +                    and "backlog/graduated/" in line
+    +                    for line in st.splitlines()
+    +                )
+    +            )
+    +
+    +            sha, paths = runner_shared.commit_backlog_transition_output(
+    +                repo,
+    +                "bkl010",
+    +                status_label="graduated",
+    +                run_id="run-unit-1",
+    +                host_label="aw oc run",
+    +            )
+    +            self.assertTrue(sha)
+    +            self.assertEqual(len(paths), 2)
+    +            show_body = subprocess.check_output(
+                ["git", "show", "--name-status", "-M", "--format=%B", "HEAD"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            self.assertIn("transition(backlog): move bkl010 -> graduated", show_body)
+    +            self.assertIn("AW-Run: run-unit-1", show_body)
+    +            self.assertIn("AW-Item: bkl010", show_body)
+    +            self.assertIn("AW-Committed-By: driver", show_body)
+    +            self.assertIn("AW-Runner: aw oc run", show_body)
+    +            r_lines = [l for l in show_body.splitlines() if l.startswith("R")]
+    +            self.assertEqual(len(r_lines), 1)
+    +            self.assertIn("backlog/open/", r_lines[0])
+    +            self.assertIn("backlog/graduated/", r_lines[0])
+    +            st_after = subprocess.check_output(
+    +                ["git", "status", "--porcelain"], cwd=repo, text=True
+    +            )
+    +            self.assertNotIn("backlog/open/", st_after)
+    +            self.assertNotIn("backlog/graduated/", st_after)
+    +
+    +            # 3. Rollback staged rename (graduated -> open, status_label="open")
+    +            rc_rb = cli.main(
+    +                [
+    +                    "backlog",
+    +                    "set",
+    +                    "bkl010",
+    +                    "--status",
+    +                    "open",
+    +                    "--message",
+    +                    "handoff incomplete: BACKLOG-CROSS-TREE",
+    +                    "--no-commit",
+    +                    "--dir",
+    +                    str(repo),
+    +                ]
+    +            )
+    +            self.assertEqual(rc_rb, 0)
+    +            st_rb = subprocess.check_output(
+    +                ["git", "status", "--porcelain", "--untracked-files=all"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            self.assertTrue(
+    +                any(
+    +                    "RM" in line
+    +                    and "backlog/graduated/" in line
+    +                    and "backlog/open/" in line
+    +                    for line in st_rb.splitlines()
+    +                )
+    +            )
+    +            sha3, paths3 = runner_shared.commit_backlog_transition_output(
+    +                repo,
+    +                "bkl010",
+    +                status_label="open",
+    +                run_id="run-unit-3",
+    +                host_label="aw oc run",
+    +            )
+    +            self.assertTrue(sha3)
+    +            self.assertEqual(len(paths3), 2)
+    +            show_s3 = subprocess.check_output(
+    +                ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            lines3 = [l.strip() for l in show_s3.splitlines() if l.strip()]
+    +            self.assertEqual(lines3[0], "transition(backlog): move bkl010 -> open")
+    +            r_lines3 = [l for l in lines3[1:] if l.startswith("R")]
+    +            self.assertEqual(len(r_lines3), 1)
+    +            self.assertIn("backlog/graduated/", r_lines3[0])
+    +            self.assertIn("backlog/open/", r_lines3[0])
+    +            st_after3 = subprocess.check_output(
+    +                ["git", "status", "--porcelain"], cwd=repo, text=True
+    +            )
+    +            self.assertNotIn("backlog/open/", st_after3)
+    +            self.assertNotIn("backlog/graduated/", st_after3)
+    +
+    +        # 2. Unstaged move ( D <old> + ?? <new>)
+    +        with tempfile.TemporaryDirectory() as td:
+    +            repo = _make_test_repo(Path(td))
+    +            _write_backlog_item(repo, id6="bkl011", status="open")
+    +            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    +            subprocess.run(
+    +                ["git", "commit", "-qm", "add bkl011"], cwd=repo, check=True
+    +            )
+    +
+    +            old_file = next(repo.glob(".aw/records/backlog/open/*bkl011*.backlog.md"))
+    +            grad_dir = repo / ".aw" / "records" / "backlog" / "graduated"
+    +            grad_dir.mkdir(parents=True, exist_ok=True)
+    +            new_file = grad_dir / old_file.name
+    +            new_file.write_text(old_file.read_text(encoding="utf-8"), encoding="utf-8")
+    +            old_file.unlink()
+    +
+    +            st2 = subprocess.check_output(
+    +                ["git", "status", "--porcelain", "--untracked-files=all"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            self.assertTrue(
+    +                any(" D " in line and "backlog/open/" in line for line in st2.splitlines())
+    +            )
+    +            self.assertTrue(
+    +                any("??" in line and "backlog/graduated/" in line for line in st2.splitlines())
+    +            )
+    +
+    +            sha2, paths2 = runner_shared.commit_backlog_transition_output(
+    +                repo,
+    +                "bkl011",
+    +                status_label="graduated",
+    +                run_id="run-unit-2",
+    +                host_label="aw agy run",
+    +            )
+    +            self.assertTrue(sha2)
+    +            self.assertEqual(len(paths2), 2)
+    +            show_s2 = subprocess.check_output(
+    +                ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            lines2 = [l.strip() for l in show_s2.splitlines() if l.strip()]
+    +            self.assertEqual(lines2[0], "transition(backlog): move bkl011 -> graduated")
+    +            r_lines2 = [l for l in lines2[1:] if l.startswith("R")]
+    +            self.assertEqual(len(r_lines2), 1)
+    +            self.assertIn("backlog/open/", r_lines2[0])
+    +            self.assertIn("backlog/graduated/", r_lines2[0])
+    +            self.assertFalse(
+    +                any(l.startswith("A") or l.startswith("D") for l in lines2[1:])
+    +            )
+    +            st_tracked2 = subprocess.check_output(
+    +                ["git", "status", "--porcelain", "--untracked-files=no"],
+    +                cwd=repo,
+    +                text=True,
+    +            )
+    +            self.assertEqual(st_tracked2.strip(), "")
+    ```
 
-- [ ] V-03 validates E-03
+    `python3 -m pytest -o addopts="" -v tests/test_backlog_production.py -k test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback`:
+    ```
+    tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback PASSED [100%]
+    ======================= 1 passed, 15 deselected in 1.00s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted output of sensitivity check (1) showing all four named tests failing with the pre-fix `_run_git(wt, ["add", "--", *allowed])` restored, then the same command passing after restoration, plus `git diff -- agent_workflows/runner_shared.py` after restoration showing comment lines only; plus pasted exit-0 outputs of `python3 -m pytest -o addopts="" tests/test_backlog_production.py tests/test_backlog_already_complete.py tests/test_production_baseline_same_commit.py tests/test_production_set_check.py tests/test_production_resume_handoff.py`, both `python3 -m unittest discover` runs, `aw check release-gates`, and `aw sanitize --agent`; and the bare `python3 -m pytest` summary line with any failing node ids, compared by node id against the E-01 baseline with no new failure.
   - Observed evidence:
-  - Result: pending
+    Sensitivity check (1) with pre-fix `_run_git(wt, ["add", "--", *allowed])` restored:
+    ```
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE07::test_5_5c_case1_success
+    FAILED tests/test_backlog_production.py::TestBacklogProductionUnitE10::test_commit_backlog_transition_output_staged_rename_unstaged_move_and_rollback
+    FAILED tests/test_backlog_production.py::TestBacklogProductionE08::test_case5c_rollback_lands_on_disk
+    FAILED tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_a_with_isolate_worktree
+    ======================= 4 failed, 25 deselected in 6.34s =======================
+    ```
 
-- [ ] V-04 validates E-04
+    Post-restoration of E-01 implementation:
+    `git diff -- agent_workflows/runner_shared.py` shows comment lines only:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index ea31c7acd..dffe78291 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -4162,6 +4162,16 @@ def commit_backlog_transition_output(
+
+         from agent_workflows import git_commit_helper as _gch
+
+    +    # Filter out an already-staged `git mv` rename source: when status_set._offer_self_commit
+    +    # preserves the staged rename under --no-commit (backlog mlm0b5), `old` is already gone
+    +    # from disk ((wt / p).exists() == False) and already gone from HEAD's index working set
+    +    # (_gch._in_index(wt, p) == False). Passing such a path to `git add --` fails with rc 128
+    +    # ("fatal: pathspec did not match any files") and aborts the transition commit.
+    +    # Conversely, for an unstaged tracked deletion (_gch._in_index(wt, p) == True), staging it
+    +    # here matches git_commit_helper.offer_commit (line 1192) and maintains index consistency
+    +    # between `git add` and `git commit`. Note that the `_in_index` branch is for index consistency
+    +    # and offer_commit parity rather than commit correctness (F-05), because the trailing
+    +    # `git commit -- *allowed` pathspec stages tracked deletions itself.
+         add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]
+         if add_paths:
+             rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
+    ```
+
+    Four tests passing after restoration:
+    ```
+    tests/test_backlog_production.py ...                                     [ 75%]
+    tests/test_backlog_already_complete.py .                                 [100%]
+    ====================== 4 passed, 25 deselected in 13.02s =======================
+    ```
+
+    Targeted pytest modules:
+    `python3 -m pytest -o addopts="" tests/test_backlog_production.py tests/test_backlog_already_complete.py tests/test_production_baseline_same_commit.py tests/test_production_set_check.py tests/test_production_resume_handoff.py`:
+    ```
+    tests/test_backlog_production.py ................                        [ 27%]
+    tests/test_production_baseline_same_commit.py ....                       [ 34%]
+    tests/test_production_set_check.py ................                      [ 62%]
+    tests/test_backlog_already_complete.py .............                     [ 84%]
+    tests/test_production_resume_handoff.py .........                        [100%]
+    ======================== 58 passed in 93.78s (0:01:33) =========================
+    ```
+
+    Unittest discover for `test_backlog_production.py`:
+    `python3 -m unittest discover -s tests -t . -p test_backlog_production.py -v`:
+    ```
+    Ran 16 tests in 30.778s
+    OK
+    ```
+
+    Unittest discover for `test_backlog_already_complete.py`:
+    `python3 -m unittest discover -s tests -t . -p test_backlog_already_complete.py -v`:
+    ```
+    Ran 13 tests in 23.198s
+    OK
+    ```
+
+    Release gates check:
+    `aw check release-gates`:
+    ```
+    ✓ CONFORMS  67 release-gates checked
+    ```
+
+    Sanitizer check:
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5243,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    Bare test suite (`python3 -m pytest`):
+    ```
+    707 passed in 24.05s
+    ```
+    Failing node ids: [] (no failures; identical to baseline of 707 passed).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted `git diff -- tests/test_backlog_production.py tests/test_backlog_already_complete.py` for the three tightened tests and pasted output of `python3 -m pytest -o addopts="" -v tests/test_backlog_production.py tests/test_backlog_already_complete.py -k "test_5_5c_case1_success or test_case5c_rollback_lands_on_disk or test_case_a_with_isolate_worktree"` showing them passing, where the diff shows, inside the existing `_HOSTS` subtest loop, assertions on: a non-empty `backlog_transition_commit` reachable from `HEAD`; exactly one `backlog-transition-committed` event whose `commit` equals it; the expected subject and a single `R` rename line; no tracked porcelain entry for the item; and, for the isolated test, no `preserved_worktree` key. Reachable via `oc_runipd.run_queue` / `agy_runipd.run_queue`, which call `runner_shared.commit_backlog_transition_output` from `runner_shared.execute_item_core` and `runner_shared._close_already_complete_backlog_item`.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_backlog_production.py tests/test_backlog_already_complete.py`:
+    ```diff
+    diff --git a/tests/test_backlog_already_complete.py b/tests/test_backlog_already_complete.py
+    index dd0cf748d..337190d6e 100644
+    --- a/tests/test_backlog_already_complete.py
+    +++ b/tests/test_backlog_already_complete.py
+    @@ -397,7 +397,12 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
+                 with self.subTest(host=host_label):
+                     with tempfile.TemporaryDirectory() as td:
+                         repo = _make_test_repo(Path(td))
+    -                    _write_backlog_item(repo, id6="bkla02", status="open")
+    +                    _write_backlog_item(
+    +                        repo,
+    +                        id6="bkla02",
+    +                        status="open",
+    +                        summary="Test backlog item for already complete closure",
+    +                    )
+                         _write_conforming_plan(
+                             repo, id6="plna02", backlog_id6="bkla02", bucket="executed"
+                         )
+    @@ -478,6 +483,60 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
+                         self.assertEqual(len(bkl_files), 1)
+                         self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
+
+    +                    # Assert backlog transition commit, event, show, clean porcelain, and lane teardown
+    +                    state = json.loads(
+    +                        (run_dir / "state.json").read_text(encoding="utf-8")
+    +                    )
+    +                    item = state["queue"][0]
+    +                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+    +                    self.assertTrue(tx_commit)
+    +                    events = [
+                        json.loads(line)
+    +                        for line in (run_dir / "events.jsonl")
+    +                        .read_text(encoding="utf-8")
+    +                        .splitlines()
+    +                        if line.strip()
+    +                    ]
+    +                    tx_events = [
+    +                        e
+    +                        for e in events
+    +                        if e.get("event") == "backlog-transition-committed"
+    +                    ]
+    +                    self.assertEqual(len(tx_events), 1)
+    +                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+    +                    self.assertNotIn("preserved_worktree", item)
+    +                    rc_anc = subprocess.run(
+    +                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+    +                        cwd=repo,
+    +                    ).returncode
+    +                    self.assertEqual(rc_anc, 0)
+    +                    show_out = subprocess.check_output(
+    +                        [
+    +                            "git",
+    +                            "show",
+    +                            "--name-status",
+    +                            "-M",
+    +                            "--format=%s",
+    +                            tx_commit,
+    +                        ],
+    +                        cwd=repo,
+    +                        text=True,
+    +                    )
+    +                    show_lines = [
+    +                        l.strip() for l in show_out.splitlines() if l.strip()
+    +                    ]
+    +                    self.assertEqual(
+    +                        show_lines[0], "transition(backlog): move bkla02 -> done"
+    +                    )
+    +                    r_lines = [l for l in show_lines[1:] if l.startswith("R")]
+    +                    self.assertEqual(len(r_lines), 1)
+    +                    self.assertIn("backlog/open/", r_lines[0])
+    +                    self.assertIn("backlog/done/", r_lines[0])
+    +                    st = subprocess.check_output(
+    +                        ["git", "status", "--porcelain"], cwd=repo, text=True
+    +                    )
+    +                    self.assertNotIn("bkla02", st)
+    +
+         def test_case_b_one_carrier_pending(self):
+             """Case (b): one carrier pending: agent called and item graduates as today."""
+             for host_label, mod in _HOSTS:
+    diff --git a/tests/test_backlog_production.py b/tests/test_backlog_production.py
+    index 754b2a95c..673dbb7ae 100644
+    --- a/tests/test_backlog_production.py
+    +++ b/tests/test_backlog_production.py
+    @@ -744,6 +744,55 @@ class TestBacklogProductionE07(unittest.TestCase):
+                         self.assertEqual(gen_acts[0]["id6"], "pln101")
+                         self.assertEqual(gen_acts[0]["from_backlog"], "bkl101")
+
+    +                    # Assert backlog transition commit, event, show, and clean porcelain
+    +                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+    +                    self.assertTrue(tx_commit)
+    +                    events = [
+    +                        json.loads(line)
+    +                        for line in (run_dir / "events.jsonl")
+    +                        .read_text(encoding="utf-8")
+    +                        .splitlines()
+    +                        if line.strip()
+    +                    ]
+    +                    tx_events = [
+    +                        e
+    +                        for e in events
+    +                        if e.get("event") == "backlog-transition-committed"
+    +                    ]
+    +                    self.assertEqual(len(tx_events), 1)
+    +                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+    +                    rc_anc = subprocess.run(
+    +                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+    +                        cwd=repo,
+    +                    ).returncode
+    +                    self.assertEqual(rc_anc, 0)
+    +                    show_out = subprocess.check_output(
+    +                        [
+    +                            "git",
+    +                            "show",
+    +                            "--name-status",
+    +                            "-M",
+    +                            "--format=%s",
+    +                            tx_commit,
+    +                        ],
+    +                        cwd=repo,
+    +                        text=True,
+    +                    )
+    +                    show_lines = [
+    +                        l.strip() for l in show_out.splitlines() if l.strip()
+    +                    ]
+    +                    self.assertEqual(
+    +                        show_lines[0], "transition(backlog): move bkl101 -> graduated"
+    +                    )
+    +                    r_lines = [l for l in show_lines[1:] if l.startswith("R")]
+    +                    self.assertEqual(len(r_lines), 1)
+    +                    self.assertIn("backlog/open/", r_lines[0])
+    +                    self.assertIn("backlog/graduated/", r_lines[0])
+    +                    st = subprocess.check_output(
+    +                        ["git", "status", "--porcelain"], cwd=repo, text=True
+    +                    )
+    +                    self.assertNotIn("bkl101", st)
+    +
+                         # Resume spawns nothing: patched to fail if called
+                         def fail_spawn(*args, **kwargs):
+                             self.fail("Spawn called on completed run during resume")
+    @@ -1268,6 +1317,48 @@ class TestBacklogProductionE08(unittest.TestCase):
+                         )
+                         self.assertEqual(len(grad_files), 0)
+
+    +                    # Assert rollback commit on HEAD, event, show, and clean porcelain
+    +                    tx_commit = item["attempts"][0].get("backlog_transition_commit")
+    +                    self.assertTrue(tx_commit)
+    +                    events = [
+    +                        json.loads(line)
+    +                        for line in (run_dir / "events.jsonl")
+    +                        .read_text(encoding="utf-8")
+    +                        .splitlines()
+    +                        if line.strip()
+    +                    ]
+    +                    tx_events = [
+    +                        e
+    +                        for e in events
+    +                        if e.get("event") == "backlog-transition-committed"
+    +                    ]
+    +                    self.assertEqual(len(tx_events), 1)
+    +                    self.assertEqual(tx_events[0]["commit"], tx_commit)
+    +                    rc_anc = subprocess.run(
+    +                        ["git", "merge-base", "--is-ancestor", tx_commit, "HEAD"],
+    +                        cwd=repo,
+    +                    ).returncode
+    +                    self.assertEqual(rc_anc, 0)
+    +                    show_out = subprocess.check_output(
+    +                        ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+    +                        cwd=repo,
+    +                        text=True,
+    +                    )
+    +                    show_lines = [
+    +                        l.strip() for l in show_out.splitlines() if l.strip()
+    +                    ]
+    +                    self.assertEqual(
+    +                        show_lines[0], "transition(backlog): move bkl203 -> open"
+    +                    )
+    +                    r_lines = [l for l in show_lines[1:] if l.startswith("R")]
+    +                    self.assertEqual(len(r_lines), 1)
+    +                    self.assertIn("backlog/graduated/", r_lines[0])
+    +                    self.assertIn("backlog/open/", r_lines[0])
+    +                    st = subprocess.check_output(
+    +                        ["git", "status", "--porcelain"], cwd=repo, text=True
+    +                    )
+    +                    self.assertNotIn("bkl203", st)
+    ```
+
+    `python3 -m pytest -o addopts="" -v tests/test_backlog_production.py tests/test_backlog_already_complete.py -k "test_5_5c_case1_success or test_case5c_rollback_lands_on_disk or test_case_a_with_isolate_worktree"`:
+    ```
+    tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_a_with_isolate_worktree PASSED [ 33%]
+    tests/test_backlog_production.py::TestBacklogProductionE07::test_5_5c_case1_success PASSED [ 66%]
+    tests/test_backlog_production.py::TestBacklogProductionE08::test_case5c_rollback_lands_on_disk PASSED [100%]
+    ======================= 3 passed, 26 deselected in 11.20s =======================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
