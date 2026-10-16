@@ -2772,7 +2772,9 @@ def _iter_plan_files(root: Path) -> Tuple[Optional[Path], List[Path]]:
         pass
 
     if base is None:
-        in_tree = root / ".aw" / "records" / "plans"
+        from agent_workflows.project_context import project_records_dir
+
+        in_tree = project_records_dir(root) / "plans"
         if in_tree.is_dir():
             base = in_tree
         elif (root / ".agents" / "plans").is_dir():
@@ -2789,9 +2791,10 @@ def _default_pending_files() -> List[Path]:
     """awlintmulti Order 01: every pending plan across both pending dirs (.aw/records/plans/pending
     and legacy .agents/plans/pending), excluding README/INDEX/STATUS sentinels."""
     from pathlib import Path as _P
+    from agent_workflows.project_context import project_records_dir
 
     roots = [
-        _P(".aw") / "records" / "plans" / "pending",
+        project_records_dir(Path(".")) / "plans" / "pending",
         _P(".agents") / "plans" / "pending",
     ]
     out: List[Path] = []

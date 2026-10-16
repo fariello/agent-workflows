@@ -649,7 +649,9 @@ def scan(
     # When a tree exists on disk but has no entry in SCAN_ROOTS, iter_scan_files never opens it,
     # so no per-file check can see it. A shallow listing of the records root surfaces such trees.
     if not type_filters:
-        records_dir = repo_root / ".aw" / "records"
+        from agent_workflows.project_context import project_records_dir
+
+        records_dir = project_records_dir(repo_root)
         if not records_dir.is_dir():
             records_dir = repo_root / ".agents"
         if records_dir.is_dir():

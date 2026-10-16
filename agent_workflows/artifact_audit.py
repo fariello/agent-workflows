@@ -1108,7 +1108,9 @@ def _dir_signature(repo_root: Path, record_types: Sequence[str]) -> tuple:
     never wrong, whereas a pruned walk would reintroduce type-vocabulary coupling and risk staleness.
     """
     sig: List[tuple] = []
-    for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+    from agent_workflows.project_context import project_records_dir
+
+    for base in (project_records_dir(repo_root), repo_root / ".agents"):
         if not base.is_dir():
             continue
         stack = [base]

@@ -335,13 +335,15 @@ def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
     # of non-plan files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
     # We import locally to avoid introducing top-level package imports in agy_run.
     from agent_workflows import plans_index
+    from agent_workflows.project_context import project_records_dir
 
     resolved_root = root.resolve()
     target_states = set(states)
     candidates: list[Path] = []
+    rec_plans = project_records_dir(root) / "plans"
     for plans_base in (
         root / ".agents" / "plans",
-        root / ".aw" / "records" / "plans",
+        rec_plans,
     ):
         if not plans_base.is_dir():
             continue
@@ -353,8 +355,14 @@ def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
             except ValueError:
                 continue
 
+    rec_root = project_records_dir(root).resolve()
     return sorted(
-        {p.resolve() for p in candidates if p.resolve().is_relative_to(resolved_root)}
+        {
+            p.resolve()
+            for p in candidates
+            if p.resolve().is_relative_to(resolved_root)
+            or p.resolve().is_relative_to(rec_root)
+        }
     )
 
 
@@ -368,10 +376,12 @@ def resolve_ipd(root: Path, value: str, states: Iterable[str]) -> Path:
     direct = supplied if supplied.is_absolute() else root / supplied
     if direct.is_file():
         resolved = direct.resolve()
+        from agent_workflows.project_context import project_records_dir
+
         # Verify it is under a plans directory
         plans_roots = [
             (root / ".agents" / "plans").resolve(),
-            (root / ".aw" / "records" / "plans").resolve(),
+            (project_records_dir(root) / "plans").resolve(),
         ]
         matched_state = False
         for pr in plans_roots:
@@ -405,7 +415,11 @@ def resolve_ipd(root: Path, value: str, states: Iterable[str]) -> Path:
             f"No IPD matching {value!r} found in plan states: {state_text}."
         )
     if len(matches) > 1:
-        rendered = "\n".join(f"  - {p.relative_to(root.resolve())}" for p in matches)
+        from agent_workflows import artifact_core as _core
+
+        rendered = "\n".join(
+            f"  - {_core.repo_relative_posix(p, root)}" for p in matches
+        )
         raise ScriptError(f"IPD reference {value!r} is ambiguous:\n{rendered}")
     return matches[0].resolve()
 

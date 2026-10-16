@@ -187,11 +187,13 @@ def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
     except OSError:
         pass
 
-    # Fallback for any other record in .aw/records or .agents
+    # Fallback for any other record in records or .agents
     with contextlib.suppress(OSError):
         resolved = path.resolve()
+        from agent_workflows.project_context import project_records_dir
+
         for base in (
-            (repo_root / ".aw" / "records").resolve(),
+            project_records_dir(repo_root).resolve(),
             (repo_root / ".agents").resolve(),
         ):
             if base.is_dir() and (base == resolved or base in resolved.parents):

@@ -275,8 +275,15 @@ def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...
             seen.add(key)
             out.append(p)
 
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
+
+    rec_root = project_records_dir(repo_root)
+
     if record_type == "other":
-        for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+        for base in (rec_root, repo_root / ".agents"):
             if not base.is_dir():
                 continue
             for child in base.iterdir():
@@ -288,18 +295,23 @@ def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...
                     for f in base.iterdir()
                 ):
                     _add(base)
-        _add(repo_root / ".aw" / "records" / "other")
+        _add(rec_root / "other")
         _add(repo_root / ".agents" / "other")
         return tuple(out)
 
-    try:
-        for p in _rp.resolve_record_read_paths(record_type, target_repo=repo_root_str):
-            _add(p)
-    except Exception:
-        pass
+    if has_stored_records_placement(repo_root):
+        _add(rec_root / record_type)
+    else:
+        try:
+            for p in _rp.resolve_record_read_paths(
+                record_type, target_repo=repo_root_str
+            ):
+                _add(p)
+        except Exception:
+            pass
     # Direct literal layout (covers a bare/unregistered repo, and backlog/roadmaps/releases which
     # the RecordClass resolver rejects).
-    _add(repo_root / ".aw" / "records" / record_type)
+    _add(rec_root / record_type)
     _add(repo_root / ".agents" / record_type)
     if record_type == "research":
         # Research-specific legacy nesting: record_producers._LEGACY_RECORD_CLASS_SUBPATHS["research"] == "docs/research"
@@ -778,7 +790,9 @@ def _iter_paths(repo_root: Path, record_type: str):
             for rt in KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS
             for d in record_dirs(repo_root, rt)
         }
-        for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+        from agent_workflows.project_context import project_records_dir
+
+        for base in (project_records_dir(repo_root), repo_root / ".agents"):
             if not base.is_dir():
                 continue
             for p in _iter_md(base):

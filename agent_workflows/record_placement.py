@@ -72,11 +72,15 @@ def resolve_type_dir(record_type: str, repo_root: Optional[Path] = None) -> Path
     """Resolve physical directory for `record_type`, preferring `.aw/records/` with `.agents/` fallback."""
     from agent_workflows import layout as _layout
     from agent_workflows.record_producers import resolve_record_path
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
 
     if repo_root is None:
         repo_root = Path.cwd()
 
-    modern_dir = repo_root / ".aw" / "records" / record_type
+    modern_dir = project_records_dir(repo_root) / record_type
     if modern_dir.is_dir():
         return modern_dir
 
@@ -85,10 +89,13 @@ def resolve_type_dir(record_type: str, repo_root: Optional[Path] = None) -> Path
     if legacy_dir.is_dir():
         return legacy_dir
 
-    try:
-        base = resolve_record_path(record_type, target_repo=str(repo_root))
-    except Exception:
+    if has_stored_records_placement(repo_root):
         base = modern_dir
+    else:
+        try:
+            base = resolve_record_path(record_type, target_repo=str(repo_root))
+        except Exception:
+            base = modern_dir
 
     if not base.is_dir() and legacy_dir.is_dir():
         return legacy_dir

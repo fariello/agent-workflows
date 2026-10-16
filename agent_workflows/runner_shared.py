@@ -14453,11 +14453,10 @@ def discover_plans(
     repo: Path,
 ) -> dict[str, Any]:
     """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
+    from agent_workflows.project_context import project_records_dir
+
     plans: dict[str, Any] = {}
-    search_dirs = [
-        repo / ".aw" / "records" / "plans",
-        repo / ".agents" / "plans",
-    ]
+    search_dirs = [project_records_dir(repo) / "plans", repo / ".agents" / "plans"]
     seen: set[Path] = set()
     for sdir in search_dirs:
         if not sdir.exists():
@@ -14949,9 +14948,10 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
         direct = (repo / configured).resolve()
         if direct.is_file():
             from agent_workflows import status_set
+            from agent_workflows.project_context import project_records_dir
 
             plans_roots = [
-                (repo / ".aw" / "records" / "plans").resolve(),
+                (project_records_dir(repo) / "plans").resolve(),
                 (repo / ".agents" / "plans").resolve(),
             ]
             under_plans = any(
@@ -14995,7 +14995,9 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
             and not selectors._declares_typed_subject(path, id6)
         )
 
-    roots = [repo / ".aw" / "records" / "plans", repo / ".agents" / "plans"]
+    from agent_workflows.project_context import project_records_dir
+
+    roots = [project_records_dir(repo) / "plans", repo / ".agents" / "plans"]
     matches: list[Path] = []
     for root in roots:
         if root.exists():
@@ -35828,7 +35830,9 @@ def review_has_positive_evidence(
             pass
 
     id6 = str(item.get("id6") or "").strip()
-    reviews_dir = source / ".aw" / "records" / "reviews"
+    from agent_workflows.project_context import project_records_dir
+
+    reviews_dir = project_records_dir(source) / "reviews"
     try:
         if reviews_dir.is_dir() and id6:
             if any(reviews_dir.glob(f"*{id6}*")):
@@ -43867,16 +43871,22 @@ def commit_backlog_close(
     concurrent edit to a DIFFERENT backlog item can never be swept into the runner's commit.
     """
     from agent_workflows import git_commit_helper as _gch
+    from agent_workflows.project_context import project_records_dir
 
     # Only EXISTING backlog roots may be named. A pathspec that matches nothing makes `git status`
     # exit nonzero ("did not match any files"), which `run_checked` turns into a DriverError, which
     # this function suppresses -- so naming both layouts unconditionally made the commit silently
     # never happen in any repo with only one of them (i.e. every real repo). Measured live.
-    roots = [
-        rel
-        for rel in (".aw/records/backlog", ".agents/backlog")
-        if (Path(repo) / rel).exists()
-    ]
+    possible_roots = []
+    try:
+        rec_dir = project_records_dir(repo)
+        rel_rec = rec_dir.resolve().relative_to(Path(repo).resolve()).as_posix()
+        possible_roots.append(f"{rel_rec}/backlog")
+    except Exception:
+        pass
+    possible_roots.append(".agents/backlog")
+
+    roots = [rel for rel in possible_roots if (Path(repo) / rel).exists()]
     if not roots:
         return None
     try:
@@ -44725,7 +44735,9 @@ def perform_coordinator_proposal_file(
                         return _write_fallback_record(
                             f"aw ipd scaffold failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}"
                         )
-                    plans_dir = coord.path / ".aw" / "records" / "plans" / "pending"
+                    from agent_workflows.project_context import project_records_dir
+
+                    plans_dir = project_records_dir(coord.path) / "plans" / "pending"
                     if not plans_dir.exists():
                         plans_dir = coord.path / ".agents" / "plans" / "pending"
                     matching = list(plans_dir.glob(f"*-{setid}-01-*.ipd.md"))
@@ -44786,7 +44798,9 @@ def perform_coordinator_proposal_file(
                         return _write_fallback_record(
                             f"aw backlog new failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}"
                         )
-                    backlog_dir = coord.path / ".aw" / "records" / "backlog" / "open"
+                    from agent_workflows.project_context import project_records_dir
+
+                    backlog_dir = project_records_dir(coord.path) / "backlog" / "open"
                     if not backlog_dir.exists():
                         backlog_dir = coord.path / ".agents" / "backlog" / "open"
                     bl_files = sorted(

@@ -639,7 +639,9 @@ def plan_id6_candidates(repo_root: Optional[Path] = None) -> List[str]:
     from agent_workflows import plans_index
 
     root = _repo_root(repo_root)
-    plans_dir = root / ".aw" / "records" / "plans"
+    from agent_workflows.project_context import project_records_dir
+
+    plans_dir = project_records_dir(root) / "plans"
     out: List[str] = []
     for disp in _ACTIVE_PLAN_DISPOSITIONS:
         try:
@@ -657,9 +659,10 @@ def set_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
     record type). Terse id only (``plans_index.set_terse_id`` semantics, already applied by
     ``scan_plans``)."""
     from agent_workflows import plans_index
+    from agent_workflows.project_context import project_records_dir
 
     root = _repo_root(repo_root)
-    plans_dir = root / ".aw" / "records" / "plans"
+    plans_dir = project_records_dir(root) / "plans"
     out: List[str] = []
     for disp in _ACTIVE_PLAN_DISPOSITIONS:
         try:

@@ -244,7 +244,9 @@ def write_walkthrough(
     try:
         wdir = resolve_record_path("walkthroughs", target_repo=str(repo_root))
     except Exception:
-        wdir = repo_root / ".aw" / "records" / "walkthroughs"
+        from agent_workflows.project_context import project_records_dir
+
+        wdir = project_records_dir(repo_root) / "walkthroughs"
 
     minted_id6 = _core.mint_id6(repo_root, _existing_walkthrough_ids(wdir))
 

@@ -629,10 +629,14 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
 
 def _iter_items(repo_root: Path) -> List[Path]:
     """Every backlog item file under either layout's status dirs (README excluded), sorted."""
+    from agent_workflows.project_context import project_records_dir
 
     files: List[Path] = []
-    for root_rel in BACKLOG_ROOTS:
-        root = repo_root / root_rel
+    roots = [
+        project_records_dir(repo_root) / "backlog",
+        repo_root / ".agents" / "backlog",
+    ]
+    for root in roots:
         for status in STATUS_DIRS:
             d = root / status
             if d.is_dir():
@@ -789,6 +793,17 @@ def decide_gate_default(
 
 def _resolve_backlog_root(repo_root: Path) -> Path:
     """Prefer an existing `.aw/records/backlog`, else the pre-migration `.agents/backlog` default."""
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
+
+    if has_stored_records_placement(repo_root):
+        modern = project_records_dir(repo_root) / "backlog"
+        legacy = repo_root / ".agents" / "backlog"
+        if not modern.exists() and legacy.exists():
+            return legacy
+        return modern
 
     new = repo_root / ".aw" / "records" / "backlog"
     if new.exists():

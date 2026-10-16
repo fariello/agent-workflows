@@ -558,6 +558,25 @@ def repo_relative_posix(
         except (ValueError, OSError, RuntimeError):
             pass
 
+        if lexical_p.is_absolute():
+            try:
+                from agent_workflows.project_context import project_records_dir
+
+                rec_root = project_records_dir(r)
+                if rec_root.is_absolute():
+                    try:
+                        rel_to_rec = lexical_p.relative_to(rec_root)
+                        return (".aw/records" / rel_to_rec).as_posix()
+                    except ValueError:
+                        try:
+                            resolved_rec = rec_root.resolve()
+                            rel_to_rec = lexical_p.resolve().relative_to(resolved_rec)
+                            return (".aw/records" / rel_to_rec).as_posix()
+                        except (ValueError, OSError, RuntimeError):
+                            pass
+            except Exception:
+                pass
+
         if is_rel:
             escaped_root = True
 
@@ -727,7 +746,14 @@ def is_ignored_path(
         try:
             rel_path = path.resolve().relative_to(_resolved_root(repo_root))
         except (ValueError, OSError):
-            rel_path = Path(path.as_posix())
+            from agent_workflows.project_context import project_records_dir
+
+            try:
+                rec_root = project_records_dir(repo_root)
+                sub_rel = path.resolve().relative_to(rec_root.resolve())
+                rel_path = Path(".aw") / "records" / sub_rel
+            except (ValueError, OSError):
+                rel_path = Path(path.as_posix())
 
     rel_parts = rel_path.parts
     if any(
@@ -769,11 +795,17 @@ def iter_scan_files(
     suffixes: Tuple[str, ...] = _TEXT_SUFFIXES,
 ) -> List[Path]:
     """Return every tracked-text file under the given scan roots (deterministic, sorted), skipping ignored dirs."""
+    from agent_workflows.project_context import project_records_dir
 
     ignored_dirs = get_ignored_dirs(repo_root)
     files: List[Path] = []
+    records_dir = project_records_dir(repo_root)
     for rel in scan_roots:
-        p = repo_root / rel
+        if rel == ".aw/records" or rel.startswith(".aw/records/"):
+            tail = rel[len(".aw/records/") :] if rel.startswith(".aw/records/") else ""
+            p = records_dir / tail if tail else records_dir
+        else:
+            p = repo_root / rel
         if is_ignored_path(p, repo_root, ignored_dirs):
             continue
         if p.is_file():

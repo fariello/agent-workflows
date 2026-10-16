@@ -100,8 +100,9 @@ def _now() -> _dt.datetime:
 
 def prompts_root(repo_root: Path) -> Path:
     """Prefer an existing `.aw/records/prompts`, else the legacy `.agents/prompts`."""
+    from agent_workflows.project_context import project_records_dir
 
-    new = Path(repo_root) / ".aw" / "records" / "prompts"
+    new = project_records_dir(repo_root) / "prompts"
     if new.exists():
         return new
     legacy = Path(repo_root) / ".agents" / "prompts"

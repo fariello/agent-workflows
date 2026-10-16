@@ -13769,6 +13769,7 @@ def _find_type_records(
     # locally with a symlinked TMPDIR).
     repo_root = Path(repo_root).resolve()
     from agent_workflows import agent_schema as _schema
+    from agent_workflows import artifact_core as _core
     from agent_workflows import selectors as sel_mod
 
     highlight_tokens = list(selectors_list)
@@ -13842,10 +13843,7 @@ def _find_type_records(
             status_txt, id6_txt = _find_status_and_id6("plans", status, plan_id, term)
             set_txt = f"{e.set_id or '-':<14}"
             full_p = (plans_dir / e.path).resolve()
-            try:
-                rel_p = full_p.relative_to(repo_root.resolve()).as_posix()
-            except Exception:
-                rel_p = Path(e.path).as_posix()
+            rel_p = _core.repo_relative_posix(full_p, repo_root)
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
             paths.append(rel_p)
@@ -13938,10 +13936,7 @@ def _find_type_records(
             status_txt, id6_txt = _find_status_and_id6("research", status, res_id, term)
             summary = f"  {e.summary}" if e.summary else ""
             full_p = (research_root / e.path).resolve()
-            try:
-                rel_p = full_p.relative_to(repo_root.resolve()).as_posix()
-            except Exception:
-                rel_p = Path(e.path).as_posix()
+            rel_p = _core.repo_relative_posix(full_p, repo_root)
             disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
             lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
             paths.append(rel_p)
@@ -13998,10 +13993,7 @@ def _find_type_records(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        try:
-            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
-        except Exception:
-            rel = p.as_posix()
+        rel = _core.repo_relative_posix(p, repo_root)
         raw_id = _find_prompt_id6(p, text, artifact_type) or sel_mod._read_id(text)
         if explicit_id and raw_id != explicit_id:
             continue
@@ -15386,8 +15378,10 @@ def _run_search(
 
     seen_files = set()
     for t in types:
+        from agent_workflows.project_context import project_records_dir
+
         bases = selectors.record_dirs(repo_root, t) or [
-            repo_root / ".aw" / "records" / t,
+            project_records_dir(repo_root) / t,
             repo_root / ".agents" / t,
         ]
         for base in bases:
@@ -16147,7 +16141,9 @@ def _run_check(
     # Evidence breakdown
     evidence = []
     if norm == "plans":
-        plans_dir = repo_root / ".aw" / "records" / "plans"
+        from agent_workflows.project_context import project_records_dir
+
+        plans_dir = project_records_dir(repo_root) / "plans"
         if not plans_dir.is_dir():
             plans_dir = repo_root / ".agents" / "plans"
         pending_cnt = (

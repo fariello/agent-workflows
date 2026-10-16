@@ -76,7 +76,9 @@ def _head(repo_root: Path) -> str:
 
 
 def _sweep_paths(repo_root: Path) -> List[Path]:
-    plans = repo_root / ".aw" / "records" / "plans"
+    from agent_workflows.project_context import project_records_dir
+
+    plans = project_records_dir(repo_root) / "plans"
     out: List[Path] = []
     for disp in SWEEP_DISPOSITIONS:
         d = plans / disp

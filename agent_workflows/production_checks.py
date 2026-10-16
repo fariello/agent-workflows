@@ -668,7 +668,9 @@ def _find_executed_linked_plans(repo: Path, spec_id6: str) -> list[Path]:
     """Find plans in executed/ linking spec_id6 by From-Spec (spec 89xjll Section 6.1)."""
     repo = Path(repo)
     target_id6 = str(spec_id6).strip().lower()
-    executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+    from agent_workflows.project_context import project_records_dir
+
+    executed_dir = project_records_dir(repo) / "plans" / "executed"
     if not executed_dir.is_dir():
         return []
     plans: list[Path] = []

@@ -320,6 +320,8 @@ def run_index(args: argparse.Namespace) -> int:
     )
     md_changed = (not md_existed) or (md_path.read_text(encoding="utf-8") != new_md)
 
+    if json_changed or md_changed:
+        prompts_dir.mkdir(parents=True, exist_ok=True)
     if json_changed:
         json_path.write_text(new_json, encoding="utf-8")
     if md_changed:

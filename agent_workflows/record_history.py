@@ -39,7 +39,9 @@ MANAGED_BY_DIRECTIVE = "- Managed-by: aw (status + history are managed by the aw
 
 def history_path(repo_root) -> Path:
     """The ONE GLOBAL history sidecar path for a repo root: `.aw/records/history.jsonl`."""
-    return Path(repo_root) / SIDECAR_RELPATH
+    from agent_workflows.project_context import project_records_dir
+
+    return project_records_dir(repo_root) / "history.jsonl"
 
 
 def append(

@@ -122,6 +122,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: fnnwj3
 - Records routing (`project_records_dir` and its readers):
   - Carrier: kfnfji
+  - Carrier-Evidence: .aw/records/plans/executed/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md
 - Layout migration and inventory (`layout_inventory`, `layout_migration`): they move an existing in-tree legacy layout by design.
   - Carrier-Declined: a clean-target project has no in-tree layout to migrate; changing what migration moves is a separate design decision outside backlog kvwwt0.
 - `aw upgrade-test` with a clean-delta sandbox under its DEFAULT in-sandbox AW_HOME (F-09): making that rehearsal exercise the home bundle requires moving the sandbox AW_HOME outside the sandbox directory, which changes `upgrade_rehearsal`'s containment invariant (everything inside the sandbox) and its cleanup.

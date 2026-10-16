@@ -42,7 +42,6 @@ from typing import Callable, Optional
 from urllib.parse import urlsplit
 
 from . import comms
-from . import engine
 
 __all__ = [
     "NUDGE",
@@ -617,7 +616,17 @@ def scan_once(
         if not out_file.exists():
             _write_ack(acks_dir, msg_id, broker_id, outcome, now)
 
-    return eligible_msg_ids
+
+def _resolve_comms_dir(repo_root: Path) -> Path:
+    from agent_workflows.project_context import project_records_dir
+
+    modern = project_records_dir(repo_root) / "comms"
+    if modern.exists():
+        return modern
+    legacy = repo_root / ".agents" / "comms"
+    if legacy.exists():
+        return legacy
+    return modern
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -716,9 +725,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         repo_root = (
             Path(args.repo_root).resolve() if args.repo_root else Path.cwd().resolve()
         )
-        layout = engine.resolve_target_layout(repo_root)
-        dirs = engine._record_scaffold_dirs(layout)
-        comms_dir = repo_root / dirs["comms"]
+        comms_dir = _resolve_comms_dir(repo_root)
         try:
             register_target(
                 comms_dir,
@@ -737,9 +744,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         repo_root = (
             Path(args.repo_root).resolve() if args.repo_root else Path.cwd().resolve()
         )
-        layout = engine.resolve_target_layout(repo_root)
-        dirs = engine._record_scaffold_dirs(layout)
-        comms_dir = repo_root / dirs["comms"]
+        comms_dir = _resolve_comms_dir(repo_root)
         try:
             unregister_target(comms_dir, args.agent)
             return 0
@@ -780,9 +785,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         repo_root = (
             Path(args.repo_root).resolve() if args.repo_root else Path.cwd().resolve()
         )
-        layout = engine.resolve_target_layout(repo_root)
-        dirs = engine._record_scaffold_dirs(layout)
-        comms_dir = repo_root / dirs["comms"]
+        comms_dir = _resolve_comms_dir(repo_root)
 
         deliver_fn: Optional[Callable[[], str]] = None
         if args.target_url:

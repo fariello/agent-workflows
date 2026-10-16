@@ -205,7 +205,9 @@ def _mask_permalinks(text: str):
 
 def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
     """Count files under .aw/records/** starting with prefix + '-'."""
-    records_dir = repo_root / ".aw" / "records"
+    from agent_workflows.project_context import project_records_dir
+
+    records_dir = project_records_dir(repo_root)
     if not records_dir.is_dir():
         records_dir = repo_root / ".agents"
         if not records_dir.is_dir():
@@ -225,7 +227,9 @@ def count_legacy_prefix_records(repo_root: Path, prefix: str) -> int:
 
 def _index_records_facetless_stems(repo_root: Path) -> Dict[str, List[str]]:
     """Build a mapping of facet-less stem -> list of record filenames under .aw/records/**."""
-    records_dir = repo_root / ".aw" / "records"
+    from agent_workflows.project_context import project_records_dir
+
+    records_dir = project_records_dir(repo_root)
     if not records_dir.is_dir():
         records_dir = repo_root / ".agents"
         if not records_dir.is_dir():
