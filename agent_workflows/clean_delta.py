@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from agent_workflows.project_context import resolve_project_context
-from agent_workflows.project_schema import DeliveryMode, RootClass
+from agent_workflows.project_schema import DeliveryMode
 
 
 @dataclass
@@ -39,16 +39,27 @@ def resolve_system_provider(
     target_repo: Optional[str] = None, aw_home: Optional[str] = None
 ) -> SystemProviderInfo:
     """Resolve Order 04 system provider info."""
-    ctx = resolve_project_context(target_repo=target_repo, aw_home=aw_home)
-    sys_root = ctx.physical_classes[RootClass.SYSTEM.value]
-    target_abs = ctx.target_repo
-    is_target_res = False
-    if target_abs and sys_root.startswith(target_abs):
-        is_target_res = True
+    from agent_workflows.project_context import (
+        project_system_dir,
+        _canonical_path,
+        _is_safe_subpath,
+        _read_json_file,
+        project_config_dir,
+    )
+
+    repo = Path(target_repo) if target_repo else Path.cwd()
+    sys_dir = project_system_dir(repo, aw_home=aw_home)
+    repo_canon = _canonical_path(repo)
+    sys_canon = _canonical_path(sys_dir)
+    is_target_res = _is_safe_subpath(sys_canon, repo_canon)
+
+    cfg_dir = project_config_dir(repo, aw_home=aw_home)
+    p_data = _read_json_file(str(cfg_dir / "project.json")) or {}
+    is_source = p_data.get("role") == "source-checkout"
     return SystemProviderInfo(
-        system_root=sys_root,
+        system_root=str(sys_dir),
         is_target_resident=is_target_res,
-        is_source_checkout=ctx.project_role == "source-checkout",
+        is_source_checkout=is_source,
     )
 
 

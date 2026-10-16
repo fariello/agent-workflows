@@ -180,14 +180,43 @@ def is_git_repo(path: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def installed_version(repo: Path) -> Tuple[Optional[str], Optional[str]]:
+def _resolve_sandbox_system_dir(
+    repo: Path, aw_home: Optional[Path] = None
+) -> Tuple[Optional[Path], Optional[str]]:
+    """Resolve system dir for rehearsal probe, catching ProjectContextError."""
+    from agent_workflows.project_context import (
+        ProjectContextError,
+        project_system_dir,
+    )
+
+    eff_aw_home = aw_home or (repo / ".aw-upgrade-test" / "aw-home")
+    try:
+        sys_dir = project_system_dir(repo, aw_home=eff_aw_home)
+        return sys_dir, None
+    except ProjectContextError as exc:
+        return None, str(exc)
+
+
+def installed_version(
+    repo: Path, aw_home: Optional[Path] = None
+) -> Tuple[Optional[str], Optional[str]]:
     """Return (version, relative_path) for the repo's installed framework, or (None, None).
 
     Probes the same locations, in the same order, as ``engine.read_installed_version``.
     """
-
+    sys_dir, _ = _resolve_sandbox_system_dir(repo, aw_home=aw_home)
+    candidates: list[tuple[Path, str]] = []
+    if sys_dir is not None:
+        candidates.append((sys_dir / "VERSION", ".aw/system/VERSION"))
+        candidates.append(
+            (sys_dir / "workflows" / "VERSION", ".aw/system/workflows/VERSION")
+        )
     for rel in VERSION_LOCATIONS:
-        candidate = repo / rel
+        p = repo / rel
+        if not any(c[0] == p for c in candidates):
+            candidates.append((p, rel))
+
+    for candidate, rel in candidates:
         if candidate.is_file():
             try:
                 return candidate.read_text(encoding="utf-8").strip(), rel
@@ -229,7 +258,7 @@ def has_files(path: Path) -> bool:
     return False
 
 
-def detect_layout(repo: Path) -> str:
+def detect_layout(repo: Path, aw_home: Optional[Path] = None) -> str:
     """Classify the on-disk framework layout by LIVE content, not by directory existence.
 
     Returns one of:
@@ -241,7 +270,8 @@ def detect_layout(repo: Path) -> str:
       ``none``        no framework installed.
     """
 
-    aw_dir = repo / ".aw" / "system"
+    sys_dir, _ = _resolve_sandbox_system_dir(repo, aw_home=aw_home)
+    aw_dir = sys_dir if sys_dir is not None else (repo / ".aw" / "system")
     legacy_dir = repo / ".agents" / "workflows"
     aw_live = has_files(aw_dir)
     legacy_live = has_files(legacy_dir)
@@ -685,7 +715,7 @@ def snapshot_tree(repo: Path) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-def manifest_summary(repo: Path) -> Dict[str, Any]:
+def manifest_summary(repo: Path, aw_home: Optional[Path] = None) -> Dict[str, Any]:
     """Summarize the install manifest, including the row-count-vs-disk drift.
 
     Row drift is called out because it is a KNOWN upgrade defect (``manifest.py`` has no
@@ -693,11 +723,21 @@ def manifest_summary(repo: Path) -> Dict[str, Any]:
     90 files on disk. Reporting it makes the defect visible in every rehearsal.
     """
 
+    sys_dir, _ = _resolve_sandbox_system_dir(repo, aw_home=aw_home)
+    candidates: list[tuple[Path, str]] = []
+    if sys_dir is not None:
+        candidates.append(
+            (sys_dir / "managed-sections.json", ".aw/system/managed-sections.json")
+        )
     for rel in (
         ".aw/system/managed-sections.json",
         ".agents/workflows/managed-sections.json",
     ):
-        path = repo / rel
+        p = repo / rel
+        if not any(c[0] == p for c in candidates):
+            candidates.append((p, rel))
+
+    for path, rel in candidates:
         if not path.is_file():
             continue
         try:
@@ -738,10 +778,12 @@ def git_state(repo: Path) -> Dict[str, Any]:
 def probe(
     sandbox: Path,
     install_import: Optional[Sequence[Mapping[str, str]]] = None,
+    aw_home: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Capture the sandbox's current framework state. Read-only and idempotent."""
 
-    version, version_path = installed_version(sandbox)
+    sys_dir, sys_error = _resolve_sandbox_system_dir(sandbox, aw_home=aw_home)
+    version, version_path = installed_version(sandbox, aw_home=aw_home)
     marker = read_marker(sandbox) or {}
     state: Dict[str, Any] = {
         "sandbox": str(sandbox),
@@ -751,10 +793,12 @@ def probe(
         "baseline_layout": marker.get("source", {}).get("layout"),
         "installed_version": version,
         "installed_version_path": version_path,
-        "layout": detect_layout(sandbox),
-        "manifest": manifest_summary(sandbox),
+        "layout": detect_layout(sandbox, aw_home=aw_home),
+        "manifest": manifest_summary(sandbox, aw_home=aw_home),
         "git": git_state(sandbox),
     }
+    if sys_error is not None:
+        state["system_root_error"] = sys_error
     legacy = sandbox / ".agents"
     state["legacy_files_remaining"] = (
         sum(1 for _ in legacy.rglob("*") if _.is_file()) if legacy.is_dir() else 0

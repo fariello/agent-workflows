@@ -4439,8 +4439,9 @@ def load_emitted_layout(repo_root: Path) -> Tuple[Optional[Dict], str]:
     """
 
     import json
+    from agent_workflows.project_context import project_system_dir
 
-    target = Path(repo_root) / _engine.AW_LAYOUT_JSON_PATH
+    target = project_system_dir(repo_root) / "layout.json"
     if not target.is_file():
         return None, "absent"
     try:
@@ -4577,7 +4578,9 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
     # The SCHEMA sibling is reported last and as `missing`, not `drift`: the document itself is
     # fine, and the absent artifact is the local validation surface spec Section 6.1 item 3 emits
     # alongside it, so the remedy is the same regeneration.
-    if not (root / schema_rel).is_file():
+    from agent_workflows.project_context import project_system_dir
+
+    if not (project_system_dir(root) / "layout.schema.json").is_file():
         return [
             enrich_drift(
                 _core.Drift(

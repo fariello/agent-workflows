@@ -56,16 +56,17 @@ INSTALLER_NAME = "agent-workflows"
 def resolve_manifest_path(repo_root: "os.PathLike[str] | str") -> Path:
     """Return the manifest path for ``repo_root`` with bounded legacy compatibility.
 
-    Resolution order: the new ``.aw/system/managed-sections.json`` if it already exists,
-    else the legacy ``.agents/agent-workflows/managed-sections.json`` if it exists, else the
-    new location as the CREATE default. This lets a fresh install and a migrated repo use the
-    ``.aw/`` location while an un-migrated repo (manifest still under ``.agents/``) is still
-    read in place until the layout migration moves it. A single resolver so every read/write
-    site agrees on one location.
+    Resolution order: the new ``managed-sections.json`` at ``project_system_dir(repo_root)``
+    if it already exists, else the legacy ``.agents/agent-workflows/managed-sections.json``
+    if it exists, else the new location as the CREATE default. This lets a fresh install
+    and a migrated repo use the system location while an un-migrated repo (manifest still
+    under ``.agents/``) is still read in place until the layout migration moves it. A single
+    resolver so every read/write site agrees on one location.
     """
+    from agent_workflows.project_context import project_system_dir
 
     root = Path(repo_root)
-    new_path = root / DEFAULT_MANIFEST_RELPATH
+    new_path = project_system_dir(root) / "managed-sections.json"
     if new_path.exists():
         return new_path
     legacy_path = root / LEGACY_MANIFEST_RELPATH

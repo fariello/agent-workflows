@@ -8278,8 +8278,10 @@ def _handle_legacy_migration(
     Returns True if legacy layout is kept (compatibility mode),
     or False if migrated to .aw/ or already .aw/ / fresh.
     """
+    from agent_workflows.project_context import project_system_dir
+
     is_legacy_only = (repo_root / engine.WORKFLOWS_DIR).exists() and not (
-        repo_root / engine.AW_SYSTEM_DIR
+        project_system_dir(repo_root)
     ).exists()
     if not is_legacy_only:
         return False
@@ -11769,9 +11771,11 @@ def _run_layout(
     # disagree.
     emitted, emitted_error = _ce.load_emitted_layout(repo_root)
     if emitted is not None:
+        from agent_workflows.project_context import project_system_dir
+
         doc = emitted
         source = "emitted"
-        source_path = str(repo_root / engine.AW_LAYOUT_JSON_PATH)
+        source_path = str(project_system_dir(repo_root) / "layout.json")
     else:
         doc = model.to_dict(engine.read_installed_version(repo_root) or "")
         source = "in-process"
