@@ -248,6 +248,22 @@ def _read_json_file(path_str: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _config_dir() -> Path:
+    """Return the user config directory via config.config_dir() with lazy fail-open fallback."""
+    try:
+        from . import config as _config
+
+        return _config.config_dir()
+    except Exception:
+        raw_override = os.environ.get("AW_CONFIG_DIR")
+        if raw_override and raw_override.strip():
+            candidate = Path(raw_override.strip()).expanduser()
+            if candidate.is_absolute() and candidate != Path.home():
+                return candidate
+        base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        return Path(base).expanduser() / "agent-workflows"
+
+
 def _resolve_effective_aw_home(
     aw_home: Optional[str | Path] = None,
     user_config_dir: Optional[str | Path] = None,
@@ -267,11 +283,7 @@ def _resolve_effective_aw_home(
             PrecedenceLevel.MACHINE_LOCAL_BINDING,
             "AW_HOME environment variable",
         )
-    user_cfg_path = (
-        str(user_config_dir)
-        if user_config_dir
-        else os.path.expanduser("~/.config/agent-workflows")
-    )
+    user_cfg_path = str(user_config_dir) if user_config_dir else str(_config_dir())
     user_cfg = _read_json_file(os.path.join(user_cfg_path, "config.json"))
     if user_cfg and user_cfg.get("aw_home"):
         aw_home_abs = _check_path_security(str(user_cfg["aw_home"]), "user_cfg aw_home")
@@ -1072,8 +1084,8 @@ def resolve_project_context(
       1. EXPLICIT_FLAGS (explicit arguments passed to invocation)
       2. MACHINE_LOCAL_BINDING (.aw/config/local.json in target repo or user repo binding)
       3. PROJECT_DURABLE_CONFIG (.aw/config/project.json in target repo)
-      4. NAMED_GLOBAL_PROFILE (~/.config/agent-workflows/profiles/<profile>.json)
-      5. GLOBAL_DEFAULTS (~/.config/agent-workflows/config.json default keys)
+      4. NAMED_GLOBAL_PROFILE (profiles/<profile>.json in user config dir via config.config_dir())
+      5. GLOBAL_DEFAULTS (config.json default keys in user config dir via config.config_dir())
       6. BUILTIN_DEFAULTS (built-in fallbacks)
     """
     provenance_map: Dict[str, Provenance] = {}
@@ -1104,9 +1116,7 @@ def resolve_project_context(
 
     # Read configuration layers
     user_cfg_dir_effective = (
-        user_config_dir
-        if user_config_dir
-        else os.path.expanduser("~/.config/agent-workflows")
+        str(user_config_dir) if user_config_dir else str(_config_dir())
     )
     user_cfg_file = os.path.join(user_cfg_dir_effective, "config.json")
     user_cfg_data = _read_json_file(user_cfg_file) or {}
