@@ -1,11 +1,13 @@
 - Id: 9qvfie
-- Status: open
+- Status: graduated
+- Graduated-To: trimcarry
 - Set: 9qvfie
 - Priority: low
 - Work-Kind: chore
 - Summary: Rollup of uncited trim-deleted test audit carrier-needed outcomes
 
 ## Workflow history
+- 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: 24h56i, 8dyt88, e5jijr, rf1xxr, we3kkb, x9z0ve, z2xs98
 - 2026-10-15 created (aw backlog): Rollup of uncited trim-deleted test audit carrier-needed outcomes
 
 Rollup carrier for 770 carrier-needed outcomes from the uncited trim-deleted test audit (findings doc hpjj44, .aw/records/research/20261013-uncitedaudit-01-hpjj44-uncited-trim-audit.findings.md).
