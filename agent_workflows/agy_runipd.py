@@ -4043,6 +4043,14 @@ RED-CI GATE:
         "implemented. This is what 'aw agy review' expands to.",
     )
     start.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        default=False,
+        help="confirm a re-review of a reviewed or approved plan named with --action review; approval is withdrawn and must be given again",
+    )
+    start.add_argument(
         "--stall-timeout",
         type=float,
         default=DEFAULT_STALL_TIMEOUT,

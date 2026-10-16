@@ -461,6 +461,8 @@ THE HISTORY-LINE PROSE IS NOT THE PRIMARY MACHINE SIGNAL. Downstream automation 
 checklist repair loop or coverage repair loop exhausts its budget of 2 attempts unresolved, leave `- Readiness:` ABSENT
 entirely. Do NOT write `- Readiness: no-go` or any other value; absence leaves the plan unclearable by the field and clearable by prose only on a genuine review record, which an exhausted R6 round has not produced, while honestly reflecting that no review verdict was reached.
 
+**Runner re-review note:** When a runner re-reviews a previously reviewed or approved plan (`aw oc review <id6> --yes` or `aw agy review <id6> --yes`), the plan arrives in the review lane demoted to `to-review` with `- Readiness:` stripped. The review turn must write a fresh `- Readiness:` line to satisfy the post-review gate; an absent or untouched readiness line fails the re-review with `fail-gate`.
+
 Append or update:
 
 ```markdown

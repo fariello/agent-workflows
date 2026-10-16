@@ -6,7 +6,7 @@
 - Scope: Add `cli._sniff_fields_from_raw_argv` next to `cli._sniff_mode_from_raw_argv` and pass `fields=_sniff_fields_from_raw_argv(raw_argv)` into `OutputContext(mode=OutputMode.AGENT, ...)` inside `cli._AwArgumentParser.error`, while keeping `OutputMode.JSON` unprojected. Remove the four `(leaf, "--fields"): "4y614a"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN` (making `test_known_broken_citations_resolve` tolerate an empty `KNOWN_BROKEN` once sibling items `aws1tg` and `jfdk7p` also land), and add behavioral regression coverage in `tests/test_shared_flag_honored.py` covering all 67 required-argument leaves, presence/absence non-vacuity, global-flag position, `--fields=`, repeated `--fields` last-flag-wins, bare `--` boundary, missing `--fields` value, unknown-command/`invalid choice`/unrecognized-option refusals, and `--json --fields` non-projection. EXCLUDES the nine handler-level `--fields` bypasses owned by `aws1tg` (`83ns86`) and the five `--json` parseability failures owned by `jfdk7p` (`pirm70`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_shared_flag_honored.py, .aw/records/plans/pending/20261014-4y614a-01-ksmdcd-honor-the-shared-fields-flag-in-parser-usage-refusals-under.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: agy/gemini-4-argon-high
 - Id: ksmdcd
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ksmdcd verified (set 4y614a, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed; readiness GO - PENDING HUMAN APPROVAL
 
@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-derive baseline and wire `--fields` sniffing into `_AwArgumentParser.error`
 
-- [ ] E-01 Re-derive at execution HEAD the baseline `--agent --fields cmd` behavior across the four `4y614a` leaves and all 67 required-argument leaves in `tests.test_usage_refusal_agent_record.REQUIRED_LEAVES`, and verify the target code sites in `agent_workflows/cli.py` and `tests/test_shared_flag_honored.py` against Findings F-01 through F-04.
+- [x] E-01 Re-derive at execution HEAD the baseline `--agent --fields cmd` behavior across the four `4y614a` leaves and all 67 required-argument leaves in `tests.test_usage_refusal_agent_record.REQUIRED_LEAVES`, and verify the target code sites in `agent_workflows/cli.py` and `tests/test_shared_flag_honored.py` against Findings F-01 through F-04.
   - Depends on: none
   - Expected outcome: Execution HEAD sha is recorded; running `tests.test_usage_refusal_agent_record._capture_cli` with `["--agent", "--fields", "cmd"]` across the four `4y614a` leaves (`ipd scaffold`, `research new`, `research new-comparison`, `storage move`) and all 67 `REQUIRED_LEAVES` confirms `rc=2` with unrequested `['findings']` outside `agent_schema._PRESERVED_FIELDS | {"cmd"}`; `python3 -m pytest -o addopts="" -rx tests/test_shared_flag_honored.py -k "fields and mutation"` confirms the four `4y614a` cases report `XFAIL`; and F-01..F-04 are marked CONFIRMED or CORRECTED.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `cli._sniff_fields_from_raw_argv` in `agent_workflows/cli.py` and pass `fields=_sniff_fields_from_raw_argv(raw_argv)` into `OutputContext(mode=OutputMode.AGENT, ...)` inside `cli._AwArgumentParser.error`.
+- [x] E-02 Add `cli._sniff_fields_from_raw_argv` in `agent_workflows/cli.py` and pass `fields=_sniff_fields_from_raw_argv(raw_argv)` into `OutputContext(mode=OutputMode.AGENT, ...)` inside `cli._AwArgumentParser.error`.
   - Depends on: E-01
   - Expected outcome: `cli._sniff_fields_from_raw_argv(raw_argv: List[str]) -> Optional[List[str]]` (placed immediately below `cli._sniff_mode_from_raw_argv`) truncates `raw_argv` at the first bare `"--"` token, scans left-to-right so repeated `--fields` flags obey `argparse`'s last-flag-wins `store` semantics (capturing `tokens[i + 1]` when `tok == "--fields"` and `i + 1 < len(tokens)` and `not tokens[i + 1].startswith("-")`, or capturing `tok[len("--fields=") :]` when `tok.startswith("--fields=")`), splits on `","` via `[f.strip() for f in raw_fields.split(",") if f.strip()]` matching `result_types.select_output`, and returns `fields_val or None`. `cli._AwArgumentParser.error` constructs `OutputContext(mode=OutputMode.AGENT, fields=_sniff_fields_from_raw_argv(raw_argv))` so `renderers.emit_usage_refusal` projects `cannot-run` records through `agent_schema.filter_record_fields` while `OutputMode.JSON` remains unprojected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Retire the `4y614a` `KNOWN_BROKEN` entries, add behavioral coverage, and verify sensitivity
 
-- [ ] E-03 Remove the four `(leaf, "--fields"): "4y614a"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN` and update `test_known_broken_citations_resolve` to allow an empty `KNOWN_BROKEN` ceiling.
+- [x] E-03 Remove the four `(leaf, "--fields"): "4y614a"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN` and update `test_known_broken_citations_resolve` to allow an empty `KNOWN_BROKEN` ceiling.
   - Depends on: E-02
   - Expected outcome: `("ipd scaffold", "--fields"): "4y614a"`, `("research new", "--fields"): "4y614a"`, `("research new-comparison", "--fields"): "4y614a"`, and `("storage move", "--fields"): "4y614a"` are removed from `KNOWN_BROKEN` in `tests/test_shared_flag_honored.py` (leaving any remaining `jfdk7p` and `aws1tg` entries untouched), `assert seen_citations` is removed from `test_known_broken_citations_resolve` so `KNOWN_BROKEN` can become empty once all three sibling items (`aws1tg`, `jfdk7p`, `4y614a`) have landed, and all four `4y614a` leaves pass directly in `test_fields_flag_honored_mutation`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add behavioral regression tests in `tests/test_shared_flag_honored.py` covering `--fields` projection across all 67 required-argument leaves and `_AwArgumentParser.error` edge cases, prove mutation sensitivity with a restoring `try/finally` wrapper, and run the bare `python3 -m pytest` suite.
+- [x] E-04 Add behavioral regression tests in `tests/test_shared_flag_honored.py` covering `--fields` projection across all 67 required-argument leaves and `_AwArgumentParser.error` edge cases, prove mutation sensitivity with a restoring `try/finally` wrapper, and run the bare `python3 -m pytest` suite.
   - Depends on: E-03
   - Expected outcome: New tests in `tests/test_shared_flag_honored.py` verify (a) all 67 canonical required-argument leaves in `tests.test_usage_refusal_agent_record.REQUIRED_LEAVES` driven in-process via `_capture_cli(leaf.split() + ["--agent", "--fields", "cmd"])` exit `2`, pass `agent_schema.validate_agent_record`, and emit no keys outside `agent_schema._PRESERVED_FIELDS | {"cmd"}` (`"findings"` absent); (b) non-vacuous presence/absence across the four `4y614a` leaves (`--agent` without `--fields` includes `"findings": 0`, `--agent --fields cmd` omits `"findings"`, and `--agent --fields cmd,findings` and `--fields=cmd,findings` retain `"findings": 0`); and (c) parser usage-refusal `--fields` edge cases: global flags before the leaf (`["--agent", "--fields", "cmd", "ipd", "scaffold"]` and `["--agent", "--fields=cmd", "ipd", "set"]`), repeated `--fields` obeying last-flag-wins, bare `--` boundary (`["ipd", "scaffold", "--agent", "--", "--fields", "cmd"]` retains `"findings"`), missing `--fields` argument safety (`["ipd", "scaffold", "--agent", "--fields"]` and `["ipd", "scaffold", "--fields", "--agent"]` exit `2` with a valid `cannot-run` record and do not treat `"--agent"` as a field name), other `_AwArgumentParser.error` refusal classes (`["nosuch", "--agent", "--fields", "cmd"]`, `["ipd", "nosuch", "--agent", "--fields", "cmd"]`, and `["status", "--nosuchflag", "--agent", "--fields", "cmd"]` all omit `"findings"`), and unprojected `--json --fields cmd` (`["ipd", "scaffold", "--json", "--fields", "cmd"]`: stdout is ONE pretty-printed multi-line JSON object, so parse the WHOLE stdout with `json.loads(out)` rather than the last line, and assert it still carries the full payload keys `summary`, `diagnostics`, `next_actions` and `data`, as measured at review). For the repeated-flag case assert BOTH orders: `--fields cmd,findings --fields cmd` omits `"findings"` and `--fields cmd --fields cmd,findings` retains it, so last-flag-wins is proven in both directions. Each new test drives `cli.main` in-process via `_capture_cli` and parses the LAST non-empty stdout line as the `aw.agent/v1` record, passing it through `agent_schema.validate_agent_record`. Temporarily replacing `fields=_sniff_fields_from_raw_argv(raw_argv)` with `fields=None` in `agent_workflows/cli.py` (an on-disk edit inside a restoring `try/finally` wrapper, so the `run_cli` subprocess sweep sees it too) causes the new 67-leaf sweep, the projection edge cases, and the four retired `test_fields_flag_honored_mutation` cases to FAIL, while the presence-side cases (no `--fields`, `--fields cmd,findings`, bare `--`, missing `--fields` value) still pass; restoring it matches the pre-mutation `sha256` and passes, and the bare `python3 -m pytest` suite passes. The mutation is never committed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -85,6 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE NINE HANDLER-LEVEL LEAVES THAT IGNORE `--fields` UNDER `--agent` (`ipd coverage`, `partition`, `oc update-models`, `storage reattach`, `upgrade-test env`, `list`, `probe`, `sandboxes`, `clean`). Separate handler-level bypass mechanisms owned by backlog item `aws1tg` and pending IPD `83ns86`.
   - Carrier: aws1tg
+  - Carrier-Evidence: .aw/records/backlog/done/20261012-aws1tg-01-aws1tg-fields-flag-unhonored-on-agent-leaves.backlog.md
 - THE FIVE LEAVES THAT FAIL `json.loads` UNDER `--json` (`config get`, `config is`, `upgrade-test env`, `upgrade-test probe`, `upgrade-test clean`). Separate `--json` defect population owned by backlog item `jfdk7p` and pending IPD `pirm70`.
   - Carrier: jfdk7p
 
@@ -117,25 +118,177 @@ N/A with reason: no `.spec.md` or user-facing documentation file is modified. `d
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The execution HEAD sha; pasted output of running the four `4y614a` leaves (`ipd scaffold`, `research new`, `research new-comparison`, `storage move`) and the 67-leaf `REQUIRED_LEAVES` sweep through `tests.test_usage_refusal_agent_record._capture_cli` with `["--agent", "--fields", "cmd"]` prior to the fix showing `rc=2` and unrequested `['findings']` on all 67; pasted `python3 -m pytest -o addopts="" -rx tests/test_shared_flag_honored.py -k "fields and mutation"` output showing the four `4y614a` cases as `XFAIL`; and an explicit CONFIRMED or CORRECTED mark for each of F-01..F-04.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD sha: `410d75fdd4f5fd24b581939cad3e3c7d7024db27`
+    Baseline script output on 4y614a leaves and 67 REQUIRED_LEAVES:
+    ```
+    Total REQUIRED_LEAVES: 67
+    Unhonored in REQUIRED_LEAVES: 67
+    Leaf: ipd scaffold, extra keys: {'findings'}
+    Leaf: research new, extra keys: {'findings'}
+    Leaf: research new-comparison, extra keys: {'findings'}
+    Leaf: storage move, extra keys: {'findings'}
+    Unhonored in four leaves: 4
+    ```
+    Baseline pytest sweep output:
+    ```
+    =========================== short test summary info ============================
+    XFAIL tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[storage move] - 4y614a
+    XFAIL tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research new-comparison] - 4y614a
+    XFAIL tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[ipd scaffold] - 4y614a
+    XFAIL tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research new] - 4y614a
+    ================ 28 passed, 142 deselected, 4 xfailed in 37.51s ================
+    ```
+    Findings verification:
+    - F-01: CONFIRMED
+    - F-02: CONFIRMED
+    - F-03: CONFIRMED
+    - F-04: CONFIRMED
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Diff or excerpt of `agent_workflows/cli.py` showing `_sniff_fields_from_raw_argv` and `OutputContext(mode=OutputMode.AGENT, fields=_sniff_fields_from_raw_argv(raw_argv))` in `_AwArgumentParser.error`; plus pasted output from `cli.main` / `_capture_cli` showing that across `ipd scaffold`, `research new`, `research new-comparison`, and `storage move`: `--agent --fields cmd` emits only preserved envelope keys (`"findings"` absent), `--agent --fields cmd,findings` and `--agent --fields=cmd,findings` retain `"findings": 0`, `--agent` without `--fields` includes `"findings": 0`, `--agent --fields cmd` placed before the leaf (`aw --agent --fields cmd ipd scaffold`) omits `"findings"`, `--fields` after bare `--` (`aw ipd scaffold --agent -- --fields cmd`) is ignored, and `--json --fields cmd` remains unprojected.
   - Observed evidence:
-  - Result: pending
+    Excerpt of `agent_workflows/cli.py`:
+    ```python
+    def _sniff_fields_from_raw_argv(raw_argv: List[str]) -> Optional[List[str]]:
+        """Scan raw argv for --fields flags, stopping at bare '--'.
 
-- [ ] V-03 validates E-03
+        Follows argparse last-flag-wins store semantics.
+        """
+        if "--" in raw_argv:
+            tokens = raw_argv[: raw_argv.index("--")]
+        else:
+            tokens = raw_argv
+
+        last_raw_fields: Optional[str] = None
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok == "--fields":
+                if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
+                    last_raw_fields = tokens[i + 1]
+                    i += 2
+                    continue
+                else:
+                    last_raw_fields = None
+                    i += 1
+                    continue
+            elif tok.startswith("--fields="):
+                last_raw_fields = tok[len("--fields=") :]
+                i += 1
+                continue
+            i += 1
+
+        if last_raw_fields is None:
+            return None
+
+        fields_val = [f.strip() for f in last_raw_fields.split(",") if f.strip()]
+        return fields_val or None
+    ...
+                    if mode == OutputMode.JSON:
+                        ctx = OutputContext(mode=OutputMode.JSON, explicit_format="json")
+                    else:
+                        ctx = OutputContext(
+                            mode=OutputMode.AGENT,
+                            fields=_sniff_fields_from_raw_argv(raw_argv),
+                        )
+                    emit_usage_refusal(
+                        cmd=cmd, message=message, next_cmd=next_cmd, context=ctx
+                    )
+    ```
+    Output from `_capture_cli` verification across the four leaves and 67 REQUIRED_LEAVES:
+    ```
+    --- Four leaves check ---
+    All four leaves checks passed!
+    Unhonored in all 67 REQUIRED_LEAVES: 0
+    ```
+    Across `ipd scaffold`, `research new`, `research new-comparison`, and `storage move`:
+    - `--agent --fields cmd`: emits only preserved envelope keys (`"findings"` absent, exit 2).
+    - `--agent --fields cmd,findings` and `--agent --fields=cmd,findings`: retain `"findings": 0` (exit 2).
+    - `--agent` without `--fields`: includes `"findings": 0` (exit 2).
+    - `--agent --fields cmd` before leaf (`aw --agent --fields cmd ipd scaffold`): omits `"findings"` (exit 2).
+    - `--fields` after bare `--` (`aw ipd scaffold --agent -- --fields cmd`): ignores `--fields` and retains `"findings": 0` (exit 2).
+    - `--json --fields cmd` (`aw ipd scaffold --json --fields cmd`): remains unprojected, emitting full JSON payload with summary, diagnostics, next_actions, data.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Diff or excerpt of `tests/test_shared_flag_honored.py` showing removal of the four `"4y614a"` entries from `KNOWN_BROKEN` and removal of `assert seen_citations` in `test_known_broken_citations_resolve`; plus pasted `python3 -m pytest -o addopts="" -v tests/test_shared_flag_honored.py -k "(fields and mutation and (scaffold or research or move)) or known_broken"` output (parametrize ids contain spaces, e.g. `test_fields_flag_honored_mutation[ipd scaffold]`, so the underscore form selects none of them; measured at review) confirming all four `4y614a` leaves and the ceiling tests pass directly without xfail.
   - Observed evidence:
-  - Result: pending
+    Diff of `tests/test_shared_flag_honored.py` removing the four `4y614a` entries from `KNOWN_BROKEN`:
+    ```diff
+    @@ -58,11 +58,6 @@ KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
+         ("upgrade-test env", "--json"): "jfdk7p",
+         ("upgrade-test probe", "--json"): "jfdk7p",
+         ("upgrade-test clean", "--json"): "jfdk7p",
+    -    # --fields unhonored on parser usage refusal on four leaves (4y614a):
+    -    ("ipd scaffold", "--fields"): "4y614a",
+    -    ("research new", "--fields"): "4y614a",
+    -    ("research new-comparison", "--fields"): "4y614a",
+    -    ("storage move", "--fields"): "4y614a",
+     }
+    ```
+    `test_known_broken_citations_resolve` tolerates empty ceiling by iterating over `sorted(seen_citations)` without asserting non-empty citations.
+    Pasted pytest output:
+    ```
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[storage move] PASSED [ 12%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research promote] PASSED [ 25%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research index] PASSED [ 37%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[ipd scaffold] PASSED [ 50%]
+    tests/test_shared_flag_honored.py::test_known_broken_no_dead_entries PASSED [ 62%]
+    tests/test_shared_flag_honored.py::test_known_broken_citations_resolve PASSED [ 75%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research new] PASSED [ 87%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[research new-comparison] PASSED [100%]
 
-- [ ] V-04 validates E-04
+    ====================== 8 passed, 166 deselected in 8.77s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Diff or excerpt of `tests/test_shared_flag_honored.py` showing the new 67-leaf required-argument `--fields` sweep and `_AwArgumentParser.error` edge-case regression tests; pasted `python3 -m pytest -o addopts="" tests/test_shared_flag_honored.py tests/test_usage_refusal_agent_record.py` output showing all tests passing; pasted output of the restoring-wrapper mutation check showing a reverted fix causes the projection-side tests named in E-04 to FAIL while the presence-side cases pass and restoration produces the exact pre-mutation `sha256`; and pasted output of the bare full fast suite `python3 -m pytest` showing the `N passed` summary line.
   - Observed evidence:
-  - Result: pending
+    Excerpt of new regression tests added in `tests/test_shared_flag_honored.py`:
+    - `test_parser_usage_refusal_fields_honored_required_leaves` (67 leaves)
+    - `test_parser_usage_refusal_fields_absence_four_leaves` (4 leaves)
+    - `test_parser_usage_refusal_fields_presence_four_leaves` (4 leaves)
+    - `test_parser_usage_refusal_fields_projection_edge_cases` (global flags before leaf, repeated `--fields` last-flag-wins, unknown top-level command, invalid choice subcommand, unrecognized option)
+    - `test_parser_usage_refusal_fields_presence_edge_cases` (repeated `--fields` last-flag-wins retaining findings, bare `--` boundary, missing `--fields` argument safety, unprojected `--json --fields cmd`)
+
+    Pasted output of `python3 -m pytest -o addopts="" tests/test_shared_flag_honored.py tests/test_usage_refusal_agent_record.py`:
+    ```
+    tests/test_shared_flag_honored.py ...................................... [  9%]
+    ...............x............................x........................... [ 27%]
+    ....................x................................................... [ 45%]
+    ...............................x..........................x..........    [ 63%]
+    tests/test_usage_refusal_agent_record.py ............................... [ 71%]
+    ........................................................................ [ 89%]
+    ..........................................                               [100%]
+
+    ================== 391 passed, 5 xfailed in 228.43s (0:03:48) ==================
+    ```
+
+    Pasted output of restoring-wrapper mutation check:
+    ```
+    Original sha256: ab4c47d5b02f65cfea41cd83c01ad1a04b95a31dca5500b705cd66d09645df1c
+    Mutated cli.py: replaced fields=_sniff_fields_from_raw_argv(raw_argv) with fields=None
+    Projection tests returncode (expected != 0): 1
+    Projection tests summary: ====================== 72 failed, 179 deselected in 5.90s ======================
+    Retired mutation leaves returncode (expected != 0): 1
+    Retired mutation leaves summary: ================= 4 failed, 2 passed, 245 deselected in 7.14s ==================
+    Presence tests returncode (expected == 0): 0
+    Presence tests summary: ====================== 5 passed, 246 deselected in 1.46s =======================
+    Restored sha256: ab4c47d5b02f65cfea41cd83c01ad1a04b95a31dca5500b705cd66d09645df1c
+    Restored projection tests summary: ====================== 72 passed, 179 deselected in 4.75s ======================
+    Mutation check successfully verified and restored!
+    ```
+
+    Pasted output of bare full fast suite `python3 -m pytest`:
+    ```
+    705 passed in 23.05s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
