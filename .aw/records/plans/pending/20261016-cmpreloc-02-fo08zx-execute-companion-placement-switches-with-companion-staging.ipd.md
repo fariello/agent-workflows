@@ -18,6 +18,7 @@
 
 ## Workflow history
 
+- 2026-10-16 cross-reference (opencode, from /plan-review of xc8nae PR-001): Order 01 `xc8nae` now KEEPS `companion-unsupported` as an ordinary blocker beside a full companion census, so the cfgreloc executor and `ozr356` keep refusing companion pairs until this plan ships. This plan must remove that blocker in `placement_switch.plan_placement_switch` in the same change that adds executor support, and update `xc8nae`'s tests that assert it; its review should add that step explicitly. Also from that review: pair (d)'s `config_project` item carries `dest_git=None` (the new in-tree `project.json` stays untracked, F-02), and the target `dirty-aw-tree` rule now ignores exactly the untracked `.aw/config/project.json` a fresh companion install leaves.
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set cmpreloc graduating backlog n9vd2h.
 
