@@ -28,6 +28,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import (
+    oc_runipd,
     production_checks,
     runner_shared,
 )
@@ -144,6 +145,160 @@ class TestBacklogAlreadyCompleteUnitE02(unittest.TestCase):
             res_none = runner_shared.backlog_item_already_complete(repo, "bklnone")
             self.assertEqual(res_none.status, "NO_IPD_CARRIER")
             self.assertFalse(res_none.is_complete)
+
+    def test_close_already_complete_backlog_item_teardown_refused_preserves_lane_and_records_reason_and_inventory(
+        self,
+    ) -> None:
+        # 1. Unclassified lane content branch (decision.error is None, decision.reason == decision.inventory.reason)
+        with tempfile.TemporaryDirectory() as td1:
+            repo = _make_test_repo(Path(td1))
+            _write_backlog_item(repo, id6="bklt01", status="open")
+            _write_conforming_plan(
+                repo, id6="plnt01", backlog_id6="bklt01", bucket="executed"
+            )
+            (repo / ".gitignore").write_text(
+                ".aw/state/\n.aw/records/runs/\n.aw/worktrees/\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "setup fixtures"],
+                cwd=repo,
+                check=True,
+            )
+
+            run_dir = repo / ".aw" / "records" / "runs" / "run-unit-01"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            state = {"run_id": "run-unit-01", "options": {}}
+            item = {
+                "id6": "bklt01",
+                "position": 1,
+                "action": "plan",
+                "status": "running",
+            }
+            comp = runner_shared.backlog_item_already_complete(repo, "bklt01")
+
+            wt_handle = oc_runipd.allocate_isolation_worktree(repo, "bklt01")
+            untracked_file = Path(wt_handle.path) / "untracked_residue.txt"
+            untracked_file.write_text("keep me\n", encoding="utf-8")
+
+            res = runner_shared._close_already_complete_backlog_item(
+                repo,
+                item,
+                state,
+                run_dir,
+                comp,
+                wt_handle=wt_handle,
+                isolate=True,
+                run_checked=oc_runipd.run_checked,
+                host_labels=runner_shared.OC_HOST_LABELS,
+                save_state=lambda _r, _s: None,
+                integrate_review_lane_branch=oc_runipd.integrate_review_lane_branch,
+            )
+            self.assertTrue(res)
+            bkl_files = list(
+                repo.glob(".aw/records/backlog/**/2026*bklt01*.backlog.md")
+            )
+            self.assertEqual(len(bkl_files), 1)
+            self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
+
+            self.assertTrue(Path(wt_handle.path).is_dir())
+            self.assertTrue(untracked_file.is_file())
+
+            self.assertEqual(item["preserved_worktree"], str(wt_handle.path))
+            self.assertEqual(item["preserved_branch"], wt_handle.branch)
+            self.assertTrue(
+                item["preserved_reason"].startswith(
+                    "teardown refused: the lane holds content the driver cannot account for:"
+                )
+            )
+            self.assertIn("untracked_residue.txt", item["preserved_reason"])
+            self.assertEqual(
+                item["preserved_retention_reasons"], ["unknown-untracked-file"]
+            )
+
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line
+            ]
+            pres_events = [e for e in events if e.get("event") == "worktree-preserved"]
+            self.assertEqual(len(pres_events), 1)
+            pres_evt = pres_events[0]
+            self.assertEqual(pres_evt["reason"], item["preserved_reason"])
+            self.assertEqual(pres_evt["retention_reasons"], ["unknown-untracked-file"])
+            self.assertEqual(pres_evt["unknown_untracked"], ["untracked_residue.txt"])
+            self.assertTrue(pres_evt["inventory_readable"])
+
+        # 2. Authorized-teardown failure branch (decision.error is not None, decision.reason == f"teardown was authorized but failed: {decision.error}")
+        with tempfile.TemporaryDirectory() as td2:
+            repo2 = _make_test_repo(Path(td2))
+            _write_backlog_item(repo2, id6="bklt02", status="open")
+            _write_conforming_plan(
+                repo2, id6="plnt02", backlog_id6="bklt02", bucket="executed"
+            )
+            (repo2 / ".gitignore").write_text(
+                ".aw/state/\n.aw/records/runs/\n.aw/worktrees/\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], cwd=repo2, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "setup fixtures"],
+                cwd=repo2,
+                check=True,
+            )
+
+            run_dir2 = repo2 / ".aw" / "records" / "runs" / "run-unit-02"
+            run_dir2.mkdir(parents=True, exist_ok=True)
+            state2 = {"run_id": "run-unit-02", "options": {}}
+            item2 = {
+                "id6": "bklt02",
+                "position": 1,
+                "action": "plan",
+                "status": "running",
+            }
+            comp2 = runner_shared.backlog_item_already_complete(repo2, "bklt02")
+
+            wt_handle2 = oc_runipd.allocate_isolation_worktree(repo2, "bklt02")
+
+            with mock.patch(
+                "agent_workflows.runner_shared.teardown_isolation_worktree",
+                side_effect=RuntimeError("simulated worktree teardown error"),
+            ):
+                res2 = runner_shared._close_already_complete_backlog_item(
+                    repo2,
+                    item2,
+                    state2,
+                    run_dir2,
+                    comp2,
+                    wt_handle=wt_handle2,
+                    isolate=True,
+                    run_checked=oc_runipd.run_checked,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    save_state=lambda _r, _s: None,
+                    integrate_review_lane_branch=oc_runipd.integrate_review_lane_branch,
+                )
+            self.assertTrue(res2)
+            expected_reason = "teardown refused: teardown was authorized but failed: RuntimeError: simulated worktree teardown error"
+            self.assertEqual(item2["preserved_reason"], expected_reason)
+            self.assertEqual(item2["preserved_retention_reasons"], [])
+
+            events2 = [
+                json.loads(line)
+                for line in (run_dir2 / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line
+            ]
+            pres_events2 = [
+                e for e in events2 if e.get("event") == "worktree-preserved"
+            ]
+            self.assertEqual(len(pres_events2), 1)
+            pres_evt2 = pres_events2[0]
+            self.assertEqual(pres_evt2["reason"], expected_reason)
+            self.assertTrue(pres_evt2["inventory_readable"])
 
 
 class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
@@ -782,4 +937,133 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
                     self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
                     self.assertNotIn(
                         "/graduated/", str(bkl_files[0]).replace("\\", "/")
+                    )
+
+    def test_case_j_isolated_post_turn_route_teardown_refused_preserves_lane(
+        self,
+    ) -> None:
+        """Case (j): isolated post-turn route when teardown is refused preserves lane and records reason/inventory."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_backlog_item(repo, id6="bklj01", status="open")
+                    p_path = _write_conforming_plan(
+                        repo, id6="plnj01", backlog_id6="bklj01", bucket="pending"
+                    )
+                    (repo / ".gitignore").write_text(
+                        ".aw/state/\n.aw/records/runs/\n.aw/worktrees/\n",
+                        encoding="utf-8",
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "setup fixtures"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-case-j"
+                    cmd = [
+                        "start",
+                        "bklj01",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = Path(kwargs["work_dir"])
+                        exec_dir = work_dir / ".aw" / "records" / "plans" / "executed"
+                        exec_dir.mkdir(parents=True, exist_ok=True)
+                        source = (
+                            work_dir
+                            / ".aw"
+                            / "records"
+                            / "plans"
+                            / "pending"
+                            / p_path.name
+                        )
+                        dest = exec_dir / p_path.name
+                        shutil.move(str(source), str(dest))
+                        subprocess.run(["git", "add", "-A"], cwd=work_dir, check=True)
+                        subprocess.run(
+                            ["git", "commit", "-qm", "carrier executed in lane"],
+                            cwd=work_dir,
+                            check=True,
+                        )
+                        (work_dir / "agent_scratch.txt").write_text(
+                            "unclassified work\n", encoding="utf-8"
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(state["queue"][0]["status"], "executed")
+
+                    bkl_files = list(
+                        repo.glob(".aw/records/backlog/**/2026*bklj01*.backlog.md")
+                    )
+                    self.assertEqual(len(bkl_files), 1)
+                    self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
+
+                    pres_wt = state["queue"][0].get("preserved_worktree")
+                    self.assertIsNotNone(pres_wt)
+                    lane_dir = Path(str(pres_wt))
+                    self.assertTrue(lane_dir.is_dir())
+                    self.assertTrue((lane_dir / "agent_scratch.txt").is_file())
+
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line
+                    ]
+                    bkl_complete_events = [
+                        e
+                        for e in events
+                        if e.get("id6") == "bklj01"
+                        and e.get("event") == "backlog-already-complete"
+                    ]
+                    self.assertEqual(len(bkl_complete_events), 1)
+
+                    pres_events = [
+                        e
+                        for e in events
+                        if e.get("id6") == "bklj01"
+                        and e.get("event") == "worktree-preserved"
+                    ]
+                    self.assertEqual(len(pres_events), 1)
+                    pres_evt = pres_events[0]
+                    self.assertTrue(
+                        pres_evt["reason"].startswith(
+                            "teardown refused: the lane holds content the driver cannot account for:"
+                        )
+                    )
+                    self.assertIn("agent_scratch.txt", pres_evt["reason"])
+                    self.assertEqual(
+                        pres_evt["retention_reasons"],
+                        ["unknown-untracked-file"],
+                    )
+                    self.assertEqual(
+                        pres_evt["unknown_untracked"],
+                        ["agent_scratch.txt"],
                     )

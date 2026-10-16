@@ -37173,12 +37173,16 @@ def _close_already_complete_backlog_item(
             item=item,
         )
         if not decision.torn_down:
+            # txw63z: lane_containment.LaneTeardownDecision exposes .reason and .reason_codes
+            # (not .why). Spec 7ckptx R5.6 demands recording detail=decision.inventory.as_dict()
+            # on lane preservation matching sibling teardown_lane_if_classified call sites.
             lane_containment.record_lane_preserved(
                 run_dir=run_dir,
                 item=item,
                 handle=wt_handle,
                 reason=f"teardown refused: {decision.reason}",
                 reason_codes=decision.reason_codes,
+                detail=decision.inventory.as_dict(),
             )
     else:
         # Non-isolated path (--no-isolate-worktree)
