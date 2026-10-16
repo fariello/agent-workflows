@@ -961,6 +961,10 @@ def run_index(args: argparse.Namespace) -> int:
             target="research",
         )
     # Regenerate.
+    if not research_root.is_dir():
+        return _core.emit_index_missing_dir_refusal(
+            args, repo_root, research_root, target="research"
+        )
     entries, drift = _scan_docs(research_root, repo_root=repo_root)
     from agent_workflows.result_types import select_output
 

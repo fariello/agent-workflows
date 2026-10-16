@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests import support
@@ -14,6 +15,7 @@ from tests import support
 from agent_workflows.project_context import (
     ConflictingConfigurationError,
     PathSecurityError,
+    project_config_dir,
     resolve_project_context,
 )
 from agent_workflows.project_schema import (
@@ -335,6 +337,149 @@ class TestProjectContextResolver(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         out_path = res.stdout.strip()
         self.assertTrue(os.path.isabs(out_path))
+
+    def test_xdg_config_home_aw_home_resolution(self):
+        """E-03 (a): XDG_CONFIG_HOME aw_home resolution and project_config_dir routing."""
+        xdg = Path(self.tmp_dir) / "xdg"
+        aw_cfg = xdg / "agent-workflows"
+        aw_cfg.mkdir(parents=True)
+        custom_aw_home = Path(self.tmp_dir) / "custom_aw_home"
+        custom_aw_home.mkdir(parents=True)
+        (aw_cfg / "config.json").write_text(
+            json.dumps({"aw_home": str(custom_aw_home)}), encoding="utf-8"
+        )
+
+        clean_env = {
+            k: v for k, v in os.environ.items() if k not in ("AW_HOME", "AW_CONFIG_DIR")
+        }
+        clean_env["XDG_CONFIG_HOME"] = str(xdg)
+
+        with mock.patch.dict(os.environ, clean_env, clear=True):
+            ctx = resolve_project_context(target_repo=self.target_repo)
+            expected_aw_home = str(custom_aw_home.resolve())
+            self.assertEqual(ctx.effective_aw_home, expected_aw_home)
+            self.assertEqual(
+                ctx.provenance["effective_aw_home"]["source"],
+                PrecedenceLevel.GLOBAL_DEFAULTS.value,
+            )
+            self.assertIn(
+                str(aw_cfg / "config.json"),
+                ctx.provenance["effective_aw_home"]["detail"],
+            )
+
+            # Seed <custom_aw_home>/projects/<ctx.project_id>/config/project.json
+            # and assert project_config_dir(self.target_repo) returns <custom_aw_home>/projects/<ctx.project_id>/config
+            project_cfg_dir = custom_aw_home / "projects" / ctx.project_id / "config"
+            project_cfg_dir.mkdir(parents=True)
+            (project_cfg_dir / "project.json").write_text("{}", encoding="utf-8")
+            resolved_pcd = project_config_dir(self.target_repo)
+            self.assertEqual(resolved_pcd, project_cfg_dir)
+
+    def test_xdg_config_home_layers_and_aw_config_dir_override(self):
+        """E-03 (b): XDG_CONFIG_HOME layers, profile resolution, AW_CONFIG_DIR override, and explicit user_config_dir."""
+        xdg = Path(self.tmp_dir) / "xdg"
+        aw_cfg = xdg / "agent-workflows"
+        profiles_dir = aw_cfg / "profiles"
+        profiles_dir.mkdir(parents=True)
+        (aw_cfg / "config.json").write_text(
+            json.dumps(
+                {
+                    "default_delivery_mode": "tracked",
+                    "default_records_backend": "companion",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (profiles_dir / "team.json").write_text(
+            json.dumps(
+                {
+                    "delivery_mode": "tracked",
+                    "records_backend": "repository",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        clean_env = {
+            k: v for k, v in os.environ.items() if k not in ("AW_HOME", "AW_CONFIG_DIR")
+        }
+        clean_env["XDG_CONFIG_HOME"] = str(xdg)
+
+        with mock.patch.dict(os.environ, clean_env, clear=True):
+            # Assert resolve_project_context(target_repo=self.target_repo, aw_home=self.aw_home)
+            # resolves records_backend == "companion" at PrecedenceLevel.GLOBAL_DEFAULTS.value
+            ctx_default = resolve_project_context(
+                target_repo=self.target_repo, aw_home=self.aw_home
+            )
+            self.assertEqual(ctx_default.records_backend, "companion")
+            self.assertEqual(
+                ctx_default.provenance["records_backend"]["source"],
+                PrecedenceLevel.GLOBAL_DEFAULTS.value,
+            )
+
+            # Assert resolve_project_context(target_repo=self.target_repo, aw_home=self.aw_home, profile="team")
+            # resolves records_backend == "repository" at PrecedenceLevel.NAMED_GLOBAL_PROFILE.value
+            ctx_team = resolve_project_context(
+                target_repo=self.target_repo, aw_home=self.aw_home, profile="team"
+            )
+            self.assertEqual(ctx_team.records_backend, "repository")
+            self.assertEqual(
+                ctx_team.provenance["records_backend"]["source"],
+                PrecedenceLevel.NAMED_GLOBAL_PROFILE.value,
+            )
+
+            # Then set AW_CONFIG_DIR to a separate absolute temp directory <aw_cfg>
+            # holding <aw_cfg>/config.json ({"aw_home": "<override_aw_home>", "default_records_backend": "repository"})
+            # with AW_HOME removed
+            aw_cfg_dir = Path(self.tmp_dir) / "aw_cfg"
+            aw_cfg_dir.mkdir(parents=True)
+            override_aw_home = Path(self.tmp_dir) / "override_aw_home"
+            override_aw_home.mkdir(parents=True)
+            (aw_cfg_dir / "config.json").write_text(
+                json.dumps(
+                    {
+                        "aw_home": str(override_aw_home),
+                        "default_records_backend": "repository",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            env_override = dict(clean_env)
+            env_override["AW_CONFIG_DIR"] = str(aw_cfg_dir)
+            with mock.patch.dict(os.environ, env_override, clear=True):
+                ctx_override = resolve_project_context(target_repo=self.target_repo)
+                self.assertEqual(
+                    ctx_override.effective_aw_home,
+                    str(override_aw_home.resolve()),
+                )
+                self.assertEqual(ctx_override.records_backend, "repository")
+                self.assertEqual(
+                    ctx_override.provenance["records_backend"]["source"],
+                    PrecedenceLevel.GLOBAL_DEFAULTS.value,
+                )
+
+                # Passing an explicit user_config_dir= still overrides both AW_CONFIG_DIR and XDG_CONFIG_HOME
+                explicit_dir = Path(self.tmp_dir) / "explicit_cfg"
+                explicit_dir.mkdir(parents=True)
+                (explicit_dir / "config.json").write_text(
+                    json.dumps(
+                        {
+                            "default_records_backend": "companion",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                ctx_explicit = resolve_project_context(
+                    target_repo=self.target_repo,
+                    aw_home=self.aw_home,
+                    user_config_dir=str(explicit_dir),
+                )
+                self.assertEqual(ctx_explicit.records_backend, "companion")
+                self.assertEqual(
+                    ctx_explicit.provenance["records_backend"]["source"],
+                    PrecedenceLevel.GLOBAL_DEFAULTS.value,
+                )
 
 
 class PhysicalContextResolutionTests(unittest.TestCase):

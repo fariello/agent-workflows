@@ -30297,9 +30297,9 @@ def extract_session_id(log_path: Path) -> str | None:
     whereas nothing anywhere pinned agy's ordering; the standing maintainer ruling prefers oc absent a
     significant behavioral difference; and the affected shape needs an unprefixed id EARLY plus a
     `ses_` id LATER in the SAME log, which is an OpenCode id appearing in an Antigravity log and
-    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` (deleted in `19313eed`;
-    no live guard currently asserts this conflict case) pinned this answer so a future change to it is
-    a visible edit rather than a silent drift.
+    occurred in 0 of the 627 logs censused. `tests/test_runner_shared.py::SessionIdPrecedenceTests`
+    (replacing `tests/test_rununify_conflicts.py`, deleted in `19313eed`) pins this answer so a
+    future change to it is a visible edit rather than a silent drift.
 
     A NOTE ON WHAT WAS DELETED: agy's body carried a dead `fallback` local, initialized to `None` and
     returned at the end while every branch that could assign it returned immediately instead. It could
@@ -47490,7 +47490,8 @@ def prepare_agent_user_config(
 
     Resolves the operator's real directory via ``config.config_dir()`` (or source_dir),
     creates ``<run_dir>/agent-user-config/<NN>-<id6>-attempt-<N>[-<suffix>]/`` with mode
-    0o700, and copies every regular top-level file preserving mode.
+    0o700, and copies every regular top-level file and every regular file directly
+    inside a top-level profiles/ subdirectory, preserving mode.
     Records SHA-256 and parsed JSON object for each seeded file.
 
     Fails open: returns None and prints a warning on failure (never aborts a run).
@@ -47526,6 +47527,26 @@ def prepare_agent_user_config(
                                 seed_json[child.name] = parsed
                     except Exception:
                         pass
+
+            profiles_dir = real_dir / "profiles"
+            if profiles_dir.is_dir():
+                sandbox_profiles = sandbox_dir / "profiles"
+                sandbox_profiles.mkdir(parents=True, exist_ok=True, mode=0o700)
+                with contextlib.suppress(OSError):
+                    os.chmod(sandbox_profiles, 0o700)
+                for child in sorted(profiles_dir.iterdir()):
+                    if child.is_file():
+                        dest = sandbox_profiles / child.name
+                        shutil.copy2(child, dest)
+                        rel_key = f"profiles/{child.name}"
+                        seed_hashes[rel_key] = sha256_file(dest)
+                        try:
+                            with dest.open("r", encoding="utf-8") as f:
+                                parsed = json.load(f)
+                                if isinstance(parsed, dict):
+                                    seed_json[rel_key] = parsed
+                        except Exception:
+                            pass
 
         return AgentUserConfig(
             path=sandbox_dir,

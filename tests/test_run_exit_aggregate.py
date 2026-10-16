@@ -1,9 +1,22 @@
 """Tests for runner_shared.aggregated_run_items and run_exit_code (mh60nd/q32qeg E-05, E-06)."""
 
+import contextlib
 import copy
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from agent_workflows import run_evidence, runner_shared, runner_shutdown, runner_stop
+from agent_workflows import (
+    agy_runipd,
+    oc_runipd,
+    run_evidence,
+    runner_shared,
+    runner_shutdown,
+    runner_stop,
+)
 
 
 class TestRunExitAggregate(unittest.TestCase):
@@ -164,3 +177,81 @@ class TestRunExitEquivalenceSweep(unittest.TestCase):
             all((d[4], d[5]) == (1, 3) for d in diffs),
             "Every differing combination must be exactly (old, new) == (1, 3)",
         )
+
+
+class RunQueueExitCodeReflectsTheRealOutcome(unittest.TestCase):
+    """Behavioral tests verifying run_queue exit code reflects terminal item status across hosts (eg6r2t)."""
+
+    def _drive_run(self, module, terminal_status: str) -> tuple[int, dict]:
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        run_dir = root / "run-test"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        item = {
+            "position": 1,
+            "id6": "aaa111",
+            "setid": "s",
+            "action": "execute",
+            "kind": "child",
+            "status": "queued",
+            "dependencies": [],
+            "attempts": [],
+        }
+        state = {
+            "schema_version": 1,
+            "run_id": "run-test",
+            "repo": str(root),
+            "created_at": "2026-10-14T00:00:00+00:00",
+            "updated_at": "2026-10-14T00:00:00+00:00",
+            "selectors": ["synthetic"],
+            "options": {},
+            "set_sessions": {},
+            "queue": [item],
+        }
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        def fake_exec(rd, st, it, *a, **kw):
+            it["status"] = terminal_status
+            module.save_state(rd, st)
+
+        buf = io.StringIO()
+        with (
+            patch.object(module, "execute_item", side_effect=fake_exec),
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(buf),
+        ):
+            exit_code = module.run_queue(run_dir, retry_incomplete=False)
+
+        reloaded_state = json.loads(
+            (run_dir / "state.json").read_text(encoding="utf-8")
+        )
+        return exit_code, reloaded_state
+
+    def test_a_fully_executed_queue_exits_zero(self):
+        """Control test (E-01): an executed item exits 0 and remains executed on both hosts."""
+        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(host=host_name):
+                exit_code, state = self._drive_run(module, "executed")
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(state["queue"][0]["status"], "executed")
+
+    def test_the_exit_code_reads_success_states_not_execution_success_states(self):
+        """Restored S-29 property (E-02): substantially-complete exits nonzero on both hosts."""
+        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(host=host_name):
+                exit_code, state = self._drive_run(module, "substantially-complete")
+                self.assertNotEqual(
+                    exit_code,
+                    0,
+                    f"{host_name}: substantially-complete is not a completion success for the exit code",
+                )
+                self.assertEqual(state["queue"][0]["status"], "substantially-complete")
+
+    def test_a_queue_with_a_non_success_terminal_item_exits_nonzero(self):
+        """Restored sibling property (E-03): failed-safely exits nonzero on both hosts."""
+        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+            with self.subTest(host=host_name):
+                exit_code, state = self._drive_run(module, "failed-safely")
+                self.assertNotEqual(exit_code, 0)
+                self.assertEqual(state["queue"][0]["status"], "failed-safely")

@@ -27,6 +27,9 @@ no AST checks, no source code regex, no caller census, and no symbol-existence t
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -34,8 +37,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from agent_workflows import agent_schema
+from agent_workflows import agent_schema, plans_index, prompts_index, research_index
 from tests.conformance_matrix import REPO_ROOT, run_cli
 from tests.test_index_check_agent_records import _create_fixture_repo
 from tests.test_research_index import _write
@@ -491,6 +495,238 @@ class IndexWriteSubprocessTests(unittest.TestCase):
 
         self.assertEqual(res_all.returncode, expected_rc)
         self.assertEqual(res_all.stdout, expected_stdout)
+
+
+# --------------------------------------------------------------------------------------
+# Missing-dir write refusal behavior tests (plan fbdxmh, E-03 a..e)
+# --------------------------------------------------------------------------------------
+
+
+class IndexWriteMissingDirTests(unittest.TestCase):
+    def setUp(self):
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = Path(self._temp_dir.name)
+
+    def tearDown(self):
+        self._temp_dir.cleanup()
+
+    # (a) BARE GIT REPO (no .aw/): for each verb in VERBS
+    def test_bare_repo_agent_refusal_per_verb(self):
+        for verb in VERBS:
+            with self.subTest(verb=verb):
+                repo = self.temp_dir / f"repo_{verb}"
+                repo.mkdir()
+                subprocess.run(
+                    ["git", "init"], cwd=repo, capture_output=True, check=True
+                )
+                home = self.temp_dir / f"home_{verb}"
+                home.mkdir()
+
+                with mock.patch.dict(os.environ):
+                    os.environ.pop("AW_HOME", None)
+                    os.environ.pop("XDG_CONFIG_HOME", None)
+                    os.environ.pop("AW_CONFIG_DIR", None)
+                    res = run_cli(
+                        ["index", verb, "--agent"],
+                        cwd=repo,
+                        env_overrides={"HOME": str(home)},
+                    )
+
+                self.assertEqual(res.returncode, 2, f"{verb} rc != 2: {res.returncode}")
+                self.assertNotIn(
+                    "Traceback",
+                    res.stderr,
+                    f"{verb} Traceback on stderr: {res.stderr}",
+                )
+                lines = res.stdout.splitlines()
+                self.assertEqual(
+                    len(lines), 1, f"Expected 1 line for {verb}, got: {res.stdout}"
+                )
+                rec = json.loads(lines[0])
+                val_errs = agent_schema.validate_agent_record(rec)
+                self.assertEqual(
+                    val_errs, [], f"Validation errors for {verb}: {val_errs}"
+                )
+                self.assertEqual(rec.get("kind"), "error")
+                self.assertEqual(rec.get("cmd"), "index")
+                self.assertEqual(rec.get("target"), verb)
+                self.assertEqual(rec.get("outcome"), "cannot-run")
+                self.assertEqual(rec.get("exit"), 2)
+                self.assertIs(rec.get("verified"), False)
+                self.assertIs(rec.get("complete"), False)
+                self.assertIs(rec.get("applied"), False)
+                self.assertEqual(rec.get("next"), "aw install .")
+                diags = rec.get("diagnostics", [])
+                self.assertEqual(len(diags), 1)
+                self.assertEqual(diags[0].get("rule"), "records-dir-missing")
+                self.assertNotIn(str(home), res.stdout)
+                self.assertNotIn(str(repo), res.stdout)
+                self.assertEqual([p for p in repo.iterdir() if p.name != ".git"], [])
+                self.assertEqual(list(home.iterdir()), [])
+
+    # (b) PARTIAL TREE: only .aw/records/plans/ created, aw index all --agent
+    def test_partial_tree_all_write_refusal(self):
+        repo = self.temp_dir / "repo_partial"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        (repo / ".aw" / "records" / "plans").mkdir(parents=True)
+        home = self.temp_dir / "home_partial"
+        home.mkdir()
+
+        with mock.patch.dict(os.environ):
+            os.environ.pop("AW_HOME", None)
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            os.environ.pop("AW_CONFIG_DIR", None)
+            res = run_cli(
+                ["index", "all", "--agent"],
+                cwd=repo,
+                env_overrides={"HOME": str(home)},
+            )
+
+        self.assertEqual(res.returncode, 2, f"rc != 2: {res.returncode}")
+        self.assertNotIn("Traceback", res.stderr)
+        lines = [line for line in res.stdout.splitlines() if line.strip()]
+        self.assertGreaterEqual(len(lines), 1)
+        for line in lines:
+            r = json.loads(line)
+            self.assertEqual(agent_schema.validate_agent_record(r), [])
+        last_rec = json.loads(lines[-1])
+        self.assertEqual(last_rec.get("kind"), "error")
+        self.assertIn(last_rec.get("outcome"), ("cannot-run", "error"))
+        self.assertEqual(last_rec.get("exit"), 2)
+
+    # (c) --json and human mode per verb on a bare git repo
+    def test_bare_repo_json_and_human_refusal_per_verb(self):
+        for verb in VERBS:
+            with self.subTest(verb=verb, audience="json"):
+                repo = self.temp_dir / f"repo_json_{verb}"
+                repo.mkdir()
+                subprocess.run(
+                    ["git", "init"], cwd=repo, capture_output=True, check=True
+                )
+                home = self.temp_dir / f"home_json_{verb}"
+                home.mkdir()
+
+                with mock.patch.dict(os.environ):
+                    os.environ.pop("AW_HOME", None)
+                    os.environ.pop("XDG_CONFIG_HOME", None)
+                    os.environ.pop("AW_CONFIG_DIR", None)
+                    res = run_cli(
+                        ["index", verb, "--json"],
+                        cwd=repo,
+                        env_overrides={"HOME": str(home)},
+                    )
+
+                self.assertEqual(
+                    res.returncode, 2, f"{verb} --json rc != 2: {res.returncode}"
+                )
+                doc = json.loads(res.stdout)
+                self.assertEqual(doc.get("status"), "cannot-run")
+                self.assertEqual(doc.get("exit_code"), 2)
+                index_dir = doc.get("data", {}).get("index_dir")
+                self.assertIsNotNone(index_dir)
+                self.assertFalse(
+                    Path(index_dir).is_absolute(), f"{index_dir} is absolute"
+                )
+
+            with self.subTest(verb=verb, audience="human"):
+                repo = self.temp_dir / f"repo_human_{verb}"
+                repo.mkdir()
+                subprocess.run(
+                    ["git", "init"], cwd=repo, capture_output=True, check=True
+                )
+                home = self.temp_dir / f"home_human_{verb}"
+                home.mkdir()
+
+                with mock.patch.dict(os.environ):
+                    os.environ.pop("AW_HOME", None)
+                    os.environ.pop("XDG_CONFIG_HOME", None)
+                    os.environ.pop("AW_CONFIG_DIR", None)
+                    res = run_cli(
+                        ["index", verb],
+                        cwd=repo,
+                        env_overrides={"HOME": str(home)},
+                    )
+
+                self.assertEqual(
+                    res.returncode, 2, f"{verb} human rc != 2: {res.returncode}"
+                )
+                self.assertEqual(res.stdout, "")
+                self.assertIn("records directory", res.stderr)
+                self.assertIn("aw install", res.stderr)
+
+    # (d) EXPLICIT --dir INSIDE A PROJECT
+    def test_explicit_dir_inside_project(self):
+        repo = self.temp_dir / "repo_proj"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        home = self.temp_dir / "home_proj"
+        home.mkdir()
+
+        with mock.patch.dict(os.environ):
+            os.environ.pop("AW_HOME", None)
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            os.environ.pop("AW_CONFIG_DIR", None)
+            res_inst = run_cli(
+                ["install", ".", "-y", "--no-interactive"],
+                cwd=repo,
+                env_overrides={"HOME": str(home)},
+            )
+            self.assertEqual(
+                res_inst.returncode, 0, f"install failed: {res_inst.stderr}"
+            )
+
+            sub = repo / "sub"
+            sub.mkdir()
+
+            res = run_cli(
+                ["index", "plans", "--dir", "sub", "--agent"],
+                cwd=repo,
+                env_overrides={"HOME": str(home)},
+            )
+
+        self.assertEqual(res.returncode, 2, f"rc != 2: {res.returncode}")
+        self.assertNotIn("Traceback", res.stderr)
+        lines = res.stdout.splitlines()
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(agent_schema.validate_agent_record(rec), [])
+        self.assertEqual(rec.get("outcome"), "cannot-run")
+        self.assertNotEqual(rec.get("next"), "aw install .")
+        self.assertFalse((sub / ".aw").exists(), "sub/.aw was created")
+
+    # (e) in-process quiet=True
+    def test_inprocess_quiet_true(self):
+        repo = self.temp_dir / "repo_quiet"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        home = self.temp_dir / "home_quiet"
+        home.mkdir()
+
+        with mock.patch.dict(os.environ, {"HOME": str(home), "AW_HOME": str(home)}):
+            for mod, name in [
+                (plans_index, "plans"),
+                (prompts_index, "prompts"),
+                (research_index, "research"),
+            ]:
+                with self.subTest(module=name):
+                    args = argparse.Namespace(
+                        dir=str(repo),
+                        check=False,
+                        agent=False,
+                        json=False,
+                        limit=None,
+                        quiet=True,
+                    )
+                    out_buf = io.StringIO()
+                    err_buf = io.StringIO()
+                    with contextlib.redirect_stdout(
+                        out_buf
+                    ), contextlib.redirect_stderr(err_buf):
+                        rc = mod.run_index(args)
+                    self.assertEqual(rc, 2, f"{name} rc != 2: {rc}")
+                    self.assertEqual(out_buf.getvalue(), "", f"{name} stdout not empty")
+                    self.assertEqual(err_buf.getvalue(), "", f"{name} stderr not empty")
 
 
 if __name__ == "__main__":
