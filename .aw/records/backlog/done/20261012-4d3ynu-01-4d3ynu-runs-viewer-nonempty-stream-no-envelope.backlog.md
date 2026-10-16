@@ -1,5 +1,5 @@
 - Id: 4d3ynu
-- Status: graduated
+- Status: done
 - Graduated-To: 4d3ynu
 - Blocks-Release: next
 - Set: 4d3ynu
@@ -8,6 +8,7 @@
 - Summary: aw runs / aw runs list non-empty --agent stream and flag-conflict refusals emit bare JSON with no aw.agent/v1 envelope
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 3jg79f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-4d3ynu-01-3jg79f-aw-runs-non-empty-agent-stream-and-refusals-emit-aw-agent-v1.ipd.md); evidence .aw/records/plans/executed/20261014-4d3ynu-01-3jg79f-aw-runs-non-empty-agent-stream-and-refusals-emit-aw-agent-v1.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: 3jg79f
 - 2026-10-12 created (aw backlog): aw runs / aw runs list non-empty --agent stream and flag-conflict refusals emit bare JSON with no aw.agent/v1 envelope
 
