@@ -4401,6 +4401,9 @@ def render_run_summary_table(
     c_reset = "\033[0m" if color else ""
 
     # ys1dor E-02: THE STRANDED BRANCH IS EXPLICIT, AND DELIBERATELY FIRST AFTER `COMPLETED`.
+    # 5apgyn E-01: BLOCKED is styled through the shared lifecycle resolver (orange 208, depth-aware,
+    # unbolded). Only QUEUED (and exit_reason passthrough strings matching no earlier branch) reaches
+    # the c_cyan fallback.
     #
     # This selection is a set of SUBSTRING tests whose ELSE-BRANCH IS CYAN, not an obviously-wrong
     # color, so an unhandled outcome word looks deliberate while being wrong - exactly the miss class
@@ -4425,6 +4428,15 @@ def render_run_summary_table(
             )
         )
     )
+    if outcome_str == "BLOCKED":
+        blocked_resolved = _LS.Resolved(
+            stage=_LS.BLOCKED,
+            style=_LS.style_for(_LS.BLOCKED),
+            family=_LS.FAMILY_RUNNER_ITEM,
+        )
+        outcome_display = pal.lifecycle(blocked_resolved, outcome_str, bold=False)
+    else:
+        outcome_display = f"{outcome_color}{outcome_str}{c_reset}"
 
     # runorder (prpipy) E-05: `Run` is the execution sequence, `Pos` the frozen identity. The old
     # single `#` column showed `position` and a reader inevitably read it as sequence.
@@ -4565,7 +4577,7 @@ def render_run_summary_table(
     restarts_cnt = state.get("driver_restarts", 0)
     restarts_str = f"   Restarts: {restarts_cnt}" if restarts_cnt > 0 else ""
     b_line1 = (
-        f"Outcome: {outcome_color}{outcome_str}{c_reset}{restarts_str}   "
+        f"Outcome: {outcome_display}{restarts_str}   "
         f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
         f"Spend: {c_green}{tot_cost_str}{c_reset}   "
         f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
