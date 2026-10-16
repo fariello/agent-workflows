@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -406,7 +407,17 @@ def _existing_plan_ids(target_path: Path) -> set:
     return ids
 
 
-def _setid_length_guard(setid, *, verb: str, repo_root=None) -> int:
+def _refuse_scaffold(msg: str, ctx=None) -> int:
+    from agent_workflows.renderers import emit_usage_refusal
+
+    if ctx is not None and (ctx.is_agent or ctx.is_json):
+        sys.stderr.write(f"error: {msg}\n")
+        return emit_usage_refusal("ipd scaffold", msg, "aw ipd scaffold --help", ctx)
+    print(f"error: {msg}")
+    return 2
+
+
+def _setid_length_guard(setid, *, verb: str, repo_root=None, ctx=None) -> int:
     """Apply the shared setid-length guard, printing its error/warning. 0 to proceed, 2 to refuse.
 
     setidlen `x75obw` E-06. The comparison itself lives in
@@ -426,58 +437,62 @@ def _setid_length_guard(setid, *, verb: str, repo_root=None) -> int:
             repo_root = _Path.cwd()
     err, warn = _config.validate_setid_length_for_authoring(repo_root, setid, verb=verb)
     if err:
-        print(f"error: {err}")
-        return 2
+        return _refuse_scaffold(err, ctx)
     if warn:
-        print(f"note: {warn}")
+        if ctx is not None and (ctx.is_agent or ctx.is_json):
+            print(f"note: {warn}", file=sys.stderr)
+        else:
+            print(f"note: {warn}")
     return 0
 
 
 def run_scaffold(args: argparse.Namespace) -> int:
     from agent_workflows import project_context as _ctx
+    from agent_workflows.result_types import select_output
 
+    ctx = select_output(args)
     repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))
     kind = getattr(args, "kind", None)
     if kind not in S.KINDS:
-        print("error: --kind must be child or orchestrator")
-        return 2
+        return _refuse_scaffold("--kind must be child or orchestrator", ctx)
     title = getattr(args, "title", None)
     target = getattr(args, "path", None)
     if not title:
-        print("error: --title is required")
-        return 2
+        return _refuse_scaffold("--title is required", ctx)
     set_name = getattr(args, "set", None)
     order = getattr(args, "order", None)
     if set_name is None:
-        print("error: --set is required")
-        return 2
+        return _refuse_scaffold("--set is required", ctx)
     if order is None:
-        print("error: --order is required")
-        return 2
+        return _refuse_scaffold("--order is required", ctx)
     # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, not a local comparison.
     # Refuses over `max_length`; WARNS and proceeds over `warn_length`.
-    if _setid_length_guard(set_name, repo_root=repo_root, verb="aw ipd scaffold") != 0:
-        return 2
+    rc = _setid_length_guard(
+        set_name, repo_root=repo_root, verb="aw ipd scaffold", ctx=ctx
+    )
+    if rc != 0:
+        return rc
     if kind == S.KIND_ORCHESTRATOR and order != 0:
-        print("error: orchestrator Order must be 0")
-        return 2
+        return _refuse_scaffold("orchestrator Order must be 0", ctx)
     if kind == S.KIND_CHILD and order < 1:
-        print("error: child Order must be >= 1")
-        return 2
+        return _refuse_scaffold("child Order must be >= 1", ctx)
     author = getattr(args, "author", None) or os.environ.get("AW_IPD_AUTHOR")
     if not author:
-        print("error: --author is required (or set AW_IPD_AUTHOR)")
-        return 2
+        return _refuse_scaffold("--author is required (or set AW_IPD_AUTHOR)", ctx)
     # OQ-02, as the maintainer ruled it: NORMALIZE the author, AND SAY SO. A silent rewrite would
     # mean the string the caller typed is not the string recorded, which is a small surprise of its
     # own; one line removes it without refusing an otherwise harmless call. Deliberately NOT styled
     # as an error (this is a cosmetic field), and printed only when the value actually changed.
     _author_normalized = normalize_author(author)
     if _author_normalized != author.strip():
-        print(
+        notice = (
             f"note: normalized --author to {_author_normalized!r} (parentheses are not used in an "
             "actor/author; qualifiers are rendered key=value so history records stay parseable)"
         )
+        if ctx.is_agent or ctx.is_json:
+            print(notice, file=sys.stderr)
+        else:
+            print(notice)
     author = _author_normalized
     # planprio lkexaw E-10 (maintainer ruling 2026-09-24): Priority and Work-Kind are set WHERE THE
     # WORK IS FIRST RECORDED. With `--from-backlog` that is the backlog item, so both are INHERITED
@@ -494,8 +509,9 @@ def run_scaffold(args: argparse.Namespace) -> int:
 
         _item = _backlog.find_item(repo_root, from_backlog)
         if _item is None:
-            print(f"error: --from-backlog {from_backlog}: no backlog item has that id")
-            return 2
+            return _refuse_scaffold(
+                f"--from-backlog {from_backlog}: no backlog item has that id", ctx
+            )
         priority = priority or _item.priority
         work_kind = work_kind or _item.kind
         blocks_release = _item.blocks_release
@@ -510,20 +526,17 @@ def run_scaffold(args: argparse.Namespace) -> int:
             if from_backlog
             else "pass it, or pass --from-backlog <id6> to inherit both from the backlog item"
         )
-        print(f"error: {' and '.join(missing)} required ({where})")
-        return 2
+        return _refuse_scaffold(f"{' and '.join(missing)} required ({where})", ctx)
     from agent_workflows import backlog as _bk_vocab
 
     if priority not in _bk_vocab.PRIORITIES:
-        print(
-            f"error: priority must be one of {sorted(_bk_vocab.PRIORITIES)}: {priority!r}"
+        return _refuse_scaffold(
+            f"priority must be one of {sorted(_bk_vocab.PRIORITIES)}: {priority!r}", ctx
         )
-        return 2
     if work_kind not in _bk_vocab.KINDS:
-        print(
-            f"error: work kind must be one of {sorted(_bk_vocab.KINDS)}: {work_kind!r}"
+        return _refuse_scaffold(
+            f"work kind must be one of {sorted(_bk_vocab.KINDS)}: {work_kind!r}", ctx
         )
-        return 2
     when = date.today().strftime("%Y-%m-%d")
     # History records record UTC per spec 2vev8j Section 4.4 (reusing artifact_core.utc_history_date,
     # added by 5ivkdh E-01); human-facing names (- Date: and filename prefixes) remain machine-local
@@ -539,11 +552,11 @@ def run_scaffold(args: argparse.Namespace) -> int:
         m = _refs._CLUSTERED_RE.match(path.name)
         if not legacy_name:
             if not m or m.group("type") != "ipd":
-                print(
-                    "error: --path must follow clustering grammar "
-                    "YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md (pass --legacy-name to override)"
+                return _refuse_scaffold(
+                    "--path must follow clustering grammar "
+                    "YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md (pass --legacy-name to override)",
+                    ctx,
                 )
-                return 2
             plan_id = m.group("id6")
         else:
             if m and m.group("type") == "ipd":
@@ -559,8 +572,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         explicit_dir = getattr(args, "dir", None)
         if explicit_dir is None and _ctx.find_project_root() is None:
             msg = _ctx.no_project_message("ipd scaffold", repo_root, explicit=False)
-            print(f"error: {msg}")
-            return 2
+            return _refuse_scaffold(msg, ctx)
         pending = (
             _ctx.project_records_dir(repo_root)
             / "plans"
@@ -599,10 +611,8 @@ def run_scaffold(args: argparse.Namespace) -> int:
     from agent_workflows.result_types import (
         Change,
         CommandResult,
-        select_output,
     )
 
-    ctx = select_output(args)
     if path.exists() and not getattr(args, "overwrite", False):
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
