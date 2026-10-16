@@ -6,7 +6,7 @@
 - Scope: Pass `--no-renames` to the `git diff` in `check_lane_hook_bypass` so deleted rename sources are removed in the disposable worktree regardless of user or repo `diff.renames` config; add an outcome test that reproduces the refusal for a rename inside `executed/` under the REAL gate hook with rename detection forced ON (repo-local `git config diff.renames true`) and asserts it passes after the fix; give `leak_sanitizer._staged_files` (`--diff-filter=ACM`, which drops a renamed file from the staged leak scan under rename detection) the same `--no-renames` fix with its own test; audit the remaining `--diff-filter` calls in `agent_workflows/`. Does NOT change the hook, the gate, or the local `.git/config` (removing the workaround is the maintainer's choice, see OQ-01).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_lane_rule_break_detection.py, agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Blocks-Release: next
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: aw agy run model=Gemini-3.8-Flash-High (fleshed by opencode its_direct/pt3-claude-opus-5.5-1m-us)
 - Id: bbxvpq
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bbxvpq verified (set prop-j7dsci, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004
 - 2026-10-16 to-review (aw set): fleshed from the j7dsci agent proposal; defect reproduced 2026-10-16 (git 2.43.0); reclassified bug/medium gating next release
