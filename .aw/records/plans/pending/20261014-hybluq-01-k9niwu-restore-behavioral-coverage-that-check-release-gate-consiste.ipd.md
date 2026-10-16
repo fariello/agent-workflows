@@ -36,21 +36,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one-way mismatch tests
 
-- [ ] E-01 Create `tests/test_release_gate_one_way_mismatch.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` (`from tests import support`). Add local fixture helpers (re-implemented, shaped as `19313eed^:tests/test_bug_gate_check.py` `_item`/`_plan`/`_spec` and its `ITEM`/`PLAN`/`SPEC` templates) that write, under a `tempfile.TemporaryDirectory` root: a backlog item in `.aw/records/backlog/<status>/` with `- Work-Kind: bug`, `- Status: graduated` and an optional `- Blocks-Release:`; a plan in `.aw/records/plans/<disposition>/` with `- From-Backlog:` and an optional gate; a spec in `.aw/records/specs/` with `- From-Backlog:` and an optional gate; plus one `planned` release record under `.aw/records/releases/` (shape as `tests/test_check_engine_release_gate.py` `_create_minimal_repo`) so `next` resolves. Add `test_gated_carrier_under_ungated_item_is_not_a_mismatch`, driven as `subTest` rows for (a) a live `pending/` plan carrying `- Blocks-Release: next` and (b) a spec carrying `- Blocks-Release: next`, each pointing at an UNGATED item; assert `[d.rule for d in check_engine.check_release_gate_consistency(root)]` contains no `"check.from-backlog-gate-mismatch"` (the rule id written as a literal string).
+- [x] E-01 Create `tests/test_release_gate_one_way_mismatch.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` (`from tests import support`). Add local fixture helpers (re-implemented, shaped as `19313eed^:tests/test_bug_gate_check.py` `_item`/`_plan`/`_spec` and its `ITEM`/`PLAN`/`SPEC` templates) that write, under a `tempfile.TemporaryDirectory` root: a backlog item in `.aw/records/backlog/<status>/` with `- Work-Kind: bug`, `- Status: graduated` and an optional `- Blocks-Release:`; a plan in `.aw/records/plans/<disposition>/` with `- From-Backlog:` and an optional gate; a spec in `.aw/records/specs/` with `- From-Backlog:` and an optional gate; plus one `planned` release record under `.aw/records/releases/` (shape as `tests/test_check_engine_release_gate.py` `_create_minimal_repo`) so `next` resolves. Add `test_gated_carrier_under_ungated_item_is_not_a_mismatch`, driven as `subTest` rows for (a) a live `pending/` plan carrying `- Blocks-Release: next` and (b) a spec carrying `- Blocks-Release: next`, each pointing at an UNGATED item; assert `[d.rule for d in check_engine.check_release_gate_consistency(root)]` contains no `"check.from-backlog-gate-mismatch"` (the rule id written as a literal string).
   - Depends on: none
   - Expected outcome: the module exists and the zero-finding test passes against current code.
-  - Execution state: pending
-- [ ] E-02 In the same module add `test_forward_direction_still_fires`, the anti-vacuity half, using the same helpers: (a) gated item (`next`) with a live `pending/` plan carrying NO gate, and (b) gated item (`next`) with a live plan gated to a DIFFERENT, unresolvable release string (for example `v9z9z9`); assert each yields exactly one `"check.from-backlog-gate-mismatch"` finding whose `location` is the carrier path and whose `detail` names the item id6. Add (c) gated item with a matching-gated live plan and assert zero findings, so a rule flagging every carrier cannot pass both tests. Add (d) gated item (`next`) with a SPEC carrier gated to `v9z9z9`, built with the SAME spec helper E-01(b) uses, and assert exactly one `"check.from-backlog-gate-mismatch"` finding at the spec path whose `detail` contains `spec`: this is the spec-side anti-vacuity row, without which a spec helper writing to a path `_iter_spec_records` never scans would let E-01(b) pass vacuously (PR-001).
+  - Execution state: performed
+- [x] E-02 In the same module add `test_forward_direction_still_fires`, the anti-vacuity half, using the same helpers: (a) gated item (`next`) with a live `pending/` plan carrying NO gate, and (b) gated item (`next`) with a live plan gated to a DIFFERENT, unresolvable release string (for example `v9z9z9`); assert each yields exactly one `"check.from-backlog-gate-mismatch"` finding whose `location` is the carrier path and whose `detail` names the item id6. Add (c) gated item with a matching-gated live plan and assert zero findings, so a rule flagging every carrier cannot pass both tests. Add (d) gated item (`next`) with a SPEC carrier gated to `v9z9z9`, built with the SAME spec helper E-01(b) uses, and assert exactly one `"check.from-backlog-gate-mismatch"` finding at the spec path whose `detail` contains `spec`: this is the spec-side anti-vacuity row, without which a spec helper writing to a path `_iter_spec_records` never scans would let E-01(b) pass vacuously (PR-001).
   - Depends on: E-01
   - Expected outcome: the anti-vacuity test passes against current code, proving BOTH the plan and the spec fixtures of E-01 are capable of producing the finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stale remark
 
-- [ ] E-03 In `agent_workflows/check_engine.py`, edit the `check_release_gate_consistency` docstring sentence "why `tests/test_bug_gate_check.py` (deleted in `19313eed`; no live guard currently asserts this directly) pinned the zero-finding direction explicitly" so it states that `tests/test_release_gate_one_way_mismatch.py` now pins the zero-finding direction (keeping the historical note that the original guard was deleted in `19313eed`). Docstring-only change; no behavior change.
+- [x] E-03 In `agent_workflows/check_engine.py`, edit the `check_release_gate_consistency` docstring sentence "why `tests/test_bug_gate_check.py` (deleted in `19313eed`; no live guard currently asserts this directly) pinned the zero-finding direction explicitly" so it states that `tests/test_release_gate_one_way_mismatch.py` now pins the zero-finding direction (keeping the historical note that the original guard was deleted in `19313eed`). Docstring-only change; no behavior change.
   - Depends on: E-02
   - Expected outcome: the docstring names the new live test module and no longer claims the guard is absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,18 +108,142 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_release_gate_one_way_mismatch.py` showing `test_gated_carrier_under_ungated_item_is_not_a_mismatch` PASSED; pasted output of the temporary mutation run (Rule 2 `item_gate` populated for ungated items) showing that test FAILED, followed by `git diff --stat agent_workflows/check_engine.py` proving the mutation was reverted; plus `grep -nE "inspect|import ast|read_text\(.*check_engine" tests/test_release_gate_one_way_mismatch.py` returning no match.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    - `python3 -m pytest -o addopts="" -v tests/test_release_gate_one_way_mismatch.py`:
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+      cachedir: .pytest_cache
+      Using --randomly-seed=3383497213
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/k9niwu
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 2 items
+
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_gated_carrier_under_ungated_item_is_not_a_mismatch PASSED [ 50%]
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_forward_direction_still_fires PASSED [100%]
+
+      ============================== 2 passed in 0.25s ===============================
+      ```
+    - Temporary mutation run (Rule 2 `item_gate` populated for ungated items) showing `test_gated_carrier_under_ungated_item_is_not_a_mismatch` FAILED:
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+      cachedir: .pytest_cache
+      Using --randomly-seed=1602271593
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/k9niwu
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 2 items
+
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_gated_carrier_under_ungated_item_is_not_a_mismatch FAILED [ 50%]
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_forward_direction_still_fires PASSED [100%]
+
+      =================================== FAILURES ===================================
+      _ ReleaseGateOneWayMismatchTests.test_gated_carrier_under_ungated_item_is_not_a_mismatch _
+
+      self = <tests.test_release_gate_one_way_mismatch.ReleaseGateOneWayMismatchTests testMethod=test_gated_carrier_under_ungated_item_is_not_a_mismatch>
+
+          def test_gated_carrier_under_ungated_item_is_not_a_mismatch(self):
+              """Assert zero check.from-backlog-gate-mismatch findings for a live gated plan
+              or spec carrier under an ungated backlog item."""
+              cases = [
+                  ("plan", "pending_plan_gated_under_ungated_item"),
+                  ("spec", "spec_gated_under_ungated_item"),
+              ]
+              for carrier_type, case_name in cases:
+                  with self.subTest(carrier_type=carrier_type, case=case_name):
+                      with tempfile.TemporaryDirectory() as td:
+                          root = Path(td)
+                          _release(root)
+                          _item(root, "item01", status="graduated", work_kind="bug", gate=None)
+                          if carrier_type == "plan":
+                              _plan(root, "plan01", "item01", gate="next", disposition="pending", status="to-review")
+                          else:
+                              _spec(root, "spec01", "item01", gate="next")
+
+                          drift = check_engine.check_release_gate_consistency(root)
+                          rules = [d.rule for d in drift]
+      >                   self.assertNotIn(
+                              "check.from-backlog-gate-mismatch",
+                              rules,
+                              f"Expected zero '{RULE_MISMATCH}' findings for gated {carrier_type} under ungated item, got {rules}",
+                          )
+      E                   AssertionError: 'check.from-backlog-gate-mismatch' unexpectedly found in ['check.from-backlog-gate-mismatch'] : Expected zero 'check.from-backlog-gate-mismatch' findings for gated plan under ungated item, got ['check.from-backlog-gate-mismatch']
+
+      tests/test_release_gate_one_way_mismatch.py:169: AssertionError
+      =========================== short test summary info ============================
+      FAILED tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_gated_carrier_under_ungated_item_is_not_a_mismatch
+      ========================= 1 failed, 1 passed in 0.35s ==========================
+      ```
+    - `git diff --stat agent_workflows/check_engine.py` proving mutation reverted cleanly (no uncommitted diff):
+      ```
+      (exit code 0, empty output)
+      ```
+    - `grep -nE "inspect|import ast|read_text\(.*check_engine" tests/test_release_gate_one_way_mismatch.py` returning no match:
+      ```
+      (exit code 1, no match)
+      ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest -o addopts="" -v tests/test_release_gate_one_way_mismatch.py` output showing the forward-direction test PASSED, with its rows visibly covering (a) ungated plan, (b) differently-gated plan, (c) matching plan with zero findings, and (d) differently-gated SPEC with the finding at the spec path; test names are non-binding pointers, the evidence is the behaviors pinned.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    - `python3 -m pytest -o addopts="" -v tests/test_release_gate_one_way_mismatch.py`:
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+      cachedir: .pytest_cache
+      Using --randomly-seed=4251445704
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/k9niwu
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 2 items
+
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_gated_carrier_under_ungated_item_is_not_a_mismatch PASSED [ 50%]
+      tests/test_release_gate_one_way_mismatch.py::ReleaseGateOneWayMismatchTests::test_forward_direction_still_fires PASSED [100%]
+
+      ============================== 2 passed in 0.37s ===============================
+      ```
+    - Subtest rows in `test_forward_direction_still_fires` verify:
+      - `a_ungated_plan`: gated item (`next`) with live pending plan carrying no gate, asserting exactly 1 `check.from-backlog-gate-mismatch` finding located at the plan path whose detail names item `item01`.
+      - `b_differently_gated_plan`: gated item (`next`) with live plan gated to `v9z9z9`, asserting exactly 1 `check.from-backlog-gate-mismatch` finding located at the plan path whose detail names item `item02`.
+      - `c_matching_plan_zero_findings`: gated item (`next`) with matching-gated live plan, asserting 0 mismatch findings.
+      - `d_differently_gated_spec`: gated item (`next`) with spec gated to `v9z9z9` (using the same `_spec` helper), asserting exactly 1 `check.from-backlog-gate-mismatch` finding located at the spec path whose detail contains `spec` and names item `item04`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff agent_workflows/check_engine.py` showing only docstring lines changed and naming `tests/test_release_gate_one_way_mismatch.py`; AND the pasted summary line of a bare `python3 -m pytest` run with no new failures.
   - Observed evidence:
-  - Result: pending
+    - `git diff agent_workflows/check_engine.py`:
+      ```diff
+      diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+      index c87ce3bbb..0f4926a49 100644
+      --- a/agent_workflows/check_engine.py
+      +++ b/agent_workflows/check_engine.py
+      @@ -6515,9 +6515,9 @@ def check_release_gate_consistency(
+           release for reasons its originating item never knew, and punishing it for being better informed
+           than its own provenance would be wrong. Today that direction is additionally unreachable by
+           construction (the `item_gate` map below is populated only for an item that HAS a gate), which is
+      -    why `tests/test_bug_gate_check.py` (deleted in `19313eed`; no live guard currently asserts
+      -    this directly) pinned the zero-finding direction explicitly: without that test a refactor could
+      -    silently make the rule symmetric and nothing would notice.
+      +    why `tests/test_bug_gate_check.py` (deleted in `19313eed`; live guard is
+      +    `tests/test_release_gate_one_way_mismatch.py`) pinned the zero-finding direction explicitly: without
+      +    that test a refactor could silently make the rule symmetric and nothing would notice.
+
+           Terminal classification uses the shipped `is_retired` predicate rather than a fresh path test,
+           per the ruling. `is_retired` is chosen over the narrower `_EXECUTED_SEGMENT` literal because the
+      ```
+    - Bare `python3 -m pytest` summary line:
+      ```
+      702 passed in 24.04s
+      ```
+    - `aw suite` summary line:
+      ```
+      702 passed in 20.92s
+      ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -6515,9 +6515,9 @@ def check_release_gate_consistency(
     release for reasons its originating item never knew, and punishing it for being better informed
     than its own provenance would be wrong. Today that direction is additionally unreachable by
     construction (the `item_gate` map below is populated only for an item that HAS a gate), which is
-    why `tests/test_bug_gate_check.py` (deleted in `19313eed`; no live guard currently asserts
-    this directly) pinned the zero-finding direction explicitly: without that test a refactor could
-    silently make the rule symmetric and nothing would notice.
+    why `tests/test_bug_gate_check.py` (deleted in `19313eed`; live guard is
+    `tests/test_release_gate_one_way_mismatch.py`) pinned the zero-finding direction explicitly: without
+    that test a refactor could silently make the rule symmetric and nothing would notice.
 
     Terminal classification uses the shipped `is_retired` predicate rather than a fresh path test,
     per the ruling. `is_retired` is chosen over the narrower `_EXECUTED_SEGMENT` literal because the
