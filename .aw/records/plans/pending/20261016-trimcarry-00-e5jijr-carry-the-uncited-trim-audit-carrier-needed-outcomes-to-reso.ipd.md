@@ -2,13 +2,14 @@
 
 - Date: 2026-10-16
 - Kind: orchestrator
-- Concern: Backlog `9qvfie` is the rollup carrier for 770 carrier-needed outcomes of the uncited trim-deleted test audit (findings `hpjj44`, Set `uncitedaudit`): 1 `unprovable` property (`PROP-02`), 764 `triaged-not-mutated` items (747 production keys and 17 `pass-shared` test files), 1 `replay-env-limited` file and 4 `recreated` files with missing test names. None of them has a guard verdict yet: the keys were never probed because the earlier budget went to two full-selection survivor runs (`hpjj44` `## Mutation totals`), and two of the outcomes turn out to be fixable directly (the `PROP-02` module and the env-limited module both pass at HEAD with at most a one-line fixture fix and three superseded-contract assertions). This Set restores what can be restored, measures and probes the rest at one HEAD, and files every remaining gap.
+- Concern: Backlog `9qvfie` is the rollup carrier for 770 carrier-needed outcomes of the uncited trim-deleted test audit (findings `hpjj44`, Set `uncitedaudit`): 1 `unprovable` property (`PROP-02`), 764 `triaged-not-mutated` items (747 production keys and 17 `pass-shared` test files), 1 `replay-env-limited` file and 4 `recreated` files with missing test names. None of them has a guard verdict yet: the keys were never probed because the earlier budget went to two full-selection survivor runs (`hpjj44` `## Mutation totals`), and two of the outcomes turn out to be fixable directly (the `PROP-02` module and the env-limited module both pass at HEAD with at most a one-line fixture fix and superseded-contract assertions in three tests). This Set restores what can be restored, measures and probes the rest at one HEAD, and files every remaining gap.
 - Scope: Orchestration only: sequence the six children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-trimcarry-00-e5jijr-carry-the-uncited-trim-audit-carrier-needed-outcomes-to-reso.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 8065c13063c0b9d2c19206f25d499c118fc20fe158bd12cb40b90bfeb7b9f726
+- Coverage-Fingerprint: 9206f2fa887b74a99c4bcaf92fbba2ab7a16618802ba0abad3dca9d274170826
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
@@ -20,7 +21,9 @@
 - Id: e5jijr
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
+- 2026-10-16 coverage pass (aw oc run): fingerprint 9206f2fa887b, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 coverage pass (aw oc run): fingerprint 8065c13063c0, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready orchestrator graduating backlog 9qvfie.
@@ -61,7 +64,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-06 CONFIRM z2xs98 REACHED executed
-  - Depends on: E-01, E-02, E-04, E-05
+  - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: `aw find plans z2xs98` shows it under `executed/`.
   - Execution state: pending
 
@@ -70,7 +73,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | `24h56i` | `20261016-trimcarry-01-24h56i-restore-the-deleted-benchmark-runners-and-reports-tests-and.ipd.md` | Restore `tests/test_benchmark_runners_reports.py` unchanged and settle `PROP-02` with a narrowed mutation probe. | none |
-| 02 | `x9z0ve` | `20261016-trimcarry-02-x9z0ve-restore-the-env-limited-run-evidence-completion-tests-with-a.ipd.md` | Restore `tests/test_run_evidence_completion.py` with an id6 spec lookup and three cited contract updates. | none |
+| 02 | `x9z0ve` | `20261016-trimcarry-02-x9z0ve-restore-the-env-limited-run-evidence-completion-tests-with-a.ipd.md` | Restore `tests/test_run_evidence_completion.py` with an id6 spec lookup and cited contract updates in three tests. | none |
 | 03 | `8dyt88` | `20261016-trimcarry-03-8dyt88-re-measure-surviving-reach-for-every-rollup-key-and-pass-sha.ipd.md` | Create the Set findings doc; full-suite coverage baseline at HEAD; reach class for all 747 keys; re-diff the 17 pass-shared and 4 recreated files. | `executed:24h56i`, `executed:x9z0ve` |
 | 04 | `we3kkb` | `20261016-trimcarry-04-we3kkb-classify-each-test-name-the-recreated-files-did-not-restore.ipd.md` | Classify each of the 136 missing recreated test names (removed, moved, pin, intended-change, regression, gap, covered). | `executed:8dyt88` |
 | 05 | `rf1xxr` | `20261016-trimcarry-05-rf1xxr-mutation-probe-the-reached-rollup-properties-on-a-bounded-bu.ipd.md` | Final verdict for every key: non-probe classes from reach, then budgeted survivor plus control probes. | `executed:8dyt88` |
