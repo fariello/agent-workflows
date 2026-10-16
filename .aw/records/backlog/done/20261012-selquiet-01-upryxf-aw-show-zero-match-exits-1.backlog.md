@@ -1,5 +1,5 @@
 - Id: upryxf
-- Status: graduated
+- Status: done
 - Graduated-To: selquiet
 - Blocks-Release: next
 - Set: selquiet
@@ -8,6 +8,7 @@
 - Summary: aw show exits 1 on a zero-match selector, not 2 as the zyj8io survey recorded
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD uhp38x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-selquiet-03-uhp38x-make-aw-show-refuse-a-zero-match-selector-with-exit-2-and-dr.ipd.md); evidence .aw/records/plans/executed/20261014-selquiet-03-uhp38x-make-aw-show-refuse-a-zero-match-selector-with-exit-2-and-dr.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: uhp38x
 - 2026-10-12 created (aw backlog): filed while graduating tbe8v0
 

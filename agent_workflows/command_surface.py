@@ -224,7 +224,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="shared_empty_result",
-        exit_contract=(0, 1, 2),
+        # Pure read verb: zero-match refusal exits 2 (upryxf; docs/cli-output-contract.md Section 11.1); no reachable exit 1 path.
+        exit_contract=(0, 2),
     ),
     CommandDeclaration(
         command="record-history",
