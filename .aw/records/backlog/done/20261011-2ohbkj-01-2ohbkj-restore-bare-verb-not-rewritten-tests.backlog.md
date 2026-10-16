@@ -1,5 +1,5 @@
 - Id: 2ohbkj
-- Status: graduated
+- Status: done
 - Graduated-To: 2ohbkj
 - Set: 2ohbkj
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral tests that a bare stop/audit first token is not rewritten into start in both runner drivers
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD aka0li executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-2ohbkj-01-aka0li-restore-behavioral-tests-that-bare-stop-and-audit-are-not-re.ipd.md); evidence .aw/records/plans/executed/20261014-2ohbkj-01-aka0li-restore-behavioral-tests-that-bare-stop-and-audit-are-not-re.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: aka0li
 - 2026-10-12 created (aw backlog): Restore behavioral tests that a bare stop/audit first token is not rewritten into start in both runner drivers
 

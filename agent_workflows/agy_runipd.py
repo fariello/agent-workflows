@@ -4261,8 +4261,8 @@ def main(argv: list[str] | None = None) -> int:
     # `main()` and NOT in `build_parser()`, so adding the `stop` subparser alone does not cover it -
     # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
     # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
-    # of the operator's intent. The behavioral `stop` not-rewritten tests were deleted in `19313eed7`;
-    # restoring that coverage is tracked by backlog `2ohbkj`.
+    # of the operator's intent. Behavioral coverage asserting bare `stop` and `audit` are not rewritten
+    # into `start` is driven through `main()` in `tests/test_runner_bare_verb_shim.py` (backlog `2ohbkj`).
     #
     # streamfmt (mm6wuz) E-06 / OQ-02 (resolved): `"-v"` and `"--version"` USED TO BE LISTED HERE and
     # were REMOVED, in lockstep with the oc twin. `-v` now means `--verbose`, and while it sat in this
@@ -4270,18 +4270,16 @@ def main(argv: list[str] | None = None) -> int:
     # `--version` entry guarded a flag NEITHER driver registers. THE TWO DRIVERS' SETS MUST STILL STAY
     # IDENTICAL and every hazardous verb MUST still be listed. The structural guard that read this set
     # from source (`tests/test_runner_stop_triggers.py`) was a code pin deleted in `19313eed7` that will
-    # not return under P16; until behavioral coverage returns under `2ohbkj`, lockstep of the two sets
-    # is held by review.
+    # not return under P16; lockstep of non-hazardous set tokens remains held by review.
     # integpath-04 (`rl67b0`) E-02: `"integrate"` MUST be listed here for the SAME reason `stop` must -
     # an unregistered first token becomes `start <token>`, so `integrate <id6>` would LAUNCH A RUN with
-    # `integrate` as a selector. Added in lockstep with the oc twin. Unlike `stop` and `audit`, `integrate`
-    # alone is still driven through the real `main` in this driver's tests (`tests/test_agy_runipd_cli.py`,
-    # the `agy_runipd.main(["integrate", ...])` calls), which exercises its not-rewritten path, while
-    # `stop` and `audit` have no such coverage.
+    # `integrate` as a selector. Added in lockstep with the oc twin. Bare `integrate` is driven through
+    # `main` in `tests/test_agy_runipd_cli.py`, while bare `stop` and `audit` are driven through `main`
+    # in `tests/test_runner_bare_verb_shim.py`.
     # reverify-01 (`mp289j`) E-05: `"audit"` MUST be listed here for the SAME measured reason `stop` and
     # `integrate` must, and it must match the oc copy token for token. An unregistered first token is
     # rewritten into `start <token>`, so `audit <id6>` would LAUNCH A RUN with `audit` as a selector.
-    # Restoring coverage for `stop` and `audit` is tracked by backlog `2ohbkj`.
+    # Bare `stop` and `audit` are driven through `main()` in `tests/test_runner_bare_verb_shim.py` (backlog `2ohbkj`).
     subcommands = {
         "start",
         "resume",
