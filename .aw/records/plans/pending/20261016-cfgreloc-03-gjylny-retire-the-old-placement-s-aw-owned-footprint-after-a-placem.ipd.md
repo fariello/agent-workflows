@@ -6,7 +6,8 @@
 - Scope: IN: `placement_switch.retire_footprint(repo_root, side, *, use_git=True, preserve=(), changed_out=None) -> list[str]` that retires ONE explicit side; for `side="target"` it calls `engine.uninstall_repo(repo_root, use_git, home_trees=None, ...)` through a new keyword `engine.uninstall_repo(..., side="target")` that forces the in-tree branch (skips the `_clean_delta_home_trees` auto-detect and the clean-delta lane teardown) while keeping every existing caller's default behavior; `preserve` is a set of repo-relative paths the retirement must not touch (the executor passes the already-handled config and records paths); for `side="home"` it removes only `<project_dir>/system`, `<project_dir>/state` and the remaining `<project_dir>/config` files, then prunes `<project_dir>` only when empty, refusing (raising) if `<project_dir>/records` still holds files. OUT: moving data (Order 04), CLI (Order 05).
 - Scope-Paths: agent_workflows/placement_switch.py, agent_workflows/engine.py, tests/test_placement_switch_retire.py
 - Item-Dependencies: executed:xvlemm
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: ui1aln
@@ -18,6 +19,7 @@
 - Id: gjylny
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set cfgreloc graduating backlog ui1aln.
@@ -32,26 +34,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Side-explicit uninstall
 
-- [ ] E-01 In `agent_workflows/engine.py` add keyword-only `side: Optional[str] = None` to `uninstall_repo`. `None` keeps today's behavior exactly. `side="target"` forces `home_trees = None` WITHOUT calling `_clean_delta_home_trees` (so the clean-delta lane teardown block and every `if home_trees is not None:` branch are skipped) and passes `home_trees=None` to `plan_uninstall`; any other value raises `ValueError`. Also accept keyword `preserve: frozenset[str] = frozenset()` and skip any repo-relative path in it (or under a preserved directory) in the step-4 `.aw/config` and `.aw/state` sweeps and the manifest-driven removal loop. Inside `side="target"`, `_system_member_destination` must resolve system members to `<repo>/.aw/system/...`: pass an explicit empty `home_trees={}` sentinel to it (its `if home_trees is None: home_trees = _clean_delta_home_trees(repo_root)` auto-detect would otherwise pick the new home system dir); `{}` has no `"system"` key so it falls through to `project_system_dir`, which must also be bypassed: compute `repo_root / AW_SYSTEM_DIR` directly when `side == "target"`.
+- [ ] E-01 In `agent_workflows/engine.py` add keyword-only `side: Optional[str] = None` to `uninstall_repo` AND to `plan_uninstall`. `None` keeps today's behavior exactly; any value other than `None`/`"target"` raises `ValueError`. Under `side="target"` EVERY path the uninstall resolves must be the explicit in-tree one, because after a to-home flip every resolver it calls today routes to the NEW home side (review probes, F-04 to F-06). Concretely, when `side == "target"`: (a) `home_trees` stays `None` and `_clean_delta_home_trees` is never called, in `uninstall_repo` (skipping the clean-delta lane-teardown block and every `if home_trees is not None:` branch) and in `plan_uninstall` (whose own "if home_trees is None: home_trees = _clean_delta_home_trees(repo_root)" would otherwise re-detect; passing `home_trees=None` to it is NOT enough, and an empty-dict sentinel is wrong because `uninstall_repo` treats any non-`None` value as clean-delta and indexes `home_trees["project_dir"]`); (b) the manifest path is `repo_root / AW_SYSTEM_DIR / "managed-sections.json"`, else `repo_root / manifest_mod.LEGACY_MANIFEST_RELPATH`, never `manifest_mod.resolve_manifest_path` (which goes through `project_system_dir` and, after the flip, returns the absent home manifest, so `has_manifest` is False and the PRE-MANIFEST FALLBACK SWEEP deletes every shim including user-edited ones; probe: an edited, committed `.opencode/commands/advise.md` was "removed", not PRESERVED), in both the plan step and the final manifest-removal step 6; (c) system members map to `repo_root / AW_SYSTEM_DIR / <tail>` without calling `_system_member_destination`'s `project_system_dir` fallback (add a `side` keyword to `_system_member_destination` or compute it inline); (d) the step-4 `else:` sub-branch that runs when `.aw/config` is absent ("home_cfg = project_config_dir(repo_root)") is SKIPPED entirely: after the flip it resolves the NEW home config and deletes its `project.json`, `local.json` and the whole home `state/` (probe: "removed <AW_HOME>/projects/r-4ff147/config/project.json" and ".../state/durable/install.json"); (e) the setup marker is `repo_root / SETUP_MARKER_PATH`, not `setup_marker_path(repo_root)` (which returns the home `state_runtime` marker once the repo resolves as clean-delta). Also accept keyword `preserve: frozenset[str] = frozenset()` and skip any repo-relative path in it (or under a preserved directory) in the manifest-driven removal loop, the pre-manifest fallback and the step-4 `.aw/config` and `.aw/state` sweeps.
   - Depends on: none
-  - Expected outcome: default calls unchanged (the existing uninstall suites stay green); `side="target"` on a repo whose authoritative config is already home-placed removes only in-tree AW files.
+  - Expected outcome: default calls unchanged (the existing uninstall suites stay green); `side="target"` on a repo whose authoritative config is already home-placed removes only in-tree AW files, uses the in-tree manifest (so drifted files are PRESERVED), and leaves every file under `<AW_HOME>` byte-identical.
   - Execution state: pending
 
-- [ ] E-02 In `agent_workflows/placement_switch.py` add `retire_footprint(repo_root, side, *, use_git=True, preserve=(), changed_out=None)`. `side="target"`: call `engine.uninstall_repo(repo_root, use_git, side="target", preserve=frozenset(preserve), changed_out=changed_out)` with `force=False` and no `drift_decider`, so user-edited managed files are PRESERVED and reported (existing uninstall contract), then return its actions. `side="home"`: resolve `<AW_HOME>/projects/<id>` with `project_context._resolve_effective_aw_home` and `_derive_project_id(_canonical_path(checkout_main_root(repo) or repo))` (the same derivation `engine._clean_delta_home_trees` case (b) uses), refuse with `PlacementSwitchError` if `records/` under it has any file, else remove `system/`, `state/`, `config/` and `worktrees/.owners` and prune empty dirs; it never runs `git` (home is not a repo). Return human-readable actions.
+- [ ] E-02 In `agent_workflows/placement_switch.py` add `retire_footprint(repo_root, side, *, use_git=True, preserve=(), changed_out=None)`. `side="target"`: call `engine.uninstall_repo(repo_root, use_git, side="target", preserve=frozenset(preserve), changed_out=changed_out)` with `force=False` and no `drift_decider`, so user-edited managed files are PRESERVED and reported (existing uninstall contract), then ALSO remove what `uninstall_repo` leaves behind on the target side, which the Concern names and a `completely-clean-target` repo must not keep: `.aw/inbox/README.md` (tracked, not in the manifest; review probe: a default `uninstall_repo` on a fresh `private-target` install left it and `git ls-files .aw/inbox` still listed it) is removed with `engine._uninstall_remove` ONLY when its bytes equal the shipped template that `engine.ensure_inbox_readme` installs (obtain it via `engine.collect_scaffold_members(repo_root, source_root, category="inbox")`, with `source_root` from `engine.resolve_source_root(None)`; else reported `PRESERVED`), and the `.aw/inbox/` and `.aw/workflow-artifacts/` directories are pruned ONLY when empty (anything inside them is user material and is reported `PRESERVED`, never deleted, spec Section 11.2 item 9), then prune empty dirs under `.aw/`. Return the combined actions. `side="home"`: resolve `<AW_HOME>/projects/<id>` with `project_context._resolve_effective_aw_home` and `_derive_project_id(_canonical_path(checkout_main_root(repo) or repo))` (the same derivation `engine._clean_delta_home_trees` case (b) uses), refuse with `PlacementSwitchError` if `records/` under it has any file, else remove `system/`, `state/`, `config/` and `worktrees/.owners` and prune empty dirs; it never runs `git` (home is not a repo). Return human-readable actions.
   - Depends on: E-01
   - Expected outcome: one call per side; neither side's call can reach the other side.
   - Execution state: pending
 
 ### Task group 2: Tests
 
-- [ ] E-03 Create `tests/test_placement_switch_retire.py` (`unittest.TestCase`, scratch `AW_HOME`/`XDG_CONFIG_HOME`/`HOME`, real install subprocess in `setUpClass`, per-test `copytree`). Cases: (1) target side on a `private-target` install after simulating the flip (write a valid home `project.json` for the repo and delete the in-tree config files): every manifest-owned in-tree file is gone, deletions are STAGED (`git diff --cached --name-status` shows `D`), nothing is committed (`git rev-list --count HEAD` unchanged), the home tree is byte-identical before and after (snapshot), a user file `notes/mine.md` and a user section in `AGENTS.md` outside the managed block survive; (2) a hand-edited `.claude/commands/aw.md` survives and is reported `PRESERVED`; (3) `preserve={".aw/records"}` leaves `.aw/records/**` untouched; (4) home side removes `system/`, `state/`, `config/`, prunes the project dir, and the target repo tree is unchanged; (5) home side with a file under `records/` raises and removes nothing; (6) `uninstall_repo` default (`side=None`) on a `completely-clean-target` install still removes the home trees (regression of the existing contract). Then run `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_retire.py tests/test_uninstall_layout_artifacts.py -v` and every other module whose name contains `uninstall` (`ls tests | grep uninstall`).
+- [ ] E-03 Create `tests/test_placement_switch_retire.py` (`unittest.TestCase`, scratch `AW_HOME`/`XDG_CONFIG_HOME`/`HOME`, a fresh real install subprocess per test in `setUp` into its own temp dir, with `GIT_AUTHOR_*`/`GIT_COMMITTER_*` in the env and an `--allow-empty` initial commit so the installer's sync commit lands; do NOT `copytree` an installed repo: a copied `private-target` repo's `local.json` keeps the original's `project_id` and a copied clean-target repo has no config at all (`xvlemm` review PR-004)). Cases: (1) target side on a `private-target` install after simulating the flip (write a valid home `project.json` with `delivery_mode: clean-delta` at `<AW_HOME>/projects/<derived id>/config/`, plus a home `state/durable/install.json` and a home `records/keep.md`, then delete the in-tree `project.json` and `local.json` and the now-empty `.aw/config/`, so `engine._is_clean_delta_install` is True exactly as after a real flip): every manifest-owned in-tree file is gone, deletions are STAGED (`git diff --cached --name-status` shows `D`), nothing is committed (`git rev-list --count HEAD` unchanged), the home tree is byte-identical before and after (snapshot), a user file `notes/mine.md` and a user section in `AGENTS.md` outside the managed block survive; (2) on the same simulated flip, a hand-edited and committed `.opencode/commands/advise.md` survives and is reported `PRESERVED` (this is the case the pre-manifest fallback would delete); (3) `preserve={".aw/records"}` leaves `.aw/records/**` untouched; (4) home side removes `system/`, `state/`, `config/`, prunes the project dir, and the target repo tree is unchanged; (4b) target side on the simulated flip leaves no tracked path under `.aw/` other than the `preserve`d ones (`git ls-files .aw` after the call, with `preserve={".aw/records"}`, lists only `.aw/records/**`), and a user file dropped in `.aw/inbox/` survives and is reported `PRESERVED`; (5) home side with a file under `records/` raises and removes nothing; (6) `uninstall_repo` default (`side=None`) on a `completely-clean-target` install still removes the home trees (regression of the existing contract). Then run `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_retire.py tests/test_uninstall_layout_artifacts.py -v` and every other module that calls `uninstall_repo` (`grep -l uninstall_repo tests/*.py`; at review that was `tests/test_uninstall_layout_artifacts.py` and `tests/test_installer.py`).
   - Depends on: E-02
   - Expected outcome: all pass; the existing uninstall modules pass unchanged.
   - Execution state: pending
 
-- [ ] E-04 Mutation proof: temporarily make `side="target"` fall through to the `_clean_delta_home_trees` auto-detect, run case (1), confirm it fails (home tree snapshot differs or in-tree files remain), restore, confirm with `git diff`, rerun green. Run bare `python3 -m pytest`.
+- [ ] E-04 Mutation proof, two separate temporary mutations, each restored before the next: (M1) make `side="target"` fall through to the `_clean_delta_home_trees` auto-detect, run case (1), confirm it fails (home tree snapshot differs or in-tree files remain); (M2) keep the auto-detect bypass but restore the step-4 `project_config_dir` sub-branch and `manifest_mod.resolve_manifest_path` for `side="target"` (i.e. the plan as originally written), run cases (1) and (2), confirm (1) fails on the home snapshot (home `project.json` deleted) and (2) fails (edited shim removed). Restore, confirm with `git diff`, rerun green. Run bare `python3 -m pytest`.
   - Depends on: E-03
-  - Expected outcome: the mutant fails case (1); restored code passes; bare suite green.
+  - Expected outcome: M1 fails case (1); M2 fails cases (1) and (2); restored code passes; bare suite green.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -67,6 +69,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | `uninstall_repo` auto-selects the home side whenever the repo currently resolves as clean-delta. | `engine.uninstall_repo`: "if home_trees is None: home_trees = _clean_delta_home_trees(repo_root)"; `_clean_delta_home_trees` case (a) "if _is_clean_delta_install(repo)". After a to-home flip that predicate is true. |
 | F-02 | `_system_member_destination` independently auto-detects the home system dir. | `engine._system_member_destination`: "if home_trees is None: home_trees = _clean_delta_home_trees(repo_root)" then `project_system_dir(repo_root)`, which reads the stored placement (`project_context.project_system_dir` -> `_stored_physical_classes`). |
+| F-04 | After a to-home flip, `manifest_mod.resolve_manifest_path` returns the home manifest (absent), so `plan_uninstall` takes the pre-manifest fallback sweep, which deletes every shim regardless of edits. | `manifest.resolve_manifest_path` "new_path = project_system_dir(root) / \"managed-sections.json\""; review probe with `_clean_delta_home_trees` forced to `None`: first action "removed .aw/system/workflows/" (the fallback string) and an edited committed `.opencode/commands/advise.md` "removed". |
+| F-05 | The step-4 sub-branch for a repo with no `.aw/config` deletes the HOME config and state that `project_config_dir` resolves. | `engine.uninstall_repo` "home_cfg = project_config_dir(repo_root)"; review probe: "removed <AW_HOME>/projects/r-4ff147/config/project.json", ".../state/durable/install.json". |
+| F-06 | `plan_uninstall` auto-detects independently of `uninstall_repo`, and `setup_marker_path` routes home once clean-delta. | `engine.plan_uninstall` "if home_trees is None: home_trees = _clean_delta_home_trees(repo_root)"; review probe `setup_marker <AW_HOME>/projects/r-2e1559/state/runtime/setup-repo-needed.md`. |
 | F-03 | The in-tree branch of step 4 already removes `.aw/config/**`, `.aw/state/**`, layout files and `.aw/.gitignore`, and step 7 prunes empty `.aw/` dirs. | `engine.uninstall_repo` comments "# 4. Deterministic framework-created lifecycle files" and "# 7. Prune now-empty directories under .aw". |
 
 ## Proposed changes (ordered, validatable)
@@ -84,14 +89,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none; the `engine.py` change is two keyword parameters whose defaults preserve every current caller.
+- Over-scope: none; the `engine.py` change is a `side` keyword on `uninstall_repo`/`plan_uninstall` (and optionally `_system_member_destination`) plus `preserve`, all defaulting to today's behavior.
 - Under-scope: none; both retire sides named in Order 02's `retire_side` are implemented.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_retire.py -v` passes.
-- Every existing `tests/*uninstall*` module passes unchanged.
-- Mutation proof (E-04) fails then passes.
+- Every existing test module calling `uninstall_repo` (`tests/test_uninstall_layout_artifacts.py`, `tests/test_installer.py` at review) passes unchanged.
+- Mutations M1 and M2 (E-04) fail their named cases, then pass after restore.
 - Bare `python3 -m pytest` passes.
 
 ## Spec / documentation sync
@@ -105,14 +110,14 @@ N/A: spec Section 8.1 (Order 01) already states that old-side tracked files are 
 - Blocking: no
 - Status: resolved
 - Owner: plan author
-- Resolution or deferral rationale: Reuse. `uninstall_repo` already encodes the manifest ownership, drift preservation, managed-block stripping and stage-not-commit rules (F-03); a second sweep would duplicate them and drift. The only defect for this use is side auto-detection (F-01, F-02), fixed with an explicit keyword whose default is today's behavior.
+- Resolution or deferral rationale: Reuse. `uninstall_repo` already encodes the manifest ownership, drift preservation, managed-block stripping and stage-not-commit rules (F-03); a second sweep would duplicate them and drift. The only defect for this use is side auto-detection (F-01, F-02), fixed with an explicit keyword whose default is today's behavior. Amended at review: the auto-detection is not one call site but five resolvers (F-04 to F-06), and E-01 now bypasses every one of them under `side="target"`.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `git diff -- agent_workflows/engine.py` showing the `side`/`preserve` keywords and their defaults.
+  - Required evidence: pasted `git diff -- agent_workflows/engine.py` showing the `side`/`preserve` keywords and their defaults, and each of the five `side == "target"` bypasses (a) to (e) of E-01.
   - Observed evidence:
   - Result: pending
 
@@ -122,12 +127,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `-v` output of `tests/test_placement_switch_retire.py` and of every `tests/*uninstall*` module, all passing.
+  - Required evidence: pasted `-v` output of `tests/test_placement_switch_retire.py` and of every test module calling `uninstall_repo`, all passing, with case (1)'s home snapshot assertion and case (2)'s `PRESERVED` action visible in the test names or output.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted failing case (1) output under the mutant, `git diff --stat` after restore, the passing re-run, and the bare-suite summary line.
+  - Required evidence: pasted failing output under M1 (case 1) and M2 (cases 1 and 2), `git diff --stat` after restore, the passing re-run, and the bare-suite summary line.
   - Observed evidence:
   - Result: pending
 
