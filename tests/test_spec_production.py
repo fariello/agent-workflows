@@ -21,6 +21,7 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    cli,
     oc_runipd,
     production_checks,
     render_stream,
@@ -378,6 +379,242 @@ class TestSpecProductionUnitE10(unittest.TestCase):
             self.assertEqual(f_inv[0][0], "SPEC-PLAN-GATE-CARRY")
             self.assertIn("disagree on Blocks-Release", f_inv[0][2])
 
+    def test_commit_spec_transition_output_staged_rename_unstaged_move_and_note(
+        self,
+    ) -> None:
+        # Case 1: Staged git mv rename (RM <old> -> <new>) and Case 3: In-place stage note
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            spec_path = _write_spec(repo, id6="spc010", status="approved")
+            _write_conforming_plan(repo, id6="pln010", spec_id6="spc010")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add spec and plan"], cwd=repo, check=True
+            )
+
+            rel_spec = str(spec_path.relative_to(repo))
+            rc = cli.main(
+                [
+                    "specs",
+                    "set",
+                    rel_spec,
+                    "--status",
+                    "implementing",
+                    "--message",
+                    "produced: pln010",
+                    "--no-commit",
+                    "--dir",
+                    str(repo),
+                ]
+            )
+            self.assertEqual(rc, 0)
+
+            st_proc = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            rm_lines = [
+                line
+                for line in st_proc.stdout.splitlines()
+                if line.startswith("RM ")
+                and "specs/approved/" in line
+                and "specs/implementing/" in line
+            ]
+            self.assertEqual(len(rm_lines), 1, st_proc.stdout)
+
+            sha, rel_paths = runner_shared.commit_spec_transition_output(
+                repo, "spc010", spec_path, run_id="run-unit-1", host_label="aw oc run"
+            )
+            self.assertTrue(sha)
+            self.assertEqual(len(rel_paths), 2)
+            old_rel, new_rel = rel_paths
+            self.assertIn("specs/approved/", old_rel)
+            self.assertIn("specs/implementing/", new_rel)
+
+            show_proc = subprocess.run(
+                ["git", "show", "--name-status", "-M", "--format=%B", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            show_out = show_proc.stdout
+            self.assertIn("transition(spec): move spc010 -> implementing", show_out)
+            self.assertIn("AW-Run: run-unit-1", show_out)
+            self.assertIn("AW-Item: spc010", show_out)
+            self.assertIn("AW-Committed-By: driver", show_out)
+            r_lines = [
+                line
+                for line in show_out.splitlines()
+                if line.startswith("R")
+                and "specs/approved/" in line
+                and "specs/implementing/" in line
+            ]
+            self.assertEqual(len(r_lines), 1, show_out)
+
+            st_after = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            non_untracked = [
+                line
+                for line in st_after.stdout.splitlines()
+                if not line.startswith("?? ")
+            ]
+            self.assertEqual(non_untracked, [])
+
+            # Case 3: In-place stage note (is_note=True)
+            new_spec_path = repo / new_rel
+            rc_note = cli.main(
+                [
+                    "specs",
+                    "note",
+                    str(new_spec_path),
+                    "--message",
+                    "stage planned by run run-unit-3: pln012",
+                ]
+            )
+            self.assertEqual(rc_note, 0)
+
+            sha_note, rel_paths_note = runner_shared.commit_spec_transition_output(
+                repo,
+                "spc010",
+                new_spec_path,
+                run_id="run-unit-3",
+                is_note=True,
+                host_label="aw oc run",
+            )
+            self.assertTrue(sha_note)
+            self.assertEqual(rel_paths_note, (new_rel,))
+
+            show_note = subprocess.run(
+                ["git", "show", "--name-status", "--format=%s", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            note_lines = show_note.stdout.strip().splitlines()
+            self.assertEqual(
+                note_lines[0], "note(spec): record planned stage for spc010"
+            )
+            mod_lines = [line for line in note_lines[1:] if line.strip()]
+            self.assertEqual(len(mod_lines), 1)
+            self.assertEqual(mod_lines[0].split()[-1], new_rel)
+
+        # Case 2: Unstaged move ( D <old> + ?? <new>)
+        # (2a) Successful unstaged move commit
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            spec_path = _write_spec(repo, id6="spc011", status="approved")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "add spec"], cwd=repo, check=True)
+
+            content = spec_path.read_text(encoding="utf-8")
+            spec_path.unlink()
+            dest_path = (
+                repo / ".aw" / "records" / "specs" / "implementing" / spec_path.name
+            )
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_text(content, encoding="utf-8")
+
+            old_rel = str(spec_path.relative_to(repo))
+            new_rel = str(dest_path.relative_to(repo))
+
+            st_unstaged = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIn(f" D {old_rel}", st_unstaged.stdout)
+            self.assertIn(f"?? {new_rel}", st_unstaged.stdout)
+
+            sha_2a, rel_paths_2a = runner_shared.commit_spec_transition_output(
+                repo,
+                "spc011",
+                dest_path,
+                run_id="run-unit-2",
+                host_label="aw agy run",
+            )
+            self.assertTrue(sha_2a)
+            self.assertEqual(rel_paths_2a, (old_rel, new_rel))
+
+            show_2a = subprocess.run(
+                ["git", "show", "--name-status", "-M", "--format=%s", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            lines_2a = show_2a.stdout.strip().splitlines()
+            self.assertEqual(
+                lines_2a[0], "transition(spec): move spc011 -> implementing"
+            )
+            r_lines_2a = [
+                ln
+                for ln in lines_2a[1:]
+                if ln.startswith("R") and old_rel in ln and new_rel in ln
+            ]
+            self.assertEqual(len(r_lines_2a), 1, show_2a.stdout)
+
+        # (2b) Unstaged move with rejecting pre-commit hook
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            spec_path = _write_spec(repo, id6="spc011", status="approved")
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "add spec"], cwd=repo, check=True)
+
+            content = spec_path.read_text(encoding="utf-8")
+            spec_path.unlink()
+            dest_path = (
+                repo / ".aw" / "records" / "specs" / "implementing" / spec_path.name
+            )
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_text(content, encoding="utf-8")
+
+            old_rel = str(spec_path.relative_to(repo))
+            new_rel = str(dest_path.relative_to(repo))
+
+            hook_path = repo / ".git" / "hooks" / "pre-commit"
+            hook_path.parent.mkdir(parents=True, exist_ok=True)
+            hook_path.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            hook_path.chmod(0o755)
+
+            sha_2b, rel_paths_2b = runner_shared.commit_spec_transition_output(
+                repo,
+                "spc011",
+                dest_path,
+                run_id="run-unit-2",
+                host_label="aw agy run",
+            )
+            self.assertIsNone(sha_2b)
+            self.assertEqual(rel_paths_2b, (old_rel, new_rel))
+
+            st_2b = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            st_2b_lines = [ln.strip() for ln in st_2b.stdout.splitlines() if ln.strip()]
+            self.assertEqual(
+                st_2b_lines,
+                [f"R  {old_rel} -> {new_rel}"],
+                st_2b.stdout,
+            )
+            self.assertFalse(
+                any(ln.startswith(" D ") or ln.startswith("D ") for ln in st_2b_lines)
+            )
+
 
 class TestSpecProductionE08(unittest.TestCase):
     """Production outcome cases for 5.5 and 5.5b on both hosts (E-08)."""
@@ -455,6 +692,64 @@ class TestSpecProductionE08(unittest.TestCase):
                     self.assertEqual(len(gen_acts), 1)
                     self.assertEqual(gen_acts[0]["id6"], "pln101")
                     self.assertEqual(gen_acts[0]["from_spec"], "spc101")
+
+                    # Assert spec transition commit
+                    spec_commit = item["attempts"][0].get("spec_transition_commit")
+                    self.assertTrue(spec_commit)
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    self.assertTrue(
+                        any(
+                            e.get("event") == "spec-transition-committed"
+                            and e.get("commit") == spec_commit
+                            for e in events
+                        )
+                    )
+                    show_out = subprocess.run(
+                        [
+                            "git",
+                            "show",
+                            "--name-status",
+                            "-M",
+                            "--format=%s",
+                            spec_commit,
+                        ],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout
+                    show_lines = show_out.strip().splitlines()
+                    self.assertEqual(
+                        show_lines[0], "transition(spec): move spc101 -> implementing"
+                    )
+                    rename_lines = [
+                        ln
+                        for ln in show_lines[1:]
+                        if ln.startswith("R")
+                        and "specs/approved/" in ln
+                        and "specs/implementing/" in ln
+                    ]
+                    self.assertEqual(len(rename_lines), 1, show_out)
+                    status_out = subprocess.run(
+                        ["git", "status", "--porcelain"],
+                        cwd=repo,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout
+                    self.assertFalse(
+                        any(
+                            "spc101" in ln and not ln.startswith("??")
+                            for ln in status_out.splitlines()
+                        ),
+                        status_out,
+                    )
 
     def test_5_5_refusal_count_zero(self):
         """Case (2): fake agent writes nothing -> ends fail-gate with SPEC-PLAN-COUNT,
@@ -1249,6 +1544,22 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                     self.assertEqual(item["status"], "executed")
                     self.assertTrue(item.get("prod_integrated"))
                     self.assertTrue(item["attempts"][0].get("prod_integrated"))
+                    self.assertTrue(item["attempts"][0].get("spec_transition_commit"))
+                    self.assertNotIn("preserved_worktree", item)
+                    appr_files = list(
+                        repo.glob(
+                            ".aw/records/specs/approved/**/20260927-spc202*.spec.md"
+                        )
+                    )
+                    self.assertEqual(appr_files, [])
+                    impl_files = list(
+                        repo.glob(
+                            ".aw/records/specs/implementing/**/20260927-spc202*.spec.md"
+                        )
+                    )
+                    self.assertEqual(len(impl_files), 1)
+                    impl_txt = impl_files[0].read_text(encoding="utf-8")
+                    self.assertIn("- Status: implementing", impl_txt)
 
     def test_quarantine_lane_preserved_on_failure(self):
         """A failed production leaves its isolated lane recorded as preserved in state (F-10)."""

@@ -1,5 +1,5 @@
 - Id: pex4pv
-- Status: graduated
+- Status: done
 - Graduated-To: pex4pv
 - Blocks-Release: next
 - Set: pex4pv
@@ -8,6 +8,7 @@
 - Summary: commit_spec_transition_output fails git add on renamed spec path
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD i2ty4u executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-pex4pv-01-i2ty4u-filter-staged-rename-sources-in-commit-spec-transition-outpu.ipd.md); evidence .aw/records/plans/executed/20261014-pex4pv-01-i2ty4u-filter-staged-rename-sources-in-commit-spec-transition-outpu.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: i2ty4u
 - 2026-10-13 created (aw backlog): commit_spec_transition_output fails git add on renamed spec path
 
