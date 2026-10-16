@@ -1,5 +1,5 @@
 - Id: 3rj8wr
-- Status: graduated
+- Status: done
 - Graduated-To: 3rj8wr
 - Set: 3rj8wr
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Triage the 10 failing tests in uncollected tools/ipdrunner/test_runagy.py and bring it under a gate
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD oi9kr8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-3rj8wr-01-oi9kr8-verify-and-close-test-runagy-triage-relocation-and-collectio.ipd.md); evidence .aw/records/plans/executed/20261014-3rj8wr-01-oi9kr8-verify-and-close-test-runagy-triage-relocation-and-collectio.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: oi9kr8
 - 2026-10-12 created (aw backlog): Triage the 10 failing tests in uncollected tools/ipdrunner/test_runagy.py and bring it under a gate
 
