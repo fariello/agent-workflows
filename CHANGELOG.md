@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
 - Fixed: the shipped conformance host matrix (.aw/system/workflows/conformance/tools/host_matrix.json) no longer carries unproven supported booleans, so aw releases readiness no longer reports 19 stale capability claims; host support is established only by probe evidence recorded in the capability registry.
 - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
 - Fixed: aw index <type> --check --json no longer puts the absolute repository path (repo_root) or the human report text (human_rendered) in data; diagnostic locations stay repo-relative.

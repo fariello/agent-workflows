@@ -4294,6 +4294,7 @@ def run_queue(
                 success_states=EXECUTION_SUCCESS_STATES,
                 recovery_hint=runner_shared.OC_HOST_LABELS.dependency_block_recovery,
                 host="oc",
+                process_backlog_close=process_backlog_close,
             )
             save_state(run_dir, state)
             continue

@@ -3561,6 +3561,7 @@ def run_queue(
                 success_states=EXECUTION_SUCCESS_STATES,
                 recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
                 host="agy",
+                process_backlog_close=process_backlog_close,
             )
             save_state(run_dir, state)
             continue

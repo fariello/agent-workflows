@@ -22862,6 +22862,7 @@ def dispatch_orchestrator_item(
     host: str | None = None,
     asker: Any = None,
     runner: Any = None,
+    process_backlog_close: Callable[..., Any] | None = None,
 ) -> OrchestratorDispatch:
     """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
 
@@ -22992,6 +22993,18 @@ def dispatch_orchestrator_item(
                         "detail": decision.detail,
                     },
                 )
+                if item.get("from_backlog"):
+                    with contextlib.suppress(DriverError, OSError):
+                        item["last_plan_path"] = str(
+                            resolve_plan_path(
+                                repo, str(item.get("configured_file") or ""), id6
+                            )
+                        )
+                    if process_backlog_close is not None and not (
+                        item.get("backlog_close") or {}
+                    ).get("closed"):
+                        with contextlib.suppress(Exception):
+                            process_backlog_close(run_dir, state, item, lane_repo=None)
                 return decision
             # The transition REFUSED (or the orchestrator's own file could not be located). TERMINATE:
             # a refusal here is structural, so retrying it on the next iteration would spin forever.
@@ -46112,42 +46125,337 @@ def run_earned_paths(state: dict[str, Any]) -> list[str]:
     return earned
 
 
-def unclosed_backlog_items(state: dict[str, Any]) -> list[tuple[str, str]]:
-    """Every backlog item this run TOUCHED but did not close, as (item_id6, reason) pairs (E-06).
+class UnclosedItem(NamedTuple):
+    """Classification of an unclosed backlog item (lr6lnm E-02)."""
 
-    Scope is deliberately this run's own work, not the whole repository (zhr6mc OQ-02): a run
-    reporting on every open item would duplicate `aw attention`, which owns the cross-tree view. An
-    item whose plan never reached the close evaluation is reported with that as its reason, so a
-    linked item is never silently absent from the report.
-    """
-    out: list[tuple[str, str]] = []
+    item_id6: str
+    plan_id6: str
+    cause: str
+    detail: str
+    needs_action: bool
+    reason: str = ""
+
+
+def _extract_carrier_id6s(reason: str) -> list[str]:
+    """Extract carrier id6s from an 'IPD carrier(s) not executed: ...' refusal reason."""
+    from agent_workflows import artifact_naming as _an
+
+    prefix = "IPD carrier(s) not executed:"
+    idx = reason.find(prefix)
+    if idx == -1:
+        prefix = "IPD carrier(s) not executed"
+        idx = reason.find(prefix)
+        if idx == -1:
+            return []
+    rest = reason[idx + len(prefix) :].lstrip(" :")
+    part = rest.split(";")[0]
+    out: list[str] = []
+    for token in part.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if ID6_RE.match(token):
+            out.append(token)
+            continue
+        name = Path(token).name
+        m = _an.parse_clustered(name) or _an.parse_uniform_permissive(name)
+        if m:
+            with contextlib.suppress(IndexError):
+                val = m.group("id6")
+                if val:
+                    out.append(val)
+                    continue
+        m2 = re.search(r"-\d+-([a-z0-9]{6})-", name)
+        if m2:
+            out.append(m2.group(1))
+            continue
+        out.append(token)
+    return out
+
+
+def classify_unclosed(
+    state: dict[str, Any],
+    run_dir: Path | str | None = None,
+) -> list[UnclosedItem]:
+    """Every backlog item this run touched but did not close, classified by cause (lr6lnm E-02)."""
+    resolved_run_dir = Path(run_dir) if run_dir is not None else None
+    if resolved_run_dir is None and "run_dir" in state and state["run_dir"]:
+        resolved_run_dir = Path(state["run_dir"])
+    if resolved_run_dir is None:
+        with contextlib.suppress(Exception):
+            sig_rd = _SIGNAL_REPORT_STATE.get("run_dir")
+            if sig_rd:
+                resolved_run_dir = Path(sig_rd)
+
+    stopped_not_started: set[str] = set()
+    events_to_scan: list[dict[str, Any]] = []
+    if resolved_run_dir is not None:
+        events_file = resolved_run_dir / "events.jsonl"
+        if events_file.is_file():
+            with contextlib.suppress(Exception):
+                for line in events_file.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines():
+                    line = line.strip()
+                    if line:
+                        events_to_scan.append(json.loads(line))
+
+    if "events" in state and isinstance(state["events"], list):
+        events_to_scan.extend(state["events"])
+
+    for ev in events_to_scan:
+        if isinstance(ev, dict) and ev.get("event") in (
+            "deliberate-stop",
+            "deliberate-stop-at-checkpoint",
+            "deliberate-stop-now-force",
+        ):
+            for pid in ev.get("not_started") or []:
+                stopped_not_started.add(str(pid))
+
+    out: list[UnclosedItem] = []
     seen: set[str] = set()
     for item in state.get("queue", []) or []:
         item_id6 = item.get("from_backlog")
         if not item_id6 or item_id6 in seen:
             continue
+        plan_id6 = str(item.get("id6") or "")
         record = item.get("backlog_close") or {}
         if record.get("closed"):
             seen.add(item_id6)
             continue
-        reason = record.get("reason") or (
-            f"IPD {item.get('id6')} ended {item.get('status', 'unknown')}, so the close was "
+
+        raw_reason = record.get("reason") or (
+            f"IPD {plan_id6} ended {item.get('status', 'unknown')}, so the close was "
             f"never evaluated"
         )
+
+        if record.get("closed") is False:
+            refusal_reason = str(record.get("reason") or "")
+            if refusal_reason.startswith("IPD carrier(s) not executed"):
+                cause = "waiting-on-carriers"
+                needs_action = False
+                extracted = _extract_carrier_id6s(refusal_reason)
+                detail = ", ".join(sorted(extracted)) if extracted else refusal_reason
+            else:
+                cause = "close-refused"
+                needs_action = True
+                detail = refusal_reason
+        else:
+            status = str(item.get("status") or "")
+            action = str(item.get("action") or "")
+            if status in ("interrupted", "stalled") or status.startswith("fail-"):
+                cause = "plan-failed"
+                needs_action = True
+                detail = status
+            elif status == "reviewed" or action == "review":
+                cause = "review-only"
+                needs_action = False
+                detail = "reviewed" if status == "reviewed" else action
+            elif status == "queued":
+                cause = "not-started"
+                needs_action = False
+                if plan_id6 in stopped_not_started:
+                    detail = "the run was stopped before this plan ran"
+                else:
+                    detail = "the run ended before reaching this plan"
+            else:
+                cause = "unknown"
+                needs_action = True
+                detail = status
+
         seen.add(item_id6)
-        out.append((item_id6, reason))
+        out.append(
+            UnclosedItem(
+                item_id6=item_id6,
+                plan_id6=plan_id6,
+                cause=cause,
+                detail=detail,
+                needs_action=needs_action,
+                reason=raw_reason,
+            )
+        )
     return out
 
 
-def render_unclosed_report(state: dict[str, Any]) -> str:
-    """The human-readable E-06 section, or '' when nothing is outstanding (print nothing then)."""
-    outstanding = unclosed_backlog_items(state)
-    if not outstanding:
+def unclosed_backlog_items(
+    state: dict[str, Any],
+    run_dir: Path | str | None = None,
+) -> list[tuple[str, str]]:
+    """Every backlog item this run TOUCHED but did not close, as (item_id6, reason) pairs (E-06)."""
+    return [
+        (it.item_id6, it.reason) for it in classify_unclosed(state, run_dir=run_dir)
+    ]
+
+
+def render_unclosed_report(
+    state: dict[str, Any],
+    run_dir: Path | str | None = None,
+) -> str:
+    """Grouped human-readable report of backlog items left open (E-03)."""
+    classified = classify_unclosed(state, run_dir=run_dir)
+    if not classified:
         return ""
+
+    resolved_run_dir = Path(run_dir) if run_dir is not None else None
+    if resolved_run_dir is None and "run_dir" in state and state["run_dir"]:
+        resolved_run_dir = Path(state["run_dir"])
+    if resolved_run_dir is None:
+        with contextlib.suppress(Exception):
+            sig_rd = _SIGNAL_REPORT_STATE.get("run_dir")
+            if sig_rd:
+                resolved_run_dir = Path(sig_rd)
+
+    stop_requested_time: str | None = None
+    events_to_scan: list[dict[str, Any]] = []
+    if resolved_run_dir is not None:
+        events_file = resolved_run_dir / "events.jsonl"
+        if events_file.is_file():
+            with contextlib.suppress(Exception):
+                for line in events_file.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines():
+                    line = line.strip()
+                    if line:
+                        events_to_scan.append(json.loads(line))
+    if "events" in state and isinstance(state["events"], list):
+        events_to_scan.extend(state["events"])
+
+    for ev in events_to_scan:
+        if isinstance(ev, dict) and ev.get("event") in (
+            "deliberate-stop",
+            "deliberate-stop-at-checkpoint",
+            "deliberate-stop-now-force",
+        ):
+            at_str = str(ev.get("at") or "")
+            if at_str:
+                m = re.search(r"T(\d{2}:\d{2}:\d{2})", at_str)
+                if m:
+                    stop_requested_time = m.group(1)
+                elif re.match(r"^\d{2}:\d{2}:\d{2}$", at_str):
+                    stop_requested_time = at_str
+
+    caps = state.get("host_capabilities") or {}
+    labels = AGY_HOST_LABELS if caps.get("host") == "antigravity" else OC_HOST_LABELS
+    run_id = str(state.get("run_id") or state.get("id") or "run-...")
+
+    groups_by_cause: dict[str, list[UnclosedItem]] = {
+        "plan-failed": [],
+        "close-refused": [],
+        "unknown": [],
+        "waiting-on-carriers": [],
+        "not-started": [],
+        "review-only": [],
+    }
+    for it in classified:
+        if it.cause in groups_by_cause:
+            groups_by_cause[it.cause].append(it)
+        else:
+            groups_by_cause["unknown"].append(it)
+
+    group_order = [
+        "plan-failed",
+        "close-refused",
+        "unknown",
+        "waiting-on-carriers",
+        "not-started",
+        "review-only",
+    ]
+
     pal = Palette(should_color(sys.stdout))
-    lines = ["", pal("--- Backlog items left open ---", "bold")]
-    for item_id6, reason in outstanding:
-        lines.append(f"  - {pal(item_id6, 'yellow')}: {reason}")
+    lines = ["", pal(f"--- Backlog items still open ({len(classified)}) ---", "bold")]
+
+    for cause in group_order:
+        items = groups_by_cause[cause]
+        if not items:
+            continue
+
+        if cause == "plan-failed":
+            group_title = "Plan failed"
+            sentence = (
+                "These plans failed, were interrupted, or stalled. Action is needed to "
+                "investigate and fix the failures."
+            )
+            next_cmd = f"Investigate: aw runs {run_id}"
+        elif cause == "close-refused":
+            group_title = "Close refused"
+            sentence = (
+                "Close evaluation was refused. Action is needed to address the refusal."
+            )
+            next_cmd = None
+        elif cause == "unknown":
+            group_title = "Unknown"
+            sentence = "These items ended in an unexpected status. Action is needed to investigate."
+            next_cmd = None
+        elif cause == "waiting-on-carriers":
+            group_title = "Waiting on carriers"
+            sentence = (
+                "Sibling IPD carrier(s) not executed yet. Nothing to fix; each item "
+                "closes when all carriers are executed."
+            )
+            next_cmd = None
+        elif cause == "not-started":
+            group_title = "Not started"
+            stopped = any(
+                it.detail == "the run was stopped before this plan ran" for it in items
+            )
+            if stopped:
+                stop_note = (
+                    f" (stop requested {stop_requested_time})"
+                    if stop_requested_time
+                    else ""
+                )
+                sentence = (
+                    f"the run was stopped before these plans ran{stop_note}. "
+                    f"Nothing to fix; each item closes when its plan executes."
+                )
+                next_cmd = f"Continue: {labels.command} resume {run_id}"
+            else:
+                sentence = (
+                    "the run ended before reaching these plans. "
+                    "Nothing to fix; each item closes when its plan executes."
+                )
+                next_cmd = None
+        elif cause == "review-only":
+            group_title = "Review only"
+            sentence = (
+                "These plans were review-only. "
+                "Nothing to fix; items close when their plans are executed."
+            )
+            next_cmd = None
+        else:
+            group_title = cause
+            sentence = "Action is needed."
+            next_cmd = None
+
+        lines.append(f"  {pal(f'{group_title} ({len(items)}):', 'bold')} {sentence}")
+
+        if cause in ("close-refused", "waiting-on-carriers", "unknown"):
+            for it in items:
+                if cause == "waiting-on-carriers":
+                    w_det = (
+                        it.detail
+                        if it.detail.startswith("waiting on")
+                        else f"waiting on {it.detail}"
+                    )
+                    lines.append(
+                        f"    - {pal(it.item_id6, 'yellow')} <- {it.plan_id6}: {w_det}"
+                    )
+                else:
+                    lines.append(
+                        f"    - {pal(it.item_id6, 'yellow')} <- {it.plan_id6}: {it.detail}"
+                    )
+        else:
+            pair_strs = [
+                f"{pal(it.item_id6, 'yellow')} <- {it.plan_id6}" for it in items
+            ]
+            chunk_size = 4
+            for i in range(0, len(pair_strs), chunk_size):
+                chunk = pair_strs[i : i + chunk_size]
+                lines.append("    " + ", ".join(chunk))
+
+        if next_cmd:
+            lines.append(f"    {next_cmd}")
+
     lines.append(
         pal(
             "  (this run's own items only; `aw attention` owns the cross-tree view)",
@@ -46163,14 +46471,9 @@ def render_runs_pointer(state: dict[str, Any]) -> str:
 
 
 def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
-    """LEDGER FIRST (E-06): append the unclosed-item record BEFORE anything is printed.
-
-    Ordering is the whole point. A print can be truncated, redirected, or lost to an uncatchable
-    kill; the ledger append survives all three, so `aw runs <run-id>` can still answer "what did it
-    leave open?" when the terminal output cannot. Best-effort and never raising: this runs on the
-    shutdown path, where an exception would be worse than a missing line."""
-    outstanding = unclosed_backlog_items(state)
-    if not outstanding:
+    """LEDGER FIRST (E-06, E-04): append the unclosed-item record BEFORE anything is printed."""
+    classified = classify_unclosed(state, run_dir=run_dir)
+    if not classified:
         return
     with contextlib.suppress(Exception):
         append_jsonl(
@@ -46179,8 +46482,14 @@ def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
                 "at": utc_now(),
                 "event": "backlog-items-left-open",
                 "items": [
-                    {"item": item_id6, "reason": reason}
-                    for item_id6, reason in outstanding
+                    {
+                        "item": it.item_id6,
+                        "reason": it.reason,
+                        "cause": it.cause,
+                        "plan": it.plan_id6,
+                        "needs_action": it.needs_action,
+                    }
+                    for it in classified
                 ],
             },
         )
@@ -46252,7 +46561,7 @@ def emit_shutdown_report(*, to_stderr: bool = False) -> None:
     with contextlib.suppress(Exception):
         record_unclosed_backlog_items(Path(run_dir), state)
     with contextlib.suppress(Exception):
-        report = render_unclosed_report(state)
+        report = render_unclosed_report(state, run_dir=Path(run_dir))
         if report:
             print(report, file=stream)
         print(render_runs_pointer(state), file=stream)
