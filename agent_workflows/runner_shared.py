@@ -14216,10 +14216,10 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     Both runners' historical private copies tolerated any whitespace after the `-` while `selectors`'
     STRICT internal readers require exactly one space, and that strictness is a documented `aw find`
     matching contract. rununify 01 (`2r306y`) resolved this by binding the permissive public aliases,
-    and `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` (deleted in `19313eed`;
-    no live guard currently asserts this loose-whitespace tolerance) guarded BOTH halves, so
-    swapping to the strict readers here would silently narrow which front-matter spellings both drivers
-    accept.
+    and `tests/test_front_matter_loose_whitespace.py` (restoring behavioral coverage of the historical
+    `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` deleted in `19313eed`) guards
+    BOTH halves, so swapping to the strict readers here would silently narrow which front-matter
+    spellings both drivers accept.
     """
     from agent_workflows.selectors import read_front_matter_id as _read_id
     from agent_workflows.selectors import read_front_matter_status as _read_status

@@ -1,5 +1,5 @@
 - Id: qmpvcy
-- Status: graduated
+- Status: done
 - Graduated-To: qmpvcy
 - Set: qmpvcy
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral coverage of parse_plan_file and front-matter readers loose leading whitespace tolerance lost with tests/test_runner_refork_guard.py
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD lcjlc3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-qmpvcy-01-lcjlc3-restore-behavioral-coverage-of-parse-plan-file-and-front-mat.ipd.md); evidence .aw/records/plans/executed/20261014-qmpvcy-01-lcjlc3-restore-behavioral-coverage-of-parse-plan-file-and-front-mat.ipd.md
 - 2026-10-15 graduated (aw backlog): graduated by run run-20261014T234549Z-3805765: lcjlc3
 - 2026-10-14 created (aw backlog): Restore behavioral coverage of parse_plan_file and front-matter readers loose leading whitespace tolerance lost with tests/test_runner_refork_guard.py
 
