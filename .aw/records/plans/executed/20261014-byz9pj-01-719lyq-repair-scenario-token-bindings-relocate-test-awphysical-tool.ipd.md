@@ -6,7 +6,7 @@
 - Scope: Relocate `tools/awphysical/test_awphysical_tools.py` to `tests/test_awphysical_tools.py` (adjusting its `TOOLS_DIR` and fixture path anchors), add focused behavioral test methods in `tests/test_awphysical_tools.py` for the scenario tokens whose behavioral coverage was lost when commit `19313eed7` deleted their host modules, rewrite `tools/awphysical/scenario-token-bindings.json` so all 139 tokens bind to real collected test methods under `tests/`, update `tools/awphysical/README.md`, and remove the `"tools/awphysical/test_awphysical_tools.py"` exemption from `tests/test_uncollected_test_modules.py`.
 - Scope-Paths: tools/awphysical/test_awphysical_tools.py, tests/test_awphysical_tools.py, tools/awphysical/scenario-token-bindings.json, tools/awphysical/README.md, tests/test_uncollected_test_modules.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: byz9pj
 - Work-Kind: followup
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: 719lyq
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 719lyq verified (set byz9pj, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed (review record 20261014-byz9pj-01-719lyq)
