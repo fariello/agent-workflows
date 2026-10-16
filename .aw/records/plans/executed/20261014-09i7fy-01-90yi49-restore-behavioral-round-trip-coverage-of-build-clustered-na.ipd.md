@@ -6,7 +6,7 @@
 - Scope: IN: a new behavioral test module that calls `build_clustered_name` and `parse_clustered` and asserts the round-trip identity in both directions, plus a builder-rejects-unknown-facet outcome and a parser-rejects-typo-facet outcome; repointing the "no live guard currently asserts this" clause in the `artifact_naming` module docstring (site `ev7t1w` S-03) at the new test. OUT: any source-reading, `ast`, regex-over-source or symbol-census check (P16); the structural single-source assertions the deleted file also carried (`SingleSourceStructuralTests`, `NormalizerDriftGuardTests`), which were code pins; the research-grammar round trip (`research_contract`) and the `prompts.build_prompt_name` delegation round trip, which are separate properties not named by backlog `09i7fy`; the docstrings at `prompts.build_prompt_name` (`ev7t1w` S-20-family) and `attention.py` (S-05), which cite the structural single-source property rather than the round trip; any change to the grammar or to executable code.
 - Scope-Paths: tests/test_artifact_naming_round_trip.py, agent_workflows/artifact_naming.py, .aw/records/plans/pending/20261014-09i7fy-01-90yi49-restore-behavioral-round-trip-coverage-of-build-clustered-na.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 90yi49
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 90yi49 verified (set 09i7fy, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
