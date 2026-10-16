@@ -118,7 +118,8 @@ def runner_owns_lifecycle_notice(
 
     Pure and ASCII-only: the prompts that embed it were asserted pure ASCII by
     `tests/test_reporting_contract.py::DriverPromptTests::test_prompts_are_pure_ascii`
-    (deleted in `19313eed`; no live guard currently asserts this).
+    (removed in `19313eed`; the property is now asserted behaviorally by
+    `tests/test_driver_prompt_ascii.py`).
     """
     if not driver_owns_transition:
         run_flag = f" --run-id {run_id}" if run_id else " --run-id <run-id>"
