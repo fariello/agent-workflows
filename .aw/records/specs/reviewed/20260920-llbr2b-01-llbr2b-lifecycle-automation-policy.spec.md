@@ -1,7 +1,7 @@
 # Spec: Lifecycle automation policy: one configurable per-(type, transition) permission surface
 
 - Date: 2026-09-20
-- Status: to-review
+- Status: reviewed
 - Id: llbr2b
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: rxya25
@@ -28,6 +28,9 @@
   policy's INVENTORY without weakening or re-deciding R-5.
 
 ## Workflow history
+
+- 2026-10-16 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-007; inventory extended with 3.10 (4 post-2c316ef0 advances), 6.4 re-keyed on target with wildcard source, D-1/D-2 recorded resolved, criteria 12-14 added, OQ-06 raised
+- 2026-10-16 reviewed (aw set): REVIEWED - OPEN QUESTIONS; SR-001..SR-007 (SR-001,002,003,005,006,007 FIXED; SR-004 OPEN as OQ-06, non-gating)
 - 2026-10-09 note (aw specs): AMENDED 2026-10-09 by lifegate Order 02 (e25iy9): 3.2 corrected to note that the worker-role check is inside the core functions (ipd_lifecycle.begin/finalize/retire_orchestrator), and C-8 extended to name the held-by-a-live-run refusal as a second lifecycle invariant.
 - 2026-09-20 to-review (aw set): Authored by plan u06zo2 from backlog rxya25. Inventories 6 automated lifecycle-advance surfaces at HEAD 2c316ef0 with citations plus the exhaustiveness searches; classifies 10 candidate conditions as POLICY or INVARIANT; answers all five of the item's design questions, THREE from attested maintainer rulings (OQ-01 default permissive 2026-09-08, OQ-02 both directions 2026-09-08, OQ-04 distinguishability 2026-09-10) and TWO from the plan's reviewed recommendation and explicitly marked UNATTESTED in section 5.6 (OQ-03 pair key, OQ-05 retirement scope). Specifies one predicate with a three-way verdict whose single-authority requirement covers the transition CALL as well as the decision, extends auto-approved and TRANSITION_AUTHORITY by name, and authorizes no code change. NOT approved: approving it is the act that attests the two open answers and is the maintainer's --by-human.
 
@@ -93,9 +96,17 @@ Today that is hardcoded per verb, differently in each.
 
 ## 3. Inventory: what automation actually decides today
 
-Every row was READ from the code at HEAD `2c316ef0`, and each cites the file and symbol it was read
-from. THE INVENTORY IS INTENDED TO BE EXHAUSTIVE over automated lifecycle-status writes in this
-package, and Section 3.9 states how that was checked and where the check's limits are.
+Every row in 3.1-3.8 was READ from the code at HEAD `2c316ef0`, and each cites the file and symbol it
+was read from. Section 3.10 adds the automated advances that landed AFTER that HEAD, re-measured at
+HEAD `ad9213cc6` by the 2026-10-15 spec review. THE INVENTORY IS INTENDED TO BE EXHAUSTIVE over
+automated lifecycle-status writes in this package, and Section 3.9 states how that was checked and
+where the check's limits are.
+
+CITATION CONVENTION. A `path:line` below is a HINT valid at the HEAD the row was measured at; the
+SYMBOL beside it is the authoritative anchor. `runner_shared.py`, `oc_runipd.py` and `agy_runipd.py`
+have grown by tens of thousands of lines since `2c316ef0`, so most line numbers in 3.1-3.8 no longer
+match and must be re-located by symbol. A symbol that no longer resolves is a real defect in this
+inventory; a moved line is not.
 
 EXHAUSTIVENESS IS A SAFETY PROPERTY HERE, NOT A DOCUMENTATION NICETY. Section 5.2 resolves the default
 to PERMISSIVE, so an unlisted transition is a PERMITTED one. That inverts the usual cost of a missing
@@ -107,7 +118,7 @@ row: normally a missing row means a gate is not applied; here it means no gate e
 |---|---|
 | Transition | `ipd:reviewed->auto-approved` |
 | Read from | `runner_shared.initialize_run` (`runner_shared.py:13196-13202`) - the QUEUE-BUILD site; `runner_shared.execute_item` (`runner_shared.py:15235-15271`) - the POST-REVIEW site |
-| Performed by | `oc_runipd.set_plan_approved` (`oc_runipd.py:875`) / `agy_runipd.set_plan_approved` (`agy_runipd.py:972`), each shelling out to `aw set auto-approved <id6> --actor <FULL_AUTO_ACTOR>` |
+| Performed by | At `2c316ef0`: `oc_runipd.set_plan_approved` / `agy_runipd.set_plan_approved`, two copies. AT `ad9213cc6`: ONE definition, `runner_shared.set_plan_approved`, with each host's `set_plan_approved` a thin wrapper passing `labels=<HOST>_HOST_LABELS` (plan `li44r9`); it shells out to `aw set auto-approved <id6> --actor <labels.full_auto_actor>` |
 | Condition checked | `plan_readiness.is_plan_review_approved(plan_path)`, plus `options.full_auto` |
 | On failure | Queue-build site: `except Exception: pass`, leaving the status `reviewed` (the item then needs input). Post-review site: prints `! Failed to auto-approve IPD <id6>` and proceeds |
 | Automated actor may perform it | YES, and this is the ONLY transition `--full-auto` performs |
@@ -200,8 +211,10 @@ retirement and terminal writes are IN SCOPE for the policy.
 
 NOTE A STALE SIBLING. `oc_runipd.finalize_orchestrator` (`oc_runipd.py:976`) is an `aw ipd set
 executed` route with the actor `aw oc run step=orchestrator-rollup`. Its own docstring records that it
-has ZERO callers (AST-verified) and is retained only because
-`tests/test_lane_tool_identity.py:585-609` asserts it as a documented `oc`-only asymmetry. The policy
+has ZERO callers (AST-verified) and was retained because `tests/test_lane_tool_identity.py` asserted
+it as a documented `oc`-only asymmetry; that test file was deleted in `19313eed`, and the docstring at
+HEAD `ad9213cc6` now records that no live guard asserts it. Its actor is now the parenthesis-free
+`aw oc run step=orchestrator-rollup`. The policy
 must govern it if it is ever wired up, so it is listed; it is not a live advance today. The plan that
 produced this spec cited it as live (`oc_runipd.py:836-859`) and that citation is now stale in both
 line number and liveness.
@@ -234,10 +247,24 @@ admission gate ever performed one; Section 4.4 records that it currently does no
 | D-2 | THERE ARE THREE `FULL_AUTO_ACTOR` CONSTANTS AND THE THIRD DISAGREES WITH BOTH OTHERS. `oc_runipd.py:869` is `"aw oc run --full-auto"`, `agy_runipd.py:966` is `"aw agy run --full-auto"`, and `runner_shared.py:13503` is `"aw-driver/full-auto"` with a DIFFERENT message ("Auto-approved via --full-auto (review passed all gates)", which also asserts more than the host copies do). The shared pair has no reader: both hosts import `runner_shared` but define their own, and the only two tests that assert an actor reaches the argv assert the HOST constants (`tests/test_oc_runipd.py:1428`, `tests/test_agy_runipd_cli.py:1121`) | grep for `FULL_AUTO_ACTOR` across `agent_workflows/` and `tests/` |
 | D-3 | THE CONDITION VOCABULARY IS ALREADY SHARED FOR APPROVAL AND NOT FOR THE REST. `plan_readiness.approval_refusals` (`:496`) is genuinely THE one predicate for reaching a ready-to-execute status, consumed by both setter surfaces because "a gate installed in one of them is simply bypassed by choosing the other". No equivalent exists for `->executed`, `->done`, or a retirement | `plan_readiness.py:503-508`; `status_set.py:590`, `specs.py:588` |
 
-D-2 IS REPORTED AS A DEFECT AND NOT FIXED HERE, because this spec changes no code. A third constant
+D-2 WAS REPORTED AS A DEFECT AND NOT FIXED HERE, because this spec changes no code. A third constant
 that no code reads, whose value and message both differ from the two that are read, is a trap for
 whoever next consolidates these hosts: adopting it would silently change every recorded actor string
 and would make the message claim the review "passed all gates" rather than that readiness cleared.
+
+STATUS AT HEAD `ad9213cc6` (re-measured by the 2026-10-15 spec review), recorded so the table above is
+read as history and not as the current state:
+
+* D-1 is RESOLVED for the full-auto performer. `runner_shared.set_plan_approved` is the one
+  definition; both host functions are wrappers binding `labels=OC_HOST_LABELS` /
+  `AGY_HOST_LABELS` (plan `li44r9`, `oc_runipd.py` and `agy_runipd.py` `set_plan_approved`). The
+  shared-performer property 7.3 requires therefore already holds for 3.1; it does NOT yet hold as a
+  general rule, because there is still no single performer for the other inventoried transitions.
+* D-2 is RESOLVED. The shared constant was deleted (backlog `zf999x`, plan `gjni4c`, both terminal);
+  each host's `FULL_AUTO_ACTOR` now reads `runner_shared.<HOST>_HOST_LABELS.full_auto_actor`, and the
+  approval message is the single shared `runner_shared.FULL_AUTO_APPROVAL_MESSAGE`.
+* D-3 is UNCHANGED: there is still no shared refusal predicate for `->executed`, `->done`, or a
+  retirement.
 
 ### 3.9 How exhaustiveness was checked, and what the check does not cover
 
@@ -266,13 +293,38 @@ THREE LIMITS, STATED SO THE INVENTORY IS NOT TRUSTED FURTHER THAN IT HOLDS.
   performs a transition this inventory does not name. Section 7.3's single-authority requirement is
   what makes those reach the policy anyway: they go through the CLI, and the CLI consults the
   predicate.
-* IT IS A SNAPSHOT. A transition added after HEAD `2c316ef0` is not here. Section 5.2 requires the
-  implementation to CARRY this inventory as data and Section 8's acceptance criterion 4 requires a
-  test that fails when a new automated advance appears without a row, which is what converts a
-  snapshot into a maintained invariant.
+* IT IS A SNAPSHOT. A transition added after HEAD `2c316ef0` is not in 3.1-3.8, and this limit was
+  MEASURED rather than hypothetical: by HEAD `ad9213cc6` five more automated advances had landed
+  (Section 3.10). Section 9's acceptance criterion 4 requires the implementation to CARRY the
+  inventory as data and to ship a test that fails when a new automated advance appears without a
+  row, which is what converts a snapshot into a maintained invariant. Note also that search 1's
+  pattern is itself stale: after `li44r9`/`ct4w0a` the shared performers build their argv through an
+  injected `argv_builder(`, which `pinned_module_argv(` does not match, so a re-run must search both.
 * IT NAMES STATUS WRITES, not every decision that leads to one. The runner's selection gates (spec
   `25kzda` 2.5/2.5a/2.5b) decide which items enter a queue, and Section 4.4 explains why those are a
   different question.
+
+### 3.10 Automated advances added after HEAD `2c316ef0` (re-measured at HEAD `ad9213cc6`)
+
+Found by the 2026-10-15 spec review by re-running search 1 with `argv_builder(` added and reading every
+`pinned_module_argv(` site in `runner_shared.py`. Each is an automated lifecycle-status write that
+3.1-3.8 does not name, so under 5.2's permissive default each would be an UNGOVERNED permitted
+transition if the implementing Set built from 3.1-3.8 alone. THE IMPLEMENTING SET MUST RE-RUN THE
+EXHAUSTIVENESS SEARCH AT ITS OWN HEAD rather than trusting this list either.
+
+| # | Transition | Read from (symbol) | Notes |
+|---|---|---|---|
+| A-1 | `spec:approved->implementing` | `runner_shared.execute_item_core`, SPEC production success path (`aw specs set <spec> --status implementing --no-commit`), then `commit_spec_transition_output` | Automated advance of a SPEC when a run produces its plans. An `implementing` source instead gets an `aw specs note` (not a status write) |
+| A-2 | `backlog:open->graduated` | `runner_shared.execute_item_core`, BACKLOG production success path (`aw backlog set <id6> --status graduated --no-commit [--graduated-to <set>]`), then `commit_backlog_transition_output` | Refused when the item is not `open` at transition time (`BACKLOG-GRADUATE-LEGITIMACY`) |
+| A-3 | `backlog:graduated->open` (REVERSAL) | same function, post-transition rollback (`aw backlog set <id6> --status open --message "handoff incomplete: <code>"`) | An automated reversal; 5.5 classifies reversal as in scope with a permissive default |
+| A-4 | `ipd:reviewed->to-review` (REVERSAL) on an orchestrator | `runner_shared.handle_review_orchestrator_readiness` (`aw ipd set to-review <id6> ... --yes --no-commit`), refusal code `IPD-REVIEW-ORCHESTRATOR-READY` | Automated demotion when orchestrator review readiness refuses |
+| A-5 | `backlog:<open>->done` at dispatch / post-turn | `runner_shared.backlog_item_already_complete` + `runner_shared.close_backlog_item` | Already described in prose under 3.4 (IPD `0owirm`); listed here so the table is complete. `close_backlog_item` is now the shared performer for every automated `->done` |
+
+Two further `pinned_module_argv(` sites are NOT lifecycle-status writes and are excluded deliberately:
+`runner_shared.perform_coordinator_proposal_file` runs `aw ipd scaffold` and `aw backlog new` (CREATION
+of an artifact at its initial status, not a transition), and `release_readiness` runs read-only
+`sanitize`/`ipd lint`. Whether artifact CREATION by automation belongs on the policy surface is not
+decided by this spec; it is recorded as OQ-06 (Section 5.7).
 
 ## 4. Condition vocabulary: which conditions are POLICY and which are INVARIANT
 
@@ -393,7 +445,7 @@ transitions `--full-auto` performs today are: `ipd:reviewed->auto-approved` (at 
 and post-review sites), plus the queue re-dispatch to `action: execute` that accompanies the second.
 Under this default all three remain permitted on the day the policy lands, so `--full-auto` is
 unchanged by the policy's arrival. That is the whole purpose of the default, and it is the one
-behavioral claim in this spec that an implementation must test directly (Section 8, criterion 2).
+behavioral claim in this spec that an implementation must test directly (Section 9, criterion 2).
 
 ### 5.3 Question 2: may an argument override TIGHTEN, or only LOOSEN?
 
@@ -475,9 +527,28 @@ its own spec section or its own spec.
 | 1 (key shape) | OQ-03, `open` | NO. This is the plan's reviewed recommendation |
 | 5 (retirement/reversal scope) | OQ-05, `open` | NO. This is the plan's reviewed recommendation |
 
-THIS TABLE IS WHY THE SPEC IS AT `to-review` AND NOT AT `approved`. Two of the five answers are
+THIS TABLE IS WHY THE SPEC IS NOT YET `approved`. Two of the five answers are
 proposals. Approving this spec is the act that attests them, and it is the maintainer's
 (`--by-human`); nothing in this document may be read as that attestation having happened.
+
+### 5.7 Open questions carried by this spec
+
+Each has owner `maintainer`. None is `Blocking: yes` for REVIEW, because each has a recorded
+recommendation an implementation could follow; each is closed either by the maintainer's approval
+attestation of this spec (which then adopts the recommendation) or by an explicit ruling recorded here.
+
+* OQ-03 (key shape). Recommendation: the `(artifact-type, transition)` pair (5.1). Closes on approval.
+* OQ-05 (retirement and reversal scope). Recommendation: both in scope, reversal permissive by default
+  (5.5). Closes on approval. Note 3.10 A-3 and A-4 are automated REVERSALS already happening, which
+  strengthens the case for in-scope.
+* OQ-06 (raised by the 2026-10-15 spec review, finding SR-004). Does the policy govern automated
+  artifact CREATION (`aw ipd scaffold`, `aw backlog new` performed by
+  `runner_shared.perform_coordinator_proposal_file`), or only transitions between existing statuses?
+  Recommendation: OUT of scope for this spec, because creation writes an initial status and asserts no
+  advance, and creation is already attributed by actor; revisit if a creation route is found that
+  writes a status past the type's initial one. Closing evidence: a maintainer ruling, or approval of
+  this spec (which adopts the recommendation). Until closed, the implementing Set MUST NOT add
+  creation to the policy surface on its own authority.
 
 ## 6. The policy surface
 
@@ -527,11 +598,20 @@ could open them they would be decorative.
 
 This is a CLOSED enumeration. Adding to it is an amendment to this spec.
 
+EACH ROW IS KEYED ON THE TARGET STATUS WITH A WILDCARD SOURCE, deliberately. Under 5.1 an unlisted
+pair is PERMITTED, so a row naming only one source would leave every other legal route to the same
+target open to automation: `attention_contract.SPEC_TRANSITIONS` admits `deferred -> approved` as well
+as `reviewed -> approved`, and `ipd_lifecycle._LEGAL_BACKWARD_EDGES` lets a plan re-enter earlier
+statuses from which another route to `approved` exists. The shipped enforcement already has this shape
+(`TRANSITION_AUTHORITY` is keyed `->approved` / `->implemented`, independent of source), so the
+wildcard matches today's behavior rather than tightening it. A wildcard here is the `*` source of the
+5.1 pair key, and an implementation MUST evaluate it against every legal source for that type.
+
 | Transition | Why no override may open it |
 |---|---|
-| `ipd:reviewed->approved` (human `approved`) | `approved` REQUIRES the human `Approval:` field (`ipd_schema.py:400-405`) and `->approved` carries `by_human: True` in `TRANSITION_AUTHORITY`. An automated actor writing it asserts a human approved something no human approved. The honest automated route already exists and is `auto-approved` |
-| `spec:reviewed->approved` | The anti-self-approval FLOOR. `aw specs set` refuses without `--by-human` on BOTH surfaces (`specs.py:525-540`, `status_set.py:523-540`), and the floor's own text says a plain set without it "stops and refuses" |
-| `spec:implementing->implemented` | An agent may not set `implemented`; it requires a resolvable evidence citation (`specs.py:543-549`), and the repository instructions state the prohibition directly |
+| `ipd:*->approved` (human `approved`, from ANY source status) | `approved` REQUIRES the human `Approval:` field (`ipd_schema.py:400-405`) and `->approved` carries `by_human: True` in `TRANSITION_AUTHORITY`. An automated actor writing it asserts a human approved something no human approved. The honest automated route already exists and is `auto-approved` |
+| `spec:*->approved` (from ANY source status, e.g. `reviewed` and `deferred`) | The anti-self-approval FLOOR. `aw specs set` refuses without `--by-human` on BOTH surfaces (`specs.py:525-540`, `status_set.py:523-540`), and the floor's own text says a plain set without it "stops and refuses" |
+| `spec:*->implemented` (from ANY source status) | An agent may not set `implemented`; it requires a resolvable evidence citation (`specs.py:543-549`), and the repository instructions state the prohibition directly |
 
 NOTE WHAT IS NOT IN THIS SET, because the omissions are deliberate and each is a judgement a reviewer
 may dispute. `ipd:*->executed` is NOT contract-closed: automation performs it today through the gated
@@ -622,8 +702,10 @@ The predicate must be STDLIB-CHEAP and DRIVER-AGNOSTIC: it must not import a run
 will consume it, and `runner_shared`'s own module contract already states that shared code may not
 import a runner and must take host-varying data as a PARAMETER (the `HostLabels` descriptor, and
 `driver_begin`'s injected `env_builder`/`argv_builder`, are the shipped shape). `plan_readiness`
-carries the same constraint, and the anti-divergence guard in `tests/test_runner_item_dependencies.py`
-polices that class of coupling.
+carries the same constraint. (The draft cited `tests/test_runner_item_dependencies.py` as the guard
+policing that coupling; that file was deleted in `19313eed` and is not a live guard at HEAD
+`ad9213cc6`, so the implementing Set must ship its own behavioral test that the predicate module
+imports no runner, rather than relying on one.)
 
 The practical consequence: `condition_state` is a PARAMETER (7.1) rather than something the predicate
 reads, so the predicate is a deterministic function of its inputs and every branch is testable without
@@ -719,6 +801,17 @@ file layout and test placement belong to the implementing Set.
     either every verb at once, or the `--full-auto` path first and the rest behind it. This spec
     deliberately does not choose, because the trade (blast radius versus a period of two live
     mechanisms) depends on how the work is actually staged.
+12. THE FAIL DIRECTION IS PER VERDICT PATH (7.2). For each branch that can meet an unreadable input or
+    a raising helper, the implementation documents whether it fails open or closed and why, and a test
+    drives each such branch with a raising helper and asserts the documented verdict (not an
+    exception). A single global direction does not satisfy this criterion.
+13. THE SHIPPED DEFAULT CONFIGURATION CLOSES EVERY 6.4 TRANSITION (6.5). A test reads the default
+    policy with no project configuration present and asserts each 6.4 row resolves to closed, AND
+    asserts the refusal for each names it contract-closed. Criterion 6 alone does not satisfy this,
+    for the reason 6.5 gives.
+14. THE INVENTORY THE IMPLEMENTATION CARRIES (criterion 4) INCLUDES SECTION 3.10's ROWS and any
+    further advance found by re-running the 3.9 searches at the implementing Set's own HEAD; the
+    implementing plan pastes that search output as evidence.
 
 ## 10. Deliberately out of scope
 
