@@ -833,5 +833,211 @@ Goal
             self.assertEqual(findings, [])
 
 
+class TestSpecDeferredImplementedGate(unittest.TestCase):
+    """Behavioral tests for the Deferred-ID implemented transition gate (89xjll R-9 / AC-10)."""
+
+    def setUp(self):
+        import subprocess
+
+        self.td = tempfile.TemporaryDirectory()
+        self.repo = Path(self.td.name)
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Tester"], cwd=self.repo, check=True
+        )
+
+        # Create an executed IPD to cite as evidence
+        exec_dir = self.repo / ".aw" / "records" / "plans" / "executed"
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        self.evidence_path = exec_dir / "20261001-reqids-02-rtvdak-test.ipd.md"
+        self.evidence_path.write_text(
+            "# Executed IPD rtvdak\n- Status: executed\n", encoding="utf-8"
+        )
+
+        # Create an implementing spec declaring R-1, R-3 [Deferred], AC-1, and AC-2 [Deferred]
+        self.spec_dir = self.repo / ".aw" / "records" / "specs" / "implementing"
+        self.spec_dir.mkdir(parents=True, exist_ok=True)
+        self.spec_path = (
+            self.spec_dir / "20261001-tst001-01-tst001-deferred-gate.spec.md"
+        )
+        self.spec_content = """# SPEC: Deferred Gate Test
+
+- Date: 2026-10-01
+- Status: implementing
+- Title: Deferred Gate Test
+- Slug: deferred-gate
+- Id: tst001
+- Graduated-To: reqids
+
+## Workflow history
+- 2026-10-01 implementing (tester): stage planned
+
+## 1. Requirements
+- R-1 Mandatory requirement one.
+- R-3 [Deferred] Deferred requirement three.
+
+## 2. Acceptance Criteria
+- AC-1 Mandatory acceptance one.
+- AC-2 [Deferred] Deferred acceptance two.
+"""
+        self.spec_path.write_text(self.spec_content, encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "initial state"], cwd=self.repo, check=True
+        )
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def test_specs_run_set_refuses_when_deferred_ids_declared(self):
+        import argparse
+        import contextlib
+        import io
+        import subprocess
+        from agent_workflows import specs
+
+        orig_bytes = self.spec_path.read_bytes()
+        args = argparse.Namespace(
+            status="implemented",
+            path=str(self.spec_path),
+            args=None,
+            dir=str(self.repo),
+            evidence=str(self.evidence_path.relative_to(self.repo)),
+            yes=True,
+            no_commit=True,
+            message="Test transition",
+            by_human=True,
+            actor="aw specs",
+            _verb_label="aw specs set",
+            agent=False,
+            as_agent=False,
+            json=False,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = specs.run_set(args)
+        out = buf.getvalue()
+        self.assertEqual(rc, 1)
+        self.assertIn("AC-2", out)
+        self.assertIn("R-3", out)
+        self.assertEqual(self.spec_path.read_bytes(), orig_bytes)
+        st = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(st.strip(), "")
+
+    def test_spec_set_refuses_when_deferred_ids_declared(self):
+        import contextlib
+        import io
+        import subprocess
+        from agent_workflows import cli, status_set
+
+        orig_bytes = self.spec_path.read_bytes()
+        parser = cli._build_parser()
+        args = parser.parse_args(
+            [
+                "specs",
+                "set",
+                "implemented",
+                "tst001",
+                "--evidence",
+                str(self.evidence_path.relative_to(self.repo)),
+                "--yes",
+                "--no-commit",
+                "--message",
+                "Test transition",
+                "--by-human",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = status_set.run_set_command(
+                ["implemented", "tst001"],
+                scoped_type="specs",
+                repo_root=self.repo,
+                args=args,
+            )
+        out = buf.getvalue()
+        self.assertEqual(rc, 1)
+        self.assertIn("AC-2", out)
+        self.assertIn("R-3", out)
+        self.assertEqual(self.spec_path.read_bytes(), orig_bytes)
+        st = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(st.strip(), "")
+
+    def test_transition_succeeds_after_deferred_markers_removed(self):
+        import contextlib
+        import io
+        import subprocess
+        from agent_workflows import cli, status_set
+
+        clean_content = self.spec_content.replace(" [Deferred]", "")
+        self.spec_path.write_text(clean_content, encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=self.repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "remove deferred markers"],
+            cwd=self.repo,
+            check=True,
+        )
+
+        parser = cli._build_parser()
+        args = parser.parse_args(
+            [
+                "specs",
+                "set",
+                "implemented",
+                "tst001",
+                "--evidence",
+                str(self.evidence_path.relative_to(self.repo)),
+                "--yes",
+                "--no-commit",
+                "--message",
+                "Implemented",
+                "--by-human",
+                "--dir",
+                str(self.repo),
+            ]
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = status_set.run_set_command(
+                ["implemented", "tst001"],
+                scoped_type="specs",
+                repo_root=self.repo,
+                args=args,
+            )
+        self.assertEqual(rc, 0)
+        self.assertFalse(self.spec_path.exists())
+        implemented_path = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "specs"
+            / "implemented"
+            / self.spec_path.name
+        )
+        self.assertTrue(implemented_path.exists())
+        self.assertIn(
+            "- Status: implemented", implemented_path.read_text(encoding="utf-8")
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

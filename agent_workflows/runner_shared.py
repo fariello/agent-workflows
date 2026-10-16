@@ -29999,6 +29999,8 @@ def build_spec_production_prompt(
             lines.append(lane_containment.isolation_notice(lane_root))
         return "\n".join(lines)
 
+    uncited = _pc.spec_uncited_trace_ids(root, spec_id6)
+    uncited_str = ", ".join(uncited) if uncited else "none"
     lines = [
         f"# Plan production from approved spec: {rel_spec}",
         "",
@@ -30012,6 +30014,8 @@ def build_spec_production_prompt(
         "5. Every produced plan must have concrete `- Scope-Paths:` (not empty, not TODO, not grandfathered) and resolved `- Item-Dependencies:` (not unresolved).",
         "6. Every produced plan must lint conforming via `aw ipd lint`.",
         "7. Do NOT modify the approved spec's requirements.",
+        f"8. Mandatory uncited requirement and acceptance items awaiting coverage: {uncited_str}. "
+        f"Each must be cited qualified with the spec id6 (for example `{spec_id6} R-2`) in an E-* (requirement) or V-* (acceptance) item, per spec 89xjll 6.2b.",
     ]
     _append_continue_handoff_section(lines, root, "spec", spec_id6)
     lines.extend(_ORCHESTRATOR_PLANS_SECTION)
@@ -41302,6 +41306,18 @@ def execute_item_core(
                     )
             else:
                 # Success path!
+                trace_deferred = _pc.spec_plan_trace_deferred(target_tree, item["id6"])
+                if trace_deferred:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "spec-plan-trace-deferred",
+                            "id6": item["id6"],
+                            "partial": True,
+                            "deferred_ids": trace_deferred,
+                        },
+                    )
                 target_spec_path = queue_artifact_path(target_tree, item)
                 try:
                     rel_spec_str = str(

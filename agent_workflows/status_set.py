@@ -807,6 +807,12 @@ def validate_transition_allowed(
                         f"{old_status} -> {norm_status} requires a resolvable --evidence citation "
                         "(an existing .aw/records/plans/executed/ IPD path)",
                     )
+            if norm_status == "implemented":
+                from agent_workflows import specs as _specs
+
+                deferred_reason = _specs._deferred_ids_refusal(rec.path, rec.raw_text)
+                if deferred_reason is not None:
+                    return False, deferred_reason
 
     if rec.record_type == "plans":
         from agent_workflows import ipd_lifecycle as _life
