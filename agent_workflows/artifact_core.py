@@ -575,7 +575,7 @@ def repo_relative_posix(
 # tree + the Notes section"). Committed lightweight work belongs in `records/backlog/`, which IS
 # scanned and IS attention-visible. Do not re-add `TODO.md` here: former invariant
 # `tests/test_artifact_core.py::ScanRootClassificationInvariantTests` was deleted in `19313eed`;
-# no live guard currently asserts this.
+# restored as `tests/test_scan_root_classification.py::ScanRootClassificationTests`.
 SCAN_ROOTS = (
     "DECISIONS.md",
     "README.md",
