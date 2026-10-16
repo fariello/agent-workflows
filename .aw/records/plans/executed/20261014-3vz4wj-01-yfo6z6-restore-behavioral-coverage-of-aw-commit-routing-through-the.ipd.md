@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `aw commit` through `cli.main` against a throwaway git repo and asserts (a) the shared helper is invoked exactly once with only the requested paths and `on_unrelated_staged="scope"`, for both plan-governed and `--no-plan` modes, and (b) with the helper stubbed to commit nothing, no `git commit` subprocess is spawned and HEAD is unchanged; then remove the now-stale "no live guard currently asserts this" remark in `work_cmd.run_commit`.
 - Scope-Paths: tests/test_work_commit_routes_through_shared_helper.py, agent_workflows/work_cmd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: yfo6z6
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yfo6z6 verified (set 3vz4wj, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: delegation tests
 
-- [ ] E-01 Create `tests/test_work_commit_routes_through_shared_helper.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and builds a throwaway git repo carrying an approved plan `wk0001` with `- Scope-Paths: src/, tests/` (same fixture shape as `tests/test_commit_default_message.py` `_PLAN` / `CommitDefaultMessageTest.setUp`). Add tests that wrap the real `git_commit_helper.offer_commit` in a recording spy via `mock.patch.object(gch, "offer_commit", spy)` and drive `cli.main(["commit", "wk0001", "--dir", <root>, "-m", "add feature", "--", "src/feature.py"])` and the plan-less form `cli.main(["commit", "--no-plan", "-m", "...", "--dir", <root>, "--", "src/feature.py"])`, asserting: exit code 0; the spy was called exactly once; the recorded repo root equals the fixture root; the recorded paths equal exactly `["src/feature.py"]`; the recorded `on_unrelated_staged` kwarg equals `"scope"`; and `git show --name-only --format= HEAD` (the empty `--format=` suppresses the header and message, so the output is exactly the path list) prints exactly `src/feature.py`. Each mode must commit a FRESH change: use a separate test method per mode (each gets its own `setUp` repo), or rewrite `src/feature.py` before the second mode, because an unchanged path yields `nothing-to-commit` and exit 1. Also add a co-worker case: a second, unrelated path is pre-staged before the plan-less commit, and the test asserts it is absent from the new HEAD commit and still staged afterward.
+- [x] E-01 Create `tests/test_work_commit_routes_through_shared_helper.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and builds a throwaway git repo carrying an approved plan `wk0001` with `- Scope-Paths: src/, tests/` (same fixture shape as `tests/test_commit_default_message.py` `_PLAN` / `CommitDefaultMessageTest.setUp`). Add tests that wrap the real `git_commit_helper.offer_commit` in a recording spy via `mock.patch.object(gch, "offer_commit", spy)` and drive `cli.main(["commit", "wk0001", "--dir", <root>, "-m", "add feature", "--", "src/feature.py"])` and the plan-less form `cli.main(["commit", "--no-plan", "-m", "...", "--dir", <root>, "--", "src/feature.py"])`, asserting: exit code 0; the spy was called exactly once; the recorded repo root equals the fixture root; the recorded paths equal exactly `["src/feature.py"]`; the recorded `on_unrelated_staged` kwarg equals `"scope"`; and `git show --name-only --format= HEAD` (the empty `--format=` suppresses the header and message, so the output is exactly the path list) prints exactly `src/feature.py`. Each mode must commit a FRESH change: use a separate test method per mode (each gets its own `setUp` repo), or rewrite `src/feature.py` before the second mode, because an unchanged path yields `nothing-to-commit` and exit 1. Also add a co-worker case: a second, unrelated path is pre-staged before the plan-less commit, and the test asserts it is absent from the new HEAD commit and still staged afterward.
   - Depends on: none
   - Expected outcome: the new module exists and its delegation tests pass against the current `work_cmd.run_commit`.
-  - Execution state: pending
-- [ ] E-02 In the same module add a no-fork test: stub `gch.offer_commit` to return `gch.CommitOutcome(status=gch.STATUS_NOTHING_TO_COMMIT, message="stubbed", staged=[], commit=None)` and wrap `subprocess.Popen` with a recording wrapper that still calls the real `Popen` (the `_GitArgvRecorder` approach used by the deleted module at `19313eed^:tests/test_work_primitives.py`, re-implemented locally, recognizing the git subcommand after skipping `-C <dir>` / `-c <cfg>` globals). Drive both the plan-governed and `--no-plan` forms and assert: exit code 1; no recorded git subcommand equals `commit`; HEAD before equals HEAD after. Add a sanity sub-assertion that the recorder DOES observe a `commit` subcommand when the real helper is left unstubbed, so the absence assertion cannot pass vacuously.
+  - Execution state: performed
+- [x] E-02 In the same module add a no-fork test: stub `gch.offer_commit` to return `gch.CommitOutcome(status=gch.STATUS_NOTHING_TO_COMMIT, message="stubbed", staged=[], commit=None)` and wrap `subprocess.Popen` with a recording wrapper that still calls the real `Popen` (the `_GitArgvRecorder` approach used by the deleted module at `19313eed^:tests/test_work_primitives.py`, re-implemented locally, recognizing the git subcommand after skipping `-C <dir>` / `-c <cfg>` globals). Drive both the plan-governed and `--no-plan` forms and assert: exit code 1; no recorded git subcommand equals `commit`; HEAD before equals HEAD after. Add a sanity sub-assertion that the recorder DOES observe a `commit` subcommand when the real helper is left unstubbed, so the absence assertion cannot pass vacuously.
   - Measured at review (HEAD `4ead57c34`, prototype of E-01/E-02 under gitignored `.aw/state/`, deleted afterwards): unmutated `5 passed` (both delegation modes, co-worker, both no-fork modes, sanity); with `work_cmd._gch` rebound to a shim whose `offer_commit` runs its own `git add` + `git commit`, `2 failed, 3 passed` (delegation `0 != 1`; no-fork exit `0 != 1`).
   - Depends on: E-01
   - Expected outcome: the no-fork tests pass, and the sanity check proves the recorder sees real `git commit` invocations.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: stale remark
 
-- [ ] E-03 In `agent_workflows/work_cmd.py` `run_commit`, rewrite the comment in the `if no_plan:` branch that reads "`tests/test_work_primitives.py` (deleted in `19313eed`; no live guard currently asserts this) proved this verb carries no forked commit path of its own" so it cites `tests/test_work_commit_routes_through_shared_helper.py` as the live guard. Comment-only change; no behavior change.
+- [x] E-03 In `agent_workflows/work_cmd.py` `run_commit`, rewrite the comment in the `if no_plan:` branch that reads "`tests/test_work_primitives.py` (deleted in `19313eed`; no live guard currently asserts this) proved this verb carries no forked commit path of its own" so it cites `tests/test_work_commit_routes_through_shared_helper.py` as the live guard. Comment-only change; no behavior change.
   - Depends on: E-02
   - Expected outcome: the comment names the new live test module and no longer claims the guard is absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,18 +109,82 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_work_commit_routes_through_shared_helper.py` showing each delegation test (plan mode, `--no-plan` mode, co-worker staged path) PASSED, plus `grep -nE "^\s*(import|from)\s+(inspect|ast)\b|\binspect\.|\bast\.(parse|walk|Name)|getsource|read_text\(" tests/test_work_commit_routes_through_shared_helper.py` returning no match (the tightened pattern does not false-match prose such as "last."; any `read_text(` hit must be shown to read only the fixture repo, never `agent_workflows/*.py`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_work_commit_routes_through_shared_helper.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=1819456647
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/yfo6z6
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_with_plan_delegates_to_shared_helper PASSED [ 20%]
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_recorder_observes_real_git_commit_sanity PASSED [ 40%]
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_no_plan_preserves_coworker_staged_path PASSED [ 60%]
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_holds_no_forked_git_commit_path_of_its_own PASSED [ 80%]
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_no_plan_delegates_to_shared_helper PASSED [100%]
+
+    ============================== 5 passed in 2.73s ===============================
+    ```
+    ```
+    $ grep -nE "^\s*(import|from)\s+(inspect|ast)\b|\binspect\.|\bast\.(parse|walk|Name)|getsource|read_text\(" tests/test_work_commit_routes_through_shared_helper.py
+    (exit code 1, no matches)
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the no-fork tests and the non-vacuity sanity check PASSED; AND pasted output of a temporary mutation run (the `_gch.offer_commit(...)` call in `run_commit` replaced with a direct `git commit` subprocess) showing at least one test in the new module FAILED, followed by `git diff --stat agent_workflows/work_cmd.py` proving the mutation was reverted (only the E-03 comment remains).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Passing test run:
+    ```
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_holds_no_forked_git_commit_path_of_its_own PASSED [ 80%]
+    tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_recorder_observes_real_git_commit_sanity PASSED [ 40%]
+    ```
+    Mutation run (replacing `_gch.offer_commit(...)` in `run_commit` with `subprocess.run(["git", "commit", ...])`):
+    ```
+    FAILED tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_no_plan_preserves_coworker_staged_path
+    FAILED tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_no_plan_delegates_to_shared_helper
+    FAILED tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_with_plan_delegates_to_shared_helper
+    FAILED tests/test_work_commit_routes_through_shared_helper.py::WorkCommitRoutesThroughSharedHelperTest::test_commit_holds_no_forked_git_commit_path_of_its_own
+    ========================= 4 failed, 1 passed in 1.70s ==========================
+    ```
+    Mutation reverted:
+    ```
+    $ git diff --stat agent_workflows/work_cmd.py
+     agent_workflows/work_cmd.py | 4 ++--
+     1 file changed, 2 insertions(+), 2 deletions(-)
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff agent_workflows/work_cmd.py` showing only comment lines changed and naming `tests/test_work_commit_routes_through_shared_helper.py`; AND the pasted summary line of a bare `python3 -m pytest` run with no new failures.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/work_cmd.py b/agent_workflows/work_cmd.py
+    index f1b17da4e..7e230ce78 100644
+    --- a/agent_workflows/work_cmd.py
+    +++ b/agent_workflows/work_cmd.py
+    @@ -772,8 +772,8 @@ def run_commit(args: argparse.Namespace) -> int:
+         if no_plan:
+             # NAME THE SKIPPED PROTECTIONS. Deliberately phrased around the PROTECTIONS rather than
+             # around the raw command, both because that is what the operator needs to know and because
+    -        # `tests/test_work_primitives.py` (deleted in `19313eed`; no live guard currently asserts
+    -        # this) proved this verb carries no forked commit path of its own.
+    +        # `tests/test_work_commit_routes_through_shared_helper.py` proves this
+    +        # verb carries no forked commit path of its own.
+             print(
+                 "aw commit: no plan governs this commit (--no-plan), so two plan-derived protections "
+                 "are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is "
+    ```
+    Full bare suite run:
+    ```
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run'marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    707 passed in 25.10s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
