@@ -138,14 +138,57 @@ def apply_max_count(
     )[:max_count]
 
 
+def is_active_item(
+    it: _att.Item,
+    run_map: Optional[Dict[str, str]],
+) -> bool:
+    """Return True if an item is currently active in a live runner session."""
+    if not run_map:
+        return False
+    st = _att._item_run_status(it, run_map)
+    if not st and it.id and it.id in run_map:
+        st = run_map[it.id]
+    st = (st or "").lower()
+    return bool(st and st != "-")
+
+
+def _is_active_member(
+    m: Any,
+    repo_root: Path,
+    run_map: Optional[Dict[str, str]],
+) -> bool:
+    """Return True if a SetMember is currently active in a live runner session."""
+    if not run_map:
+        return False
+    path_name = m.path.name if m.path else ""
+    rel_path = ""
+    if m.path:
+        try:
+            rel_path = str(m.path.resolve().relative_to(repo_root.resolve()))
+        except Exception:
+            rel_path = str(m.path)
+    st = (
+        run_map.get(m.id6)
+        or (run_map.get(rel_path) if rel_path else None)
+        or (run_map.get(path_name) if path_name else None)
+    )
+    st = (st or "").lower()
+    return bool(st and st != "-")
+
+
 def classify_sets(
     repo_root: Path,
     candidates: Sequence[_att.Item],
     pre_max_candidates: Sequence[_att.Item],
     max_count: Optional[int] = None,
     action_flag: Optional[str] = None,
+    include_active: bool = False,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> Dict[str, SetClassification]:
     """Classify every distinct Set that has a selected member and an orchestrator on disk."""
+    if not include_active and run_map is None:
+        run_map = _att.get_active_runs_map(repo_root)
+
     from agent_workflows import runner_shared
 
     terminal_statuses = runner_shared.set_retirement_terminal_statuses()
@@ -285,6 +328,15 @@ def classify_sets(
                         fix=f"raise --max to {computed_n} or select the Set by its setid",
                     )
                 )
+            elif not include_active and _is_active_member(m, repo_root, run_map):
+                blocked.append(
+                    BlockedMember(
+                        id6=m.id6,
+                        status=m.status,
+                        cause="already-running",
+                        fix=f"wait for active run to finish {m.id6}",
+                    )
+                )
             else:
                 blocked.append(
                     BlockedMember(
@@ -394,10 +446,11 @@ def render_set_block(
     not_sel = [b for b in cs.blocked if b.cause == "not-selected"]
     max_excl = [b for b in cs.blocked if b.cause == "excluded-by-max"]
     orch_ret = [b for b in cs.blocked if b.cause == "orchestrator-cannot-retire"]
+    running = [b for b in cs.blocked if b.cause == "already-running"]
     other = [
         b
         for b in cs.blocked
-        if b not in to_review + reviewed + not_sel + max_excl + orch_ret
+        if b not in to_review + reviewed + not_sel + max_excl + orch_ret + running
     ]
 
     fix_clauses: List[str] = []
@@ -435,6 +488,10 @@ def render_set_block(
     if orch_ret:
         for b in orch_ret:
             fix_clauses.append(b.fix)
+
+    if running:
+        ids_str = " ".join(b.id6 for b in running)
+        fix_clauses.append(f"wait for active run to finish {ids_str}")
 
     if other:
         for b in other:
@@ -718,6 +775,8 @@ def collect(
     order_by: Optional[str] = None,
     action: Optional[str] = None,
     require_homogeneous_action: bool = False,
+    include_active: bool = False,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> List[_att.Item]:
     """Select candidate items honoring artifact type, selectors, filters, action, and ordering.
 
@@ -883,6 +942,12 @@ def collect(
             it for it in candidates if (it.priority or "").lower() in norm_priorities
         ]
 
+    if not include_active:
+        if run_map is None:
+            run_map = _att.get_active_runs_map(repo_root)
+        if run_map:
+            candidates = [it for it in candidates if not is_active_item(it, run_map)]
+
     if candidates:
         distinct_actions = {
             _run_selection_policy.action_for_status(
@@ -981,6 +1046,10 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     statuses_not = list(getattr(args, "status_not", []) or [])
     priorities = list(getattr(args, "priority", []) or [])
     allow_partial_sets = bool(getattr(args, "allow_partial_sets", False))
+    include_active = bool(getattr(args, "include_active", False))
+    run_map: Optional[Dict[str, str]] = None
+    if not include_active:
+        run_map = _att.get_active_runs_map(repo_root)
 
     canon_type = _status_set.canonical_type(artifact_type) or artifact_type
     effective_order_by = order_by_flag or ("depth" if canon_type == "plans" else "date")
@@ -1008,6 +1077,8 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 order_by=order_by_flag,
                 action=action_flag,
                 require_homogeneous_action=False,
+                include_active=include_active,
+                run_map=run_map,
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -1022,6 +1093,8 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             pre_max_candidates=pre_max_candidates,
             max_count=max_count,
             action_flag=action_flag,
+            include_active=include_active,
+            run_map=run_map,
         )
 
         # Action homogeneity check for plans performed AFTER Set classification.
@@ -1143,6 +1216,8 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 order_by=order_by_flag,
                 action=action_flag,
                 require_homogeneous_action=True,
+                include_active=include_active,
+                run_map=run_map,
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)

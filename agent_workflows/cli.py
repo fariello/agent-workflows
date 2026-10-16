@@ -4688,6 +4688,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Schedule the ready plans of a Set that cannot finish in this batch. The Set's orchestrator is never scheduled until every child can run.",
     )
     p_partition.add_argument(
+        "--include-active",
+        dest="include_active",
+        action="store_true",
+        default=False,
+        help="Include items that are active in a live runner run (excluded by default).",
+    )
+    p_partition.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 

@@ -1250,3 +1250,185 @@ def test_cli_partition_ambiguous_and_positional_types(
     captured = capsys.readouterr()
     assert captured.out.strip() == "aw oc run --action plan bkl001"
     assert "Partitioned 1 items across 1 shard(s)" in captured.err
+
+
+# ==============================================================================
+# (l) Active (already running) items exclusion and --include-active
+# ==============================================================================
+
+
+def test_collect_excludes_active_by_default_and_includes_with_flag(
+    plan_fixture_repo: Path,
+) -> None:
+    # pln001 is active in live runner run; pln002 is not
+    active_map = {"pln001": "running"}
+
+    # Default (include_active=False): pln001 excluded
+    cand_default = part.collect(
+        plan_fixture_repo,
+        artifact_type="plans",
+        statuses=["approved"],
+        include_active=False,
+        run_map=active_map,
+    )
+    assert [it.id for it in cand_default] == ["pln002"]
+
+    # Explicit include_active=True: pln001 included
+    cand_included = part.collect(
+        plan_fixture_repo,
+        artifact_type="plans",
+        statuses=["approved"],
+        include_active=True,
+        run_map=active_map,
+    )
+    assert {it.id for it in cand_included} == {"pln001", "pln002"}
+
+
+def test_cli_partition_excludes_active_plans_by_default(
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "agent_workflows.attention.get_active_runs_map",
+        lambda repo: {"pln001": "running"},
+    )
+
+    # Without --include-active: only pln002 is partitioned
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--dir",
+            str(plan_fixture_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "pln002" in captured.out
+    assert "pln001" not in captured.out
+    assert "Partitioned 1 items across 1 shard(s)" in captured.err
+
+    # With --include-active: both pln001 and pln002 are partitioned
+    code_inc = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--include-active",
+            "--dir",
+            str(plan_fixture_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code_inc == 0
+    captured_inc = capsys.readouterr()
+    assert "pln001" in captured_inc.out
+    assert "pln002" in captured_inc.out
+    assert "Partitioned 2 items across 2 shard(s)" in captured_inc.err
+
+
+def test_cli_partition_all_active_yields_no_matching_items(
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Both pln001 and pln002 are actively running
+    monkeypatch.setattr(
+        "agent_workflows.attention.get_active_runs_map",
+        lambda repo: {"pln001": "running", "pln002": "queued"},
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--dir",
+            str(plan_fixture_repo),
+        ]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "No matching plans items found to partition." in captured.err
+
+    # With --include-active, they are scheduled
+    code_inc = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "--include-active",
+            "--dir",
+            str(plan_fixture_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code_inc == 0
+    captured_inc = capsys.readouterr()
+    assert "pln001" in captured_inc.out
+    assert "pln002" in captured_inc.out
+
+
+def test_cli_partition_backlog_excludes_active(
+    backlog_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # bkl001 is running
+    monkeypatch.setattr(
+        "agent_workflows.attention.get_active_runs_map",
+        lambda repo: {"bkl001": "running"},
+    )
+
+    # Excluded by default
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "-s",
+            "open",
+            "--dir",
+            str(backlog_fixture_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "bkl001" not in captured.out
+    assert "bkl002" in captured.out
+
+    # Included with --include-active
+    code_inc = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "-s",
+            "open",
+            "--include-active",
+            "--dir",
+            str(backlog_fixture_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code_inc == 0
+    captured_inc = capsys.readouterr()
+    assert "bkl001" in captured_inc.out
+    assert "bkl002" in captured_inc.out

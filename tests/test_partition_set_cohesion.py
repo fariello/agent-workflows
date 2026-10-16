@@ -849,3 +849,88 @@ def test_oversized_set_kept_whole(
     assert set_l_ids.issubset(set(shards_with_l[0]))
     assert "note: Set 'setl' (4 plans) kept whole in shard" in captured.err
     assert "exceeding the even share of 2" in captured.err
+
+
+def test_partition_set_with_active_child_blocks_batch(
+    cohesion_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Set A has aorch0, achl01, achl02, achl03.
+    # achl01 is currently running in a live runner
+    monkeypatch.setattr(
+        "agent_workflows.attention.get_active_runs_map",
+        lambda repo: {"achl01": "running"},
+    )
+
+    # By default, without --include-active, the batch is refused (exit 2)
+    # because Set A cannot finish in this batch while achl01 is already running.
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "seta",
+            "-s",
+            "approved",
+            "--dir",
+            str(cohesion_repo),
+        ]
+    )
+    assert code == 2
+    captured = capsys.readouterr()
+    assert (
+        "Set 'seta' cannot finish in this batch, so nothing was scheduled."
+        in captured.err
+    )
+    assert "achl01 (approved, already running)" in captured.err
+    assert "wait for active run to finish achl01" in captured.err
+
+    # With --allow-partial-sets, ready children achl02, achl03 are scheduled,
+    # holding back the orchestrator and warning about achl01.
+    code_part = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "seta",
+            "-s",
+            "approved",
+            "--allow-partial-sets",
+            "--dir",
+            str(cohesion_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code_part == 0
+    captured_part = capsys.readouterr()
+    assert "held back orchestrator aorch0" in captured_part.err
+    assert "achl01 (approved, already running)" in captured_part.err
+    assert "achl02" in captured_part.out
+    assert "achl03" in captured_part.out
+    assert "achl01" not in captured_part.out
+    assert "aorch0" not in captured_part.out
+
+    # With --include-active, achl01 is included and the full Set (including orchestrator) runs.
+    code_inc = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "seta",
+            "-s",
+            "approved",
+            "--include-active",
+            "--dir",
+            str(cohesion_repo),
+            "--run",
+            "none",
+        ]
+    )
+    assert code_inc == 0
+    captured_inc = capsys.readouterr()
+    assert "achl01" in captured_inc.out
+    assert "achl02" in captured_inc.out
+    assert "achl03" in captured_inc.out
+    assert "aorch0" in captured_inc.out
