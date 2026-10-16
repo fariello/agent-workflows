@@ -6,7 +6,7 @@
 - Scope: Add a deterministic, ADVISORY "review may be stale" signal for an IPD at `reviewed`, `approved` or `auto-approved`, computed from git (no new attested field): locate the plan's last review commit (newest commit touching the plan file whose subject starts `plan-review:`; no fallback, see OQ-02), read that blob, and compare it to the working text. Sweep surfaces (`aw check`, `aw attention`) resolve every candidate in ONE bulk `git log --name-only` plus ONE `git cat-file --batch`, never one `git log` per plan (F-4). Two reasons: (a) ANSWERED-QUESTION: an open question that was `Blocking: yes` and `Status: open` in the reviewed blob is `resolved` now; (b) SUBSTANTIVE-EDIT: `ipd_lifecycle.frozen_region_digest` differs between the reviewed blob and now. Surface it as (1) a new `info` rule `check.ipd-review-may-be-stale` in `check_engine` (never sets an exit code) mirrored as a passing `ipd_lint` advisory; (2) a warning line, NOT a refusal, from `aw ipd set approved` / `aw set approved` naming the reason and the remedy `aw oc review <id6> --yes`; (3) a marker in `aw attention`'s human board and a `review_stale` field on each JSON item, which bumps `attention.SCHEMA_VERSION` 4 -> 5 on that payload's own additive-bump precedent. Approval is never refused by this signal.
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/attention.py, tests/test_review_staleness_advisory.py, tests/test_attention.py, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ygngc2
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ygngc2 verified (set rereview, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-15 to-review (aw set): authored from backlog dbr23q at HEAD df9ededb4; maintainer rulings 2026-10-15 recorded in Concern
