@@ -1,5 +1,5 @@
 - Id: byz9pj
-- Status: graduated
+- Status: done
 - Graduated-To: byz9pj
 - Set: byz9pj
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Triage the failing ScenarioBindingTests case in uncollected tools/awphysical/test_awphysical_tools.py and bring it under a gate
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 719lyq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-byz9pj-01-719lyq-repair-scenario-token-bindings-relocate-test-awphysical-tool.ipd.md); evidence .aw/records/plans/executed/20261014-byz9pj-01-719lyq-repair-scenario-token-bindings-relocate-test-awphysical-tool.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: 719lyq
 - 2026-10-12 created (aw backlog): Triage the failing ScenarioBindingTests case in uncollected tools/awphysical/test_awphysical_tools.py and bring it under a gate
 
