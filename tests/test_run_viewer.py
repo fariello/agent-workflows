@@ -22,6 +22,8 @@ from unittest import TestCase
 import pytest
 
 from agent_workflows import agent_schema, cli, run_viewer, runner_shared
+from agent_workflows.run_ledger_schema import LEDGER_SCHEMA_VERSION
+from agent_workflows.run_ledger_store import RunLedgerStore
 from agent_workflows.term import Term, strip_ansi
 
 # --------------------------------------------------------------------------------------------------
@@ -3432,3 +3434,379 @@ class RunsAgentStreamAndRefusalTests(TestCase):
                 self.assertIsInstance(c, str)
                 self.assertFalse(c.startswith("/"))
                 self.assertTrue(c.startswith(".aw/records/plans/pending/"))
+
+
+class LedgerRunViewerTests(TestCase):
+    """Tests for classifying and rendering ledger-only run directories in aw runs (3a3hh9 E-05)."""
+
+    def setUp(self) -> None:
+        self.maxDiff = None
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self._temp_dir.name).resolve()
+        (self.root / ".aw" / "records").mkdir(parents=True)
+        self.state_root = runner_shared.state_root(self.root)
+
+    def tearDown(self) -> None:
+        self._temp_dir.cleanup()
+
+    def _create_ledger_run(
+        self,
+        run_id: str = "run-abcdef1234",
+        *,
+        records: list[dict[str, Any]] | None = None,
+    ) -> tuple[Path, Path]:
+        run_dir = self.state_root / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        ledger_path = run_dir / "ledger.jsonl"
+        store = RunLedgerStore(ledger_path)
+        if records is None:
+            records = [
+                {
+                    "schema_version": LEDGER_SCHEMA_VERSION,
+                    "kind": "run",
+                    "run_id": run_id,
+                    "actor": "runtime",
+                    "workflow_digest": "a" * 64,
+                    "requirement_digest": "b" * 64,
+                    "repo": "agent-workflows",
+                    "head": "29176ceccbf1326a745af5c5525151b41273163d",
+                    "parent": "",
+                }
+            ]
+        for rec in records:
+            store.append(rec)
+        return run_dir, ledger_path
+
+    def test_a_header_only_run_renders_ledger_model(self) -> None:
+        """Header-only run renders the ledger model and does not show 0 steps: 0 steps."""
+        run_dir, _ = self._create_ledger_run("run-abcdef1234")
+        summary = run_viewer.load_run_summary(run_dir, self.root)
+        self.assertIsNotNone(summary)
+        self.assertIsNotNone(summary.ledger)
+        self.assertEqual(summary.ledger["run_state"], "pending")
+        self.assertEqual(summary.ledger["record_count"], 1)
+        self.assertEqual(summary.ledger["steps"], {})
+        self.assertIsNone(summary.pid)
+        self.assertEqual(summary.steps, [])
+        self.assertEqual(summary.counts, {})
+
+        human_rendered = run_viewer.format_run_human(
+            summary, Term(color=False), repo_root=self.root
+        )
+        self.assertIn("[ledger]", human_rendered)
+        self.assertIn("ledger: state=pending, records=1", human_rendered)
+        self.assertIn("ledger steps: 0 recorded", human_rendered)
+        self.assertIn(
+            "inspect: aw runs status run-abcdef1234 | aw runs show run-abcdef1234",
+            human_rendered,
+        )
+        self.assertNotIn("0 steps: 0 steps", human_rendered)
+
+        # Real CLI: bare aw runs
+        out, err, code = _run_viewer(self.root, ["--no-color"])
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("run-abcdef1234  [ledger]", out)
+        self.assertIn("ledger: state=pending, records=1", out)
+        self.assertIn("ledger steps: 0 recorded", out)
+        self.assertIn(
+            "inspect: aw runs status run-abcdef1234 | aw runs show run-abcdef1234",
+            out,
+        )
+        self.assertNotIn("0 steps: 0 steps", out)
+
+        # Real CLI: aw runs run-abcdef1234
+        out, err, code = _run_viewer(self.root, ["run-abcdef1234", "--no-color"])
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("run-abcdef1234  [ledger]", out)
+        self.assertIn("ledger: state=pending, records=1", out)
+        self.assertIn("ledger steps: 0 recorded", out)
+        self.assertIn(
+            "inspect: aw runs status run-abcdef1234 | aw runs show run-abcdef1234",
+            out,
+        )
+        self.assertNotIn("0 steps: 0 steps", out)
+
+    def test_b_progressed_run_reconstruction_and_machine_output(self) -> None:
+        """Progressed run reconstructs step states and produces clean --json and --agent output."""
+        records = [
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "run",
+                "run_id": "run-abcdef1234",
+                "actor": "runtime",
+                "workflow_digest": "a" * 64,
+                "requirement_digest": "b" * 64,
+                "repo": "agent-workflows",
+                "head": "29176ceccbf1326a745af5c5525151b41273163d",
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": "run-abcdef1234",
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 1,
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_attempt",
+                "run_id": "run-abcdef1234",
+                "actor": "executor",
+                "step": "S-01",
+                "state": "performed",
+                "attempt": 1,
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": "run-abcdef1234",
+                "actor": "runtime",
+                "step": "S-02",
+                "attempt": 1,
+                "parent": "",
+            },
+        ]
+        run_dir, _ = self._create_ledger_run("run-abcdef1234", records=records)
+        summary = run_viewer.load_run_summary(run_dir, self.root)
+        self.assertIsNotNone(summary)
+        self.assertIsNotNone(summary.ledger)
+        self.assertEqual(summary.ledger["run_state"], "running")
+        self.assertEqual(summary.counts, {"performed": 1, "running": 1})
+        self.assertEqual(
+            summary.ledger["steps"]["S-01"],
+            {"state": "performed", "attempts": 1, "last_attempt_state": "performed"},
+        )
+        self.assertEqual(
+            summary.ledger["steps"]["S-02"],
+            {"state": "running", "attempts": 0, "last_attempt_state": None},
+        )
+
+        # --json
+        out, err, code = _run_viewer(self.root, ["--json"])
+        self.assertEqual(code, 0, out + err)
+        data = json.loads(out)
+        self.assertIn("runs", data)
+        self.assertEqual(len(data["runs"]), 1)
+        r0 = data["runs"][0]
+        self.assertIsNotNone(r0.get("ledger"))
+        self.assertEqual(r0["ledger"]["run_state"], "running")
+        self.assertEqual(r0["counts"], {"performed": 1, "running": 1})
+        self.assertNotIn("artifact_discrepancies", data)
+
+        # --agent
+        out, err, code = _run_viewer(self.root, ["--agent"])
+        self.assertEqual(code, 0, out + err)
+        lines = [json.loads(line) for line in out.strip().splitlines() if line.strip()]
+        self.assertEqual(len(lines), 2)
+        item_rec = lines[0]
+        summary_rec = lines[1]
+        self.assertEqual(item_rec["kind"], "item")
+        self.assertIsNotNone(item_rec.get("ledger"))
+        self.assertEqual(item_rec["counts"], {"performed": 1, "running": 1})
+        self.assertEqual(summary_rec["kind"], "summary")
+        self.assertEqual(summary_rec["total"], 1)
+        self.assertEqual(summary_rec["emitted"], 1)
+        self.assertEqual(summary_rec["outcome"], "clean")
+
+    def test_c_explicit_paths_and_filter_flags(self) -> None:
+        """Explicit directory and file path resolution, and filter inclusion/exclusion."""
+        # Run 1: header-only run-abcdef1234 (pending, counts={})
+        run1_dir, run1_ledger = self._create_ledger_run("run-abcdef1234")
+
+        # Run 2: progressed run-0000000002 (running, counts={"performed": 1, "running": 1})
+        recs2 = [
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "run",
+                "run_id": "run-0000000002",
+                "actor": "runtime",
+                "workflow_digest": "a" * 64,
+                "requirement_digest": "b" * 64,
+                "repo": "agent-workflows",
+                "head": "29176ceccbf1326a745af5c5525151b41273163d",
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": "run-0000000002",
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 1,
+                "parent": "",
+            },
+        ]
+        run2_dir, _ = self._create_ledger_run("run-0000000002", records=recs2)
+
+        # Run 3: failed run-0000000003 (failed step attempt)
+        recs3 = [
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "run",
+                "run_id": "run-0000000003",
+                "actor": "runtime",
+                "workflow_digest": "a" * 64,
+                "requirement_digest": "b" * 64,
+                "repo": "agent-workflows",
+                "head": "29176ceccbf1326a745af5c5525151b41273163d",
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": "run-0000000003",
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 1,
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "step_attempt",
+                "run_id": "run-0000000003",
+                "actor": "executor",
+                "step": "S-01",
+                "state": "failed",
+                "attempt": 1,
+                "parent": "",
+            },
+            {
+                "schema_version": LEDGER_SCHEMA_VERSION,
+                "kind": "terminal_transaction",
+                "run_id": "run-0000000003",
+                "actor": "coordinator",
+                "terminal_status": "cancelled",
+                "moved_to": ".aw/records/runs/run-0000000003",
+                "reason": "step failed",
+                "parent": "",
+            },
+        ]
+        run3_dir, _ = self._create_ledger_run("run-0000000003", records=recs3)
+
+        # Explicit directory target
+        res, unres = run_viewer.resolve_target_runs_detailed([str(run1_dir)], self.root)
+        self.assertEqual(res, [run1_dir])
+        self.assertEqual(unres, [])
+
+        # Explicit file target
+        res, unres = run_viewer.resolve_target_runs_detailed(
+            [str(run1_ledger)], self.root
+        )
+        self.assertEqual(res, [run1_dir])
+        self.assertEqual(unres, [])
+
+        # Analytics refusal
+        analytics_dir = self.state_root / "analytics" / "run-0000000004"
+        analytics_dir.mkdir(parents=True)
+        analytics_ledger = analytics_dir / "ledger.jsonl"
+        analytics_ledger.write_text("{}\n", encoding="utf-8")
+        res, unres = run_viewer.resolve_target_runs_detailed(
+            [str(analytics_dir)], self.root
+        )
+        self.assertEqual(res, [])
+        self.assertEqual(unres, [str(analytics_dir)])
+        res, unres = run_viewer.resolve_target_runs_detailed(
+            [str(analytics_ledger)], self.root
+        )
+        self.assertEqual(res, [])
+        self.assertEqual(unres, [str(analytics_ledger)])
+
+        # --active filter: includes run2, excludes run1 and run3
+        out, err, code = _run_viewer(self.root, ["--active", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        run_ids = [r["run_id"] for r in data["runs"]]
+        self.assertIn("run-0000000002", run_ids)
+        self.assertNotIn("run-abcdef1234", run_ids)
+        self.assertNotIn("run-0000000003", run_ids)
+
+        # --status running: includes run2, excludes run1 and run3
+        out, err, code = _run_viewer(self.root, ["--status", "running", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        run_ids = [r["run_id"] for r in data["runs"]]
+        self.assertIn("run-0000000002", run_ids)
+        self.assertNotIn("run-abcdef1234", run_ids)
+        self.assertNotIn("run-0000000003", run_ids)
+
+        # --status failed: includes run3, excludes run1 and run2
+        out, err, code = _run_viewer(self.root, ["--status", "failed", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        run_ids = [r["run_id"] for r in data["runs"]]
+        self.assertIn("run-0000000003", run_ids)
+        self.assertNotIn("run-abcdef1234", run_ids)
+        self.assertNotIn("run-0000000002", run_ids)
+
+        # --failed: includes run3, excludes run1 and run2
+        out, err, code = _run_viewer(self.root, ["--failed", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        run_ids = [r["run_id"] for r in data["runs"]]
+        self.assertIn("run-0000000003", run_ids)
+        self.assertNotIn("run-abcdef1234", run_ids)
+        self.assertNotIn("run-0000000002", run_ids)
+
+    def test_d_corrupt_or_foreign_or_empty_ledger_fails_closed(self) -> None:
+        """Invalid JSON, non-ledger JSONL, or empty ledger fails closed as unreadable_state."""
+        # 1. Invalid JSON
+        r1_dir = self.state_root / "run-0000000001"
+        r1_dir.mkdir(parents=True)
+        (r1_dir / "ledger.jsonl").write_text("{not valid json\n", encoding="utf-8")
+        self.assertIsNone(run_viewer.load_run_summary(r1_dir, self.root))
+
+        # 2. Non-ledger JSONL
+        r2_dir = self.state_root / "run-0000000002"
+        r2_dir.mkdir(parents=True)
+        (r2_dir / "ledger.jsonl").write_text(
+            '{"event": "not_a_ledger"}\n', encoding="utf-8"
+        )
+        self.assertIsNone(run_viewer.load_run_summary(r2_dir, self.root))
+
+        # 3. Empty file
+        r3_dir = self.state_root / "run-0000000003"
+        r3_dir.mkdir(parents=True)
+        (r3_dir / "ledger.jsonl").write_text("", encoding="utf-8")
+        self.assertIsNone(run_viewer.load_run_summary(r3_dir, self.root))
+
+        # CLI --json shows unreadable_state in excluded_runs, not 0 steps
+        out, err, code = _run_viewer(self.root, ["--json"])
+        self.assertEqual(code, 0, out + err)
+        data = json.loads(out)
+        self.assertEqual(data["runs"], [])
+        self.assertIn("excluded_runs", data)
+        excl_map = {item["run_id"]: item["reason"] for item in data["excluded_runs"]}
+        self.assertEqual(excl_map.get("run-0000000001"), "unreadable_state")
+        self.assertEqual(excl_map.get("run-0000000002"), "unreadable_state")
+        self.assertEqual(excl_map.get("run-0000000003"), "unreadable_state")
+
+    def test_e_no_phantom_pid_from_run_name(self) -> None:
+        """A ledger run named run-12345678 reports pid as None, not 12345678."""
+        run_dir, _ = self._create_ledger_run("run-12345678")
+        summary = run_viewer.load_run_summary(run_dir, self.root)
+        self.assertIsNotNone(summary)
+        self.assertIsNone(summary.pid)
+        self.assertIsNone(summary.pid_state)
+        self.assertFalse(summary.is_live)
+
+        rendered = run_viewer.format_run_human(
+            summary, Term(color=False), repo_root=self.root
+        )
+        self.assertNotIn("pid:", rendered)
+
+    def test_f_load_run_summary_read_only_creates_no_lock(self) -> None:
+        """Loading a summary leaves the run directory listing unchanged (no lock file)."""
+        run_dir, _ = self._create_ledger_run("run-abcdef1234")
+        (run_dir / "ledger.jsonl.lock").unlink(missing_ok=True)
+        entries_before = sorted(p.name for p in run_dir.iterdir())
+        self.assertEqual(entries_before, ["ledger.jsonl"])
+
+        summary = run_viewer.load_run_summary(run_dir, self.root)
+        self.assertIsNotNone(summary)
+
+        entries_after = sorted(p.name for p in run_dir.iterdir())
+        self.assertEqual(entries_after, entries_before)
+        self.assertFalse((run_dir / "ledger.jsonl.lock").exists())

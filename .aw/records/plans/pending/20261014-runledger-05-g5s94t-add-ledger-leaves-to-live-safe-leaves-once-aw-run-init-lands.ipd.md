@@ -127,6 +127,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: o34rb3
 - Rendering a ledger-only run directory cleanly in the bare `aw runs` viewer.
   - Carrier: 3a3hh9
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-06-3a3hh9-classify-and-render-ledger-only-run-directories-in-aw-runs-v.ipd.md
 - Reconciling spec `25kzda` Section 1.2 step 8 and Section 5.1 with the `rdjka2` decision.
   - Carrier: 9epp40
   - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md

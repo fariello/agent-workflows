@@ -6,7 +6,7 @@
 - Scope: (1) In `agent_workflows/run_cli.py`, widen `_reconstruct_workflow_from_ledger` to recover step IDs from `kind in ("step_started", "step_attempt")` records so started-but-not-yet-attempted steps surface as `running` in `RunEngine.reconstruct_state()`. This helper is SHARED: `run_cli._build_engine` calls it for every ledger leaf invoked without `--workflow`, so the widening also changes those leaves (F-05), and those changes are named, intended, and pinned by tests here. (2) In `agent_workflows/run_viewer.py`, add `ledger: dict[str, Any] | None = None` to `RunSummary`, add `_load_ledger_run_summary(run_dir, ledger_file)` verifying and reconstructing `ledger.jsonl` via `RunLedgerStore.read_records(verify=True)` and `RunEngine.reconstruct_state()` (returning `None` on corrupt/invalid/empty ledgers so `run_viewer_cli` records `unreadable_state`; no driver PID inference, F-07), and branch `load_run_summary` to call `_load_ledger_run_summary` when neither `state.json` nor `execution-report.md` is present and `(run_dir / "ledger.jsonl").is_file()`. (3) In `agent_workflows/run_viewer.py`, extend `resolve_target_runs_detailed` to resolve explicit directory paths containing `ledger.jsonl` and explicit file paths named `ledger.jsonl`. (4) Update `run_viewer_cli` filter predicates (`active_only`, `status_filter`, `failed_only`) to evaluate `summary.ledger` and `summary.counts` on ledger runs. (5) Update `format_run_human` to render ledger-only runs with the ledger model (`[ledger]`, `ledger: state=..., records=..., workflow=...`, step tally and per-step lines or `ledger steps: 0 recorded`, and the signpost `inspect: aw runs status <run_id> | aw runs show <run_id>`) instead of `0 steps: 0 steps`. (6) In `tests/test_run_viewer.py`, add `LedgerRunViewerTests` covering header-only and progressed ledger runs across human, `--json`, and `--agent` outputs, explicit path resolution, filter flags, and fail-closed `unreadable_state` exclusion. (7) In `tests/test_run_recovery_cli.py`, pin the ledger-leaf behavior the shared-helper widening changes (F-05). (8) One CHANGELOG line. OUT: adding `aw run init` itself (`v47z9u`), amending spec `25kzda` (`9epp40`), adding ledger leaves to `LIVE_SAFE_LEAVES` (`g5s94t`), writing `requirement_set` on init or adding `aw run verify` (`um0twl`), persisting `workflow.json` beside the ledger (`sflov4` / `o34rb3`), and widening explicit-path resolution for `execution-report.md`-only driver directories (not traceable to `nf84rt`; bare-name resolution already matches them).
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/run_cli.py, tests/test_run_viewer.py, tests/test_run_recovery_cli.py, CHANGELOG.md
 - Item-Dependencies: executed:v47z9u
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: antigravity
 - Id: 3a3hh9
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3a3hh9 verified (set runledger, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
 - 2026-10-14 to-review (aw set): authored review-ready IPD from backlog nf84rt
@@ -36,54 +36,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reconstruct and classify ledger-only run directories
 
-- [ ] E-06 REPRODUCE at execution HEAD before any edit, in a scratch repo created under `tempfile.TemporaryDirectory()` that CONTAINS `.aw/records/` (without it `runner_shared.state_root` resolves to the home-scoped projects tree, F-06). Append a conformant `kind: "run"` header through `RunLedgerStore.append` at `state_root(root) / "run-abcdef1234" / "ledger.jsonl"` (no `aw run init` needed; that is `v47z9u`'s), then paste: (a) `aw runs --dir <root>` printing `run-abcdef1234` followed by `  0 steps: 0 steps`; (b) `resolve_target_runs_detailed([<dir>], root)` and `resolve_target_runs_detailed([<dir>/ledger.jsonl], root)` each returning the token as UNRESOLVED; (c) after appending `step_started` for `S-01`, `aw runs status <ledger path> --json` showing `"steps": {}` and `aw run record <ledger path> --step S-01 --state performed --json` exiting 2 with `unknown step 'S-01'`. If any of these has changed, stop and report the plan as overtaken with the contradicting output.
+- [x] E-06 REPRODUCE at execution HEAD before any edit, in a scratch repo created under `tempfile.TemporaryDirectory()` that CONTAINS `.aw/records/` (without it `runner_shared.state_root` resolves to the home-scoped projects tree, F-06). Append a conformant `kind: "run"` header through `RunLedgerStore.append` at `state_root(root) / "run-abcdef1234" / "ledger.jsonl"` (no `aw run init` needed; that is `v47z9u`'s), then paste: (a) `aw runs --dir <root>` printing `run-abcdef1234` followed by `  0 steps: 0 steps`; (b) `resolve_target_runs_detailed([<dir>], root)` and `resolve_target_runs_detailed([<dir>/ledger.jsonl], root)` each returning the token as UNRESOLVED; (c) after appending `step_started` for `S-01`, `aw runs status <ledger path> --json` showing `"steps": {}` and `aw run record <ledger path> --step S-01 --state performed --json` exiting 2 with `unknown step 'S-01'`. If any of these has changed, stop and report the plan as overtaken with the contradicting output.
   - Depends on: none
   - Expected outcome: the pasted outputs above, each matching F-01, F-02, F-03 and F-05 as measured at review.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-01 In `agent_workflows/run_cli.py`, update `_reconstruct_workflow_from_ledger` so the step-extraction branch matches `elif kind in ("step_started", "step_attempt"):` instead of only `elif kind == "step_attempt":`, and update its docstring to say step ids are recovered from `step_started` and `step_attempt` records.
+- [x] E-01 In `agent_workflows/run_cli.py`, update `_reconstruct_workflow_from_ledger` so the step-extraction branch matches `elif kind in ("step_started", "step_attempt"):` instead of only `elif kind == "step_attempt":`, and update its docstring to say step ids are recovered from `step_started` and `step_attempt` records.
   - Depends on: E-06
   - Expected outcome: A ledger containing a `step_started` record (written by `aw run start` before any `step_attempt` record) includes that step ID in the reconstructed workflow skeleton, and `RunEngine.reconstruct_state()` reports the step with `state == "running"`, `attempts == 0` and `run_state == "running"`. Because `_build_engine` uses this helper for every ledger leaf invoked without `--workflow`, the following ledger-leaf changes are EXPECTED and are pinned by E-08 (measured at review by simulating the widening, F-05): `aw runs status` lists the started step as `running`; `aw runs resume` exits 3 (`EXIT_BLOCKED`, `condition: unknown_outcome`) instead of exit 0 with `unknown_outcome_steps: []`; `aw run record --step S-01 --state performed` exits 0 instead of exit 2 `unknown step`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/run_viewer.py`, add `ledger: dict[str, Any] | None = None` to `RunSummary` (after `runtime_str`), implement `_load_ledger_run_summary(run_dir: Path, ledger_file: Path) -> RunSummary | None`, and branch `load_run_summary` to delegate to `_load_ledger_run_summary` when `not state_file.is_file() and not report_file.is_file() and (run_dir / "ledger.jsonl").is_file()`.
+- [x] E-02 In `agent_workflows/run_viewer.py`, add `ledger: dict[str, Any] | None = None` to `RunSummary` (after `runtime_str`), implement `_load_ledger_run_summary(run_dir: Path, ledger_file: Path) -> RunSummary | None`, and branch `load_run_summary` to delegate to `_load_ledger_run_summary` when `not state_file.is_file() and not report_file.is_file() and (run_dir / "ledger.jsonl").is_file()`.
   - Depends on: E-01
   - Expected outcome: For a ledger-only run directory with a valid hash-chained `ledger.jsonl`, `load_run_summary` verifies the chain via `RunLedgerStore(ledger_file).read_records(verify=True)` (a pure read: it creates no `ledger.jsonl.lock` and writes nothing), reconstructs `RunStateSnapshot` via `run_cli._reconstruct_workflow_from_ledger` and `run_engine.RunEngine.reconstruct_state`, and returns a `RunSummary` with `ledger` populated (`run_id`, `run_state`, `workflow_id`, `workflow_digest`, `requirement_digest`, `record_count`, `steps`, `approvals`, `verifier_decisions`, `cancellation_reason`), `created_at` and `updated_at` taken from the first and last record `timestamp` fields, `runtime_seconds`/`runtime_str` computed from those two timestamps, `pid=None`, `pid_state=None`, `is_live=False` (a ledger run has no driver process; do NOT call `inspect_run_pid_and_runtime`, whose run-name PID fallback reads `run-12345678` as PID 12345678, F-07), `counts` tallied by ledger step state, and `steps=[]`. For a wrong-format (`NotALedgerError`), corrupt (`LedgerCorruption` subclasses, including `UnparseableLineError`), or empty (zero records) `ledger.jsonl`, `_load_ledger_run_summary` returns `None` so `run_viewer_cli` records `"unreadable_state"` in `excluded`. A driver directory holding `state.json` and also a `ledger.jsonl` is still loaded by the driver path, unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Viewer target resolution, filtering, and human/machine rendering
 
-- [ ] E-03 In `agent_workflows/run_viewer.py`, update `resolve_target_runs_detailed` to accept explicit directory targets containing `ledger.jsonl` (beside the existing `state.json` test) and explicit file targets named `ledger.jsonl` (beside `state.json`, `events.jsonl`, `execution-report.md`), keeping both `path_is_within_analytics` refusals.
+- [x] E-03 In `agent_workflows/run_viewer.py`, update `resolve_target_runs_detailed` to accept explicit directory targets containing `ledger.jsonl` (beside the existing `state.json` test) and explicit file targets named `ledger.jsonl` (beside `state.json`, `events.jsonl`, `execution-report.md`), keeping both `path_is_within_analytics` refusals.
   - Depends on: E-02
   - Expected outcome: Passing `<runs-root>/run-<hex>` or `<runs-root>/run-<hex>/ledger.jsonl` to `resolve_target_runs_detailed` resolves to `<runs-root>/run-<hex>`, a `ledger.jsonl` under the analytics tree is still unresolved, and `run_cli._classify_absent_target` is unaffected because it additionally requires `(run_dir / "state.json").is_file()` (OQ-02): `tests/test_run_recovery_cli.py` `TestLedgerResolutionAndWrongFormatVerdict` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 In `agent_workflows/run_viewer.py` `run_viewer_cli`, update the `status_filter`, `failed_only`, and `active_only` checks to evaluate `summary.ledger["run_state"]` and `summary.counts` when `summary.ledger is not None`, leaving the driver-run branches byte-for-byte equivalent. The `active_only` `state.json` pre-filter is untouched (a ledger directory has no `state.json`, so it falls through to the full load).
+- [x] E-07 In `agent_workflows/run_viewer.py` `run_viewer_cli`, update the `status_filter`, `failed_only`, and `active_only` checks to evaluate `summary.ledger["run_state"]` and `summary.counts` when `summary.ledger is not None`, leaving the driver-run branches byte-for-byte equivalent. The `active_only` `state.json` pre-filter is untouched (a ledger directory has no `state.json`, so it falls through to the full load).
   - Depends on: E-02
   - Expected outcome: `--active` includes a ledger run whose `run_state` is `running` or that has a `running` step and excludes a `pending` one; `--status running` includes the progressed run and `--status failed` excludes it; `--failed` includes a ledger run with a `failed` step or run state and excludes one without; every existing filter test in `tests/test_run_viewer.py` (including `FilterExclusionReportingTests`) still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/run_viewer.py`, update `format_run_human` so that when `run.ledger is not None`, it renders the ledger model instead of the driver-run `0 steps: 0 steps` tally.
+- [x] E-04 In `agent_workflows/run_viewer.py`, update `format_run_human` so that when `run.ledger is not None`, it renders the ledger model instead of the driver-run `0 steps: 0 steps` tally.
   - Depends on: E-02
   - Expected outcome: For a ledger-only `RunSummary`, `format_run_human` emits `<run_id>  [ledger]` on the header line, the timing line from the ledger timestamps, `  ledger: state=<styled_run_state>, records=<record_count>, workflow=<workflow_id>` (styling `<run_state>` with `_resolve_ledger_status`), either `  <N> ledger steps: <tally>` with indented `    <step_id>: <styled_state> (attempts=<attempts>)` lines or `  ledger steps: 0 recorded` when `run.ledger["steps"]` is empty, optional `  cancellation: <reason>` when cancelled, and `  inspect: aw runs status <run_id> | aw runs show <run_id>`, without emitting `0 steps: 0 steps` and with no ANSI escape under `Term(color=False)`. Other human paths that iterate `summary.steps` (`format_multi_run_summary`, `--summary-only`, `--latest-only`, `--issues`) are left as they are: a ledger run contributes zero driver steps to them, which is true, and this plan does not redesign those aggregates.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Unit and CLI integration tests
 
-- [ ] E-05 In `tests/test_run_viewer.py`, add `LedgerRunViewerTests(TestCase)` driving `load_run_summary`, `format_run_human`, `resolve_target_runs_detailed`, and the real `aw runs` entry point (`_run_viewer`) over ledgers built with `RunLedgerStore.append` in a `tempfile.TemporaryDirectory()` root that contains `.aw/records/`, asserting on returned values, rendered output and exit codes, never on source text. Cases (names are non-binding pointers): (a) header-only run renders the ledger model in human mode, contains `[ledger]`, `ledger: state=pending, records=1`, `ledger steps: 0 recorded`, the `inspect:` signpost, and NOT `0 steps: 0 steps`, for both bare `aw runs` and `aw runs run-abcdef1234`; (b) progressed run (`run`, `step_started` S-01, `step_attempt` S-01 performed, `step_started` S-02) reconstructs S-01 `performed` attempts 1 and S-02 `running` attempts 0, `counts == {"performed": 1, "running": 1}`, `run_state == "running"`, and `--json` and `--agent` each carry the `ledger` dict and no `artifact_discrepancies`; (c) explicit directory and `ledger.jsonl` path resolution, and the `--active` / `--status running` / `--status failed` / `--failed` inclusion and exclusion from E-07; (d) a `run-*` directory whose `ledger.jsonl` is invalid JSON, non-ledger JSONL (`{"event": "not_a_ledger"}`), or empty returns `None` from `load_run_summary` and appears in `--json` `excluded_runs` with `reason == "unreadable_state"`, never as a `0 steps` row; (e) a ledger run directory named `run-12345678` reports `pid` as `None` (F-07); (f) loading a summary leaves the run directory listing unchanged (no `ledger.jsonl.lock` created). Show (a) and (d) failing on the pre-change code (the measured `0 steps: 0 steps` row and the non-`None` summary for an empty `ledger.jsonl`).
+- [x] E-05 In `tests/test_run_viewer.py`, add `LedgerRunViewerTests(TestCase)` driving `load_run_summary`, `format_run_human`, `resolve_target_runs_detailed`, and the real `aw runs` entry point (`_run_viewer`) over ledgers built with `RunLedgerStore.append` in a `tempfile.TemporaryDirectory()` root that contains `.aw/records/`, asserting on returned values, rendered output and exit codes, never on source text. Cases (names are non-binding pointers): (a) header-only run renders the ledger model in human mode, contains `[ledger]`, `ledger: state=pending, records=1`, `ledger steps: 0 recorded`, the `inspect:` signpost, and NOT `0 steps: 0 steps`, for both bare `aw runs` and `aw runs run-abcdef1234`; (b) progressed run (`run`, `step_started` S-01, `step_attempt` S-01 performed, `step_started` S-02) reconstructs S-01 `performed` attempts 1 and S-02 `running` attempts 0, `counts == {"performed": 1, "running": 1}`, `run_state == "running"`, and `--json` and `--agent` each carry the `ledger` dict and no `artifact_discrepancies`; (c) explicit directory and `ledger.jsonl` path resolution, and the `--active` / `--status running` / `--status failed` / `--failed` inclusion and exclusion from E-07; (d) a `run-*` directory whose `ledger.jsonl` is invalid JSON, non-ledger JSONL (`{"event": "not_a_ledger"}`), or empty returns `None` from `load_run_summary` and appears in `--json` `excluded_runs` with `reason == "unreadable_state"`, never as a `0 steps` row; (e) a ledger run directory named `run-12345678` reports `pid` as `None` (F-07); (f) loading a summary leaves the run directory listing unchanged (no `ledger.jsonl.lock` created). Show (a) and (d) failing on the pre-change code (the measured `0 steps: 0 steps` row and the non-`None` summary for an empty `ledger.jsonl`).
   - Depends on: E-01, E-02, E-03, E-07, E-04
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_run_viewer.py -k LedgerRunViewerTests` shows every case passing, and (a) and (d) are shown failing on the base commit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 In `tests/test_run_recovery_cli.py`, add CLI-level coverage for the ledger-leaf behavior E-01 changes, driving `run_cli` over a ledger with a `run` header and one `step_started` record and NO `--workflow`: `aw runs status --json` lists the step as `running`; `aw runs resume --json` exits `EXIT_BLOCKED` (3) with `condition == "unknown_outcome"` and the step in `unknown_outcome_steps`; `aw run record --step S-01 --state performed --json` exits `EXIT_OK` (0). Place it in the existing class whose seeds it shares (`TestRunCliSubcommands` or `TestResumeCancelCrash`), not a new module.
+- [x] E-08 In `tests/test_run_recovery_cli.py`, add CLI-level coverage for the ledger-leaf behavior E-01 changes, driving `run_cli` over a ledger with a `run` header and one `step_started` record and NO `--workflow`: `aw runs status --json` lists the step as `running`; `aw runs resume --json` exits `EXIT_BLOCKED` (3) with `condition == "unknown_outcome"` and the step in `unknown_outcome_steps`; `aw run record --step S-01 --state performed --json` exits `EXIT_OK` (0). Place it in the existing class whose seeds it shares (`TestRunCliSubcommands` or `TestResumeCancelCrash`), not a new module.
   - Depends on: E-01
   - Expected outcome: the new test passes after E-01 and is shown failing on the base commit (`resume` exit 0, `record` exit 2), and `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add one CHANGELOG line under the top pending release describing that `aw runs` now shows a ledger-only run (from `aw run init`) with its ledger state and a pointer to `aw runs status`, and that ledger leaves run without `--workflow` now see a started-but-unrecorded step (no em or en dashes). Then run the bare suite.
+- [x] E-09 Add one CHANGELOG line under the top pending release describing that `aw runs` now shows a ledger-only run (from `aw run init`) with its ledger state and a pointer to `aw runs status`, and that ledger leaves run without `--workflow` now see a started-but-unrecorded step (no em or en dashes). Then run the bare suite.
   - Depends on: E-05, E-08
   - Expected outcome: the CHANGELOG diff, and a bare `python3 -m pytest` summary line with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -414,50 +414,182 @@ One line under the top pending release section of `CHANGELOG.md`, then `python3 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted pre-change outputs from E-06: (a) `aw runs --dir <root>` showing `run-abcdef1234` then `  0 steps: 0 steps`; (b) both explicit-path tokens reported unresolved by `resolve_target_runs_detailed`; (c) `aw runs status <ledger> --json` with `"steps": {}` and `aw run record <ledger> --step S-01 --state performed --json` exit 2 `unknown step 'S-01'`. Reachable today through `run_viewer.run_viewer_cli` and `run_cli._build_engine`.
   - Observed evidence:
-  - Result: pending
+    (a) `aw runs --dir <root>`:
+    ```
+    run-abcdef1234
+      0 steps: 0 steps
+    ```
+    (b) `resolve_target_runs_detailed`:
+    ```
+    dir: [] ['/tmp/tmptjcx8_vq/.aw/records/runs/run-abcdef1234']
+    file: [] ['/tmp/tmptjcx8_vq/.aw/records/runs/run-abcdef1234/ledger.jsonl']
+    ```
+    (c) `aw runs status <ledger path> --json`:
+    ```json
+    {
+      "approvals": {},
+      "cancellation_reason": null,
+      "record_count": 2,
+      "run_id": "run-abcdef1234",
+      "run_state": "running",
+      "steps": {},
+      "verifier_decisions": {},
+      "workflow_id": "aaaaaaaaaaaaaaaa"
+    }
+    ```
+    `aw run record <ledger path> --step S-01 --state performed --json`:
+    ```json
+    {
+      "error": "unknown step 'S-01'",
+      "exit_code": 2,
+      "ok": false
+    }
+    ```
+  - Result: pass
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff agent_workflows/run_cli.py` showing `_reconstruct_workflow_from_ledger` matching `kind in ("step_started", "step_attempt")` and the updated docstring, plus passing output of the E-05 progressed-run case showing a `step_started`-only step reconstructed with `state == "running"` and `attempts == 0`.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_cli.py`:
+    ```diff
+    @@ -929,3 +929,3 @@ def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[st
+         Used when no --workflow file is supplied: the ledger is authoritative, and step ids + requirement
+    -    ids can be recovered from step_attempt and requirement_set records. Dependency edges are unknown
+    +    ids can be recovered from step_started, step_attempt, and requirement_set records. Dependency edges are unknown
+         from the ledger alone, so the skeleton has no depends_on/gates (ledger-driven commands like status
+    @@ -943,3 +943,3 @@ def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[st
+                 )
+    -        elif kind == "step_attempt":
+    +        elif kind in ("step_started", "step_attempt"):
+                 sid = str(rec.get("step", ""))
+    ```
+    Passing progressed run test showing S-02 running with attempts 0:
+    `tests/test_run_viewer.py::LedgerRunViewerTests::test_b_progressed_run_reconstruction_and_machine_output PASSED`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/run_viewer.py` showing `ledger: dict[str, Any] | None = None` on `RunSummary`, `_load_ledger_run_summary` (catching `NotALedgerError`/`LedgerCorruption`/`OSError`, returning `None` on zero records, setting `pid=None`, not calling `inspect_run_pid_and_runtime`), and the `ledger_file.is_file()` branch in `load_run_summary`; plus passing output of the E-05 header-only, fail-closed, no-phantom-PID and read-only cases.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_viewer.py` confirms `RunSummary.ledger: dict[str, Any] | None = None`, `_load_ledger_run_summary` catching `(_ledger_store.NotALedgerError, _ledger_store.LedgerCorruption, OSError)`, returning `None` on empty or corrupt records, setting `pid=None`, `pid_state=None`, `is_live=False`, and the `ledger_file.is_file()` branch in `load_run_summary`.
+    Passing test cases in `LedgerRunViewerTests`:
+    - `test_a_header_only_run_renders_ledger_model PASSED`
+    - `test_d_corrupt_or_foreign_or_empty_ledger_fails_closed PASSED`
+    - `test_e_no_phantom_pid_from_run_name PASSED`
+    - `test_f_load_run_summary_read_only_creates_no_lock PASSED`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff agent_workflows/run_viewer.py` showing only the two membership tests in `resolve_target_runs_detailed` widened to `ledger.jsonl` (no `execution-report.md` directory clause), plus passing output of `python3 -m pytest -o addopts="" tests/test_run_viewer.py tests/test_run_recovery_cli.py -k "LedgerRunViewerTests or TestLedgerResolutionAndWrongFormatVerdict or AnalyticsIsolationTests or UnresolvableTargetRefusalTests"`.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_viewer.py`:
+    ```diff
+            p = Path(t_str)
+    -        if p.is_dir() and (p / "state.json").is_file():
+    +        if p.is_dir() and (
+    +            (p / "state.json").is_file() or (p / "ledger.jsonl").is_file()
+    +        ):
+                 if path_is_within_analytics(p, repo_root):
+                     unresolved.append(t_str)
+                     continue
+    @@ -1588,3 +1590,4 @@ def resolve_target_runs_detailed(
+             elif (
+                 p.is_file()
+                 and p.parent.is_dir()
+    -            and p.name in ("state.json", "events.jsonl", "execution-report.md")
+    +            and p.name
+    +            in ("state.json", "events.jsonl", "execution-report.md", "ledger.jsonl")
+             ):
+    ```
+    Passing test output:
+    `tests/test_run_viewer.py ........... [ 47%]`
+    `tests/test_run_recovery_cli.py ............ [100%]`
+    `23 passed, 90 deselected in 7.50s`
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: `git diff agent_workflows/run_viewer.py` showing the `status_filter`, `failed_only` and `active_only` checks branching on `summary.ledger is not None` with the driver branches unchanged, plus passing output of the E-05 filter case (each of `--active`, `--status running`, `--status failed`, `--failed` with one included and one excluded ledger run) and of `python3 -m pytest -o addopts="" tests/test_run_viewer.py -k FilterExclusionReportingTests`.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_viewer.py` shows `status_filter`, `failed_only`, and `active_only` evaluating `summary.ledger["run_state"]` and `summary.counts`.
+    Passing filter cases:
+    - `tests/test_run_viewer.py::LedgerRunViewerTests::test_c_explicit_paths_and_filter_flags PASSED`
+    - `python3 -m pytest -o addopts="" tests/test_run_viewer.py -k FilterExclusionReportingTests`:
+      `10 passed, 50 deselected in 1.43s`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git diff agent_workflows/run_viewer.py` showing the `if run.ledger is not None:` block in `format_run_human`, plus the pasted human output of `aw runs --dir <root> --no-color` for a header-only and a progressed ledger run showing `[ledger]`, `ledger: state=...`, the step lines or `ledger steps: 0 recorded`, `inspect: aw runs status ... | aw runs show ...`, and no `0 steps: 0 steps` (the path E-02 and E-04 create: `run_viewer_cli` -> `load_run_summary` -> `_load_ledger_run_summary` -> `format_run_human`).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_viewer.py` confirms `set_txt = "  [ledger]"` and `if run.ledger is not None:` rendering.
+    Pasted human output for header-only run:
+    ```
+    run-abcdef1234  [ledger]
+      start: 2026-10-16 08:39:17, end: 2026-10-16 08:39:17, duration: 0.0s
+      ledger: state=pending, records=1, workflow=aaaaaaaaaaaaaaaa
+      ledger steps: 0 recorded
+      inspect: aw runs status run-abcdef1234 | aw runs show run-abcdef1234
+    ```
+    Pasted human output for progressed run:
+    ```
+    run-abcdef1234  [ledger]
+      start: 2026-10-16 08:39:57, end: 2026-10-16 08:39:57, duration: 0.0s
+      ledger: state=running, records=4, workflow=aaaaaaaaaaaaaaaa
+      2 ledger steps: 1 performed, 1 running
+        S-01: performed (attempts=1)
+        S-02: running (attempts=0)
+      inspect: aw runs status run-abcdef1234 | aw runs show run-abcdef1234
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted `python3 -m pytest -o addopts="" -v tests/test_run_viewer.py -k LedgerRunViewerTests` output with every case (a) to (f) passing, and pasted output of (a) and (d) failing on the base commit.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_run_viewer.py -k LedgerRunViewerTests`:
+    ```
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_d_corrupt_or_foreign_or_empty_ledger_fails_closed PASSED [ 16%]
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_f_load_run_summary_read_only_creates_no_lock PASSED [ 33%]
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_b_progressed_run_reconstruction_and_machine_output PASSED [ 50%]
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_c_explicit_paths_and_filter_flags PASSED [ 66%]
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_e_no_phantom_pid_from_run_name PASSED [ 83%]
+    tests/test_run_viewer.py::LedgerRunViewerTests::test_a_header_only_run_renders_ledger_model PASSED [100%]
+    ======================= 6 passed, 54 deselected in 1.34s =======================
+    ```
+    Base commit pre-change failure on (a):
+    `AssertionError: '0 steps: 0 steps' unexpectedly found in 'run-abcdef1234\n  0 steps: 0 steps'`
+    Base commit pre-change failure on (d):
+    `AssertionError: False is not true (load_run_summary returned non-None RunSummary(steps=[], counts={}) for empty ledger)`
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: the `tests/test_run_recovery_cli.py` diff, the new test's passing output, its pasted failing output on the base commit (`resume` exit 0 / `record` exit 2), and passing output of `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py`.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_run_recovery_cli.py`:
+    Added `test_reconstructed_workflow_from_ledger_sees_step_started` to `TestRunCliSubcommands`.
+    Passing test output:
+    `tests/test_run_recovery_cli.py::TestRunCliSubcommands::test_reconstructed_workflow_from_ledger_sees_step_started PASSED [100%]`
+    Base commit failing output:
+    `aw runs resume --json` exited 0 with `unknown_outcome_steps: []` (expected exit 3 `unknown_outcome`), and `aw run record` exited 2 with `unknown step 'S-01'` (expected exit 0).
+    Passing suite output:
+    `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py`:
+    `============================= 59 passed in 18.86s ==============================`
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: the `CHANGELOG.md` diff (no em or en dashes), and the pasted bare `python3 -m pytest` summary line with zero failures (any failing node id must be shown to fail identically on the base commit to be excused), plus `aw sanitize --agent` output.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+    +- Fixed: aw runs now displays a ledger-only run (from aw run init) with its ledger state and a pointer to aw runs status rather than an empty 0-step driver run, and ledger commands run without --workflow now recover started-but-unrecorded steps.
+    ```
+    No em or en dashes present.
+    Bare pytest summary:
+    `707 passed in 24.29s`
+    `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5240,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 

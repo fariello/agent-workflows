@@ -242,6 +242,7 @@ class RunSummary:
     is_live: bool = False
     runtime_seconds: float | None = None
     runtime_str: str | None = None
+    ledger: dict[str, Any] | None = None
 
     @property
     def timestamp_dt(self) -> datetime | None:
@@ -941,6 +942,76 @@ def _normalize_report_cell(raw: str) -> str:
     return raw.replace("`", "").strip()
 
 
+def _load_ledger_run_summary(run_dir: Path, ledger_file: Path) -> RunSummary | None:
+    """Reconstruct a RunSummary for a ledger-only run directory (`nf84rt` / `3a3hh9` E-02).
+
+    Reads and verifies `ledger.jsonl` via `RunLedgerStore.read_records(verify=True)` (read-only;
+    acquires no lock and mutates nothing). Returns `None` when the file is not a valid ledger,
+    fails hash-chain verification, or is empty, so `run_viewer_cli` classifies it under
+    `excluded` (`unreadable_state`) rather than rendering a phantom 0-step driver run.
+    """
+    from agent_workflows import run_cli as _run_cli
+    from agent_workflows import run_engine as _run_engine
+    from agent_workflows import run_ledger_store as _ledger_store
+
+    store_inst = _ledger_store.RunLedgerStore(ledger_file)
+    try:
+        records = store_inst.read_records(verify=True)
+    except (_ledger_store.NotALedgerError, _ledger_store.LedgerCorruption, OSError):
+        return None
+    if not records:
+        return None
+
+    run_rec = records[0] if records[0].get("kind") == "run" else {}
+    run_id = str(run_rec.get("run_id") or run_dir.name)
+    created_at = str(run_rec.get("timestamp") or "") or None
+    updated_at = str(records[-1].get("timestamp") or "") or None
+
+    try:
+        workflow = _run_cli._reconstruct_workflow_from_ledger(records)
+        engine = _run_engine.RunEngine(workflow, store_inst, run_id=run_id)
+        snapshot = engine.reconstruct_state()
+    except (_ledger_store.NotALedgerError, _ledger_store.LedgerCorruption, OSError):
+        return None
+
+    ledger_payload = _run_cli._snapshot_payload(snapshot)
+    ledger_payload["workflow_digest"] = str(run_rec.get("workflow_digest") or "")
+    ledger_payload["requirement_digest"] = str(run_rec.get("requirement_digest") or "")
+
+    counts: dict[str, int] = defaultdict(int)
+    for st in snapshot.steps.values():
+        counts[st.state] += 1
+
+    # A ledger run has no driver process, so `inspect_run_pid_and_runtime` is deliberately NOT
+    # called: its run-name fallback would read `run-12345678` as PID 12345678 (F-07). Runtime is
+    # the span between the first and last ledger record.
+    runtime_seconds: float | None = None
+    runtime_str: str | None = None
+    start_dt = RunSummary(
+        run_id=run_id, run_dir=run_dir, created_at=created_at
+    ).timestamp_dt
+    end_dt = RunSummary(
+        run_id=run_id, run_dir=run_dir, created_at=updated_at
+    ).timestamp_dt
+    if start_dt and end_dt:
+        runtime_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+        runtime_str = format_duration(runtime_seconds)
+    return RunSummary(
+        run_id=run_id,
+        run_dir=run_dir,
+        created_at=created_at,
+        updated_at=updated_at,
+        steps=[],
+        counts=dict(counts),
+        pid=None,
+        pid_state=None,
+        is_live=False,
+        runtime_seconds=runtime_seconds,
+        runtime_str=runtime_str,
+        ledger=ledger_payload,
+    )
+
+
 def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary | None:
     """Load a RunSummary from a run directory."""
     if not run_dir.is_dir():
@@ -948,6 +1019,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
     state_file = run_dir / "state.json"
     report_file = run_dir / "execution-report.md"
+    ledger_file = run_dir / "ledger.jsonl"
+    if not state_file.is_file() and not report_file.is_file() and ledger_file.is_file():
+        return _load_ledger_run_summary(run_dir, ledger_file)
 
     run_id = run_dir.name
     created_at = None
@@ -1499,7 +1573,9 @@ def resolve_target_runs_detailed(
             continue
 
         p = Path(t_str)
-        if p.is_dir() and (p / "state.json").is_file():
+        if p.is_dir() and (
+            (p / "state.json").is_file() or (p / "ledger.jsonl").is_file()
+        ):
             if path_is_within_analytics(p, repo_root):
                 unresolved.append(t_str)
                 continue
@@ -1511,7 +1587,8 @@ def resolve_target_runs_detailed(
         elif (
             p.is_file()
             and p.parent.is_dir()
-            and p.name in ("state.json", "events.jsonl", "execution-report.md")
+            and p.name
+            in ("state.json", "events.jsonl", "execution-report.md", "ledger.jsonl")
         ):
             if path_is_within_analytics(p.parent, repo_root):
                 unresolved.append(t_str)
@@ -2489,6 +2566,8 @@ def format_run_human(
     if run.setids:
         sets_joined = ", ".join(run.setids)
         set_txt = f"  [{sets_joined}]"
+    elif run.ledger is not None:
+        set_txt = "  [ledger]"
 
     # Line 1: identity, targets
     lines.append(f"{run_id_txt}{set_txt}")
@@ -2558,6 +2637,38 @@ def format_run_human(
             f"duration: {duration_str or '-'}",
         ]
         lines.append(f"  {', '.join(timing_parts)}")
+
+    if run.ledger is not None:
+        run_state_raw = str(run.ledger.get("run_state") or "unknown")
+        run_state_txt = term.style_lifecycle_text(
+            run_state_raw, _resolve_ledger_status(run_state_raw)
+        )
+        rec_count = int(run.ledger.get("record_count") or 0)
+        wf_id = str(run.ledger.get("workflow_id") or "-")
+        lines.append(
+            f"  ledger: state={run_state_txt}, records={rec_count}, workflow={wf_id}"
+        )
+        ledger_steps = run.ledger.get("steps") or {}
+        if ledger_steps:
+            tally_parts = [f"{cnt} {st}" for st, cnt in sorted(run.counts.items())]
+            tally_str = ", ".join(tally_parts)
+            lines.append(f"  {len(ledger_steps)} ledger steps: {tally_str}")
+            for sid, st_info in sorted(ledger_steps.items()):
+                st_raw = str(st_info.get("state") or "pending")
+                st_styled = term.style_lifecycle_text(
+                    st_raw, _resolve_ledger_status(st_raw)
+                )
+                att_cnt = int(st_info.get("attempts") or 0)
+                lines.append(f"    {sid}: {st_styled} (attempts={att_cnt})")
+        else:
+            lines.append("  ledger steps: 0 recorded")
+        cancel_reason = run.ledger.get("cancellation_reason")
+        if cancel_reason:
+            lines.append(f"  cancellation: {cancel_reason}")
+        lines.append(
+            f"  inspect: aw runs status {run.run_id} | aw runs show {run.run_id}"
+        )
+        return "\n".join(lines)
 
     # Line 3: Step count and status tally
     tally_parts = []
@@ -3748,27 +3859,53 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             excluded.append((r_dir, "ipd_filter", summary))
             continue
 
-        if status_filter and not any(
-            canonical_terminal_status(s.status)
-            == canonical_terminal_status(status_filter)
-            for s in summary.steps
-        ):
-            excluded.append((r_dir, "status_filter", summary))
-            continue
+        if status_filter:
+            target_st = canonical_terminal_status(status_filter)
+            if summary.ledger is not None:
+                ledger_st = canonical_terminal_status(
+                    str(summary.ledger.get("run_state") or "")
+                )
+                step_match = any(
+                    canonical_terminal_status(st) == target_st for st in summary.counts
+                )
+                if ledger_st != target_st and not step_match:
+                    excluded.append((r_dir, "status_filter", summary))
+                    continue
+            elif not any(
+                canonical_terminal_status(s.status) == target_st for s in summary.steps
+            ):
+                excluded.append((r_dir, "status_filter", summary))
+                continue
 
-        if failed_only and not any(
-            (
-                canonical_terminal_status(s.status) in _FAILED_FILTER_STATUSES
-                or s.status in _FAILED_FILTER_STATUSES
-            )
-            for s in summary.steps
-        ):
-            excluded.append((r_dir, "failed_only", summary))
-            continue
+        if failed_only:
+            if summary.ledger is not None:
+                run_st = str(summary.ledger.get("run_state") or "")
+                if run_st not in _FAILED_FILTER_STATUSES and not any(
+                    st in _FAILED_FILTER_STATUSES for st in summary.counts
+                ):
+                    excluded.append((r_dir, "failed_only", summary))
+                    continue
+            elif not any(
+                (
+                    canonical_terminal_status(s.status) in _FAILED_FILTER_STATUSES
+                    or s.status in _FAILED_FILTER_STATUSES
+                )
+                for s in summary.steps
+            ):
+                excluded.append((r_dir, "failed_only", summary))
+                continue
 
-        if active_only and not any(s.status == "running" for s in summary.steps):
-            excluded.append((r_dir, "active_only", summary))
-            continue
+        if active_only:
+            if summary.ledger is not None:
+                if (
+                    summary.ledger.get("run_state") != "running"
+                    and "running" not in summary.counts
+                ):
+                    excluded.append((r_dir, "active_only", summary))
+                    continue
+            elif not any(s.status == "running" for s in summary.steps):
+                excluded.append((r_dir, "active_only", summary))
+                continue
 
         if since_dt:
             run_dt = summary.timestamp_dt
