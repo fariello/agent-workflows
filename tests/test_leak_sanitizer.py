@@ -820,6 +820,37 @@ class BinaryAndStagedScanTests(unittest.TestCase):
             f"fault.\n" + "\n".join(wrong),
         )
 
+    def test_staged_scan_renamed_and_modified_file_under_rename_detection(self):
+        """A file renamed and modified with a planted leak is caught by staged scan under rename detection."""
+        repo = _init_repo(Path(self._tmp.name) / "staged_rename")
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "diff.renames", "true"], check=True
+        )
+        _commit(
+            repo,
+            "clean_old.txt",
+            "line one\nline two\nline three\nline four\nline five\n",
+            "initial commit",
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "mv", "clean_old.txt", "leaky_new.txt"],
+            check=True,
+        )
+        planted_leak = "/home/" + "stageduser" + "/secret\n"
+        with open(repo / "leaky_new.txt", "a", encoding="utf-8") as fh:
+            fh.write(planted_leak)
+        subprocess.run(["git", "-C", str(repo), "add", "leaky_new.txt"], check=True)
+        fails, _warns = ls.run(repo, staged=True)
+        leaks_at_new_path = [
+            f
+            for f in fails
+            if f.rule == "home-path" and f.location.startswith("leaky_new.txt:")
+        ]
+        self.assertTrue(
+            leaks_at_new_path,
+            f"expected home-path leak at leaky_new.txt, got findings: {fails}",
+        )
+
 
 class TomlParserTests(unittest.TestCase):
     """Characterization + C4 regression for the minimal TOML list parser (IPD 20260721-1851-01).
