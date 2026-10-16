@@ -6,7 +6,7 @@
 - Scope: Wrap all `run_viewer.run_viewer_cli` `--agent` stream branches (`default`, `--latest-only`, `--summary-only`, `--issues`) in validated `aw.agent/v1` `kind: "item"` records followed by a validated terminal `kind: "summary"` record carrying `excluded_runs`, `findings`, and `filters`, and convert the four usage/flag-conflict/`--since` refusal branches to emit validated `aw.agent/v1` `kind: "error"` records (`outcome: "cannot-run"`, `exit: 2`) under `--agent` and `--json`, and make the shared `_issue_records` builder emit repo-relative `actual_path` / `collisions` strings (a declared `--json` change, E-06).
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261014-4d3ynu-01-3jg79f-aw-runs-non-empty-agent-stream-and-refusals-emit-aw-agent-v1.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: 3jg79f
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3jg79f verified (set 4d3ynu, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Refusal error records and `--agent` item/summary stream in `agent_workflows/run_viewer.py`
 
-- [ ] E-01 In `agent_workflows/run_viewer.py` (`run_viewer.run_viewer_cli`, the four `print(json.dumps({"error": err_msg, "exit_code": 2}))` blocks, around lines 3575-3607), add a helper `_usage_refusal(err_msg: str, term: Term, *, is_agent: bool = False, is_json: bool = False) -> int` modeled on `run_viewer._unresolvable_target_refusal` (`agent_workflows/run_viewer.py`, around line 3381) and route the four usage/flag-conflict/`--since` refusal branches (`if short and summary_only:`, `if latest_only and summary_only:`, `if issues_only and summary_only:`, and `except ValueError as exc:` under `if since_spec:`) through it so `--agent` emits a single-line `aw.agent/v1` `kind: "error"` record via `_agent_schema.render_jsonl_record`, `--json` emits the validated `kind: "error"` record with `json.dumps(..., indent=2, ensure_ascii=False)`, and human mode continues calling `term.line(err_msg)` at exit code 2.
+- [x] E-01 In `agent_workflows/run_viewer.py` (`run_viewer.run_viewer_cli`, the four `print(json.dumps({"error": err_msg, "exit_code": 2}))` blocks, around lines 3575-3607), add a helper `_usage_refusal(err_msg: str, term: Term, *, is_agent: bool = False, is_json: bool = False) -> int` modeled on `run_viewer._unresolvable_target_refusal` (`agent_workflows/run_viewer.py`, around line 3381) and route the four usage/flag-conflict/`--since` refusal branches (`if short and summary_only:`, `if latest_only and summary_only:`, `if issues_only and summary_only:`, and `except ValueError as exc:` under `if since_spec:`) through it so `--agent` emits a single-line `aw.agent/v1` `kind: "error"` record via `_agent_schema.render_jsonl_record`, `--json` emits the validated `kind: "error"` record with `json.dumps(..., indent=2, ensure_ascii=False)`, and human mode continues calling `term.line(err_msg)` at exit code 2.
   - Depends on: none
   - Expected outcome: Each of the four refusal paths (`--short -S`, `--latest-only -S`, `--issues -S`, and invalid `--since <spec>`) under `--agent` or `--json` prints a schema-valid `aw.agent/v1` `kind: "error"` record (`cmd: "runs"`, `outcome: "cannot-run"`, `exit: 2`, `verified: False`, `complete: False`, `error: _agent_schema.redact_home_paths(err_msg)`, `next: "aw runs --help"`) validated by `agent_schema.validate_agent_record` and returns `2`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/run_viewer.py` (`run_viewer.run_viewer_cli`, lines 3762-3972), extract shared filter-dictionary construction and recursive string sanitization helpers (`_build_viewer_filters_dict` and `_sanitize_agent_value`; `_sanitize_agent_value` applies `_agent_schema.redact_home_paths` AND strips ANSI SGR/CSI sequences from every string in nested dicts/lists/tuples, since `validate_agent_record` rejects both and `redact_home_paths` does not touch ANSI), and rewrite the `if is_agent:` block (`agent_workflows/run_viewer.py`, lines 3921-3972) so all four branches (`issues_only`, `latest_only`, `summary_only`, and default per-run) emit validated `aw.agent/v1` `kind: "item"` records (`cmd: "runs"`, built as `{**_sanitize_agent_value(payload), "schema": ..., "kind": "item", "cmd": "runs"}` so the envelope keys always WIN over any same-named payload key) followed by a validated terminal `kind: "summary"` record (`cmd: "runs"`, `outcome: "clean"`, `exit: 0`, `total: len(items)`, `emitted: len(items)`, `omitted: 0`, `complete: True`, `verified: True`, `findings: len(issue_records)`, `filters: filters`, optional `excluded_runs: excluded_data`, and `next: "aw runs" if (not items and filters) else None`), removing the non-schema `{"kind": "excluded_runs"}` pseudo-record while leaving `if is_json:` (`agent_workflows/run_viewer.py`, lines 3876-3919) unchanged. `outcome` stays `"clean"` and `exit` stays `0` even when `findings > 0` (see OQ-03).
+- [x] E-02 In `agent_workflows/run_viewer.py` (`run_viewer.run_viewer_cli`, lines 3762-3972), extract shared filter-dictionary construction and recursive string sanitization helpers (`_build_viewer_filters_dict` and `_sanitize_agent_value`; `_sanitize_agent_value` applies `_agent_schema.redact_home_paths` AND strips ANSI SGR/CSI sequences from every string in nested dicts/lists/tuples, since `validate_agent_record` rejects both and `redact_home_paths` does not touch ANSI), and rewrite the `if is_agent:` block (`agent_workflows/run_viewer.py`, lines 3921-3972) so all four branches (`issues_only`, `latest_only`, `summary_only`, and default per-run) emit validated `aw.agent/v1` `kind: "item"` records (`cmd: "runs"`, built as `{**_sanitize_agent_value(payload), "schema": ..., "kind": "item", "cmd": "runs"}` so the envelope keys always WIN over any same-named payload key) followed by a validated terminal `kind: "summary"` record (`cmd: "runs"`, `outcome: "clean"`, `exit: 0`, `total: len(items)`, `emitted: len(items)`, `omitted: 0`, `complete: True`, `verified: True`, `findings: len(issue_records)`, `filters: filters`, optional `excluded_runs: excluded_data`, and `next: "aw runs" if (not items and filters) else None`), removing the non-schema `{"kind": "excluded_runs"}` pseudo-record while leaving `if is_json:` (`agent_workflows/run_viewer.py`, lines 3876-3919) unchanged. `outcome` stays `"clean"` and `exit` stays `0` even when `findings > 0` (see OQ-03).
   - Depends on: E-01, E-06
   - Expected outcome: Every `--agent` invocation of `aw runs` and `aw runs list` across default, `--latest-only`, `--summary-only`, and `--issues` (both empty and non-empty, with or without `excluded_runs`) emits 0 or more schema-valid `kind: "item"` records followed by exactly 1 schema-valid `kind: "summary"` record on stdout and returns `0`, while `--json` success output is unchanged apart from E-06.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `agent_workflows/run_viewer.py` `_issue_records()` (the ONE issue builder shared by `--json` and `--agent`, around lines 3853-3874), replace `rec["actual_path"] = str(rec["actual_path"])` with `_agent_schema.normalize_repo_path(rec["actual_path"], repo_root)` and convert `rec["collisions"]` to `[_agent_schema.normalize_repo_path(p, repo_root) for p in rec.get("collisions") or []]`. THIS CHANGES `--json` OUTPUT on purpose: `artifact_discrepancies[*].actual_path` becomes repo-relative instead of absolute, and a non-empty `collisions` list (`ArtifactAudit.collisions: List[Path]`, populated at `artifact_audit.py` around lines 1270-1280 and 1416) now serializes instead of raising `TypeError: Object of type PosixPath is not JSON serializable` from `json.dumps`.
+- [x] E-06 In `agent_workflows/run_viewer.py` `_issue_records()` (the ONE issue builder shared by `--json` and `--agent`, around lines 3853-3874), replace `rec["actual_path"] = str(rec["actual_path"])` with `_agent_schema.normalize_repo_path(rec["actual_path"], repo_root)` and convert `rec["collisions"]` to `[_agent_schema.normalize_repo_path(p, repo_root) for p in rec.get("collisions") or []]`. THIS CHANGES `--json` OUTPUT on purpose: `artifact_discrepancies[*].actual_path` becomes repo-relative instead of absolute, and a non-empty `collisions` list (`ArtifactAudit.collisions: List[Path]`, populated at `artifact_audit.py` around lines 1270-1280 and 1416) now serializes instead of raising `TypeError: Object of type PosixPath is not JSON serializable` from `json.dumps`.
   - Depends on: none
   - Expected outcome: `aw runs --json` and `aw runs --issues --json` on a fixture whose step artifact exists emit a repo-relative `actual_path` (no absolute or home path), and on a fixture with an id6 collision emit `collisions` as a list of repo-relative strings at exit 0 rather than a traceback.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Unit and CLI tests in `tests/test_run_viewer.py`
 
-- [ ] E-03 In `tests/test_run_viewer.py`, update the three existing tests that assert the pre-envelope `--agent` line count or `{"kind": "excluded_runs"}` pseudo-record (`RunViewerTests.test_run_viewer_cli_formats_and_filters` at lines 685-689, `FilterExclusionReportingTests.test_agent_partial_path_remains_line_oriented_jsonl` at lines 2926-2944, and `FilterExclusionReportingTests.test_mode_branches_latest_and_issues` at lines 3005-3021) and add dedicated tests covering: (a) non-empty `--agent` item + summary stream across default, `--latest-only`, `--summary-only`, and `--issues` (populated and empty) for both `aw runs` and `aw runs list`; (b) `excluded_runs` placement on the terminal `kind: "summary"` record across `--agent` branches; (c) all four flag-conflict and `--since` refusals under `--agent` and `--json` (including home-path redaction on an invalid `--since` spec); (d) `agent_schema.validate_agent_record` validation of every emitted JSONL line, including a fixture whose persisted step `summary` carries a home path and an ANSI escape (proving `_sanitize_agent_value`); (e) `--json` non-regression across all four modes; and (f) the E-06 `--json` change: repo-relative `actual_path` and a fixture with a non-empty `collisions` list serializing at exit 0.
+- [x] E-03 In `tests/test_run_viewer.py`, update the three existing tests that assert the pre-envelope `--agent` line count or `{"kind": "excluded_runs"}` pseudo-record (`RunViewerTests.test_run_viewer_cli_formats_and_filters` at lines 685-689, `FilterExclusionReportingTests.test_agent_partial_path_remains_line_oriented_jsonl` at lines 2926-2944, and `FilterExclusionReportingTests.test_mode_branches_latest_and_issues` at lines 3005-3021) and add dedicated tests covering: (a) non-empty `--agent` item + summary stream across default, `--latest-only`, `--summary-only`, and `--issues` (populated and empty) for both `aw runs` and `aw runs list`; (b) `excluded_runs` placement on the terminal `kind: "summary"` record across `--agent` branches; (c) all four flag-conflict and `--since` refusals under `--agent` and `--json` (including home-path redaction on an invalid `--since` spec); (d) `agent_schema.validate_agent_record` validation of every emitted JSONL line, including a fixture whose persisted step `summary` carries a home path and an ANSI escape (proving `_sanitize_agent_value`); (e) `--json` non-regression across all four modes; and (f) the E-06 `--json` change: repo-relative `actual_path` and a fixture with a non-empty `collisions` list serializing at exit 0.
   - Depends on: E-02, E-06
   - Expected outcome: All tests in `tests/test_run_viewer.py` and `tests/test_runs_empty_agent_record.py` pass, exercising every non-empty and refusal branch under `--agent`, `--json`, and human modes for both `aw runs` and `aw runs list`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Documentation and changelog sync
 
-- [ ] E-04 In `docs/cli-output-contract.md` (Section 3.1 `Output Mode Matrix`, line 186), update the `aw runs` note to remove the `tracked as backlog 4d3ynu` caveat and state that under `--agent`, `aw runs` / `aw runs list` emits `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record (or a single `kind: "summary"` record when zero items match) and `kind: "error"` (`outcome: "cannot-run"`, `exit: 2`) records on target, flag-conflict, and `--since` refusals, while `--json` preserves the bare `{"runs": [...]}` success payload and emits the pretty-printed `kind: "error"` record on refusals. It also states that `findings` on that summary counts issue records and does not change `outcome: "clean"` / `exit: 0` (OQ-03), and that `artifact_discrepancies[*].actual_path` / `collisions` are repo-relative strings (E-06).
+- [x] E-04 In `docs/cli-output-contract.md` (Section 3.1 `Output Mode Matrix`, line 186), update the `aw runs` note to remove the `tracked as backlog 4d3ynu` caveat and state that under `--agent`, `aw runs` / `aw runs list` emits `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record (or a single `kind: "summary"` record when zero items match) and `kind: "error"` (`outcome: "cannot-run"`, `exit: 2`) records on target, flag-conflict, and `--since` refusals, while `--json` preserves the bare `{"runs": [...]}` success payload and emits the pretty-printed `kind: "error"` record on refusals. It also states that `findings` on that summary counts issue records and does not change `outcome: "clean"` / `exit: 0` (OQ-03), and that `artifact_discrepancies[*].actual_path` / `collisions` are repo-relative strings (E-06).
   - Depends on: E-02, E-06
   - Expected outcome: `docs/cli-output-contract.md` Section 3.1 accurately documents the `aw runs` `--agent` and `--json` output shapes with no reference to open backlog item `4d3ynu` and no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `CHANGELOG.md` (under `## 2.0.0 (pending)`, around line 30), add a `- Fixed:` entry describing that `aw runs --agent` and `aw runs list --agent` now wrap non-empty run, `--latest-only`, `--summary-only`, and `--issues` streams in `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record (carrying any `excluded_runs`) and emit `aw.agent/v1` `kind: "error"` records under `--agent` and `--json` on flag-conflict and invalid `--since` refusals, and that `artifact_discrepancies` paths in `--json`/`--agent` are now repo-relative (and a collision no longer crashes the command).
+- [x] E-05 In `CHANGELOG.md` (under `## 2.0.0 (pending)`, around line 30), add a `- Fixed:` entry describing that `aw runs --agent` and `aw runs list --agent` now wrap non-empty run, `--latest-only`, `--summary-only`, and `--issues` streams in `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record (carrying any `excluded_runs`) and emit `aw.agent/v1` `kind: "error"` records under `--agent` and `--json` on flag-conflict and invalid `--since` refusals, and that `artifact_discrepancies` paths in `--json`/`--agent` are now repo-relative (and a collision no longer crashes the command).
   - Depends on: E-02, E-06
   - Expected outcome: `CHANGELOG.md` contains the new `- Fixed:` bullet under `## 2.0.0 (pending)` with no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -230,35 +230,198 @@ none
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run a one-liner invoking `run_viewer.run_viewer_cli` (loaded by `E-01`) across all four refusal branches (`--short -S`, `--latest-only -S`, `--issues -S`, and `--since` with `str(Path.home() / "not-a-date")`) under both `--agent` and `--json`, validating each parsed output with `agent_schema.validate_agent_record` and asserting `exit == 2`, `kind == "error"`, `outcome == "cannot-run"`, `cmd == "runs"`, and `<home>` redacted in output; paste the command and its `OK` output.
   - Observed evidence:
-  - Result: pending
+```sh
+python3 -c "
+import argparse, io, json
+from contextlib import redirect_stdout
+from pathlib import Path
+from agent_workflows import agent_schema, run_viewer
 
-- [ ] V-02 validates E-02
+cases = [
+    ('short_summary', {'short': True, 'summary_only': True}),
+    ('latest_summary', {'latest_only': True, 'summary_only': True}),
+    ('issues_summary', {'issues': True, 'summary_only': True}),
+    ('since_invalid', {'since': str(Path.home() / 'not-a-date')}),
+]
+
+for mode in ('agent', 'json'):
+    for name, flags in cases:
+        base_kwargs = {
+            'dir': '.', 'target': [], 'set': None, 'ipd': None, 'status': None,
+            'failed': False, 'active': False, 'latest': False, 'last': None,
+            'since': None, 'detail': False, 'short': False, 'summary_only': False,
+            'latest_only': False, 'issues': False, 'json': (mode == 'json'),
+            'agent': (mode == 'agent'), 'no_color': True,
+        }
+        base_kwargs.update(flags)
+        ns = argparse.Namespace(**base_kwargs)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = run_viewer.run_viewer_cli(ns)
+        out = buf.getvalue().strip()
+        assert exit_code == 2, f'Expected 2, got {exit_code} for {mode} {name}'
+        record = json.loads(out)
+        errs = agent_schema.validate_agent_record(record)
+        assert not errs, f'Schema errors for {mode} {name}: {errs}'
+        assert record['kind'] == 'error'
+        assert record['outcome'] == 'cannot-run'
+        assert record['exit'] == 2
+        assert record['cmd'] == 'runs'
+        assert record['verified'] is False
+        assert record['complete'] is False
+        assert record['next'] == 'aw runs --help'
+        if name == 'since_invalid':
+            assert str(Path.home()) not in record['error'], f'Home path leaked: {record[\"error\"]}'
+            assert '~/not-a-date' in record['error'], f'Expected redacted ~ in error: {record[\"error\"]}'
+print('OK')
+"
+```
+Output:
+`OK`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Run a one-liner invoking `cli.main` (loaded by `E-02`) for `aw runs` and `aw runs list` with `--agent` on a temporary fixture across default, `--latest-only`, `--summary-only`, and `--issues` (empty and non-empty, with and without `excluded_runs`), verifying every stdout line passes `agent_schema.validate_agent_record`, leading lines have `kind == "item"`, the final line has `kind == "summary"`, no line has `kind == "excluded_runs"`, `excluded_runs` appears only on the summary, `--issues --agent` on an empty repo prints exactly one `kind: "summary"` line, and `--json` still returns the bare dict shape; paste the script, the full stdout of at least one non-empty default-mode invocation, and its `OK` output. Code path: `run_viewer.run_viewer_cli` `if is_agent:` block (E-02).
   - Observed evidence:
-  - Result: pending
+    Stdout of non-empty default-mode invocation:
+```json
+{"run_id":"run-20260829T000000Z-111111","run_dir":".aw/records/runs/run-20260829T000000Z-111111","created_at":null,"updated_at":null,"driver":null,"selectors":[],"setids":["test"],"steps":[{"position":1,"id6":"item01","setid":"test","action":"execute","status":"executed","configured_file":"","stem":"20260829-test-01-item01","verification_status":null,"attempts_count":0,"session_id":null,"disposition":null,"summary":null,"incomplete_requirements":[],"persisted_status":null,"cost":null,"tokens":{},"exec_cost":null,"exec_tokens":{},"verify_cost":null,"verify_tokens":{},"is_live":false,"elapsed_seconds":null,"elapsed_str":null,"ending_head":null,"refusal":null,"tests_run":[],"corrections_made":[],"corroboration_verdict":null,"corroboration_reason":null,"artifact_type":null,"initial_status":null}],"counts":{"executed":1},"total_cost":null,"total_tokens":{},"exec_cost":null,"exec_tokens":{},"verify_cost":null,"verify_tokens":{},"pid":111111,"pid_state":"exited","is_live":false,"runtime_seconds":4165449.845097,"runtime_str":"48d 5h 04m 09s","schema":"aw.agent/v1","kind":"item","cmd":"runs"}
+{"run_id":"run-20260829T000001Z-222222","run_dir":".aw/records/runs/run-20260829T000001Z-222222","created_at":null,"updated_at":null,"driver":null,"selectors":[],"setids":["test"],"steps":[{"position":1,"id6":"item01","setid":"test","action":"execute","status":"executed","configured_file":"","stem":"20260829-test-01-item01","verification_status":null,"attempts_count":0,"session_id":null,"disposition":null,"summary":null,"incomplete_requirements":[],"persisted_status":null,"cost":null,"tokens":{},"exec_cost":null,"exec_tokens":{},"verify_cost":null,"verify_tokens":{},"is_live":false,"elapsed_seconds":null,"elapsed_str":null,"ending_head":null,"refusal":null,"tests_run":[],"corrections_made":[],"corroboration_verdict":null,"corroboration_reason":null,"artifact_type":null,"initial_status":null}],"counts":{"executed":1},"total_cost":null,"total_tokens":{},"exec_cost":null,"exec_tokens":{},"verify_cost":null,"verify_tokens":{},"pid":222222,"pid_state":"exited","is_live":false,"runtime_seconds":4165448.845097,"runtime_str":"48d 5h 04m 08s","schema":"aw.agent/v1","kind":"item","cmd":"runs"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"runs","outcome":"clean","exit":0,"total":2,"emitted":2,"omitted":0,"complete":true,"verified":true,"findings":2,"filters":{},"next":null}
+```
+    Validation loop script executed across all configurations and returned:
+    `OK`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff` of `_issue_records` in `agent_workflows/run_viewer.py`; pasted `aw runs --issues --json --dir <fixture>` output (before and after the edit) on a fixture whose step artifact exists, showing `actual_path` absolute before and repo-relative after; and pasted output on a fixture with a non-empty `collisions` list showing exit 0 and string entries after (a `TypeError` traceback before is acceptable evidence of the defect).
   - Observed evidence:
-  - Result: pending
+    `git diff` of `_issue_records` in `agent_workflows/run_viewer.py`:
+```diff
+@@ -3865,7 +3865,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
+                 continue
+             rec = asdict(audit)
+             if rec.get("actual_path"):
+-                rec["actual_path"] = str(rec["actual_path"])
++                rec["actual_path"] = _agent_schema.normalize_repo_path(
++                    rec["actual_path"], repo_root
++                )
+             rec["collisions"] = [
+                 _agent_schema.normalize_repo_path(p, repo_root)
+                 for p in rec.get("collisions") or []
+             ]
+             rec["issue_reasons"] = reasons
+             rf = step_refusal(step)
+             if rf is not None:
+```
+    Before:
+    `"actual_path": "/tmp/tmph_5ow9us/.aw/records/plans/pending/20260829-test-01-item01.ipd.md"`
+    After:
+    `"actual_path": ".aw/records/plans/pending/20260829-test-01-item01.ipd.md"`
+    Collisions case before:
+```
+TypeError: Object of type PosixPath is not JSON serializable
+when serializing list item 0
+when serializing dict item 'collisions'
+```
+    Collisions case after (exit 0):
+```json
+{
+  "artifact_discrepancies": [
+    {
+      "id6": "item01",
+      "stem": "20260829-test-01-item01",
+      "run_status": "executed",
+      "missing_entirely": true,
+      "location_mismatch": false,
+      "status_mismatch": false,
+      "actual_dir": null,
+      "expected_dir": "executed",
+      "file_status": null,
+      "actual_path": null,
+      "is_live": false,
+      "collisions": [
+        ".aw/records/plans/pending/20260829-test-01-item01.ipd.md",
+        ".aw/records/plans/pending/20260829-test-02-item01.ipd.md"
+      ],
+      "difference_class": "missing",
+      "class_reason": "2 records claim this id6",
+      "evidence_commit": null,
+      "evidence_range_from": null,
+      "artifact_type": null,
+      "action": "execute",
+      "initial_status": null,
+      "expected_status": "executed",
+      "type_conflict": false,
+      "issue_reasons": [
+        "artifact missing"
+      ]
+    }
+  ]
+}
+```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Run `python3 -m pytest tests/test_run_viewer.py tests/test_runs_empty_agent_record.py tests/test_runs_subdir_root.py tests/test_runs_flag_position_parity.py tests/test_runs_repo_alias.py tests/test_family_root_agent_conformance.py tests/test_agent_surface_conformance.py tests/test_selector_echo_sanitization.py tests/test_agent_record_guard.py` and bare `python3 -m pytest`, and paste the actual runner summary lines. The targeted run must show 0 failures. Any bare-suite failure must be shown pre-existing by running that node id at the pre-change base commit (for example in a temporary `git worktree add` of that commit), with the output pasted. Also paste the names of the new tests covering items (a) to (f) of E-03.
   - Observed evidence:
-  - Result: pending
+    Targeted run summary:
+    `237 passed, 1 skipped in 42.06s`
+    Bare `python3 -m pytest` / `aw suite` summary:
+    `702 passed in 27.66s`
+    Bare `python3 -m pytest` full run summary:
+    `702 passed in 28.04s`
+    Names of the new tests covering items (a) to (f) of E-03:
+    - `RunsAgentStreamAndRefusalTests.test_a_non_empty_agent_stream_modes_and_empty_issues`
+    - `RunsAgentStreamAndRefusalTests.test_b_excluded_runs_placement_on_terminal_summary`
+    - `RunsAgentStreamAndRefusalTests.test_c_flag_conflicts_and_since_refusals`
+    - `RunsAgentStreamAndRefusalTests.test_d_sanitization_of_step_summary_home_path_and_ansi`
+    - `RunsAgentStreamAndRefusalTests.test_e_json_non_regression_across_modes`
+    - `RunsAgentStreamAndRefusalTests.test_f_e06_json_repo_relative_actual_path_and_collisions_serialization`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Inspect `git diff -- docs/cli-output-contract.md` and run a Python check confirming `4d3ynu` is no longer mentioned as an open caveat and zero `\u2013` / `\u2014` characters appear in the modified lines; paste the output.
   - Observed evidence:
-  - Result: pending
+```
+V-04 CHECK PASSED
+diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+index b40882f90..4a2e42e12 100644
+--- a/docs/cli-output-contract.md
++++ b/docs/cli-output-contract.md
+@@ -183,7 +183,7 @@ Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared cannot-run c
 
-- [ ] V-05 validates E-05
+ Commands in the run-execution family (`aw run`, `aw runs`, `aw oc runipd`, `aw agy runipd`, and `aw ipd execute-set`) manage and inspect multi-step orchestration runs, ledgers, and execution queues. These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records, and they use a wider exit code vocabulary to distinguish operational, corruption, and workflow states.
+
+-The `aw runs` viewer's read paths (bare `aw runs` and its identical leaf `aw runs list`) return exit `0` or `2`, and its opt-in mutating `aw runs repair` may also return `1`, so the viewer stays inside the three-state vocabulary and is not part of either wider table below; its unresolvable-target refusal already emits a conforming `kind: "error"` record, and its empty result emits a conforming `kind: "summary"` record with `outcome: "clean"` and `exit: 0` under `--agent` (Section 11.1), while `--json` keeps the bare `{"runs": [...]}` payload. Its non-empty `--agent` stream is not yet enveloped (tracked as backlog `4d3ynu`).
++The `aw runs` viewer's read paths (bare `aw runs` and its identical leaf `aw runs list`) return exit `0` or `2`, and its opt-in mutating `aw runs repair` may also return `1`, so the viewer stays inside the three-state vocabulary and is not part of either wider table below. Under `--agent`, `aw runs` and `aw runs list` emit `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record carrying `total`, `emitted`, `omitted`, `findings`, `filters`, and optional `excluded_runs` (or a single `kind: "summary"` record when zero items match), and emit `kind: "error"` (`outcome: "cannot-run"`, `exit: 2`) records on target, flag-conflict, and `--since` refusals. The `findings` field on the terminal summary reports the count of issue records and does not alter `outcome: "clean"` or `exit: 0`. Under `--json`, `aw runs` preserves the bare `{"runs": [...]}` success payload (with repo-relative `artifact_discrepancies[*].actual_path` and `collisions` strings) and emits the pretty-printed `kind: "error"` record on refusals.
+
+ Two distinct live exit tables govern these verbs and disagree on the meaning of codes `3` and `4`. They are not reconciled into a single table:
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Inspect `git diff -- CHANGELOG.md` and run a Python check confirming the new `- Fixed:` bullet is present under `## 2.0.0 (pending)` with zero `\u2013` / `\u2014` characters and `aw sanitize --agent` reports `"outcome":"clean"`; paste the output.
   - Observed evidence:
-  - Result: pending
+```
+V-05 DIFF CHECK PASSED
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a9b13dde3..bf9cae372 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -30,6 +30,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+ - Added: every commit and merge created by `aw` now keeps the user as author and records `AW Agent (<model>) <local+aw@domain>` as committer (or `local+tag-aw@domain` when already tagged), stamps `AW-Runner` (`aw oc run`, `aw agy run`, or `aw commit`) alongside `AW-Run` and `AW-Item` when known, exports the agent committer identity and `AW_RUNNER` into runner agent turns, and preserves commit signing by supplying `user.signingkey` from the author identity when `commit.gpgsign` is enabled with no explicit key (see `docs/commit-identity.md`).
+ - Fixed: aw rename and aw group now also rewrite citations that name a record by its filename without the type suffix, and skip with a warning when another record shares that name.
+ - Fixed: when `aw runs --agent` or `aw runs list --agent` finds no matching runs it now prints a standard `aw.agent/v1` summary record (clean, exit 0, zero counts, plus any excluded runs and active filters) instead of a bare `{"runs": []}` object; `--json` output and exit codes are unchanged.
++- Fixed: `aw runs --agent` and `aw runs list --agent` now wrap non-empty run, `--latest-only`, `--summary-only`, and `--issues` streams in `aw.agent/v1` `kind: "item"` records followed by a terminal `kind: "summary"` record (carrying any `excluded_runs`) and emit `aw.agent/v1` `kind: "error"` records under `--agent` and `--json` on flag-conflict and invalid `--since` refusals, and `artifact_discrepancies` paths in `--json` and `--agent` are now repo-relative (and an artifact collision list serializes cleanly instead of raising TypeError).
+ - Changed: added `aw suite` (`agent_workflows/suite_cache.py`) as the single full-suite entry point with a tree-keyed result cache in `<git-common-dir>/aw-suite-cache` (14-day expiry, `--no-cache` bypass, `--explain` key breakdown) and a bounded xdist worker count (`max(2, cpus // slots)` from `AW_SUITE_SLOTS`, default `max(1, cpus // 6)`), and routed the runner's `run_suite_check`, `start_suite_baseline`, and `make_integration_validation_runner` seams through `run_full_suite` so an exact-key cached pass is reused across lanes and checkouts while a cached failure is never served to a gate.
+```
+`aw sanitize --agent`:
+`{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5207,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 

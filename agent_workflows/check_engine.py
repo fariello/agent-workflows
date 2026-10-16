@@ -4981,9 +4981,10 @@ _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
     """Shared evidence resolver (bklggrad orb9zb E-03): checks safety, containment,
-    existence, and records-tree location only for a close-evidence citation.
-    The backlog close predicate adds the executed-plan rule (plan ncmugb) while
-    specs._evidence_resolvable adds its own stricter executed-IPD rule.
+    existence, and records-tree location only for an evidence citation.
+    `evaluate_blocking_close` and `evaluate_carrier_obligation` enforce the executed-plan
+    and implemented-spec rules (and the carrier predicate defers to `- Carrier:` when
+    one is present), while specs._evidence_resolvable adds its own stricter executed-IPD rule.
     Path-traversal-safe: the resolved path must stay inside the repo.
 
     NOTE: this is intentionally MORE permissive than the specs predicate (any in-tree records
@@ -5045,6 +5046,47 @@ def _evidence_plan_unshipped(repo_root: Path, evidence: str) -> bool:
 
     disposition = rel[prefix_len]
     return disposition != "executed"
+
+
+def _evidence_spec_unshipped(repo_root: Path, evidence: str) -> bool:
+    """Return True iff candidate evidence resolves inside a specs tree and is NOT an implemented spec.
+
+    Computed relative to the resolved repo root:
+      - .aw/records/specs/<status>/... (prefix len 3)
+      - .agents/docs/specs/... (prefix len 3)
+      - .agents/specs/... (prefix len 2)
+    A spec must carry `- Status: implemented` and (in a status-bucketed tree) live under `implemented/`.
+    """
+    repo_root = Path(repo_root).resolve()
+    candidate = (repo_root / evidence).resolve()
+    try:
+        rel = candidate.relative_to(repo_root).parts
+    except ValueError:
+        return False
+
+    prefix_len: Optional[int] = None
+    if len(rel) >= 3 and rel[:3] == (".aw", "records", "specs"):
+        prefix_len = 3
+    elif len(rel) >= 3 and rel[:3] == (".agents", "docs", "specs"):
+        prefix_len = 3
+    elif len(rel) >= 2 and rel[:2] == (".agents", "specs"):
+        prefix_len = 2
+
+    if prefix_len is None:
+        return False
+
+    if not candidate.is_file() or len(rel) <= prefix_len:
+        return True
+
+    if len(rel) > prefix_len + 1 and rel[prefix_len] != "implemented":
+        return True
+
+    try:
+        text = candidate.read_text(encoding="utf-8")
+    except OSError:
+        return True
+
+    return _status_meta(text) != "implemented"
 
 
 def _iter_plan_ipds(repo_root: Path):
@@ -5809,7 +5851,24 @@ def evaluate_blocking_close(
                         "cite the plan once it is executed",
                         "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
                         "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
-                        "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
+                        "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed and a cited spec must be implemented>`",
+                        "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
+                    ),
+                    None,
+                )
+            if _evidence_spec_unshipped(repo_root, effective_evidence):
+                return CloseVerdict(
+                    False,
+                    "error",
+                    (
+                        f"cited evidence {effective_evidence!r} names a spec that has not shipped "
+                        f"(status is not implemented)"
+                    ),
+                    (
+                        "cite the spec once it is implemented",
+                        "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
+                        "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
+                        "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed and a cited spec must be implemented>`",
                         "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
                     ),
                     None,
@@ -5836,7 +5895,7 @@ def evaluate_blocking_close(
                 ),
                 (
                     f"aw backlog set {item_id6 or '<item>'} --status graduated (keep the item as a release blocker until the plan executes)",
-                    "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
+                    "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed and a cited spec must be implemented>`",
                     "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
                 ),
                 None,
@@ -5852,7 +5911,7 @@ def evaluate_blocking_close(
             (
                 "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
                 "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
-                "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed>`",
+                "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path; a cited plan must be executed and a cited spec must be implemented>`",
                 "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
             ),
             None,
@@ -9921,7 +9980,9 @@ def evaluate_carrier_obligation(
 
       HANDOFF   - `- Carrier: <id6>` resolving to a backlog item or a NON-terminal plan.
       SATISFIED - `- Carrier-Evidence: <path>` resolving via the SHARED
-                  `resolve_evidence_artifact` (the same resolver `aw backlog set done --evidence` uses).
+                  `resolve_evidence_artifact` (the same resolver `aw backlog set done --evidence` uses),
+                  requiring an executed plan or implemented spec (falling through to `- Carrier:`
+                  when one is present).
       DECLINED  - `- Carrier-Declined: <reason>` with a non-empty reason. The reason's MERIT is the
                   reviewer's job, exactly as `open_question_error` says of an OQ rationale; requiring a
                   human-judged reason here would be a semantic claim this module cannot make.
@@ -9940,7 +10001,7 @@ def evaluate_carrier_obligation(
     fixes = (
         "hand it off: add `- Carrier: <id6>` naming an open backlog item or a pending plan "
         "(file one with `aw backlog new`)",
-        "cite evidence it is already addressed: add `- Carrier-Evidence: <in-tree artifact path>`",
+        "cite evidence it is already addressed: add `- Carrier-Evidence: <in-tree artifact path; a cited plan must be executed and a cited spec must be implemented>`",
         "decline it explicitly, with a reason: add `- Carrier-Declined: <why this needs no carrier>`",
     )
 
@@ -9976,21 +10037,52 @@ def evaluate_carrier_obligation(
         except Exception:
             resolved = False
         if resolved:
+            plan_unshipped = _evidence_plan_unshipped(repo_root, evidence)
+            spec_unshipped = _evidence_spec_unshipped(repo_root, evidence)
+            if not plan_unshipped and not spec_unshipped:
+                return CloseVerdict(
+                    True,
+                    "ok",
+                    f"satisfied by resolvable evidence {evidence!r}",
+                    (),
+                    "SATISFIED",
+                )
+            if not (fields.get(_S.CARRIER_FIELD) or "").strip():
+                if plan_unshipped:
+                    return CloseVerdict(
+                        False,
+                        "error",
+                        f"{obligation.locator}: `Carrier-Evidence: {evidence}` names a plan that has not shipped (is not in `executed/`)",
+                        (
+                            "cite the plan once it is executed, or hand off to a live plan with `- Carrier: <id6>`",
+                        )
+                        + fixes,
+                        None,
+                        rule=_CARRIER_RULE,
+                    )
+                else:
+                    return CloseVerdict(
+                        False,
+                        "error",
+                        f"{obligation.locator}: `Carrier-Evidence: {evidence}` names a spec that has not shipped (status is not `implemented`)",
+                        (
+                            "cite the spec once it is implemented, or hand off to an open backlog item or pending plan with `- Carrier: <id6>`",
+                        )
+                        + fixes,
+                        None,
+                        rule=_CARRIER_RULE,
+                    )
+            # An unshipped citation on a row that also names - Carrier: falls through to the
+            # HANDOFF arm below instead of being refused (F-08).
+        else:
             return CloseVerdict(
-                True,
-                "ok",
-                f"satisfied by resolvable evidence {evidence!r}",
-                (),
-                "SATISFIED",
+                False,
+                "error",
+                f"{obligation.locator}: `Carrier-Evidence: {evidence}` does not resolve to an in-tree artifact",
+                fixes,
+                None,
+                rule=_CARRIER_RULE,
             )
-        return CloseVerdict(
-            False,
-            "error",
-            f"{obligation.locator}: `Carrier-Evidence: {evidence}` does not resolve to an in-tree artifact",
-            fixes,
-            None,
-            rule=_CARRIER_RULE,
-        )
 
     raw_carrier = (fields.get(_S.CARRIER_FIELD) or "").strip()
     if raw_carrier:
@@ -10120,8 +10212,8 @@ def evaluate_durable_carrier(
     ``ipd_lint._merge_durable_carrier``) both call THIS function, so the sweep and the checkpoint gate
     cannot drift apart in what counts as carried. That single-predicate property is the stated design
     intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and was asserted
-    directly by ``tests/test_durable_capture.py`` (deleted in ``19313eed``; no live guard
-    currently asserts this).
+    directly by ``tests/test_durable_capture.py`` (deleted in ``19313eed``; live guard is
+    ``tests/test_durable_carrier_shared_predicate.py``).
 
     Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
     uncarried/abandoned at `error`), enumerating grouped offending locators selected by descriptive
@@ -10267,8 +10359,8 @@ def evaluate_durable_carrier(
                     required=(
                         "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
                         "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
-                        "(`- Carrier-Evidence:`), or an explicit reason for declining "
-                        "(`- Carrier-Declined:`)"
+                        "(`- Carrier-Evidence:`; a cited plan must be executed and a cited spec must be implemented), "
+                        "or an explicit reason for declining (`- Carrier-Declined:`)"
                     ),
                     recovery=fixes[0] if fixes else "",
                 )

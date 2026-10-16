@@ -21,7 +21,7 @@ from unittest import TestCase
 
 import pytest
 
-from agent_workflows import cli, run_viewer, runner_shared
+from agent_workflows import agent_schema, cli, run_viewer, runner_shared
 from agent_workflows.term import Term, strip_ansi
 
 # --------------------------------------------------------------------------------------------------
@@ -683,9 +683,19 @@ class RunViewerTests(TestCase):
         with redirect_stdout(buf):
             self.assertEqual(run_viewer.run_viewer_cli(ns_agent), 0)
         lines = [line for line in buf.getvalue().strip().splitlines() if line]
-        self.assertEqual(len(lines), 1)
-        record = json.loads(lines[0])
-        self.assertEqual(record["run_id"], "run-20260827T212958Z-2367239")
+        self.assertEqual(len(lines), 2)
+        rec_item = json.loads(lines[0])
+        self.assertEqual(agent_schema.validate_agent_record(rec_item), [])
+        self.assertEqual(rec_item["kind"], "item")
+        self.assertEqual(rec_item["run_id"], "run-20260827T212958Z-2367239")
+        rec_summary = json.loads(lines[1])
+        self.assertEqual(agent_schema.validate_agent_record(rec_summary), [])
+        self.assertEqual(rec_summary["kind"], "summary")
+        self.assertEqual(rec_summary["total"], 1)
+        self.assertEqual(rec_summary["emitted"], 1)
+        self.assertEqual(rec_summary["omitted"], 0)
+        self.assertEqual(rec_summary["outcome"], "clean")
+        self.assertEqual(rec_summary["exit"], 0)
 
         # filters: status and set
         ns_filter = argparse.Namespace(
@@ -2936,9 +2946,16 @@ class FilterExclusionReportingTests(TestCase):
                 lines[0].startswith('{"runs":'), "Must not wrap stream in an envelope"
             )
             records = [json.loads(line) for line in lines]
+            for r in records:
+                self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertNotEqual(r.get("kind"), "excluded_runs")
+            for r in records[:-1]:
+                self.assertEqual(r["kind"], "item")
+                self.assertNotIn("excluded_runs", r)
             self.assertEqual(records[0]["run_id"], "run-20260901T010000Z-beta")
-            # Last record is the discriminated exclusion record
-            self.assertEqual(records[-1]["kind"], "excluded_runs")
+            # Last record is the terminal summary record carrying excluded_runs
+            self.assertEqual(records[-1]["kind"], "summary")
+            self.assertIn("excluded_runs", records[-1])
             excluded_ids = [e["run_id"] for e in records[-1]["excluded_runs"]]
             self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
 
@@ -3011,8 +3028,15 @@ class FilterExclusionReportingTests(TestCase):
             self.assertEqual(code, 0, out + err)
             lines = [line for line in out.strip().splitlines() if line.strip()]
             records = [json.loads(line) for line in lines]
-            # At least one run rendered and exclusion record present
-            self.assertEqual(records[-1]["kind"], "excluded_runs")
+            for r in records:
+                self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertNotEqual(r.get("kind"), "excluded_runs")
+            for r in records[:-1]:
+                self.assertEqual(r["kind"], "item")
+                self.assertNotIn("excluded_runs", r)
+            # At least one run rendered and exclusion on summary
+            self.assertEqual(records[-1]["kind"], "summary")
+            self.assertIn("excluded_runs", records[-1])
             # --issues with exclusions present
             out_i, err_i, code_i = _run_viewer(
                 root, ["probe", "--status", "executed", "--issues", "--no-color"]
@@ -3053,3 +3077,358 @@ class FilterExclusionReportingTests(TestCase):
             self.assertEqual(out.strip(), "no matching runs found")
             self.assertNotIn("filters excluded", out)
             self.assertNotIn("active_only", out)
+
+
+class RunsAgentStreamAndRefusalTests(TestCase):
+    """Tests for aw runs non-empty --agent streams, refusals, and E-06 path normalization (3jg79f)."""
+
+    @staticmethod
+    def _run_cmd(
+        root: Path, spelling: list[str], argv: list[str]
+    ) -> tuple[str, str, int]:
+        out, err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main([*spelling, "--dir", str(root), *argv])
+        except SystemExit as exc:
+            rc = int(exc.code or 0)
+        return out.getvalue(), err.getvalue(), rc
+
+    @staticmethod
+    def _build_test_fixture(
+        root: Path,
+        *,
+        step_summary: str | None = None,
+        collision: bool = False,
+    ) -> Path:
+        pending_dir = root / ".aw" / "records" / "plans" / "pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        p1 = pending_dir / "20260829-test-01-item01.ipd.md"
+        p1.write_text("- Id: item01\n- Status: approved\n", encoding="utf-8")
+        if collision:
+            p2 = pending_dir / "20260829-test-02-item01.ipd.md"
+            p2.write_text("- Id: item01\n- Status: approved\n", encoding="utf-8")
+
+        runs_dir = root / ".aw" / "records" / "runs"
+        r1 = runs_dir / "run-20260829T000000Z-111111"
+        r1.mkdir(parents=True, exist_ok=True)
+        step_entry: dict[str, Any] = {
+            "position": 1,
+            "id6": "item01",
+            "setid": "test",
+            "action": "execute",
+            "status": "executed",
+            "stem": "20260829-test-01-item01",
+        }
+        if step_summary is not None:
+            step_entry["last_outcome"] = {"summary": step_summary}
+        state1 = {
+            "run_id": r1.name,
+            "created_at": "2026-08-29T00:00:00+00:00",
+            "queue": [step_entry],
+        }
+        (r1 / "state.json").write_text(json.dumps(state1), encoding="utf-8")
+
+        r2 = runs_dir / "run-20260829T000001Z-222222"
+        r2.mkdir(parents=True, exist_ok=True)
+        p3 = pending_dir / "20260829-test-01-item02.ipd.md"
+        p3.write_text("- Id: item02\n- Status: approved\n", encoding="utf-8")
+        state2 = {
+            "run_id": r2.name,
+            "created_at": "2026-08-29T00:00:01+00:00",
+            "queue": [
+                {
+                    "position": 1,
+                    "id6": "item02",
+                    "setid": "test",
+                    "action": "execute",
+                    "status": "executed",
+                    "stem": "20260829-test-01-item02",
+                }
+            ],
+        }
+        (r2 / "state.json").write_text(json.dumps(state2), encoding="utf-8")
+        return root
+
+    def test_a_non_empty_agent_stream_modes_and_empty_issues(self) -> None:
+        """Item (a): non-empty --agent item + summary stream across modes, and empty --issues."""
+        spellings = [["runs"], ["runs", "list"]]
+        for spelling in spellings:
+            with tempfile.TemporaryDirectory() as td:
+                root = self._build_test_fixture(Path(td))
+
+                # Default mode
+                out, err, code = self._run_cmd(root, spelling, ["--agent"])
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertEqual(len(lines), 3)
+                records = [json.loads(line) for line in lines]
+                for r in records:
+                    self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertEqual(records[0]["kind"], "item")
+                self.assertEqual(records[1]["kind"], "item")
+                summary = records[2]
+                self.assertEqual(summary["kind"], "summary")
+                self.assertEqual(summary["total"], 2)
+                self.assertEqual(summary["emitted"], 2)
+                self.assertEqual(summary["omitted"], 0)
+                self.assertEqual(summary["outcome"], "clean")
+                self.assertEqual(summary["exit"], 0)
+                self.assertEqual(summary["complete"], True)
+                self.assertEqual(summary["verified"], True)
+
+                # --latest-only mode
+                out, err, code = self._run_cmd(
+                    root, spelling, ["--latest-only", "--agent"]
+                )
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertEqual(len(lines), 3)
+                records = [json.loads(line) for line in lines]
+                for r in records:
+                    self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertEqual(records[0]["kind"], "item")
+                self.assertEqual(records[1]["kind"], "item")
+                summary = records[2]
+                self.assertEqual(summary["kind"], "summary")
+                self.assertEqual(summary["total"], 2)
+                self.assertEqual(summary["emitted"], 2)
+                self.assertEqual(summary["omitted"], 0)
+                self.assertEqual(summary["filters"].get("latest_only"), True)
+
+                # --summary-only mode
+                out, err, code = self._run_cmd(
+                    root, spelling, ["--summary-only", "--agent"]
+                )
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertEqual(len(lines), 2)
+                records = [json.loads(line) for line in lines]
+                for r in records:
+                    self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertEqual(records[0]["kind"], "item")
+                summary = records[1]
+                self.assertEqual(summary["kind"], "summary")
+                self.assertEqual(summary["total"], 1)
+                self.assertEqual(summary["emitted"], 1)
+                self.assertEqual(summary["omitted"], 0)
+                self.assertEqual(summary["filters"].get("summary_only"), True)
+
+                # --issues mode (populated)
+                out, err, code = self._run_cmd(root, spelling, ["--issues", "--agent"])
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertEqual(len(lines), 3)
+                records = [json.loads(line) for line in lines]
+                for r in records:
+                    self.assertEqual(agent_schema.validate_agent_record(r), [])
+                self.assertEqual(records[0]["kind"], "item")
+                self.assertEqual(records[1]["kind"], "item")
+                summary = records[2]
+                self.assertEqual(summary["kind"], "summary")
+                self.assertEqual(summary["total"], 2)
+                self.assertEqual(summary["emitted"], 2)
+                self.assertEqual(summary["omitted"], 0)
+                self.assertEqual(summary["findings"], 2)
+                self.assertEqual(summary["filters"].get("issues"), True)
+
+            # --issues mode on empty repo
+            with tempfile.TemporaryDirectory() as td_empty:
+                empty_root = Path(td_empty)
+                out, err, code = self._run_cmd(
+                    empty_root, spelling, ["--issues", "--agent"]
+                )
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                self.assertEqual(len(lines), 1)
+                summary = json.loads(lines[0])
+                self.assertEqual(agent_schema.validate_agent_record(summary), [])
+                self.assertEqual(summary["kind"], "summary")
+                self.assertEqual(summary["total"], 0)
+                self.assertEqual(summary["emitted"], 0)
+                self.assertEqual(summary["omitted"], 0)
+                self.assertEqual(summary["findings"], 0)
+                self.assertEqual(summary["filters"], {"issues": True})
+                self.assertEqual(summary["next"], "aw runs")
+
+    def test_b_excluded_runs_placement_on_terminal_summary(self) -> None:
+        """Item (b): excluded_runs placement on the terminal kind: summary record across branches."""
+        modes = [
+            [],
+            ["--latest-only"],
+            ["--summary-only"],
+            ["--issues"],
+        ]
+        for mode_flags in modes:
+            with tempfile.TemporaryDirectory() as td:
+                root = FilterExclusionReportingTests._build_multi_filter_fixture(
+                    Path(td)
+                )
+                out, err, code = self._run_cmd(
+                    root,
+                    ["runs"],
+                    ["probe", "--status", "executed", "--agent", *mode_flags],
+                )
+                self.assertEqual(code, 0, out + err)
+                lines = [line for line in out.strip().splitlines() if line.strip()]
+                records = [json.loads(line) for line in lines]
+                for r in records:
+                    self.assertEqual(agent_schema.validate_agent_record(r), [])
+                    self.assertNotEqual(r.get("kind"), "excluded_runs")
+                for r in records[:-1]:
+                    self.assertEqual(r["kind"], "item")
+                    self.assertNotIn("excluded_runs", r)
+                summary = records[-1]
+                self.assertEqual(summary["kind"], "summary")
+                self.assertIn("excluded_runs", summary)
+                excluded_ids = [e["run_id"] for e in summary["excluded_runs"]]
+                self.assertIn("run-20260901T000000Z-alpha", excluded_ids)
+
+    def test_c_flag_conflicts_and_since_refusals(self) -> None:
+        """Item (c): all four flag-conflict and --since refusals under --agent and --json."""
+        bad_since = str(Path.home() / "bad-spec-date")
+        refusal_cases = [
+            ("short_and_summary", ["--short", "--summary-only"]),
+            ("latest_and_summary", ["--latest-only", "--summary-only"]),
+            ("issues_and_summary", ["--issues", "--summary-only"]),
+            ("invalid_since", ["--since", bad_since]),
+        ]
+
+        for name, flags in refusal_cases:
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+
+                # Test --agent
+                out_agent, err_agent, code_agent = self._run_cmd(
+                    root, ["runs"], [*flags, "--agent"]
+                )
+                self.assertEqual(
+                    code_agent, 2, f"Failed for {name} --agent: {out_agent}"
+                )
+                lines = [
+                    line for line in out_agent.strip().splitlines() if line.strip()
+                ]
+                self.assertEqual(len(lines), 1)
+                rec_agent = json.loads(lines[0])
+                self.assertEqual(agent_schema.validate_agent_record(rec_agent), [])
+                self.assertEqual(rec_agent["kind"], "error")
+                self.assertEqual(rec_agent["cmd"], "runs")
+                self.assertEqual(rec_agent["outcome"], "cannot-run")
+                self.assertEqual(rec_agent["exit"], 2)
+                self.assertEqual(rec_agent["verified"], False)
+                self.assertEqual(rec_agent["complete"], False)
+                self.assertEqual(rec_agent["next"], "aw runs --help")
+
+                # Test --json
+                out_json, err_json, code_json = self._run_cmd(
+                    root, ["runs"], [*flags, "--json"]
+                )
+                self.assertEqual(code_json, 2, f"Failed for {name} --json: {out_json}")
+                rec_json = json.loads(out_json)
+                self.assertEqual(agent_schema.validate_agent_record(rec_json), [])
+                self.assertEqual(rec_json["kind"], "error")
+                self.assertEqual(rec_json["cmd"], "runs")
+                self.assertEqual(rec_json["outcome"], "cannot-run")
+                self.assertEqual(rec_json["exit"], 2)
+                self.assertEqual(rec_json["verified"], False)
+                self.assertEqual(rec_json["complete"], False)
+                self.assertEqual(rec_json["next"], "aw runs --help")
+
+                if name == "invalid_since":
+                    self.assertNotIn(str(Path.home()), out_agent)
+                    self.assertNotIn(str(Path.home()), out_json)
+                    self.assertIn("~/bad-spec-date", rec_agent["error"])
+                    self.assertIn("~/bad-spec-date", rec_json["error"])
+
+                # Test human mode
+                out_h, err_h, code_h = self._run_cmd(
+                    root, ["runs"], [*flags, "--no-color"]
+                )
+                self.assertEqual(code_h, 2)
+                self.assertTrue("error:" in out_h or "error:" in err_h)
+
+    def test_d_sanitization_of_step_summary_home_path_and_ansi(self) -> None:
+        """Item (d): validate_agent_record validation on step summary with home path and ANSI escape."""
+        with tempfile.TemporaryDirectory() as td:
+            raw_summary = f"\x1b[31;1mError in {Path.home()}/secret/task.log\x1b[0m"
+            root = self._build_test_fixture(Path(td), step_summary=raw_summary)
+
+            out, err, code = self._run_cmd(root, ["runs"], ["--agent"])
+            self.assertEqual(code, 0, out + err)
+            lines = [line for line in out.strip().splitlines() if line.strip()]
+            self.assertEqual(len(lines), 3)
+
+            for line in lines:
+                rec = json.loads(line)
+                self.assertEqual(agent_schema.validate_agent_record(rec), [])
+
+            item0 = json.loads(lines[0])
+            self.assertEqual(item0["kind"], "item")
+            step0 = item0["steps"][0]
+            sanitized_summary = step0["summary"]
+            self.assertNotIn("\x1b", sanitized_summary)
+            self.assertNotIn(str(Path.home()), sanitized_summary)
+            self.assertIn("~/secret/task.log", sanitized_summary)
+            self.assertEqual(sanitized_summary, "Error in ~/secret/task.log")
+
+    def test_e_json_non_regression_across_modes(self) -> None:
+        """Item (e): --json non-regression across default, latest-only, summary-only, and issues."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_test_fixture(Path(td))
+
+            # Default
+            out, err, code = self._run_cmd(root, ["runs"], ["--json"])
+            self.assertEqual(code, 0)
+            data = json.loads(out)
+            self.assertIn("runs", data)
+            self.assertEqual(len(data["runs"]), 2)
+
+            # Latest-only
+            out, err, code = self._run_cmd(root, ["runs"], ["--latest-only", "--json"])
+            self.assertEqual(code, 0)
+            data = json.loads(out)
+            self.assertIn("runs", data)
+            self.assertIn("steps", data)
+            self.assertEqual(len(data["steps"]), 2)
+
+            # Summary-only
+            out, err, code = self._run_cmd(root, ["runs"], ["--summary-only", "--json"])
+            self.assertEqual(code, 0)
+            data = json.loads(out)
+            self.assertIn("summary", data)
+
+            # Issues
+            out, err, code = self._run_cmd(root, ["runs"], ["--issues", "--json"])
+            self.assertEqual(code, 0)
+            data = json.loads(out)
+            self.assertIn("artifact_discrepancies", data)
+            self.assertEqual(len(data["artifact_discrepancies"]), 2)
+
+    def test_f_e06_json_repo_relative_actual_path_and_collisions_serialization(
+        self,
+    ) -> None:
+        """Item (f): repo-relative actual_path and non-empty collisions list serializing under --json."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_test_fixture(Path(td))
+            out, err, code = self._run_cmd(root, ["runs"], ["--issues", "--json"])
+            self.assertEqual(code, 0)
+            data = json.loads(out)
+            disc = data["artifact_discrepancies"][0]
+            self.assertEqual(
+                disc["actual_path"],
+                ".aw/records/plans/pending/20260829-test-01-item01.ipd.md",
+            )
+            self.assertFalse(disc["actual_path"].startswith("/"))
+
+        # Collisions case
+        with tempfile.TemporaryDirectory() as td_coll:
+            root_coll = self._build_test_fixture(Path(td_coll), collision=True)
+            out, err, code = self._run_cmd(root_coll, ["runs"], ["--issues", "--json"])
+            self.assertEqual(code, 0, out + err)
+            data = json.loads(out)
+            disc = data["artifact_discrepancies"][0]
+            self.assertEqual(len(disc["collisions"]), 2)
+            for c in disc["collisions"]:
+                self.assertIsInstance(c, str)
+                self.assertFalse(c.startswith("/"))
+                self.assertTrue(c.startswith(".aw/records/plans/pending/"))

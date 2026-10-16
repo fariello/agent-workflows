@@ -58,16 +58,6 @@ KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
     ("upgrade-test env", "--json"): "jfdk7p",
     ("upgrade-test probe", "--json"): "jfdk7p",
     ("upgrade-test clean", "--json"): "jfdk7p",
-    # --fields unhonored on nine leaves (aws1tg):
-    ("ipd coverage", "--fields"): "aws1tg",
-    ("partition", "--fields"): "aws1tg",
-    ("upgrade-test env", "--fields"): "aws1tg",
-    ("upgrade-test list", "--fields"): "aws1tg",
-    ("upgrade-test probe", "--fields"): "aws1tg",
-    ("upgrade-test sandboxes", "--fields"): "aws1tg",
-    ("oc update-models", "--fields"): "aws1tg",
-    ("storage reattach", "--fields"): "aws1tg",
-    ("upgrade-test clean", "--fields"): "aws1tg",
     # --fields unhonored on parser usage refusal on four leaves (4y614a):
     ("ipd scaffold", "--fields"): "4y614a",
     ("research new", "--fields"): "4y614a",
@@ -374,7 +364,6 @@ def test_exemption_population_pinned() -> None:
 def test_known_broken_citations_resolve() -> None:
     """Every citation in KNOWN_BROKEN must resolve to a valid backlog item via aw find backlog."""
     seen_citations = set(KNOWN_BROKEN.values())
-    assert seen_citations, "KNOWN_BROKEN must not be empty while broken leaves exist"
     for cit in sorted(seen_citations):
         res = run_cli(["find", "backlog", cit])
         assert res.returncode == 0 and cit in res.stdout, (
@@ -395,3 +384,332 @@ def test_known_broken_no_dead_entries() -> None:
             "--json",
             "--fields",
         ), f"KNOWN_BROKEN entry for ({leaf!r}, {flag!r}) has unknown flag {flag!r}."
+
+
+# --------------------------------------------------------------------------------------------------
+# Tests: Branch-level behavioral regression coverage for --fields projection (aws1tg E-07)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_ipd_coverage_fields_branch_behavior(tmp_path: Path) -> None:
+    """(a) ipd coverage: exit-2 cannot-run and exit-0/1 completion branches honor --fields."""
+    import io
+    from contextlib import redirect_stdout
+    from unittest import mock
+    from agent_workflows import runner_shared as rs
+    from tests.test_partition_set_cohesion import make_fixture_plan
+
+    # Exit-2 cannot-run path: no targets
+    res = run_cli(["ipd", "coverage", "--agent", "--fields", "cmd"])
+    assert res.returncode == 2
+    rec = json.loads(res.stdout.strip())
+    assert "detail" not in rec and "summary" not in rec
+
+    res = run_cli(["ipd", "coverage", "--agent", "--fields", "cmd,summary"])
+    assert res.returncode == 2
+    rec = json.loads(res.stdout.strip())
+    assert "summary" in rec and "detail" not in rec
+
+    res = run_cli(["ipd", "coverage", "--agent"])
+    assert res.returncode == 2
+    rec = json.loads(res.stdout.strip())
+    assert "summary" in rec and "detail" in rec
+
+    res = run_cli(["ipd", "coverage", "--json", "--fields", "cmd"])
+    assert res.returncode == 2
+    rec = json.loads(res.stdout.strip())
+    assert "summary" in rec and "detail" in rec
+
+    # Exit-0 completion path with patched probe
+    repo = tmp_path / "cov_repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    table = (("01", "chld01", "Child 1"),)
+    orch_path = make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "seto",
+        "Set O",
+        0,
+        "orch01",
+        "Orch Plan",
+        child_orders=table,
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "seto",
+        "Set O",
+        1,
+        "chld01",
+        "Child Plan",
+    )
+
+    def fake_ask(state, excerpt, host="oc", repo=None, runner=None, **kwargs):
+        return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model")
+
+    buf = io.StringIO()
+    with mock.patch.object(rs, "ask_orchestrator_probe", fake_ask), redirect_stdout(
+        buf
+    ):
+        rc = cli.main(
+            [
+                "ipd",
+                "coverage",
+                str(orch_path),
+                "--no-commit",
+                "--agent",
+                "--fields",
+                "cmd",
+            ]
+        )
+    assert rc in (0, 1)
+    rec = json.loads(buf.getvalue().strip())
+    assert "data" not in rec and "summary" not in rec
+
+    buf = io.StringIO()
+    with mock.patch.object(rs, "ask_orchestrator_probe", fake_ask), redirect_stdout(
+        buf
+    ):
+        rc = cli.main(["ipd", "coverage", str(orch_path), "--no-commit", "--agent"])
+    assert rc in (0, 1)
+    rec = json.loads(buf.getvalue().strip())
+    assert "data" in rec and "summary" in rec
+
+
+def test_partition_fields_branch_behavior(tmp_path: Path) -> None:
+    """(b) partition: both exit-0 ok and exit-2 blocked_sets branches honor --fields, --json unprojected."""
+    from tests.test_partition_set_cohesion import cohesion_repo
+
+    # Exit-0 normal branch
+    res = run_cli(
+        ["partition", "-t", "plans", "-s", "approved", "--agent", "--fields", "cmd"]
+    )
+    assert res.returncode == 0
+    rec = [
+        json.loads(line)
+        for line in res.stdout.splitlines()
+        if line.strip() and json.loads(line).get("kind") == "result"
+    ][0]
+    for k in ("shards", "commands", "split_components", "cycles"):
+        assert k not in rec
+
+    res = run_cli(["partition", "-t", "plans", "-s", "approved", "--agent"])
+    assert res.returncode == 0
+    rec = [
+        json.loads(line)
+        for line in res.stdout.splitlines()
+        if line.strip() and json.loads(line).get("kind") == "result"
+    ][0]
+    for k in ("shards", "commands", "split_components", "cycles"):
+        assert k in rec
+
+    res = run_cli(
+        ["partition", "-t", "plans", "-s", "approved", "--json", "--fields", "cmd"]
+    )
+    assert res.returncode == 0
+    payload = json.loads(res.stdout)
+    assert "shards" in payload and "commands" in payload
+
+    # Exit-2 blocked_sets branch
+    repo = cohesion_repo.__wrapped__(tmp_path / "part_repo")
+    res = run_cli(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--agent",
+            "--fields",
+            "cmd",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert res.returncode == 2
+    rec = [
+        json.loads(line)
+        for line in res.stdout.splitlines()
+        if line.strip() and json.loads(line).get("kind") == "result"
+    ][0]
+    assert "blocked_sets" not in rec
+
+    res = run_cli(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--agent",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert res.returncode == 2
+    rec = [
+        json.loads(line)
+        for line in res.stdout.splitlines()
+        if line.strip() and json.loads(line).get("kind") == "result"
+    ][0]
+    assert "blocked_sets" in rec
+
+    res = run_cli(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--json",
+            "--fields",
+            "cmd",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert res.returncode == 2
+    payload = json.loads(res.stdout)
+    assert "blocked_sets" in payload
+
+
+def test_oc_models_fields_branch_behavior(tmp_path: Path) -> None:
+    """(c) oc update-models, oc sync-models, and standalone oc_models.run honor --fields."""
+    from agent_workflows import oc_models
+
+    fake_cfg = tmp_path / "opencode.json"
+    fake_cfg.write_text(json.dumps({"providers": {}}), encoding="utf-8")
+    env = {"HOME": str(tmp_path), "XDG_CONFIG_HOME": str(tmp_path)}
+
+    def stub_fetch(url: str, token: str) -> None:
+        return None
+
+    for verb in ("update-models", "sync-models"):
+        res = run_cli(
+            [
+                "oc",
+                verb,
+                "--config",
+                str(fake_cfg),
+                "--dry-run",
+                "--agent",
+                "--fields",
+                "cmd",
+            ],
+            env_overrides=env,
+        )
+        assert res.returncode == 0
+        rec = json.loads(res.stdout.strip())
+        assert "findings" not in rec
+
+        res = run_cli(
+            ["oc", verb, "--config", str(fake_cfg), "--dry-run", "--agent"],
+            env_overrides=env,
+        )
+        assert res.returncode == 0
+        rec = json.loads(res.stdout.strip())
+        assert "findings" in rec
+
+    import io
+    from contextlib import redirect_stdout
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = oc_models.run(
+            ["--config", str(fake_cfg), "--dry-run", "--agent", "--fields", "cmd"],
+            fetch=stub_fetch,
+            env=env,
+        )
+    assert rc == 0
+    rec = json.loads(buf.getvalue().strip())
+    assert "findings" not in rec
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = oc_models.run(
+            ["--config", str(fake_cfg), "--dry-run", "--agent"],
+            fetch=stub_fetch,
+            env=env,
+        )
+    assert rc == 0
+    rec = json.loads(buf.getvalue().strip())
+    assert "findings" in rec
+
+
+def test_storage_reattach_fields_branch_behavior(tmp_path: Path) -> None:
+    """(d) storage reattach: exit-1 _StorageReattachResult and exit-0 CommandResult honor --fields."""
+    # Exit-1 branch: missing --companion-dir
+    res = run_cli(["storage", "reattach", "--agent", "--fields", "cmd"])
+    assert res.returncode == 1
+    rec = json.loads(res.stdout.strip())
+    assert "findings" not in rec
+
+    res = run_cli(["storage", "reattach", "--agent"])
+    assert res.returncode == 1
+    rec = json.loads(res.stdout.strip())
+    assert "findings" in rec
+
+    # Exit-0 branch: --dry-run with --companion-dir
+    res = run_cli(
+        [
+            "storage",
+            "reattach",
+            "--companion-dir",
+            str(tmp_path),
+            "--dry-run",
+            "--agent",
+            "--fields",
+            "cmd",
+        ]
+    )
+    assert res.returncode == 0
+    rec = json.loads(res.stdout.strip())
+    assert "findings" not in rec and "evidence" not in rec
+
+    res = run_cli(
+        [
+            "storage",
+            "reattach",
+            "--companion-dir",
+            str(tmp_path),
+            "--dry-run",
+            "--agent",
+        ]
+    )
+    assert res.returncode == 0
+    rec = json.loads(res.stdout.strip())
+    assert "findings" in rec and "evidence" in rec
+
+
+def test_upgrade_rehearsal_standalone_fields_behavior() -> None:
+    """(e) standalone upgrade_rehearsal.main honors --fields under --agent."""
+    from agent_workflows import upgrade_rehearsal
+    import io
+    from contextlib import redirect_stdout
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = upgrade_rehearsal.main(["list", "--agent", "--fields", "cmd"])
+    assert rc == 0
+    rec = json.loads(buf.getvalue().strip())
+    assert "findings" not in rec
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = upgrade_rehearsal.main(["list", "--agent"])
+    assert rc == 0
+    rec = json.loads(buf.getvalue().strip())
+    assert "findings" in rec

@@ -211,8 +211,9 @@ class Palette:
 
     TWO AXES, ONE FLAG. ``__call__`` emits this module's own EVENT/severity colors from
     :data:`_ANSI_CODES`; :meth:`status` and :meth:`lifecycle` emit LIFECYCLE styling resolved
-    through the shared module. Both honor the single ``enabled`` decision the caller supplied, so
-    `NO_COLOR`, a pipe and `TERM=dumb` stay escape-free on both axes (criterion A11).
+    through the shared module. Both honor the single ``enabled`` decision the caller supplied,
+    and both honor the resolved color depth tier, so pin 'none', `NO_COLOR`, a pipe and
+    `TERM=dumb` stay escape-free on both axes (criterion A11).
     """
 
     def __init__(self, enabled: bool, *, use_unicode: bool = True) -> None:
@@ -222,6 +223,8 @@ class Palette:
 
     def __call__(self, text: str, *styles: str) -> str:
         if not self.enabled or not styles:
+            return text
+        if self.lifecycle_term().lifecycle_depth() == _T.DEPTH_NONE:
             return text
         codes = ";".join(_ANSI_CODES[s] for s in styles if s in _ANSI_CODES)
         if not codes:
@@ -1342,6 +1345,47 @@ def format_runner_name(runner: str) -> str:
     return r
 
 
+def _effective_color_depth(
+    color: bool, *, pal: Palette | None = None, depth: str | None = None
+) -> str:
+    """Return effective color depth tier based on color flag, palette, and optional depth."""
+    if not color:
+        return _T.DEPTH_NONE
+    if depth in _T.COLOR_DEPTHS:
+        return depth
+    if pal is not None:
+        return pal.lifecycle_term().lifecycle_depth()
+    return _T.resolve_color_depth(override=True)
+
+
+def _sgr256(code: int, *, bold: bool = False, depth: str = _T.DEPTH_256) -> str:
+    """Format 256-color foreground SGR escape honoring depth."""
+    if depth == _T.DEPTH_NONE:
+        return ""
+    prefix = "1;" if bold else ""
+    if depth == _T.DEPTH_16:
+        return f"\033[{prefix}{_T.color_16_for_index(code)}m"
+    return f"\033[{prefix}38;5;{code}m"
+
+
+def _sgr_bg256(code: int, *, depth: str = _T.DEPTH_256) -> str:
+    """Format 256-color background SGR escape honoring depth."""
+    if depth == _T.DEPTH_NONE:
+        return ""
+    if depth == _T.DEPTH_16:
+        return f"\033[{_T.color_16_for_index(code) + 10}m"
+    return f"\033[48;5;{code}m"
+
+
+def _sgr_dark_fg(depth: str = _T.DEPTH_256) -> str:
+    """Format dark foreground text SGR escape for pill badges honoring depth."""
+    if depth == _T.DEPTH_NONE:
+        return ""
+    if depth == _T.DEPTH_16:
+        return "\033[1;30m"
+    return "\033[38;5;16;1m"
+
+
 def make_badge(
     runner: str,
     model: str,
@@ -1349,12 +1393,17 @@ def make_badge(
     divider_style: str = "chevron",
     use_unicode: bool = True,
     color: bool = True,
+    *,
+    depth: str | None = None,
 ) -> tuple[str, str]:
     """Generate badge for statusbar top border with specified divider style.
 
     Supported divider styles: 'chevron' (default), 'dot', 'slash', 'colon', 'bullet'.
     Returns (colored_badge, plain_badge).
     """
+    tier = _effective_color_depth(color, depth=depth)
+    styled = tier != _T.DEPTH_NONE
+
     r_name = format_runner_name(runner)
     if use_unicode:
         div_map = {
@@ -1374,17 +1423,19 @@ def make_badge(
         }
     p_div = div_map.get(divider_style, div_map["chevron"])
 
-    c_runner = "\033[1;38;5;51m"
-    c_model = "\033[1;38;5;215m"
-    c_variant = "\033[1;38;5;183m"
-    c_bdr = "\033[38;5;67m"
-
     v_str = f" ({variant})" if variant else ""
-    c_v_str = f" {c_variant}({variant}){c_bdr}" if variant else ""
-
     plain = f" {r_name}{p_div}{model}{v_str} "
+    if not styled:
+        return plain, plain
+
+    c_runner = _sgr256(51, bold=True, depth=tier)
+    c_model = _sgr256(215, bold=True, depth=tier)
+    c_variant = _sgr256(183, bold=True, depth=tier)
+    c_bdr = _sgr256(67, depth=tier)
+
+    c_v_str = f" {c_variant}({variant}){c_bdr}" if variant else ""
     colored = f" {c_runner}{r_name}{c_bdr}{p_div}{c_model}{model}{c_bdr}{c_v_str} "
-    return (colored if color else plain), plain
+    return colored, plain
 
 
 def format_stop_badge(
@@ -1392,6 +1443,7 @@ def format_stop_badge(
     *,
     use_unicode: bool = True,
     color: bool = True,
+    depth: str | None = None,
 ) -> tuple[str, str]:
     """Return (colored_badge, plain_badge) for the statusline bottom-right border.
 
@@ -1405,56 +1457,59 @@ def format_stop_badge(
     ):
         return "", ""
 
+    tier = _effective_color_depth(color, depth=depth)
+    styled = tier != _T.DEPTH_NONE
+
     if isinstance(stop_level, int):
         level_map = {1: "after-call", 2: "after-set", 3: "now", 4: "now-force"}
         level_name = level_map.get(stop_level, "after-call")
     else:
         level_name = str(stop_level).strip().lower()
 
-    b_on = "\033[1m"
-    reset = _ANSI_RESET
+    b_on = "\033[1m" if styled else ""
+    reset = _ANSI_RESET if styled else ""
 
     if level_name in ("after-call", "1"):
         desc = "finish current"
         prefix = "STOP:"
-        bg_col = "\033[48;5;214m"
-        fg_col = "\033[38;5;214m"
-        lvl_color = "\033[1;38;5;208m"
+        bg_col = _sgr_bg256(214, depth=tier)
+        fg_col = _sgr256(214, depth=tier)
+        lvl_color = _sgr256(208, bold=True, depth=tier)
     elif level_name in ("after-set", "2"):
         desc = "finish set"
         prefix = "STOP-SET:"
-        bg_col = "\033[48;5;214m"
-        fg_col = "\033[38;5;214m"
-        lvl_color = "\033[1;38;5;208m"
+        bg_col = _sgr_bg256(214, depth=tier)
+        fg_col = _sgr256(214, depth=tier)
+        lvl_color = _sgr256(208, bold=True, depth=tier)
     elif level_name in ("now", "3"):
         desc = "checkpoint"
         prefix = "STOP NOW:"
-        bg_col = "\033[48;5;196m"
-        fg_col = "\033[38;5;196m"
-        lvl_color = "\033[1;31m"
+        bg_col = _sgr_bg256(196, depth=tier)
+        fg_col = _sgr256(196, depth=tier)
+        lvl_color = "\033[1;31m" if styled else ""
     elif level_name in ("now-force", "4"):
         desc = "force stop"
         prefix = "FORCE STOP:"
-        bg_col = "\033[48;5;196m"
-        fg_col = "\033[38;5;196m"
-        lvl_color = "\033[1;31m"
+        bg_col = _sgr_bg256(196, depth=tier)
+        fg_col = _sgr256(196, depth=tier)
+        lvl_color = "\033[1;31m" if styled else ""
     else:
         desc = "requested"
         prefix = "STOP:"
-        bg_col = "\033[48;5;214m"
-        fg_col = "\033[38;5;214m"
-        lvl_color = "\033[1;38;5;208m"
+        bg_col = _sgr_bg256(214, depth=tier)
+        fg_col = _sgr256(214, depth=tier)
+        lvl_color = _sgr256(208, bold=True, depth=tier)
 
     if use_unicode:
         plain = f" ⏹ {prefix} {desc} "
-        if color:
-            fg_dark = "\033[38;5;16;1m"
+        if styled:
+            fg_dark = _sgr_dark_fg(depth=tier)
             colored = f"{fg_col}{bg_col}{fg_dark} ⏹ {prefix} {desc} {reset}{fg_col}"
         else:
             colored = plain
     else:
         plain = f"[{prefix} {desc}]"
-        if color:
+        if styled:
             colored = f"{lvl_color}[{b_on}{prefix}{reset}{lvl_color} {desc}]{reset}"
         else:
             colored = plain
@@ -1468,22 +1523,29 @@ def format_tally_badge(
     *,
     use_unicode: bool = True,
     color: bool = True,
+    depth: str | None = None,
 ) -> tuple[str, str]:
     """Return (colored_badge, plain_badge) for the statusline progress column border."""
-    c_ok = "\033[1;38;5;78m"
-    c_fail = "\033[1;31m" if failed > 0 else "\033[38;5;244m"
-    bdr_color = "\033[38;5;67m"
-    reset = _ANSI_RESET
+    tier = _effective_color_depth(color, depth=depth)
+    styled = tier != _T.DEPTH_NONE
+
+    c_ok = _sgr256(78, bold=True, depth=tier) if styled else ""
+    if styled:
+        c_fail = "\033[1;31m" if failed > 0 else _sgr256(244, depth=tier)
+    else:
+        c_fail = ""
+    bdr_color = _sgr256(67, depth=tier) if styled else ""
+    reset = _ANSI_RESET if styled else ""
 
     if use_unicode:
         plain = f"[✓ {passed} ok · ✗ {failed} fail]"
-        if color:
+        if styled:
             colored = f"{bdr_color}[{c_ok}✓ {passed} ok{bdr_color} · {c_fail}✗ {failed} fail{bdr_color}]{reset}"
         else:
             colored = plain
     else:
         plain = f"[{passed} ok, {failed} fail]"
-        if color:
+        if styled:
             colored = f"{bdr_color}[{c_ok}{passed} ok{bdr_color}, {c_fail}{failed} fail{bdr_color}]{reset}"
         else:
             colored = plain
@@ -1575,7 +1637,8 @@ def format_statusline_lines(
     │Elapsed:01:30:41 │ Last:   00:00 (out) │ 8/8[████████████████████]100% │   IPD   │ $0.00 │ 29.3m  1.4m   197k  27.7m  │
     ╰─[✓ 6 ok · ✗ 2 fail]───────────────────┴─run-20261014T004917Z-3785780──┴─────────┴───────┴─ ⏹ STOP: finish current ─╯
     """
-    color_enabled = pal is not None and pal.enabled
+    tier = _effective_color_depth(pal is not None and pal.enabled, pal=pal)
+    color_enabled = tier != _T.DEPTH_NONE
     t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
 
     # Col 0: Time & Elapsed
@@ -1706,7 +1769,7 @@ def format_statusline_lines(
 
     # Bottom-Right Stop Badge visible width check (expand col5_w if badge exceeds 26 chars):
     colored_stop, plain_stop = format_stop_badge(
-        stop_level, use_unicode=use_unicode, color=color_enabled
+        stop_level, use_unicode=use_unicode, color=color_enabled, depth=tier
     )
     s_vis = _T.visible_width(plain_stop)
     if s_vis > 0:
@@ -1740,8 +1803,8 @@ def format_statusline_lines(
         c_bl, c_bm, c_br = "+", "+", "+"
         c_v, c_h = "|", "-"
 
-    bdr_color = "\033[38;5;67m"
-    reset = _ANSI_RESET
+    bdr_color = _sgr256(67, depth=tier) if color_enabled else ""
+    reset = _ANSI_RESET if color_enabled else ""
 
     # -------------------------------------------------------------------------
     # TOP BORDER:
@@ -1755,6 +1818,7 @@ def format_statusline_lines(
             divider_style=divider_style,
             use_unicode=use_unicode,
             color=color_enabled,
+            depth=tier,
         )
         b_vis = _T.visible_width(plain_badge)
         if b_vis > span01 - 2:
@@ -1777,9 +1841,9 @@ def format_statusline_lines(
         if use_unicode:
             plain_cwd = f" {display_cwd} "
             if color_enabled:
-                bg_frame = "\033[48;5;67m"
-                fg_frame = "\033[38;5;67m"
-                fg_dark = "\033[38;5;16;1m"
+                bg_frame = _sgr_bg256(67, depth=tier)
+                fg_frame = _sgr256(67, depth=tier)
+                fg_dark = _sgr_dark_fg(depth=tier)
                 badge_cwd_color = f"{fg_frame}{bg_frame}{fg_dark} {display_cwd} {reset}{fg_frame}{bdr_color}"
             else:
                 badge_cwd_color = plain_cwd
@@ -1817,7 +1881,7 @@ def format_statusline_lines(
         p_num = items_passed or 0
         f_num = items_failed or 0
         colored_tally, plain_tally = format_tally_badge(
-            p_num, f_num, use_unicode=use_unicode, color=color_enabled
+            p_num, f_num, use_unicode=use_unicode, color=color_enabled, depth=tier
         )
         vis_tally = _T.visible_width(plain_tally)
         rem_bot01 = max(0, span01 - 1 - vis_tally)
@@ -1838,7 +1902,7 @@ def format_statusline_lines(
         pad_run = col2_w - vis_run
         pad_run_l = 1
         pad_run_r = max(0, pad_run - pad_run_l)
-        c_dim_run = "\033[38;5;244m"
+        c_dim_run = _sgr256(244, depth=tier) if color_enabled else ""
         bot_seg2_plain = f"{c_h * pad_run_l}{display_run}{c_h * pad_run_r}"
         bot_seg2_color = (
             f"{c_h * pad_run_l}{c_dim_run}{display_run}{bdr_color}{c_h * pad_run_r}"
@@ -1883,16 +1947,16 @@ def format_statusline_lines(
         return top_border_plain, l1_plain, l2_plain, bot_border_plain
 
     # Colorized 256-color palette styling:
-    b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
-    b_clock = "\033[1;38;5;123m"  # pale bright cyan
-    b_bar = "\033[1;38;5;78m"  # light emerald green
-    b_target = "\033[1;38;5;229m"  # soft cream/yellow
-    b_cost = "\033[1;38;5;114m"  # light green
-    b_warn = "\033[1;38;5;208m"  # warm amber/orange for countdown
+    b_blue = _sgr256(117, bold=True, depth=tier)  # soft bold sky light blue
+    b_clock = _sgr256(123, bold=True, depth=tier)  # pale bright cyan
+    b_bar = _sgr256(78, bold=True, depth=tier)  # light emerald green
+    b_target = _sgr256(229, bold=True, depth=tier)  # soft cream/yellow
+    b_cost = _sgr256(114, bold=True, depth=tier)  # light green
+    b_warn = _sgr256(208, bold=True, depth=tier)  # warm amber/orange for countdown
     b_crit = "\033[1;31m"  # red for urgent timeout
-    c_variant_color = "\033[1;38;5;183m"  # soft lavender
-    c_data = "\033[38;5;153m"  # soft light slate for tokens
-    dim_hdr = "\033[38;5;110m"  # soft muted slate blue for headers
+    c_variant_color = _sgr256(183, bold=True, depth=tier)  # soft lavender
+    c_data = _sgr256(153, depth=tier)  # soft light slate for tokens
+    dim_hdr = _sgr256(110, depth=tier)  # soft muted slate blue for headers
 
     c_h0 = f"{dim_hdr}Time:   {b_clock}{t_str}{reset} {' ' * pad_h0}"
     c_v0 = f"{dim_hdr}Elapsed:{b_blue}{run_el_str}{reset} {' ' * pad_v0}"
@@ -3983,8 +4047,8 @@ def render_run_summary_table(
     # closes the deterministic zero-width half only. See term.visible_width for rationale.
     if pal is None:
         pal = Palette(True)
-    color = pal.enabled
     pal_term = pal.lifecycle_term()
+    color = pal.enabled and pal_term.lifecycle_depth() != _T.DEPTH_NONE
     glyph_term = _T.Term(
         color=color, unicode=use_unicode, depth=pal_term.lifecycle_depth()
     )
@@ -4337,6 +4401,9 @@ def render_run_summary_table(
     c_reset = "\033[0m" if color else ""
 
     # ys1dor E-02: THE STRANDED BRANCH IS EXPLICIT, AND DELIBERATELY FIRST AFTER `COMPLETED`.
+    # 5apgyn E-01: BLOCKED is styled through the shared lifecycle resolver (orange 208, depth-aware,
+    # unbolded). Only QUEUED (and exit_reason passthrough strings matching no earlier branch) reaches
+    # the c_cyan fallback.
     #
     # This selection is a set of SUBSTRING tests whose ELSE-BRANCH IS CYAN, not an obviously-wrong
     # color, so an unhandled outcome word looks deliberate while being wrong - exactly the miss class
@@ -4361,6 +4428,15 @@ def render_run_summary_table(
             )
         )
     )
+    if outcome_str == "BLOCKED":
+        blocked_resolved = _LS.Resolved(
+            stage=_LS.BLOCKED,
+            style=_LS.style_for(_LS.BLOCKED),
+            family=_LS.FAMILY_RUNNER_ITEM,
+        )
+        outcome_display = pal.lifecycle(blocked_resolved, outcome_str, bold=False)
+    else:
+        outcome_display = f"{outcome_color}{outcome_str}{c_reset}"
 
     # runorder (prpipy) E-05: `Run` is the execution sequence, `Pos` the frozen identity. The old
     # single `#` column showed `position` and a reader inevitably read it as sequence.
@@ -4501,7 +4577,7 @@ def render_run_summary_table(
     restarts_cnt = state.get("driver_restarts", 0)
     restarts_str = f"   Restarts: {restarts_cnt}" if restarts_cnt > 0 else ""
     b_line1 = (
-        f"Outcome: {outcome_color}{outcome_str}{c_reset}{restarts_str}   "
+        f"Outcome: {outcome_display}{restarts_str}   "
         f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
         f"Spend: {c_green}{tot_cost_str}{c_reset}   "
         f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"

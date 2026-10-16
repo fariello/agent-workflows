@@ -725,6 +725,12 @@ def run_coverage(
     from agent_workflows.result_types import select_output
 
     ctx = context or select_output(args)
+
+    def _emit_machine(rec: dict[str, Any]) -> None:
+        if ctx.is_agent and ctx.fields:
+            rec = _as.filter_record_fields(rec, ctx.fields)
+        print(_as.render_jsonl_record(rec), end="")
+
     cwd = Path.cwd()
     repo_root: Path | None = None
     for anc in [cwd] + list(cwd.parents):
@@ -747,7 +753,7 @@ def run_coverage(
                 "summary": err_msg,
                 "detail": err_msg,
             }
-            print(_as.render_jsonl_record(rec), end="")
+            _emit_machine(rec)
             return 2
         print(f"error: {err_msg}")
         return 2
@@ -766,7 +772,7 @@ def run_coverage(
                 "summary": err_msg,
                 "detail": err_msg,
             }
-            print(_as.render_jsonl_record(rec), end="")
+            _emit_machine(rec)
             return 2
         print(f"error: {err_msg}")
         return 2
@@ -827,7 +833,7 @@ def run_coverage(
                 "summary": err_msg,
                 "detail": err_msg,
             }
-            print(_as.render_jsonl_record(rec), end="")
+            _emit_machine(rec)
             return 2
         print(f"error: {err_msg}")
         return 2
@@ -859,7 +865,7 @@ def run_coverage(
                 "summary": err_msg,
                 "detail": err_msg,
             }
-            print(_as.render_jsonl_record(rec), end="")
+            _emit_machine(rec)
             return 2
         print(f"error: {err_msg}")
         return 2
@@ -947,7 +953,7 @@ def run_coverage(
             "summary": summary,
             "data": data_block,
         }
-        print(_as.render_jsonl_record(rec), end="")
+        _emit_machine(rec)
         return exit_code
 
     # Human rendering

@@ -12458,8 +12458,13 @@ def _run_storage_reattach(
                         "findings": 0,
                         "next": None,
                     }
-                    from agent_workflows.agent_schema import assert_valid_agent_record
+                    from agent_workflows.agent_schema import (
+                        assert_valid_agent_record,
+                        filter_record_fields,
+                    )
 
+                    if context is not None and context.fields:
+                        rec = filter_record_fields(rec, context.fields)
                     assert_valid_agent_record(rec)
                     return rec
 
@@ -17941,7 +17946,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if storage_cmd == "move":
             return _run_storage_move(args, term)
         if storage_cmd == "reattach":
-            return _run_storage_reattach(args, term)
+            return _run_storage_reattach(args, term, context=context)
         if storage_cmd == "preflight":
             return _run_storage_preflight(args, term)
         return _show_family_help(parser, "storage", "aw storage status", term, context)
@@ -18438,7 +18443,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 forwarded.append("--json")
             if getattr(args, "no_color", False):
                 forwarded.append("--no-color")
-            return oc_models.run(forwarded)
+            if getattr(args, "fields", None):
+                forwarded += ["--fields", str(args.fields)]
+            return oc_models.run(forwarded, context=context)
         # runprofile Order 02 (p0l1to) E-03: the profile verbs. Structured flags, so dispatched from
         # the parsed namespace (like `update-models`) rather than forwarded as REMAINDER.
         if oc_cmd in ("profile", "profiles"):
@@ -18565,6 +18572,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     exit_code=2,
                     status="cannot-run",
                     summary=str(exc),
+                    args=args,
                 )
             print(f"error: {exc}", file=sys.stderr)
             return 2

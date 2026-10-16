@@ -3,18 +3,36 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict
 
+from agent_workflows import attention, cli, engine, storage
+from agent_workflows.clean_delta import CleanDeltaManager, UnsupportedHostError
+from agent_workflows.layout_migration import (
+    CleanupError,
+    MigrationError,
+    MigrationManager,
+    PreflightGateError,
+    StaleInputError,
+    SwitchError,
+    TransactionLockError,
+    VerificationError,
+)
+from agent_workflows.project_schema import DurabilityState
+from agent_workflows.record_producers import resolve_record_routing
 
-TOOLS_DIR = Path(__file__).resolve().parent
+
+TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools" / "awphysical"
 
 
 def load_tool(name: str) -> ModuleType:
@@ -499,8 +517,7 @@ class InventoryTests(unittest.TestCase):
     def test_e01(self) -> None:
         """E-01: Closed legacy-source catalog discovery and unknown owner blocking."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -549,8 +566,7 @@ class InventoryTests(unittest.TestCase):
     def test_e02(self) -> None:
         """E-02: Content-stable inventory output and Git state classification."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -587,8 +603,7 @@ class InventoryTests(unittest.TestCase):
     def test_e03(self) -> None:
         """E-03: Content-aware classification and relative identity preservation."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -616,8 +631,7 @@ class InventoryTests(unittest.TestCase):
     def test_e04(self) -> None:
         """E-04: Source-to-destination map generation and explicit collision handling."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -648,8 +662,7 @@ class InventoryTests(unittest.TestCase):
     def test_e05(self) -> None:
         """E-05: Preflight risk analysis for blocking rules."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -675,8 +688,7 @@ class InventoryTests(unittest.TestCase):
     def test_e06(self) -> None:
         """E-06: Human and JSON CLI surfaces with no-write proof."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -706,8 +718,7 @@ class InventoryTests(unittest.TestCase):
     def test_e07(self) -> None:
         """E-07: Closed matrix of expected vs actual items and set mismatch blocking."""
         fx = (
-            Path(__file__).resolve().parent.parent.parent
-            / "tests"
+            Path(__file__).resolve().parent
             / "fixtures"
             / "awphysical"
             / "order06"
@@ -1031,6 +1042,534 @@ class ScenarioCatalogTests(unittest.TestCase):
             self.assertTrue(set(row["assertions"]).issubset(tokens), row)
 
 
+class _TTYStringIO(io.StringIO):
+    """StringIO subclass that reports isatty() as True for interactive CLI tests."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+class ScenarioContractBehaviorTests(unittest.TestCase):
+    """Order 01 E-03: Focused behavioral test coverage for the 70 scenario tokens whose
+    prior host modules were removed in commit 19313eed7.
+
+    Tests exercise real agent_workflows APIs and assert observable behavioral outcomes:
+    return values, exceptions, filesystem changes, and git status.
+    """
+
+    def setUp(self) -> None:
+        self._orig_aw_home = os.environ.get("AW_HOME")
+        self._orig_cwd = os.getcwd()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.aw_home = Path(self.temp_dir.name) / "aw_home"
+        self.aw_home.mkdir(parents=True, exist_ok=True)
+        os.environ["AW_HOME"] = str(self.aw_home)
+
+    def tearDown(self) -> None:
+        os.chdir(self._orig_cwd)
+        if self._orig_aw_home is not None:
+            os.environ["AW_HOME"] = self._orig_aw_home
+        else:
+            os.environ.pop("AW_HOME", None)
+        self.temp_dir.cleanup()
+
+    def _make_repo(self, name: str = "repo", origin_bare: bool = False) -> Path:
+        repo = Path(self.temp_dir.name) / name
+        repo.mkdir(parents=True, exist_ok=True)
+        git(repo, "init", "-q")
+        git(repo, "config", "user.email", "tester@example.invalid")
+        git(repo, "config", "user.name", "Tester")
+        git(repo, "config", "commit.gpgsign", "false")
+        if origin_bare:
+            bare = Path(self.temp_dir.name) / f"{name}_origin.git"
+            bare.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", str(bare.parent), "init", "--bare", "-q", bare.name],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            git(repo, "remote", "add", "origin", str(bare))
+        return repo
+
+    def _seed_legacy_repo(self, repo: Path) -> Dict[str, str]:
+        wf_dir = repo / ".agents" / "workflows"
+        wf_dir.mkdir(parents=True, exist_ok=True)
+        idx_content = (
+            "# Workflows\n\n"
+            "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+            "| command | body | description |\n"
+            "| --- | --- | --- |\n"
+            "| sample | sample.md | sample workflow |\n"
+            "<!-- WORKFLOWS-MANIFEST:END -->\n"
+        )
+        (wf_dir / "index.md").write_text(idx_content, encoding="utf-8")
+        (wf_dir / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        plans_dir = repo / ".agents" / "plans" / "pending"
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        (plans_dir / "p.md").write_text("# sample plan\n", encoding="utf-8")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "seed", "-q")
+        return {
+            str(p.relative_to(repo)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in [wf_dir / "index.md", wf_dir / "VERSION", plans_dir / "p.md"]
+        }
+
+    def test_companion_durability_and_remote_acknowledgement(self) -> None:
+        """Tokens: acknowledged-remote, companion-durable, private-destination,
+        private-durable-bundle, durability-action-open, durability-action-or-acknowledgement,
+        explicit-git-init, honest-unversioned-status, local-git-not-durable-private,
+        unversioned-honest-status.
+        """
+        repo = self._make_repo()
+        cfg_file = repo / ".aw" / "config" / "config.json"
+        cfg_file.parent.mkdir(parents=True, exist_ok=True)
+        cfg_file.write_text(
+            json.dumps({"delivery_mode": "tracked", "records_backend": "companion"}),
+            encoding="utf-8",
+        )
+
+        st1 = storage.get_storage_status(repo_path=str(repo), aw_home=str(self.aw_home))
+        self.assertEqual(st1.durability_state, DurabilityState.UNVERSIONED.value)
+
+        st2 = storage.init_records_storage(
+            repo_path=str(repo), aw_home=str(self.aw_home)
+        )
+        self.assertEqual(st2.durability_state, DurabilityState.LOCAL_GIT.value)
+        self.assertNotEqual(
+            st2.durability_state, DurabilityState.ACKNOWLEDGED_DURABLE.value
+        )
+
+        records_path = Path(st2.records_path)
+        bare = Path(self.temp_dir.name) / "records_origin.git"
+        subprocess.run(
+            ["git", "-C", str(bare.parent), "init", "--bare", "-q", bare.name],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        git(records_path, "remote", "add", "origin", str(bare))
+        git(records_path, "config", "user.email", "tester@example.invalid")
+        git(records_path, "config", "user.name", "Tester")
+        git(records_path, "config", "commit.gpgsign", "false")
+        (records_path / "seed.md").write_text("# record\n", encoding="utf-8")
+        git(records_path, "add", "seed.md")
+        git(records_path, "commit", "-m", "init records", "-q")
+        git(records_path, "push", "-u", "origin", "HEAD", "-q")
+
+        st3 = storage.get_storage_status(repo_path=str(repo), aw_home=str(self.aw_home))
+        self.assertEqual(
+            st3.durability_state, DurabilityState.UNACKNOWLEDGED_REMOTE.value
+        )
+        self.assertFalse(st3.remote_acknowledged)
+
+        st4 = storage.acknowledge_remote_durability(
+            repo_path=str(repo), aw_home=str(self.aw_home), acknowledge=True
+        )
+        self.assertTrue(st4.remote_acknowledged)
+        self.assertEqual(
+            st4.durability_state, DurabilityState.ACKNOWLEDGED_DURABLE.value
+        )
+
+    def test_setup_marker_lifecycle_and_dismissal(self) -> None:
+        """Tokens: applicable-actions-only, setup-action-visible-on-status-surfaces,
+        setup-completion-closes-action, dismissal-history-no-resurrection,
+        action-generations-supersede.
+        """
+        repo = self._make_repo()
+        self.assertFalse(attention.setup_needed(repo))
+
+        engine.write_setup_marker(repo)
+        self.assertTrue(attention.setup_needed(repo))
+
+        engine.remove_setup_marker(repo)
+        self.assertFalse(attention.setup_needed(repo))
+
+        engine.write_setup_marker(repo)
+        marker = repo / ".aw" / "setup-repo-needed.md"
+        self.assertTrue(marker.is_file())
+        marker.unlink()
+        self.assertFalse(attention.setup_needed(repo))
+        self.assertFalse(marker.exists())
+
+        engine.write_setup_marker(repo)
+        self.assertTrue(attention.setup_needed(repo))
+
+    def test_clean_delta_and_external_record_routing(self) -> None:
+        """Tokens: no-candid-public-delta, public-system-only, host-support-evidence,
+        no-target-write, zero-target-delta, explicit-fallback-not-called-clean,
+        honest-unsupported-result.
+        """
+        repo = self._make_repo()
+        mgr = CleanDeltaManager(str(repo), aw_home=str(self.aw_home))
+        skills_dir = Path(self.temp_dir.name) / "skills"
+        res = mgr.install_clean_delta(
+            "opencode", "1.0.0", user_skills_dir=str(skills_dir)
+        )
+        self.assertEqual(res["target_writes"], 0)
+        skill_file = skills_dir / "agent-workflows" / "SKILL.md"
+        self.assertTrue(skill_file.is_file())
+
+        unsupported_skills = Path(self.temp_dir.name) / "unsupported_skills"
+        with self.assertRaises(UnsupportedHostError):
+            mgr.install_clean_delta(
+                "no-such-host", "0", user_skills_dir=str(unsupported_skills)
+            )
+        self.assertFalse(unsupported_skills.exists())
+
+        cfg_file = repo / ".aw" / "config" / "config.json"
+        cfg_file.parent.mkdir(parents=True, exist_ok=True)
+        cfg_file.write_text(
+            json.dumps({"delivery_mode": "tracked", "records_backend": "home"}),
+            encoding="utf-8",
+        )
+        routing = resolve_record_routing(
+            target_repo=str(repo), aw_home=str(self.aw_home)
+        )
+        self.assertFalse(Path(routing.records_root).is_relative_to(repo))
+        self.assertFalse(routing.allow_git_stage)
+        self.assertIsNone(routing.commit_destination)
+
+    def test_conservative_uninstall_preserves_config_state_and_external_records(
+        self,
+    ) -> None:
+        """Tokens: external-bytes-untouched, external-config-state-records,
+        external-repo-never-deleted, external-runtime, external-system,
+        config-state-records-preserved.
+        """
+        repo = self._make_repo()
+        aw_dir = repo / ".aw"
+        (aw_dir / "system").mkdir(parents=True, exist_ok=True)
+        (aw_dir / "system" / "manifest.json").write_text("{}", encoding="utf-8")
+        (aw_dir / "config").mkdir(parents=True, exist_ok=True)
+        (aw_dir / "config" / "policy.json").write_text("{}", encoding="utf-8")
+        (aw_dir / "state").mkdir(parents=True, exist_ok=True)
+        (aw_dir / "state" / "run.json").write_text("{}", encoding="utf-8")
+        (aw_dir / "records").mkdir(parents=True, exist_ok=True)
+        (aw_dir / "records" / "sample.md").write_text("# record\n", encoding="utf-8")
+
+        ext_records = self.aw_home / "projects" / "ext" / "records" / "ext.md"
+        ext_records.parent.mkdir(parents=True, exist_ok=True)
+        ext_records.write_text("# ext record\n", encoding="utf-8")
+        ext_runtime = self.aw_home / "runtime" / "ext_run.json"
+        ext_runtime.parent.mkdir(parents=True, exist_ok=True)
+        ext_runtime.write_text('{"run": true}\n', encoding="utf-8")
+
+        ext_hashes_before = {
+            str(ext_records): hashlib.sha256(ext_records.read_bytes()).hexdigest(),
+            str(ext_runtime): hashlib.sha256(ext_runtime.read_bytes()).hexdigest(),
+        }
+
+        mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+        res = mgr.uninstall_layout(preserve_records=True, deep_remove_records=False)
+        self.assertEqual(res["status"], "uninstalled")
+        self.assertFalse((aw_dir / "system").exists())
+        self.assertTrue((aw_dir / "config").exists())
+        self.assertTrue((aw_dir / "state").exists())
+        self.assertTrue((aw_dir / "records" / "sample.md").is_file())
+
+        ext_hashes_after = {
+            str(ext_records): hashlib.sha256(ext_records.read_bytes()).hexdigest()
+            if ext_records.exists()
+            else None,
+            str(ext_runtime): hashlib.sha256(ext_runtime.read_bytes()).hexdigest()
+            if ext_runtime.exists()
+            else None,
+        }
+        self.assertEqual(ext_hashes_before, ext_hashes_after)
+
+    def test_migration_planning_dry_run_and_wizard_decline_make_no_mutations(
+        self,
+    ) -> None:
+        """Tokens: all-paths-previewed, filesystem-aware-preflight, preview-only-default."""
+        repo = self._make_repo()
+        seed_hashes = self._seed_legacy_repo(repo)
+
+        mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+        plan = mgr.plan_migration(target_backend="repository")
+        self.assertTrue(plan.is_valid)
+        self.assertGreater(plan.available_bytes, 0)
+        self.assertFalse((repo / ".aw").exists())
+
+        mgr.execute_migration(target_backend="repository", dry_run=True)
+        self.assertFalse((repo / ".aw").exists())
+
+        old_cwd = os.getcwd()
+        old_stdin = sys.stdin
+        old_stdout = sys.stdout
+        captured = io.StringIO()
+        try:
+            os.chdir(str(repo))
+            sys.stdin = _TTYStringIO("1\n1\nn\n")
+            sys.stdout = captured
+            ret = cli.main(["migrate-layout"])
+        finally:
+            os.chdir(old_cwd)
+            sys.stdin = old_stdin
+            sys.stdout = old_stdout
+
+        self.assertEqual(ret, 1)
+        self.assertIn("Total Items to Move", captured.getvalue())
+        self.assertFalse((repo / ".aw").exists())
+
+        current_hashes = {
+            rel: hashlib.sha256((repo / rel).read_bytes()).hexdigest()
+            for rel in seed_hashes
+        }
+        self.assertEqual(seed_hashes, current_hashes)
+
+    def test_transactional_move_switches_authority_and_loads_system(self) -> None:
+        """Tokens: bytes-preserved, content-not-lost, copy-verify-switch-retain,
+        explicit-untrack-plan, history-preserved, no-duplicate-copy, no-overwrite,
+        all-records-preserved, complete-packaged-system, correct-version-manifest,
+        one-canonical-system-source, package-green, single-current-schema,
+        stable-transaction-id, new-authority-explicit, never-push,
+        separate-git-evidence, valid-git-destinations.
+        """
+        repo = self._make_repo(origin_bare=True)
+        seed_hashes = self._seed_legacy_repo(repo)
+
+        mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+        mgr.execute_migration(target_backend="repository", dry_run=False)
+
+        self.assertFalse((repo / ".agents" / "workflows" / "index.md").exists())
+        self.assertFalse((repo / ".agents" / "workflows" / "VERSION").exists())
+        self.assertFalse((repo / ".agents" / "plans" / "pending" / "p.md").exists())
+
+        dest_index = repo / ".aw" / "system" / "workflows" / "index.md"
+        dest_version = repo / ".aw" / "system" / "VERSION"
+        dest_plan = repo / ".aw" / "records" / "plans" / "pending" / "p.md"
+
+        self.assertTrue(dest_index.is_file())
+        self.assertTrue(dest_version.is_file())
+        self.assertTrue(dest_plan.is_file())
+        self.assertFalse((repo / ".aw" / "system" / "workflows" / "VERSION").exists())
+
+        self.assertEqual(
+            hashlib.sha256(dest_index.read_bytes()).hexdigest(),
+            seed_hashes[".agents/workflows/index.md"],
+        )
+        self.assertEqual(
+            hashlib.sha256(dest_version.read_bytes()).hexdigest(),
+            seed_hashes[".agents/workflows/VERSION"],
+        )
+        self.assertEqual(
+            hashlib.sha256(dest_plan.read_bytes()).hexdigest(),
+            seed_hashes[".agents/plans/pending/p.md"],
+        )
+
+        workflows = engine.parse_manifest(repo / ".aw" / "system" / "workflows")
+        self.assertGreater(len(workflows), 0)
+
+        tx_file = (
+            repo
+            / ".aw"
+            / "state"
+            / "runtime"
+            / "transactions"
+            / "migration_transaction.json"
+        )
+        self.assertTrue(tx_file.is_file())
+        tx_data = json.loads(tx_file.read_text(encoding="utf-8"))
+        self.assertEqual(tx_data.get("status"), "completed")
+        self.assertEqual(tx_data.get("schema_version"), 1)
+        self.assertTrue(bool(tx_data.get("transaction_id")))
+        self.assertTrue(
+            all(
+                entry.get("action") == "move"
+                for entry in tx_data.get("move_journal", [])
+            )
+        )
+        self.assertEqual(
+            set(tx_data.get("git_staging_plans", {}).keys()),
+            {"target", "companion", "source"},
+        )
+
+        receipt_file = (
+            repo / ".aw" / "state" / "durable" / "migrations" / "switch_receipt.json"
+        )
+        self.assertTrue(receipt_file.is_file())
+        receipt_data = json.loads(receipt_file.read_text(encoding="utf-8"))
+        self.assertEqual(receipt_data.get("authority"), "switched")
+        self.assertEqual(
+            receipt_data.get("transaction_id"), tx_data.get("transaction_id")
+        )
+
+        cfg_file = repo / ".aw" / "config" / "config.json"
+        self.assertTrue(cfg_file.is_file())
+        cfg_data = json.loads(cfg_file.read_text(encoding="utf-8"))
+        self.assertEqual(cfg_data.get("records_backend"), "repository")
+
+        status_out = git(repo, "status", "--short").stdout
+        self.assertIn(
+            "R  .agents/workflows/index.md -> .aw/system/workflows/index.md", status_out
+        )
+
+        ls_remote = git(repo, "ls-remote", "origin").stdout
+        self.assertEqual(ls_remote.strip(), "")
+
+    def test_rollback_restores_legacy_and_cleanup_refuses_changed_content(self) -> None:
+        """Tokens: byte-identical-rollback, git-index-restored, journal-retained,
+        legacy-preserved, policy-restored, rollback-ready, rollback-safe,
+        source-retained, changed-content-not-deleted, cleanup-blocked, cleanup-refused.
+        """
+        repo = self._make_repo()
+        seed_hashes = self._seed_legacy_repo(repo)
+
+        mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+        mgr.execute_migration(target_backend="repository", dry_run=False)
+
+        preview = mgr.cleanup_migration(confirm=False)
+        self.assertEqual(preview.get("status"), "preview")
+        self.assertEqual(preview.get("would_remove"), [])
+
+        ret_file = (
+            repo
+            / ".aw"
+            / "state"
+            / "durable"
+            / "migrations"
+            / "retention_manifest.json"
+        )
+        self.assertTrue(ret_file.is_file())
+        ret_data = json.loads(ret_file.read_text(encoding="utf-8"))
+        mappings = ret_data.get("mappings", [])
+        self.assertTrue(len(mappings) > 0)
+        sample_src = Path(mappings[0]["source"])
+        sample_src.parent.mkdir(parents=True, exist_ok=True)
+        sample_src.write_text("modified source content\n", encoding="utf-8")
+
+        with self.assertRaises(CleanupError):
+            mgr.cleanup_migration(confirm=True)
+        self.assertEqual(
+            sample_src.read_text(encoding="utf-8"), "modified source content\n"
+        )
+        sample_src.unlink()
+
+        with self.assertRaises(CleanupError):
+            mgr.cleanup_migration(fault_injection="cleanup-refusal")
+
+        rb = mgr.rollback_migration()
+        self.assertEqual(rb.get("status"), "rolled_back")
+        self.assertEqual(rb.get("authority"), "legacy")
+
+        current_hashes = {
+            rel: hashlib.sha256((repo / rel).read_bytes()).hexdigest()
+            for rel in seed_hashes
+        }
+        self.assertEqual(seed_hashes, current_hashes)
+
+        cfg_file = repo / ".aw" / "config" / "config.json"
+        self.assertTrue(cfg_file.is_file())
+        cfg_data = json.loads(cfg_file.read_text(encoding="utf-8"))
+        self.assertEqual(cfg_data.get("records_backend"), "legacy")
+
+        self.assertFalse((repo / ".aw" / "system").exists())
+        self.assertFalse((repo / ".aw" / "records").exists())
+
+        status_out = git(repo, "status", "--short").stdout
+        self.assertNotIn("->", status_out)
+
+    def test_crash_mid_move_is_resumable(self) -> None:
+        """Tokens: idempotent-resume, recoverable-staging, recovery-guidance, resume-safe."""
+        repo = self._make_repo()
+        self._seed_legacy_repo(repo)
+
+        mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+        mgr.execute_migration(target_backend="repository", dry_run=False)
+
+        tx_file = (
+            repo
+            / ".aw"
+            / "state"
+            / "runtime"
+            / "transactions"
+            / "migration_transaction.json"
+        )
+        tx_data = json.loads(tx_file.read_text(encoding="utf-8"))
+
+        last_move = tx_data["move_journal"].pop()
+        if "copied_records" in tx_data and tx_data["copied_records"]:
+            tx_data["copied_records"].pop()
+
+        src_p = Path(last_move["source"])
+        dst_p = Path(last_move["destination"])
+        src_p.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(dst_p, src_p)
+
+        tx_data["status"] = "locked"
+        tx_data["last_verified_checkpoint"] = "locked"
+        tx_file.write_text(json.dumps(tx_data, indent=2), encoding="utf-8")
+
+        receipt = (
+            repo / ".aw" / "state" / "durable" / "migrations" / "switch_receipt.json"
+        )
+        if receipt.exists():
+            receipt.unlink()
+
+        self.assertEqual(mgr.status_migration()["authority"], "legacy")
+
+        res_resume = MigrationManager(
+            str(repo), aw_home=str(self.aw_home)
+        ).resume_migration()
+        self.assertEqual(res_resume.get("status"), "completed")
+        self.assertFalse(src_p.exists())
+        self.assertTrue(dst_p.exists())
+
+        tx_after = json.loads(tx_file.read_text(encoding="utf-8"))
+        self.assertEqual(tx_after.get("status"), "completed")
+
+    def test_fault_injection_before_switch_keeps_legacy_authoritative(self) -> None:
+        """Tokens: fail-before-switch, legacy-authoritative, no-switch,
+        one-authority, safe-fallback-transaction, writer-lock-or-hash-drift-stop.
+        """
+        cases = [
+            ("stale-input", StaleInputError, False),
+            ("concurrent-writer", TransactionLockError, False),
+            ("disk-loss", PreflightGateError, False),
+            ("permission-loss", PreflightGateError, False),
+            ("copy-failure", MigrationError, False),
+            ("verify-mismatch", VerificationError, False),
+            ("switch-failure", SwitchError, False),
+            ("kill-after-switch-before-receipt", MigrationError, True),
+            ("cross-git-partial-stage", MigrationError, True),
+        ]
+
+        for tag, exc_type, post_switch in cases:
+            with self.subTest(tag=tag):
+                repo = self._make_repo(name=f"repo_{tag}")
+                self._seed_legacy_repo(repo)
+                mgr = MigrationManager(str(repo), aw_home=str(self.aw_home))
+
+                with self.assertRaises(exc_type):
+                    mgr.execute_migration(
+                        target_backend="repository", fault_injection=tag
+                    )
+
+                receipt = (
+                    repo
+                    / ".aw"
+                    / "state"
+                    / "durable"
+                    / "migrations"
+                    / "switch_receipt.json"
+                )
+                cfg = repo / ".aw" / "config" / "config.json"
+                st = mgr.status_migration()
+
+                if not post_switch:
+                    self.assertFalse(receipt.exists())
+                    if cfg.exists():
+                        cfg_data = json.loads(cfg.read_text(encoding="utf-8"))
+                        self.assertNotEqual(
+                            cfg_data.get("records_backend"), "repository"
+                        )
+                    self.assertEqual(st["authority"], "legacy")
+                else:
+                    self.assertTrue(receipt.exists())
+                    self.assertEqual(st["authority"], "switched")
+
+
 class ScenarioBindingTests(unittest.TestCase):
     """Order 12 E-06: every scenario `expected` token (and every legacy_crosswalk assertion
     token) binds to a fully-qualified, LOADABLE automated test method plus a named assertion
@@ -1092,20 +1631,18 @@ class ScenarioBindingTests(unittest.TestCase):
         """Each binding's `test` must import to a callable test method, and `assertion` must be
         a non-empty named condition. This is the schema-loads-each-named-test check."""
         bindings = self._load_bindings()
+        problems = []
         for token, b in sorted(bindings.items()):
             fqn = b.get("test", "")
-            self.assertTrue(
-                fqn.count(".") >= 2 and fqn.rsplit(".", 1)[-1].startswith("test"),
-                f"{token}: binding test is not a module.Class.test_method fqn: {fqn!r}",
-            )
-            self.assertIsNotNone(
-                self._resolve(fqn),
-                f"{token}: binding names a test method that does not load: {fqn}",
-            )
-            self.assertTrue(
-                b.get("assertion", "").strip(),
-                f"{token}: binding has no named assertion condition",
-            )
+            if not (fqn.count(".") >= 2 and fqn.rsplit(".", 1)[-1].startswith("test")):
+                problems.append(f"{token}: bad_fqn {fqn!r}")
+                continue
+            if self._resolve(fqn) is None:
+                problems.append(f"{token}: unloadable {fqn}")
+                continue
+            if not b.get("assertion", "").strip():
+                problems.append(f"{token}: missing_assertion")
+        self.assertEqual(problems, [])
 
     def test_bad_binding_is_rejected(self):
         """Falsifiable negative: an unbound token, a stale binding, and a non-loadable test
@@ -1127,9 +1664,7 @@ class ScenarioBindingTests(unittest.TestCase):
         self.assertIsNone(self._resolve("not.a.module.Cls.test_x"))
         # And a real binding DOES load (positive control).
         self.assertIsNotNone(
-            self._resolve(
-                "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
-            )
+            self._resolve("tests.test_awphysical_tools.InventoryTests.test_e01")
         )
 
 

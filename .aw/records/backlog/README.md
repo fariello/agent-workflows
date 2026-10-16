@@ -143,7 +143,7 @@ A `done` item may be reopened to `open` or `graduated` as a corrective move. Thi
 Backlog transitions carry no authority attestation requirement (such as `--by-human`). This is deliberate and measured rather than an omission: automation legitimately performs three of the five backlog target statuses (`->graduated`, `->open`, `->done`), so an attestation requirement would obstruct the runner's own prescribed path. The `--allow-terminal-reopen` flag is accepted on `aw backlog set` for CLI consistency but is inert for backlog items; terminal reopens require no override flag.
 
 The real controls on backlog transitions are:
-1. The release-gate close predicate on `->done` (`check_engine.evaluate_blocking_close`), which requires an executed carrier handoff, satisfied evidence citation (where a cited plan must be executed; pending, draft, not-executed or superseded plans are refused), or explicit de-gating.
+1. The release-gate close predicate on `->done` (`check_engine.evaluate_blocking_close`), which requires an executed carrier handoff, satisfied evidence citation (where a cited plan must be executed and a cited spec must be implemented; non-executed plans and non-implemented specs are refused), or explicit de-gating.
 2. The typed gate pair (`Gate-Kind` and `Gate-Ref`) required when transitioning into `blocked`.
 3. The enumerated `BACKLOG_TRANSITIONS` legality table described above.
 4. The dated workflow history record (which records the tool label and transition message; it does not record the mover's personal identity).

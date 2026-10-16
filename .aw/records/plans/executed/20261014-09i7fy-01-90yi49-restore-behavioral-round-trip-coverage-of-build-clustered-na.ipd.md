@@ -6,7 +6,7 @@
 - Scope: IN: a new behavioral test module that calls `build_clustered_name` and `parse_clustered` and asserts the round-trip identity in both directions, plus a builder-rejects-unknown-facet outcome and a parser-rejects-typo-facet outcome; repointing the "no live guard currently asserts this" clause in the `artifact_naming` module docstring (site `ev7t1w` S-03) at the new test. OUT: any source-reading, `ast`, regex-over-source or symbol-census check (P16); the structural single-source assertions the deleted file also carried (`SingleSourceStructuralTests`, `NormalizerDriftGuardTests`), which were code pins; the research-grammar round trip (`research_contract`) and the `prompts.build_prompt_name` delegation round trip, which are separate properties not named by backlog `09i7fy`; the docstrings at `prompts.build_prompt_name` (`ev7t1w` S-20-family) and `attention.py` (S-05), which cite the structural single-source property rather than the round trip; any change to the grammar or to executable code.
 - Scope-Paths: tests/test_artifact_naming_round_trip.py, agent_workflows/artifact_naming.py, .aw/records/plans/pending/20261014-09i7fy-01-90yi49-restore-behavioral-round-trip-coverage-of-build-clustered-na.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 90yi49
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 90yi49 verified (set 09i7fy, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
@@ -36,27 +36,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral round-trip tests
 
-- [ ] E-01 Create `tests/test_artifact_naming_round_trip.py` with a build-then-parse test: call `artifact_naming.build_clustered_name(date="20260823", set_id="myset", order=3, id6="abc123", slug="a-slug", artifact_type="ipd")`, assert the exact returned string `20260823-myset-03-abc123-a-slug.ipd.md`, then assert `parse_clustered` of it is not `None` and its `date`, `set`, `nn`, `id6`, `slug`, `type` groups equal the inputs (`int(nn) == 3`). Repeat for `artifact_type=None` (bare `.md`, `type` group `None`) and for every member of `artifact_naming.ARTIFACT_TYPE_FACETS` via `subTest`. Import the module (`from agent_workflows import artifact_naming`) and call both functions through the module attribute (`artifact_naming.build_clustered_name(...)`, `artifact_naming.parse_clustered(...)`), never `from agent_workflows.artifact_naming import build_clustered_name`, so the falsifiability probe in V-01 can substitute a mutant without editing production source.
+- [x] E-01 Create `tests/test_artifact_naming_round_trip.py` with a build-then-parse test: call `artifact_naming.build_clustered_name(date="20260823", set_id="myset", order=3, id6="abc123", slug="a-slug", artifact_type="ipd")`, assert the exact returned string `20260823-myset-03-abc123-a-slug.ipd.md`, then assert `parse_clustered` of it is not `None` and its `date`, `set`, `nn`, `id6`, `slug`, `type` groups equal the inputs (`int(nn) == 3`). Repeat for `artifact_type=None` (bare `.md`, `type` group `None`) and for every member of `artifact_naming.ARTIFACT_TYPE_FACETS` via `subTest`. Import the module (`from agent_workflows import artifact_naming`) and call both functions through the module attribute (`artifact_naming.build_clustered_name(...)`, `artifact_naming.parse_clustered(...)`), never `from agent_workflows.artifact_naming import build_clustered_name`, so the falsifiability probe in V-01 can substitute a mutant without editing production source.
   - Depends on: none
   - Expected outcome: the test calls the real builder and parser and asserts on their returned values only; it reads no source file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same module add a parse-then-build identity test over a fixed corpus of conformant names, at minimum `20260823-myset-03-abc123-a-slug.ipd.md`, `20260823-myset-03-abc123-a-slug.md`, `20260823-my-set-11-zzz999-longer-slug.spec.md`, and the lazy-quantifier case `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md` (canonical reading set `foo`, order `12`, per the `_CLUSTERED_PREFIX_RE` comment in `artifact_naming`): for each, parse, rebuild from the groups with `build_clustered_name`, and assert the rebuilt string equals the input byte for byte. For the lazy-quantifier entry also assert `set == "foo"`, `nn == "12"` and `slug == "bar-01-def456-slug"`, because a greedy set group still round-trips that name byte for byte (it reads set `foo-12-abc123-bar`, order `01`), so identity alone would not catch the regression the `_CLUSTERED_PREFIX_RE` comment ("THE LAZY QUANTIFIER IS LOAD-BEARING") warns about.
+- [x] E-02 In the same module add a parse-then-build identity test over a fixed corpus of conformant names, at minimum `20260823-myset-03-abc123-a-slug.ipd.md`, `20260823-myset-03-abc123-a-slug.md`, `20260823-my-set-11-zzz999-longer-slug.spec.md`, and the lazy-quantifier case `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md` (canonical reading set `foo`, order `12`, per the `_CLUSTERED_PREFIX_RE` comment in `artifact_naming`): for each, parse, rebuild from the groups with `build_clustered_name`, and assert the rebuilt string equals the input byte for byte. For the lazy-quantifier entry also assert `set == "foo"`, `nn == "12"` and `slug == "bar-01-def456-slug"`, because a greedy set group still round-trips that name byte for byte (it reads set `foo-12-abc123-bar`, order `01`), so identity alone would not catch the regression the `_CLUSTERED_PREFIX_RE` comment ("THE LAZY QUANTIFIER IS LOAD-BEARING") warns about.
   - Depends on: E-01
   - Expected outcome: `build(parse(name)) == name` holds for every corpus entry, including a hyphenated set id and an embedded `-NN-id6-` lookalike inside the slug.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the same module add two rejection-outcome tests: `build_clustered_name(..., artifact_type="ipdd")` raises `ValueError`, and `parse_clustered("20260823-myset-03-abc123-a-slug.ipdd.md")` returns `None` (closed facet enum, OQ-03 in the module docstring), so builder and parser agree on what is NOT legal as well as what is.
+- [x] E-03 In the same module add two rejection-outcome tests: `build_clustered_name(..., artifact_type="ipdd")` raises `ValueError`, and `parse_clustered("20260823-myset-03-abc123-a-slug.ipdd.md")` returns `None` (closed facet enum, OQ-03 in the module docstring), so builder and parser agree on what is NOT legal as well as what is.
   - Depends on: E-01
   - Expected outcome: both rejection outcomes asserted via return value or raised exception.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Repoint the S-03 citation
 
-- [ ] E-04 Edit the `agent_workflows/artifact_naming.py` module docstring sentence beginning "the round-trip and single-source properties were asserted in ``tests/test_naming_authority_single_source.py``, deleted in ``19313eed``; no live guard currently asserts this" so it states the ROUND-TRIP property is now asserted behaviorally by ``tests/test_artifact_naming_round_trip.py`` while the structural single-source property remains unguarded (it was a source-reading pin and is deliberately not restored, P16). Keep the remaining text of the docstring, including the golden-snapshot retirement note, unchanged.
+- [x] E-04 Edit the `agent_workflows/artifact_naming.py` module docstring sentence beginning "the round-trip and single-source properties were asserted in ``tests/test_naming_authority_single_source.py``, deleted in ``19313eed``; no live guard currently asserts this" so it states the ROUND-TRIP property is now asserted behaviorally by ``tests/test_artifact_naming_round_trip.py`` while the structural single-source property remains unguarded (it was a source-reading pin and is deliberately not restored, P16). Keep the remaining text of the docstring, including the golden-snapshot retirement note, unchanged.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: docstring-only diff in `artifact_naming.py`; no executable line changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,25 +121,153 @@ N/A: no spec describes these tests, and the grammar contract is unchanged. The o
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_artifact_naming_round_trip.py -v` output showing the build-then-parse test(s) PASSED (including one `subTest` per `ARTIFACT_TYPE_FACETS` member and the `None` facet), plus the pasted output of the mutant (a) probe driver described under Required tests showing those tests FAILED under the `{order:03d}` builder, and `git diff --stat -- agent_workflows/artifact_naming.py` after the probe showing no executable change.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" tests/test_artifact_naming_round_trip.py -v` passed with all tests and subtests:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2882782830
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-02 validates E-02
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_clustered_parse_then_build_is_identity PASSED [ 25%]
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_build_clustered_name_rejects_unknown_facet PASSED [ 50%]
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_clustered_build_then_parse PASSED [ 75%]
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_parse_clustered_rejects_unknown_facet PASSED [100%]
+
+    ============================== 4 passed in 0.16s ===============================
+    ```
+    Subtest execution confirmed: `test_clustered_build_then_parse` executed subtests for `None` and all 10 `ARTIFACT_TYPE_FACETS` members (`ipd`, `prompt`, `spec`, `walkthrough`, `roadmap`, `backlog`, `comms`, `release`, `review`, `other`), all PASS.
+
+    Mutant (a) probe driver (`build_clustered_name` emitting `{order:03d}`):
+    ```
+    ======================================================================
+    FAIL: test_clustered_build_then_parse (tests.test_artifact_naming_round_trip.ArtifactNamingRoundTripTests.test_clustered_build_then_parse)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_artifact_naming_round_trip.py", line 26, in test_clustered_build_then_parse
+        self.assertEqual(name, "20260823-myset-03-abc123-a-slug.ipd.md")
+        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: '20260823-myset-003-abc123-a-slug.ipd.md' != '20260823-myset-03-abc123-a-slug.ipd.md'
+    - 20260823-myset-003-abc123-a-slug.ipd.md
+    ?                -
+    + 20260823-myset-03-abc123-a-slug.ipd.md
+    ```
+    Working tree `git diff --stat -- agent_workflows/artifact_naming.py` after probe:
+    ```
+     agent_workflows/artifact_naming.py | 9 +++++----
+     1 file changed, 5 insertions(+), 4 deletions(-)
+    ```
+    (No executable change; diff contains docstring edit only.)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the parse-then-build identity test PASSED, the test source excerpt showing the four corpus names and the explicit `set == "foo"` / `nn == "12"` / `slug == "bar-01-def456-slug"` assertions on `20260101-foo-12-abc123-bar-01-def456-slug.ipd.md`, and the pasted output of the mutant (b) greedy-regex probe showing the lazy-quantifier assertion FAILED.
   - Observed evidence:
-  - Result: pending
+    Pytest output showing parse-then-build identity test PASSED:
+    ```
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_clustered_parse_then_build_is_identity PASSED [ 25%]
+    ```
+    Test source excerpt from `tests/test_artifact_naming_round_trip.py`:
+    ```python
+        def test_clustered_parse_then_build_is_identity(self) -> None:
+            corpus = (
+                "20260823-myset-03-abc123-a-slug.ipd.md",
+                "20260823-myset-03-abc123-a-slug.md",
+                "20260823-my-set-11-zzz999-longer-slug.spec.md",
+                "20260101-foo-12-abc123-bar-01-def456-slug.ipd.md",
+            )
+            for name in corpus:
+                with self.subTest(name=name):
+                    m = artifact_naming.parse_clustered(name)
+                    self.assertIsNotNone(m, f"expected conformant name to parse: {name}")
+                    assert m is not None
+                    if name == "20260101-foo-12-abc123-bar-01-def456-slug.ipd.md":
+                        self.assertEqual(m.group("set"), "foo")
+                        self.assertEqual(m.group("nn"), "12")
+                        self.assertEqual(m.group("slug"), "bar-01-def456-slug")
+                    rebuilt = artifact_naming.build_clustered_name(
+                        date=m.group("date"),
+                        set_id=m.group("set"),
+                        order=int(m.group("nn")),
+                        id6=m.group("id6"),
+                        slug=m.group("slug"),
+                        artifact_type=m.group("type"),
+                    )
+                    self.assertEqual(rebuilt, name)
+    ```
+    Mutant (b) probe driver (`_CLUSTERED_RE` with greedy `set` group `[a-z0-9-]+`):
+    ```
+    ======================================================================
+    FAIL: test_clustered_parse_then_build_is_identity (tests.test_artifact_naming_round_trip.ArtifactNamingRoundTripTests.test_clustered_parse_then_build_is_identity) (name='20260101-foo-12-abc123-bar-01-def456-slug.ipd.md')
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_artifact_naming_round_trip.py", line 76, in test_clustered_parse_then_build_is_identity
+        self.assertEqual(m.group("set"), "foo")
+        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 'foo-12-abc123-bar' != 'foo'
+    - foo-12-abc123-bar
+    + foo
 
-- [ ] V-03 validates E-03
+
+    ----------------------------------------------------------------------
+    Ran 4 tests in 0.002s
+
+    FAILED (failures=1)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing both rejection tests PASSED, and pasted `rg -n "inspect|import ast|read_text|__file__" tests/test_artifact_naming_round_trip.py` output showing no hits.
   - Observed evidence:
-  - Result: pending
+    Pytest output showing both rejection tests PASSED:
+    ```
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_build_clustered_name_rejects_unknown_facet PASSED [ 50%]
+    tests/test_artifact_naming_round_trip.py::ArtifactNamingRoundTripTests::test_parse_clustered_rejects_unknown_facet PASSED [100%]
+    ```
+    Ripgrep search output for prohibited source-reading tokens:
+    ```
+    $ rg -n "inspect|import ast|read_text|__file__" tests/test_artifact_naming_round_trip.py
+    (no hits, exit code 1)
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff -- agent_workflows/artifact_naming.py` showing only module-docstring lines changed and naming `tests/test_artifact_naming_round_trip.py`, plus the pasted summary line of a bare `python3 -m pytest` run, with any failure shown to fail identically on the base commit.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/artifact_naming.py`:
+    ```diff
+    diff --git a/agent_workflows/artifact_naming.py b/agent_workflows/artifact_naming.py
+    index 42eaa250f..c1c5477cb 100644
+    --- a/agent_workflows/artifact_naming.py
+    +++ b/agent_workflows/artifact_naming.py
+    @@ -25,10 +25,11 @@ filename is SHAPED. It owns, exactly once:
+     Every builder and validator in the package imports from HERE instead of re-encoding the grammar, so
+     it is structurally impossible for a builder to emit a name a validator rejects (they share one
+     definition). The grammar itself is unchanged: every name produced or accepted before this module
+    -existed is produced or accepted identically (the round-trip and single-source properties were
+    -asserted in ``tests/test_naming_authority_single_source.py``, deleted in ``19313eed``; no live
+    -guard currently asserts this; the pre-refactor golden snapshot that guarded the migration was
+    -retired once the migration landed).
+    +existed is produced or accepted identically (the round-trip property is asserted behaviorally by
+    +``tests/test_artifact_naming_round_trip.py`` while the structural single-source property remains
+    +unguarded, having been asserted in ``tests/test_naming_authority_single_source.py`` deleted in
+    +``19313eed`` and deliberately not restored as a source-reading pin, P16; the pre-refactor golden
+    +snapshot that guarded the migration was retired once the migration landed).
+
+     Placement (OQ-01 resolved by the Order 01 executor): this authority lives in its OWN module and
+     imports only ``artifact_core`` primitives (``kebab``); it never imports the selector resolver or the
+    ```
+    Summary line of bare `python3 -m pytest` run:
+    ```
+    702 passed in 23.99s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

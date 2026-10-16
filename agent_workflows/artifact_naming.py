@@ -25,10 +25,11 @@ filename is SHAPED. It owns, exactly once:
 Every builder and validator in the package imports from HERE instead of re-encoding the grammar, so
 it is structurally impossible for a builder to emit a name a validator rejects (they share one
 definition). The grammar itself is unchanged: every name produced or accepted before this module
-existed is produced or accepted identically (the round-trip and single-source properties were
-asserted in ``tests/test_naming_authority_single_source.py``, deleted in ``19313eed``; no live
-guard currently asserts this; the pre-refactor golden snapshot that guarded the migration was
-retired once the migration landed).
+existed is produced or accepted identically (the round-trip property is asserted behaviorally by
+``tests/test_artifact_naming_round_trip.py`` while the structural single-source property remains
+unguarded, having been asserted in ``tests/test_naming_authority_single_source.py`` deleted in
+``19313eed`` and deliberately not restored as a source-reading pin, P16; the pre-refactor golden
+snapshot that guarded the migration was retired once the migration landed).
 
 Placement (OQ-01 resolved by the Order 01 executor): this authority lives in its OWN module and
 imports only ``artifact_core`` primitives (``kebab``); it never imports the selector resolver or the

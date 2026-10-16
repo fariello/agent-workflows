@@ -6,7 +6,7 @@
 - Scope: Give the `BLOCKED` outcome word an explicit branch in `render_stream.render_run_summary_table` that styles it through the shared lifecycle resolver as stage `blocked` (orange 208, `\033[38;5;208m` at depth 256, the authored 16-color code at depth 16, plain at depth none) instead of falling through to the cyan (`\033[36m`) else-branch, and pin SGR codes for `BLOCKED` and all sibling ladder outcome words in `tests/test_zero_dispatch_outcome.py`.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: antigravity
 - Id: 5apgyn
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5apgyn verified (set pyezbc, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -34,17 +34,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Explicit orange 208 branch for `BLOCKED` in `render_stream.render_run_summary_table`
 
-- [ ] E-01 In `agent_workflows/render_stream.py` inside `render_stream.render_run_summary_table`, give `"BLOCKED"` its own explicit branch that renders the word through the shared lifecycle resolver rather than a raw SGR literal: build `blocked_resolved = _LS.Resolved(stage=_LS.BLOCKED, style=_LS.style_for(_LS.BLOCKED), family=_LS.FAMILY_RUNNER_ITEM)` (the same construction `render_stream.py` already uses near line 1267) and, where banner line 1 is formatted (`f"Outcome: {outcome_color}{outcome_str}{c_reset}..."`, around line 4504), substitute `pal.lifecycle(blocked_resolved, outcome_str, bold=False)` for `f"{outcome_color}{outcome_str}{c_reset}"` when `outcome_str == "BLOCKED"`, leaving every other word on the existing `outcome_color` expression (around lines 4346-4363). Do NOT add a raw `"\033[38;5;208m"` literal: such a literal ignores the `color_depth` pin, which is the exact defect plan `32fso3` (backlog `y11p5u`) is removing from this function. Update the `ys1dor E-02` comment block (around lines 4339-4345) to note that `"BLOCKED"` is styled by the lifecycle resolver and only `"QUEUED"` (plus `exit_reason` passthrough strings matching no earlier branch) reaches the `c_cyan` fallback.
+- [x] E-01 In `agent_workflows/render_stream.py` inside `render_stream.render_run_summary_table`, give `"BLOCKED"` its own explicit branch that renders the word through the shared lifecycle resolver rather than a raw SGR literal: build `blocked_resolved = _LS.Resolved(stage=_LS.BLOCKED, style=_LS.style_for(_LS.BLOCKED), family=_LS.FAMILY_RUNNER_ITEM)` (the same construction `render_stream.py` already uses near line 1267) and, where banner line 1 is formatted (`f"Outcome: {outcome_color}{outcome_str}{c_reset}..."`, around line 4504), substitute `pal.lifecycle(blocked_resolved, outcome_str, bold=False)` for `f"{outcome_color}{outcome_str}{c_reset}"` when `outcome_str == "BLOCKED"`, leaving every other word on the existing `outcome_color` expression (around lines 4346-4363). Do NOT add a raw `"\033[38;5;208m"` literal: such a literal ignores the `color_depth` pin, which is the exact defect plan `32fso3` (backlog `y11p5u`) is removing from this function. Update the `ys1dor E-02` comment block (around lines 4339-4345) to note that `"BLOCKED"` is styled by the lifecycle resolver and only `"QUEUED"` (plus `exit_reason` passthrough strings matching no earlier branch) reaches the `c_cyan` fallback.
   - Depends on: none
   - Expected outcome: with `color_depth` pinned to `256`, `render_stream.render_run_summary_table` renders `Outcome: \033[38;5;208mBLOCKED\033[0m` under `pal=Palette(True)` (byte-identical to what a raw literal would emit); pinned to `16` it renders `\033[35mBLOCKED\033[0m` (`term.color_16_for_stage("blocked") == 35`, measured at review); pinned to `none`, or under `pal=Palette(False)`, it renders `Outcome: BLOCKED` with no ANSI escape; while all other outcome words (`"COMPLETED"`, `STRANDED_OUTCOME`, `"INTERRUPTED"`, `"PARTIAL"`, `NO_WORK_OUTCOME`, `"FAILED"`, `"QUEUED"`, and custom `exit_reason` passthrough strings) retain their exact existing SGR codes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Outcome-word SGR color regression tests in `tests/test_zero_dispatch_outcome.py`
 
-- [ ] E-02 In `tests/test_zero_dispatch_outcome.py` inside `TestZeroDispatchOutcome.test_outcome_color_selection` (lines 593-648), add assertions that: (a) every `"BLOCKED"`-producing queue status shape (`"blocked"`, `"dependency-blocked"`, `"fail-gate"`, `"fail-begin"`, `"fail-depend"`, and `"not-run"`) renders `"BLOCKED"` with SGR code `"38;5;208"` (and explicitly not `"36"`) under `Palette(True)` via `_extract_sgr_code(rendered, "BLOCKED")`; (b) `"BLOCKED"` under `Palette(False)` renders bare `"Outcome: BLOCKED"` with no `"\033["` escape sequence; (b2) with `color_depth` pinned to `16`, `"BLOCKED"` renders SGR `"35"` and the output contains no `"38;5;208"`, and pinned to `none` renders no escape on the `BLOCKED` word; and (c) the remaining ladder words (`"FAILED"` -> `"31"`, `"INTERRUPTED"` -> `"33"`, `"QUEUED"` -> `"36"`) alongside the already-tested `"COMPLETED"` (`"32"`), `STRANDED_OUTCOME` (`"31"`), `"PARTIAL"` (`"33"`), `NO_WORK_OUTCOME` (`"33"`), and fallback `exit_reason="NOTHING TO DO"` (`"36"`) all retain their expected SGR codes. DEPTH ISOLATION: `Palette.lifecycle_term()` resolves depth from the user's `color_depth` pin and then `COLORTERM`/`TERM` (`term.resolve_color_depth(override=True)`), so a developer shell with `TERM=linux`/`vt100` or a pinned config would otherwise turn the `"38;5;208"` assertion into `"35"`. Every `Palette(True)` assertion therefore runs with the depth pinned explicitly via `config.set_config_value("color_depth", ...)` inside a temporary `XDG_CONFIG_HOME`, with `TERM`, `COLORTERM`, `NO_COLOR`, and `FORCE_COLOR` saved and restored (the `_DepthTestBase` pattern in `tests/test_generic_color_depth.py`), and a fresh `Palette` per depth (it caches its `Term`).
+- [x] E-02 In `tests/test_zero_dispatch_outcome.py` inside `TestZeroDispatchOutcome.test_outcome_color_selection` (lines 593-648), add assertions that: (a) every `"BLOCKED"`-producing queue status shape (`"blocked"`, `"dependency-blocked"`, `"fail-gate"`, `"fail-begin"`, `"fail-depend"`, and `"not-run"`) renders `"BLOCKED"` with SGR code `"38;5;208"` (and explicitly not `"36"`) under `Palette(True)` via `_extract_sgr_code(rendered, "BLOCKED")`; (b) `"BLOCKED"` under `Palette(False)` renders bare `"Outcome: BLOCKED"` with no `"\033["` escape sequence; (b2) with `color_depth` pinned to `16`, `"BLOCKED"` renders SGR `"35"` and the output contains no `"38;5;208"`, and pinned to `none` renders no escape on the `BLOCKED` word; and (c) the remaining ladder words (`"FAILED"` -> `"31"`, `"INTERRUPTED"` -> `"33"`, `"QUEUED"` -> `"36"`) alongside the already-tested `"COMPLETED"` (`"32"`), `STRANDED_OUTCOME` (`"31"`), `"PARTIAL"` (`"33"`), `NO_WORK_OUTCOME` (`"33"`), and fallback `exit_reason="NOTHING TO DO"` (`"36"`) all retain their expected SGR codes. DEPTH ISOLATION: `Palette.lifecycle_term()` resolves depth from the user's `color_depth` pin and then `COLORTERM`/`TERM` (`term.resolve_color_depth(override=True)`), so a developer shell with `TERM=linux`/`vt100` or a pinned config would otherwise turn the `"38;5;208"` assertion into `"35"`. Every `Palette(True)` assertion therefore runs with the depth pinned explicitly via `config.set_config_value("color_depth", ...)` inside a temporary `XDG_CONFIG_HOME`, with `TERM`, `COLORTERM`, `NO_COLOR`, and `FORCE_COLOR` saved and restored (the `_DepthTestBase` pattern in `tests/test_generic_color_depth.py`), and a fresh `Palette` per depth (it caches its `Term`).
   - Depends on: E-01
   - Expected outcome: `tests/test_zero_dispatch_outcome.py` pins the complete 8-word outcome-ladder SGR color table plus all 6 `"BLOCKED"` item-status producers under both `Palette(True)` and `Palette(False)` and at pinned depths `256`, `16`, and `none`, passes regardless of the invoking shell's `TERM`, and fails when the `outcome_str == "BLOCKED"` branch in `render_stream.render_run_summary_table` is removed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,15 +152,136 @@ Every outcome-word color in `render_stream.render_run_summary_table` (`c_green`,
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/render_stream.py` showing the `outcome_str == "BLOCKED"` branch rendering through `pal.lifecycle(..., bold=False)` and NO new `38;5;208` literal, plus the output of a `python3` probe (isolated `XDG_CONFIG_HOME`, depth pinned) calling `render_stream.render_run_summary_table` across all 8 canonical ladder words (`COMPLETED`, `STRANDED`, `FAILED`, `INTERRUPTED`, `PARTIAL`, `NO WORK PERFORMED`, `BLOCKED`, `QUEUED`) under `Palette(True)` at pins `256`, `16`, and `none` and under `Palette(False)`, confirming `BLOCKED` emits SGR `'38;5;208'` at `256`, `'35'` at `16`, and no escape at `none` or under `Palette(False)`, while every other word keeps `'32'`, `'31'`, `'33'`, or `'36'` exactly as before.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/render_stream.py`:
+    ```diff
+    diff --git a/agent_workflows/render_stream.py b/agent_workflows/render_stream.py
+    index c64de65c7..be6d220ce 100644
+    --- a/agent_workflows/render_stream.py
+    +++ b/agent_workflows/render_stream.py
+    @@ -4401,6 +4401,9 @@ def render_run_summary_table(
+         c_reset = "\033[0m" if color else ""
 
-- [ ] V-02 validates E-02
+         # ys1dor E-02: THE STRANDED BRANCH IS EXPLICIT, AND DELIBERATELY FIRST AFTER `COMPLETED`.
+    +    # 5apgyn E-01: BLOCKED is styled through the shared lifecycle resolver (orange 208, depth-aware,
+    +    # unbolded). Only QUEUED (and exit_reason passthrough strings matching no earlier branch) reaches
+    +    # the c_cyan fallback.
+         #
+         # This selection is a set of SUBSTRING tests whose ELSE-BRANCH IS CYAN, not an obviously-wrong
+         # color, so an unhandled outcome word looks deliberate while being wrong - exactly the miss class
+    @@ -4425,6 +4428,15 @@ def render_run_summary_table(
+                 )
+             )
+         )
+    +    if outcome_str == "BLOCKED":
+    +        blocked_resolved = _LS.Resolved(
+    +            stage=_LS.BLOCKED,
+    +            style=_LS.style_for(_LS.BLOCKED),
+    +            family=_LS.FAMILY_RUNNER_ITEM,
+    +        )
+    +        outcome_display = pal.lifecycle(blocked_resolved, outcome_str, bold=False)
+    +    else:
+    +        outcome_display = f"{outcome_color}{outcome_str}{c_reset}"
+
+         # runorder (prpipy) E-05: `Run` is the execution sequence, `Pos` the frozen identity. The old
+         # single `#` column showed `position` and a reader inevitably read it as sequence.
+    @@ -4565,7 +4577,7 @@ def render_run_summary_table(
+         restarts_cnt = state.get("driver_restarts", 0)
+         restarts_str = f"   Restarts: {restarts_cnt}" if restarts_cnt > 0 else ""
+         b_line1 = (
+    -        f"Outcome: {outcome_color}{outcome_str}{c_reset}{restarts_str}   "
+    +        f"Outcome: {outcome_display}{restarts_str}   "
+             f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
+             f"Spend: {c_green}{tot_cost_str}{c_reset}   "
+             f"Tokens: {tot_tok_str} (In: {tot_in_str} {vl} Out: {tot_out_str} {vl} Cache: {tot_cache_str})"
+    ```
+
+    Python3 probe output:
+    ```
+    === Depth pin: 256 (Palette(True)) ===
+    COMPLETED          -> word: COMPLETED          sgr: 32
+    STRANDED           -> word: STRANDED           sgr: 31
+    FAILED             -> word: FAILED             sgr: 31
+    INTERRUPTED        -> word: INTERRUPTED        sgr: 33
+    PARTIAL            -> word: PARTIAL            sgr: 33
+    NO WORK PERFORMED  -> word: NO WORK PERFORMED  sgr: 33
+    BLOCKED            -> word: BLOCKED            sgr: 38;5;208
+    QUEUED             -> word: QUEUED             sgr: 36
+    === Depth pin: 16 (Palette(True)) ===
+    COMPLETED          -> word: COMPLETED          sgr: 32
+    STRANDED           -> word: STRANDED           sgr: 31
+    FAILED             -> word: FAILED             sgr: 31
+    INTERRUPTED        -> word: INTERRUPTED        sgr: 33
+    PARTIAL            -> word: PARTIAL            sgr: 33
+    NO WORK PERFORMED  -> word: NO WORK PERFORMED  sgr: 33
+    BLOCKED            -> word: BLOCKED            sgr: 35
+    QUEUED             -> word: QUEUED             sgr: 36
+    === Depth pin: none (Palette(True)) ===
+    COMPLETED          -> word: COMPLETED          sgr: None
+    STRANDED           -> word: STRANDED           sgr: None
+    FAILED             -> word: FAILED             sgr: None
+    INTERRUPTED        -> word: INTERRUPTED        sgr: None
+    PARTIAL            -> word: PARTIAL            sgr: None
+    NO WORK PERFORMED  -> word: NO WORK PERFORMED  sgr: None
+    BLOCKED            -> word: BLOCKED            sgr: None
+    QUEUED             -> word: QUEUED             sgr: None
+    === Palette(False) ===
+    COMPLETED          -> word: COMPLETED          sgr: None has_esc: False
+    STRANDED           -> word: STRANDED           sgr: None has_esc: False
+    FAILED             -> word: FAILED             sgr: None has_esc: False
+    INTERRUPTED        -> word: INTERRUPTED        sgr: None has_esc: False
+    PARTIAL            -> word: PARTIAL            sgr: None has_esc: False
+    NO WORK PERFORMED  -> word: NO WORK PERFORMED  sgr: None has_esc: False
+    BLOCKED            -> word: BLOCKED            sgr: None has_esc: False
+    QUEUED             -> word: QUEUED             sgr: None has_esc: False
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste: (1) output of `python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_outcome_word_ladder.py tests/test_run_summary_table.py` showing all tests pass; (2) output of a negative-control check demonstrating that without the `outcome_str == "BLOCKED"` branch in `render_stream.render_run_summary_table`, `TestZeroDispatchOutcome.test_outcome_color_selection` fails with `'36' != '38;5;208'`, followed by `git status --short` showing the mutation reverted; (3) the `TERM=vt100` run of `tests/test_zero_dispatch_outcome.py` passing; and (4) the summary line of bare `python3 -m pytest` plus `aw check` and `aw sanitize --agent` output. Any failure or finding must be shown pre-existing by reproducing it on the unmodified base commit, with the output pasted.
   - Observed evidence:
-  - Result: pending
+    (1) `python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_outcome_word_ladder.py tests/test_run_summary_table.py`:
+    ```
+    ......................................                                   [100%]
+    38 passed in 3.31s
+    ```
+
+    (2) Negative-control check without `outcome_str == "BLOCKED"` branch in `render_run_summary_table`:
+    ```
+    FAILED tests/test_zero_dispatch_outcome.py::ZeroDispatchOutcomeRegressionFenceTests::test_outcome_color_selection
+    E               AssertionError: '36' != '38;5;208'
+    E               - 36
+    E               + 38;5;208
+    ```
+    Revert check via `patch -R -p1 < /tmp/negative_control.patch`:
+    ```
+     M agent_workflows/render_stream.py
+     M tests/test_zero_dispatch_outcome.py
+    ```
+
+    (3) `TERM=vt100 python3 -m pytest tests/test_zero_dispatch_outcome.py`:
+    ```
+    .........................                                                [100%]
+    25 passed in 2.79s
+    ```
+
+    (4) Bare `python3 -m pytest`:
+    ```
+    702 passed in 25.07s
+    ```
+    `aw check`:
+    ```
+    Evidence
+      plans  76   specs  19   prompts  3   research  105   backlog  76   walkthroughs  26   roadmaps  1   comms  1   releases  1   reviews  1115   other  1427
+      errors  0   warnings  1   info  83
+    ```
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5209,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

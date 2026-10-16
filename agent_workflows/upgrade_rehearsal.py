@@ -1263,13 +1263,20 @@ def _emit_agent(
     exit_code: int = 0,
     summary: str = "",
     status: str = "clean",
+    args: Optional[argparse.Namespace] = None,
 ) -> int:
     try:
         from agent_workflows.renderers import get_renderer
         from agent_workflows.result_types import CommandResult, select_output
 
         ctx = select_output(
-            argparse.Namespace(agent=True, json=False, no_color=False, color=False)
+            argparse.Namespace(
+                agent=True,
+                json=False,
+                no_color=False,
+                color=False,
+                fields=getattr(args, "fields", None),
+            )
         )
         res = CommandResult(
             command=command,
@@ -1297,6 +1304,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             "upgrade-test list",
             {"sources": [s.to_dict() for s in sources]},
             summary=f"Candidate source repos ({len(sources)})",
+            args=args,
         )
     if not sources:
         print("No candidate source repos found.")
@@ -1343,6 +1351,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             exit_code=exit_code,
             status="clean" if exit_code == 0 else "findings",
             summary=f"Rehearsal completed with exit {exit_code}",
+            args=args,
         )
     report(result, verbose=getattr(args, "verbose", False))
     return 0 if all(r["exit_code"] == 0 for r in result["runs"]) else 1
@@ -1440,6 +1449,7 @@ def cmd_sandboxes(args: argparse.Namespace) -> int:
             "upgrade-test sandboxes",
             {"sandboxes": boxes_data},
             summary=f"Sandboxes ({len(boxes)})",
+            args=args,
         )
     if not boxes:
         print("No sandboxes found.")
@@ -1466,6 +1476,7 @@ def cmd_probe(args: argparse.Namespace) -> int:
             "upgrade-test probe",
             state,
             summary=f"Probed sandbox at {state.get('sandbox', '')}",
+            args=args,
         )
     print(f"Sandbox:  {state['sandbox']}")
     print(
@@ -1501,6 +1512,7 @@ def cmd_env(args: argparse.Namespace) -> int:
             "upgrade-test env",
             {"sandbox": str(sandbox), "env": env},
             summary=f"Environment exports for {sandbox}",
+            args=args,
         )
     for key in ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT"):
         print(f"export {key}={shlex.quote(env[key])}")
@@ -1519,6 +1531,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
                 "upgrade-test clean",
                 {"results": []},
                 summary="Nothing to clean.",
+                args=args,
             )
         print("Nothing to clean.")
         return 0
@@ -1529,6 +1542,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
                 {"would_remove": [str(t) for t in targets]},
                 summary=f"Would remove {len(targets)} sandbox(es). Re-run with -y.",
                 status="preview",
+                args=args,
             )
         print("Would remove:")
         for t in targets:
@@ -1547,6 +1561,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
             exit_code=exit_code,
             status="clean" if exit_code == 0 else "findings",
             summary=f"Cleaned {len([r for r in results if r['action'] == 'remove'])} sandbox(es)",
+            args=args,
         )
     for r in results:
         print(
@@ -1603,6 +1618,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=argparse.SUPPRESS,
         help="Machine-readable output (aw.agent/v1 JSONL).",
+    )
+    common.add_argument(
+        "--fields",
+        default=argparse.SUPPRESS,
+        help="Comma-separated field projection for --agent output.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1731,6 +1751,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 exit_code=2,
                 status="cannot-run",
                 summary=str(exc),
+                args=args,
             )
         print(f"error: {exc}", file=sys.stderr)
         return 2
