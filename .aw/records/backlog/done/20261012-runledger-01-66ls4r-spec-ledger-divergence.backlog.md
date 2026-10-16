@@ -1,5 +1,5 @@
 - Id: 66ls4r
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Spec 25kzda 1.2 step 8 and 5.1 still require a tamper-evident run ledger for driver runs, contradicting the rdjka2 option (b) decision; no follow-on amendment exists
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 9epp40 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md); evidence .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 9epp40
 - 2026-10-12 created (aw backlog): Filed while authoring plan v47z9u from backlog hegwri: rdjka2 Spec/documentation sync names this follow-on and none was found.
 
