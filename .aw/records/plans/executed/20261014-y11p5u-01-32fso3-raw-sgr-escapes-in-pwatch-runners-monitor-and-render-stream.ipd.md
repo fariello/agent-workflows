@@ -6,7 +6,7 @@
 - Scope: IN: route the 256-color and SGR styling in `agent_workflows/pwatch.py`, `agent_workflows/runners_monitor.py`, and `agent_workflows/render_stream.py` (`Palette.__call__`, `make_badge`, `format_stop_badge`, `format_tally_badge`, `format_statusline_lines`, and `render_run_summary_table`) through `term.resolve_color_depth` and `term.color_16_for_index` so pin `none` emits zero ANSI SGR escapes, pin `16` (and unpinned 16-color terminals such as `TERM=vt100`) emits 16-color SGR codes with zero `38;5;` or `48;5;` sequences, and pin `256` stays byte-identical to today; reword the two stale F-08 / `cvtg9u` docstrings in `tests/test_term.py`; add behavioral tests in `tests/test_generic_color_depth.py`; and add one `CHANGELOG.md` entry. OUT: any change to `agent_workflows/term.py` or `agent_workflows/lifecycle_style.py`; terminal cursor/screen control CSI sequences (`ENTER_ALT_SCREEN`, `LEAVE_ALT_SCREEN`, `CURSOR_HOME`, `CLEAR_LINE`, `CLEAR_TO_EOS`, `_CURSOR_HIDE`, `_CURSOR_SHOW`, `\033[3A\r\033[K`) which are interactive screen controls gated on TTY interactivity rather than SGR color codes.
 - Scope-Paths: agent_workflows/pwatch.py, agent_workflows/runners_monitor.py, agent_workflows/render_stream.py, tests/test_term.py, tests/test_generic_color_depth.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: y11p5u
 - Blocks-Release: next
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: antigravity
 - Id: 32fso3
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 32fso3 verified (set y11p5u, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-14 to-review (aw set): authored from backlog y11p5u
