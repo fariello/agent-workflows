@@ -1,5 +1,5 @@
 - Id: 8l1hgw
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: No CLI writer of requirement_set or verifier_decision records exists, so aw run finalize can never reach complete on an operator-created ledger
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD um0twl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-runledger-05-um0twl-write-requirement-set-on-aw-run-init-and-add-aw-run-verify-f.ipd.md); evidence .aw/records/plans/executed/20261014-runledger-05-um0twl-write-requirement-set-on-aw-run-init-and-add-aw-run-verify-f.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: um0twl
 - 2026-10-12 created (aw backlog): Filed while authoring plan v47z9u from backlog hegwri: measured that after a header exists, start and record work end to end but the completion predicate is unreachable.
 

@@ -1384,6 +1384,46 @@ class TestRunCliSubcommands(unittest.TestCase):
             (("text-in", "workflow digest mismatch"),),
             "a workflow whose digest differs from the kind: 'run' header is refused with exit 2",
         ),
+        (
+            "verify with missing --requirement",
+            "incomplete",
+            ("run", "verify", "LEDGER", "--result", "satisfied"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "missing --requirement is an invocation error and must not mutate the ledger",
+        ),
+        (
+            "verify with missing --result",
+            "incomplete",
+            ("run", "verify", "LEDGER", "--requirement", "R-01"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "missing --result is an invocation error and must not mutate the ledger",
+        ),
+        (
+            "verify with an invalid --result outside the enum",
+            "incomplete",
+            ("run", "verify", "LEDGER", "--requirement", "R-01", "--result", "bogus"),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "an unparseable verifier result is rejected at the boundary and leaves the ledger unchanged",
+        ),
+        (
+            "verify naming a requirement not in the frozen requirement_set",
+            "incomplete",
+            (
+                "run",
+                "verify",
+                "LEDGER",
+                "--requirement",
+                "R-99",
+                "--result",
+                "satisfied",
+            ),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (),
+            "an unknown requirement id cannot move completion and is refused with exit 2",
+        ),
         # ---- exit 1: incomplete. The run was read fine; its predicates are unsatisfied. ----------
         (
             "status on an incomplete run (human output)",
@@ -1460,7 +1500,49 @@ class TestRunCliSubcommands(unittest.TestCase):
             "S-02 depends on an unperformed S-01 and needs deploy_gate, so claiming it performed is "
             "refused: the ledger must never record work the DAG says could not have happened",
         ),
+        (
+            "verify with a failed result",
+            "incomplete",
+            ("run", "verify", "LEDGER", "--requirement", "R-01", "--result", "failed"),
+            run_cli.EXIT_BLOCKED,
+            (),
+            "a recorded failed decision is not satisfied, so it returns EXIT_BLOCKED",
+        ),
         # ---- exit 6: operational. Authorization, not invocation shape and not run state. ---------
+        (
+            "verify authored by the executor",
+            "incomplete",
+            (
+                "run",
+                "verify",
+                "LEDGER",
+                "--requirement",
+                "R-01",
+                "--result",
+                "satisfied",
+                "--actor",
+                "executor",
+            ),
+            run_cli.EXIT_OPERATIONAL,
+            (),
+            "a verifier decision authored by the executor role is unauthorized and exits 6",
+        ),
+        (
+            "verify on a complete run",
+            "complete",
+            (
+                "run",
+                "verify",
+                "LEDGER",
+                "--requirement",
+                "R-01",
+                "--result",
+                "satisfied",
+            ),
+            run_cli.EXIT_OPERATIONAL,
+            (),
+            "a decision cannot be recorded on a terminal run and exits 6",
+        ),
         (
             "cancel authored by the executor",
             "incomplete",
@@ -1580,6 +1662,33 @@ class TestRunCliSubcommands(unittest.TestCase):
             "POSITIVE, and the most important one here: four rows above assert finalize REFUSES. "
             "Without this row a finalize that refused unconditionally would pass all of them",
         ),
+        (
+            "verify satisfied records verifier_decision",
+            "incomplete",
+            (
+                "run",
+                "verify",
+                "LEDGER",
+                "--requirement",
+                "R-01",
+                "--result",
+                "satisfied",
+                "--json",
+            ),
+            run_cli.EXIT_OK,
+            (
+                (
+                    "json-eq",
+                    "recorded_decision",
+                    {
+                        "requirement": "R-01",
+                        "result": "satisfied",
+                        "actor": "verifier",
+                    },
+                ),
+            ),
+            "a satisfied verifier decision records cleanly and emits the recorded decision under --json",
+        ),
     )
 
     def test_every_invocation_exits_in_its_class_and_says_why(self) -> None:
@@ -1644,6 +1753,33 @@ class TestRunCliSubcommands(unittest.TestCase):
             f"for moved.\n" + "\n".join(wrong),
         )
 
+    def test_run_verify_reconstructs_verifier_decision_in_fresh_engine(self) -> None:
+        """A fresh RunEngine reconstructs verifier_decisions == {'R-01': 'satisfied'} after aw run verify."""
+        with tempfile.TemporaryDirectory() as seed_dir:
+            argv = self._materialize(
+                (
+                    "run",
+                    "verify",
+                    "LEDGER",
+                    "--requirement",
+                    "R-01",
+                    "--result",
+                    "satisfied",
+                ),
+                Path(seed_dir),
+                "incomplete",
+            )
+            rc, _out = self._cli(*argv)
+            self.assertEqual(rc, run_cli.EXIT_OK)
+
+            store = ledger_store.RunLedgerStore(self.ledger)
+            workflow = run_cli._reconstruct_workflow_from_ledger(
+                store.read_records(verify=True)
+            )
+            engine = run_engine.RunEngine(workflow, store, run_id=RUN_ID)
+            snapshot = engine.reconstruct_state()
+            self.assertEqual(snapshot.verifier_decisions, {"R-01": "satisfied"})
+
     @staticmethod
     def _exit_name(code: int) -> str:
         """Name an exit code, so a failure reads `EXIT_BLOCKED` rather than a bare `3`."""
@@ -1663,6 +1799,8 @@ class TestRunCliSubcommands(unittest.TestCase):
             self._seed_incomplete()
         elif seed == "complete":
             self._seed_complete()
+            if len(template) > 1 and template[1] == "verify":
+                self._seed_terminal()
         elif seed == "root-performed":
             self._seed_root_performed()
         elif seed == "bad-evidence":
@@ -1717,6 +1855,19 @@ class TestRunCliSubcommands(unittest.TestCase):
         store = self._store()
         for rec in _complete_run_records():
             store.append(rec)
+
+    def _seed_terminal(self) -> None:
+        self._store().append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "terminal_transaction",
+                "run_id": RUN_ID,
+                "actor": "coordinator",
+                "terminal_status": run_state.STATE_COMPLETE,
+                "moved_to": "executed",
+                "parent": "",
+            }
+        )
 
     def _seed_incomplete(self) -> None:
         store = self._store()
@@ -2580,8 +2731,8 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
     # what makes that fence visible, since the new text must NOT leak into the exit-7 class.
 
     #: Every leaf that emits the absent-ledger refusal, with the NOUN it lives under and whether it
-    #: WRITES. Ten of them: three build the refusal at their own call site and seven reach it through
-    #: `_resolve_or_error`. The direction column is not decoration: four of the ten MUTATE a ledger,
+    #: WRITES. Eleven of them: three build the refusal at their own call site and eight reach it through
+    #: `_resolve_or_error`. The direction column is not decoration: five of the eleven MUTATE a ledger,
     #: so a message calling its own caller a reader would be false exactly there, which is the claim
     #: `test_the_signpost_wording_is_true_of_a_writer_too` pins.
     REFUSAL_LEAVES: "tuple[tuple[str, str, bool], ...]" = (
@@ -2593,6 +2744,7 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
         ("runs", "resume", False),
         ("run", "start", True),
         ("run", "record", True),
+        ("run", "verify", True),
         ("run", "cancel", True),
         ("run", "finalize", True),
     )
@@ -2768,16 +2920,16 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
             [],
             problems,
             "a leaf that refuses without naming the action is the dead end this change removes. "
-            "All ten route through one emitter, so ONE leaf failing alone means it stopped using "
+            "All eleven route through one emitter, so ONE leaf failing alone means it stopped using "
             "it.\n" + "\n".join(problems),
         )
 
     def test_the_signpost_wording_is_true_of_a_writer_too(self) -> None:
-        """The shared sentence must not call its caller a reader: four of the ten leaves WRITE.
+        """The shared sentence must not call its caller a reader: five of the eleven leaves WRITE.
 
         Apart from the ten-leaf table because the claim is about TRUTHFULNESS rather than presence.
         The obvious phrasing for this refusal ("these readers serve a different run model") is false
-        exactly where it is printed by `aw run start|record|cancel|finalize`, and a refusal an
+        exactly where it is printed by `aw run start|record|verify|cancel|finalize`, and a refusal an
         operator catches in a lie is worse than the vague one it replaced. The fix is to name the RUN
         MODEL rather than the leaf's direction, so this asserts the prohibition directly.
         """
