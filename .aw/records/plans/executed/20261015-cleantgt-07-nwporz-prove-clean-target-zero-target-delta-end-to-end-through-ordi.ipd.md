@@ -5,8 +5,9 @@
 - Concern: Each earlier Set child proves its own slice, but the maintainer's acceptance bar (2026-10-15) is the whole lifecycle: `git -C <target> status --porcelain --ignored` empty and HEAD unchanged after install AND after ordinary use. The predecessor review (irjoga PR-001) measured that the first ordinary verb re-created a target delta (`aw backlog new --apply` wrote `.agents/backlog/` and `.aw/records/history.jsonl` into the target; `aw index prompts --agent` crashed on `<repo>/.aw/records/prompts/INDEX.json`), so a per-slice proof is not enough. Separately, spec `20260810-1447-01` Section 4 still says the target writes "remain open as Phase 3 work" and Section 5 says per-machine control state "stays IN the target repository", which contradicts the shipped clean-delta behavior once this Set lands, and `CHANGELOG.md` has no entry for it.
 - Scope: Add one end-to-end subprocess test module `tests/test_clean_target_zero_delta_e2e.py` that installs each clean preset into a temp target and drives a fixed sequence of ordinary verbs (`aw backlog new --apply`, `aw index prompts`, `aw research new --apply`, `aw attention`, `aw status`, `aw doctor`, `aw ipd scaffold --apply`, `aw work begin`, `aw oc run start --prepare-only`, `aw uninstall --yes`), asserting after EVERY step that the target is porcelain-ignored empty and HEAD unchanged and that the step's artifact landed under `<AW_HOME>/projects/<project_id>/`, with a mutation proof; amend spec `20260810-1447-01` Section 4 and Section 5 and record it with `aw specs note`; add one `- Fixed:` line to `CHANGELOG.md` under `## 2.0.0 (pending)`.
 - Scope-Paths: tests/test_clean_target_zero_delta_e2e.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-707qi4-01-707qi4-work-begin-crashes-on-clean-delta-repos-when-relat.backlog.md (Defect tracking carrier for work begin ValueError crash on clean-delta repos filed during e2e execution.); agent_workflows/work_cmd.py (Bugfix during e2e testing of clean-delta repos: aw work begin crashed with ValueError when relativizing plan_path because clean-delta records live outside repo_root under AW_HOME handled by catching V...)
 - Item-Dependencies: executed:xoy5yg
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nwporz
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nwporz verified (set cleantgt, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-707qi4-01-707qi4-work-begin-crashes-on-clean-delta-repos-when-relat.backlog.md: Defect tracking carrier for work begin ValueError crash on clean-delta repos filed during e2e execution.; out-of-scope agent_workflows/work_cmd.py: Bugfix during e2e testing of clean-delta repos: aw work begin crashed with ValueError when relativizing plan_path because clean-delta records live outside repo_root under AW_HOME; handled by catching ValueError.]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-006)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
