@@ -1247,12 +1247,12 @@ class PreCommitConfigStageRegistrationTests(unittest.TestCase):
     #: (case, read(data) -> actual value, the exact expected value, why this row exists)
     REGISTRATIONS = (
         (
-            "`default_install_hook_types` installs BOTH stages",
+            "`default_install_hook_types` installs required stages",
             lambda data: data.get("default_install_hook_types"),
-            ["pre-commit", "pre-merge-commit"],
+            ["pre-commit", "pre-merge-commit", "pre-push"],
             "WITHOUT THIS KEY NOTHING ELSE MATTERS: `pre-commit install` writes only the hook types "
-            "listed here, so an automated `git merge` fires no hook at all and the gate's "
-            "`pre-merge-commit` registration below is dead configuration",
+            "listed here, so an automated `git merge` or `git push` fires no hook at all and the "
+            "stage registrations below are dead configuration",
         ),
         (
             "`default_stages` stays pinned to pre-commit alone",

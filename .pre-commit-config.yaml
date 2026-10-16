@@ -10,13 +10,13 @@
 # toolkit's own writer, and tests/test_precommit_verbatim_exclusions.py pins the two together.
 # SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
 # paths, so secrets or oversized blobs cannot slip in.
-# Hook TYPES installed by `pre-commit install` (integpath 29wvmj, OQ-03 option (b)). `pre-commit` alone
-# is not enough: git runs `pre-merge-commit`, NOT `pre-commit`, for an AUTOMATED merge, so before this
-# key every automated merge that carried a plan into `executed/` bypassed the executed-transition gate
-# entirely. NOTE this changes what a FRESH install does and cannot retrofit an EXISTING clone: one hook
-# script is written per installed type, so a clone set up before this change has only
-# `.git/hooks/pre-commit` and must re-run `pre-commit install` to gain the new stage (see CONTRIBUTING).
-default_install_hook_types: [pre-commit, pre-merge-commit]
+# Hook TYPES installed by `pre-commit install` (integpath 29wvmj, testtier hguae9). `pre-commit` alone
+# is not enough: git runs `pre-merge-commit` for an automated merge and `pre-push` before push.
+# NOTE this changes what a FRESH install does and cannot retrofit an EXISTING clone: one hook
+# script is written per installed type, so a clone set up before this change has only the previously
+# installed hooks and must re-run `pre-commit install` to gain the new stage (see CONTRIBUTING).
+default_install_hook_types: [pre-commit, pre-merge-commit, pre-push]
+
 
 # `default_stages` is PINNED to pre-commit deliberately. It otherwise defaults to ALL stages, so merely
 # installing the second hook type above would ALSO run every content-MUTATING hook (ruff --fix,
@@ -98,3 +98,14 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # testtier hguae9: Run the thorough test suite before git push.
+      # Local feedback only (skippable with --no-verify); not an authority boundary.
+      - id: thorough-suite
+        name: thorough test suite before push
+        entry: python3 -m agent_workflows suite --thorough
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true

@@ -60,7 +60,7 @@ Never hand-edit generated files. Use the owning CLI verb:
 - **IPD Checklists and Verification IDs (`E-*`, `V-*`)**: `aw ipd sync <plan.md>`.
 - **Version Metadata (`.aw/system/VERSION`)**: `make version-file VERSION=<X.Y.Z>`.
 
-## Git hooks (install TWO hook types)
+## Git hooks (install THREE hook types)
 
 The local hooks are managed by `pre-commit`. Install them with:
 
@@ -68,24 +68,22 @@ The local hooks are managed by `pre-commit`. Install them with:
 pre-commit install
 ```
 
-That installs BOTH hook types this repo declares in `.pre-commit-config.yaml`
-(`default_install_hook_types: [pre-commit, pre-merge-commit]`), writing
-`.git/hooks/pre-commit` and `.git/hooks/pre-merge-commit`.
+That installs all THREE hook types this repo declares in `.pre-commit-config.yaml`
+(`default_install_hook_types: [pre-commit, pre-merge-commit, pre-push]`), writing
+`.git/hooks/pre-commit`, `.git/hooks/pre-merge-commit`, and `.git/hooks/pre-push`.
 
-**If you cloned or set up this repo before the `pre-merge-commit` type was added, re-run
+**If you cloned or set up this repo before the `pre-push` type was added, re-run
 `pre-commit install`.** `pre-commit` writes one hook script per installed type at install time, so
 adding a hook type to the config changes only what a FRESH install produces; it cannot retrofit an
-existing clone. Until you re-run it, your clone has `.git/hooks/pre-commit` alone. Verify with
-`ls .git/hooks/` and expect to see both scripts.
+existing clone. Until you re-run it, your clone has only the previously installed hook scripts. Verify
+with `ls .git/hooks/` (or `ls "$(git rev-parse --git-common-dir)/hooks"`) and expect to see all three scripts.
 
-Why the second type matters: git runs `pre-merge-commit`, not `pre-commit`, for an automated
-`git merge` that creates the merge commit itself. The `ipd-executed-transition-gate` hook (which
-refuses a raw, non-`aw ipd finalize` plan-to-`executed` transition) is registered for both stages, so
-without the second hook script an automated merge carrying a plan into `.aw/records/plans/executed/`
-is not gated at all. Two honest limits: `pre-merge-commit` does not run for a fast-forward merge
-(no commit is created), and on a conflicted-then-resolved merge git runs `prepare-commit-msg` and
-`commit-msg` instead, though the final `git commit` there is covered by `pre-commit`. As always these
-are LOCAL, best-effort hooks; `aw check` and `aw doctor` are the deterministic backstop.
+Why the stages matter:
+1. `pre-commit`: runs formatters, linters, leak checks, and plan status change gates on every staged commit.
+2. `pre-merge-commit`: runs for an automated `git merge` that creates the merge commit itself. The `ipd-executed-transition-gate` hook (which refuses a raw, non-`aw ipd finalize` plan-to-`executed` transition) is registered for both stages, so without this hook script an automated merge carrying a plan into `.aw/records/plans/executed/` is not gated at all.
+3. `pre-push`: runs the thorough test suite (`python3 -m agent_workflows suite --thorough`) before git push. This is local feedback to catch regressions before they reach CI or remote branches. It is skippable with `--no-verify` and is not an authority boundary (CI and branch protections are the authority). Because `aw suite` caches results, an unchanged tree runs instantly from cache.
+
+Two honest limits: `pre-merge-commit` does not run for a fast-forward merge (no commit is created), and on a conflicted-then-resolved merge git runs `prepare-commit-msg` and `commit-msg` instead, though the final `git commit` there is covered by `pre-commit`. As always these are LOCAL, best-effort hooks; `aw check` and `aw doctor` are the deterministic backstop.
 
 Merging a lane on which `aw ipd finalize` genuinely ran is ACCEPTED by that gate: it looks for the
 `lifecycle(<id6>): finalize` commit on the incoming side of the merge. You should not need
