@@ -6,7 +6,8 @@
 - Scope: IN: create the Set's findings doc; record a fresh surviving-suite coverage baseline over the FULL `tests/` tree with `tools/replay_coverage_diff.py baseline`; for each of the 747 keys record existence at HEAD and its reach class (`key-gone` / `unreached` / `subprocess-only` / `reached`) with its surviving contexts; re-diff the 17 `pass-shared` files and the 4 recreated files with `tools/replay_coverage_diff.py diff` against that baseline; write the per-key and per-file tables. OUT: mutation probing (Order 05 `rf1xxr`); classifying the missing recreated names (Order 04 `we3kkb`); filing (Order 06 `z2xs98`); any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:24h56i, executed:x9z0ve
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 9qvfie
@@ -17,6 +18,7 @@
 - Id: 8dyt88
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set trimcarry graduating backlog 9qvfie.
@@ -43,16 +45,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `baseline.json` at HEAD over the full non-slow suite; summary pasted.
   - Execution state: pending
 
-- [ ] E-03 For each key in `keys.txt` decide: `key-gone` when the function no longer exists in the module at HEAD (use `tools/replay_coverage_diff.py` `extract_functions` on the HEAD file, or the file is absent); otherwise from `baseline.json` `functions[key]`: absent -> `unreached`; `subprocess_only: true` -> `subprocess-only`; else `reached` with the context count. Write `## Key reach` as a table (`Key`, `hpjj44 reason` (`budget-exhausted`/`cost-cap`), `hpjj44 exclusive lines`, `Reach class`, `Surviving contexts` count, and EVERY distinct surviving test FILE the contexts belong to (derived from the context name `tests.<module>.<Class>.<test>` -> `tests/<module>.py`), which Order 05 (`rf1xxr`) uses as its narrowed probe selection) plus a counts table per class that sums to 747, and a per-module count table (module, keys, unreached) for Order 06's grouping. Keep the scratch script under `.aw/state/trimcarry-8dyt88/` and paste its source in the doc's `## Method`.
+- [ ] E-03 For each key in `keys.txt` decide: `key-gone` when the function no longer exists in the module at HEAD (use `tools/replay_coverage_diff.py` `extract_functions` on the HEAD file, or the file is absent); otherwise from `baseline.json` `functions[key]`: absent -> `unreached`; `subprocess_only: true` -> `subprocess-only`; else `reached` with the context count. Write `## Key reach` as a table (`Key`, `hpjj44 reason` (`budget-exhausted`/`cost-cap`), `hpjj44 exclusive lines`, `Reach class`, `Surviving contexts` count, and EVERY distinct surviving test FILE the contexts belong to (derived from the FIRST TWO dot-segments of the context name, `tests.<module>[.<Class>].<test>` -> `tests/<module>.py`, confirming each derived path exists at HEAD; count and list any context that does not start with `tests.` or maps to no file instead of dropping it), which Order 05 (`rf1xxr`) uses as its narrowed probe selection) plus a counts table per class that sums to 747, and a per-module count table (module, keys, unreached) for Order 06's grouping. Keep the scratch script under `.aw/state/trimcarry-8dyt88/` and paste its source in the doc's `## Method`. `## Method` MUST also state the selection limit: the baseline excludes `slow` and `livecorpus` tests (`_build_pytest_cmd`), so `unreached` means "unreached by the routine non-slow selection", not "unreached by any test", and Orders 05 and 06 read it that way.
   - Depends on: E-02
   - Expected outcome: 747 rows; class counts sum to 747.
   - Execution state: pending
 
 ### Task group 3: Pass-shared and recreated re-diff, and commit
 
-- [ ] E-04 Before committing anything (the diff refuses a baseline whose `head` is not HEAD), run `python3 tools/replay_coverage_diff.py diff 19313eed <the 17 pass-shared paths> tests/test_lane_input_manifest.py tests/test_release_readiness.py tests/test_run_analytics_cli.py tests/test_run_summary_table.py --baseline .aw/state/trimcarry-8dyt88/base --format json > .aw/state/trimcarry-8dyt88/rediff.json`. Write `## Pass-shared re-diff` with one row per pass-shared file: replay verdict, exclusive line total, shared line total, and every function with exclusive lines > 0; a file with 0 exclusive lines is `shared-confirmed`, with > 0 it is `exclusive-now`. Write `## Recreated re-diff` with, for each of the 4 recreated files, its replay verdict and every function with exclusive lines > 0 (key and count): the HEAD file already covers the names it kept, so those exclusive lines are reached only by the deleted-and-not-recreated tests, which is the input Order 04 (`we3kkb`) needs. Run `aw research index`, then commit only the doc: `aw commit <this plan> -- <doc path>`.
+- [ ] E-04 Before committing anything (the diff refuses a baseline whose `head` is not HEAD), run `python3 tools/replay_coverage_diff.py diff 19313eed <the 17 pass-shared paths> tests/test_lane_input_manifest.py tests/test_release_readiness.py tests/test_run_analytics_cli.py tests/test_run_summary_table.py --baseline .aw/state/trimcarry-8dyt88/base --format json > .aw/state/trimcarry-8dyt88/rediff.json`. Write `## Pass-shared re-diff` with one row per pass-shared file: replay verdict, exclusive line total, shared line total, and every function with exclusive lines > 0; classify by the FIRST rule that applies: replay verdict not `pass`/`fail`, or `tests_count` 0 -> `replay-unverified` (the replay did not run the deleted tests, so 0 exclusive lines proves nothing; `deleted_test_replay.py` verdicts `error`, `error-import`, `error-collect`, `no-tests`, `timeout`); > 0 exclusive lines -> `exclusive-now`; else `shared-confirmed`. State in the section that Order 06 (`z2xs98`) must carry a `replay-unverified` file as a gap exactly like `exclusive-now`. Write `## Recreated re-diff` with, for each of the 4 recreated files, its replay verdict and every function with exclusive lines > 0 (key and count): the HEAD file already covers the names it kept, so those exclusive lines are reached only by the deleted-and-not-recreated tests, which is the input Order 04 (`we3kkb`) needs. Run `aw research index`, then commit only the doc: `aw commit <this plan> -- <doc path>`.
   - Depends on: E-03
-  - Expected outcome: 17 pass-shared rows and 4 recreated rows; every file classified; one path-scoped commit of the doc.
+  - Expected outcome: 17 pass-shared rows (each `shared-confirmed`, `exclusive-now` or `replay-unverified`) and 4 recreated rows; one path-scoped commit of the doc.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -70,6 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F2 | At derivation HEAD `3ae697cff`, 459 keys had 0 surviving contexts, 25 were subprocess-only, 263 were reached. | Authoring join of `## Reach at derivation` with the 747 keys (scratch, deleted). |
 | F3 | The backlog body's 17 `pass-shared` names are not the findings doc's; 12 never existed. | `git log --all --oneline -- tests/test_cli_commands.py` (and 11 others) empty; `hpjj44` lists e.g. `tests/test_color_output.py`, `tests/test_dir_readmes.py`. |
 | F4 | The derivation baseline predates the `testpaths` narrowing, so a re-measure must name `tests/`. | `git show 3ae697cff:pyproject.toml` -> `testpaths = ["tests"]`; HEAD `testpaths` lists 19 core modules. |
+| F5 | Review checks at HEAD `a85608c0f`: `aw research new --kind findings --set trimcarry --order 1 --slug rollup-reach` (dry run) would write `.aw/records/research/20261016-trimcarry-01-<id6>-rollup-reach.findings.md`, which `ipd_lifecycle._scope_match` accepts against the Scope-Paths glob (`True`); `tools/replay_coverage_diff.py baseline --out <scratch> -- tests/test_agent_aw_home_containment.py -p no:xdist` printed `head`, `xdist`, `functions: 221`, `subprocess_only: 41`, `wall_s: 14.08`, contexts `tests.test_agent_aw_home_containment.test_...` (module-level form, two segments before the test name); `run_diff` records `verdict` and `tests_count` per file, and `deleted_test_replay.replay_file` yields `error`/`error-import`/`error-collect`/`no-tests`/`timeout` besides `pass`/`fail`; `tests/*.py` carry 26 `mark.slow` and 18 `mark.livecorpus` uses. | Review lane (scratch deleted). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -124,12 +127,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted per-class counts table summing to 747 (sum shown); pasted output of a `python3 -c` check that every key in `keys.txt` appears exactly once in `## Key reach`; three sample rows (one per non-empty class) cross-checked against `baseline.json` with the pasted lookup.
+  - Required evidence: pasted per-class counts table summing to 747 (sum shown); pasted output of a `python3 -c` check that every key in `keys.txt` appears exactly once in `## Key reach`; one sample row per non-empty class, cross-checked with a pasted lookup: `baseline.json` `functions[key]` for `reached`/`subprocess-only`/`unreached` (absent for the last), and `extract_functions` on the HEAD file (or the file's absence) for `key-gone`; pasted count of contexts that did not map to a test file (expected 0) and the `## Method` selection-limit sentence.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted `## Pass-shared re-diff` table (17 rows) and `## Recreated re-diff` table (4 files); pasted `aw research find --id <doc id6>`; pasted `aw commit` output and `git show --stat HEAD` listing only the doc; `git worktree list` before and after showing no leftover replay worktree.
+  - Required evidence: pasted `## Pass-shared re-diff` table (17 rows, each row's class consistent with its pasted replay verdict, `tests_count` and exclusive total from `rediff.json`) and `## Recreated re-diff` table (4 files); pasted `aw research find --id <doc id6>`; pasted `aw commit` output and `git show --stat HEAD` listing only the doc; `git worktree list` before and after showing no leftover replay worktree.
   - Observed evidence:
   - Result: pending
 
