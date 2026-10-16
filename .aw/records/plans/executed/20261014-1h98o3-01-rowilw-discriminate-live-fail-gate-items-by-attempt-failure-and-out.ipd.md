@@ -6,7 +6,7 @@
 - Scope: Add item-level `fail-gate` producer discrimination in `agent_workflows/render_stream.py` (`outcome_class_of_item`) so `render_run_summary_table` maps nonzero-exit / crashed `fail-gate` turns to `OUTCOME_CLASS_FAILED` (`FAILED`), executed-claim-not-moved `fail-gate` turns without a gate refusal to `OUTCOME_CLASS_SUCCESS` (`COMPLETED` when work landed or `--no-self-finalize`, `STRANDED` when `work_did_not_land(item)` is true), and gate refusals awaiting a human (plus bare `fail-gate` items) to `OUTCOME_CLASS_BLOCKED` (`BLOCKED`); cover all three producers in `tests/test_outcome_word_ladder.py`; add one `Fixed:` line to `CHANGELOG.md`.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_outcome_word_ladder.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: rowilw
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rowilw verified (set 1h98o3, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 
