@@ -6,7 +6,7 @@
 - Scope: Add one pure resolver `project_context.checkout_main_root(path)` (the main worktree of `path`'s git checkout, read from the `.git` gitfile and the `commondir` file without spawning git) and make it the IDENTITY ANCHOR for a linked worktree in `project_config_dir` and in `resolve_project_context`'s derived-`project_id` fallback, so a lane shares its main checkout's home config and `project_id`; add one pure predicate `project_context.home_configured_root(path)` (true iff `project_config_dir(path)` is a home `config/project.json` whose stored `delivery_mode` is `clean-delta`); teach `find_project_root`, `is_project_dir`, `classify_project_dir`, `doctor.probe_environment`, `cli._collect_repo_status_details` and `cli._run_status` to accept it as a project marker. The lane stays its OWN working-tree root (so `aw commit` in a lane commits in the lane, as for in-repo lanes today); only its identity is shared. Outcome tests in a new `tests/test_clean_target_recognition.py`.
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/doctor.py, agent_workflows/cli.py, tests/test_clean_target_recognition.py
 - Item-Dependencies: executed:4gn1ka, executed:ivq0nr
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fnnwj3
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fnnwj3 verified (set cleantgt, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-006)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
