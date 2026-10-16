@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `cli.main` in-process across several `aw run`/`aw runs` leaves and both machine renderers, reaching `_emit_error` through three distinct emit paths (unknown target via `_emit_ledger_not_found`, explicit absent path, and empty ledger via the engine builder), asserting on the returned exit code and on the parsed payload's exact key set and values; then update the stale "deleted in `19313eed`; no live guard currently asserts this" remark in the `_emit_error` docstring to name the new module.
 - Scope-Paths: tests/test_run_cli_error_payload_keys.py, agent_workflows/run_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: e97wtz
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e97wtz verified (set n2fx9i, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
