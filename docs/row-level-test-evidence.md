@@ -35,7 +35,7 @@ If a test block appends failing cases to a `wrong` list inside `with self.subTes
 A row-level verdict is only trustworthy when the test fails inside the `with self.subTest(...)` context.
 
 In this repository, table tests support opt-in strict mode:
-1. Default mode (`AW_ROW_STRICT` unset or not `"1"`): Ordinary suite runs (`python3 -m pytest`) execute byte-identically to standard runs, preserving full aggregate diagnostic messages and the complete list of wrong rows without aborting on the first failure.
+1. Default mode (`AW_ROW_STRICT` unset or not `"1"`): Ordinary suite runs (bare `python3 -m pytest` for the core tier, or `make test-all` / `aw suite --thorough` for the thorough tier; an explicit path runs everything non-slow it names) execute byte-identically to standard runs, preserving full aggregate diagnostic messages and the complete list of wrong rows without aborting on the first failure.
 2. Strict mode (`AW_ROW_STRICT=1`): When enabled by `agent_workflows.subtest_rows`, failing rows call `self.fail(...)` inside the `subTest` context in addition to appending to `wrong`. This ensures `addSubTest` accurately records FAIL for defective rows while continuing the sweep for subsequent rows.
 
 The `agent_workflows.subtest_rows` helper enforces two honesty checks:

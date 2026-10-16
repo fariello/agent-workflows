@@ -144,11 +144,8 @@ layout migration, pypi_links) or the workflow tools (`scan_secrets.py`, `run_che
 make test
 ```
 
-`make test` collects a representative behavioral suite and runs at most six pytest
-workers, using no more than half the available CPUs. Install the test dependencies
-with `pip install '.[test]'`. Run `make test-all` before release to collect every test,
-including slow integration and live-record checks. A focused test run for the changed
-feature should accompany the routine gate when its test file is outside the core set.
+`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. Running an explicit path (e.g. `python3 -m pytest tests/test_foo.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
+
 
 If you need the guaranteed no-dependency serial runner (for a minimal environment, or to
 debug a test-ordering/isolation issue), use:

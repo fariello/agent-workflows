@@ -106,3 +106,18 @@ Two `doctor` live-leaf conformance tests alone take 118s and 64s, longer than th
 ## Method
 
 `python3 -m pytest --cov=agent_workflows --cov-branch --cov-report=` (default) and `python3 -m pytest tests/ -m '' -n auto --dist=worksteal -o addopts="" -p no:randomly --cov=agent_workflows --cov-branch` (full), `coverage json`, compared per file. Coverage-instrumented wall times (70.7s default, 719s full) are not the baseline wall times.
+
+## After (2026-10-16, plan hguae9)
+
+Executed plan `hguae9` splits the test suite into a marker-selected core tier under 30s wall-time budget on 6 workers (covering every first-party module and declared leaf command) and a thorough tier for pre-push, CI, and release verification.
+
+### After Counts and Coverage
+
+- Core tier test count: 726 tests collected and executed on bare `python3 -m pytest`.
+- Module coverage: 196 of 196 first-party modules covered (0 modules at 0% coverage; down from 93 at baseline).
+- Declared leaf commands: 170 of 170 declared leaves driven (100.0%, up from baseline).
+- Smoke tests: 6 end-to-end subprocess smoke tests marked `core`.
+- Line coverage: 55.4% (52,192 / 94,153 lines), branch coverage: 40.5% (15,446 / 38,103 branches).
+- Budget guard: 30s wall time budget enforced on >=12 CPUs (6 workers) with `AW_CORE_BUDGET_ENFORCE=0` escape and slowest-10 list reporting.
+- Thorough tier: accessible via `aw suite --thorough` and `make test-all` (`tests/ -m ''`), wired into local `pre-push` git hook and CI matrix.
+

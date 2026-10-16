@@ -18,13 +18,15 @@ install-dev:
 # half the available CPUs. The root conftest installs xdist if needed.
 # pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
 # not imported at runtime and not shipped in the wheel.
-# Routine gate: pyproject testpaths selects representative behavioral tests.
+# Routine gate: bare `python3 -m pytest` runs the core tier (budgeted under 30s wall time on 6 workers)
+# and serves as the runner merge gate; an explicit path runs everything non-slow it names.
 # Pytest addopts keeps slow and live-record tests out of this run.
 test:
 	python3 -m pytest
 
-# FULL suite including the `slow` subprocess/integration tests (CI runs the fast
-# suite plus an advisory slow step). Use for release-review or before shipping.
+# Thorough suite including the `slow` subprocess/integration tests (CI runs the fast
+# suite plus an advisory slow step). Use `make test-all` or `aw suite --thorough`
+# for pre-push, CI, and release-review before shipping.
 # `-m ""` clears the default `not slow and not livecorpus` filter (including `slow` and `livecorpus`); still parallel.
 test-all:
 	python3 -m pytest tests/ -m ''

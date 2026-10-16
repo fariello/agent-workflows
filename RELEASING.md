@@ -40,7 +40,7 @@ On a `NO-GO`, no rungs are offered.
   in which case the resolver reports a `.devN` version). The resolver emits an rc tag as PEP
   440 `X.Y.ZrcN`, so pip treats it as a pre-release and does not install it without `--pre`.
 - Tags are ALWAYS annotated (signed if the project signs tags), never lightweight, and are
-  created on a clean, CI-green tree.
+  created on a clean, CI-green tree, verified by the thorough test tier (`make test-all` or `aw suite --thorough`). The routine merge gate is bare `python3 -m pytest` for the core tier (an explicit path runs everything non-slow it names).
 - **Bake-then-tag.** The tracked `.aw/system/VERSION` is a derived artifact the installer
   copies into every target repo. At release time, re-bake it to the intended version and commit it
   BEFORE tagging: `make version-file VERSION=<X.Y.Z>`, commit, then `git tag -a vX.Y.Z ...` on that
