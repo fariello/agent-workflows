@@ -6,7 +6,7 @@
 - Scope: Strip trailing hyphens after the fixed-length slug slice in the two hand-formatted backlog filename builders (`backlog.run_new`, `set_records.promote_question_to_backlog`), with behavioral regression tests. No other naming path changes.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/set_records.py, tests/test_slug_slice_trailing_hyphen.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 1i2kgq
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1i2kgq verified (set g73xcx, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
