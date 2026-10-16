@@ -1,5 +1,5 @@
 - Id: aavf6a
-- Status: graduated
+- Status: done
 - Graduated-To: idxjsonroot
 - Blocks-Release: next
 - Set: idxjsonroot
@@ -8,6 +8,7 @@
 - Summary: aw index <type> --check --json puts the absolute repository path in data.repo_root, which the output contract forbids a producer to do without an approved spec
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 7dcpe1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-idxjsonroot-01-7dcpe1-remove-absolute-repo-root-from-aw-index-check-json-data-whil.ipd.md); evidence .aw/records/plans/executed/20261014-idxjsonroot-01-7dcpe1-remove-absolute-repo-root-from-aw-index-check-json-data-whil.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: 7dcpe1
 - 2026-10-12 created (aw backlog): filed while authoring sn2svz from 4izduy
 
