@@ -2274,7 +2274,9 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
 
     Returns a repository-relative POSIX path when the worktree lies inside ``repo`` (the normal case:
     lanes live under `.aw/worktrees/<lane>`), and otherwise returns None so the caller OMITS it rather
-    than leaking it. Never returns an absolute path.
+    than leaking it. For clean-delta repositories (where lanes live under AW_HOME), returns None
+    rather than synthesizing an in-repo path that does not exist (IPD qk0ew6 E-07). Never returns an
+    absolute path.
 
     IT ALSO OMITS A WORKTREE THAT IS NOT THERE, because a row asserting a directory that was reclaimed
     months ago sends the reader to inspect a tree that does not exist. Measured 2026-09-19 over the live
@@ -2313,6 +2315,19 @@ def lane_worktree_display(repo: Path, worktree: Any) -> Optional[str]:
     except (ValueError, OSError, RuntimeError):
         # Outside the repository (or unresolvable): omit rather than leak.
         raw = Path(str(worktree))
+        try:
+            from agent_workflows import worktree_lease
+
+            wt_root = worktree_lease.worktrees_root(root)
+            if wt_root != (root / worktree_lease.WORKTREES_SUBDIR):
+                try:
+                    raw.resolve().relative_to(wt_root.resolve())
+                    return None
+                except ValueError:
+                    pass
+        except Exception:
+            pass
+
         name = raw.name
         parent = raw.parent.name
         if parent == "worktrees" and name and _exists(raw):
@@ -27289,6 +27304,7 @@ def handle_review_orchestrator_readiness(
 #: read-only suite run needs no branch, no owner record and no lane classification, and a detached
 #: checkout has nothing for `teardown_worktree` (which its own docstring calls a DATA-SAFETY HAZARD
 #: because it deletes the branch and its reflog) to destroy but a directory.
+#: For clean-delta repositories, routed via ipd_lifecycle.control_state_dir under AW_HOME (IPD qk0ew6 E-06).
 SUITE_BASELINE_SUBDIR: str = ".aw/state/suite-baselines"
 
 #: How long the baseline's own suite run may take before it is abandoned as ABSENT. Deliberately the
@@ -27388,14 +27404,17 @@ def suite_baseline_checkout_path(repo_root: Path, id6: str, attempt: int) -> Pat
     """Where a baseline checkout lives. OUTSIDE the lane namespace, by construction.
 
     Keyed on the item AND the attempt so two attempts cannot collide, and rooted under
-    `SUITE_BASELINE_SUBDIR` (which is inside the gitignored `.aw/state/`) rather than under
-    `.aw/worktrees/`, so no lane classifier, no owner-record reader and no lane reclamation pass can
-    ever mistake it for a lane. See `SUITE_BASELINE_SUBDIR` for the measured reason.
+    `SUITE_BASELINE_SUBDIR` (which is inside the gitignored `.aw/state/`) for in-repo checkouts
+    rather than under `.aw/worktrees/`, so no lane classifier, no owner-record reader and no
+    lane reclamation pass can ever mistake it for a lane. See `SUITE_BASELINE_SUBDIR` for the
+    measured reason. For clean-delta repositories, routed via `ipd_lifecycle.control_state_dir`
+    under AW_HOME (IPD qk0ew6 E-06).
     """
+    from agent_workflows import ipd_lifecycle
 
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(id6 or "unknown"))
-    return (
-        repo_root / SUITE_BASELINE_SUBDIR / f"{safe}-attempt{int(attempt)}"
+    return ipd_lifecycle.control_state_dir(
+        repo_root, "suite-baselines", f"{safe}-attempt{int(attempt)}"
     ).resolve()
 
 

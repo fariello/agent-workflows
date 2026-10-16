@@ -349,8 +349,8 @@ def collect_lane_rows(repo: Path) -> list[LaneRow]:
             )
         )
 
-    # 4. Check for worktrees under .aw/worktrees/ that are not on an aw/lane/* branch
-    wt_base = repo / ".aw" / "worktrees"
+    # 4. Check for worktrees under worktrees_root that are not on an aw/lane/* branch
+    wt_base = worktree_lease.worktrees_root(repo)
     if wt_base.is_dir():
         for entry_dir in wt_base.iterdir():
             if not entry_dir.is_dir():
@@ -671,7 +671,7 @@ def run_prune(args: argparse.Namespace, term: term_mod.Term | None = None) -> in
         wt_path = (
             r.raw_worktree
             if (r.raw_worktree and r.raw_worktree.exists())
-            else (repo / ".aw" / "worktrees" / lane_id)
+            else (worktree_lease.worktrees_root(repo) / lane_id)
         )
         handle = worktree_lease.WorktreeHandle(
             lane_id=lane_id,

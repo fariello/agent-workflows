@@ -29,17 +29,23 @@ from agent_workflows import platform_lock
 # Paths and Record Storage (E-01)
 # --------------------------------------------------------------------------------------
 
+# The in-repo checkup state directory layout. For clean-delta repositories, routed via control_state_dir.
 CHECKUP_STATE_REL = Path(".aw") / "state" / "checkup"
 CHECKUP_RECORD_FILENAME = "last.json"
 CHECKUP_LOCK_FILENAME = "lock"
 
 
 def checkup_dir(repo_root: Path | str) -> Path:
-    """Return the checkup state directory under the primary checkout."""
+    """Return the checkup state directory under the primary checkout.
+
+    For clean-delta repositories, routed via ipd_lifecycle.control_state_dir under AW_HOME
+    (IPD qk0ew6 E-06).
+    """
+    from agent_workflows import ipd_lifecycle
     from agent_workflows.runner_shared import runs_repo_root
 
     primary = runs_repo_root(Path(repo_root))
-    return primary / CHECKUP_STATE_REL
+    return ipd_lifecycle.control_state_dir(primary, "checkup")
 
 
 def checkup_record_path(repo_root: Path | str) -> Path:
@@ -880,12 +886,20 @@ def run_checkup_cli(
     if slow.get("reason"):
         print(f"    Note: {slow.get('reason')}")
 
-    rel_record = checkup_record_path(repo_root)
+    rel_record_raw = checkup_record_path(repo_root)
     try:
         from agent_workflows.runner_shared import runs_repo_root
 
-        rel_record = rel_record.relative_to(runs_repo_root(repo_root))
+        rel_record = rel_record_raw.relative_to(runs_repo_root(repo_root))
     except Exception:
-        pass
+        rel_record = rel_record_raw
+        try:
+            from agent_workflows import ipd_lifecycle
+
+            cd_root = ipd_lifecycle.clean_delta_control_root(Path(repo_root))
+            if cd_root is not None:
+                rel_record = f"<project home>/{rel_record_raw.relative_to(cd_root)}"
+        except Exception:
+            pass
     print(f"  Saved record: {rel_record}")
     return 0

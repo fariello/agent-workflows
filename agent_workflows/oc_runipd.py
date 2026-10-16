@@ -137,7 +137,7 @@ from agent_workflows.render_stream import (
     # as an intentional re-export and is the only form the formatter leaves alone.
     format_run_order_announcement as format_run_order_announcement,
 )
-from agent_workflows.worktree_lease import WORKTREES_SUBDIR
+from agent_workflows.worktree_lease import worktrees_root
 
 # rununify 02 (`818uru`): the symbols below were defined in THIS module AND in `agy_runipd` with
 # bodies PROVEN AST-identical, so each had two definitions and a fix to one silently missed the other.
@@ -2411,6 +2411,16 @@ def _apply_execution_profile(
             "boundary to enforce; refusing rather than pretending to sandbox."
         )
 
+    repo_root = Path(state["repo"]).resolve()
+    from agent_workflows import ipd_lifecycle
+
+    if ipd_lifecycle.clean_delta_control_root(repo_root) is not None:
+        raise SandboxProfileError(
+            "the hardened execution profile is not supported for clean-delta repositories: "
+            "the sandbox plan grants no read access to <AW_HOME>/projects/<id>/{config,system,records}, "
+            "so the jailed inner aw cannot resolve its project."
+        )
+
     lane_root = Path(work_dir).resolve()
     # The lane's own scratch/submission channel, keyed by run and item so a retry or a
     # co-resident lane never collides. Kept INSIDE the lane so it is writable by
@@ -2418,10 +2428,9 @@ def _apply_execution_profile(
     lane_scratch = lane_root / LANE_SCRATCH_SUBDIR / state["run_id"] / item["id6"]
     lane_scratch.mkdir(parents=True, exist_ok=True)
 
-    repo_root = Path(state["repo"]).resolve()
     sibling_lanes = [
         p
-        for p in (repo_root / WORKTREES_SUBDIR).glob("*")
+        for p in worktrees_root(repo_root).glob("*")
         if p.is_dir() and p.resolve() != lane_root
     ]
     plan = build_sandbox_plan(

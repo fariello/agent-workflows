@@ -1062,6 +1062,25 @@ def home_configured_root(
         return False
 
 
+def clean_delta_project_dir(
+    main_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Optional[Path]:
+    """Return the <AW_HOME>/projects/<project_id> dir for a clean-delta repo, else None (IPD qk0ew6).
+
+    Pure and side-effect free. When home_configured_root(main_root) holds, returns
+    project_config_dir(main_root, aw_home).parent (<AW_HOME>/projects/<project_id>,
+    the directory whose config/project.json was just read), else None.
+    Total: no writes, no subprocesses.
+    """
+    try:
+        if home_configured_root(main_root, aw_home=aw_home):
+            return project_config_dir(main_root, aw_home=aw_home).parent
+        return None
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def _config_stat_stamp(
     cfg: Path, home_cfg_file: Path, user_cfg_file: Path | str
 ) -> tuple:

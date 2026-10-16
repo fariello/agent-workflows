@@ -643,6 +643,8 @@ def _relativize_path(
     roots: list[Path] = []
     if repo_root:
         roots.append(Path(repo_root))
+    if work_dir:
+        roots.append(Path(work_dir))
     try:
         roots.append(Path.cwd())
     except OSError:

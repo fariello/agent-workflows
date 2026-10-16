@@ -403,24 +403,66 @@ def checkout_git_common_dir(start: Path) -> Optional[Path]:
 checkout_common_dir = checkout_git_common_dir
 
 
+def clean_delta_control_root(start: Path | str) -> Optional[Path]:
+    """Return the project control root under AW_HOME if start is in a clean-delta checkout, else None.
+
+    Single predicate-accessor for clean-delta checkouts (IPD qk0ew6, PR-005).
+    Resolves the main worktree exactly as checkout_control_root does (common dir named .git -> its parent)
+    and returns clean_delta_project_dir(main), or None for a non-clean-delta checkout, a non-git dir,
+    a bare repo, or any OSError/ValueError/RuntimeError (TOTAL).
+    """
+    try:
+        base = Path(start)
+        if not base.is_dir():
+            return None
+        try:
+            key = str(base.resolve())
+        except OSError:
+            key = ""
+        if key:
+            cached = _CONTROL_ROOT_CACHE.get(key)
+            if cached is not None:
+                if cached.name != ".aw":
+                    return cached
+                return None
+        common_dir = checkout_git_common_dir(base)
+        if (
+            common_dir is not None
+            and common_dir.name == ".git"
+            and common_dir.parent.is_dir()
+        ):
+            from agent_workflows.project_context import clean_delta_project_dir
+
+            main_root = common_dir.parent
+            cd_dir = clean_delta_project_dir(main_root)
+            if key:
+                if len(_CONTROL_ROOT_CACHE) >= _CONTROL_ROOT_CACHE_MAX:
+                    _CONTROL_ROOT_CACHE.clear()
+                _CONTROL_ROOT_CACHE[key] = (
+                    cd_dir if cd_dir is not None else main_root / ".aw"
+                )
+            return cd_dir
+        return None
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
 def checkout_control_root(start: Path) -> Path:
-    """The checkout's ONE ``.aw`` control root for any path inside it (backlog ``dh0uno``).
+    """The checkout's ONE control root for any path inside it (backlog ``dh0uno``, IPD ``qk0ew6``).
 
     Control state (begin receipts, the finalize writer lock, finalize transaction journals) belongs
     to the CHECKOUT, not to whichever worktree happens to be the caller's cwd. This function is the
     single place that decides where that root lives, so a linked ``git worktree`` (a driver "lane")
     and the main tree resolve to the SAME location.
 
-    WHY THIS EXISTS: these paths used to be composed as ``repo_root/".aw"/...`` by each caller, and
-    ``repo_root`` for an in-lane invocation is the LANE. So an inner ``aw`` running inside a lane
-    wrote its receipt/lock/journal to ``<lane>/.aw/state/...`` - a second control store the driver
-    (running from the main tree) could not see and lane teardown then deleted. Measured before this
-    fix: ``receipt_dir(<main>)`` and ``receipt_dir(<lane>)`` returned two different directories.
+    The control root is the ``.aw``-equivalent root of the checkout, which is ``<main>/.aw`` for every
+    mode except clean-delta, where it is the project's home directory ``<AW_HOME>/projects/<project_id>``
+    (cite irjoga OQ-04, resolved 2026-10-15, and IPD qk0ew6).
 
     Behavior, and the honest limits of it:
 
-    * INSIDE a Git checkout -> the MAIN worktree's ``.aw``, derived from
-      :func:`checkout_git_common_dir` (every linked worktree of a checkout shares one common dir). That
+    * INSIDE a Git checkout -> ``<AW_HOME>/projects/<project_id>`` for clean-delta repositories, or the
+      MAIN worktree's ``.aw`` derived from :func:`checkout_git_common_dir` for all other modes. That
       collapse IS the fix.
     * NOT in a Git checkout, or a bare/exotic ``GIT_DIR`` where no main worktree can be established
       -> ``start/.aw`` unchanged. There is no checkout identity to collapse to, hence no fork to
@@ -434,6 +476,7 @@ def checkout_control_root(start: Path) -> Path:
       both LEAKS the writer lock and REPLACES the real in-flight exception with a confusing git
       error. Only ``OSError`` is caught (it covers ``FileNotFoundError`` for a missing git and
       ``BlockingIOError``/EAGAIN for a fork failure), so a genuine programming error still surfaces.
+      An exception from the clean-delta lookup falls back to ``<main>/.aw`` and is NOT cached.
 
     Nothing is invented and no worktree path is hashed: the fallback is "use exactly what you were
     given", which cannot fork because only one tree is involved.
@@ -464,13 +507,41 @@ def checkout_control_root(start: Path) -> Path:
         and common_dir.name == ".git"
         and common_dir.parent.is_dir()
     ):
-        resolved = common_dir.parent / ".aw"
+        main_root = common_dir.parent
+        try:
+            from agent_workflows.project_context import clean_delta_project_dir
+
+            clean_dir = clean_delta_project_dir(main_root)
+        except Exception:
+            # An exception from the clean-delta lookup falls back to <main>/.aw and is NOT cached.
+            return main_root / ".aw"
+
+        resolved = clean_dir if clean_dir is not None else main_root / ".aw"
         if key:
             if len(_CONTROL_ROOT_CACHE) >= _CONTROL_ROOT_CACHE_MAX:
                 _CONTROL_ROOT_CACHE.clear()
             _CONTROL_ROOT_CACHE[key] = resolved
         return resolved
     return base / ".aw"
+
+
+def control_state_dir(repo_root: Path | str, *parts: str | Path) -> Path:
+    """Return the control state directory under the control root (IPD qk0ew6 E-06).
+
+    For clean-delta repositories, resolves to clean_delta_control_root(repo_root) / 'state' / parts
+    (<AW_HOME>/projects/<project_id>/state/...).
+    For all other repositories, resolves to repo_root / '.aw' / 'state' / parts byte-identically
+    (deliberately NOT collapsed to the main checkout for tracked lanes).
+    """
+    root = Path(repo_root)
+    cd_root = clean_delta_control_root(root)
+    if cd_root is not None:
+        base = cd_root / "state"
+    else:
+        base = root / ".aw" / "state"
+    if parts:
+        return base.joinpath(*parts)
+    return base
 
 
 # ---- LIFECYCLE LANE NUDGE (lifegate m47znv E-02 / E-03, backlog dvonrn D1) -----------------------
@@ -495,16 +566,23 @@ def format_lane_nudge_advisory(lane_id: str) -> str:
 def is_main_checkout(repo_root: Path) -> bool:
     """True iff repo_root resolves to the repository's main worktree.
 
-    lifegate m47znv E-03 / PR-203 / D-3.
+    lifegate m47znv E-03 / PR-203 / D-3, IPD qk0ew6 E-03.
     Decided by a concrete test on repo_root (the --dir target), not on cwd.
-    Preferred: checkout_control_root(repo_root).parent equals git rev-parse --show-toplevel.
+    Preferred: checkout_git_common_dir(repo_root).parent equals git rev-parse --show-toplevel.
     Any error or non-git directory returns False (F-8).
     """
     try:
         root_path = Path(repo_root)
         if not root_path.is_dir():
             return False
-        main_root = checkout_control_root(root_path).parent.resolve()
+        common_dir = checkout_git_common_dir(root_path)
+        if (
+            common_dir is None
+            or common_dir.name != ".git"
+            or not common_dir.parent.is_dir()
+        ):
+            return False
+        main_root = common_dir.parent.resolve()
         rc, out, _err = _git(root_path, ["rev-parse", "--show-toplevel"])
         if rc != 0:
             return False

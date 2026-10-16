@@ -34,14 +34,17 @@ import time
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-# The gitignored root for per-lane worktrees (matches the `.aw/worktrees/<node>` path the manifest
-# compiler synthesizes in ipd_set_plan.node_to_lane_request).
+# The gitignored in-repo layout for per-lane worktrees (matches the `.aw/worktrees/<node>` path the
+# manifest compiler synthesizes in ipd_set_plan.node_to_lane_request).
+# For clean-delta repositories, the root comes from worktrees_root(repo_root) under AW_HOME.
 WORKTREES_SUBDIR = ".aw/worktrees"
 
-# Where a lane's durable OWNER record lives (laneorphan-01 `zwnjp3` E-08). Inside the gitignored
-# worktrees root, so it is never committed, but OUTSIDE any lane directory, so it survives a
-# `git worktree remove` and is still readable for a branch-only leftover.
+# Where a lane's durable OWNER record lives in the in-repo layout (laneorphan-01 `zwnjp3` E-08). Inside
+# the gitignored worktrees root, so it is never committed, but OUTSIDE any lane directory, so it survives
+# a `git worktree remove` and is still readable for a branch-only leftover. For clean-delta repositories,
+# derived via _owner_record_path from checkout_control_root.
 OWNERS_SUBDIR = WORKTREES_SUBDIR + "/.owners"
+
 
 # The SUBJECT-LINE PREFIX of the preservation commit `snapshot_lane_dirty_work` writes (resumedupe
 # `txc9l1` E-02). It lives here, in the module that WRITES the message, because a constant defined
@@ -693,8 +696,10 @@ def _owner_record_path(repo_root: Path, lane_id: str) -> Path:
 
     Resolves against the checkout control root (the single authority `ipd_lifecycle.receipt_dir`
     uses) rather than composing from the caller's cwd or passed `repo_root`, so an invocation from
-    inside a lane worktree reaches the SAME single store under the main checkout's `.aw/worktrees/.owners/`.
-    For a main checkout or a non-git directory, this is provably identical to composing from `repo_root`.
+    inside a lane worktree reaches the SAME single store under the checkout's owner records directory
+    (`<main>/.aw/worktrees/.owners/` for tracked repos, `<AW_HOME>/projects/<id>/worktrees/.owners/`
+    for clean-delta repos, IPD qk0ew6).
+    For a main checkout or a non-git directory of a tracked repo, this is provably identical to composing from `repo_root`.
 
     THE IMPORT IS FUNCTION-LOCAL: this module imports no first-party package module at module level
     (pinned by `tests/test_worktree_lease_stdlib_only.py`).
@@ -714,6 +719,50 @@ def _owner_record_path(repo_root: Path, lane_id: str) -> Path:
         ).resolve()
     except Exception:
         return (repo_root / OWNERS_SUBDIR / record_leaf).resolve()
+
+
+def worktrees_root(repo_root: Path | str) -> Path:
+    """Return the root directory for per-lane worktrees (IPD qk0ew6 E-04).
+
+    When ipd_lifecycle.clean_delta_control_root(repo_root) is not None, returns
+    <AW_HOME>/projects/<project_id>/worktrees (the parent of the owner records
+    _owner_record_path already derives from the control root).
+    Otherwise returns repo_root / WORKTREES_SUBDIR (the in-repo .aw/worktrees root).
+
+    THE IMPORT IS FUNCTION-LOCAL: this module imports no first-party package module
+    at module level (pinned by tests/test_worktree_lease_stdlib_only.py).
+
+    THE FALLBACK IS TOTAL: if clean_delta_control_root cannot be imported or raises,
+    falls back to repo_root / WORKTREES_SUBDIR.
+    """
+    root = Path(repo_root)
+    try:
+        from agent_workflows import ipd_lifecycle
+
+        cd_root = ipd_lifecycle.clean_delta_control_root(root)
+        if cd_root is not None:
+            return cd_root / "worktrees"
+    except Exception:
+        pass
+    return root / WORKTREES_SUBDIR
+
+
+def _ensure_clean_delta_lane_ignore(lane_path: Path | str) -> None:
+    """Write <lane>/.aw/.gitignore containing '*' (create-if-absent, never overwrite; IPD qk0ew6 E-05).
+
+    In clean-delta repositories, no tracked .aw/.gitignore exists. Runner scratch inside the lane
+    (<lane>/.aw/lane-scratch/, <lane>/.aw/state/...) would otherwise show up as untracked in
+    git status --porcelain and be committed by snapshot_lane_dirty_work.
+    Total: swallows any OSError.
+    """
+    try:
+        lane_aw = Path(lane_path) / ".aw"
+        ignore_file = lane_aw / ".gitignore"
+        if not ignore_file.exists():
+            lane_aw.mkdir(parents=True, exist_ok=True)
+            ignore_file.write_text("*\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _process_start_token(pid: int) -> Optional[str]:
@@ -981,6 +1030,13 @@ def allocate_worktree(
     if existing.state == LANE_EMPTY and allow_adopt:
         safe, why = lane_is_safe_to_adopt(repo_root, lane_id)
         if safe and existing.worktree_registered and existing.worktree_path is not None:
+            try:
+                from agent_workflows import ipd_lifecycle
+
+                if ipd_lifecycle.clean_delta_control_root(repo_root) is not None:
+                    _ensure_clean_delta_lane_ignore(existing.worktree_path)
+            except Exception:
+                pass
             write_lane_owner(
                 repo_root,
                 lane_id,
@@ -1014,7 +1070,7 @@ def allocate_worktree(
         displaced_from = existing.branch
 
     name = _lane_dirname(target_lane)
-    wt_path = (repo_root / WORKTREES_SUBDIR / name).resolve()
+    wt_path = (worktrees_root(repo_root) / name).resolve()
     branch = "aw/lane/{0}".format(name)
     # Record the PRE-CALL ref state, so the failure path can clean up ONLY a branch THIS call made.
     pre_call_branch_existed = _git(repo_root, ["rev-parse", "--verify", branch])[0] == 0
@@ -1032,6 +1088,13 @@ def allocate_worktree(
                 target_lane, err.strip()
             )
         )
+    try:
+        from agent_workflows import ipd_lifecycle
+
+        if ipd_lifecycle.clean_delta_control_root(repo_root) is not None:
+            _ensure_clean_delta_lane_ignore(wt_path)
+    except Exception:
+        pass
     write_lane_owner(
         repo_root,
         target_lane,

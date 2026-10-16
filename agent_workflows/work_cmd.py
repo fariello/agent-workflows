@@ -51,8 +51,9 @@ from agent_workflows import git_commit_helper as _gch
 from agent_workflows import selectors as _selectors
 from agent_workflows import worktree_lease as _wl
 
-# The gitignored local state root for work-primitive artifacts (evidence + lease records). Under
-# `.aw/state/` (already gitignored) so it is never committed and is honestly local/forgeable.
+# The gitignored local in-repo state root for work-primitive artifacts (evidence + lease records).
+# Under `.aw/state/` (already gitignored) so it is never committed and is honestly local/forgeable.
+# For clean-delta repositories, routed via ipd_lifecycle.control_state_dir under AW_HOME.
 _WORK_STATE_SUBDIR = ".aw/state/work"
 
 # Terminal/authoritative statuses `aw finish` must NEVER set (that authority stays with
@@ -236,7 +237,10 @@ def _plan_scope_paths(text: str) -> Tuple[List[str], bool]:
 
 
 def _work_dir(repo_root: Path, plan_id: str) -> Path:
-    return repo_root / _WORK_STATE_SUBDIR / plan_id
+    """Return the work directory for plan_id, routed via control_state_dir (IPD qk0ew6 E-06)."""
+    from agent_workflows import ipd_lifecycle as _life
+
+    return _life.control_state_dir(repo_root, "work", plan_id)
 
 
 def _evidence_path(repo_root: Path, plan_id: str) -> Path:

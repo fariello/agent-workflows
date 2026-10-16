@@ -42,17 +42,19 @@ WHERE THE FLAG LIVES (spec `c4gd2h` OQ-03, RESOLVED). The stop request is per-ma
 state and lives INSIDE the driver's run directory, as `<run_dir>/stop-request.json`, beside the
 existing `driver.lock`. It is resolved from the SAME accessor the drivers already use for
 `run_dir` (`oc_runipd.state_root` / `agy_runipd.state_root`), never from a root constructed here.
-That is deliberate, and the REASON SURVIVES ITS ORIGINAL OWNER: relocating the driver run root OUT of
-the repository is NOT IMPLEMENTED and has no plan in flight (it was Set `wtiso` Phase 4, `58ha43`,
-RETIRED UNLANDED 2026-09-02, and the decision of whether to relocate at all is now tracked by backlog
-`e820ka`). Note that the accessors that retirement would have created, `platform_state.state_home` and
-`platform_state.checkout_state_root`, DO NOT EXIST on `main`, so do not go looking for them. Resolving
-through the shared accessor is what makes this module inherit ANY future relocation for free without
-being rewritten, which is why the indirection stays whether or not `e820ka` is ever built. DO NOT "fix"
-this back into `<repo>/.aw/state` and do not resolve it from a worktree-relative path: an inner `aw`
-would fork a second state tree the driver cannot see, and worktree teardown would destroy it
-(backlog `dh0uno`, whose one-control-root invariant is what `ipd_lifecycle.checkout_control_root`
-already enforces).
+That is deliberate, and the REASON SURVIVES ITS ORIGINAL OWNER: for tracked in-repo repositories,
+relocating the driver run root out of the repository is NOT IMPLEMENTED and has no plan in flight
+(it was Set `wtiso` Phase 4, `58ha43`, RETIRED UNLANDED 2026-09-02, with the general question
+tracked by backlog `e820ka`). Note that the accessors that retirement would have created,
+`platform_state.state_home` and `platform_state.checkout_state_root`, DO NOT EXIST on `main`, so
+do not go looking for them. For clean-delta repositories (`delivery_mode: clean-delta`, IPD `qk0ew6` /
+maintainer `irjoga` OQ-04), driver run records live under `<AW_HOME>/projects/<id>/records/runs` and
+control state lives under `<AW_HOME>/projects/<id>/state`. Resolving through the shared accessor is
+what makes this module inherit ANY future relocation (and clean-delta mode) for free without being
+rewritten, which is why the indirection stays. DO NOT "fix" this back into `<repo>/.aw/state` and do
+not resolve it from a worktree-relative path: an inner `aw` would fork a second state tree the
+driver cannot see, and worktree teardown would destroy it (backlog `dh0uno`, whose one-control-root
+invariant is what `ipd_lifecycle.checkout_control_root` already enforces).
 
 WHY THERE IS A SIDECAR LOCK (do not "simplify" this away). Writing the record with
 `tempfile.mkstemp` + `os.replace` makes each WRITE atomic, but it does NOT serialize the
