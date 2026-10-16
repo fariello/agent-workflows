@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -281,6 +282,152 @@ class IndexCheckSubprocessTests(unittest.TestCase):
                         f"{verb} --json output failed to parse as JSON: {exc}\nOutput was: {res.stdout!r}"
                     )
                 self.assertIsInstance(parsed, dict)
+
+    # ----------------------------------------------------------------------------------
+    # aw index all --check behavior assertions (E-03)
+    # ----------------------------------------------------------------------------------
+
+    def test_all_clean_fixture_agent_and_json(self):
+        subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
+        _create_fixture_repo(self.root, mode="clean")
+
+        # (a) --agent: rc == 0, exactly one line, validate_agent_record [], target == "all", exit == 0, outcome == "conforms"
+        res_agent = run_cli(["index", "all", "--check", "--agent"], cwd=self.root)
+        self.assertEqual(res_agent.returncode, 0)
+        lines = [line for line in res_agent.stdout.splitlines() if line.strip()]
+        self.assertEqual(
+            len(lines), 1, f"Expected exactly one line, got: {res_agent.stdout!r}"
+        )
+        rec = json.loads(lines[0])
+        val_errors = agent_schema.validate_agent_record(rec)
+        self.assertEqual(val_errors, [])
+        self.assertEqual(rec.get("target"), "all")
+        self.assertEqual(rec.get("exit"), 0)
+        self.assertEqual(rec.get("outcome"), "conforms")
+
+        # --json: parses with one json.loads call with exit_code == 0, data["target"] == "all", data["by_type"] keys exactly plans, prompts, research, no repo_root or human_rendered
+        res_json = run_cli(["index", "all", "--check", "--json"], cwd=self.root)
+        self.assertEqual(res_json.returncode, 0)
+        parsed = json.loads(res_json.stdout)
+        self.assertIsInstance(parsed, dict)
+        self.assertEqual(parsed.get("exit_code"), 0)
+        data = parsed.get("data", {})
+        self.assertEqual(data.get("target"), "all")
+        self.assertEqual(
+            set(data.get("by_type", {}).keys()), {"plans", "prompts", "research"}
+        )
+        self.assertNotIn("repo_root", data)
+        self.assertNotIn("human_rendered", data)
+
+    def test_all_partial_stale_fixture(self):
+        subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
+        _create_fixture_repo(self.root, mode="clean")
+        plans_md = self.root / ".aw" / "records" / "plans" / "INDEX.md"
+        plans_md.write_text(
+            plans_md.read_text(encoding="utf-8") + "\n# Extra\n", encoding="utf-8"
+        )
+
+        # (b) --agent: rc == 1, exactly one line with exit == 1, outcome == "findings", findings >= 1, check.stale-index-stale diagnostic
+        res_agent = run_cli(["index", "all", "--check", "--agent"], cwd=self.root)
+        self.assertEqual(res_agent.returncode, 1)
+        lines = [line for line in res_agent.stdout.splitlines() if line.strip()]
+        self.assertEqual(
+            len(lines), 1, f"Expected exactly one line, got: {res_agent.stdout!r}"
+        )
+        rec = json.loads(lines[0])
+        val_errors = agent_schema.validate_agent_record(rec)
+        self.assertEqual(val_errors, [])
+        self.assertEqual(rec.get("exit"), 1)
+        self.assertEqual(rec.get("outcome"), "findings")
+        self.assertGreaterEqual(rec.get("findings", 0), 1)
+        diags = rec.get("diagnostics", [])
+        rules = [d.get("rule") for d in diags]
+        self.assertIn("check.stale-index-stale", rules)
+
+        # --json: exit_code == 1, research exit_code == 0
+        res_json = run_cli(["index", "all", "--check", "--json"], cwd=self.root)
+        self.assertEqual(res_json.returncode, 1)
+        parsed = json.loads(res_json.stdout)
+        self.assertEqual(parsed.get("exit_code"), 1)
+        by_type = parsed.get("data", {}).get("by_type", {})
+        self.assertEqual(by_type.get("research", {}).get("exit_code"), 0)
+
+    def test_all_human_mode_invariance(self):
+        for mode in ("clean", "partial_stale"):
+            with self.subTest(mode=mode):
+                repo_all = self.root / f"all_{mode}"
+                repo_all.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    ["git", "init"], cwd=repo_all, capture_output=True, check=True
+                )
+                _create_fixture_repo(repo_all, mode="clean")
+
+                repo_single = self.root / f"single_{mode}"
+                repo_single.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    ["git", "init"], cwd=repo_single, capture_output=True, check=True
+                )
+                _create_fixture_repo(repo_single, mode="clean")
+
+                if mode == "partial_stale":
+                    p_all = repo_all / ".aw" / "records" / "plans" / "INDEX.md"
+                    p_all.write_text(
+                        p_all.read_text(encoding="utf-8") + "\n# Extra\n",
+                        encoding="utf-8",
+                    )
+                    p_single = repo_single / ".aw" / "records" / "plans" / "INDEX.md"
+                    p_single.write_text(
+                        p_single.read_text(encoding="utf-8") + "\n# Extra\n",
+                        encoding="utf-8",
+                    )
+
+                res_all = run_cli(["index", "all", "--check"], cwd=repo_all)
+
+                res_plans = run_cli(["index", "plans", "--check"], cwd=repo_single)
+                res_prompts = run_cli(["index", "prompts", "--check"], cwd=repo_single)
+                res_research = run_cli(
+                    ["index", "research", "--check"], cwd=repo_single
+                )
+
+                expected_stdout = (
+                    res_plans.stdout + res_prompts.stdout + res_research.stdout
+                )
+                expected_rc = max(
+                    res_plans.returncode,
+                    res_prompts.returncode,
+                    res_research.returncode,
+                )
+
+                self.assertEqual(res_all.returncode, expected_rc)
+                self.assertEqual(res_all.stdout, expected_stdout)
+
+    def test_all_repo_relative_diagnostic_locations(self):
+        subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
+        _create_fixture_repo(self.root, mode="clean")
+        (self.root / "README.md").write_text(
+            "Citing RSCH-zzzzzz here.\n", encoding="utf-8"
+        )
+
+        res_agent = run_cli(["index", "all", "--check", "--agent"], cwd=self.root)
+        lines = [line for line in res_agent.stdout.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        val_errors = agent_schema.validate_agent_record(rec)
+        self.assertEqual(val_errors, [])
+        diags = rec.get("diagnostics", [])
+        danglers = [d for d in diags if "dangling" in d.get("rule", "")]
+        self.assertTrue(danglers, f"Expected dangling-citation diagnostic, got {diags}")
+        self.assertEqual(danglers[0].get("location"), "README.md:1")
+
+        # neither --agent --verbose nor --json stdout contains fixture root path
+        res_verbose = run_cli(
+            ["index", "all", "--check", "--agent", "--verbose"], cwd=self.root
+        )
+        self.assertNotIn(str(self.root), res_verbose.stdout)
+        self.assertNotIn(str(self.root), res_agent.stdout)
+
+        res_json = run_cli(["index", "all", "--check", "--json"], cwd=self.root)
+        self.assertNotIn(str(self.root), res_json.stdout)
 
 
 if __name__ == "__main__":

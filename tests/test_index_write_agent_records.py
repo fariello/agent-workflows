@@ -337,6 +337,161 @@ class IndexWriteSubprocessTests(unittest.TestCase):
         self.assertEqual(rec.get("outcome"), "cannot-run")
         self.assertEqual(rec.get("exit"), 2)
 
+    # ----------------------------------------------------------------------------------
+    # aw index all write path behavior assertions (E-04)
+    # ----------------------------------------------------------------------------------
+
+    def test_all_write_first_and_second_run(self):
+        subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
+        _create_fixture_repo(self.root, mode="missing")
+
+        # (a) First run on missing: compact --agent
+        res1 = run_cli(["index", "all", "--agent"], cwd=self.root)
+        self.assertEqual(res1.returncode, 0)
+        lines1 = res1.stdout.splitlines()
+        self.assertEqual(len(lines1), 1)
+        self._assert_no_leaks(res1.stdout)
+        rec1 = json.loads(lines1[0])
+        val_errors1 = agent_schema.validate_agent_record(rec1)
+        self.assertEqual(val_errors1, [])
+        self.assertEqual(rec1.get("target"), "all")
+        self.assertEqual(rec1.get("exit"), 0)
+        self.assertEqual(rec1.get("outcome"), "ok")
+        self.assertIs(rec1.get("applied"), True)
+        self.assertEqual(rec1.get("changes"), 6)
+
+        # (b) Second run unchanged: applied is False and no changes key
+        res2 = run_cli(["index", "all", "--agent"], cwd=self.root)
+        self.assertEqual(res2.returncode, 0)
+        lines2 = res2.stdout.splitlines()
+        self.assertEqual(len(lines2), 1)
+        self._assert_no_leaks(res2.stdout)
+        rec2 = json.loads(lines2[0])
+        val_errors2 = agent_schema.validate_agent_record(rec2)
+        self.assertEqual(val_errors2, [])
+        self.assertEqual(rec2.get("exit"), 0)
+        self.assertIs(rec2.get("applied"), False)
+        self.assertNotIn("changes", rec2)
+
+    def test_all_write_verbose_and_json_paths(self):
+        expected_paths = {
+            ".aw/records/plans/INDEX.json",
+            ".aw/records/plans/INDEX.md",
+            ".aw/records/prompts/INDEX.json",
+            ".aw/records/prompts/INDEX.md",
+            ".aw/records/research/INDEX.json",
+            ".aw/records/research/INDEX.md",
+        }
+
+        # Check --agent --verbose on fresh missing fixture
+        root_v = self.root / "verbose_run"
+        root_v.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=root_v, capture_output=True, check=True)
+        _create_fixture_repo(root_v, mode="missing")
+
+        res_v = run_cli(["index", "all", "--agent", "--verbose"], cwd=root_v)
+        self.assertEqual(res_v.returncode, 0)
+        self.assertNotIn(str(root_v), res_v.stdout)
+        self._assert_no_leaks(res_v.stdout)
+        rec_v = json.loads(res_v.stdout.splitlines()[0])
+        val_errors_v = agent_schema.validate_agent_record(rec_v)
+        self.assertEqual(val_errors_v, [])
+        changes_v = rec_v.get("changes", [])
+        self.assertIsInstance(changes_v, list)
+        self.assertEqual(len(changes_v), 6)
+        self.assertEqual({c.get("path") for c in changes_v}, expected_paths)
+
+        # Check --json on fresh missing fixture
+        root_j = self.root / "json_run"
+        root_j.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=root_j, capture_output=True, check=True)
+        _create_fixture_repo(root_j, mode="missing")
+
+        res_j = run_cli(["index", "all", "--json"], cwd=root_j)
+        self.assertEqual(res_j.returncode, 0)
+        self.assertNotIn(str(root_j), res_j.stdout)
+        self._assert_no_leaks(res_j.stdout)
+        doc_j = json.loads(res_j.stdout)
+        self.assertIsInstance(doc_j, dict)
+        changes_j = doc_j.get("changes", [])
+        self.assertEqual(len(changes_j), 6)
+        self.assertEqual({c.get("path") for c in changes_j}, expected_paths)
+        data_j = doc_j.get("data", {})
+        self.assertNotIn("repo_root", data_j)
+
+    def test_all_write_mixed_outcome_refusal(self):
+        subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
+        _create_fixture_repo(self.root, mode="missing")
+        shutil.rmtree(self.root / ".aw" / "records" / "research", ignore_errors=True)
+        _write(
+            self.root,
+            set_id="seta",
+            order=1,
+            id6="cccccc",
+            slug="notes",
+            status="bogus-status",
+            created="20260701",
+        )
+
+        # --agent
+        res_agent = run_cli(["index", "all", "--agent"], cwd=self.root)
+        self.assertEqual(res_agent.returncode, 1)
+        lines = res_agent.stdout.splitlines()
+        self.assertEqual(len(lines), 1)
+        self._assert_no_leaks(res_agent.stdout)
+        rec = json.loads(lines[0])
+        val_errors = agent_schema.validate_agent_record(rec)
+        self.assertEqual(val_errors, [])
+        self.assertEqual(rec.get("exit"), 1)
+        self.assertEqual(rec.get("outcome"), "findings")
+        self.assertIs(rec.get("applied"), True)
+        self.assertIs(rec.get("complete"), False)
+        # 4 changes written (2 for plans, 2 for prompts)
+        changes = rec.get("changes")
+        self.assertEqual(changes if isinstance(changes, int) else len(changes), 4)
+        diags = rec.get("diagnostics", [])
+        self.assertTrue(
+            any(
+                d.get("rule") == "frontmatter-invalid"
+                and "cccccc" in d.get("location", "")
+                for d in diags
+            ),
+            f"Expected frontmatter-invalid diagnostic for cccccc, got {diags}",
+        )
+        research_dir = self.root / ".agents" / "docs" / "research"
+        self.assertFalse((research_dir / "INDEX.json").exists())
+        self.assertFalse((research_dir / "INDEX.md").exists())
+
+        # --json document with exit_code == 1
+        res_json = run_cli(["index", "all", "--json"], cwd=self.root)
+        self.assertEqual(res_json.returncode, 1)
+        doc = json.loads(res_json.stdout)
+        self.assertEqual(doc.get("exit_code"), 1)
+
+    def test_all_write_human_invariance(self):
+        repo_all = self.root / "human_all"
+        repo_all.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=repo_all, capture_output=True, check=True)
+        _create_fixture_repo(repo_all, mode="missing")
+
+        repo_single = self.root / "human_single"
+        repo_single.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "init"], cwd=repo_single, capture_output=True, check=True
+        )
+        _create_fixture_repo(repo_single, mode="missing")
+
+        res_all = run_cli(["index", "all"], cwd=repo_all)
+        res_p = run_cli(["index", "plans"], cwd=repo_single)
+        res_pr = run_cli(["index", "prompts"], cwd=repo_single)
+        res_r = run_cli(["index", "research"], cwd=repo_single)
+
+        expected_stdout = res_p.stdout + res_pr.stdout + res_r.stdout
+        expected_rc = max(res_p.returncode, res_pr.returncode, res_r.returncode)
+
+        self.assertEqual(res_all.returncode, expected_rc)
+        self.assertEqual(res_all.stdout, expected_stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

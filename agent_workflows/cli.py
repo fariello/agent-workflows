@@ -13436,6 +13436,8 @@ def _run_noun_verb(
     rc = 0
     results_by_type: list[tuple[str, Any]] = []
     touched_all: list[str] = []
+    collect_index_results = not emit_human and verb == "index" and len(types) > 1
+    index_results: list[CommandResult] = []
     for t in types:
         fn = at.resolve_backend(t, verb)
         if fn is None:
@@ -13462,6 +13464,8 @@ def _run_noun_verb(
             )
             continue
         b_args = _nv_backend_args(args, t)
+        if collect_index_results:
+            b_args._index_result_sink = index_results
         if verb in ("group", "rename"):
             result = fn(b_args, emit_human=emit_human)
         else:
@@ -13519,6 +13523,14 @@ def _run_noun_verb(
             repo_root=repo_root,
             args=args,
             target_label=target_label,
+        )
+        return get_renderer(ctx).emit(cmd_res, ctx)
+
+    if collect_index_results:
+        from agent_workflows import artifact_core as _core
+
+        cmd_res = _core.aggregate_index_results(
+            index_results, check=bool(getattr(args, "check", False)), rc=rc
         )
         return get_renderer(ctx).emit(cmd_res, ctx)
 

@@ -37,32 +37,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Aggregate index result construction and CLI dispatch
 
-- [ ] E-01 In `agent_workflows/artifact_core.py`, normalize `d.location` via `agent_schema.normalize_repo_path(d.location, repo_root)` when constructing `Diagnostic` instances inside `emit_index_check_result` and `emit_index_write_result` (required because the aggregate carries no `data["repo_root"]`, see F-04; `human_rendered` is built from `drift` and stays byte-identical); add sink interception in both helpers so when `not ctx.is_human` and `isinstance(getattr(args, "_index_result_sink", None), list)` is true they append `result` (setting `target=target` on `emit_index_check_result`'s `CommandResult`) to `args._index_result_sink` and return `result.exit_code` without calling `get_renderer(ctx).emit(result, ctx)`; and add `aggregate_index_results(results: Sequence[CommandResult], *, check: bool, rc: int = 0) -> CommandResult` to build one aggregate `CommandResult` with `command="index"`, `target="all"`, `exit_code=max([rc, *(r.exit_code for r in results)])` (so the record's `exit` equals the dispatcher's `rc` even if a backend returned without reaching the sink, PR-003), concatenated `diagnostics` and `changes` across per-type results in dispatch order, `applied=None` when `check=True` or `any(bool(r.applied) for r in results)` when `check=False`, `complete=True` when `check=True` or `all(r.complete for r in results)` when `check=False`, `verified=True`, `status=("conforms" if exit_code == 0 else "findings")` when `check=True` or `("findings" if exit_code == 1 else "ok")` when `check=False`, and `data={"target": "all", "by_type": ...}` keyed by each result's `target`, without `repo_root` or `human_rendered`. Per-type diagnostic `location` values are carried unchanged (a stale `INDEX.json` stays `INDEX.json`); the owning type stays readable from each diagnostic's `detail`/`fix` (`run 'aw index plans'`) under `--agent --verbose` and `--json`, and from `data["by_type"]` under `--json` (decision D-2).
+- [x] E-01 In `agent_workflows/artifact_core.py`, normalize `d.location` via `agent_schema.normalize_repo_path(d.location, repo_root)` when constructing `Diagnostic` instances inside `emit_index_check_result` and `emit_index_write_result` (required because the aggregate carries no `data["repo_root"]`, see F-04; `human_rendered` is built from `drift` and stays byte-identical); add sink interception in both helpers so when `not ctx.is_human` and `isinstance(getattr(args, "_index_result_sink", None), list)` is true they append `result` (setting `target=target` on `emit_index_check_result`'s `CommandResult`) to `args._index_result_sink` and return `result.exit_code` without calling `get_renderer(ctx).emit(result, ctx)`; and add `aggregate_index_results(results: Sequence[CommandResult], *, check: bool, rc: int = 0) -> CommandResult` to build one aggregate `CommandResult` with `command="index"`, `target="all"`, `exit_code=max([rc, *(r.exit_code for r in results)])` (so the record's `exit` equals the dispatcher's `rc` even if a backend returned without reaching the sink, PR-003), concatenated `diagnostics` and `changes` across per-type results in dispatch order, `applied=None` when `check=True` or `any(bool(r.applied) for r in results)` when `check=False`, `complete=True` when `check=True` or `all(r.complete for r in results)` when `check=False`, `verified=True`, `status=("conforms" if exit_code == 0 else "findings")` when `check=True` or `("findings" if exit_code == 1 else "ok")` when `check=False`, and `data={"target": "all", "by_type": ...}` keyed by each result's `target`, without `repo_root` or `human_rendered`. Per-type diagnostic `location` values are carried unchanged (a stale `INDEX.json` stays `INDEX.json`); the owning type stays readable from each diagnostic's `detail`/`fix` (`run 'aw index plans'`) under `--agent --verbose` and `--json`, and from `data["by_type"]` under `--json` (decision D-2).
   - Depends on: none
   - Expected outcome: `artifact_core.emit_index_check_result` and `artifact_core.emit_index_write_result` continue to emit directly for single-type calls (`_index_result_sink` absent) and human mode, while collecting per-type `CommandResult` objects into `args._index_result_sink` when requested by multi-type machine dispatch, and `artifact_core.aggregate_index_results` deterministically produces a single `CommandResult` whose `exit_code` equals `max(rc, worst per-type exit code)`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/cli.py`, update `_run_noun_verb` so that when `not emit_human and verb == "index" and len(types) > 1`, it initializes `index_results: list[CommandResult] = []` before the `for t in types:` loop, sets `b_args._index_result_sink = index_results` on each per-type backend namespace constructed by `_nv_backend_args(args, t)`, and after the loop (and before the existing `return rc`) constructs `cmd_res = _core.aggregate_index_results(index_results, check=bool(getattr(args, "check", False)), rc=rc)` and returns `get_renderer(ctx).emit(cmd_res, ctx)`.
+- [x] E-02 In `agent_workflows/cli.py`, update `_run_noun_verb` so that when `not emit_human and verb == "index" and len(types) > 1`, it initializes `index_results: list[CommandResult] = []` before the `for t in types:` loop, sets `b_args._index_result_sink = index_results` on each per-type backend namespace constructed by `_nv_backend_args(args, t)`, and after the loop (and before the existing `return rc`) constructs `cmd_res = _core.aggregate_index_results(index_results, check=bool(getattr(args, "check", False)), rc=rc)` and returns `get_renderer(ctx).emit(cmd_res, ctx)`.
   - Depends on: E-01
   - Expected outcome: `aw index all` and `aw index all --check` under `--agent` emit exactly one `aw.agent/v1` `result` line with `target: "all"` and `exit == rc`, under `--json` emit a single valid JSON document parseable by `json.loads`, and under human mode (or single-type `aw index <type>`) preserve existing behavior unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Subprocess behavior tests and changelog
 
-- [ ] E-03 In `tests/test_index_check_agent_records.py`, add subprocess behavior tests (via `tests.conformance_matrix.run_cli` against `_create_fixture_repo` fixtures after `git init`, never the live tree) for `aw index all --check` covering `--agent`, `--json`, and human audiences across (a) a clean fixture (`_create_fixture_repo(root, mode="clean")`: `rc == 0`, stdout is exactly one `--agent` line that `agent_schema.validate_agent_record` accepts with `[]`, `target == "all"`, `exit == 0`, `outcome == "conforms"`, and `--json` stdout parses with one `json.loads` call with `exit_code == 0`, `data["target"] == "all"`, `data["by_type"]` keys exactly `plans`, `prompts`, `research`, and no `repo_root` or `human_rendered` key in `data`), (b) a partial-stale fixture built from `mode="clean"` by appending a line to `.aw/records/plans/INDEX.md` only, so `plans` exits `1` while `prompts` and `research` (the LAST type dispatched) exit `0` (`rc == 1`, exactly one `--agent` line with `exit == 1`, `outcome == "findings"`, `findings >= 1`, a `check.stale-index-stale` diagnostic, closing the false-clean terminal-record defect, and one `--json` document with `exit_code == 1` and `data["by_type"]["research"]["exit_code"] == 0`), (c) human-mode invariance: on clean and partial-stale fixtures, unflagged `aw index all --check` stdout and return code equal the concatenation of the unflagged `aw index plans --check`, `aw index prompts --check`, `aw index research --check` stdouts and their `max` return code on an identical fixture, and (d) repo-relative diagnostic locations (F-04): on a clean fixture plus a `README.md` containing `RSCH-zzzzzz`, `aw index all --check --agent` carries a `dangling-citation` diagnostic whose `location == "README.md:1"`, and neither `--agent --verbose` nor `--json` stdout contains the fixture root path.
+- [x] E-03 In `tests/test_index_check_agent_records.py`, add subprocess behavior tests (via `tests.conformance_matrix.run_cli` against `_create_fixture_repo` fixtures after `git init`, never the live tree) for `aw index all --check` covering `--agent`, `--json`, and human audiences across (a) a clean fixture (`_create_fixture_repo(root, mode="clean")`: `rc == 0`, stdout is exactly one `--agent` line that `agent_schema.validate_agent_record` accepts with `[]`, `target == "all"`, `exit == 0`, `outcome == "conforms"`, and `--json` stdout parses with one `json.loads` call with `exit_code == 0`, `data["target"] == "all"`, `data["by_type"]` keys exactly `plans`, `prompts`, `research`, and no `repo_root` or `human_rendered` key in `data`), (b) a partial-stale fixture built from `mode="clean"` by appending a line to `.aw/records/plans/INDEX.md` only, so `plans` exits `1` while `prompts` and `research` (the LAST type dispatched) exit `0` (`rc == 1`, exactly one `--agent` line with `exit == 1`, `outcome == "findings"`, `findings >= 1`, a `check.stale-index-stale` diagnostic, closing the false-clean terminal-record defect, and one `--json` document with `exit_code == 1` and `data["by_type"]["research"]["exit_code"] == 0`), (c) human-mode invariance: on clean and partial-stale fixtures, unflagged `aw index all --check` stdout and return code equal the concatenation of the unflagged `aw index plans --check`, `aw index prompts --check`, `aw index research --check` stdouts and their `max` return code on an identical fixture, and (d) repo-relative diagnostic locations (F-04): on a clean fixture plus a `README.md` containing `RSCH-zzzzzz`, `aw index all --check --agent` carries a `dangling-citation` diagnostic whose `location == "README.md:1"`, and neither `--agent --verbose` nor `--json` stdout contains the fixture root path.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_index_check_agent_records.py` passes, exercising `aw index all --check` across `--agent`, `--json`, and human modes including mixed per-type exit codes, and every pre-existing single-type test in that file still passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_index_write_agent_records.py`, add subprocess behavior tests for `aw index all` (write path) covering `--agent`, `--json`, and human audiences across (a) first run on a missing-index fixture (`_create_fixture_repo(root, mode="missing")` after `git init`: `rc == 0`, one `--agent` line that `validate_agent_record` accepts, `target == "all"`, `exit == 0`, `outcome == "ok"`, `applied is True`, `changes == 6` in compact mode (the integer collapse `CommandResult.to_agent_record` applies above 5 changes) and the 6 repo-relative `INDEX.json`/`INDEX.md` paths under `.aw/records/{plans,prompts,research}/` in `--agent --verbose` and `--json`, with no `repo_root` key in `data` and no path leaks per `_assert_no_leaks`), (b) second run unchanged (`rc == 0`, one `--agent` line with `applied is False` and no `changes` key), (c) mixed-outcome fixture where `plans` and `prompts` write their indexes while `research` refuses regeneration on `frontmatter-invalid`, built as `_create_fixture_repo(root, mode="missing")`, then `shutil.rmtree` of `.aw/records/research`, then `tests.test_research_index._write(root, ..., id6="cccccc", status="bogus-status", ...)` (the shape `test_refusal_research_invalid_frontmatter` already uses; editing the fixture's own research file does NOT trigger the refusal, measured at review) (`rc == 1`, one `--agent` line with `exit == 1`, `outcome == "findings"`, `applied is True`, `complete is False`, 4 changes, a `frontmatter-invalid` diagnostic naming `cccccc`, and no research `INDEX.json`/`INDEX.md` written, plus one `--json` document with `exit_code == 1`), and (d) human-mode invariance: unflagged `aw index all` stdout and return code on a missing-index fixture equal the concatenation of the three unflagged single-type `aw index <type>` runs and their `max` return code on an identical fixture.
+- [x] E-04 In `tests/test_index_write_agent_records.py`, add subprocess behavior tests for `aw index all` (write path) covering `--agent`, `--json`, and human audiences across (a) first run on a missing-index fixture (`_create_fixture_repo(root, mode="missing")` after `git init`: `rc == 0`, one `--agent` line that `validate_agent_record` accepts, `target == "all"`, `exit == 0`, `outcome == "ok"`, `applied is True`, `changes == 6` in compact mode (the integer collapse `CommandResult.to_agent_record` applies above 5 changes) and the 6 repo-relative `INDEX.json`/`INDEX.md` paths under `.aw/records/{plans,prompts,research}/` in `--agent --verbose` and `--json`, with no `repo_root` key in `data` and no path leaks per `_assert_no_leaks`), (b) second run unchanged (`rc == 0`, one `--agent` line with `applied is False` and no `changes` key), (c) mixed-outcome fixture where `plans` and `prompts` write their indexes while `research` refuses regeneration on `frontmatter-invalid`, built as `_create_fixture_repo(root, mode="missing")`, then `shutil.rmtree` of `.aw/records/research`, then `tests.test_research_index._write(root, ..., id6="cccccc", status="bogus-status", ...)` (the shape `test_refusal_research_invalid_frontmatter` already uses; editing the fixture's own research file does NOT trigger the refusal, measured at review) (`rc == 1`, one `--agent` line with `exit == 1`, `outcome == "findings"`, `applied is True`, `complete is False`, 4 changes, a `frontmatter-invalid` diagnostic naming `cccccc`, and no research `INDEX.json`/`INDEX.md` written, plus one `--json` document with `exit_code == 1`), and (d) human-mode invariance: unflagged `aw index all` stdout and return code on a missing-index fixture equal the concatenation of the three unflagged single-type `aw index <type>` runs and their `max` return code on an identical fixture.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_index_write_agent_records.py` passes, verifying that `aw index all` never emits a record whose `exit` differs from the process exit code, and every pre-existing single-type test in that file still passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add one `- Fixed: ...` bullet to `CHANGELOG.md` among the top-of-section bullets of the current pending release heading (`## 2.0.0 (pending) - ...`; the file has no `## [Unreleased]` or `### Fixed` heading, and recent fixes use the `- Fixed:` bullet form) describing the single aggregate `aw.agent/v1` and `--json` result for `aw index all` and `aw index all --check`, written with no em or en dashes; then run the regression comparison: the bare suite `python3 -m pytest`, and `python3 -m agent_workflows check all --agent` compared against the same command run on the base commit before E-01.
+- [x] E-05 Add one `- Fixed: ...` bullet to `CHANGELOG.md` among the top-of-section bullets of the current pending release heading (`## 2.0.0 (pending) - ...`; the file has no `## [Unreleased]` or `### Fixed` heading, and recent fixes use the `- Fixed:` bullet form) describing the single aggregate `aw.agent/v1` and `--json` result for `aw index all` and `aw index all --check`, written with no em or en dashes; then run the regression comparison: the bare suite `python3 -m pytest`, and `python3 -m agent_workflows check all --agent` compared against the same command run on the base commit before E-01.
   - Depends on: E-03, E-04
   - Expected outcome: `CHANGELOG.md` documents the fix; the bare suite shows no failure that does not also fail on the base commit; and `check all` introduces no rule id, and no increased per-rule count, relative to the base-commit run (the live corpus already exits `1` at base, measured at review as 40 errors across rules such as `check.lifecycle-transition-unvalidated`, so an exit-0 bar is unsatisfiable; re-derive the baseline at execution time).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,30 +171,247 @@ Commands: `python3 -m pytest -o addopts="" tests/test_index_check_agent_records.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff agent_workflows/artifact_core.py` showing `_schema.normalize_repo_path(d.location, repo_root)` in `emit_index_check_result` and `emit_index_write_result`, `target=target` on the check helper's `CommandResult`, `_index_result_sink` interception in both functions when `not ctx.is_human`, and the `aggregate_index_results` definition taking `rc`; PLUS pasted output of a direct `python3 -c` call of `aggregate_index_results` on two hand-built per-type `CommandResult`s (one `exit_code=1`, one `exit_code=0`) for `check=True` and `check=False`, showing the returned `exit_code`, `status`, `applied`, `complete`, `data` keys, and that `validate_agent_record(result.to_agent_record())` returns `[]`.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/artifact_core.py`:
+    ```diff
+    @@ -29,7 +29,7 @@ import stat
+     import subprocess
+     import tempfile
+     from pathlib import Path
+    -from typing import Any, Callable, List, NamedTuple, Optional, Tuple
+    +from typing import Any, Callable, List, NamedTuple, Optional, Sequence, Tuple
 
-- [ ] V-02 validates E-02
+     # --------------------------------------------------------------------------------------
+     # Identity: the stable, greppable ``<id6>``
+    @@ -920,9 +920,11 @@ def emit_index_check_result(
+         ctx = select_output(args)
+         exit_code = drift_exit_code(drift)
+         status = "conforms" if exit_code == 0 else "findings"
+    +    from agent_workflows import agent_schema as _schema
+    +
+         diagnostics = [
+             Diagnostic(
+    -            location=d.location,
+    +            location=_schema.normalize_repo_path(d.location, repo_root),
+                 rule=d.rule,
+                 detail=d.detail,
+                 severity=(_ce.enrich_drift(d).severity or "error"),
+    @@ -945,6 +947,7 @@ def emit_index_check_result(
+
+         result = CommandResult(
+             command=command,
+    +        target=target,
+             status=status,
+             exit_code=exit_code,
+             summary=summary,
+    @@ -959,6 +962,11 @@ def emit_index_check_result(
+             verified=True,
+             complete=True,
+         )
+    +    sink = getattr(args, "_index_result_sink", None)
+    +    if not ctx.is_human and isinstance(sink, list):
+    +        sink.append(result)
+    +        return result.exit_code
+    +
+         # Rely on get_renderer(ctx).emit(result, ctx), which returns result.exit_code (identically drift_exit_code(drift))
+         return get_renderer(ctx).emit(result, ctx)
+
+    @@ -979,6 +987,7 @@ def emit_index_write_result(
+         refused: bool = False,
+     ) -> int:
+         """Emit the typed CommandResult for an index write invocation under --agent or --json."""
+    +    from agent_workflows import agent_schema as _schema
+         from agent_workflows import check_engine as _ce
+         from agent_workflows.renderers import get_renderer
+         from agent_workflows.result_types import (
+    @@ -1018,7 +1027,7 @@ def emit_index_write_result(
+
+         diagnostics = [
+             Diagnostic(
+    -            location=d.location,
+    +            location=_schema.normalize_repo_path(d.location, repo_root),
+                 rule=d.rule,
+                 detail=d.detail,
+                 severity=(_ce.enrich_drift(d).severity or "error"),
+    @@ -1064,4 +1073,73 @@ def emit_index_write_result(
+             verified=True,
+             complete=not refused,
+         )
+    +    sink = getattr(args, "_index_result_sink", None)
+    +    if not ctx.is_human and isinstance(sink, list):
+    +        sink.append(result)
+    +        return result.exit_code
+    +
+         return get_renderer(ctx).emit(result, ctx)
+    +
+    +
+    +def aggregate_index_results(
+    +    results: Sequence[CommandResult],
+    +    *,
+    +    check: bool,
+    +    rc: int = 0,
+    +) -> CommandResult:
+    ```
+
+    Direct `python3 -c` invocation output:
+    ```
+    --- check=True ---
+    exit_code: 1
+    status: findings
+    applied: None
+    complete: True
+    data keys: ['target', 'by_type']
+    by_type keys: ['plans', 'research']
+    validate_agent_record: []
+    --- check=False ---
+    exit_code: 1
+    status: findings
+    applied: True
+    complete: False
+    data keys: ['target', 'by_type']
+    by_type keys: ['plans', 'research']
+    validate_agent_record: []
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/cli.py` showing `_run_noun_verb` attaching `_index_result_sink` across `types` when `not emit_human and verb == "index" and len(types) > 1` and emitting `_core.aggregate_index_results(..., rc=rc)` once via `get_renderer(ctx).emit(cmd_res, ctx)`; PLUS pasted stdout and return code of `python3 -m agent_workflows index all --check --agent` run against a temp fixture repo (produced by this dispatch path, `cli._run_noun_verb`), showing exactly one line whose `exit` equals the printed return code.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/cli.py`:
+    ```diff
+    @@ -13436,6 +13436,8 @@ def _run_noun_verb(
+         rc = 0
+         results_by_type: list[tuple[str, Any]] = []
+         touched_all: list[str] = []
+    +    collect_index_results = not emit_human and verb == "index" and len(types) > 1
+    +    index_results: list[CommandResult] = []
+         for t in types:
+             fn = at.resolve_backend(t, verb)
+             if fn is None:
+    @@ -13462,6 +13464,8 @@ def _run_noun_verb(
+                 )
+                 continue
+             b_args = _nv_backend_args(args, t)
+    +        if collect_index_results:
+    +            b_args._index_result_sink = index_results
+             if verb in ("group", "rename"):
+                 result = fn(b_args, emit_human=emit_human)
+             else:
+    @@ -13522,6 +13526,14 @@ def _run_noun_verb(
+             )
+             return get_renderer(ctx).emit(cmd_res, ctx)
 
-- [ ] V-03 validates E-03
+    +    if collect_index_results:
+    +        from agent_workflows import artifact_core as _core
+    +
+    +        cmd_res = _core.aggregate_index_results(
+    +            index_results, check=bool(getattr(args, "check", False)), rc=rc
+    +        )
+    +        return get_renderer(ctx).emit(cmd_res, ctx)
+    +
+         return rc
+    ```
+
+    `python3 -m agent_workflows index all --check --agent` run against temp fixture repo:
+    ```
+    Return code: 0
+    Stdout: {"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"all","findings":0,"next":null}
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_index_check_agent_records.py` showing every test passing, with the new tests visibly covering: clean `--agent`/`--json`, partial-stale (`plans/INDEX.md` stale, `research` clean and last) with `exit == 1` on the single line, human invariance against the concatenated single-type runs, and the `README.md:1` dangling-citation location. Test names are non-binding pointers; the evidence is the behaviors pinned.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_index_check_agent_records.py`:
+    ```
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_clean_output_per_verb PASSED [  7%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_drifting_output_per_verb PASSED [ 15%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_stale_output_per_verb PASSED [ 23%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_clean_fixture_emits_valid_record PASSED [ 30%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_missing_fixture_emits_valid_record PASSED [ 38%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_stale_fixture_emits_valid_record PASSED [ 46%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_clean_fixture_emits_json_document PASSED [ 53%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_missing_fixture_emits_json_document PASSED [ 61%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_stale_fixture_emits_json_document PASSED [ 69%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_clean_fixture_agent_and_json PASSED [ 76%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_partial_stale_fixture PASSED [ 84%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_human_mode_invariance PASSED [ 92%]
+    tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_repo_relative_diagnostic_locations PASSED [100%]
 
-- [ ] V-04 validates E-04
+    ============================== 13 passed in 19.34s =============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted output of `python3 -m pytest -o addopts="" -v tests/test_index_write_agent_records.py` showing every test passing, with the new tests visibly covering: first run (`changes == 6` compact, 6 paths verbose/json, no `repo_root`), second run (`applied is False`, no `changes`), mixed outcome (`rc == 1`, `exit == 1`, `applied is True`, `complete is False`, `frontmatter-invalid` naming `cccccc`, research index not written), and human invariance. Test names are non-binding pointers.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_index_write_agent_records.py`:
+    ```
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_plans PASSED [  5%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_prompts PASSED [ 11%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_agent_write_research PASSED [ 16%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_plans PASSED [ 22%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_prompts PASSED [ 27%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_json_write_research PASSED [ 33%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_drift_plans_missing_id PASSED [ 38%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_refusal_research_invalid_frontmatter PASSED [ 44%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_human_invariance_per_verb PASSED [ 50%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_unsupported_type_specs PASSED [ 55%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_first_and_second_run PASSED [ 61%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_verbose_and_json_paths PASSED [ 66%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_mixed_outcome_refusal PASSED [ 72%]
+    tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_all_write_human_invariance PASSED [ 77%]
 
-- [ ] V-05 validates E-05
+    ============================== 14 passed in 29.58s =============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `git diff CHANGELOG.md` showing the new `- Fixed:` bullet under the pending release heading, plus `grep -nP '[\x{2013}\x{2014}]'` over the added line returning nothing; pasted summary line of the bare `python3 -m pytest` with any failure shown to fail identically on the base commit; and the per-rule counts of `python3 -m agent_workflows check all --agent` on the base commit and after the change, showing no new rule id and no increased count.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
+     - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
+    ```
+    Dash check (`git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'`): returned exit 1 (0 matches).
+
+    Bare `python3 -m pytest` summary line:
+    ```
+    702 passed in 19.97s
+    ```
+
+    `python3 -m agent_workflows check all --agent` per-rule counts comparison:
+    Base commit:
+    ```
+    check.ipd-carrier-finished-unverified: 6
+    check.ipd-carrier-ungated: 2
+    check.ipd-uncarried-obligation: 2
+    check.lifecycle-transition-unvalidated: 33
+    check.source-test-citation-dangling: 42
+    check.spec-criteria-uncovered: 1
+    check.system-layout-missing: 1
+    Total: 87
+    ```
+    Post-change:
+    ```
+    check.ipd-carrier-finished-unverified: 6
+    check.ipd-carrier-ungated: 2
+    check.ipd-uncarried-obligation: 2
+    check.lifecycle-transition-unvalidated: 33
+    check.source-test-citation-dangling: 42
+    check.spec-criteria-uncovered: 1
+    check.system-layout-missing: 1
+    Total: 87
+    ```
+    Zero new rule IDs, zero increased counts.
+  - Result: pass
 
 ## Approval and execution gate
 

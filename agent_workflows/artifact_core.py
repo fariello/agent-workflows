@@ -29,7 +29,19 @@ import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, List, NamedTuple, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
+
+if TYPE_CHECKING:
+    from agent_workflows.result_types import CommandResult
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>``
@@ -920,9 +932,11 @@ def emit_index_check_result(
     ctx = select_output(args)
     exit_code = drift_exit_code(drift)
     status = "conforms" if exit_code == 0 else "findings"
+    from agent_workflows import agent_schema as _schema
+
     diagnostics = [
         Diagnostic(
-            location=d.location,
+            location=_schema.normalize_repo_path(d.location, repo_root),
             rule=d.rule,
             detail=d.detail,
             severity=(_ce.enrich_drift(d).severity or "error"),
@@ -945,6 +959,7 @@ def emit_index_check_result(
 
     result = CommandResult(
         command=command,
+        target=target,
         status=status,
         exit_code=exit_code,
         summary=summary,
@@ -959,6 +974,11 @@ def emit_index_check_result(
         verified=True,
         complete=True,
     )
+    sink = getattr(args, "_index_result_sink", None)
+    if not ctx.is_human and isinstance(sink, list):
+        sink.append(result)
+        return result.exit_code
+
     # Rely on get_renderer(ctx).emit(result, ctx), which returns result.exit_code (identically drift_exit_code(drift))
     return get_renderer(ctx).emit(result, ctx)
 
@@ -979,6 +999,7 @@ def emit_index_write_result(
     refused: bool = False,
 ) -> int:
     """Emit the typed CommandResult for an index write invocation under --agent or --json."""
+    from agent_workflows import agent_schema as _schema
     from agent_workflows import check_engine as _ce
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -1018,7 +1039,7 @@ def emit_index_write_result(
 
     diagnostics = [
         Diagnostic(
-            location=d.location,
+            location=_schema.normalize_repo_path(d.location, repo_root),
             rule=d.rule,
             detail=d.detail,
             severity=(_ce.enrich_drift(d).severity or "error"),
@@ -1064,4 +1085,73 @@ def emit_index_write_result(
         verified=True,
         complete=not refused,
     )
+    sink = getattr(args, "_index_result_sink", None)
+    if not ctx.is_human and isinstance(sink, list):
+        sink.append(result)
+        return result.exit_code
+
     return get_renderer(ctx).emit(result, ctx)
+
+
+def aggregate_index_results(
+    results: Sequence[CommandResult],
+    *,
+    check: bool,
+    rc: int = 0,
+) -> CommandResult:
+    """Aggregate per-type index CommandResult objects into a single result for 'all'."""
+    from agent_workflows.result_types import CommandResult
+
+    exit_code = max([rc, *(r.exit_code for r in results)])
+    diagnostics = [d for r in results for d in r.diagnostics]
+    changes = [c for r in results for c in r.changes]
+    if check:
+        status = "conforms" if exit_code == 0 else "findings"
+        applied = None
+        complete = True
+        summary = (
+            "all index --check: clean"
+            if exit_code == 0 and not diagnostics
+            else f"{len(diagnostics)} finding(s) detected across all"
+        )
+        by_type = {
+            (r.target or r.data.get("target", "")): {
+                "status": r.status,
+                "exit_code": r.exit_code,
+                "findings": len(r.diagnostics),
+            }
+            for r in results
+        }
+    else:
+        status = "findings" if exit_code == 1 else "ok"
+        applied = any(bool(r.applied) for r in results)
+        complete = all(r.complete for r in results)
+        summary = "; ".join(r.summary for r in results if r.summary)
+        by_type = {
+            (r.target or r.data.get("target", "")): {
+                "status": r.status,
+                "exit_code": r.exit_code,
+                "applied": bool(r.applied),
+                "complete": r.complete,
+                "count": r.data.get("count", 0),
+                "noun": r.data.get("noun", ""),
+                "json_changed": bool(r.data.get("json_changed", False)),
+                "md_changed": bool(r.data.get("md_changed", False)),
+                "index_dir": r.data.get("index_dir", ""),
+            }
+            for r in results
+        }
+
+    return CommandResult(
+        command="index",
+        target="all",
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        applied=applied,
+        changes=changes,
+        diagnostics=diagnostics,
+        data={"target": "all", "by_type": by_type},
+        verified=True,
+        complete=complete,
+    )
