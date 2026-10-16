@@ -167,6 +167,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: v1re2z
 - Retiring the 19 unproven `supported: true` booleans in `.aw/system/workflows/conformance/tools/host_matrix.json`.
   - Carrier: 8ru81x, 5gzno3
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-5gzno3-01-8ru81x-retire-unproven-supported-booleans-from-the-conformance-host.ipd.md
 - Running `aw releases readiness` as a pre-commit hook or a fail-closed routine CI step on every push/PR: rejected by design because routine commits have neither `make test-all` results nor human residual-risk sign-off, and `ipd_lint` is a `livecorpus` check that exits `1` whenever any pending plan carries an open blocking question (F-03, OQ-01).
   - Carrier-Declined: routine commits and PRs lack full-suite results and human residual-risk sign-off, and ipd_lint is a livecorpus check that exits 1 whenever any pending plan has an open blocking question (F-03, OQ-01)
 
