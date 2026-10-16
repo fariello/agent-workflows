@@ -1,11 +1,13 @@
 - Id: 5slmvq
-- Status: open
+- Status: graduated
+- Graduated-To: 5slmvq
 - Set: 5slmvq
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for _run_migrate_layout
 
 ## Workflow history
+- 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: 1ue3kr
 - 2026-10-15 created (aw backlog): Restore behavioral test coverage for _run_migrate_layout
 
 Uncited trim-deleted test audit (findings doc hpjj44) identified unguarded property PROP-01 in agent_workflows/cli.py::_run_migrate_layout (277 exclusive lines).
