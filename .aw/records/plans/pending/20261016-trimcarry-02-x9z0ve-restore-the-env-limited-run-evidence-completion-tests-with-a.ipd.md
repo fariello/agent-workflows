@@ -6,7 +6,8 @@
 - Scope: Restore the module from `19313eed^` at its original path with (a) the spec lookup made id6-based (`rglob("*-25kzda-*.spec.md")`, the shape `tests/test_run_finding_spec_transcription.py` `locate_spec_25kzda` already uses) and (b) the three tests that encode deliberately superseded contracts updated to the current contract, each change citing the commit that superseded it. No production code changes.
 - Scope-Paths: tests/test_run_evidence_completion.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 9qvfie
@@ -17,6 +18,7 @@
 - Id: x9z0ve
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set trimcarry graduating backlog 9qvfie.
@@ -31,21 +33,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Restore with an id6 spec lookup
 
-- [ ] E-01 Write `git show 19313eed^:tests/test_run_evidence_completion.py > tests/test_run_evidence_completion.py`, then replace the module-level `_SPEC_PATH = next(... .rglob("20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"))` with a lookup by id6 glob `*-25kzda-*.spec.md` that yields exactly one match or makes `_SPEC_PATH` a non-existent path (so the existing `if not _SPEC_PATH.exists(): self.skipTest(...)` guards in `TestRunFindingCodeVocabulary.setUp` and the 1552-region test still apply, rather than a collection-time `StopIteration`). Run `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_run_evidence_completion.py` and record the pass/fail list.
+- [ ] E-01 Confirm `git ls-files tests/test_run_evidence_completion.py` prints nothing (if the module already exists, STOP and report: another change recreated it). Write `git show 19313eed^:tests/test_run_evidence_completion.py > tests/test_run_evidence_completion.py`, then replace the module-level `_SPEC_PATH = next(... .rglob("20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"))` with a lookup by id6 glob `*-25kzda-*.spec.md` that yields exactly one match or makes `_SPEC_PATH` a non-existent path (so the existing `if not _SPEC_PATH.exists(): self.skipTest(...)` guards in `TestRunFindingCodeVocabulary.setUp` and the 1552-region test still apply, rather than a collection-time `StopIteration`). Run `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_run_evidence_completion.py` and record the pass/fail list.
   - Depends on: none
-  - Expected outcome: the module collects; 81 pass and exactly `TestRunFindingCodeVocabulary::test_abort_class_set_is_verbatim_from_spec_4_1`, `TestRunFindingCodeVocabulary::test_conditional_abort_is_not_reported_as_unconditional` and `TestRunCLI::test_aw_run_verify_ledger_corrupted_chain_exits_2` fail (the authoring measurement).
+  - Expected outcome: the module collects with no `StopIteration`, and every failure is one whose behavior a cited commit deliberately changed. At authoring and at review (F4) that set was exactly `TestRunFindingCodeVocabulary::test_abort_class_set_is_verbatim_from_spec_4_1`, `TestRunFindingCodeVocabulary::test_conditional_abort_is_not_reported_as_unconditional` and `TestRunCLI::test_aw_run_verify_ledger_corrupted_chain_exits_2` (81 passed); the counts are context, not the bar.
   - Execution state: pending
 
 ### Task group 2: Update the three superseded-contract tests
 
-- [ ] E-02 Update each of the three failures to the CURRENT contract, keeping it a behavioral assertion: (a) `test_aw_run_verify_ledger_corrupted_chain_exits_2`: assert `exit_code == run_cli.EXIT_CORRUPTED_LEDGER` (currently 5; superseded by `f1f1bb5d7` "Return EXIT_CORRUPTED_LEDGER from the three run readers that hardcode exit 2") and keep `assertIn("Broken chain", out)`. Rename it to `test_aw_run_verify_ledger_corrupted_chain_exits_corrupted_ledger`. (b) `test_abort_class_set_is_verbatim_from_spec_4_1`: keep the spec-parse equality and drop the hard-coded `len(...) == 6` (spec `25kzda` 4.1 was amended to a single class, "Corrupt run ledger", by `552cf7f01` "amend spec 25kzda failure policy to fix first with only corrupt ledger aborting (tb6lw3)"). The equality against the spec-parsed list is the outcome that matters. (c) `test_conditional_abort_is_not_reported_as_unconditional`: since `552cf7f01` no code is `ABORT_CONDITIONAL` (authoring: `python3 -c "from agent_workflows import run_evidence as e; print(sum(1 for r in e.RUN_FINDING_CODES if r.abort==e.ABORT_CONDITIONAL))"` -> `0`), so replace `assertTrue(conditional)` with an assertion that every code whose `may_abort_run` is True is `ABORT_ALWAYS` and names a class in `ABORT_CLASSES` (the current partition), renaming the test to describe that. If execution HEAD differs (more or fewer failures), apply the same rule: update only an assertion whose behavior a cited commit deliberately changed, and record any other failure in V-02 as a suspected regression for Order 06 (`z2xs98`) to file as `bug`.
+- [ ] E-02 Update each of the three failures to the CURRENT contract, keeping it a behavioral assertion: (a) `test_aw_run_verify_ledger_corrupted_chain_exits_2`: assert `exit_code == run_cli.EXIT_CORRUPTED_LEDGER` (currently 5; superseded by `f1f1bb5d7` "Return EXIT_CORRUPTED_LEDGER from the three run readers that hardcode exit 2") and keep `assertIn("Broken chain", out)`. Rename it to `test_aw_run_verify_ledger_corrupted_chain_exits_corrupted_ledger`. (b) `test_abort_class_set_is_verbatim_from_spec_4_1`: keep the spec-parse equality and drop the hard-coded `len(...) == 6` (spec `25kzda` 4.1 was amended to a single class, "Corrupt run ledger", by `552cf7f01` "amend spec 25kzda failure policy to fix first with only corrupt ledger aborting (tb6lw3)"). The equality against the spec-parsed list is the outcome that matters. (c) `test_conditional_abort_is_not_reported_as_unconditional`: since `552cf7f01` no code is `ABORT_CONDITIONAL` (authoring: `python3 -c "from agent_workflows import run_evidence as e; print(sum(1 for r in e.RUN_FINDING_CODES if r.abort==e.ABORT_CONDITIONAL))"` -> `0`), so replace `assertTrue(conditional)` with `assertEqual(conditional, [])` plus an assertion that every code whose `may_abort_run` is True is `ABORT_ALWAYS` and names a class in `ABORT_CLASSES` (the current partition), renaming the test to describe that. The SAME test also ends with `assertEqual(sorted(always), ["RUN-BASELINE-OWNERSHIP", "RUN-LEDGER-INTEGRITY"])`, which the first failure masks today: `552cf7f01` moved `RUN-BASELINE-OWNERSHIP` from `ABORT_ALWAYS` to `ABORT_NEVER` (spec `25kzda` 4.2 action now "FAIL ITEM; cascade dependents; continue independent items"), so update that list to `["RUN-LEDGER-INTEGRITY"]` citing the same commit (review F4: without this edit the module still fails one test). If execution HEAD differs (more or fewer failures), apply the same rule: update only an assertion whose behavior a cited commit deliberately changed, and record any other failure in V-02 as a suspected regression for Order 06 (`z2xs98`) to file as `bug`.
   - Depends on: E-01
-  - Expected outcome: all tests in the module pass; each of the three edits carries a one-line comment citing its superseding commit.
+  - Expected outcome: all tests in the module pass with zero failures and zero errors; each edited assertion carries a one-line comment citing its superseding commit.
   - Execution state: pending
 
 - [ ] E-03 Prove the restored module is load-bearing with an in-memory sabotage that edits no source: put a pytest plugin in an untracked scratch dir under the gitignored `.aw/state/` that rebinds `agent_workflows.run_evidence.is_complete` to `lambda *a, **k: True` at import, run `PYTHONPATH=<scratch>:. python3 -m pytest -o addopts="" -q -n0 -p <plugin> tests/test_run_evidence_completion.py`, and confirm failures in `TestCompletionPredicates`; delete the plugin. Then run the fast suite bare (`python3 -m pytest`) and commit only the module: `aw commit <this plan> -- tests/test_run_evidence_completion.py`.
   - Depends on: E-02
-  - Expected outcome: the sabotaged run reports at least one `TestCompletionPredicates` failure; unsabotaged module and fast suite green; one path-scoped commit.
+  - Expected outcome: the sabotaged run reports at least one `TestCompletionPredicates` failure (review F5 observed `test_model_prose_cannot_flip_completion` and `test_toggle_coordinator_authority_absent_prevents_completion`; non-binding pointers); unsabotaged module and fast suite green; one path-scoped commit.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -64,6 +66,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F1 | The `replay-env-limited` cause is a renamed spec filename, not a multi-agent environment. | `hpjj44` `## Verdicts` row `tests/test_run_evidence_completion.py`: "`error-collect` (`StopIteration`): module-level `rglob('20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md')` at line 1019 fails because spec was renamed to `20260826-25kzda-01-25kzda-...`". |
 | F2 | With only the filename corrected the module runs `3 failed, 81 passed in 5.01s` at authoring HEAD `24988557b`. | Authoring run of a scratch copy (deleted afterwards) under `-o addopts="" -n 4`. |
 | F3 | The three failures are deliberate contract changes: exit code `5 != 2` (`f1f1bb5d7`), `len(ABORT_CLASSES) 1 != 6` (`552cf7f01`), and no conditional-abort codes remain (`552cf7f01`). | Pasted assertion lines from the authoring run; `git log -G` on `EXIT_CORRUPTED_LEDGER` and `ABORT_CLASSES`. |
+| F4 | Review re-measurement at HEAD `9232fa963` with the id6 lookup: the same three failures (`3 failed, 81 passed in 14.38s`). Applying E-02 (a)-(c) as originally worded left ONE failure: `test_conditional_abort_is_not_reported_as_unconditional`'s trailing `sorted(always)` assertion (`['RUN-LEDGER-INTEGRITY'] != ['RUN-BASELINE-OWNERSHIP', 'RUN-LEDGER-INTEGRITY']`), masked by the earlier assertion. With that list also updated: `84 passed in 8.11s`. | Review scratch copy under `.aw/state/` (deleted); `git show 552cf7f01 -- agent_workflows/run_evidence.py` (`RUN-BASELINE-OWNERSHIP` `abort=ABORT_ALWAYS` -> `ABORT_NEVER`); `python3 -c` -> `RUN-BASELINE-OWNERSHIP` `never () False`. |
+| F5 | The E-03 sabotage mechanism works: a plugin `sabotage_iscomplete.py` on `PYTHONPATH` rebinding `run_evidence.is_complete`, run with `-n0 -p sabotage_iscomplete`, failed `TestCompletionPredicates::test_model_prose_cannot_flip_completion` and `::test_toggle_coordinator_authority_absent_prevents_completion`. | Review run at HEAD `9232fa963` (scratch deleted). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -107,12 +111,12 @@ N/A: test-only restoration; the tests READ spec `25kzda` but do not change it, a
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted runner summary showing the module COLLECTS (no `StopIteration`) and the list of failing node ids, plus `git diff --no-index <(git show 19313eed^:tests/test_run_evidence_completion.py) tests/test_run_evidence_completion.py` showing only the `_SPEC_PATH` hunk at this point.
+  - Required evidence: pasted empty `git ls-files` pre-check; pasted runner summary showing the module COLLECTS (no `StopIteration`) and the list of failing node ids, each mapped to its superseding commit, plus `git diff --no-index <(git show 19313eed^:tests/test_run_evidence_completion.py) tests/test_run_evidence_completion.py` showing only the `_SPEC_PATH` hunk at this point.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `-v` output with every test PASSED (count pasted, expected 84 if HEAD matches authoring), and the full `git diff --no-index` against `19313eed^` showing only the `_SPEC_PATH` hunk plus the three test hunks, each with its citing comment; any additional failure is listed with its suspected cause.
+  - Required evidence: pasted `-v` output in which every collected test is PASSED and the summary shows no failures or errors (count pasted as context; 84 at review), and the full `git diff --no-index` against `19313eed^` showing only the `_SPEC_PATH` hunk plus the hunks in the three tests (including the `sorted(always)` update), each with its citing comment; any additional failure is listed with its suspected cause.
   - Observed evidence:
   - Result: pending
 
