@@ -22,6 +22,7 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import selectors as _sel
+from agent_workflows.project_context import project_records_dir
 
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
 
@@ -50,7 +51,7 @@ _SUMMARY_RE = re.compile(r"(?m)^- Summary:[ \t]*(.*?)[ \t]*$")
 
 
 def _releases_dir(repo_root: Path) -> Path:
-    return Path(repo_root) / ".aw" / "records" / "releases"
+    return project_records_dir(repo_root) / "releases"
 
 
 def _existing_ids(repo_root: Path) -> set:
@@ -496,7 +497,7 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
     `attention.release_blockers` probes (repo-relative, then `.aw/records/`-relative)."""
     for base in (
         Path(repo_root) / rel_path,
-        Path(repo_root) / ".aw" / "records" / rel_path,
+        project_records_dir(repo_root) / rel_path,
     ):
         try:
             if not base.is_file():
@@ -813,9 +814,10 @@ def count_blocks_release_sentinel(repo_root: Path) -> int:
     """Count how many backlog, specs, and plans records carry '- Blocks-Release: next'."""
     repo_root = Path(repo_root)
     ignored_dirs = _core.get_ignored_dirs(repo_root)
+    records_root = project_records_dir(repo_root)
     count = 0
     for sub in ("backlog", "specs", "plans"):
-        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+        for base in (records_root / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
                 base, repo_root, ignored_dirs
             ):
@@ -866,9 +868,10 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
         loc = ".aw/records/releases"
 
     has_next_references = False
+    records_root = project_records_dir(repo_root)
 
     for sub in ("backlog", "specs", "plans"):
-        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+        for base in (records_root / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
                 base, repo_root, ignored_dirs
             ):
@@ -967,8 +970,9 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     drift: List[_core.Drift] = []
     known = _backlog.existing_backlog_ids(repo_root)
+    records_root = project_records_dir(repo_root)
     for sub in ("plans", "specs", "backlog"):
-        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+        for base in (records_root / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
                 base, repo_root, ignored_dirs
             ):
@@ -1098,8 +1102,9 @@ def check_graduated_to(
         # every link in the repo. This is the SPEC-side twin's fail-safe posture, deliberately.
         return drift
 
+    records_root = project_records_dir(repo_root)
     for sub in ("backlog", "specs", "plans"):
-        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+        for base in (records_root / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
                 base, repo_root, ignored_dirs
             ):

@@ -869,7 +869,9 @@ def probe_installed_doc_references(repo_root: Path) -> List[core.Drift]:
     # 2. Records READMEs
     readme_paths: List[Path] = []
     if layout == "aw":
-        records_dir = repo_root / ".aw" / "records"
+        from agent_workflows.project_context import project_records_dir
+
+        records_dir = project_records_dir(repo_root)
         if records_dir.is_dir():
             readme_paths.extend(records_dir.glob("**/README.md"))
         inbox_readme = repo_root / ".aw" / "inbox" / "README.md"

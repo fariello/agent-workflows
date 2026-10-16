@@ -287,19 +287,29 @@ def apply_shard_moves(
 
 
 def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
-    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.project_context import (
+        resolve_verb_repo_root,
+        project_records_dir,
+        has_stored_records_placement,
+    )
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
     # .agents/plans read-fallback, mirroring plans_index._dirs.
     from agent_workflows.record_producers import resolve_record_path
 
-    try:
-        plans_dir = resolve_record_path("plans", target_repo=str(repo_root))
-    except Exception:
-        plans_dir = repo_root / ".aw" / "records" / "plans"
+    modern_plans = project_records_dir(repo_root) / "plans"
+    if has_stored_records_placement(repo_root):
+        plans_dir = modern_plans
+    else:
+        try:
+            plans_dir = resolve_record_path("plans", target_repo=str(repo_root))
+        except Exception:
+            plans_dir = modern_plans
     if not plans_dir.is_dir() and (repo_root / ".agents" / "plans").is_dir():
         plans_dir = repo_root / ".agents" / "plans"
+    elif not plans_dir.is_dir() and modern_plans.is_dir():
+        plans_dir = modern_plans
     return repo_root, plans_dir
 
 

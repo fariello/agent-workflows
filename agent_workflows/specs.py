@@ -112,14 +112,21 @@ def _spec_files(repo_root: Path) -> List[Path]:
     De-duplicates by resolved path while returning Path instances.
     """
     from agent_workflows.record_producers import resolve_record_read_paths
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
 
-    try:
-        roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
-    except Exception:
-        roots = [repo_root / ".aw" / "records" / "specs"]
-    local_specs = repo_root / ".aw" / "records" / "specs"
-    if local_specs not in roots:
-        roots.append(local_specs)
+    local_specs = project_records_dir(repo_root) / "specs"
+    if has_stored_records_placement(repo_root):
+        roots = [local_specs]
+    else:
+        try:
+            roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
+        except Exception:
+            roots = [local_specs]
+        if local_specs not in roots:
+            roots.append(local_specs)
     # Always include the legacy `.agents/docs/specs` read path for bounded compatibility.
     # resolve_record_read_paths only appends the legacy dir once a migration retention
     # manifest exists; but an UN-migrated repo (the common case until the Order 11
@@ -1023,7 +1030,9 @@ def _render_new_spec(
 
 def _specs_root(repo_root: Path) -> Path:
     """Prefer an existing `.aw/records/specs`, else the legacy `.agents/docs/specs`."""
-    new = repo_root / ".aw" / "records" / "specs"
+    from agent_workflows.project_context import project_records_dir
+
+    new = project_records_dir(repo_root) / "specs"
     if new.exists():
         return new
     legacy = repo_root / ".agents" / "docs" / "specs"

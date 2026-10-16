@@ -307,12 +307,20 @@ def reviews_dir(repo_root) -> Path:
     Use this when creating a review. For READING, use :func:`review_dirs`, which additionally covers
     a bare/unregistered repo (see the note there).
     """
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
+
+    modern = project_records_dir(repo_root) / REVIEW_RECORD_CLASS
+    if has_stored_records_placement(repo_root):
+        return modern
     try:
         from agent_workflows import record_producers as _rp
 
         return _rp.resolve_record_path(REVIEW_RECORD_CLASS, target_repo=str(repo_root))
     except Exception:
-        return Path(repo_root) / ".aw" / "records" / REVIEW_RECORD_CLASS
+        return modern
 
 
 def review_dirs(repo_root) -> List[Path]:
@@ -329,6 +337,8 @@ def review_dirs(repo_root) -> List[Path]:
     vacuous. ``check_engine._type_dirs`` carries the identical fallback for the identical documented
     reason ("so a bare/unregistered repo resolves").
     """
+    from agent_workflows.project_context import project_records_dir
+
     out: List[Path] = []
     seen = set()
 
@@ -352,7 +362,7 @@ def review_dirs(repo_root) -> List[Path]:
             _add(Path(p))
     except Exception:
         pass
-    _add(Path(repo_root) / ".aw" / "records" / REVIEW_RECORD_CLASS)
+    _add(project_records_dir(repo_root) / REVIEW_RECORD_CLASS)
     return out
 
 

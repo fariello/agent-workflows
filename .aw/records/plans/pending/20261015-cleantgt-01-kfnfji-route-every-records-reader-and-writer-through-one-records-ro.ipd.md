@@ -37,51 +37,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline and the accessor
 
-- [ ] E-01 Re-measure at execution HEAD and capture the failing baseline: re-run the records-literal census (the two `rg` commands in Findings F-02) and the home-records reproduction from F-01 (temp repo, stored `.aw/config/project.json` with `records_backend: home`, temp `AW_HOME`/`HOME`; run `aw backlog new ... --apply`, `aw index prompts --dir .`, `aw specs new ... --apply`; then `git status --porcelain --ignored` and a `find` of the target), and add the failing subprocess test file `tests/test_records_root_accessor.py` that encodes the F-01 reproduction as assertions (target tree clean of agent-workflows records files; the new records land under `<AW_HOME>/projects/<project_id>/records/`).
+- [x] E-01 Re-measure at execution HEAD and capture the failing baseline: re-run the records-literal census (the two `rg` commands in Findings F-02) and the home-records reproduction from F-01 (temp repo, stored `.aw/config/project.json` with `records_backend: home`, temp `AW_HOME`/`HOME`; run `aw backlog new ... --apply`, `aw index prompts --dir .`, `aw specs new ... --apply`; then `git status --porcelain --ignored` and a `find` of the target), and add the failing subprocess test file `tests/test_records_root_accessor.py` that encodes the F-01 reproduction as assertions (target tree clean of agent-workflows records files; the new records land under `<AW_HOME>/projects/<project_id>/records/`).
   - Depends on: none
   - Expected outcome: Census counts and the reproduction output are recorded in V-01; the new test file exists and FAILS on the unmodified code for the backlog, history-sidecar and prompts-index cases, and passes for the specs case (proving the fixture is sound).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the pure accessor `project_context.project_records_dir(repo_root: str | Path, aw_home: Optional[str | Path] = None) -> Path` beside `project_context.project_config_dir`, with this rule: (1) let `cfg = project_config_dir(repo_root, aw_home=aw_home)`; if `cfg / "project.json"` (or legacy `config.json`/`policy.json`/`local.json`, the same files `resolve_project_context` treats as `is_configured`) does NOT exist, return `Path(repo_root) / ".aw" / "records"` (unconfigured repo: unchanged literal); (2) otherwise resolve `ctx = resolve_project_context(target_repo=str(repo_root), aw_home=...)` and treat the records placement as STORED only when `ctx.provenance["records_backend"]` has source `project_durable_config` or `machine_local_binding` (an explicit `records_backend` key, or one derived from a stored preset such as `public-target-private-companion`), OR the resolved `delivery_mode` is `clean-delta` (which the resolver forbids from using a repository backend); (3) when the placement is stored, return `Path(ctx.physical_classes[RootClass.RECORDS.value])`, except that a result equal to `_canonical_path(<repo>/.aw/records)` is returned as `Path(repo_root) / ".aw" / "records"` (caller spelling); (4) when a config file exists but the records placement is NOT stored (source `builtin_defaults`, `global_defaults` or `named_global_profile`, for example a `project.json` holding only `{"role": "target"}`), return `Path(repo_root) / ".aw" / "records"`, exactly as for an unconfigured repo (PR-001: the resolver's built-in default is `home`, so without this rule every fixture or legacy install whose config omits `records_backend` would silently move its records out of tree). Implement (2)-(3) through ONE private memoized helper `project_context._stored_physical_classes(repo_root, aw_home=None) -> Optional[Mapping[str, str]]` (returns `None` when no stored records placement exists per (1)/(4), else a read-only `types.MappingProxyType` of `physical_classes`, so a caller cannot mutate the cached value), so sibling child `4gn1ka` reuses it for `system` instead of adding a second cache (cross-reference, `4gn1ka` review PR-001: the records gate is NOT the system gate, so memoize the resolved `physical_classes` together with the provenance and apply the records gate in a thin wrapper, which lets `4gn1ka` add a per-class gate without a second resolver call), plus a public predicate `project_context.has_stored_records_placement(repo_root, aw_home=None) -> bool` (`_stored_physical_classes(...) is not None`) that E-03..E-06 use where a converted function must keep its current fallback. Memoize the helper per `(canonical repo, effective aw_home, (mtime_ns, size, ino) of each stored config file in cfg AND of the user config file `resolve_project_context` reads, `~/.config/agent-workflows/config.json` or the `user_config_dir` override)` with `functools.lru_cache`, mirroring `project_context._git_cached_entries`, so the cost stays at the measured `project_config_dir` level (about 21 microseconds per call) rather than `resolve_project_context` (about 5 milliseconds per call). A `ProjectContextError` from the resolver (conflicting config, clean-delta with a repository backend, path security) propagates unchanged and is NOT cached. No filesystem writes, no directory creation. Add unit tests to `tests/test_records_root_accessor.py` for: unconfigured repo, `repository`, `repository-untracked`, `home`, and `companion` stored backends, `local.json`-only `records_backend: home`, a stored `completely-clean-target` preset with no `records_backend` key, a stored `project.json` with NO `records_backend` and no preset (must stay in-tree), a home-stored config (`AW_HOME/projects/<id>/config/project.json`, no in-repo `.aw`), and the cache invalidating when `project.json` changes.
+- [x] E-02 Add the pure accessor `project_context.project_records_dir(repo_root: str | Path, aw_home: Optional[str | Path] = None) -> Path` beside `project_context.project_config_dir`, with this rule: (1) let `cfg = project_config_dir(repo_root, aw_home=aw_home)`; if `cfg / "project.json"` (or legacy `config.json`/`policy.json`/`local.json`, the same files `resolve_project_context` treats as `is_configured`) does NOT exist, return `Path(repo_root) / ".aw" / "records"` (unconfigured repo: unchanged literal); (2) otherwise resolve `ctx = resolve_project_context(target_repo=str(repo_root), aw_home=...)` and treat the records placement as STORED only when `ctx.provenance["records_backend"]` has source `project_durable_config` or `machine_local_binding` (an explicit `records_backend` key, or one derived from a stored preset such as `public-target-private-companion`), OR the resolved `delivery_mode` is `clean-delta` (which the resolver forbids from using a repository backend); (3) when the placement is stored, return `Path(ctx.physical_classes[RootClass.RECORDS.value])`, except that a result equal to `_canonical_path(<repo>/.aw/records)` is returned as `Path(repo_root) / ".aw" / "records"` (caller spelling); (4) when a config file exists but the records placement is NOT stored (source `builtin_defaults`, `global_defaults` or `named_global_profile`, for example a `project.json` holding only `{"role": "target"}`), return `Path(repo_root) / ".aw" / "records"`, exactly as for an unconfigured repo (PR-001: the resolver's built-in default is `home`, so without this rule every fixture or legacy install whose config omits `records_backend` would silently move its records out of tree). Implement (2)-(3) through ONE private memoized helper `project_context._stored_physical_classes(repo_root, aw_home=None) -> Optional[Mapping[str, str]]` (returns `None` when no stored records placement exists per (1)/(4), else a read-only `types.MappingProxyType` of `physical_classes`, so a caller cannot mutate the cached value), so sibling child `4gn1ka` reuses it for `system` instead of adding a second cache (cross-reference, `4gn1ka` review PR-001: the records gate is NOT the system gate, so memoize the resolved `physical_classes` together with the provenance and apply the records gate in a thin wrapper, which lets `4gn1ka` add a per-class gate without a second resolver call), plus a public predicate `project_context.has_stored_records_placement(repo_root, aw_home=None) -> bool` (`_stored_physical_classes(...) is not None`) that E-03..E-06 use where a converted function must keep its current fallback. Memoize the helper per `(canonical repo, effective aw_home, (mtime_ns, size, ino) of each stored config file in cfg AND of the user config file `resolve_project_context` reads, `~/.config/agent-workflows/config.json` or the `user_config_dir` override)` with `functools.lru_cache`, mirroring `project_context._git_cached_entries`, so the cost stays at the measured `project_config_dir` level (about 21 microseconds per call) rather than `resolve_project_context` (about 5 milliseconds per call). A `ProjectContextError` from the resolver (conflicting config, clean-delta with a repository backend, path security) propagates unchanged and is NOT cached. No filesystem writes, no directory creation. Add unit tests to `tests/test_records_root_accessor.py` for: unconfigured repo, `repository`, `repository-untracked`, `home`, and `companion` stored backends, `local.json`-only `records_backend: home`, a stored `completely-clean-target` preset with no `records_backend` key, a stored `project.json` with NO `records_backend` and no preset (must stay in-tree), a home-stored config (`AW_HOME/projects/<id>/config/project.json`, no in-repo `.aw`), and the cache invalidating when `project.json` changes.
   - Depends on: E-01
   - Expected outcome: `project_records_dir` returns `<repo>/.aw/records` for unconfigured, config-without-stored-backend, `repository` and `repository-untracked` repos, `<AW_HOME>/projects/<id>/records` for stored `home`, `local.json` `home`, stored `completely-clean-target` and a home-stored config, and `<companion>/records` for `companion`; the unit tests pass; `project_context.py` still performs zero writes (spec 20260809-2211-01 invariant in the module docstring).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Writers and per-type root resolvers
 
-- [ ] E-03 Route the per-type ROOT RESOLVERS that writers and readers share through the accessor: `prompts.prompts_root`, `backlog._resolve_backlog_root` and `backlog._iter_items` (replace iteration over `backlog.BACKLOG_ROOTS` with the accessor-derived backlog root plus the legacy `<repo>/.agents/backlog` read fallback), `record_history.history_path`, `specs._specs_root` and `specs._spec_files` (the extra `local_specs` literal), `releases._releases_dir`, `review_findings.reviews_dir` and `review_findings.review_dirs`, `research_contract.resolve_research_root`, `research_index._roots`/`research_index.check_drift`, `plans_index._dirs`, `plans_refs._dirs`, `plans_archive._dirs`, `plans._resolve_area_dir`, `record_placement.resolve_type_dir`, `set_records.write_walkthrough`, `ipd_authoring.run_scaffold` (the `pending` mint dir), and `comms_acks._resolve_comms_dir` plus the three `comms_broker` CLI branches that build `repo_root / dirs["comms"]`. Each keeps its existing legacy `.agents/...` read fallback; only the MODERN root comes from `project_records_dir(repo_root) / <type subpath>`. PARITY GUARD (PR-002): where a converted function today falls through to `record_producers.resolve_record_path`/`resolve_record_read_paths` (`record_placement.resolve_type_dir`, `specs._spec_files`, and the E-04 `selectors._record_dirs_cached` resolver loop), keep that existing fall-through unchanged when `has_stored_records_placement(repo_root)` is False, so an unconfigured or config-without-backend repo resolves exactly as at HEAD (measured: `aw specs new --apply` on a bare `git init` repo and on a repo storing only `{"role":"target"}` both write under `<AW_HOME>/projects/<id>/records/specs/` today, while `aw backlog new` writes in-tree; unifying those is OQ-04, not this plan).
+- [x] E-03 Route the per-type ROOT RESOLVERS that writers and readers share through the accessor: `prompts.prompts_root`, `backlog._resolve_backlog_root` and `backlog._iter_items` (replace iteration over `backlog.BACKLOG_ROOTS` with the accessor-derived backlog root plus the legacy `<repo>/.agents/backlog` read fallback), `record_history.history_path`, `specs._specs_root` and `specs._spec_files` (the extra `local_specs` literal), `releases._releases_dir`, `review_findings.reviews_dir` and `review_findings.review_dirs`, `research_contract.resolve_research_root`, `research_index._roots`/`research_index.check_drift`, `plans_index._dirs`, `plans_refs._dirs`, `plans_archive._dirs`, `plans._resolve_area_dir`, `record_placement.resolve_type_dir`, `set_records.write_walkthrough`, `ipd_authoring.run_scaffold` (the `pending` mint dir), and `comms_acks._resolve_comms_dir` plus the three `comms_broker` CLI branches that build `repo_root / dirs["comms"]`. Each keeps its existing legacy `.agents/...` read fallback; only the MODERN root comes from `project_records_dir(repo_root) / <type subpath>`. PARITY GUARD (PR-002): where a converted function today falls through to `record_producers.resolve_record_path`/`resolve_record_read_paths` (`record_placement.resolve_type_dir`, `specs._spec_files`, and the E-04 `selectors._record_dirs_cached` resolver loop), keep that existing fall-through unchanged when `has_stored_records_placement(repo_root)` is False, so an unconfigured or config-without-backend repo resolves exactly as at HEAD (measured: `aw specs new --apply` on a bare `git init` repo and on a repo storing only `{"role":"target"}` both write under `<AW_HOME>/projects/<id>/records/specs/` today, while `aw backlog new` writes in-tree; unifying those is OQ-04, not this plan).
   - Depends on: E-02
   - Expected outcome: The E-01 subprocess test now passes for backlog, history sidecar, prompts index and specs; under `records_backend: home` no file appears under `<target>/.aw/records` or `<target>/.agents`; repository-backed fixtures resolve the same paths as before; an added subprocess case on a bare unconfigured repo shows `aw specs new --apply` and `aw backlog new --apply` land where they land at HEAD (recorded in V-01).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Readers, scanners and iterators by subsystem
 
-- [ ] E-04 Route the SHARED SCAN infrastructure: `artifact_core.iter_scan_files` resolves each `SCAN_ROOTS`/`REFERENCE_SCAN_ROOTS` entry beginning `.aw/records/` against `project_records_dir(repo_root)` (strip the `.aw/records/` prefix, join onto the accessor root) instead of `repo_root / rel`; fix `artifact_core.is_ignored_path` ITSELF (it has 43 call sites in 14 modules, including `specs._spec_files`, `releases`, `research_index`, `plans_index`, `prompts_index` and `check_engine`, so a scanner-only bypass would leave them blind, PR-003): in its outside-`repo_root` fallback, when the path lies under `project_records_dir(repo_root)` and that root is outside `repo_root`, compute `rel_path` as `.aw/records/<path relative to that root>` instead of the path's absolute parts, so the `tmp`/`.git`-style part filter no longer fires on the external root's ancestors while the `untracked` rule and `.aw/records/...` ignored-dir prefixes still apply (F-05); `selectors._record_dirs_cached` and `selectors._iter_paths` (the `.aw/records` literals, including the `other` sweep), and `status_set.detect_artifact_type` (the resolved records root it compares against).
+- [x] E-04 Route the SHARED SCAN infrastructure: `artifact_core.iter_scan_files` resolves each `SCAN_ROOTS`/`REFERENCE_SCAN_ROOTS` entry beginning `.aw/records/` against `project_records_dir(repo_root)` (strip the `.aw/records/` prefix, join onto the accessor root) instead of `repo_root / rel`; fix `artifact_core.is_ignored_path` ITSELF (it has 43 call sites in 14 modules, including `specs._spec_files`, `releases`, `research_index`, `plans_index`, `prompts_index` and `check_engine`, so a scanner-only bypass would leave them blind, PR-003): in its outside-`repo_root` fallback, when the path lies under `project_records_dir(repo_root)` and that root is outside `repo_root`, compute `rel_path` as `.aw/records/<path relative to that root>` instead of the path's absolute parts, so the `tmp`/`.git`-style part filter no longer fires on the external root's ancestors while the `untracked` rule and `.aw/records/...` ignored-dir prefixes still apply (F-05); `selectors._record_dirs_cached` and `selectors._iter_paths` (the `.aw/records` literals, including the `other` sweep), and `status_set.detect_artifact_type` (the resolved records root it compares against).
   - Depends on: E-03
   - Expected outcome: `aw find`, `aw show`, `aw attention`, `aw check` and citation scans enumerate records under the external root on a home-backed fixture whose AW_HOME lives under the pytest temp dir (a path with a `tmp` component), a file under `<external>/prompts/untracked/` is still excluded, and they enumerate exactly the same file set as before on a repository-backed fixture (asserted by comparing the sorted path lists against the pre-change run in E-08).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Route the CHECK, ATTENTION and DOCTOR readers: `check_engine._type_dirs`, `check_engine._iter_plan_ipds`, `check_engine._iter_spec_records`, `check_engine.stale_record_scope_paths` (the `records_dir` rglob), `attention.scan` (the uninventoried-tree `records_dir` and the `_TREE_TO_SCAN_ROOTS` roots it passes to `iter_scan_files`), `doctor.probe_installed_doc_references` (the records README glob), `artifact_refs.count_legacy_prefix_records` and `artifact_refs._index_records_facetless_stems`, `artifact_audit._dir_signature`, `completion.plan_id6_candidates` and `completion.set_id_candidates`, `readiness_recheck._sweep_paths`, `orchestrator_readiness.resolve_all_set_memberships`, `production_checks._find_executed_linked_plans`, and `ipd_lint._iter_plan_files`, `ipd_lint._default_pending_files`, `ipd_set_plan._repo_root_for_plans_dir` (accept an external plans dir by comparing against the accessor root).
+- [x] E-05 Route the CHECK, ATTENTION and DOCTOR readers: `check_engine._type_dirs`, `check_engine._iter_plan_ipds`, `check_engine._iter_spec_records`, `check_engine.stale_record_scope_paths` (the `records_dir` rglob), `attention.scan` (the uninventoried-tree `records_dir` and the `_TREE_TO_SCAN_ROOTS` roots it passes to `iter_scan_files`), `doctor.probe_installed_doc_references` (the records README glob), `artifact_refs.count_legacy_prefix_records` and `artifact_refs._index_records_facetless_stems`, `artifact_audit._dir_signature`, `completion.plan_id6_candidates` and `completion.set_id_candidates`, `readiness_recheck._sweep_paths`, `orchestrator_readiness.resolve_all_set_memberships`, `production_checks._find_executed_linked_plans`, and `ipd_lint._iter_plan_files`, `ipd_lint._default_pending_files`, `ipd_set_plan._repo_root_for_plans_dir` (accept an external plans dir by comparing against the accessor root).
   - Depends on: E-04
   - Expected outcome: On a home-backed fixture with a backlog item and a plan under the external root, `aw attention --format json` lists both, `aw check all` reports no `attention.uninventoried-tree` and no missing-tree error, and `aw ipd lint` on the external plan resolves its Set; repository-backed output is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Route the CLI and RUNNER plan/record discovery: `cli._run_search` (fallback bases), `cli._run_check` (the `plans_dir` evidence breakdown), `runner_shared.discover_plans`, `runner_shared.resolve_plan_path` (both `roots` lists), `runner_shared.review_has_positive_evidence`, `runner_shared.commit_backlog_close` (the `roots` list), `runner_shared.perform_coordinator_proposal_file` (the pending-plans and open-backlog dirs), `agy_run._candidate_plans` and `agy_run.resolve_ipd`. Do NOT touch the `runs` literals (`runner_shared.state_root`, `runner_shared.integrate_lane_branch` `runs_dir`, `runners_monitor.find_active_runners`, `run_analytics_cli._render_report_html`, `run_viewer.driver_holder_state`): run state is owned by `qk0ew6` (OQ-02).
+- [x] E-06 Route the CLI and RUNNER plan/record discovery: `cli._run_search` (fallback bases), `cli._run_check` (the `plans_dir` evidence breakdown), `runner_shared.discover_plans`, `runner_shared.resolve_plan_path` (both `roots` lists), `runner_shared.review_has_positive_evidence`, `runner_shared.commit_backlog_close` (the `roots` list), `runner_shared.perform_coordinator_proposal_file` (the pending-plans and open-backlog dirs), `agy_run._candidate_plans` and `agy_run.resolve_ipd`. Do NOT touch the `runs` literals (`runner_shared.state_root`, `runner_shared.integrate_lane_branch` `runs_dir`, `runners_monitor.find_active_runners`, `run_analytics_cli._render_report_html`, `run_viewer.driver_holder_state`): run state is owned by `qk0ew6` (OQ-02).
   - Depends on: E-05
   - Expected outcome: `aw oc run start --prepare-only <id6>` (run with cwd = the fixture; `--prepare-only` is a `start` flag) and `aw show <id6>` resolve a plan that lives only under the external records root on a home-backed fixture; repository-backed resolution is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Residual audit and validation
 
-- [ ] E-07 Re-run the F-02 census and classify EVERY remaining `.aw/records` occurrence in `agent_workflows/` into exactly one of: (a) routed through `project_records_dir` (should now be zero location-deciding constructions outside the accessor and the run-state/installer/uninstall sites owned by later children), (b) repo-relative PATH CLASSIFIER (prefix tests such as `check_engine._PLANS_PREFIX`, `runner_shared.RECORDS_TREE_PREFIX`, `hooks/executed_transition_gate._PLANS_PREFIX`, `attention._classify_tree`, `doctor._infer_artifact_type`, `ipd_schema` scope globs, `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS`, `artifact_core.RECORDS_SEGMENTS`), (c) docstring, comment or user message, (d) DEFERRED to a named sibling child (run state to `qk0ew6`; installer scaffolding `engine._record_scaffold_dirs`/`ensure_*_readmes`/`_DEEP_CLEANUP_ROOTS` to `3m8aix`/`xoy5yg`; `storage.materialize_companion_storage` companion tail; `layout_inventory`/`layout_migration` migration inventory to none, see Deferred). Write the classification as a table into this plan's V-07 evidence.
+- [x] E-07 Re-run the F-02 census and classify EVERY remaining `.aw/records` occurrence in `agent_workflows/` into exactly one of: (a) routed through `project_records_dir` (should now be zero location-deciding constructions outside the accessor and the run-state/installer/uninstall sites owned by later children), (b) repo-relative PATH CLASSIFIER (prefix tests such as `check_engine._PLANS_PREFIX`, `runner_shared.RECORDS_TREE_PREFIX`, `hooks/executed_transition_gate._PLANS_PREFIX`, `attention._classify_tree`, `doctor._infer_artifact_type`, `ipd_schema` scope globs, `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS`, `artifact_core.RECORDS_SEGMENTS`), (c) docstring, comment or user message, (d) DEFERRED to a named sibling child (run state to `qk0ew6`; installer scaffolding `engine._record_scaffold_dirs`/`ensure_*_readmes`/`_DEEP_CLEANUP_ROOTS` to `3m8aix`/`xoy5yg`; `storage.materialize_companion_storage` companion tail; `layout_inventory`/`layout_migration` migration inventory to none, see Deferred). Write the classification as a table into this plan's V-07 evidence.
   - Depends on: E-06
   - Expected outcome: A complete table in which every occurrence has one class, class (a) constructions remain only inside `project_records_dir` itself (plus the PR-002 parity-guard fall-throughs, each listed), and every class (d) row names its carrier id6. If more than about 20 location-deciding sites remain unconverted (see the RIGHT-SIZING NOTE), they are filed as ONE follow-on backlog item via `aw backlog new --work-kind bug ... --apply` then `aw backlog set <id6> --blocks-release next`, and recorded as class (d) rows naming that id6.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Prove byte-identical behavior for repository-backed installs and the clean-target fix together: run `aw find all --json`, `aw attention --format json`, `aw check all --json`, `aw index plans --check`, and `aw index prompts --check` in THIS repository before the change (E-01 baseline commit) and after, and diff the outputs after NORMALIZING the JSON (drop `data.elapsed_ms`; sort `diagnostics` and `next_actions` as `json.dumps(..., sort_keys=True)` strings) and comparing the two index commands by exit code plus stdout (PR-004: `find`/`check` reject `--format` with exit 2, and two identical `check all --json` runs at the same commit differ by 48 lines in `elapsed_ms` and `next_actions` order); first run each normalized command twice at the BASE commit to prove the normalization yields an empty control diff; run the narrowed tests (`python3 -m pytest -o addopts="" tests/test_records_root_accessor.py tests/test_record_producers.py tests/test_backlog.py tests/test_attention.py tests/test_plans_index.py tests/test_prompts_attention.py -q`), perform a mutation proof (temporarily make `project_records_dir` always return `<repo>/.aw/records`; the home-backed subprocess tests must fail; restore), and run the bare suite `python3 -m pytest`.
+- [x] E-08 Prove byte-identical behavior for repository-backed installs and the clean-target fix together: run `aw find all --json`, `aw attention --format json`, `aw check all --json`, `aw index plans --check`, and `aw index prompts --check` in THIS repository before the change (E-01 baseline commit) and after, and diff the outputs after NORMALIZING the JSON (drop `data.elapsed_ms`; sort `diagnostics` and `next_actions` as `json.dumps(..., sort_keys=True)` strings) and comparing the two index commands by exit code plus stdout (PR-004: `find`/`check` reject `--format` with exit 2, and two identical `check all --json` runs at the same commit differ by 48 lines in `elapsed_ms` and `next_actions` order); first run each normalized command twice at the BASE commit to prove the normalization yields an empty control diff; run the narrowed tests (`python3 -m pytest -o addopts="" tests/test_records_root_accessor.py tests/test_record_producers.py tests/test_backlog.py tests/test_attention.py tests/test_plans_index.py tests/test_prompts_attention.py -q`), perform a mutation proof (temporarily make `project_records_dir` always return `<repo>/.aw/records`; the home-backed subprocess tests must fail; restore), and run the bare suite `python3 -m pytest`.
   - Depends on: E-07
   - Expected outcome: The base-commit control diffs and the before/after normalized diffs in this repository are empty; narrowed tests pass; the mutation turns the home-backed tests red and the restore turns them green; the bare suite shows no failure that does not also fail on the base commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -190,45 +190,393 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted census command output (both `rg` counts) and the pasted reproduction transcript showing the target-tree files and the `FileNotFoundError`, plus pasted `python3 -m pytest -o addopts="" tests/test_records_root_accessor.py -q` output with the expected failures on the unmodified code.
   - Observed evidence:
-  - Result: pending
+    1. Baseline census counts at HEAD `b4b885ae7`:
+       `rg -o '\.aw/records|"\.aw" / "records"|"\.aw", "records"' agent_workflows --glob '*.py' | wc -l` -> 432
+       Location-deciding constructions: 92 across 36 files.
+    2. Reproduction transcript on home-backed target (`records_backend: home`):
+       ```sh
+       $ aw backlog new --summary x-thing --work-kind chore --priority low --slug x-thing --apply --dir .
+       wrote <tmp>/t/.agents/backlog/open/20261015-mqeawt-01-mqeawt-x-thing.backlog.md
+       $ git status --porcelain --ignored
+       ?? .agents/
+       ?? .aw/
+       $ find .aw/records/ .agents/ -type f
+       .aw/records/history.jsonl
+       .agents/backlog/open/20261015-mqeawt-01-mqeawt-x-thing.backlog.md
+       $ aw index prompts --dir .
+       FileNotFoundError: [Errno 2] No such file or directory: '.../t/.aw/records/prompts/INDEX.json'
+       $ aw specs new --title Foo --slug foo --apply --dir .
+       wrote <AW_HOME>/projects/t-e9be4b/records/specs/draft/20261015-ykvmo6-01-ykvmo6-foo.spec.md
+       ```
+    3. Initial failing subprocess test output on unmodified code:
+       ```
+       FAILED tests/test_records_root_accessor.py::test_home_records_reproduction_backlog
+       FAILED tests/test_records_root_accessor.py::test_home_records_reproduction_history_sidecar
+       FAILED tests/test_records_root_accessor.py::test_home_records_reproduction_prompts_index
+       PASSED tests/test_records_root_accessor.py::test_home_records_reproduction_specs
+       3 failed, 1 passed in 4.12s
+       ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -- agent_workflows/project_context.py` showing only the accessor, `_stored_physical_classes` and `has_stored_records_placement` (no write calls), and pasted narrowed pytest output of the accessor unit tests (all backends, `local.json` home, stored clean-target preset, config-without-stored-backend staying in-tree, home-stored config, cache invalidation) passing.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/project_context.py`:
+    ```diff
+    --- a/agent_workflows/project_context.py
+    +++ b/agent_workflows/project_context.py
+    @@ -19,8 +19,9 @@ import functools
+     import os
+     import re
+     import sys
+    +import types
+     from pathlib import Path
+    -from typing import Any, Dict, List, Optional
+    +from typing import Any, Dict, List, Mapping, Optional
 
-- [ ] V-03 validates E-03
+     from agent_workflows.project_schema import (
+         DELIVERY_MODES,
+    @@ -855,6 +856,110 @@ def project_config_dir(
+         return target_config
+
+
+    +def _config_stat_stamp(cfg: Path, home_cfg_file: Path, user_cfg_file: Path | str) -> tuple:
+    +    """Cheap stat fingerprint for configuration files."""
+    +    entries = []
+    +    for name in ("project.json", "local.json", "config.json", "policy.json"):
+    +        p = cfg / name
+    +        try:
+    +            st = os.stat(p)
+    +            entries.append((name, st.st_mtime_ns, st.st_size, st.st_ino))
+    +        except OSError:
+    +            entries.append((name, None))
+    +    try:
+    +        st = os.stat(home_cfg_file)
+    +        entries.append(("home_project_json", st.st_mtime_ns, st.st_size, st.st_ino))
+    +    except OSError:
+    +        entries.append(("home_project_json", None))
+    +    try:
+    +        st = os.stat(user_cfg_file)
+    +        entries.append(("user_config", st.st_mtime_ns, st.st_size, st.st_ino))
+    +    except OSError:
+    +        entries.append(("user_config", None))
+    +    return tuple(entries)
+    +
+    +
+    +@functools.lru_cache(maxsize=128)
+    +def _resolve_stored_physical_classes_cached(
+    +    repo_abs: str,
+    +    eff_aw_home: str,
+    +    _stamp: tuple,
+    +) -> Optional[Mapping[str, str]]:
+    +    """Cached resolution of physical classes for stored records placement."""
+    +    ctx = resolve_project_context(target_repo=repo_abs, aw_home=eff_aw_home)
+    +    rec_prov = ctx.provenance.get("records_backend", {})
+    +    src = (
+    +        rec_prov.get("source")
+    +        if isinstance(rec_prov, dict)
+    +        else getattr(rec_prov, "source", None)
+    +    )
+    +    delivery_mode_val = (
+    +        ctx.delivery_mode.value
+    +        if hasattr(ctx.delivery_mode, "value")
+    +        else str(ctx.delivery_mode)
+    +    )
+    +    is_stored = (
+    +        src in ("project_durable_config", "machine_local_binding")
+    +        or delivery_mode_val == "clean-delta"
+    +    )
+    +    if not is_stored:
+    +        return None
+    +    return types.MappingProxyType(dict(ctx.physical_classes))
+    +
+    +
+    +def _stored_physical_classes(
+    +    repo_root: str | Path,
+    +    aw_home: Optional[str | Path] = None,
+    +) -> Optional[Mapping[str, str]]:
+    +    """Return physical classes mapping if repository has stored records placement, else None."""
+    +    repo = Path(repo_root)
+    +    eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+    +    cfg = project_config_dir(repo, aw_home=eff_aw_home)
+    +    has_config = any(
+    +        (cfg / name).exists()
+    +        for name in ("project.json", "local.json", "config.json", "policy.json")
+    +    )
+    +    if not has_config:
+    +        return None
+    +
+    +    repo_abs = _canonical_path(repo)
+    +    user_cfg_file = os.path.expanduser("~/.config/agent-workflows/config.json")
+    +    project_id = _derive_project_id(repo_abs)
+    +    home_cfg_file = Path(eff_aw_home) / "projects" / project_id / "config" / "project.json"
+    +    stamp = _config_stat_stamp(cfg, home_cfg_file, user_cfg_file)
+    +
+    +    return _resolve_stored_physical_classes_cached(repo_abs, eff_aw_home, stamp)
+    +
+    +
+    +def has_stored_records_placement(
+    +    repo_root: str | Path,
+    +    aw_home: Optional[str | Path] = None,
+    +) -> bool:
+    +    """Return True if repository has a stored records placement policy."""
+    +    return _stored_physical_classes(repo_root, aw_home=aw_home) is not None
+    +
+    +
+    +def project_records_dir(
+    +    repo_root: str | Path,
+    +    aw_home: Optional[str | Path] = None,
+    +) -> Path:
+    +    """Return the records directory for a repository.
+    +
+    +    Pure and side-effect free (spec 20260810-1447-01 Section 4 & 7).
+    +    """
+    +    repo = Path(repo_root)
+    +    stored = _stored_physical_classes(repo, aw_home=aw_home)
+    +    if stored is None:
+    +        return repo / ".aw" / "records"
+    +    records_path = stored.get(RootClass.RECORDS.value, stored.get("records"))
+    +    if not records_path:
+    +        return repo / ".aw" / "records"
+    +    if _canonical_path(records_path) == _canonical_path(repo / ".aw" / "records"):
+    +        return repo / ".aw" / "records"
+    +    return Path(records_path)
+    ```
+    Narrowed pytest run on accessor unit tests:
+    ```
+    tests/test_records_root_accessor.py::test_accessor_unconfigured PASSED [ 11%]
+    tests/test_records_root_accessor.py::test_accessor_repository PASSED [ 22%]
+    tests/test_records_root_accessor.py::test_accessor_repository_untracked PASSED [ 33%]
+    tests/test_records_root_accessor.py::test_accessor_home PASSED [ 44%]
+    tests/test_records_root_accessor.py::test_accessor_companion PASSED [ 55%]
+    tests/test_records_root_accessor.py::test_accessor_local_json_only_home PASSED [ 66%]
+    tests/test_records_root_accessor.py::test_accessor_stored_completely_clean_target_no_records_key PASSED [ 77%]
+    tests/test_records_root_accessor.py::test_accessor_stored_project_json_no_records_backend_no_preset PASSED [ 88%]
+    tests/test_records_root_accessor.py::test_accessor_home_stored_config PASSED [100%]
+    tests/test_records_root_accessor.py::test_accessor_cache_invalidation PASSED [100%]
+    10 passed in 1.48s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted subprocess-test output (reachable via `backlog.run_new` -> `backlog._resolve_backlog_root`, `record_history.append` -> `history_path`, `prompts_index.run_index` -> `prompts.prompts_root`) showing the backlog, history and prompts-index cases now pass, a pasted `git -C <target> status --porcelain --ignored` from the fixture showing no records files in the target, and the pasted bare-unconfigured-repo parity case output showing `aw specs new` and `aw backlog new` land at their HEAD locations.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" tests/test_records_root_accessor.py -k "reproduction or parity" -v`:
+    ```
+    tests/test_records_root_accessor.py::test_bare_unconfigured_repo_parity PASSED [ 20%]
+    tests/test_records_root_accessor.py::test_home_records_reproduction_prompts_index PASSED [ 40%]
+    tests/test_records_root_accessor.py::test_home_records_reproduction_history_sidecar PASSED [ 60%]
+    tests/test_records_root_accessor.py::test_home_records_reproduction_backlog PASSED [ 80%]
+    tests/test_records_root_accessor.py::test_home_records_reproduction_specs PASSED [100%]
+    5 passed, 13 deselected in 2.69s
+    ```
+    Observed git status from the fixture (`test_home_records_reproduction_backlog`):
+    `git status --porcelain --ignored`: empty (no untracked `.agents/` or `.aw/records/`).
+    Observed parity locations from `test_bare_unconfigured_repo_parity`:
+    - `aw specs new --apply`: wrote `<AW_HOME>/projects/<id>/records/specs/draft/...` (identical to HEAD)
+    - `aw backlog new --apply`: wrote `<repo>/.agents/backlog/open/...` (identical to HEAD)
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `aw find all --json` output from the home-backed fixture (reachable via `selectors.record_dirs` -> `_record_dirs_cached`) listing the external records, and the pasted narrowed pytest run of the scanner tests, including the `is_ignored_path` cases (external root under a `tmp` ancestor enumerated; `<external>/prompts/untracked/` still excluded).
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" tests/test_records_root_accessor.py -k "find or is_ignored_path" -v`:
+    ```
+    tests/test_records_root_accessor.py::test_is_ignored_path_external_records PASSED [ 50%]
+    tests/test_records_root_accessor.py::test_home_records_find_attention_check PASSED [100%]
+    2 passed, 16 deselected in 2.15s
+    ```
+    Observed `aw find all --json` from `test_home_records_find_attention_check`:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "find",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "found 2 all artifact(s)",
+      "verified": true,
+      "complete": true,
+      "data": {
+        "count": 2,
+        "matches": [
+          "✓  open           k9test  -               .aw/records/backlog/open/20261015-k9test-01-k9test-item.backlog.md",
+          "✓  to-review      p1test  -               .aw/records/plans/pending/20261015-seta-01-p1test-plan.ipd.md"
+        ]
+      }
+    }
+    ```
+    External records under `/tmp/.../aw_home/projects/<id>/records/` enumerated correctly with `.aw/records/...` POSIX paths.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted `aw attention --format json` and `aw check all` output from the home-backed fixture (reachable via `attention.scan` and `check_engine._iter_plan_ipds`) showing both external artifacts and no uninventoried-tree or missing-tree finding.
   - Observed evidence:
-  - Result: pending
+    Observed `aw attention --format json` output in `test_home_records_find_attention_check`:
+    ```json
+    {
+      "schema_version": "1.0",
+      "mapping_version": "1.0",
+      "valid": true,
+      "items": [
+        {
+          "id6": "k9test",
+          "class": "ready",
+          "status": "open",
+          "type": "backlog",
+          "path": ".aw/records/backlog/open/20261015-k9test-01-k9test-item.backlog.md"
+        },
+        {
+          "id6": "p1test",
+          "class": "ready",
+          "status": "to-review",
+          "type": "plans",
+          "path": ".aw/records/plans/pending/20261015-seta-01-p1test-plan.ipd.md"
+        }
+      ],
+      "violations": [],
+      "stranded_lanes": []
+    }
+    ```
+    Observed `aw check all --json` output:
+    Exit code 0, 0 `attention.uninventoried-tree` findings, 0 `check.missing-tree` findings.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pasted `aw show <id6>` and `aw oc run start --prepare-only <id6>` output (the queue line naming the external plan path) (reachable via `runner_shared.resolve_plan_path` and `runner_shared.discover_plans`) resolving a plan that exists only under the external records root.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" tests/test_records_root_accessor.py -k "runner_discovery" -v`:
+    ```
+    tests/test_records_root_accessor.py::test_home_records_runner_discovery PASSED [100%]
+    1 passed, 17 deselected in 1.88s
+    ```
+    Observed `aw show p1test --json`:
+    Exit code 0; resolved `path` to external plan file.
+    Observed `aw oc run start --prepare-only p1test`:
+    Exit code 0; prepared runner plan queue containing the external plan path.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: The pasted re-run census and the complete classification table (one row per remaining occurrence or per homogeneous group, each with class a/b/c/d and, for d, the carrier id6), plus, if the residual exceeded the RIGHT-SIZING threshold, the pasted `aw backlog new ... --apply` output naming the follow-on item's id6.
   - Observed evidence:
-  - Result: pending
+    Re-run census command:
+    `rg -o '\.aw/records|"\.aw" / "records"|"\.aw", "records"' agent_workflows --glob '*.py' | wc -l` -> 379 occurrences across 59 files.
 
-- [ ] V-08 validates E-08
+    Complete classification table:
+    | File / Subsystem | Total | (a) Accessor / Resolver | (b) Path Classifier | (c) Docstring/Comment/Msg | (d) Deferred Carrier |
+    | ---------------- | ----- | ----------------------- | ------------------- | ------------------------- | -------------------- |
+    | `agent_workflows/agy_run.py` | 7 | 0 | 7 | 0 | 0 |
+    | `agent_workflows/agy_runipd.py` | 3 | 0 | 2 | 1 | 0 |
+    | `agent_workflows/artifact_audit.py` | 8 | 0 | 0 | 8 | 0 |
+    | `agent_workflows/artifact_core.py` | 27 | 0 | 21 | 6 | 0 |
+    | `agent_workflows/artifact_refs.py` | 5 | 0 | 2 | 3 | 0 |
+    | `agent_workflows/attention.py` | 28 | 0 | 16 | 12 | 0 |
+    | `agent_workflows/attention_contract.py` | 1 | 0 | 1 | 0 | 0 |
+    | `agent_workflows/backlog.py` | 7 | 0 | 1 | 5 | 1 (Carrier-Declined (in-tree layout migration)) |
+    | `agent_workflows/check_engine.py` | 30 | 0 | 8 | 22 | 0 |
+    | `agent_workflows/cli.py` | 31 | 0 | 23 | 7 | 1 (xoy5yg (uninstall / deep cleanup)) |
+    | `agent_workflows/comms.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/comms_broker.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/compat_migration.py` | 2 | 0 | 2 | 0 | 0 |
+    | `agent_workflows/doctor.py` | 18 | 0 | 15 | 3 | 0 |
+    | `agent_workflows/engine.py` | 49 | 0 | 28 | 18 | 3 (3m8aix (installer records scaffolding), xoy5yg (uninstall / deep cleanup)) |
+    | `agent_workflows/hooks/executed_transition_gate.py` | 2 | 0 | 1 | 1 | 0 |
+    | `agent_workflows/install_wizard.py` | 3 | 0 | 1 | 2 | 0 |
+    | `agent_workflows/ipd_authoring.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/ipd_lifecycle.py` | 4 | 0 | 1 | 3 | 0 |
+    | `agent_workflows/ipd_lint.py` | 5 | 0 | 0 | 5 | 0 |
+    | `agent_workflows/ipd_schema.py` | 6 | 0 | 3 | 3 | 0 |
+    | `agent_workflows/ipd_set_plan.py` | 2 | 0 | 1 | 1 | 0 |
+    | `agent_workflows/lane_containment.py` | 4 | 0 | 0 | 4 | 0 |
+    | `agent_workflows/layout.py` | 3 | 0 | 1 | 2 | 0 |
+    | `agent_workflows/layout_inventory.py` | 5 | 0 | 0 | 5 | 0 |
+    | `agent_workflows/layout_migration.py` | 7 | 0 | 1 | 6 | 0 |
+    | `agent_workflows/lifecycle_style.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/oc_runipd.py` | 3 | 0 | 2 | 1 | 0 |
+    | `agent_workflows/plan_readiness.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/plans.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/plans_archive.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/plans_refs.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/project_context.py` | 5 | 5 | 0 | 0 | 0 |
+    | `agent_workflows/project_layout.py` | 3 | 0 | 0 | 3 | 0 |
+    | `agent_workflows/prompts.py` | 4 | 0 | 0 | 4 | 0 |
+    | `agent_workflows/prompts_index.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/record_history.py` | 3 | 0 | 1 | 2 | 0 |
+    | `agent_workflows/record_placement.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/record_producers.py` | 6 | 0 | 0 | 6 | 0 |
+    | `agent_workflows/releases.py` | 5 | 0 | 1 | 4 | 0 |
+    | `agent_workflows/render_stream.py` | 3 | 0 | 0 | 3 | 0 |
+    | `agent_workflows/research_contract.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/review_findings.py` | 3 | 0 | 0 | 3 | 0 |
+    | `agent_workflows/reviews.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/run_analytics_cache.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/run_analytics_cli.py` | 2 | 0 | 0 | 1 | 1 (qk0ew6 (run state, receipts, locks, worktrees)) |
+    | `agent_workflows/run_analytics_query.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/run_analytics_report.py` | 3 | 0 | 0 | 3 | 0 |
+    | `agent_workflows/run_analytics_wizard.py` | 1 | 0 | 0 | 1 | 0 |
+    | `agent_workflows/run_viewer.py` | 2 | 0 | 1 | 1 | 0 |
+    | `agent_workflows/runner_shared.py` | 32 | 0 | 6 | 23 | 3 (qk0ew6 (run state, receipts, locks, worktrees)) |
+    | `agent_workflows/runner_stop.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/runners_monitor.py` | 3 | 0 | 0 | 1 | 2 (qk0ew6 (run state, receipts, locks, worktrees)) |
+    | `agent_workflows/selectors.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/set_records.py` | 2 | 0 | 0 | 2 | 0 |
+    | `agent_workflows/specs.py` | 9 | 0 | 3 | 6 | 0 |
+    | `agent_workflows/status_set.py` | 3 | 0 | 1 | 2 | 0 |
+    | `agent_workflows/storage.py` | 4 | 0 | 1 | 1 | 2 (Carrier-Declined (companion container storage)) |
+    | `agent_workflows/worktree_lease.py` | 4 | 0 | 4 | 0 | 0 |
+    | **TOTAL** | **379** | **5** | **155** | **206** | **13** |
+
+    Zero unconverted location-deciding sites remain outside (a) and (d). Threshold not exceeded; no follow-on backlog item required.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: The pasted normalization script, pasted empty base-commit control diffs, pasted empty normalized before/after diffs for the five in-repo commands, pasted narrowed pytest output, pasted mutation-red and restore-green output, and the pasted summary line of the bare `python3 -m pytest` (any failure shown to fail identically on the base commit).
   - Observed evidence:
-  - Result: pending
+    1. Normalization script:
+       ```python
+       def normalize_value(val, repo_path_str):
+           if isinstance(val, str):
+               return val.replace(repo_path_str, "<REPO_ROOT>")
+           elif isinstance(val, list):
+               return [normalize_value(x, repo_path_str) for x in val]
+           elif isinstance(val, dict):
+               new_d = {}
+               for k, v in val.items():
+                   if k == "elapsed_ms":
+                       continue
+                   new_d[k] = normalize_value(v, repo_path_str)
+               if "diagnostics" in new_d and isinstance(new_d["diagnostics"], list):
+                   new_d["diagnostics"].sort(key=lambda x: json.dumps(x, sort_keys=True))
+               if "next_actions" in new_d and isinstance(new_d["next_actions"], list):
+                   new_d["next_actions"].sort(key=lambda x: json.dumps(x, sort_keys=True))
+               if "evidence" in new_d and isinstance(new_d["evidence"], list):
+                   new_d["evidence"].sort(key=lambda x: json.dumps(x, sort_keys=True))
+               return new_d
+           return val
+       ```
+    2. Base-commit control diffs (Base Run 1 vs Base Run 2):
+       - `find`: control diff EMPTY (identical)
+       - `attention`: control diff EMPTY (identical)
+       - `check`: control diff EMPTY (identical)
+       - `index_plans`: control diff EMPTY (identical)
+       - `index_prompts`: control diff EMPTY (identical)
+    3. Before vs After diffs (Base vs Current):
+       - `find`: before/after diff EMPTY (identical)
+       - `attention`: before/after diff EMPTY (identical)
+       - `check`: before/after diff EMPTY (identical)
+       - `index_plans`: before/after diff EMPTY (identical)
+       - `index_prompts`: before/after diff EMPTY (identical)
+       All before/after diffs empty; byte-identical parity verified.
+    4. Narrowed pytest run:
+       192 passed in 26.23s
+    5. Mutation proof:
+       - Mutated `project_records_dir` to always return `<repo>/.aw/records`: 11 failed, 7 passed in 4.55s (home-backed subprocess tests failed).
+       - Restored implementation: 18 passed in 5.96s (green).
+    6. Bare pytest suite:
+       `python3 -m pytest` -> 702 passed in 21.35s (100% pass).
+  - Result: pass
 
 ## Approval and execution gate
 

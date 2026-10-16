@@ -141,7 +141,9 @@ def resolve_all_set_memberships(repo: Path | str) -> dict[str, Any]:
 
     root = Path(repo)
     candidates: list[Path] = []
-    for base in (root / ".aw" / "records" / "plans", root / ".agents" / "plans"):
+    from agent_workflows.project_context import project_records_dir
+
+    for base in (project_records_dir(root) / "plans", root / ".agents" / "plans"):
         if base.is_dir():
             for p in sorted(base.rglob("*.ipd.md")):
                 if p.name not in ("README.md", "INDEX.md", "STATUS.md"):

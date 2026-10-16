@@ -1203,11 +1203,15 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
             seen.add(key)
             out.append(p)
 
+    from agent_workflows.project_context import project_records_dir
+
+    records_dir = project_records_dir(repo_root)
+
     if record_type == "backlog":
-        for rel in (".aw/records/backlog", ".agents/backlog"):
-            _add(repo_root / rel)
+        _add(records_dir / "backlog")
+        _add(repo_root / ".agents" / "backlog")
     elif record_type == "roadmaps":
-        _add(repo_root / ".aw" / "records" / "roadmaps")
+        _add(records_dir / "roadmaps")
     else:
         try:
             for p in _rp.resolve_record_read_paths(
@@ -1217,6 +1221,7 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
         except Exception:
             pass
     # Literal fallback (bare repo, or types the resolver rejects).
+    _add(records_dir / record_type)
     _add(repo_root / ".aw" / "records" / record_type)
     _add(repo_root / ".agents" / record_type)
     return out
@@ -5091,9 +5096,11 @@ def _evidence_spec_unshipped(repo_root: Path, evidence: str) -> bool:
 
 def _iter_plan_ipds(repo_root: Path):
     """Yield (path, text) for every plan IPD under either layout's plans tree, skipping ignored dirs."""
+    from agent_workflows.project_context import project_records_dir
+
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     for base in (
-        Path(repo_root) / ".aw" / "records" / "plans",
+        project_records_dir(repo_root) / "plans",
         Path(repo_root) / ".agents" / "plans",
     ):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
@@ -5116,9 +5123,11 @@ def _iter_spec_records(repo_root: Path):
     ``From-Backlog`` handoff scan. Kept as its own iterator (rather than widening the plan one) so the
     plan-only callers keep their exact current behavior.
     """
+    from agent_workflows.project_context import project_records_dir
+
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     for base in (
-        Path(repo_root) / ".aw" / "records" / "specs",
+        project_records_dir(repo_root) / "specs",
         Path(repo_root) / ".agents" / "specs",
     ):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
@@ -8784,7 +8793,9 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
                 hits = list(resolution.paths)
 
         if not hits and entry_name.endswith(_RECORDS_ARTIFACT_FACETS):
-            records_dir = repo_root / ".aw" / "records"
+            from agent_workflows.project_context import project_records_dir
+
+            records_dir = project_records_dir(repo_root)
             if records_dir.exists():
                 hits = sorted([p for p in records_dir.rglob(entry_name) if p.is_file()])
 

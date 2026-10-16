@@ -562,9 +562,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
             print(f"error: {msg}")
             return 2
         pending = (
-            repo_root  # type: ignore[operator]  # checker-limitation: target_subdir returns str for plans
-            / ".aw"
-            / "records"
+            _ctx.project_records_dir(repo_root)
             / "plans"
             / _rp.target_subdir("plans", "to-review")
         )

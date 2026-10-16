@@ -407,17 +407,23 @@ def resolve_research_root(repo_root) -> Path:
 
     repo_root = Path(repo_root)
     from agent_workflows.record_producers import resolve_record_path
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
 
-    try:
-        res_root = resolve_record_path("research", target_repo=str(repo_root))
-    except Exception:
-        res_root = repo_root / ".aw" / "records" / "research"
+    modern_root = project_records_dir(repo_root) / "research"
+    if has_stored_records_placement(repo_root):
+        res_root = modern_root
+    else:
+        try:
+            res_root = resolve_record_path("research", target_repo=str(repo_root))
+        except Exception:
+            res_root = modern_root
     if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
         res_root = repo_root / ".agents" / "docs" / "research"
-    elif (
-        not res_root.is_dir() and (repo_root / ".aw" / "records" / "research").is_dir()
-    ):
-        res_root = repo_root / ".aw" / "records" / "research"
+    elif not res_root.is_dir() and modern_root.is_dir():
+        res_root = modern_root
     return res_root
 
 

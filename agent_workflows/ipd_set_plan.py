@@ -472,6 +472,24 @@ def _repo_root_for_plans_dir(plans_dir: Path) -> Path:
         return Path(*parts[:-3])
     if len(parts) >= 3 and parts[-2:] == (".agents", "plans"):
         return Path(*parts[:-2])
+    try:
+        from agent_workflows.project_context import project_records_dir
+
+        resolved_p = p.resolve()
+        cwd = Path.cwd().resolve()
+        for cand in [cwd, *cwd.parents]:
+            if (
+                (cand / ".git").is_dir()
+                or (cand / ".aw").is_dir()
+                or (cand / ".agents").is_dir()
+            ):
+                try:
+                    if (project_records_dir(cand) / "plans").resolve() == resolved_p:
+                        return cand
+                except Exception:
+                    pass
+    except Exception:
+        pass
     return p.parent
 
 

@@ -30,7 +30,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import comms
-from . import engine
 
 __all__ = [
     "write_agent_ack",
@@ -260,9 +259,15 @@ def _resolve_comms_dir(
     if comms_dir_arg:
         return Path(comms_dir_arg).resolve()
     repo_root = Path(repo_root_arg).resolve() if repo_root_arg else Path.cwd().resolve()
-    layout = engine.resolve_target_layout(repo_root)
-    dirs = engine._record_scaffold_dirs(layout)
-    return repo_root / dirs["comms"]
+    from agent_workflows.project_context import project_records_dir
+
+    modern = project_records_dir(repo_root) / "comms"
+    if modern.exists():
+        return modern
+    legacy = repo_root / ".agents" / "comms"
+    if legacy.exists():
+        return legacy
+    return modern
 
 
 def _list_inbox_messages(comms_dir: Path) -> list[str]:

@@ -19,8 +19,9 @@ import functools
 import os
 import re
 import sys
+import types
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from agent_workflows.project_schema import (
     DELIVERY_MODES,
@@ -853,6 +854,113 @@ def project_config_dir(
         return home_config
 
     return target_config
+
+
+def _config_stat_stamp(
+    cfg: Path, home_cfg_file: Path, user_cfg_file: Path | str
+) -> tuple:
+    """Cheap stat fingerprint for configuration files."""
+    entries = []
+    for name in ("project.json", "local.json", "config.json", "policy.json"):
+        p = cfg / name
+        try:
+            st = os.stat(p)
+            entries.append((name, st.st_mtime_ns, st.st_size, st.st_ino))
+        except OSError:
+            entries.append((name, None))
+    try:
+        st = os.stat(home_cfg_file)
+        entries.append(("home_project_json", st.st_mtime_ns, st.st_size, st.st_ino))
+    except OSError:
+        entries.append(("home_project_json", None))
+    try:
+        st = os.stat(user_cfg_file)
+        entries.append(("user_config", st.st_mtime_ns, st.st_size, st.st_ino))
+    except OSError:
+        entries.append(("user_config", None))
+    return tuple(entries)
+
+
+@functools.lru_cache(maxsize=128)
+def _resolve_stored_physical_classes_cached(
+    repo_abs: str,
+    eff_aw_home: str,
+    _stamp: tuple,
+) -> Optional[Mapping[str, str]]:
+    """Cached resolution of physical classes for stored records placement."""
+    ctx = resolve_project_context(target_repo=repo_abs, aw_home=eff_aw_home)
+    rec_prov = ctx.provenance.get("records_backend", {})
+    src = (
+        rec_prov.get("source")
+        if isinstance(rec_prov, dict)
+        else getattr(rec_prov, "source", None)
+    )
+    delivery_mode_val = (
+        ctx.delivery_mode.value
+        if hasattr(ctx.delivery_mode, "value")
+        else str(ctx.delivery_mode)
+    )
+    is_stored = (
+        src in ("project_durable_config", "machine_local_binding")
+        or delivery_mode_val == "clean-delta"
+    )
+    if not is_stored:
+        return None
+    return types.MappingProxyType(dict(ctx.physical_classes))
+
+
+def _stored_physical_classes(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Optional[Mapping[str, str]]:
+    """Return physical classes mapping if repository has stored records placement, else None."""
+    repo = Path(repo_root)
+    eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+    cfg = project_config_dir(repo, aw_home=eff_aw_home)
+    has_config = any(
+        (cfg / name).exists()
+        for name in ("project.json", "local.json", "config.json", "policy.json")
+    )
+    if not has_config:
+        return None
+
+    repo_abs = _canonical_path(repo)
+    user_cfg_file = os.path.expanduser("~/.config/agent-workflows/config.json")
+    project_id = _derive_project_id(repo_abs)
+    home_cfg_file = (
+        Path(eff_aw_home) / "projects" / project_id / "config" / "project.json"
+    )
+    stamp = _config_stat_stamp(cfg, home_cfg_file, user_cfg_file)
+
+    return _resolve_stored_physical_classes_cached(repo_abs, eff_aw_home, stamp)
+
+
+def has_stored_records_placement(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> bool:
+    """Return True if repository has a stored records placement policy."""
+    return _stored_physical_classes(repo_root, aw_home=aw_home) is not None
+
+
+def project_records_dir(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Path:
+    """Return the records directory for a repository.
+
+    Pure and side-effect free (spec 20260810-1447-01 Section 4 & 7).
+    """
+    repo = Path(repo_root)
+    stored = _stored_physical_classes(repo, aw_home=aw_home)
+    if stored is None:
+        return repo / ".aw" / "records"
+    records_path = stored.get(RootClass.RECORDS.value, stored.get("records"))
+    if not records_path:
+        return repo / ".aw" / "records"
+    if _canonical_path(records_path) == _canonical_path(repo / ".aw" / "records"):
+        return repo / ".aw" / "records"
+    return Path(records_path)
 
 
 def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:

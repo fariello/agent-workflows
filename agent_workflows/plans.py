@@ -150,15 +150,24 @@ def _resolve_area_dir(root: Path, area: str) -> Path:
     legacy ``<root>/.agents/<area>`` only when the resolved dir is absent AND the legacy dir exists
     (the retention-window read-fallback, mirroring ``plans_index._dirs``). IPD awretrofit Order 01.
     """
-
     from agent_workflows.record_producers import resolve_record_path
+    from agent_workflows.project_context import (
+        project_records_dir,
+        has_stored_records_placement,
+    )
 
-    try:
-        base = resolve_record_path(area, target_repo=str(root))
-    except Exception:
-        base = root / ".aw" / "records" / area
+    modern = project_records_dir(root) / area
+    if has_stored_records_placement(root):
+        base = modern
+    else:
+        try:
+            base = resolve_record_path(area, target_repo=str(root))
+        except Exception:
+            base = modern
     if not base.is_dir() and (root / ".agents" / area).is_dir():
         base = root / ".agents" / area
+    elif not base.is_dir() and modern.is_dir():
+        base = modern
     return base
 
 
