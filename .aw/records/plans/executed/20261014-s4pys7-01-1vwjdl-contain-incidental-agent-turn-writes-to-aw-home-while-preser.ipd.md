@@ -6,7 +6,7 @@
 - Scope: Measure what execute turns write to `AW_HOME`. Fix the latent `project_registry.find_project` default so it honors `AW_HOME` when both `registry_data` and `aw_home` are omitted. Add a selective per-turn `AW_HOME` sandbox to `runner_shared.py` (`prepare_agent_aw_home`, `reconcile_agent_aw_home`, `report_discarded_aw_home`). The sandbox isolates `<AW_HOME>/config/registry.json` and incidental `<AW_HOME>/projects/<other_pid>/` writes, such as the run directories that scratch temp-dir probes mint. It symlinks each project directory the turn's repository (and its lane worktree) already resolves to under the real `AW_HOME`, so home-backend records keep their current location. Wire both runners (`oc_runipd.run_opencode`, `agy_runipd.run_agy_turn`, and both `run_queue` summaries), add regression tests, and update `CHANGELOG.md` and `docs/security.md`.
 - Scope-Paths: agent_workflows/project_registry.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_agent_aw_home_containment.py, CHANGELOG.md, docs/security.md, .aw/records/plans/pending/20261014-s4pys7-01-1vwjdl-contain-incidental-agent-turn-writes-to-aw-home-while-preser.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 09
 - Author: Antigravity
 - Id: 1vwjdl
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1vwjdl verified (set s4pys7, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 fixed (review record 20261014-s4pys7-01-1vwjdl)
@@ -36,38 +36,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Honor AW_HOME in project_registry.find_project
 
-- [ ] E-01 In `project_registry.find_project` (`agent_workflows/project_registry.py:297`), replace the default registry lookup `reg_path = get_registry_path(aw_home or os.path.expanduser("~/.aw"))` (`agent_workflows/project_registry.py:312`) with `get_registry_path(aw_home or os.environ.get("AW_HOME") or os.path.expanduser("~/.aw"))`, so that when both `registry_data` and `aw_home` are omitted the lookup reads `<AW_HOME>/config/registry.json` instead of escaping to `~/.aw`. This is a latent fix: all three in-repo callers (`storage.validate_storage_boundaries` at `agent_workflows/storage.py:122`, `storage.validate_companion_preflight` at `agent_workflows/storage.py:475`, `cli._run_project_status` at `agent_workflows/cli.py:11714`) pass `registry_data` explicitly.
+- [x] E-01 In `project_registry.find_project` (`agent_workflows/project_registry.py:297`), replace the default registry lookup `reg_path = get_registry_path(aw_home or os.path.expanduser("~/.aw"))` (`agent_workflows/project_registry.py:312`) with `get_registry_path(aw_home or os.environ.get("AW_HOME") or os.path.expanduser("~/.aw"))`, so that when both `registry_data` and `aw_home` are omitted the lookup reads `<AW_HOME>/config/registry.json` instead of escaping to `~/.aw`. This is a latent fix: all three in-repo callers (`storage.validate_storage_boundaries` at `agent_workflows/storage.py:122`, `storage.validate_companion_preflight` at `agent_workflows/storage.py:475`, `cli._run_project_status` at `agent_workflows/cli.py:11714`) pass `registry_data` explicitly.
   - Depends on: none
   - Expected outcome: `project_registry.find_project(repo)` called with no `registry_data` and no `aw_home`, while `AW_HOME` names a temp directory whose `config/registry.json` registers `repo`, returns that entry (`match_kind` not `None`). With `AW_HOME` unset, behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Selective per-turn AW_HOME sandbox in runner_shared.py
 
-- [ ] E-02 Add `AW_HOME_ENV = "AW_HOME"`, the frozen dataclass `AgentAwHome`, and `prepare_agent_aw_home` to `agent_workflows/runner_shared.py`, directly after `runner_shared.report_discarded_user_config` (`agent_workflows/runner_shared.py:47333`), following Proposed change 2a. It must resolve the real home with `project_context._resolve_effective_aw_home` (or `ctx.effective_aw_home`), never `config.get_aw_home`. It must seed `config/registry.json`, link each pass-through project directory to its own real directory, and fail open by returning `None` (with a stderr warning) whenever a needed link cannot be created.
+- [x] E-02 Add `AW_HOME_ENV = "AW_HOME"`, the frozen dataclass `AgentAwHome`, and `prepare_agent_aw_home` to `agent_workflows/runner_shared.py`, directly after `runner_shared.report_discarded_user_config` (`agent_workflows/runner_shared.py:47333`), following Proposed change 2a. It must resolve the real home with `project_context._resolve_effective_aw_home` (or `ctx.effective_aw_home`), never `config.get_aw_home`. It must seed `config/registry.json`, link each pass-through project directory to its own real directory, and fail open by returning `None` (with a stderr warning) whenever a needed link cannot be created.
   - Depends on: E-01
   - Expected outcome: `runner_shared.prepare_agent_aw_home(run_dir, item, attempt_no, ...)` returns an `AgentAwHome` whose `path` holds a copy of the real `config/registry.json` and an otherwise empty `projects/`. For a repository whose logical roots resolve under `<real>/projects/<pid>`, it also holds a `projects/<pid>` symlink to `<real>/projects/<pid>`. It returns `None` when such a link cannot be created.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `reconcile_agent_aw_home` and `report_discarded_aw_home` to `agent_workflows/runner_shared.py`, directly after `prepare_agent_aw_home`, following Proposed changes 2b and 2c. Reconcile unlinks every symlink under `<sandbox>/projects/` BEFORE any walk or delete, then walks with `os.walk(..., followlinks=False)`, never `Path.rglob`. It appends `{"event": "agent-aw-home-discarded", ...}` records (key names only, never values) to `<run_dir>/events.jsonl` via `runner_shared.append_jsonl` with `runner_shared.utc_now()`, and removes the sandbox in `finally`. Report prints the run-end summary line.
+- [x] E-03 Add `reconcile_agent_aw_home` and `report_discarded_aw_home` to `agent_workflows/runner_shared.py`, directly after `prepare_agent_aw_home`, following Proposed changes 2b and 2c. Reconcile unlinks every symlink under `<sandbox>/projects/` BEFORE any walk or delete, then walks with `os.walk(..., followlinks=False)`, never `Path.rglob`. It appends `{"event": "agent-aw-home-discarded", ...}` records (key names only, never values) to `<run_dir>/events.jsonl` via `runner_shared.append_jsonl` with `runner_shared.utc_now()`, and removes the sandbox in `finally`. Report prints the run-end summary line.
   - Depends on: E-02
   - Expected outcome: After a simulated turn that mutates the sandbox registry, creates `projects/scratch-<hash>/records/runs/<run>/`, and writes under a linked `projects/<pid>/records/`, `reconcile_agent_aw_home` returns and logs exactly the registry and scratch changes. The real registry bytes are unchanged, the linked write survives under `<real>/projects/<pid>/records/`, no real file is deleted, and the sandbox directory is gone. `report_discarded_aw_home` prints `Agent AW_HOME changes discarded: <n> (...)`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Runner integration (oc_runipd.py and agy_runipd.py)
 
-- [ ] E-04 Wire the sandbox into `oc_runipd.run_opencode` (`agent_workflows/oc_runipd.py:2612`). Call `prepare_agent_aw_home(run_dir, item, attempt_no, suffix=log_suffix, repo=Path(state["repo"]), agent_dir=Path(agent_dir))` directly after the `prepare_agent_user_config` block (`agent_workflows/oc_runipd.py:2961`). On a handle, set `child_env["AW_HOME"] = str(handle.path)`. On `None`, LEAVE `AW_HOME` exactly as `pinned_child_env()` inherited it (do NOT pop it). Reconcile in the existing outer `finally:` (`agent_workflows/oc_runipd.py:3441`, after `process.wait()`) beside `reconcile_agent_user_config`, printing `  ! IPD <id6>: agent changed AW_HOME <file> (<keys>); change DISCARDED, your AW_HOME is unchanged` to stderr. Call `report_discarded_aw_home(run_dir)` beside `report_discarded_user_config(run_dir)` in `oc_runipd.run_queue` (`agent_workflows/oc_runipd.py:4496`), and import it alongside the `report_discarded_user_config as report_discarded_user_config` import (`agent_workflows/oc_runipd.py:336`).
+- [x] E-04 Wire the sandbox into `oc_runipd.run_opencode` (`agent_workflows/oc_runipd.py:2612`). Call `prepare_agent_aw_home(run_dir, item, attempt_no, suffix=log_suffix, repo=Path(state["repo"]), agent_dir=Path(agent_dir))` directly after the `prepare_agent_user_config` block (`agent_workflows/oc_runipd.py:2961`). On a handle, set `child_env["AW_HOME"] = str(handle.path)`. On `None`, LEAVE `AW_HOME` exactly as `pinned_child_env()` inherited it (do NOT pop it). Reconcile in the existing outer `finally:` (`agent_workflows/oc_runipd.py:3441`, after `process.wait()`) beside `reconcile_agent_user_config`, printing `  ! IPD <id6>: agent changed AW_HOME <file> (<keys>); change DISCARDED, your AW_HOME is unchanged` to stderr. Call `report_discarded_aw_home(run_dir)` beside `report_discarded_user_config(run_dir)` in `oc_runipd.run_queue` (`agent_workflows/oc_runipd.py:4496`), and import it alongside the `report_discarded_user_config as report_discarded_user_config` import (`agent_workflows/oc_runipd.py:336`).
   - Depends on: E-03
   - Expected outcome: Every OpenCode turn launched through `oc_runipd.run_opencode`, executor and verifier alike, receives `AW_HOME` pointing at its per-turn sandbox, which is reconciled after `process.wait()` even when the turn raises. The run-end summary is printed by `oc_runipd.run_queue`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Mirror E-04 in `agy_runipd.run_agy_turn` (`agent_workflows/agy_runipd.py:2399`): prepare after the `prepare_agent_user_config` block (`agent_workflows/agy_runipd.py:2512`) and before `popen_kwargs["env"] = child_env`. Use the same no-pop-on-`None` rule. Reconcile in the outer `finally:` (`agent_workflows/agy_runipd.py:2972`, after `process.wait()`) with the same stderr warning. Call `report_discarded_aw_home(run_dir)` in `agy_runipd.run_queue` (`agent_workflows/agy_runipd.py:3717`), with the import beside `agent_workflows/agy_runipd.py:784`.
+- [x] E-05 Mirror E-04 in `agy_runipd.run_agy_turn` (`agent_workflows/agy_runipd.py:2399`): prepare after the `prepare_agent_user_config` block (`agent_workflows/agy_runipd.py:2512`) and before `popen_kwargs["env"] = child_env`. Use the same no-pop-on-`None` rule. Reconcile in the outer `finally:` (`agent_workflows/agy_runipd.py:2972`, after `process.wait()`) with the same stderr warning. Call `report_discarded_aw_home(run_dir)` in `agy_runipd.run_queue` (`agent_workflows/agy_runipd.py:3717`), with the import beside `agent_workflows/agy_runipd.py:784`.
   - Depends on: E-03
   - Expected outcome: Every Antigravity turn launched through `agy_runipd.run_agy_turn` receives the per-turn `AW_HOME` sandbox, which is reconciled after `process.wait()` even when the turn raises. The run-end summary is printed by `agy_runipd.run_queue`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Regression tests and documentation
 
-- [ ] E-06 Create `tests/test_agent_aw_home_containment.py` with unit tests (outcome-based, no source inspection) for:
+- [x] E-06 Create `tests/test_agent_aw_home_containment.py` with unit tests (outcome-based, no source inspection) for:
   - (a) `find_project` honoring `AW_HOME` (E-01).
   - (b) Registry seeding, plus discard of a modified, added, or removed `config/registry.json`, where the events carry key names and no path or timestamp values.
   - (c) Discard of an incidental scratch project, produced by calling `runner_shared.mint_run_dir(<scratch tmp dir>)` with `AW_HOME` set to the sandbox, leaving `<real>/projects/` without that pid.
@@ -79,22 +79,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Symlink-dependent cases skip with a reason when `os.symlink` is unavailable (Windows without Developer Mode, `.github/workflows/tests.yml:27`).
   - Depends on: E-03
   - Expected outcome: `python3 -m pytest tests/test_agent_aw_home_containment.py` passes with 0 failures and every case (a) through (g) present and passing on Linux.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add end-to-end runner tests to `tests/test_agent_aw_home_containment.py`, modeled on `tests/test_agent_user_config_containment.py::test_incident_end_to_end_per_host` (`tests/test_agent_user_config_containment.py:206`). Each test drives `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` with a fake agent executable that writes a new key into `$AW_HOME/config/registry.json` and creates `$AW_HOME/projects/scratch-x/f`. Assert that the real registry bytes are unchanged, `<real>/projects/scratch-x` is absent, an `agent-aw-home-discarded` event exists, stderr carries the `DISCARDED` line, and the sandbox is deleted. Add one more case per host in which `prepare_agent_aw_home` is patched to return `None`, and assert the child observed the driver's inherited `AW_HOME`, unchanged rather than unset.
+- [x] E-07 Add end-to-end runner tests to `tests/test_agent_aw_home_containment.py`, modeled on `tests/test_agent_user_config_containment.py::test_incident_end_to_end_per_host` (`tests/test_agent_user_config_containment.py:206`). Each test drives `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` with a fake agent executable that writes a new key into `$AW_HOME/config/registry.json` and creates `$AW_HOME/projects/scratch-x/f`. Assert that the real registry bytes are unchanged, `<real>/projects/scratch-x` is absent, an `agent-aw-home-discarded` event exists, stderr carries the `DISCARDED` line, and the sandbox is deleted. Add one more case per host in which `prepare_agent_aw_home` is patched to return `None`, and assert the child observed the driver's inherited `AW_HOME`, unchanged rather than unset.
   - Depends on: E-04, E-05, E-06
   - Expected outcome: `python3 -m pytest tests/test_agent_aw_home_containment.py tests/test_agent_user_config_containment.py` passes with 0 failures, including the per-host end-to-end and inherit-on-`None` cases.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Update `docs/security.md` (item `8. Agent turns contain user-config writes.` at `docs/security.md:40`, add a sibling item 9) and `CHANGELOG.md` (a `- Fixed:` or `- Added:` bullet in the `## 2.0.0 (pending)` list, beside the user-config bullet at `CHANGELOG.md:56`; there is no `## [Unreleased]` heading). Document per-turn `AW_HOME` containment, pass-through for project directories the repository already uses under `AW_HOME`, discarded-write reporting, the fail-open behavior (no containment when a link cannot be created), and the honest limit (`AW_HOME` is an environment selector, not an OS-level boundary).
+- [x] E-08 Update `docs/security.md` (item `8. Agent turns contain user-config writes.` at `docs/security.md:40`, add a sibling item 9) and `CHANGELOG.md` (a `- Fixed:` or `- Added:` bullet in the `## 2.0.0 (pending)` list, beside the user-config bullet at `CHANGELOG.md:56`; there is no `## [Unreleased]` heading). Document per-turn `AW_HOME` containment, pass-through for project directories the repository already uses under `AW_HOME`, discarded-write reporting, the fail-open behavior (no containment when a link cannot be created), and the honest limit (`AW_HOME` is an environment selector, not an OS-level boundary).
   - Depends on: E-04, E-05
   - Expected outcome: `docs/security.md` and `CHANGELOG.md` describe the sandbox, the pass-through, the fail-open case and the limit, and contain no em or en dashes in the added lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Run the full test suite bare (`python3 -m pytest`) and the leak sanitizer (`aw sanitize --agent`).
+- [x] E-09 Run the full test suite bare (`python3 -m pytest`) and the leak sanitizer (`aw sanitize --agent`).
   - Depends on: E-07, E-08
   - Expected outcome: `python3 -m pytest` reports 0 failed, and `aw sanitize --agent` emits a result record with `"outcome":"clean"` and `"exit":0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -216,20 +216,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/project_registry.py`, showing only the `find_project` default changed. Also paste the output of a Python one-liner that sets `AW_HOME` to a temp dir whose `config/registry.json` registers a temp repo, calls `project_registry.find_project(<repo>)` with no other arguments, and prints a non-`None` `match_kind`.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/project_registry.py b/agent_workflows/project_registry.py
+index 2cea34100..bae32cd80 100644
+--- a/agent_workflows/project_registry.py
++++ b/agent_workflows/project_registry.py
+@@ -309,7 +309,7 @@ def find_project(
+       4. Origin match -> candidate hint ONLY (never auto-attach!)
+     """
+     if registry_data is None:
+-        reg_path = get_registry_path(aw_home or os.path.expanduser("~/.aw"))
++        reg_path = get_registry_path(aw_home or os.environ.get("AW_HOME") or os.path.expanduser("~/.aw"))
+         registry_data = load_registry(reg_path)
 
-- [ ] V-02 validates E-02
+     projects_dict = registry_data.get("projects", {})
+```
+Python one-liner output:
+```
+match_kind=target_path
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the output of a Python probe (code path `runner_shared.prepare_agent_aw_home`, created by E-02) that prints:
     - (a) for a `records_backend: repository` repo, the sandbox listing (`config/registry.json` present, `projects/` empty) and `linked_projects == ()`;
     - (b) for a configured `records_backend: home` repo, `os.readlink(<sandbox>/projects/<pid>)` equal to `<real>/projects/<pid>`;
     - (c) with `os.symlink` patched to raise, the return value `None` and the absence of the sandbox directory.
   - Observed evidence:
-  - Result: pending
+```
+Case (a):
+  config/registry.json present: True
+  projects/ empty: True
+  linked_projects: ()
+Case (b):
+  linked: True
+  readlink: /tmp/tmph7pj820x/real_aw/projects/repo_b-69788e
+  expected: /tmp/tmph7pj820x/real_aw/projects/repo_b-69788e
+  ! Warning: failed to seed agent AW_HOME sandbox: symlink not permitted
+Case (c):
+  return value: None
+  sandbox exists: False
+```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the output of a Python probe (code paths `runner_shared.reconcile_agent_aw_home` and `runner_shared.report_discarded_aw_home`, created by E-03) that simulates a turn in a home-backend sandbox whose `run_dir` lies under `<real>/projects/<pid>/records/runs/`. The output must show:
     - the returned records;
     - the real registry SHA-256 before and after (equal);
@@ -238,37 +271,260 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - the sandbox absent;
     - the printed `Agent AW_HOME changes discarded:` line.
   - Observed evidence:
-  - Result: pending
+```
+Returned records:
+  {'at': '2026-10-16T04:19:51+00:00', 'event': 'agent-aw-home-discarded', 'id6': '1vwjdl', 'attempt': 1, 'file': 'config/registry.json', 'change': 'modified', 'keys': ['agent_key', 'projects.newp']}
+  {'at': '2026-10-16T04:19:51+00:00', 'event': 'agent-aw-home-discarded', 'id6': '1vwjdl', 'attempt': 1, 'file': 'projects/scratch-123456', 'change': 'added', 'keys': ['records']}
+Registry SHA equal: True (058e1658f59cf4036d6ef064bf4526835b0f10029ea57bc223098f8a6271b9ac == 058e1658f59cf4036d6ef064bf4526835b0f10029ea57bc223098f8a6271b9ac)
+Linked file present in real project: True
+Scratch absent from real projects: True
+Sandbox absent: True
+Report output:
+Agent AW_HOME changes discarded: 2 (1vwjdl: config/registry.json ['agent_key', 'projects.newp']; 1vwjdl: projects/scratch-123456 ['records'])
+```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste `git diff agent_workflows/oc_runipd.py`, showing in `run_opencode` the `prepare_agent_aw_home` call, `child_env["AW_HOME"]` set only on a handle (with no `pop` of `AW_HOME`), and `reconcile_agent_aw_home` in the outer `finally:` after `process.wait()`, and showing `report_discarded_aw_home(run_dir)` in `run_queue`. Also paste the passing lines for the oc cases of E-07.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+index 7f9bd5845..244126ba7 100755
+--- a/agent_workflows/oc_runipd.py
++++ b/agent_workflows/oc_runipd.py
+@@ -334,6 +334,7 @@ from agent_workflows.runner_shared import (
+ )
+ from agent_workflows.runner_shared import (
+     report_discarded_user_config as report_discarded_user_config,
++    report_discarded_aw_home as report_discarded_aw_home,
+ )
+ from agent_workflows.runner_shared import (
+     report_run_spec_edits as report_run_spec_edits,
+@@ -2966,6 +2967,17 @@ def run_opencode(
+     else:
+         child_env.pop(_config.CONFIG_DIR_ENV, None)
 
-- [ ] V-05 validates E-05
++    aw_home_handle = runner_shared.prepare_agent_aw_home(
++        run_dir,
++        item,
++        attempt_no,
++        suffix=log_suffix,
++        repo=Path(state["repo"]),
++        agent_dir=Path(agent_dir),
++    )
++    if aw_home_handle is not None:
++        child_env[runner_shared.AW_HOME_ENV] = str(aw_home_handle.path)
++
+     # lanectn Order 03 (`lhmrhx`) E-01/E-02/E-03, spec R4.1/R4.2/R4.3/R4.6: ask THIS host for the
+     # strongest permission posture it actually supports, then OBSERVE what took effect.
+     #
+@@ -3458,6 +3470,23 @@ def run_opencode(
+                     f"({rec_keys_str}); change DISCARDED, your config is unchanged"
+                 )
+                 print(err_pal(warning_line, "yellow"), file=sys.stderr)
++        if aw_home_handle is not None:
++            discarded_records = runner_shared.reconcile_agent_aw_home(
++                aw_home_handle, run_dir, item
++            )
++            err_pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
++            for rec in discarded_records:
++                rec_id6 = rec.get("id6", item.get("id6", "unknown"))
++                rec_file = rec.get("file", "unknown")
++                rec_keys = rec.get("keys")
++                rec_keys_str = (
++                    ", ".join(rec_keys) if rec_keys else rec.get("change", "modified")
++                )
++                warning_line = (
++                    f"  ! IPD {rec_id6}: agent changed AW_HOME {rec_file} "
++                    f"({rec_keys_str}); change DISCARDED, your AW_HOME is unchanged"
++                )
++                print(err_pal(warning_line, "yellow"), file=sys.stderr)
+     return returncode, extract_session_id(log_path), log_path, argv
+
+
+@@ -4494,6 +4523,7 @@ def run_queue(
+     report_run_spec_edits(state)
+     report_driver_committed_reviews(state)
+     report_discarded_user_config(run_dir)
++    report_discarded_aw_home(run_dir)
+```
+Passing runner lines for oc cases:
+```
+tests/test_agent_aw_home_containment.py::test_incident_end_to_end_per_host PASSED
+tests/test_agent_aw_home_containment.py::test_prepare_none_inherits_driver_aw_home_per_host PASSED
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `git diff agent_workflows/agy_runipd.py`, showing the same four elements in `run_agy_turn` and `run_queue`. Also paste the passing lines for the agy cases of E-07.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+index 7a8e7bea5..c07a9bb8e 100755
+--- a/agent_workflows/agy_runipd.py
++++ b/agent_workflows/agy_runipd.py
+@@ -771,6 +771,7 @@ from agent_workflows.runner_shared import (
+     record_item_spec_edits as record_item_spec_edits,
+     report_driver_committed_reviews as report_driver_committed_reviews,
+     report_discarded_user_config as report_discarded_user_config,
++    report_discarded_aw_home as report_discarded_aw_home,
+     report_run_spec_edits as report_run_spec_edits,
+     spec_edit_record as spec_edit_record,
+     spec_edit_summary as spec_edit_summary,
+@@ -2519,6 +2520,17 @@ def run_agy_turn(
+         child_env[_config.CONFIG_DIR_ENV] = str(user_config_handle.path)
+     else:
+         child_env.pop(_config.CONFIG_DIR_ENV, None)
++
++    aw_home_handle = runner_shared.prepare_agent_aw_home(
++        run_dir,
++        item,
++        attempt_no,
++        suffix=log_suffix,
++        repo=Path(state["repo"]),
++        agent_dir=Path(agent_dir),
++    )
++    if aw_home_handle is not None:
++        child_env[runner_shared.AW_HOME_ENV] = str(aw_home_handle.path)
+     popen_kwargs["env"] = child_env
 
-- [ ] V-06 validates E-06
+     # lanectn Order 03 (`lhmrhx`) E-06, spec R4.1a/R4.1b/R4.1c: the SANCTIONED ASYMMETRY with the oc
+@@ -2992,6 +3004,23 @@ def run_agy_turn(
+                     f"({rec_keys_str}); change DISCARDED, your config is unchanged"
+                 )
+                 print(err_pal(warning_line, "yellow"), file=sys.stderr)
++        if aw_home_handle is not None:
++            discarded_records = runner_shared.reconcile_agent_aw_home(
++                aw_home_handle, run_dir, item
++            )
++            err_pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
++            for rec in discarded_records:
++                rec_id6 = rec.get("id6", item.get("id6", "unknown"))
++                rec_file = rec.get("file", "unknown")
++                rec_keys = rec.get("keys")
++                rec_keys_str = (
++                    ", ".join(rec_keys) if rec_keys else rec.get("change", "modified")
++                )
++                warning_line = (
++                    f"  ! IPD {rec_id6}: agent changed AW_HOME {rec_file} "
++                    f"({rec_keys_str}); change DISCARDED, your AW_HOME is unchanged"
++                )
++                print(err_pal(warning_line, "yellow"), file=sys.stderr)
+
+     captured_conv_id = extract_session_id(log_path) or session_id
+     if captured_conv_id:
+@@ -3718,6 +3747,7 @@ def run_queue(
+     report_run_spec_edits(state)
+     report_driver_committed_reviews(state)
+     report_discarded_user_config(run_dir)
++    report_discarded_aw_home(run_dir)
+```
+Passing runner lines for agy cases:
+```
+tests/test_agent_aw_home_containment.py::test_incident_end_to_end_per_host PASSED
+tests/test_agent_aw_home_containment.py::test_prepare_none_inherits_driver_aw_home_per_host PASSED
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the actual runner output of `python3 -m pytest -o addopts="" -v tests/test_agent_aw_home_containment.py`, showing a passing test for each behavior (a) through (g) in E-06, with test names as non-binding pointers, and 0 failed.
   - Observed evidence:
-  - Result: pending
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+cachedir: .pytest_cache
+Using --randomly-seed=3929499055
+rootdir: <worktree-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collecting 9 items                                                             collected 9 items
 
-- [ ] V-07 validates E-07
+tests/test_agent_aw_home_containment.py::test_incident_end_to_end_per_host PASSED [ 11%]
+tests/test_agent_aw_home_containment.py::test_incidental_scratch_project_discard PASSED [ 22%]
+tests/test_agent_aw_home_containment.py::test_self_containing_run_dir PASSED [ 33%]
+tests/test_agent_aw_home_containment.py::test_pass_through_home_clean_delta_and_lane_agent_dir PASSED [ 44%]
+tests/test_agent_aw_home_containment.py::test_prepare_none_inherits_driver_aw_home_per_host PASSED [ 55%]
+tests/test_agent_aw_home_containment.py::test_report_discarded_aw_home_output_and_silence PASSED [ 66%]
+tests/test_agent_aw_home_containment.py::test_fail_open_on_symlink_error PASSED [ 77%]
+tests/test_agent_aw_home_containment.py::test_find_project_honors_aw_home PASSED [ 88%]
+tests/test_agent_aw_home_containment.py::test_registry_seeding_and_discard_changes PASSED [100%]
+
+============================== 9 passed in 1.63s ===============================
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste the actual runner output of `python3 -m pytest tests/test_agent_aw_home_containment.py tests/test_agent_user_config_containment.py`, showing 0 failed. Name the tests that assert, per host, the unchanged real registry, the absent scratch pid, the `DISCARDED` stderr line, and the inherited `AW_HOME` on a `None` handle.
   - Observed evidence:
-  - Result: pending
+```
+bringing up nodes...
+................                                                         [100%]
+16 passed in 7.76s
+```
+Named tests asserting per host:
+- Unchanged real registry: `test_incident_end_to_end_per_host` (both oc_runipd and agy_runipd)
+- Absent scratch pid: `test_incident_end_to_end_per_host` (both oc_runipd and agy_runipd)
+- DISCARDED stderr line: `test_incident_end_to_end_per_host` (both oc_runipd and agy_runipd)
+- Inherited AW_HOME on None handle: `test_prepare_none_inherits_driver_aw_home_per_host` (both oc_runipd and agy_runipd)
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: Paste `git diff docs/security.md CHANGELOG.md`, plus the output of a grep for U+2013 and U+2014 over the added lines, which must show no matches.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3ba1ee3b6..f3abcdeba 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -57,6 +57,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+ - Added: `aw partition -t plans` now keeps each Set's orchestrator in the same shard as its unfinished children, and refuses incomplete Sets by default (exit 2) when a member cannot run in the batch, naming blocking plans and fix commands. Added `--allow-partial-sets` to schedule ready plans while holding back orchestrators, and updated setid selection to skip finished members.
+ - Added: global fix-it turn caps across all fix-it mechanisms per artifact (default 20), per Set (floor 20, 15 per member), and per run (floor 40, 10 per artifact) configured by run.fix_it_caps in project.json; reaching any cap stops the item for a human with the cap named in the run report.
+ - Fixed: agents run by aw oc run and aw agy run can no longer change your aw user configuration; attempted changes are discarded and reported.
++- Fixed: agents run by aw oc run and aw agy run can no longer change your aw project registry or pollute projects/ with scratch directories; attempted changes are discarded and reported, while project directories the repository already uses under AW_HOME pass through to keep records in place.
+ - Fixed: `git_mv` in `artifact_core` and `engine` now refuses moves that cross repository boundaries before making any filesystem modifications, preventing out-of-repository destinations from overriding git refusal through the untracked file fallback.
+ - Fixed: aw specs set <status> <path> run from outside the repository now writes the same history-sidecar record as aw specs set <path> --status <status> (F-06).
+ - Fixed: aw find --limit <N> now bounds the human row listing and the --paths listing to the first N matches instead of silently ignoring the flag. When rows are omitted, the human surface prints an informational notice and runnable continuation, --paths reports the notice on stderr while keeping stdout pure, and --json remains the full unbounded dictionary.
+diff --git a/docs/security.md b/docs/security.md
+index 0810c207c..257f07325 100644
+--- a/docs/security.md
++++ b/docs/security.md
+@@ -43,6 +43,18 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
+    `AW_CONFIG_DIR` is an environment selector, not a hardened security boundary; an agent
+    running with same-user shell access can unset the variable or write to `~/.config` directly.
+    The hardened execution profile provides OS-level sandbox enforcement.
++9. Agent turns contain AW_HOME writes while preserving project records. Runner turns export
++   a per-turn seeded sandbox via `AW_HOME`. Incidental changes to `config/registry.json` and
++   scratch project directories created during a turn remain inside the sandbox and are
++   discarded at turn exit rather than altering operator registry or polluting storage.
++   Project directories that the turn repository already uses under `AW_HOME` (home backend
++   or clean-delta delivery) pass through directly so project records stay at their current
++   location. Discarded writes are summarized at run exit. Fail-open behavior: if a pass-through
++   link cannot be created, the runner logs a warning and leaves `AW_HOME` uncontained rather
++   than risking record redirection or loss. Honest limit: `AW_HOME` is an environment
++   selector, not an OS-level sandbox boundary; an agent running with same-user shell access can
++   unset the variable or access directories directly. The hardened execution profile provides
++   OS-level sandbox enforcement.
 
-- [ ] V-09 validates E-09
+ ## Runbooks (how to prove each boundary)
+```
+Unicode em/en dash scan:
+```
+Total U+2013 / U+2014 matches: 0
+```
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: Paste the summary line of a bare `python3 -m pytest` run, showing 0 failed, and the `aw sanitize --agent` result record, showing `"outcome":"clean"` and `"exit":0`.
   - Observed evidence:
-  - Result: pending
+    Bare `python3 -m pytest` summary:
+    ```
+    695 passed in 32.63s
+    ```
+    `aw sanitize --agent` result record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5200,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

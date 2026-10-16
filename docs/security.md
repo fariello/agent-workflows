@@ -43,6 +43,18 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
    `AW_CONFIG_DIR` is an environment selector, not a hardened security boundary; an agent
    running with same-user shell access can unset the variable or write to `~/.config` directly.
    The hardened execution profile provides OS-level sandbox enforcement.
+9. Agent turns contain AW_HOME writes while preserving project records. Runner turns export
+   a per-turn seeded sandbox via `AW_HOME`. Incidental changes to `config/registry.json` and
+   scratch project directories created during a turn remain inside the sandbox and are
+   discarded at turn exit rather than altering operator registry or polluting storage.
+   Project directories that the turn repository already uses under `AW_HOME` (home backend
+   or clean-delta delivery) pass through directly so project records stay at their current
+   location. Discarded writes are summarized at run exit. Fail-open behavior: if a pass-through
+   link cannot be created, the runner logs a warning and leaves `AW_HOME` uncontained rather
+   than risking record redirection or loss. Honest limit: `AW_HOME` is an environment
+   selector, not an OS-level sandbox boundary; an agent running with same-user shell access can
+   unset the variable or access directories directly. The hardened execution profile provides
+   OS-level sandbox enforcement.
 
 ## Runbooks (how to prove each boundary)
 
