@@ -145,7 +145,7 @@ Every actionable item follows this sequence:
 5. Prove from the host capability descriptor that the host can enforce every required execution guarantee.
 6. Acquire a single-writer lease for the item's declared paths and allocate its isolated worktree when mutation is possible.
 7. Give the executor only the current bounded action packet.
-8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger.
+8. Capture tool calls, outputs, changed paths, commits, and artifacts in the run's durable execution record: driver runs (`aw oc run` / `aw agy run`) record run state and events in `state.json` and `events.jsonl` in the run directory (append-plus-fsync, not hash-chained, so not tamper-evident) and do not write `ledger.jsonl`, while the append-only, hash-chained run ledger (`ledger.jsonl`) is scoped to the discrete `aw run` / `aw runs` workflow execution path. Wherever this spec otherwise says "run ledger" or "ledger" of a driver run, it means that driver's durable run record; the hash-chain properties (sequence, parent link, record hash, chain verification) hold only for `ledger.jsonl` (amended 2026-10-14 per the 2026-10-08 maintainer Option (b) decision in plan `rdjka2` OQ-01 and decision record `utb2qr`).
 9. Launch a fresh skeptical-verifier session with the frozen predicates and observed diff.
 10. Run the deterministic checker against repository state. Do not accept the verifier's conclusion as proof.
 11. If the checks pass, use the appropriate lifecycle setter or terminal transaction and check again.
@@ -1082,7 +1082,7 @@ The following are admissible completion inputs:
 - artifacts with content digests;
 - registered check recipes rerun against a bound HEAD/worktree digest;
 - valid human gate receipts issued through the trusted approval channel;
-- the append-only, hash-chained run ledger.
+- the append-only, hash-chained run ledger (`ledger.jsonl`, scoped to the discrete `aw run` / `aw runs` workflow execution path; driver runs `aw oc run` / `aw agy run` record execution in `state.json` and `events.jsonl` and do not write `ledger.jsonl`, per the 2026-10-08 maintainer Option (b) decision in plan `rdjka2` OQ-01 and decision record `utb2qr`).
 
 The following are not completion evidence:
 
@@ -1287,7 +1287,7 @@ Executor commits remain on the item's isolated branch until scope, commit-conten
 
 ### 5.3 Durable state and restartability
 
-The engine stores repository-local, crash-safe run state. The storage location is an implementation detail; the data contract is not. Each event is append-only and contains:
+The engine stores repository-local, crash-safe run state. The storage location is an implementation detail; the data contract is not. Each event is append-only and contains: For a driver run (`aw oc run` / `aw agy run`) the event log is `events.jsonl` beside the `state.json` snapshot, written append-plus-fsync but not hash-chained: the monotonic sequence, parent event, and previous-event hash fields below are carried only by the `aw run` path's `ledger.jsonl` (amended 2026-10-14, `rdjka2` OQ-01 Option (b), `utb2qr`).
 
 - schema version, run ID, monotonic sequence, timestamp, actor role, parent event, and previous-event hash;
 - host, exact host version/mode, capability-descriptor digest, required capabilities, and host-session IDs;
@@ -1299,7 +1299,7 @@ The engine stores repository-local, crash-safe run state. The storage location i
 - structured process, artifact, commit, approval, transition, verifier, and checker evidence;
 - final outcome and reason code.
 
-Writes use atomic replacement for snapshots and append-plus-fsync for events. A snapshot is a cache; replaying the ledger is authoritative.
+Writes use atomic replacement for snapshots and append-plus-fsync for events. On the `aw run` path a snapshot is a cache and replaying `ledger.jsonl` is authoritative; a driver run's authoritative record is its `state.json` (atomic replacement) together with its `events.jsonl` (amended 2026-10-14, `rdjka2` OQ-01 Option (b)).
 
 The frozen driver record within durable run state must name the module that created the run (recording its path and that same module's digest). A shared initialization core must receive both that creator module path and the host's label descriptor explicitly from its caller with no defaults; empty or null provenance values are reserved exclusively for descriptor-only hosts that have no runner module. Host attribution is retroactively unfixable once written, making producer-enforced attribution an immutable invariant of the durable run state contract. The frozen driver record also carries the loaded-code record of Section 5.3b, and a restarted driver appends a new loaded-code record rather than overwriting the original, so the run's history shows every code version it ran on.
 
@@ -1309,7 +1309,7 @@ Amended 2026-09-13 by plan `5f2h8i` (Set `runanalytics`), which wires the collec
 
 A run MAY additionally write per-invocation resource telemetry. Its contract is deliberately the OPPOSITE of the ledger's above, and every clause below exists to keep the two from being confused:
 
-- **It is DERIVED and BEST EFFORT, never authoritative.** The hash-chained ledger is the run's record and replaying it is authoritative; telemetry is an observation ABOUT the run. Telemetry is not chained, not required, and not replayed. No consumer may treat it as evidence of what a run did.
+- **It is DERIVED and BEST EFFORT, never authoritative.** The run's durable record (Section 5.3: `ledger.jsonl` on the `aw run` path, `state.json` plus `events.jsonl` for a driver run) is authoritative; telemetry is an observation ABOUT the run. Telemetry is not chained, not required, and not replayed. No consumer may treat it as evidence of what a run did.
 - **It is NEVER A GATE, and no failure of it may change a run's outcome.** A telemetry fault (an unwritable tree, a full disk, a probe that raises or times out, a collector that fails to construct or to close) MUST leave the run's exit status, item statuses, state transitions, merge decisions, and cleanup report byte-identical to an uninstrumented run. It may not turn successful work into failure and it may not mask an existing failure. This is the strongest requirement in this subsection and it is what makes the feature admissible at all: it wraps the launch of the process that does the actual work.
 - **One stream per INVOCATION, and identity is recorded rather than inferred.** An item may be attempted repeatedly, may be verified by an independent turn, and may be resumed in the same run directory, so a stream records its own run id, position, item id, Set, attempt, PHASE, and host as FIELDS. Phase is explicit; it is not inferred from a filename. Two invocations of the same item, attempt and phase separated by a resume MUST NOT share an identity, which means the identity carries a per-invocation component (the persisted attempt counter alone does not reset across a resume and therefore cannot distinguish them).
 - **Location is RESOLVED, not composed.** Telemetry lives inside the resolved run directory, under a `telemetry/` subdirectory, so a relocated records root (a `companion` or `home` `records_backend`) places it correctly. It is NOT inside the reserved `analytics/` namespace, which holds the DISPOSABLE derived cache: a run's own observation of itself must not sit in a tree whose documented contract is that deleting it loses nothing.
@@ -1334,7 +1334,7 @@ Therefore:
 
 Resume algorithm:
 
-1. `aw <host> run resume <run-id>` verifies the ledger chain before doing anything.
+1. `aw <host> run resume <run-id>` loads the run's durable record before doing anything: a driver run reads its `state.json` and refuses the resume when that file is missing or unparseable, while the `aw run` path (`aw runs resume`) reads `ledger.jsonl` and refuses on ledger corruption (amended 2026-10-14, `rdjka2` OQ-01 Option (b)).
 2. It reacquires or reconciles leases and compares repository state with the last checkpoint.
 3. It re-runs the deterministic checker first.
 4. If repository state already satisfies the frozen predicates, it records `verified` and does not re-execute.
@@ -1743,6 +1743,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): 9epp40 (66ls4r): amend 1.2 step 8, 5.1, 5.3 (intro, snapshot sentence, resume step 1) and 5.3a in place to scope the hash-chained ledger.jsonl to the discrete aw run / aw runs workflow path and state that driver runs (aw oc run / aw agy run) record execution in un-chained state.json and events.jsonl, per the 2026-10-08 maintainer Option (b) decision (rdjka2 OQ-01, utb2qr).
 - 2026-10-14 note (aw specs): IPD 0o0wt2 (suiteeff-02): Section 5.1's per-lane suite check (run_suite_check), the pre-work baseline (start_suite_baseline), and GATE 2's post-merge revalidation (make_integration_validation_runner) route through aw suite (agent_workflows/suite_cache.py:run_full_suite) and may be satisfied by an exact-key cached PASS in <git-common-dir>/aw-suite-cache/<digest>.json; a cached failure is advisory only and is never served to a gate.
 - 2026-10-13 note (aw specs): AMENDED (plan sa13no, backlog gqy7yd): 5.2 guarantee row 4 Enforcement or proof cell now states its status: isolated_worktree/path_policy/timeout_cancel are unrepresented in the capability contract; default worktree isolation and the per-turn ceiling run but are not a boundary; hardened profile is opt-in and fails closed on OpenCode (agy ignores it). All five Host-dependent rows now state enforcement status.
 - 2026-10-13 note (aw specs): amendment (mnwkqu): Section 5.5 retry policy includes the merge-time spec line-anchor check under class 'missing expected artifact or failed deterministic check' with cause spec-anchor-new-stale and fail-open unknown behavior

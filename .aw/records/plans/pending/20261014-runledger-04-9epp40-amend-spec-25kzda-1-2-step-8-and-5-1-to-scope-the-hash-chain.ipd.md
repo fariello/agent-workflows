@@ -35,14 +35,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Pre-edit baseline and stop-condition verification
 
-- [ ] E-01 Re-measure the executing HEAD against the plan's baseline assumptions: (a) inspect `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 1.2 step 8 (`"8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger."`) and Section 5.1 (`"- the append-only, hash-chained run ledger."` under `"The following are admissible completion inputs:"`), (b) confirm `.aw/records/plans/executed/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.ipd.md` OQ-01 records `MAINTAINER RESOLUTION (2026-10-08, ...): OPTION (b)` and `.aw/records/research/20261007-runledger-00-utb2qr-driver-run-ledger-decision.findings.md` exists on disk, (c) confirm `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` have zero references to `ledger_store`, `RunLedgerStore`, or `ledger.jsonl` (the only hits in `agent_workflows/runner_shared.py` are explanatory comments, and its sole `run_recovery` import is the retry-budget validator), (d) locate the four Section 5.3 / 5.3a anchors E-03 names by quoted string and the `docs/evidence.md` line-3 anchor E-04 names, (e) run `spec_citations.stale_spec_anchors('.', spec_citations.default_scan_roots('.'))` to confirm zero stale anchors prior to editing, (f) run `python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_finding_abort_partition.py tests/test_run_finding_spec_transcription.py` to establish the pre-edit test baseline, (g) record `wc -l` of the spec, and (h) capture the pre-edit `AW_NO_REEXEC=1 python3 -m agent_workflows check --agent` result record (its `findings_by_severity` and the set of `error` rule ids) as the baseline E-05 compares against, because the corpus carries pre-existing `error` findings unrelated to this plan (19 at review HEAD `23863c32a`; re-derive, do not reuse that number). Stop and report without editing if any targeted anchor has already been amended or if either host driver now writes `ledger.jsonl`.
+- [x] E-01 Re-measure the executing HEAD against the plan's baseline assumptions: (a) inspect `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 1.2 step 8 (`"8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger."`) and Section 5.1 (`"- the append-only, hash-chained run ledger."` under `"The following are admissible completion inputs:"`), (b) confirm `.aw/records/plans/executed/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.ipd.md` OQ-01 records `MAINTAINER RESOLUTION (2026-10-08, ...): OPTION (b)` and `.aw/records/research/20261007-runledger-00-utb2qr-driver-run-ledger-decision.findings.md` exists on disk, (c) confirm `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` have zero references to `ledger_store`, `RunLedgerStore`, or `ledger.jsonl` (the only hits in `agent_workflows/runner_shared.py` are explanatory comments, and its sole `run_recovery` import is the retry-budget validator), (d) locate the four Section 5.3 / 5.3a anchors E-03 names by quoted string and the `docs/evidence.md` line-3 anchor E-04 names, (e) run `spec_citations.stale_spec_anchors('.', spec_citations.default_scan_roots('.'))` to confirm zero stale anchors prior to editing, (f) run `python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_finding_abort_partition.py tests/test_run_finding_spec_transcription.py` to establish the pre-edit test baseline, (g) record `wc -l` of the spec, and (h) capture the pre-edit `AW_NO_REEXEC=1 python3 -m agent_workflows check --agent` result record (its `findings_by_severity` and the set of `error` rule ids) as the baseline E-05 compares against, because the corpus carries pre-existing `error` findings unrelated to this plan (19 at review HEAD `23863c32a`; re-derive, do not reuse that number). Stop and report without editing if any targeted anchor has already been amended or if either host driver now writes `ledger.jsonl`.
   - Depends on: none
   - Expected outcome: The unamended wording at every E-02, E-03, and E-04 anchor, the Option (b) resolution in `rdjka2` OQ-01 and `utb2qr`, the zero `ledger.jsonl` references in `oc_runipd.py` and `agy_runipd.py`, the empty `stale_spec_anchors` list, the green targeted pytest run, the spec line count, and the `aw check` baseline are all observed and recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Spec `25kzda` amendments and user-facing doc correction
 
-- [ ] E-02 Amend `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 1.2 step 8 and Section 5.1's ledger bullet in place (replacing each single line with a single line so line numbers below each edit do not shift):
+- [x] E-02 Amend `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 1.2 step 8 and Section 5.1's ledger bullet in place (replacing each single line with a single line so line numbers below each edit do not shift):
   1. In Section 1.2 step 8, replace `"8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger."` with:
      `8. Capture tool calls, outputs, changed paths, commits, and artifacts in the run's durable execution record: driver runs (\`aw oc run\` / \`aw agy run\`) record run state and events in \`state.json\` and \`events.jsonl\` in the run directory (append-plus-fsync, not hash-chained, so not tamper-evident) and do not write \`ledger.jsonl\`, while the append-only, hash-chained run ledger (\`ledger.jsonl\`) is scoped to the discrete \`aw run\` / \`aw runs\` workflow execution path. Wherever this spec otherwise says "run ledger" or "ledger" of a driver run, it means that driver's durable run record; the hash-chain properties (sequence, parent link, record hash, chain verification) hold only for \`ledger.jsonl\` (amended 2026-10-14 per the 2026-10-08 maintainer Option (b) decision in plan \`rdjka2\` OQ-01 and decision record \`utb2qr\`).`
   2. In Section 5.1 under `"The following are admissible completion inputs:"`, replace `"- the append-only, hash-chained run ledger."` with:
@@ -50,28 +50,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Leave Section 4.2 (byte-for-byte transcription-locked by `tests/test_run_finding_spec_transcription.py`), Section 4.6, Sections 5.5 and 5.6 (owned by sibling plan `jmogmv`), Section 6.2 (owned by sibling plan `v47z9u`), and every section E-03 does not name untouched.
   - Depends on: E-01
   - Expected outcome: `25kzda` Section 1.2 step 8 and Section 5.1 state both the driver substrate (`state.json` and `events.jsonl`, not hash-chained) and the scoping of the hash-chained `ledger.jsonl` to the discrete `aw run` / `aw runs` workflow execution path, step 8 carries the terminology clause, both cite `rdjka2` OQ-01 and `utb2qr`, and the spec's line count is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Amend the four Section 5.3 / 5.3a sentences of the same spec that assert a hash-chained record for every run, each by an in-place substitution inside its existing line (no line added or removed). Re-measure each anchor by its quoted string first; the line numbers are hints from HEAD `23863c32a`:
+- [x] E-03 Amend the four Section 5.3 / 5.3a sentences of the same spec that assert a hash-chained record for every run, each by an in-place substitution inside its existing line (no line added or removed). Re-measure each anchor by its quoted string first; the line numbers are hints from HEAD `23863c32a`:
   1. Section 5.3 intro (anchor `"The engine stores repository-local, crash-safe run state."`, line 1290): append to the end of that same line: ` For a driver run (\`aw oc run\` / \`aw agy run\`) the event log is \`events.jsonl\` beside the \`state.json\` snapshot, written append-plus-fsync but not hash-chained: the monotonic sequence, parent event, and previous-event hash fields below are carried only by the \`aw run\` path's \`ledger.jsonl\` (amended 2026-10-14, \`rdjka2\` OQ-01 Option (b), \`utb2qr\`).`
   2. Section 5.3 (anchor `"A snapshot is a cache; replaying the ledger is authoritative."`, line 1302): replace that sentence with `On the \`aw run\` path a snapshot is a cache and replaying \`ledger.jsonl\` is authoritative; a driver run's authoritative record is its \`state.json\` (atomic replacement) together with its \`events.jsonl\` (amended 2026-10-14, \`rdjka2\` OQ-01 Option (b)).`
   3. Section 5.3a (anchor `"The hash-chained ledger is the run's record and replaying it is authoritative;"`, line 1312): replace that clause with `The run's durable record (Section 5.3: \`ledger.jsonl\` on the \`aw run\` path, \`state.json\` plus \`events.jsonl\` for a driver run) is authoritative;`, leaving the rest of the bullet byte-identical.
   4. Section 5.3 resume algorithm step 1 (anchor `"1. \`aw <host> run resume <run-id>\` verifies the ledger chain before doing anything."`, line 1337): replace the line with `1. \`aw <host> run resume <run-id>\` loads the run's durable record before doing anything: a driver run reads its \`state.json\` and refuses the resume when that file is missing or unparseable, while the \`aw run\` path (\`aw runs resume\`) reads \`ledger.jsonl\` and refuses on ledger corruption (amended 2026-10-14, \`rdjka2\` OQ-01 Option (b)).` Before writing, confirm the driver half by reading `runner_shared.load_state` / `runner_shared.load_json` (raises `DriverError` on `FileNotFoundError` and `json.JSONDecodeError`) and the `aw runs` half by reading `run_cli._run_resume` (returns `EXIT_CORRUPTED_LEDGER` on `store.LedgerCorruption`); if sibling `jmogmv` has landed `CorruptRunStateError` first, the wording "refuses the resume" still holds and must not name an exit code.
   - Depends on: E-02
   - Expected outcome: none of the four anchors still asserts a hash chain or chain verification for a driver run, each carries the dated `rdjka2` provenance, Steps 2 through 9 of the resume algorithm and the 5.3 event field bullets are byte-identical, and the spec's line count is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the user-facing claim in `docs/evidence.md` line 3 (anchor `"Every run records tamper-evident evidence in an append-only ledger."`): replace that one sentence with `A workflow run driven through \`aw run\` records tamper-evident evidence in an append-only ledger. Runner runs (\`aw oc run\` / \`aw agy run\`) keep their record in \`state.json\` and \`events.jsonl\` instead and do not write a ledger.` Reflow the paragraph to the file's existing wrap width if needed; the following sentence (`The modules are ...`) and the rest of the file stay unchanged. This is user-facing prose: write no em or en dashes.
+- [x] E-04 Correct the user-facing claim in `docs/evidence.md` line 3 (anchor `"Every run records tamper-evident evidence in an append-only ledger."`): replace that one sentence with `A workflow run driven through \`aw run\` records tamper-evident evidence in an append-only ledger. Runner runs (\`aw oc run\` / \`aw agy run\`) keep their record in \`state.json\` and \`events.jsonl\` instead and do not write a ledger.` Reflow the paragraph to the file's existing wrap width if needed; the following sentence (`The modules are ...`) and the rest of the file stay unchanged. This is user-facing prose: write no em or en dashes.
   - Depends on: E-01
   - Expected outcome: `docs/evidence.md` no longer claims every run writes a ledger, names both substrates, and contains no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Provenance and validation
 
-- [ ] E-05 Record the amendment in the spec's `## Workflow history` via `AW_NO_REEXEC=1 python3 -m agent_workflows specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "9epp40 (66ls4r): amend 1.2 step 8, 5.1, 5.3 (intro, snapshot sentence, resume step 1) and 5.3a in place to scope the hash-chained ledger.jsonl to the discrete aw run / aw runs workflow path and state that driver runs (aw oc run / aw agy run) record execution in un-chained state.json and events.jsonl, per the 2026-10-08 maintainer Option (b) decision (rdjka2 OQ-01, utb2qr)."`, then run every command in `## Required tests / validation`.
+- [x] E-05 Record the amendment in the spec's `## Workflow history` via `AW_NO_REEXEC=1 python3 -m agent_workflows specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "9epp40 (66ls4r): amend 1.2 step 8, 5.1, 5.3 (intro, snapshot sentence, resume step 1) and 5.3a in place to scope the hash-chained ledger.jsonl to the discrete aw run / aw runs workflow path and state that driver runs (aw oc run / aw agy run) record execution in un-chained state.json and events.jsonl, per the 2026-10-08 maintainer Option (b) decision (rdjka2 OQ-01, utb2qr)."`, then run every command in `## Required tests / validation`.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the dated entry is the newest line under the spec's `## Workflow history`; `aw specs check` exits 0; `stale_spec_anchors` returns `[]`; `aw check --agent` reports no diagnostic located at this plan's file, the spec, or `docs/evidence.md` with severity `warning` or `error`, and no error rule absent from the E-01 baseline; `aw sanitize --agent` exits 0 with outcome `clean`; bare `python3 -m pytest` exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,30 +176,191 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output from (1) `grep -n` of each E-02, E-03, and E-04 anchor string in the spec and in `docs/evidence.md`, showing every unamended line, (2) `grep -n` showing `rdjka2` OQ-01's `OPTION (b)` maintainer resolution and `ls` of `utb2qr` on disk, (3) `grep -nE 'ledger_store|RunLedgerStore|ledger\.jsonl' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` showing no matches, (4) the `stale_spec_anchors` command from `## Required tests / validation` printing `stale_spec_anchors: 0`, (5) the targeted pytest command exiting `0` with its summary line, (6) the spec's `wc -l`, and (7) the baseline `aw check --agent` result record's `findings_by_severity` plus its sorted `error` rule ids.
   - Observed evidence:
-  - Result: pending
+    1. Unamended anchor greps in spec and docs/evidence.md:
+       ```
+       $ grep -n "Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       148:8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger.
+       $ grep -n "\- the append-only, hash-chained run ledger\." .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1085:- the append-only, hash-chained run ledger.
+       $ grep -n "The engine stores repository-local, crash-safe run state" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1290:The engine stores repository-local, crash-safe run state. The storage location is an implementation detail; the data contract is not. Each event is append-only and contains:
+       $ grep -n "A snapshot is a cache; replaying the ledger is authoritative" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1302:Writes use atomic replacement for snapshots and append-plus-fsync for events. A snapshot is a cache; replaying the ledger is authoritative.
+       $ grep -n "The hash-chained ledger is the run's record and replaying it is authoritative;" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1312:- **It is DERIVED and BEST EFFORT, never authoritative.** The hash-chained ledger is the run's record and replaying it is authoritative; telemetry is an observation ABOUT the run. Telemetry is not chained, not required, and not replayed. No consumer may treat it as evidence of what a run did.
+       $ grep -n "1. \`aw <host> run resume <run-id>\` verifies the ledger chain before doing anything." .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1337:1. `aw <host> run resume <run-id>` verifies the ledger chain before doing anything.
+       $ grep -n "Every run records tamper-evident evidence in an append-only ledger\." docs/evidence.md
+       3:Every run records tamper-evident evidence in an append-only ledger. The modules are
+       ```
+    2. Maintainer resolution and research findings on disk:
+       ```
+       $ grep -n "OPTION (b)" .aw/records/plans/executed/20261002-runledger-01-rdjka2-decide-whether-a-driver-run-writes-a-hash-chained-ledger-and.ipd.md
+       159:  MAINTAINER RESOLUTION (2026-10-08, interactive, opencode session its_direct/pt3-claude-opus-5.5-1m-us): OPTION (b). Runner (driver) runs keep `state.json`/`events.jsonl` as their record; amend spec `25kzda` to say so, correct the misleading comments, and leave the ledger code for the separate `aw run` path.
+       $ ls -la .aw/records/research/20261007-runledger-00-utb2qr-driver-run-ledger-decision.findings.md
+       -rw-r--r-- 1 <user> <group> 14047 Oct 16 00:16 .aw/records/research/20261007-runledger-00-utb2qr-driver-run-ledger-decision.findings.md
+       ```
+    3. Host drivers check for ledger references:
+       ```
+       $ grep -nE 'ledger_store|RunLedgerStore|ledger\.jsonl' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+       (exit code 1, 0 matches)
+       ```
+    4. Stale spec anchors baseline:
+       ```
+       stale_spec_anchors: 0
+       ```
+    5. Targeted pytest baseline:
+       ```
+       64 passed in 13.91s
+       ```
+    6. Spec line count baseline:
+       ```
+       1787 .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       ```
+    7. Baseline `aw check --agent` result record:
+       ```
+       findings_by_severity: {'error': 0, 'warning': 1, 'info': 79}
+       error rule ids: []
+       ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -U0` hunks for the spec showing exactly two single-line replacements, at Section 1.2 step 8 and at Section 5.1's ledger bullet, whose new text names `state.json` and `events.jsonl` for driver runs (`aw oc run` / `aw agy run`), scopes `ledger.jsonl` to the discrete `aw run` / `aw runs` path, carries the step 8 terminology clause, and cites `rdjka2` OQ-01 and `utb2qr`; plus `git diff --stat` showing no hunk inside Sections 4.2, 4.6, 5.5, 5.6, or 6.2.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    @@ -148 +148 @@ Every actionable item follows this sequence:
+    -8. Capture tool calls, outputs, changed paths, commits, and artifacts in a tamper-evident run ledger.
+    +8. Capture tool calls, outputs, changed paths, commits, and artifacts in the run's durable execution record: driver runs (`aw oc run` / `aw agy run`) record run state and events in `state.json` and `events.jsonl` in the run directory (append-plus-fsync, not hash-chained, so not tamper-evident) and do not write `ledger.jsonl`, while the append-only, hash-chained run ledger (`ledger.jsonl`) is scoped to the discrete `aw run` / `aw runs` workflow execution path. Wherever this spec otherwise says "run ledger" or "ledger" of a driver run, it means that driver's durable run record; the hash-chain properties (sequence, parent link, record hash, chain verification) hold only for `ledger.jsonl` (amended 2026-10-14 per the 2026-10-08 maintainer Option (b) decision in plan `rdjka2` OQ-01 and decision record `utb2qr`).
+    @@ -1085 +1085 @@ The following are admissible completion inputs:
+    -- the append-only, hash-chained run ledger.
+    +- the append-only, hash-chained run ledger (`ledger.jsonl`, scoped to the discrete `aw run` / `aw runs` workflow execution path; driver runs `aw oc run` / `aw agy run` record execution in `state.json` and `events.jsonl` and do not write `ledger.jsonl`, per the 2026-10-08 maintainer Option (b) decision in plan `rdjka2` OQ-01 and decision record `utb2qr`).
+    ```
+    No hunks exist inside Sections 4.2, 4.6, 5.5, 5.6, or 6.2.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff -U0` hunks for the spec showing the four in-line substitutions at the Section 5.3 intro, the snapshot sentence, the 5.3a telemetry clause, and resume step 1, each with dated `rdjka2` provenance; plus pasted `grep -n` output showing the strings `"replaying the ledger is authoritative"`, `"The hash-chained ledger is the run's record"`, and `"verifies the ledger chain before doing anything"` no longer occur in the spec, and the pasted `load_state` / `load_json` and `run_cli._run_resume` excerpts that E-03 item 4 required reading.
   - Observed evidence:
-  - Result: pending
+    1. Spec git diff hunks for the four substitutions:
+       ```diff
+       @@ -1290 +1290 @@ Executor commits remain on the item's isolated branch until scope, commit-conten
+       -The engine stores repository-local, crash-safe run state. The storage location is an implementation detail; the data contract is not. Each event is append-only and contains:
+       +The engine stores repository-local, crash-safe run state. The storage location is an implementation detail; the data contract is not. Each event is append-only and contains: For a driver run (`aw oc run` / `aw agy run`) the event log is `events.jsonl` beside the `state.json` snapshot, written append-plus-fsync but not hash-chained: the monotonic sequence, parent event, and previous-event hash fields below are carried only by the `aw run` path's `ledger.jsonl` (amended 2026-10-14, `rdjka2` OQ-01 Option (b), `utb2qr`).
+       @@ -1302 +1302 @@ The engine stores repository-local, crash-safe run state. The storage location i
+       -Writes use atomic replacement for snapshots and append-plus-fsync for events. A snapshot is a cache; replaying the ledger is authoritative.
+       +Writes use atomic replacement for snapshots and append-plus-fsync for events. On the `aw run` path a snapshot is a cache and replaying `ledger.jsonl` is authoritative; a driver run's authoritative record is its `state.json` (atomic replacement) together with its `events.jsonl` (amended 2026-10-14, `rdjka2` OQ-01 Option (b)).
+       @@ -1312 +1312 @@ A run MAY additionally write per-invocation resource telemetry. Its contract is
+       -- **It is DERIVED and BEST EFFORT, never authoritative.** The hash-chained ledger is the run's record and replaying it is authoritative; telemetry is an observation ABOUT the run. Telemetry is not chained, not required, and not replayed. No consumer may treat it as evidence of what a run did.
+       +- **It is DERIVED and BEST EFFORT, never authoritative.** The run's durable record (Section 5.3: `ledger.jsonl` on the `aw run` path, `state.json` plus `events.jsonl` for a driver run) is authoritative; telemetry is an observation ABOUT the run. Telemetry is not chained, not required, and not replayed. No consumer may treat it as evidence of what a run did.
+       @@ -1337 +1337 @@ Resume algorithm:
+       -1. `aw <host> run resume <run-id>` verifies the ledger chain before doing anything.
+       +1. `aw <host> run resume <run-id>` loads the run's durable record before doing anything: a driver run reads its `state.json` and refuses the resume when that file is missing or unparseable, while the `aw run` path (`aw runs resume`) reads `ledger.jsonl` and refuses on ledger corruption (amended 2026-10-14, `rdjka2` OQ-01 Option (b)).
+       ```
+    2. Grep confirming old strings absent:
+       ```
+       $ grep -n "replaying the ledger is authoritative" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       (exit code 1, 0 matches)
+       $ grep -n "The hash-chained ledger is the run's record" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       (exit code 1, 0 matches)
+       $ grep -n "verifies the ledger chain before doing anything" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       (exit code 1, 0 matches)
+       ```
+    3. Excerpts from runner_shared and run_cli read for E-03 item 4:
+       ```python
+       # runner_shared.load_json
+       def load_json(path: Path) -> dict[str, Any]:
+           try:
+               return json.loads(path.read_text(encoding="utf-8"))
+           except FileNotFoundError as exc:
+               raise DriverError(f"Required file not found: {path}") from exc
+           except json.JSONDecodeError as exc:
+               raise DriverError(f"Invalid JSON in {path}: {exc}") from exc
 
-- [ ] V-04 validates E-04
+       # runner_shared.load_state
+       def load_state(run_dir: Path) -> dict[str, Any]:
+           return load_json(run_dir / "state.json")
+
+       # run_cli._run_resume
+       def _run_resume(args: argparse.Namespace) -> int:
+           ...
+           try:
+               report = run_recovery.resume(engine)
+           ...
+           except store.LedgerCorruption as exc:
+               return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+       ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted `git diff` of `docs/evidence.md` showing only the line-3 sentence replaced (and any reflow of that paragraph), and the pasted (empty) output of `grep -nP '[\x{2013}\x{2014}]' docs/evidence.md`.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/docs/evidence.md b/docs/evidence.md
+    index ccfeb4b20..d099f5875 100644
+    --- a/docs/evidence.md
+    +++ b/docs/evidence.md
+    @@ -1,6 +1,8 @@
+     # Evidence layer
 
-- [ ] V-05 validates E-05
+    -Every run records tamper-evident evidence in an append-only ledger. The modules are
+    +A workflow run driven through `aw run` records tamper-evident evidence in an append-only ledger.
+    +Runner runs (`aw oc run` / `aw agy run`) keep their record in `state.json` and `events.jsonl` instead
+    +and do not write a ledger. The modules are
+     `agent_workflows/run_ledger_store.py`, `run_ledger_schema.py`, and `run_evidence.py`.
+
+     ## The ledger
+    ```
+    ```
+    $ grep -nP '[\x{2013}\x{2014}]' docs/evidence.md
+    (exit code 1, 0 matches)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted output of (1) `sed -n` of the spec's `## Workflow history` heading plus the next line showing the new `9epp40 (66ls4r)` entry first, (2) `AW_NO_REEXEC=1 python3 -m agent_workflows specs check` exiting `0`, (3) the `stale_spec_anchors` command printing `stale_spec_anchors: 0`, (4) the post-edit `aw check --agent` result record compared with the V-01 baseline: no `warning` or `error` diagnostic located at this plan, the spec, or `docs/evidence.md`, and no `error` rule id absent from the baseline, (5) `AW_NO_REEXEC=1 python3 -m agent_workflows sanitize --agent` exiting `0` with outcome `clean`, (6) the spec's `wc -l` equal to the V-01 count plus one, and (7) bare `python3 -m pytest` exiting `0` with its pass summary line.
   - Observed evidence:
-  - Result: pending
+    1. Spec `## Workflow history` heading and newest entry:
+       ```
+       $ sed -n '/## Workflow history/,+2p' .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       ## Workflow history
+
+       - 2026-10-16 note (aw specs): 9epp40 (66ls4r): amend 1.2 step 8, 5.1, 5.3 (intro, snapshot sentence, resume step 1) and 5.3a in place to scope the hash-chained ledger.jsonl to the discrete aw run / aw runs workflow path and state that driver runs (aw oc run / aw agy run) record execution in un-chained state.json and events.jsonl, per the 2026-10-08 maintainer Option (b) decision (rdjka2 OQ-01, utb2qr).
+       ```
+    2. Specs check:
+       ```
+       $ AW_NO_REEXEC=1 python3 -m agent_workflows specs check
+       aw specs check: all specs conform. 40 specs checked.
+       ```
+    3. Stale spec anchors check:
+       ```
+       $ python3 -c "from agent_workflows import spec_citations; a = spec_citations.stale_spec_anchors('.', spec_citations.default_scan_roots('.')); assert not a, a; print('stale_spec_anchors:', len(a))"
+       stale_spec_anchors: 0
+       ```
+    4. Post-edit check result comparison:
+       ```
+       findings_by_severity: {'error': 0, 'warning': 1, 'info': 79}
+       all rules in diagnostics: ['check.ipd-carrier-ungated', 'check.lifecycle-transition-unvalidated', 'check.source-test-citation-dangling', 'check.spec-criteria-uncovered', 'check.system-layout-missing']
+       targets in diagnostics: []
+       ```
+    5. Local leak sanitizer check:
+       ```
+       $ AW_NO_REEXEC=1 python3 -m agent_workflows sanitize --agent
+       {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5200,"findings":0,"evidence":["leak-scan"],"next":null}
+       ```
+    6. Spec line count check:
+       ```
+       $ wc -l .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       1788 .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       (1787 baseline + 1 workflow history line = 1788)
+       ```
+    7. Full pytest suite pass summary:
+       ```
+       695 passed in 42.26s
+       ```
+  - Result: pass
 
 ## Approval and execution gate
 
