@@ -35,6 +35,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -47,10 +48,12 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    artifact_core,
     oc_runipd,
     render_stream,
     run_evidence,
     runner_shared,
+    selectors,
 )
 from tests import support
 from tests.support import coordinator_role
@@ -134,6 +137,141 @@ def _setup_matrix_run(
     }
     mod.save_state(run_dir, state)
     return repo, run_dir, state, item
+
+
+def _locate_spec_25kzda(repo_root: Path) -> Path:
+    """Locate spec 25kzda recursively under .aw/records/specs/ across any status subdirectory."""
+    specs_dir = repo_root / ".aw" / "records" / "specs"
+    matches = sorted(specs_dir.rglob("*-25kzda-*.spec.md"))
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly 1 spec matching *-25kzda-*.spec.md under {specs_dir}, "
+            f"found {len(matches)}: {matches}"
+        )
+    return matches[0]
+
+
+def _spec_5_5_owner_problems(spec_text: str, repo_root: Path) -> list[str]:
+    """Check spec 25kzda Section 5.5 retry policy table for owner citations and resolution."""
+    problems: list[str] = []
+    start_idx = spec_text.find("### 5.5 Retry policy")
+    if start_idx == -1:
+        return ["Section '### 5.5 Retry policy' not found in spec text"]
+    end_idx = spec_text.find("### 5.6", start_idx)
+    if end_idx == -1:
+        return ["Section '### 5.6' not found in spec text after '### 5.5'"]
+    slice_text = spec_text[start_idx:end_idx]
+
+    # (a) any of k8n97m, 120bhh, b8w5o6, 5j73i6 appears anywhere in the slice
+    for stale_id in ("k8n97m", "120bhh", "b8w5o6", "5j73i6"):
+        if stale_id in slice_text:
+            problems.append(f"Stale owner ID `{stale_id}` found in §5.5 slice")
+
+    # Extract retry-policy table rows (lines starting '| ' after header, excluding separator)
+    in_table = False
+    table_rows: list[str] = []
+    for line in slice_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("| Spec Class | Disposition(s) |"):
+            in_table = True
+            continue
+        if in_table:
+            if not stripped.startswith("|"):
+                break
+            if re.match(r"^\|(\s*:?-+:?\s*\|)+$", stripped):
+                continue
+            table_rows.append(stripped)
+
+    # (b), (c), (d)
+    for row_line in table_rows:
+        cells = [c.strip() for c in row_line.split("|")[1:-1]]
+        if len(cells) < 5:
+            continue
+        spec_class = cells[0]
+        notes_cell = cells[-1]
+
+        # (b) backticked token matching artifact_core.ID6_RE in LAST cell
+        # does not resolve via selectors.resolve to exactly one path for plans or backlog
+        backticked_tokens = re.findall(r"`([^`]+)`", notes_cell)
+        for token in backticked_tokens:
+            if artifact_core.ID6_RE.match(token):
+                p_res = selectors.resolve(
+                    repo_root, "plans", token, allow=frozenset({selectors.MATCH_ID6})
+                )
+                b_res = selectors.resolve(
+                    repo_root, "backlog", token, allow=frozenset({selectors.MATCH_ID6})
+                )
+                if len(p_res.paths) != 1 and len(b_res.paths) != 1:
+                    problems.append(
+                        f"Row '{spec_class}': token `{token}` does not resolve to exactly one path "
+                        f"for plans or backlog (plans={len(p_res.paths)}, backlog={len(b_res.paths)})"
+                    )
+
+        # (c) for every Notes cell matching Order (\d\d), `(<id6>)`
+        for m in re.finditer(r"Order\s+(\d\d),\s*`([0-9a-z]{6})`", notes_cell):
+            order_num_str = m.group(1)
+            cited_id = m.group(2)
+            p_res = selectors.resolve(
+                repo_root, "plans", cited_id, allow=frozenset({selectors.MATCH_ID6})
+            )
+            if len(p_res.paths) != 1:
+                problems.append(
+                    f"Row '{spec_class}': cited plan `{cited_id}` for Order {order_num_str} does not resolve to exactly 1 plan"
+                )
+                continue
+            plan_path = p_res.paths[0]
+            plan_text = plan_path.read_text(encoding="utf-8")
+            m_order = re.search(r"^- Order:\s*(\S+)", plan_text, re.MULTILINE)
+            if not m_order or int(m_order.group(1)) != int(order_num_str):
+                actual_order = m_order.group(1) if m_order else "missing"
+                problems.append(
+                    f"Row '{spec_class}': Order mismatch for plan `{cited_id}`: table has {order_num_str}, plan has {actual_order}"
+                )
+            m_set = re.search(r"^- Set:\s*(\S+)", plan_text, re.MULTILINE)
+            set_first_token = m_set.group(1).lstrip("`").rstrip("`") if m_set else ""
+            if set_first_token != "fixfirst":
+                problems.append(
+                    f"Row '{spec_class}': plan `{cited_id}` has set '{set_first_token}', expected 'fixfirst'"
+                )
+            plan_status = selectors.read_front_matter_status(plan_text)
+            if plan_status != "executed":
+                problems.append(
+                    f"Row '{spec_class}': plan `{cited_id}` has status '{plan_status}', expected 'executed'"
+                )
+            status_match = re.search(
+                r"(Shipped|Implementing)\b[^\n`]*?Order\s+"
+                + order_num_str
+                + r",\s*`"
+                + cited_id
+                + r"`",
+                notes_cell,
+            )
+            if status_match:
+                if status_match.group(1) != "Shipped":
+                    problems.append(
+                        f"Row '{spec_class}': status phrase for Order {order_num_str}, `{cited_id}` starts with '{status_match.group(1)}', expected 'Shipped'"
+                    )
+            else:
+                problems.append(
+                    f"Row '{spec_class}': could not find status phrase 'Shipped' for Order {order_num_str}, `{cited_id}`"
+                )
+
+        # (d) the verifier transport failure row's Notes cell contains yd4tqw and jodcz3 and not ytas91
+        if spec_class == "verifier transport failure":
+            if "yd4tqw" not in notes_cell:
+                problems.append(
+                    "Row 'verifier transport failure': Notes cell missing 'yd4tqw'"
+                )
+            if "jodcz3" not in notes_cell:
+                problems.append(
+                    "Row 'verifier transport failure': Notes cell missing 'jodcz3'"
+                )
+            if "ytas91" in notes_cell:
+                problems.append(
+                    "Row 'verifier transport failure': Notes cell contains 'ytas91'"
+                )
+
+    return problems
 
 
 class TestFixFirstEndToEnd(unittest.TestCase):
@@ -1256,6 +1394,71 @@ class TestFixFirstEndToEnd(unittest.TestCase):
             "run_evidence.ABORT_CLASSES must exactly match spec 4.1 'Corrupt run ledger'",
         )
         print(f"[V-05] ABORT_CLASSES={run_evidence.ABORT_CLASSES} matches spec 4.1")
+
+    def test_e05_spec_5_5_table_owner_ids_resolve(self) -> None:
+        """E-05 / V-03: Verify all owner citations in spec 25kzda Section 5.5 resolve cleanly."""
+        repo_root = Path(__file__).resolve().parents[1]
+        spec_path = _locate_spec_25kzda(repo_root)
+        spec_text = spec_path.read_text(encoding="utf-8")
+        problems = _spec_5_5_owner_problems(spec_text, repo_root)
+        self.assertEqual(
+            problems,
+            [],
+            f"Expected zero problems in spec 25kzda §5.5 owner citations, found: {problems}",
+        )
+
+    def test_e05_spec_5_5_checker_rejects_stale_owner(self) -> None:
+        """E-05 / V-03: Verify _spec_5_5_owner_problems rejects stale or mismatched owner citations."""
+        repo_root = Path(__file__).resolve().parents[1]
+        spec_path = _locate_spec_25kzda(repo_root)
+        spec_text = spec_path.read_text(encoding="utf-8")
+
+        # Mutation 1: one row's Notes reverted to Implementing: Order 05 (`k8n97m`).
+        mut1 = spec_text.replace(
+            "Shipped (Order 05, `w9nvq4`).",
+            "Implementing: Order 05 (`k8n97m`).",
+            1,
+        )
+        self.assertNotEqual(mut1, spec_text, "Mutation 1 replacement target not found")
+        p1 = _spec_5_5_owner_problems(mut1, repo_root)
+        self.assertTrue(
+            len(p1) > 0,
+            "Expected checker to report problems on mutation 1 (stale k8n97m), got empty",
+        )
+
+        # Mutation 2: the a red combined suite after merge row's Order 05 changed to Order 06
+        target2 = (
+            "| a red combined suite after merge | `integration-test-failed` | integration gate | Yes | "
+            "Verification suite failed after merge in lane or integration worktree. Shipped (Order 05, `w9nvq4`). |"
+        )
+        replacement2 = (
+            "| a red combined suite after merge | `integration-test-failed` | integration gate | Yes | "
+            "Verification suite failed after merge in lane or integration worktree. Shipped (Order 06, `w9nvq4`). |"
+        )
+        mut2 = spec_text.replace(target2, replacement2, 1)
+        self.assertNotEqual(mut2, spec_text, "Mutation 2 replacement target not found")
+        p2 = _spec_5_5_owner_problems(mut2, repo_root)
+        self.assertTrue(
+            len(p2) > 0,
+            "Expected checker to report problems on mutation 2 (Order 06 for w9nvq4), got empty",
+        )
+
+        # Mutation 3: the verifier transport failure row reverted to Implementing: Order 04 (`ytas91`).
+        target3 = (
+            "| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | "
+            "Skeptical verifier session crash or transport failure. Implementing: `yd4tqw` (from backlog `jodcz3`). |"
+        )
+        replacement3 = (
+            "| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | "
+            "Skeptical verifier session crash or transport failure. Implementing: Order 04 (`ytas91`). |"
+        )
+        mut3 = spec_text.replace(target3, replacement3, 1)
+        self.assertNotEqual(mut3, spec_text, "Mutation 3 replacement target not found")
+        p3 = _spec_5_5_owner_problems(mut3, repo_root)
+        self.assertTrue(
+            len(p3) > 0,
+            "Expected checker to report problems on mutation 3 (ytas91 on verifier transport failure), got empty",
+        )
 
 
 if __name__ == "__main__":
