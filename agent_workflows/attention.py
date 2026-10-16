@@ -380,10 +380,15 @@ def _safe_detail(text: str) -> str:
 
 
 def _rel_posix(repo_root: Path, p: Path) -> str:
-    try:
-        return p.relative_to(repo_root).as_posix()
-    except ValueError:
-        return p.resolve().relative_to(repo_root.resolve()).as_posix()
+    """Return ``p`` relative to ``repo_root`` (POSIX).
+
+    Delegates to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``) so out-of-root
+    inputs, relative inputs when ``os.getcwd() != repo_root``, and in-root symlinked files
+    under a symlinked root return a leak-free string instead of raising ``ValueError``,
+    allowing ``attention.item_for_path`` to return ``None`` via ``_classify_tree`` on
+    out-of-root inputs.
+    """
+    return core.repo_relative_posix(p, repo_root)
 
 
 def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:

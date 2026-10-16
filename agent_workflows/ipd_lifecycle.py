@@ -51,7 +51,10 @@ from typing import (
 )
 
 from agent_workflows import contention_wait
-from agent_workflows.artifact_core import replacement_mode
+from agent_workflows.artifact_core import (
+    repo_relative_posix,
+    replacement_mode,
+)
 
 # --------------------------------------------------------------------------------------
 # Execution ROLE (wtiso-03 `rchpms` E-04). x03wgn Section 2 "Receipt ownership does not mean agent
@@ -2383,11 +2386,14 @@ def record_allocated_lane(
 
 
 def _repo_relative(repo_root: Path, path: Path) -> str:
-    """Return ``path`` relative to ``repo_root`` (POSIX), or the resolved absolute path if outside."""
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return path.resolve().as_posix()
+    """Return ``path`` relative to ``repo_root`` (POSIX).
+
+    Delegates to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``).
+    The returned path is an IDENTITY key (``plan_rel`` feeds ``repo_root / plan_rel``,
+    ``coord.path / plan_rel``, ``git checkout HEAD -- plan_rel``, and the owned commit paths)
+    which is only sound for an in-root path, guaranteed by E-06's containment check.
+    """
+    return repo_relative_posix(path, repo_root)
 
 
 # --------------------------------------------------------------------------------------
@@ -6027,6 +6033,13 @@ def run_begin(args) -> int:
             f"selector {selector!r} is ambiguous ({resolution.kind}); matched: {cand}.",
         )
     plan_path = resolution.paths[0]
+    plan_rel = _repo_relative(repo_root, plan_path)
+    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+        return _emit(
+            EXIT_CANNOT_RUN,
+            "cannot-run",
+            f"plan {plan_rel!r} is not inside repo root; run the verb from the checkout that owns the plan.",
+        )
 
     # lifegate m47znv E-03: emit the D1 advisory nudge when running in main while a lane exists.
     # This is advisory ONLY, never a refusal, and never alters the exit code.
@@ -6053,7 +6066,9 @@ def run_begin(args) -> int:
             "clean",
             result.message,
             data={
-                "receipt_path": _repo_relative(repo_root, rcpt_path),
+                "receipt_path": repo_relative_posix(
+                    rcpt_path, checkout_control_root(repo_root).parent
+                ),
                 "plan_id": receipt["plan_id"],
                 "base_head": receipt["base_head"],
                 "requirement_digest": receipt["requirement_digest"],
@@ -6202,6 +6217,13 @@ def run_finalize(args) -> int:
             f"selector {selector!r} is ambiguous ({resolution.kind}); matched: {cand}.",
         )
     plan_path = resolution.paths[0]
+    plan_rel = _repo_relative(repo_root, plan_path)
+    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+        return _emit(
+            EXIT_CANNOT_RUN,
+            "cannot-run",
+            f"plan {plan_rel!r} is not inside repo root; run the verb from the checkout that owns the plan.",
+        )
 
     # lifegate m47znv E-03: emit the D1 advisory nudge when running in main while a lane exists.
     # This is advisory ONLY, never a refusal, and never alters the exit code.
