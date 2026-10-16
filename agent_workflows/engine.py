@@ -2479,6 +2479,7 @@ def _system_member_destination(
     relative_posix: str,
     *,
     home_trees: Optional[dict[str, Any]] = None,
+    side: Optional[str] = None,
 ) -> tuple[Path, bool]:
     """Map a member path onto its physical destination and report whether it is inside repo_root."""
     from agent_workflows.project_context import (
@@ -2488,7 +2489,9 @@ def _system_member_destination(
     )
 
     prefix = f"{AW_SYSTEM_DIR}/"
-    if relative_posix.startswith(prefix) or relative_posix == AW_SYSTEM_DIR:
+    if side == "target":
+        sys_dir = repo_root / AW_SYSTEM_DIR
+    elif relative_posix.startswith(prefix) or relative_posix == AW_SYSTEM_DIR:
         if home_trees is None:
             home_trees = _clean_delta_home_trees(repo_root)
         if home_trees is not None and "system" in home_trees:
@@ -5581,10 +5584,29 @@ class UninstallPlan:
     has_manifest: bool = False
 
 
+def _is_preserved(
+    rel: str,
+    preserve: frozenset[str] | set[str] | tuple[str, ...],
+) -> bool:
+    """Check if a repo-relative path is in preserve or under a preserved directory."""
+    if not preserve:
+        return False
+    norm_rel = rel.replace("\\", "/").strip("/")
+    for p in preserve:
+        norm_p = p.replace("\\", "/").strip("/")
+        if not norm_p:
+            continue
+        if norm_rel == norm_p or norm_rel.startswith(norm_p + "/"):
+            return True
+    return False
+
+
 def plan_uninstall(
     repo_root: Path,
     *,
     home_trees: Optional[dict[str, Any]] = None,
+    side: Optional[str] = None,
+    preserve: frozenset[str] = frozenset(),
 ) -> UninstallPlan:
     """Classify the manifest-owned file/shim entries into remove/drifted/missing (IPD 04).
 
@@ -5593,11 +5615,24 @@ def plan_uninstall(
     shared file, whose containing file must NOT be deleted - those are handled solely by the
     block-strip path. Pure: reads the manifest + file contents, mutates nothing.
     """
+    if side is not None and side != "target":
+        raise ValueError(f"Invalid side: {side!r}. Must be None or 'target'")
 
-    if home_trees is None:
+    preserve_set = frozenset(preserve)
+
+    if side == "target":
+        home_trees = None
+    elif home_trees is None:
         home_trees = _clean_delta_home_trees(repo_root)
 
-    manifest_path = manifest_mod.resolve_manifest_path(repo_root)
+    if side == "target":
+        cand = repo_root / AW_SYSTEM_DIR / "managed-sections.json"
+        if cand.is_file():
+            manifest_path = cand
+        else:
+            manifest_path = repo_root / manifest_mod.LEGACY_MANIFEST_RELPATH
+    else:
+        manifest_path = manifest_mod.resolve_manifest_path(repo_root)
     if (
         not manifest_path.is_file()
         and home_trees is not None
@@ -5616,8 +5651,10 @@ def plan_uninstall(
     for rel, entry in sorted(manifest.files.items()):
         if entry.kind not in ("file", "shim"):
             continue  # sections are strip targets, never file-removal candidates (U8)
+        if _is_preserved(rel, preserve_set):
+            continue
         dest, in_tree = _system_member_destination(
-            repo_root, rel, home_trees=home_trees
+            repo_root, rel, home_trees=home_trees, side=side
         )
         if not dest.is_file():
             plan.missing.append(rel)
@@ -5644,6 +5681,8 @@ def uninstall_repo(
     force: bool = False,
     changed_out: "Optional[list[str]]" = None,
     home_trees: "Optional[dict[str, Any]]" = None,
+    side: Optional[str] = None,
+    preserve: frozenset[str] = frozenset(),
 ) -> list[str]:
     """Remove the framework from a repo, conservatively and manifest-driven (IPD 04).
 
@@ -5659,6 +5698,10 @@ def uninstall_repo(
     caller's commit offer). `drift_decider` is called only in an interactive caller; it
     receives the drifted path and returns "keep" or "remove".
     """
+    if side is not None and side != "target":
+        raise ValueError(f"Invalid side: {side!r}. Must be None or 'target'")
+
+    preserve_set = frozenset(preserve)
 
     actions: list[str] = []
 
@@ -5666,7 +5709,10 @@ def uninstall_repo(
         if changed_out is not None:
             changed_out.append(rel)
 
-    if home_trees is None:
+    # (a) When side == "target", home_trees stays None and _clean_delta_home_trees is never called
+    if side == "target":
+        home_trees = None
+    elif home_trees is None:
         home_trees = _clean_delta_home_trees(repo_root)
 
     # Clean-delta: tear down lanes and remove worktrees FIRST (E-04)
@@ -5731,13 +5777,17 @@ def uninstall_repo(
             shutil.rmtree(worktrees_root, ignore_errors=True)
             actions.append(f"removed {worktrees_root}")
 
-    plan = plan_uninstall(repo_root, home_trees=home_trees)
+    plan = plan_uninstall(
+        repo_root, home_trees=home_trees, side=side, preserve=preserve_set
+    )
 
     if plan.has_manifest:
         # 1. Owned files/shims, classified by the manifest.
         for rel in plan.remove:
+            if _is_preserved(rel, preserve_set):
+                continue
             dest, in_tree = _system_member_destination(
-                repo_root, rel, home_trees=home_trees
+                repo_root, rel, home_trees=home_trees, side=side
             )
             if in_tree:
                 _uninstall_remove(repo_root, rel, use_git)
@@ -5750,11 +5800,13 @@ def uninstall_repo(
         for rel in plan.missing:
             actions.append(f"{rel} already absent (manifest entry stale)")
         for rel in plan.drifted:
+            if _is_preserved(rel, preserve_set):
+                continue
             decision = "remove" if force else "keep"
             if drift_decider is not None and not force:
                 decision = drift_decider(rel)
             dest, in_tree = _system_member_destination(
-                repo_root, rel, home_trees=home_trees
+                repo_root, rel, home_trees=home_trees, side=side
             )
             if decision == "remove":
                 if in_tree:
@@ -5775,6 +5827,8 @@ def uninstall_repo(
     else:
         # Pre-manifest fallback: the legacy namespace sweep (all owned files removed).
         for w_dir in (AW_SYSTEM_WORKFLOWS_DIR, WORKFLOWS_DIR):
+            if _is_preserved(w_dir, preserve_set):
+                continue
             if (repo_root / w_dir).is_dir():
                 _uninstall_remove(repo_root, w_dir, use_git)
                 _record_changed(w_dir + "/")
@@ -5783,6 +5837,8 @@ def uninstall_repo(
             f"{AW_SYSTEM_DIR}/{VERSION_FILE}",
             f"{WORKFLOWS_DIR}/{VERSION_FILE}",
         ):
+            if _is_preserved(v_cand, preserve_set):
+                continue
             if (repo_root / v_cand).is_file():
                 _uninstall_remove(repo_root, v_cand, use_git)
                 _record_changed(v_cand)
@@ -5793,20 +5849,23 @@ def uninstall_repo(
                 continue
             for path in sorted(d.glob("*.md")):
                 rel = path.relative_to(repo_root).as_posix()
+                if _is_preserved(rel, preserve_set):
+                    continue
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
 
     # 2. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
-    for line in remove_agents_pointer(repo_root, use_git):
-        actions.append(line)
-        if line.startswith("removed pointer block from "):
-            _record_changed(line[len("removed pointer block from ") :])
+    if not _is_preserved("AGENTS.md", preserve_set):
+        for line in remove_agents_pointer(repo_root, use_git):
+            actions.append(line)
+            if line.startswith("removed pointer block from "):
+                _record_changed(line[len("removed pointer block from ") :])
 
     # 3. The untracked-safety aw:block in .gitignore (IPD 03), #-comment syntax; leaves the
     #    user's own .gitignore lines intact.
     gitignore_path = repo_root / ".gitignore"
-    if gitignore_path.is_file():
+    if not _is_preserved(".gitignore", preserve_set) and gitignore_path.is_file():
         existing = gitignore_path.read_text(encoding="utf-8")
         stripped = _strip_managed_block(existing, style=AW_STYLE_HASH)
         if stripped is None:
@@ -5839,10 +5898,13 @@ def uninstall_repo(
             for p in sorted(cfg_dir.rglob("*")):
                 if p.is_file():
                     rel = p.relative_to(repo_root).as_posix()
+                    if _is_preserved(rel, preserve_set):
+                        continue
                     _uninstall_remove(repo_root, rel, use_git)
                     _record_changed(rel)
                     actions.append(f"removed {rel}")
-        else:
+        elif side != "target":
+            # (d) Skip this sub-branch entirely when side == "target"
             from agent_workflows.project_context import project_config_dir
 
             home_cfg = project_config_dir(repo_root)
@@ -5890,52 +5952,73 @@ def uninstall_repo(
             for p in sorted(state_dir.rglob("*")):
                 if p.is_file():
                     rel = p.relative_to(repo_root).as_posix()
+                    if _is_preserved(rel, preserve_set):
+                        continue
                     _uninstall_remove(repo_root, rel, use_git)
                     _record_changed(rel)
                     actions.append(f"removed {rel}")
 
         for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH):
+            if _is_preserved(rel, preserve_set):
+                continue
             if (repo_root / rel).is_file():
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
 
     aw_gi = ".aw/.gitignore"
-    if (repo_root / aw_gi).is_file():
+    if not _is_preserved(aw_gi, preserve_set) and (repo_root / aw_gi).is_file():
         _uninstall_remove(repo_root, aw_gi, use_git)
         _record_changed(aw_gi)
         actions.append(f"removed {aw_gi}")
 
     # 5. Setup marker (.aw/setup-repo-needed.md) (E-02).
-    p_marker = setup_marker_path(repo_root)
-    if remove_setup_marker(repo_root):
-        if home_trees is None and not p_marker.is_absolute():
+    # (e) Under side="target", use repo_root / SETUP_MARKER_PATH directly
+    if side == "target":
+        p_marker = repo_root / SETUP_MARKER_PATH
+        if not _is_preserved(SETUP_MARKER_PATH, preserve_set) and p_marker.is_file():
+            p_marker.unlink()
             _record_changed(SETUP_MARKER_PATH)
             actions.append(f"removed {SETUP_MARKER_PATH}")
-        elif home_trees is None and p_marker.is_relative_to(repo_root):
-            rel_m = p_marker.relative_to(repo_root).as_posix()
-            _record_changed(rel_m)
-            actions.append(f"removed {rel_m}")
-        else:
-            actions.append(f"removed {p_marker}")
+    else:
+        p_marker = setup_marker_path(repo_root)
+        if remove_setup_marker(repo_root):
+            if home_trees is None and not p_marker.is_absolute():
+                _record_changed(SETUP_MARKER_PATH)
+                actions.append(f"removed {SETUP_MARKER_PATH}")
+            elif home_trees is None and p_marker.is_relative_to(repo_root):
+                rel_m = p_marker.relative_to(repo_root).as_posix()
+                _record_changed(rel_m)
+                actions.append(f"removed {rel_m}")
+            else:
+                actions.append(f"removed {p_marker}")
 
     # 6. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
     #    so a mid-uninstall failure still leaves the ownership record intact for a retry (U3).
-    manifest_path = manifest_mod.resolve_manifest_path(repo_root)
-    if (
-        not manifest_path.is_file()
-        and home_trees is not None
-        and "system" in home_trees
-    ):
-        cand = home_trees["system"] / "managed-sections.json"
+    # (b) Under side="target", resolve manifest in-tree only
+    if side == "target":
+        cand = repo_root / AW_SYSTEM_DIR / "managed-sections.json"
         if cand.is_file():
             manifest_path = cand
+        else:
+            manifest_path = repo_root / manifest_mod.LEGACY_MANIFEST_RELPATH
+    else:
+        manifest_path = manifest_mod.resolve_manifest_path(repo_root)
+        if (
+            not manifest_path.is_file()
+            and home_trees is not None
+            and "system" in home_trees
+        ):
+            cand = home_trees["system"] / "managed-sections.json"
+            if cand.is_file():
+                manifest_path = cand
     if manifest_path.is_file():
         try:
             manifest_rel = manifest_path.relative_to(repo_root).as_posix()
-            _uninstall_remove(repo_root, manifest_rel, use_git)
-            _record_changed(manifest_rel)
-            actions.append(f"removed {manifest_rel}")
+            if not _is_preserved(manifest_rel, preserve_set):
+                _uninstall_remove(repo_root, manifest_rel, use_git)
+                _record_changed(manifest_rel)
+                actions.append(f"removed {manifest_rel}")
         except ValueError:
             manifest_path.unlink()
             actions.append(f"removed {manifest_path}")
@@ -6023,11 +6106,14 @@ def uninstall_repo(
             reverse=True,
         ):
             try:
-                d.rmdir()
+                rel_d = d.relative_to(repo_root).as_posix()
+                if not _is_preserved(rel_d, preserve_set):
+                    d.rmdir()
             except OSError:
                 pass
         try:
-            aw_base.rmdir()
+            if not _is_preserved(".aw", preserve_set):
+                aw_base.rmdir()
         except OSError:
             pass
 

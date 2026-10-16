@@ -10,11 +10,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Collection, Dict, List, Optional, Set
 
 from agent_workflows.install_wizard import (
     ProjectPolicy,
@@ -30,6 +31,10 @@ from agent_workflows.project_context import (
     resolve_project_context,
 )
 from agent_workflows.project_schema import Preset
+
+
+class PlacementSwitchError(Exception):
+    """Raised when a placement switch or retirement cannot proceed."""
 
 
 class SwitchBlocker(str):
@@ -684,3 +689,183 @@ def plan_placement_switch(
             os.environ["AW_HOME"] = prev_env_aw_home
         else:
             os.environ.pop("AW_HOME", None)
+
+
+def retire_footprint(
+    repo_root: str | Path,
+    side: str,
+    *,
+    use_git: bool = True,
+    preserve: Collection[str] = (),
+    changed_out: Optional[list[str]] = None,
+    aw_home: Optional[str | Path] = None,
+) -> list[str]:
+    """Retire the framework footprint on one explicit side (IPD gjylny / Set cfgreloc).
+
+    For side="target", uninstalls in-tree framework-owned files via engine.uninstall_repo
+    with side="target", removes shipped .aw/inbox/README.md template if unedited,
+    prunes empty .aw/inbox/ and .aw/workflow-artifacts/, and prunes empty dirs under .aw/.
+    Preserved paths are untouched.
+
+    For side="home", resolves the derived home project directory, refuses with
+    PlacementSwitchError if records/ has any file, else removes system/, state/, config/,
+    and worktrees/.owners, then prunes empty dirs.
+    """
+    repo = Path(repo_root)
+    preserve_set = frozenset(preserve)
+
+    if side == "target":
+        actions: list[str] = []
+        from agent_workflows import engine
+
+        # 1. Base in-tree uninstall with side="target"
+        uninst_actions = engine.uninstall_repo(
+            repo,
+            use_git,
+            side="target",
+            preserve=preserve_set,
+            changed_out=changed_out,
+            force=False,
+            drift_decider=None,
+        )
+        actions.extend(uninst_actions)
+
+        # 2. .aw/inbox/README.md template-check and removal
+        inbox_readme_rel = ".aw/inbox/README.md"
+        inbox_readme_path = repo / inbox_readme_rel
+        if (
+            not engine._is_preserved(inbox_readme_rel, preserve_set)
+            and inbox_readme_path.is_file()
+        ):
+            source_root = engine.resolve_source_root(None)
+            scaffold = engine.collect_scaffold_members(
+                repo, source_root, category="inbox"
+            )
+            expected_bytes = scaffold.get(inbox_readme_rel)
+            if expected_bytes is not None:
+                actual_bytes = inbox_readme_path.read_bytes()
+                if actual_bytes == expected_bytes:
+                    engine._uninstall_remove(repo, inbox_readme_rel, use_git)
+                    if changed_out is not None:
+                        changed_out.append(inbox_readme_rel)
+                    actions.append(f"removed {inbox_readme_rel}")
+                else:
+                    actions.append(
+                        f"PRESERVED {inbox_readme_rel} (you edited it; left in place)"
+                    )
+
+        # 3. .aw/inbox/ and .aw/workflow-artifacts/ directories are pruned ONLY when empty
+        for d_rel in (".aw/inbox", ".aw/workflow-artifacts"):
+            d_path = repo / d_rel
+            if d_path.is_dir():
+                files_inside = sorted(p for p in d_path.rglob("*") if p.is_file())
+                if not files_inside:
+                    for sub in sorted(
+                        (p for p in d_path.rglob("*") if p.is_dir()),
+                        key=lambda p: len(p.parts),
+                        reverse=True,
+                    ):
+                        try:
+                            sub.rmdir()
+                        except OSError:
+                            pass
+                    try:
+                        d_path.rmdir()
+                    except OSError:
+                        pass
+                else:
+                    for f in files_inside:
+                        rel_f = f.relative_to(repo).as_posix()
+                        if not any(a.startswith(f"PRESERVED {rel_f}") for a in actions):
+                            actions.append(f"PRESERVED {rel_f}")
+
+        # 4. Prune empty dirs under .aw/
+        aw_base = repo / ".aw"
+        if aw_base.is_dir():
+            for d in sorted(
+                (p for p in aw_base.rglob("*") if p.is_dir()),
+                key=lambda p: len(p.parts),
+                reverse=True,
+            ):
+                try:
+                    rel_d = d.relative_to(repo).as_posix()
+                    if not engine._is_preserved(rel_d, preserve_set):
+                        d.rmdir()
+                except OSError:
+                    pass
+            try:
+                if not engine._is_preserved(".aw", preserve_set):
+                    aw_base.rmdir()
+            except OSError:
+                pass
+
+        return actions
+
+    elif side == "home":
+        # Resolve <AW_HOME>/projects/<id>
+        eff_aw_home_str, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+        anchor = repo
+        try:
+            if (repo / ".git").exists():
+                anchor = checkout_main_root(repo) or repo
+        except (OSError, RuntimeError):
+            anchor = repo
+        derived_pid = _derive_project_id(_canonical_path(anchor))
+        project_dir = Path(eff_aw_home_str) / "projects" / derived_pid
+
+        if not project_dir.is_dir():
+            return []
+
+        # Refuse with PlacementSwitchError if records/ has any file
+        records_dir = project_dir / "records"
+        if records_dir.is_dir():
+            if any(p.is_file() for p in records_dir.rglob("*")):
+                raise PlacementSwitchError(
+                    f"Cannot retire home footprint: records/ under {project_dir} still contains files."
+                )
+
+        actions: list[str] = []
+        for target_name in ("system", "state", "config"):
+            target_path = project_dir / target_name
+            if target_path.is_dir():
+                for p in sorted(target_path.rglob("*")):
+                    if p.is_file():
+                        try:
+                            p.unlink()
+                            actions.append(f"removed {p}")
+                        except OSError:
+                            pass
+                shutil.rmtree(target_path, ignore_errors=True)
+                actions.append(f"removed {target_path}")
+
+        owners_dir = project_dir / "worktrees" / ".owners"
+        if owners_dir.is_dir():
+            for p in sorted(owners_dir.rglob("*")):
+                if p.is_file():
+                    try:
+                        p.unlink()
+                        actions.append(f"removed {p}")
+                    except OSError:
+                        pass
+            shutil.rmtree(owners_dir, ignore_errors=True)
+            actions.append(f"removed {owners_dir}")
+
+        # Prune empty dirs under project_dir
+        for d in sorted(
+            (p for p in project_dir.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        try:
+            project_dir.rmdir()
+        except OSError:
+            pass
+
+        return actions
+
+    else:
+        raise ValueError(f"Invalid side: {side!r}. Must be 'target' or 'home'")
