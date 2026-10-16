@@ -2217,8 +2217,8 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
 # returned the FIRST non-empty hit, and the shared reader adopts oc's whole-file scan with a
 # `ses_`-prefix preference, so a log carrying a `conversation_id` EARLY and a `ses_` value LATER now
 # resolves to the `ses_` value. That is decision `06-ct4w0a-D1`, it occurred in 0 of 627 real logs, and
-# `tests/test_rununify_conflicts.py` (deleted in `19313eed`; no live guard currently asserts this conflict
-# case) pinned it. The dead `fallback` local this body carried (initialized to None, returned at the
+# `tests/test_runner_shared.py::SessionIdPrecedenceTests` (replacing `tests/test_rununify_conflicts.py`,
+# deleted in `19313eed`) pins it. The dead `fallback` local this body carried (initialized to None, returned at the
 # end, unreachable because every assigning branch returned first) is gone.
 
 
@@ -3561,6 +3561,7 @@ def run_queue(
                 success_states=EXECUTION_SUCCESS_STATES,
                 recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
                 host="agy",
+                process_backlog_close=process_backlog_close,
             )
             save_state(run_dir, state)
             continue

@@ -224,6 +224,7 @@ _atexit.register(_shutil.rmtree, _AW_TEST_SANDBOX, True)
 _SANDBOX_ENV = {
     "AW_HOME": _AW_TEST_SANDBOX,
     "XDG_CONFIG_HOME": os.path.join(_AW_TEST_SANDBOX, "xdg-config"),
+    "AW_PROJECT_CEILING": _tempfile.gettempdir(),
 }
 os.environ.update(_SANDBOX_ENV)
 
@@ -239,6 +240,16 @@ def _restore_home_sandbox():
     _xdg_dir = _SANDBOX_ENV["XDG_CONFIG_HOME"]
     if os.path.exists(_xdg_dir):
         _shutil.rmtree(_xdg_dir, ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _register_basetemp_project_ceiling(tmp_path_factory: pytest.TempPathFactory):
+    """Register pytest's resolved basetemp as an AW project climb ceiling."""
+    basetemp = str(tmp_path_factory.getbasetemp().resolve())
+    current = _SANDBOX_ENV.get("AW_PROJECT_CEILING", "")
+    updated = f"{current}{os.pathsep}{basetemp}" if current else basetemp
+    _SANDBOX_ENV["AW_PROJECT_CEILING"] = updated
+    os.environ["AW_PROJECT_CEILING"] = updated
 
 
 # --------------------------------------------------------------------------------------

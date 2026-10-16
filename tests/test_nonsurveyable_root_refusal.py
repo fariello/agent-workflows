@@ -32,14 +32,21 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
+import unittest.mock
 
 from agent_workflows.project_context import (
+    ProjectLocationCase,
     RootRefusal,
+    classify_project_dir,
     find_project_root,
+    git_root_for_message,
     is_project_dir,
     nonsurveyable_root_refusal,
 )
@@ -394,6 +401,137 @@ class NonsurveyableRootRefusalTests(unittest.TestCase):
             snapshot_before, snapshot_after, "filesystem must be unmodified"
         )
 
+    def test_stray_markers_in_temp_root_do_not_poison_children(self):
+        """A temp root container with stray markers does not poison child directories.
+
+        Pins:
+        (1) The temp root container itself and non-project children report
+            find_project_root == None, is_project_dir == False, ProjectLocationCase.NO_PROJECT,
+            and CLI exit 2 cannot-run across aw attention and aw specs check.
+        (2) A real project child directory with its own .aw/records still resolves normally.
+        """
+        temp_dir_obj = tempfile.TemporaryDirectory(prefix="awpoll")
+        try:
+            polluted_tmp = Path(temp_dir_obj.name).resolve()
+            (polluted_tmp / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+            (polluted_tmp / ".agents" / "plans").mkdir(parents=True)
+            subprocess.run(
+                ["git", "init", str(polluted_tmp)],
+                check=True,
+                capture_output=True,
+            )
+
+            nongit_child = polluted_tmp / "nongit_child"
+            nongit_child.mkdir(parents=True)
+
+            git_child = polluted_tmp / "git_child"
+            git_child.mkdir(parents=True)
+            subprocess.run(
+                ["git", "init", str(git_child)],
+                check=True,
+                capture_output=True,
+            )
+
+            real_proj_child = polluted_tmp / "real_proj_child"
+            (real_proj_child / ".aw" / "records").mkdir(parents=True)
+            child_sub = real_proj_child / "src" / "sub"
+            child_sub.mkdir(parents=True)
+
+            with unittest.mock.patch.dict(os.environ, {"TMPDIR": str(polluted_tmp)}):
+                # Polluted temp root container itself
+                self.assertFalse(is_project_dir(polluted_tmp))
+                self.assertIsNone(find_project_root(polluted_tmp))
+
+                # Non-git child inside polluted temp root
+                self.assertIsNone(find_project_root(nongit_child))
+                self.assertEqual(
+                    classify_project_dir(nongit_child).case,
+                    ProjectLocationCase.NO_PROJECT,
+                )
+                self.assertIsNone(git_root_for_message(nongit_child))
+                refusal_nongit = nonsurveyable_root_refusal(
+                    "attention", nongit_child, explicit_dir=False
+                )
+                self.assertFalse(refusal_nongit.may_proceed)
+                self.assertIsNone(refusal_nongit.next_action)
+
+                # Git child inside polluted temp root
+                self.assertIsNone(find_project_root(git_child))
+                self.assertEqual(
+                    git_root_for_message(git_child),
+                    git_child.as_posix(),
+                )
+                refusal_git = nonsurveyable_root_refusal(
+                    "attention", git_child, explicit_dir=False
+                )
+                self.assertFalse(refusal_git.may_proceed)
+                self.assertIsNotNone(refusal_git.next_action)
+                self.assertEqual(refusal_git.next_action.command, "aw install .")
+                self.assertIn(
+                    f"aw install {git_child.as_posix()}", refusal_git.human_message
+                )
+                self.assertNotIn(
+                    f"aw install {polluted_tmp.as_posix()}\n", refusal_git.human_message
+                )
+
+                # Real project child inside polluted temp root
+                self.assertTrue(is_project_dir(real_proj_child))
+                self.assertEqual(find_project_root(child_sub), real_proj_child)
+
+                # Driving CLI subprocesses
+                env = os.environ.copy()
+                env["TMPDIR"] = str(polluted_tmp)
+                for cmd_args in (
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows.cli",
+                        "attention",
+                        "--agent",
+                    ],
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows.cli",
+                        "specs",
+                        "check",
+                        "--agent",
+                    ],
+                ):
+                    res = subprocess.run(
+                        cmd_args,
+                        cwd=nongit_child,
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                    )
+                    self.assertEqual(
+                        res.returncode,
+                        2,
+                        f"Expected exit 2 for {cmd_args}, got {res.returncode} with stdout: {res.stdout}",
+                    )
+                    payload = json.loads(res.stdout)
+                    self.assertEqual(
+                        payload.get("outcome") or payload.get("status"),
+                        "cannot-run",
+                    )
+        finally:
+            temp_dir_obj.cleanup()
+
+    def test_aw_project_ceiling_stops_climb_inside_enclosing_project(self):
+        """AW_PROJECT_CEILING stops upward climb from escaping a base directory situated inside a project."""
+        custom_base = self.real_proj / "custom_basetemp"
+        custom_base.mkdir(parents=True)
+        scratch = custom_base / "test_case0"
+        scratch.mkdir(parents=True)
+
+        with unittest.mock.patch.dict(
+            os.environ, {"AW_PROJECT_CEILING": str(custom_base)}
+        ):
+            self.assertIsNone(find_project_root(scratch))
+            self.assertFalse(is_project_dir(custom_base))
+            self.assertEqual(find_project_root(self.deep_subdir), self.real_proj)
+
 
 class FindProjectRootGitBoundariesAndSubmodulesTests(unittest.TestCase):
     def setUp(self):
@@ -593,6 +731,11 @@ class FindProjectRootGitBoundariesAndSubmodulesTests(unittest.TestCase):
             res = find_project_root(sub_with_aw)
         self.assertEqual(res, sub_with_aw)
         self.assertEqual("", buf.getvalue())
+
+
+def test_tmp_path_does_not_climb_past_basetemp(tmp_path: Path):
+    """tmp_path fixtures must never resolve to an enclosing AW project or climb past basetemp."""
+    assert find_project_root(tmp_path) is None
 
 
 if __name__ == "__main__":

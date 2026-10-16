@@ -540,3 +540,49 @@ def test_report_discarded_user_config_output():
 def test_conftest_scrub():
     """Cell (f): AW_CONFIG_DIR is absent from os.environ inside a test."""
     assert config.CONFIG_DIR_ENV not in os.environ
+
+
+def test_profiles_subdirectory_containment():
+    """Cell (g) / E-05: profiles/ subdirectory seeding, byte-identical copy, modification reconciliation, and source preservation."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        source = tmp / "operator_cfg"
+        source.mkdir()
+        profiles_dir = source / "profiles"
+        profiles_dir.mkdir()
+        run_dir = tmp / "run"
+        run_dir.mkdir()
+
+        (source / "config.json").write_text(
+            json.dumps({"color_depth": "16"}), encoding="utf-8"
+        )
+        team_cfg = {"delivery_mode": "tracked", "records_backend": "repository"}
+        (profiles_dir / "team.json").write_text(json.dumps(team_cfg), encoding="utf-8")
+        orig_team_bytes = (profiles_dir / "team.json").read_bytes()
+
+        item = {"position": 1, "id6": "qi5ljl"}
+        handle = runner_shared.prepare_agent_user_config(
+            run_dir, item, attempt_no=1, suffix="", source_dir=source
+        )
+        assert handle is not None
+        assert handle.path.is_dir()
+
+        sandbox_team = handle.path / "profiles" / "team.json"
+        assert sandbox_team.is_file()
+        assert sandbox_team.read_bytes() == orig_team_bytes
+
+        # Modify profiles/team.json in the sandbox
+        modified_team_cfg = {
+            "delivery_mode": "clean-delta",
+            "records_backend": "companion",
+        }
+        sandbox_team.write_text(json.dumps(modified_team_cfg), encoding="utf-8")
+
+        records = runner_shared.reconcile_agent_user_config(handle, run_dir, item)
+        mod_records = [r for r in records if r.get("file") == "profiles/team.json"]
+        assert len(mod_records) == 1
+        assert mod_records[0]["change"] == "modified"
+        assert "records_backend" in mod_records[0].get("keys", [])
+
+        # Source file is unchanged
+        assert (profiles_dir / "team.json").read_bytes() == orig_team_bytes
