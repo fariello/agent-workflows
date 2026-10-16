@@ -5857,5 +5857,58 @@ class HostCommandRemedyGuardTests(unittest.TestCase):
             )
 
 
+class SessionIdPrecedenceTests(unittest.TestCase):
+    """Behavioral guard for decision 06-ct4w0a-D1 (ses_ preference over earlier conversation_id)."""
+
+    def _callers(self):
+        yield "runner_shared", runner_shared.extract_session_id
+        for runner in BOTH:
+            yield runner, _MODULES[runner].extract_session_id
+
+    def test_ses_preferred_over_earlier_flat_conversation_id(self):
+        ses_id = "ses" + "_" + "LATER"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+            log_path.write_text(
+                json.dumps({"type": "result", "conversation_id": "conv-EARLY"})
+                + "\n"
+                + json.dumps({"type": "step", "sessionID": ses_id})
+                + "\n",
+                encoding="utf-8",
+            )
+            for caller, fn in self._callers():
+                with self.subTest(caller=caller):
+                    self.assertEqual(fn(log_path), ses_id)
+
+    def test_ses_preferred_over_earlier_nested_conversation_id(self):
+        ses_id = "ses" + "_" + "LATER"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+            log_path.write_text(
+                json.dumps({"result": {"conversation_id": "conv-EARLY"}})
+                + "\n"
+                + json.dumps({"type": "step", "sessionID": ses_id})
+                + "\n",
+                encoding="utf-8",
+            )
+            for caller, fn in self._callers():
+                with self.subTest(caller=caller):
+                    self.assertEqual(fn(log_path), ses_id)
+
+    def test_fallback_keeps_first_unprefixed_hit_when_no_ses_id(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+            log_path.write_text(
+                json.dumps({"conversation_id": "conv-FIRST"})
+                + "\n"
+                + json.dumps({"conversation_id": "conv-SECOND"})
+                + "\n",
+                encoding="utf-8",
+            )
+            for caller, fn in self._callers():
+                with self.subTest(caller=caller):
+                    self.assertEqual(fn(log_path), "conv-FIRST")
+
+
 if __name__ == "__main__":
     unittest.main()

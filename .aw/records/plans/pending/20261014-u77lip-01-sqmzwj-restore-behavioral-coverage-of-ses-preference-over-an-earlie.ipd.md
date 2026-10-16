@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral tests
 
-- [ ] E-01 Add a `SessionIdPrecedenceTests(unittest.TestCase)` class to `tests/test_runner_shared.py` that writes JSONL fixtures into a `tempfile.TemporaryDirectory()` and asserts on the return value of `extract_session_id`, called as `runner_shared.extract_session_id` and as each module in `BOTH` (`_MODULES[runner].extract_session_id`, via `subTest`). Cases: (a) `{"type": "result", "conversation_id": "conv-EARLY"}` then `{"type": "step", "sessionID": "ses_" + "LATER"}` returns `"ses_LATER"`; (b) the same `conversation_id` nested as `{"result": {"conversation_id": "conv-EARLY"}}` before a flat `ses_` id returns the `ses_` id; (c) a log with only `conversation_id` values (`conv-FIRST` then `conv-SECOND`) returns `"conv-FIRST"` (the fallback keeps the first unprefixed hit). Build the `ses_` literal by concatenation (`"ses" + "_"`) as `tests/test_oc_runipd.py::test_extract_session_id_prefers_ses_prefixed_over_nonprefixed` does. No `inspect`, `ast`, regex or source reads.
+- [x] E-01 Add a `SessionIdPrecedenceTests(unittest.TestCase)` class to `tests/test_runner_shared.py` that writes JSONL fixtures into a `tempfile.TemporaryDirectory()` and asserts on the return value of `extract_session_id`, called as `runner_shared.extract_session_id` and as each module in `BOTH` (`_MODULES[runner].extract_session_id`, via `subTest`). Cases: (a) `{"type": "result", "conversation_id": "conv-EARLY"}` then `{"type": "step", "sessionID": "ses_" + "LATER"}` returns `"ses_LATER"`; (b) the same `conversation_id` nested as `{"result": {"conversation_id": "conv-EARLY"}}` before a flat `ses_` id returns the `ses_` id; (c) a log with only `conversation_id` values (`conv-FIRST` then `conv-SECOND`) returns `"conv-FIRST"` (the fallback keeps the first unprefixed hit). Build the `ses_` literal by concatenation (`"ses" + "_"`) as `tests/test_oc_runipd.py::test_extract_session_id_prefers_ses_prefixed_over_nonprefixed` does. No `inspect`, `ast`, regex or source reads.
   - Depends on: none
   - Expected outcome: `python3 -m pytest tests/test_runner_shared.py -o addopts="" -q -k SessionIdPrecedence` reports the new tests passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Demonstrate non-vacuity of cases (a) and (b) IN-PROCESS, never editing source (E-03 edits the same two files, so a source sabotage restored with `git checkout --` could wipe E-03's edits, and stashing is forbidden). Write a throwaway script under the gitignored `.aw/state/` that defines a first-hit replacement (the same scan of `runner_shared._SESSION_ID_KEYS` flat and in `runner_shared._SESSION_ID_NESTS`, but returning the FIRST non-empty value immediately: agy's pre-union behavior described in the docstring), patches it over `extract_session_id` on ALL THREE modules with `unittest.mock.patch.object(...).start()` (`runner_shared`, `oc_runipd`, `agy_runipd`; each host holds its OWN binding of the shared function, so patching `runner_shared` alone does NOT reach the host subtests), then calls `pytest.main(["-o", "addopts=", "-p", "no:randomly", "tests/test_runner_shared.py", "-k", "SessionIdPrecedence"])`. Confirm cases (a) and (b) FAIL with `conv-EARLY` and case (c) still passes, then delete the script.
+- [x] E-02 Demonstrate non-vacuity of cases (a) and (b) IN-PROCESS, never editing source (E-03 edits the same two files, so a source sabotage restored with `git checkout --` could wipe E-03's edits, and stashing is forbidden). Write a throwaway script under the gitignored `.aw/state/` that defines a first-hit replacement (the same scan of `runner_shared._SESSION_ID_KEYS` flat and in `runner_shared._SESSION_ID_NESTS`, but returning the FIRST non-empty value immediately: agy's pre-union behavior described in the docstring), patches it over `extract_session_id` on ALL THREE modules with `unittest.mock.patch.object(...).start()` (`runner_shared`, `oc_runipd`, `agy_runipd`; each host holds its OWN binding of the shared function, so patching `runner_shared` alone does NOT reach the host subtests), then calls `pytest.main(["-o", "addopts=", "-p", "no:randomly", "tests/test_runner_shared.py", "-k", "SessionIdPrecedence"])`. Confirm cases (a) and (b) FAIL with `conv-EARLY` and case (c) still passes, then delete the script.
   - Depends on: E-01
   - Expected outcome: pasted failing output under the in-process sabotage; `git status --short agent_workflows/` afterwards shows nothing beyond E-03's edits.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Repoint stale comments
 
-- [ ] E-03 Rewrite the parenthetical "`tests/test_rununify_conflicts.py` (deleted in `19313eed`; no live guard currently asserts this conflict case)" in the `runner_shared.extract_session_id` docstring and in the `agy_runipd.py` comment block beginning "`_SESSION_ID_KEYS` and `extract_session_id` are now defined ONCE in `runner_shared`" so each names the new live guard `tests/test_runner_shared.py::SessionIdPrecedenceTests` (keeping the historical note that the original file was deleted in `19313eed`). Comment/docstring text only; no code change.
+- [x] E-03 Rewrite the parenthetical "`tests/test_rununify_conflicts.py` (deleted in `19313eed`; no live guard currently asserts this conflict case)" in the `runner_shared.extract_session_id` docstring and in the `agy_runipd.py` comment block beginning "`_SESSION_ID_KEYS` and `extract_session_id` are now defined ONCE in `runner_shared`" so each names the new live guard `tests/test_runner_shared.py::SessionIdPrecedenceTests` (keeping the historical note that the original file was deleted in `19313eed`). Comment/docstring text only; no code change.
   - Depends on: E-01
   - Expected outcome: `grep -n "no live guard currently asserts this conflict" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` returns nothing and both locations cite `SessionIdPrecedenceTests`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -107,20 +107,268 @@ None. The fixture, target module, and assertion values are taken directly from t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest tests/test_runner_shared.py -o addopts="" -v -k SessionIdPrecedence` listing each new test as PASSED, plus pasted output of the bare full-suite `python3 -m pytest` summary line; and pasted passing output of `python3 -m pytest -o addopts="" tests/test_no_code_structure_pins.py` with the new class present, plus the pasted new class body showing it only writes temp JSONL files and calls `extract_session_id`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -v -k SessionIdPrecedence
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=4125067306
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 135 items / 132 deselected / 3 selected
 
-- [ ] V-02 validates E-02
+    tests/test_runner_shared.py::SessionIdPrecedenceTests::test_fallback_keeps_first_unprefixed_hit_when_no_ses_id PASSED [ 33%]
+    tests/test_runner_shared.py::SessionIdPrecedenceTests::test_ses_preferred_over_earlier_nested_conversation_id PASSED [ 66%]
+    tests/test_runner_shared.py::SessionIdPrecedenceTests::test_ses_preferred_over_earlier_flat_conversation_id PASSED [100%]
+
+    NOTE: 132 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ====================== 3 passed, 132 deselected in 1.20s =======================
+    ```
+
+    Bare full-suite `python3 -m pytest` summary line:
+    ```
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    705 passed in 21.90s
+    ```
+
+    `python3 -m pytest -o addopts="" tests/test_no_code_structure_pins.py`:
+    Note: `tests/test_no_code_structure_pins.py` was pruned from the test suite in commit `ad9213cc6` ("test: bound routine pytest runtime and keep complete release coverage"). Running the command confirms:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3926549875
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 0 items
+
+    ============================ no tests ran in 0.04s =============================
+    ERROR: file or directory not found: tests/test_no_code_structure_pins.py
+    ```
+
+    Pasted new class body:
+    ```python
+    class SessionIdPrecedenceTests(unittest.TestCase):
+        """Behavioral guard for decision 06-ct4w0a-D1 (ses_ preference over earlier conversation_id)."""
+
+        def _callers(self):
+            yield "runner_shared", runner_shared.extract_session_id
+            for runner in BOTH:
+                yield runner, _MODULES[runner].extract_session_id
+
+        def test_ses_preferred_over_earlier_flat_conversation_id(self):
+            ses_id = "ses" + "_" + "LATER"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+                log_path.write_text(
+                    json.dumps({"type": "result", "conversation_id": "conv-EARLY"}) + "\n"
+                    + json.dumps({"type": "step", "sessionID": ses_id}) + "\n",
+                    encoding="utf-8",
+                )
+                for caller, fn in self._callers():
+                    with self.subTest(caller=caller):
+                        self.assertEqual(fn(log_path), ses_id)
+
+        def test_ses_preferred_over_earlier_nested_conversation_id(self):
+            ses_id = "ses" + "_" + "LATER"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+                log_path.write_text(
+                    json.dumps({"result": {"conversation_id": "conv-EARLY"}}) + "\n"
+                    + json.dumps({"type": "step", "sessionID": ses_id}) + "\n",
+                    encoding="utf-8",
+                )
+                for caller, fn in self._callers():
+                    with self.subTest(caller=caller):
+                        self.assertEqual(fn(log_path), ses_id)
+
+        def test_fallback_keeps_first_unprefixed_hit_when_no_ses_id(self):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+                log_path.write_text(
+                    json.dumps({"conversation_id": "conv-FIRST"}) + "\n"
+                    + json.dumps({"conversation_id": "conv-SECOND"}) + "\n",
+                    encoding="utf-8",
+                )
+                for caller, fn in self._callers():
+                    with self.subTest(caller=caller):
+                        self.assertEqual(fn(log_path), "conv-FIRST")
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output under the local first-hit sabotage showing cases (a) and (b) FAILED with `conv-EARLY` in the assertion message, showing case (c) still PASSED, plus the pasted throwaway script (proving all three module bindings were patched in-process) and `git status --short agent_workflows/` afterwards showing nothing beyond E-03's edits.
   - Observed evidence:
-  - Result: pending
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 135 items / 132 deselected / 3 selected
 
-- [ ] V-03 validates E-03
+    tests/test_runner_shared.py .FF                                          [100%]
+
+    =================================== FAILURES ===================================
+    _ SessionIdPrecedenceTests.test_ses_preferred_over_earlier_flat_conversation_id _
+
+    self = <tests.test_runner_shared.SessionIdPrecedenceTests testMethod=test_ses_preferred_over_earlier_flat_conversation_id>
+
+        def test_ses_preferred_over_earlier_flat_conversation_id(self):
+            ses_id = "ses" + "_" + "LATER"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+                log_path.write_text(
+                    json.dumps({"type": "result", "conversation_id": "conv-EARLY"}) + "\n"
+                    + json.dumps({"type": "step", "sessionID": ses_id}) + "\n",
+                    encoding="utf-8",
+                )
+                for caller, fn in self._callers():
+                    with self.subTest(caller=caller):
+    >                   self.assertEqual(fn(log_path), ses_id)
+    E                   AssertionError: 'conv-EARLY' != 'ses_LATER'
+    E                   - conv-EARLY
+    E                   + ses_LATER
+
+    tests/test_runner_shared.py:5879: AssertionError
+    _ SessionIdPrecedenceTests.test_ses_preferred_over_earlier_nested_conversation_id _
+
+    self = <tests.test_runner_shared.SessionIdPrecedenceTests testMethod=test_ses_preferred_over_earlier_nested_conversation_id>
+
+        def test_ses_preferred_over_earlier_nested_conversation_id(self):
+            ses_id = "ses" + "_" + "LATER"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = pathlib.Path(tmpdir) / "stream.jsonl"
+                log_path.write_text(
+                    json.dumps({"result": {"conversation_id": "conv-EARLY"}}) + "\n"
+                    + json.dumps({"type": "step", "sessionID": ses_id}) + "\n",
+                    encoding="utf-8",
+                )
+                for caller, fn in self._callers():
+                    with self.subTest(caller=caller):
+    >                   self.assertEqual(fn(log_path), ses_id)
+    E                   AssertionError: 'conv-EARLY' != 'ses_LATER'
+    E                   - conv-EARLY
+    E                   + ses_LATER
+
+    tests/test_runner_shared.py:5892: AssertionError
+    NOTE: 132 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_runner_shared.py::SessionIdPrecedenceTests::test_ses_preferred_over_earlier_flat_conversation_id
+    FAILED tests/test_runner_shared.py::SessionIdPrecedenceTests::test_ses_preferred_over_earlier_nested_conversation_id
+    ================= 2 failed, 1 passed, 132 deselected in 0.69s ==================
+    ```
+
+    Pasted throwaway script `.aw/state/sabotage_test.py`:
+    ```python
+    #!/usr/bin/env python3
+    import json
+    from pathlib import Path
+    from unittest import mock
+    import pytest
+    from agent_workflows import runner_shared, oc_runipd, agy_runipd
+
+    def first_hit_extract_session_id(log_path: Path) -> str | None:
+        if not log_path.exists():
+            return None
+        with log_path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                scopes = [event]
+                for nest in runner_shared._SESSION_ID_NESTS:
+                    nested = event.get(nest)
+                    if isinstance(nested, dict):
+                        scopes.append(nested)
+                for scope in scopes:
+                    for key in runner_shared._SESSION_ID_KEYS:
+                        value = scope.get(key)
+                        if not isinstance(value, str) or not value.strip():
+                            continue
+                        return value
+        return None
+
+    p_rs = mock.patch.object(runner_shared, "extract_session_id", first_hit_extract_session_id)
+    p_oc = mock.patch.object(oc_runipd, "extract_session_id", first_hit_extract_session_id)
+    p_agy = mock.patch.object(agy_runipd, "extract_session_id", first_hit_extract_session_id)
+
+    p_rs.start()
+    p_oc.start()
+    p_agy.start()
+
+    try:
+        code = pytest.main(["-o", "addopts=", "-p", "no:randomly", "tests/test_runner_shared.py", "-k", "SessionIdPrecedence"])
+    finally:
+        p_rs.stop()
+        p_oc.stop()
+        p_agy.stop()
+
+    raise SystemExit(code)
+    ```
+
+    `git status --short agent_workflows/` output:
+    ```
+     M agent_workflows/agy_runipd.py
+     M agent_workflows/runner_shared.py
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `grep -n "no live guard currently asserts this conflict" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` (empty) and `grep -n "SessionIdPrecedenceTests" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py` (one hit each), plus `git diff agent_workflows/` showing comment/docstring lines only.
   - Observed evidence:
-  - Result: pending
+    `grep -n "no live guard currently asserts this conflict" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py`:
+    (empty, exit code 1)
+
+    `grep -n "SessionIdPrecedenceTests" agent_workflows/runner_shared.py agent_workflows/agy_runipd.py`:
+    ```
+    agent_workflows/runner_shared.py:30287:    occurred in 0 of the 627 logs censused. `tests/test_runner_shared.py::SessionIdPrecedenceTests`
+    agent_workflows/agy_runipd.py:2220:# `tests/test_runner_shared.py::SessionIdPrecedenceTests` (replacing `tests/test_rununify_conflicts.py`,
+    ```
+
+    `git diff agent_workflows/`:
+    ```diff
+    diff --git a/agent_workflows/agy_runipd.py b/agent_workflows/agy_runipd.py
+    index cff120475..f1d621e2b 100755
+    --- a/agent_workflows/agy_runipd.py
+    +++ b/agent_workflows/agy_runipd.py
+    @@ -2217,8 +2217,8 @@ def save_state(run_dir: Path, state: dict[str, Any]) -> None:
+     # returned the FIRST non-empty hit, and the shared reader adopts oc's whole-file scan with a
+     # `ses_`-prefix preference, so a log carrying a `conversation_id` EARLY and a `ses_` value LATER now
+     # resolves to the `ses_` value. That is decision `06-ct4w0a-D1`, it occurred in 0 of 627 real logs, and
+    -# `tests/test_rununify_conflicts.py` (deleted in `19313eed`; no live guard currently asserts this conflict
+    -# case) pinned it. The dead `fallback` local this body carried (initialized to None, returned at the
+    +# `tests/test_runner_shared.py::SessionIdPrecedenceTests` (replacing `tests/test_rununify_conflicts.py`,
+    +# deleted in `19313eed`) pins it. The dead `fallback` local this body carried (initialized to None, returned at the
+     # end, unreachable because every assigning branch returned first) is gone.
+
+
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 25dc01548..19c01760f 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -30284,9 +30284,9 @@ def extract_session_id(log_path: Path) -> str | None:
+         whereas nothing anywhere pinned agy's ordering; the standing maintainer ruling prefers oc absent a
+         significant behavioral difference; and the affected shape needs an unprefixed id EARLY plus a
+         `ses_` id LATER in the SAME log, which is an OpenCode id appearing in an Antigravity log and
+    -    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` (deleted in `19313eed`;
+    -    no live guard currently asserts this conflict case) pinned this answer so a future change to it is
+    -    a visible edit rather than a silent drift.
+    +    occurred in 0 of the 627 logs censused. `tests/test_runner_shared.py::SessionIdPrecedenceTests`
+    +    (replacing `tests/test_rununify_conflicts.py`, deleted in `19313eed`) pins this answer so a
+    +    future change to it is a visible edit rather than a silent drift.
+
+         A NOTE ON WHAT WAS DELETED: agy's body carried a dead `fallback` local, initialized to `None` and
+         returned at the end while every branch that could assign it returned immediately instead. It could
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
