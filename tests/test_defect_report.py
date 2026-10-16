@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -395,12 +396,18 @@ class HostResumeSpellingTests(unittest.TestCase):
             prompt.write_text("answer the report question\n", encoding="utf-8")
             plan = repo / "plan.ipd.md"
             plan.write_text("- Id: abc123\n", encoding="utf-8")
+            dummy_exe = root / ("dummy.cmd" if sys.platform == "win32" else "dummy")
+            dummy_exe.write_text("")
+            dummy_exe.chmod(0o755)
             state = {
                 "run_id": "run-x",
                 "repo": str(repo),
                 "set_sessions": {},
                 "session_turn_counts": {},
-                "options": {"opencode": "/bin/false", "agy_executable": "/bin/false"},
+                "options": {
+                    "opencode": str(dummy_exe),
+                    "agy_executable": str(dummy_exe),
+                },
                 "queue": [],
             }
             item = {

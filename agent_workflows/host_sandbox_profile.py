@@ -1359,12 +1359,20 @@ def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
             prompt.write_text("probe\n", encoding="utf-8")
             plan = repo / "plan.ipd.md"
             plan.write_text("- Id: probe1\n", encoding="utf-8")
+            dummy_exe = root / (
+                "dummy_probe.cmd" if sys.platform == "win32" else "dummy_probe"
+            )
+            dummy_exe.write_text("")
+            dummy_exe.chmod(0o755)
             state = {
                 "run_id": "run-probe",
                 "repo": str(repo),
                 "set_sessions": {},
                 "session_turn_counts": {},
-                "options": {"opencode": "/bin/false", "agy_executable": "/bin/false"},
+                "options": {
+                    "opencode": str(dummy_exe),
+                    "agy_executable": str(dummy_exe),
+                },
                 "queue": [],
             }
             item = {

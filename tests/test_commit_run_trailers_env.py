@@ -373,12 +373,15 @@ def test_agy_stub_agent_env_dump():
         (run_dir / "sessions").mkdir(parents=True, exist_ok=True)
         prompt_path = root / "prompt.md"
         prompt_path.write_text("do something", encoding="utf-8")
+        dummy_agy = root / ("dummy_agy.cmd" if sys.platform == "win32" else "dummy_agy")
+        dummy_agy.write_text("")
+        dummy_agy.chmod(0o755)
 
         state = {
             "run_id": "run-test",
             "options": {
                 "opencode": "opencode",
-                "agy_executable": "agy",
+                "agy_executable": str(dummy_agy),
                 "stall_timeout": 10.0,
                 "timeout": 10.0,
             },
@@ -415,7 +418,7 @@ def test_agy_stub_agent_env_dump():
         state_no_run = {
             "options": {
                 "opencode": "opencode",
-                "agy_executable": "agy",
+                "agy_executable": str(dummy_agy),
                 "stall_timeout": 10.0,
                 "timeout": 10.0,
             },

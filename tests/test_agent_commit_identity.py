@@ -464,10 +464,14 @@ def test_e_runner_agent_child_envs_and_scripted_lane_commit(tmp_path: Path) -> N
     assert oc_env["AW_RUN_ID"] == "run-20261012T040000Z-11"
     assert oc_env["AW_ITEM_ID6"] == "abc123"
 
+    dummy_agy = repo / ("dummy_agy.cmd" if sys.platform == "win32" else "dummy_agy")
+    dummy_agy.write_text("")
+    dummy_agy.chmod(0o755)
+
     state_agy = {
         "run_id": "run-20261012T040000Z-11",
         "options": {
-            "agy_executable": "agy",
+            "agy_executable": str(dummy_agy),
             "model": "gemini-2.5-pro",
             "stall_timeout": 10.0,
             "timeout": 10.0,

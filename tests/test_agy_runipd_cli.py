@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -2470,13 +2471,18 @@ class AgyTelemetryWiringTests(unittest.TestCase):
             (run_dir / "prompts").mkdir(parents=True)
             prompt_file = run_dir / "prompts" / "01-prompt.md"
             prompt_file.write_text("prompt", encoding="utf-8")
+            dummy_agy = root / (
+                "dummy_agy.cmd" if sys.platform == "win32" else "dummy_agy"
+            )
+            dummy_agy.write_text("")
+            dummy_agy.chmod(0o755)
             state = {
                 "run_id": "run-20260913T000000Z-1",
                 "repo": str(repo),
                 "options": {
                     "output_mode": "quiet",
                     "model": "provider/model",
-                    "agy_executable": "agy",
+                    "agy_executable": str(dummy_agy),
                 },
             }
             item = {
