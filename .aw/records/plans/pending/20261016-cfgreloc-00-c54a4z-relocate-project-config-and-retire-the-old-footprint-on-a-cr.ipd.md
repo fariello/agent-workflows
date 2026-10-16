@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20261016-cfgreloc-00-c54a4z-relocate-project-config-and-retire-the-old-footprint-on-a-cr.ipd.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 396ffd40cc17e644fb2946239463cd6c985b189f1860e7ba03b481d430883164
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
