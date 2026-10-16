@@ -1793,6 +1793,11 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Write a new conformant IPD skeleton (dry-run by default; --apply to write).",
     )
+    p_ipd_scaffold.add_argument(
+        "--dir",
+        default=None,
+        help="Target repository root (default: discovered project root or CWD).",
+    )
     p_ipd_scaffold.add_argument("--kind", required=True, help="child or orchestrator.")
     p_ipd_scaffold.add_argument(
         "--title", required=True, help="IPD title (after the H1 'IPD: ')."

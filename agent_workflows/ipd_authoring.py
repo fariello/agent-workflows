@@ -434,6 +434,9 @@ def _setid_length_guard(setid, *, verb: str, repo_root=None) -> int:
 
 
 def run_scaffold(args: argparse.Namespace) -> int:
+    from agent_workflows import project_context as _ctx
+
+    repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))
     kind = getattr(args, "kind", None)
     if kind not in S.KINDS:
         print("error: --kind must be child or orchestrator")
@@ -453,7 +456,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         return 2
     # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, not a local comparison.
     # Refuses over `max_length`; WARNS and proceeds over `warn_length`.
-    if _setid_length_guard(set_name, verb="aw ipd scaffold") != 0:
+    if _setid_length_guard(set_name, repo_root=repo_root, verb="aw ipd scaffold") != 0:
         return 2
     if kind == S.KIND_ORCHESTRATOR and order != 0:
         print("error: orchestrator Order must be 0")
@@ -488,13 +491,8 @@ def run_scaffold(args: argparse.Namespace) -> int:
     blocks_release = None
     if from_backlog:
         from agent_workflows import backlog as _backlog
-        from agent_workflows import project_context as _ctx_fb
 
-        try:
-            _fb_root = _ctx_fb.find_project_root(Path.cwd()) or Path.cwd()
-        except Exception:
-            _fb_root = Path.cwd()
-        _item = _backlog.find_item(_fb_root, from_backlog)
+        _item = _backlog.find_item(repo_root, from_backlog)
         if _item is None:
             print(f"error: --from-backlog {from_backlog}: no backlog item has that id")
             return 2
@@ -557,14 +555,12 @@ def run_scaffold(args: argparse.Namespace) -> int:
                 )
     else:
         from agent_workflows import plans_refs as _refs
-        from agent_workflows import project_context as _ctx
 
-        try:
-            repo_root = _ctx.find_project_root(Path.cwd())
-        except Exception:
-            repo_root = None
-        if repo_root is None:
-            repo_root = Path.cwd()
+        explicit_dir = getattr(args, "dir", None)
+        if explicit_dir is None and _ctx.find_project_root() is None:
+            msg = _ctx.no_project_message("ipd scaffold", repo_root, explicit=False)
+            print(f"error: {msg}")
+            return 2
         pending = (
             repo_root  # type: ignore[operator]  # checker-limitation: target_subdir returns str for plans
             / ".aw"
