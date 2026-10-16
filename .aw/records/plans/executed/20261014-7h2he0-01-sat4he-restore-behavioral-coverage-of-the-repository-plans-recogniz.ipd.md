@@ -6,7 +6,7 @@
 - Scope: Recreate `tests/test_plan_status.py` as a behavioral test module: a status-drift checker over a given plans directory that reuses `agent_workflows.plans` (`DISPOSITION_DIRS`, `read_status`, `RECOGNIZED`, `DIR_TERMINAL`, `LEGACY_GROUP`); synthetic-tree tests proving the checker reports unrecognized tokens, missing statuses and terminal/directory mismatches (and stays silent on a clean tree); `livecorpus`-marked tests applying the checker to the live repository plans tree; and a `normalize_status` behavior test for `auto-approved`. Then replace the stale "no live guard currently asserts this" remark in the `agent_workflows/plans.py` module docstring.
 - Scope-Paths: tests/test_plan_status.py, agent_workflows/plans.py, .aw/records/plans/pending/20261014-7h2he0-01-sat4he-restore-behavioral-coverage-of-the-repository-plans-recogniz.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: sat4he
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: sat4he verified (set 7h2he0, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-7h2he0-01-sat4he)
