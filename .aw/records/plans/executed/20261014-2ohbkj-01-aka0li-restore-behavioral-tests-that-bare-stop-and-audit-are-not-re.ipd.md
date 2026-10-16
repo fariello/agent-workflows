@@ -6,7 +6,7 @@
 - Scope: Add one focused behavioral test module `tests/test_runner_bare_verb_shim.py` that drives `oc_runipd.main(["stop", ...])`, `agy_runipd.main(["stop", ...])`, `oc_runipd.main(["audit", ...])`, and `agy_runipd.main(["audit", ...])` against real temporary git repositories (including repositories with pending `approved` plans in Set `stop` and Set `audit` so an accidental shim rewrite into `start` would mint a run directory), asserting exit codes, stderr/stdout routing diagnostics, stop-request recording on a locked run, and the absence of any minted run directory. Prove mutation sensitivity against all four `(host, verb)` pairs, and update the twin `main()` shim comments in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` so they cite the new behavioral test module instead of claiming `stop` and `audit` have no coverage and are awaiting `2ohbkj`. Do NOT restore any AST, `inspect`, or regex `_shim_set` code-pinning test (`GUIDING_PRINCIPLES` P16). No executable statement in any production module changes.
 - Scope-Paths: tests/test_runner_bare_verb_shim.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending/20261014-2ohbkj-01-aka0li-restore-behavioral-tests-that-bare-stop-and-audit-are-not-re.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: aka0li
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: aka0li verified (set 2ohbkj, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-2ohbkj-01-aka0li)
