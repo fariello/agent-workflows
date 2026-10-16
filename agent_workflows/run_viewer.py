@@ -3421,6 +3421,85 @@ def _unresolvable_target_refusal(
     return EXIT_UNRESOLVABLE_TARGET
 
 
+def _usage_refusal(
+    err_msg: str,
+    term: Term,
+    *,
+    is_agent: bool = False,
+    is_json: bool = False,
+) -> int:
+    """Emit usage or flag-conflict refusal in whichever renderer is active. Returns exit code 2."""
+    if is_agent or is_json:
+        record: dict[str, Any] = {
+            "schema": _agent_schema.SCHEMA_VERSION,
+            "kind": "error",
+            "cmd": "runs",
+            "outcome": "cannot-run",
+            "exit": 2,
+            "verified": False,
+            "complete": False,
+            "error": _agent_schema.redact_home_paths(err_msg),
+            "next": "aw runs --help",
+        }
+        if is_agent:
+            print(_agent_schema.render_jsonl_record(record), end="")
+        else:
+            _agent_schema.assert_valid_agent_record(record)
+            print(json.dumps(record, indent=2, ensure_ascii=False))
+        return 2
+    term.line(err_msg)
+    return 2
+
+
+def _sanitize_agent_value(val: Any) -> Any:
+    """Recursively redact home paths and strip ANSI escape sequences from strings."""
+    if isinstance(val, str):
+        cleaned = _agent_schema._ANSI_ESCAPE_RE.sub("", val)
+        return _agent_schema.redact_home_paths(cleaned)
+    if isinstance(val, Path):
+        cleaned = _agent_schema._ANSI_ESCAPE_RE.sub("", str(val))
+        return _agent_schema.redact_home_paths(cleaned)
+    if isinstance(val, dict):
+        return {k: _sanitize_agent_value(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_sanitize_agent_value(v) for v in val]
+    if isinstance(val, tuple):
+        return tuple(_sanitize_agent_value(v) for v in val)
+    return val
+
+
+def _build_viewer_filters_dict(
+    *,
+    set_filter: str | None = None,
+    ipd_filter: str | None = None,
+    status_filter: str | None = None,
+    failed_only: bool = False,
+    active_only: bool = False,
+    last_n: int | None = None,
+    since_spec: str | None = None,
+    raw_targets: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Build the dictionary of active filters for aw runs agent summary records."""
+    filters: dict[str, Any] = {}
+    if set_filter:
+        filters["set"] = _agent_schema.redact_home_paths(set_filter)
+    if ipd_filter:
+        filters["ipd"] = _agent_schema.redact_home_paths(ipd_filter)
+    if status_filter:
+        filters["status"] = _agent_schema.redact_home_paths(status_filter)
+    if failed_only:
+        filters["failed"] = True
+    if active_only:
+        filters["active"] = True
+    if last_n is not None:
+        filters["last"] = last_n
+    if since_spec:
+        filters["since"] = _agent_schema.redact_home_paths(since_spec)
+    if raw_targets:
+        filters["targets"] = [_agent_schema.redact_home_paths(t) for t in raw_targets]
+    return filters
+
+
 def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
     """ssk6nf E-04: durably reconcile a run abandoned without a terminal status.
 
@@ -3573,40 +3652,40 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     term = Term(color=False if no_color else None)
 
     if short and summary_only:
-        err_msg = "error: --summary-only/-S cannot be used with --short/-s"
-        if is_agent or is_json:
-            print(json.dumps({"error": err_msg, "exit_code": 2}))
-        else:
-            term.line(err_msg)
-        return 2
+        return _usage_refusal(
+            "error: --summary-only/-S cannot be used with --short/-s",
+            term,
+            is_agent=is_agent,
+            is_json=is_json,
+        )
 
     if latest_only and summary_only:
-        err_msg = "error: --latest-only/-L cannot be used with --summary-only/-S"
-        if is_agent or is_json:
-            print(json.dumps({"error": err_msg, "exit_code": 2}))
-        else:
-            term.line(err_msg)
-        return 2
+        return _usage_refusal(
+            "error: --latest-only/-L cannot be used with --summary-only/-S",
+            term,
+            is_agent=is_agent,
+            is_json=is_json,
+        )
 
     if issues_only and summary_only:
-        err_msg = "error: --issues/-i cannot be used with --summary-only/-S"
-        if is_agent or is_json:
-            print(json.dumps({"error": err_msg, "exit_code": 2}))
-        else:
-            term.line(err_msg)
-        return 2
+        return _usage_refusal(
+            "error: --issues/-i cannot be used with --summary-only/-S",
+            term,
+            is_agent=is_agent,
+            is_json=is_json,
+        )
 
     since_dt = None
     if since_spec:
         try:
             since_dt = resolve_since_timestamp(since_spec, repo_root=repo_root)
         except ValueError as exc:
-            err_msg = f"error: {exc}"
-            if is_agent or is_json:
-                print(json.dumps({"error": err_msg, "exit_code": 2}))
-            else:
-                term.line(err_msg)
-            return 2
+            return _usage_refusal(
+                f"error: {exc}",
+                term,
+                is_agent=is_agent,
+                is_json=is_json,
+            )
 
     # runsverify 7wei1o E-02/E-04: REFUSE a target that resolved to nothing, rather than dropping it
     # and rendering a plausible report at exit 0.
@@ -3751,6 +3830,18 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     # exclusion is a successful narrowing and stdout is the report stream.
     #
     # IPD t76qdk (backlog l5dq92) E-01: Under --agent, emit a validated aw.agent/v1 summary record
+    def _current_filters() -> dict[str, Any]:
+        return _build_viewer_filters_dict(
+            set_filter=set_filter,
+            ipd_filter=ipd_filter,
+            status_filter=status_filter,
+            failed_only=failed_only,
+            active_only=active_only,
+            last_n=last_n,
+            since_spec=since_spec,
+            raw_targets=raw_targets,
+        )
+
     # instead of a bare dict. --json retains the bare {"runs": []} payload. Exit code remains 0.
     if not summaries and not issues_only:
         if is_json:
@@ -3760,26 +3851,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             print(json.dumps(payload, indent=2))
             return 0
         elif is_agent:
-            filters: dict[str, Any] = {}
-            if set_filter:
-                filters["set"] = _agent_schema.redact_home_paths(set_filter)
-            if ipd_filter:
-                filters["ipd"] = _agent_schema.redact_home_paths(ipd_filter)
-            if status_filter:
-                filters["status"] = _agent_schema.redact_home_paths(status_filter)
-            if failed_only:
-                filters["failed"] = True
-            if active_only:
-                filters["active"] = True
-            if last_n is not None:
-                filters["last"] = last_n
-            if since_spec:
-                filters["since"] = _agent_schema.redact_home_paths(since_spec)
-            if raw_targets:
-                filters["targets"] = [
-                    _agent_schema.redact_home_paths(t) for t in raw_targets
-                ]
-
+            filters = _current_filters()
             record: dict[str, Any] = {
                 "schema": _agent_schema.SCHEMA_VERSION,
                 "kind": "summary",
@@ -3795,7 +3867,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 "filters": filters,
             }
             if excluded_data:
-                record["excluded_runs"] = excluded_data
+                record["excluded_runs"] = _sanitize_agent_value(excluded_data)
             record["next"] = "aw runs" if filters else None
             print(_agent_schema.render_jsonl_record(record), end="")
             return 0
@@ -3865,7 +3937,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 continue
             rec = asdict(audit)
             if rec.get("actual_path"):
-                rec["actual_path"] = str(rec["actual_path"])
+                rec["actual_path"] = _agent_schema.normalize_repo_path(
+                    rec["actual_path"], repo_root
+                )
+            rec["collisions"] = [
+                _agent_schema.normalize_repo_path(p, repo_root)
+                for p in rec.get("collisions") or []
+            ]
             rec["issue_reasons"] = reasons
             rf = step_refusal(step)
             if rf is not None:
@@ -3919,56 +3997,58 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     if is_agent:
+        disc = _issue_records()
+        filters = _current_filters()
         if issues_only:
-            # orchprobe (r2i1b1) E-03/E-04: the SAME builder `--json` uses, so the two machine
-            # surfaces cannot report different issue sets. The builder already stringifies
-            # `actual_path`, so the hand-written coercion this replaced is not lost.
-            for d in _issue_records():
-                print(json.dumps(d, separators=(",", ":"), ensure_ascii=False))
-            return 0
-        if latest_only:
+            filters["issues"] = True
+            raw_items = disc
+        elif latest_only:
+            filters["latest_only"] = True
             latest_steps_dict = {}
             for s in summaries:
                 for step in s.steps:
                     key = step.id6 or step.stem or step.item
                     latest_steps_dict[key] = (s, step)
-            for _, st in latest_steps_dict.values():
-                print(json.dumps(asdict(st), separators=(",", ":"), ensure_ascii=False))
-            if excluded_data:
-                print(
-                    json.dumps(
-                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                    )
+            raw_items = [asdict(st) for _, st in latest_steps_dict.values()]
+        elif summary_only:
+            filters["summary_only"] = True
+            raw_items = [build_multi_run_summary_dict(summaries)]
+        else:
+            raw_items = []
+            for s in summaries:
+                s_dict = asdict(s)
+                s_dict["run_dir"] = _agent_schema.normalize_repo_path(
+                    s_dict["run_dir"], repo_root
                 )
-            return 0
-        if summary_only:
-            s_dict = build_multi_run_summary_dict(summaries)
-            print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
-            if excluded_data:
-                print(
-                    json.dumps(
-                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                    )
-                )
-            return 0
-        for s in summaries:
-            s_dict = asdict(s)
-            s_dict["run_dir"] = _agent_schema.normalize_repo_path(
-                s_dict["run_dir"], repo_root
-            )
-            print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+                raw_items.append(s_dict)
+
+        for item_payload in raw_items:
+            item_record: dict[str, Any] = {
+                **_sanitize_agent_value(item_payload),
+                "schema": _agent_schema.SCHEMA_VERSION,
+                "kind": "item",
+                "cmd": "runs",
+            }
+            print(_agent_schema.render_jsonl_record(item_record), end="")
+
+        summary_record: dict[str, Any] = {
+            "schema": _agent_schema.SCHEMA_VERSION,
+            "kind": "summary",
+            "cmd": "runs",
+            "outcome": "clean",
+            "exit": 0,
+            "total": len(raw_items),
+            "emitted": len(raw_items),
+            "omitted": 0,
+            "complete": True,
+            "verified": True,
+            "findings": len(disc),
+            "filters": filters,
+        }
         if excluded_data:
-            print(
-                json.dumps(
-                    {"kind": "excluded_runs", "excluded_runs": excluded_data},
-                    separators=(",", ":"),
-                    ensure_ascii=False,
-                )
-            )
+            summary_record["excluded_runs"] = _sanitize_agent_value(excluded_data)
+        summary_record["next"] = "aw runs" if (not raw_items and filters) else None
+        print(_agent_schema.render_jsonl_record(summary_record), end="")
         return 0
 
     # Human display
