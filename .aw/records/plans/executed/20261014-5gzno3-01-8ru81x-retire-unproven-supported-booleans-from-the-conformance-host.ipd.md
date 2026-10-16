@@ -12,7 +12,7 @@
 - Scope: IN: (1) add behavioral and falsifiability tests in `tests/test_host_capability_registry.py` (shown RED against the pre-change matrix first) verifying that the shipped default host matrix (`host_capability_registry.DEFAULT_MATRIX_PATH`) exists, carries all 8 hosts and 24 tier dicts, contains zero `"supported"` keys, migrates all 24 `(host, tier)` entries to `STATUS_UNVERIFIED` / `SOURCE_STATIC_MIGRATION`, scaffolds and renders `T1`/`T2`/`T3` probes for every host, and passes `release_readiness.gate_capability_freshness()`, while a copy with one `"supported": true` seed fails `gate_capability_freshness(repo_root=...)`; (2) remove the `"supported"` key from all 24 tier entries in `.aw/system/workflows/conformance/tools/host_matrix.json`, preserving every other field; (3) one `CHANGELOG.md` `- Fixed:` bullet, because the matrix ships in the wheel. OUT: modifying `agent_workflows/host_capability_registry.py`, `agent_workflows/release_readiness.py`, or `.aw/system/workflows/conformance/tools/conformance_harness.py`; building an on-disk persistence format for live probe records; wiring `gate_artifact_manifest` (`3jkm7y` / `w9l8ph`); and running `aw releases readiness` from CI or `release-review` (`uypgvi`).
 - Scope-Paths: .aw/system/workflows/conformance/tools/host_matrix.json, tests/test_host_capability_registry.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -22,9 +22,9 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: 8ru81x
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8ru81x verified (set 5gzno3, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
