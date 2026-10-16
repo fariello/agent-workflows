@@ -4156,9 +4156,9 @@ def check_scope_drift(
     drifts a threshold would preserve. The paths are NEVER dropped, because a plan genuinely touching
     three undeclared files must still say WHICH three; only their repetition as separate findings is.
     ``(rule, location)`` is unchanged by construction - the location was already the plan file - which
-    is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently
-    asserts this parity) compared, and ``recovery`` stays populated because the opt-in pre-commit
-    gate prints that field verbatim as its teaching message.
+    is what ``tests/test_check_ci_local_parity.py`` guards as CI-versus-local invocation-shape parity,
+    and ``recovery`` stays populated because the opt-in pre-commit gate prints that field verbatim
+    as its teaching message.
     """
     from agent_workflows import ipd_lifecycle as _life
     from agent_workflows import worktree_lease as _lease
