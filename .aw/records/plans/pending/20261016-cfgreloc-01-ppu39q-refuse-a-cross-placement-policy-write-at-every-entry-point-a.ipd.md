@@ -36,35 +36,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared detector and refusals
 
-- [ ] E-01 Re-run the two authoring bypass probes at execution HEAD in a scratch directory under `/tmp` (scratch `AW_HOME`/`XDG_CONFIG_HOME`/`HOME`, `AW_NO_REEXEC=1`, `PYTHONPATH=<worktree>`): (a) install `--preset private-target -y --no-interactive`, then drive `collect_policy_interactive` with `sys.stdin = io.StringIO("n\n4\nprivate\n\n\n\n\n")` and call `persist_project_policy`; (b) install `--preset private-target`, then `install <repo> --delivery-mode clean-delta --records-backend home -y --no-interactive`. For each, print `project_config_dir(repo)`, the stored `preset`/`delivery_mode` there, and the list of `<AW_HOME>/projects/*/config/project.json`. Re-measure the current symbol locations (`grep -n` for `def persist_project_policy`, `def resolve_policy_noninteractive`, `Switching config placement`, `policy = collect_policy_interactive(` in `cli.py`).
+- [x] E-01 Re-run the two authoring bypass probes at execution HEAD in a scratch directory under `/tmp` (scratch `AW_HOME`/`XDG_CONFIG_HOME`/`HOME`, `AW_NO_REEXEC=1`, `PYTHONPATH=<worktree>`): (a) install `--preset private-target -y --no-interactive`, then drive `collect_policy_interactive` with `sys.stdin = io.StringIO("n\n4\nprivate\n\n\n\n\n")` and call `persist_project_policy`; (b) install `--preset private-target`, then `install <repo> --delivery-mode clean-delta --records-backend home -y --no-interactive`. For each, print `project_config_dir(repo)`, the stored `preset`/`delivery_mode` there, and the list of `<AW_HOME>/projects/*/config/project.json`. Re-measure the current symbol locations (`grep -n` for `def persist_project_policy`, `def resolve_policy_noninteractive`, `Switching config placement`, `policy = collect_policy_interactive(` in `cli.py`).
   - Depends on: none
   - Expected outcome: both probes reproduce the split brain (a home `project.json` exists while the reader resolves the in-tree one with a different preset or delivery mode); offsets recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/install_wizard.py` add `class PlacementSwitchRequired(InvalidPolicyError)` with attributes `current_dir`, `target_dir`, `current_preset`, `target_preset`, `reason`, and a pure (no writes) `config_placement_switch(repo_path, policy, existing_policy=None) -> Optional[PlacementSwitch]`, where `PlacementSwitch` is a `NamedTuple(current_dir: Path, target_dir: Path, reason: str)` (so Order 02's "returns `None`" test is unchanged). It returns a hit in exactly two cases, else `None`:
+- [x] E-02 In `agent_workflows/install_wizard.py` add `class PlacementSwitchRequired(InvalidPolicyError)` with attributes `current_dir`, `target_dir`, `current_preset`, `target_preset`, `reason`, and a pure (no writes) `config_placement_switch(repo_path, policy, existing_policy=None) -> Optional[PlacementSwitch]`, where `PlacementSwitch` is a `NamedTuple(current_dir: Path, target_dir: Path, reason: str)` (so Order 02's "returns `None`" test is unchanged). It returns a hit in exactly two cases, else `None`:
   (a) `reason="path"`: ANY of the files `project_context.project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`) exists in `current_dir = project_context.project_config_dir(repo_path, aw_home=policy.aw_home)`, and `target_dir`, the parent of `resolve_project_context(target_repo=repo_path, aw_home=policy.aw_home, delivery_mode=policy.delivery_mode, records_backend=policy.records_backend, preset=policy.preset, role=policy.role, companion_dir=policy.companion_dir).physical_classes["config_project"]`, differs after `Path.resolve()` on both. Keying on project.json alone would miss a legacy `config.json` or a `local.json`-only repo, which `project_config_dir` still resolves in-tree (review probe: in-tree `local.json` only, reader `<repo>/.aw/config`, `local-only` writer `<AW_HOME>/projects/r-a6fe62/config/project.json`). No such file means a first install, never a switch.
   (b) `reason="label"`: ONLY when `existing_policy` is passed, the `on0keo` label comparison moved verbatim from `resolve_policy_noninteractive` (`existing_policy.placements["config_project"]` or its preset default, versus `get_preset_defaults(policy.preset)[0]["config_project"]`) differs; `current_dir == target_dir` is allowed here. This branch MUST be kept: the companion preset resolves its config writer in-tree under `delivery_mode=tracked` (review probe: `writer-companion <repo>/.aw/config/project.json`, reader `<repo>/.aw/config`), so a path-only detector would silently ALLOW `private-target` -> `public-target-private-companion`, which today refuses and which backlog `n9vd2h` and spec 8.1 item 3 say keeps refusing; and `test_resolve_policy_noninteractive_cross_placement_guard_refuses` passes `existing_policy` with no config on disk, so only this branch refuses there.
   Replace the inline block in `resolve_policy_noninteractive` (the `if new_cfg_placement != existing_cfg_placement:` raise) with `config_placement_switch(repo_path, <policy it is about to return>, existing_policy=existing_policy)`, raising `PlacementSwitchRequired`. The message keeps the substrings `Switching config placement`, both preset names and `ui1aln` (asserted by `on0keo` tests `test_resolve_policy_noninteractive_cross_placement_guard_refuses` and `test_subprocess_reinstall_private_target_to_local_only_fails_closed`) and also names `current_dir` and `target_dir`, because a delivery-mode-only switch has the same preset on both sides and the preset names alone do not explain the refusal. Add `config_placement_switch(repo_path, policy)` (path branch only, NO `existing_policy`: a label comparison against a disk-loaded policy would refuse `tests/test_reinstall_preserves_config.py` `test_preserves_companion_dir_for_companion_backend`, whose repo has only an in-tree `local.json`) as the FIRST statement after `dry_run` handling in `persist_project_policy`, raising before `config_dir.mkdir`.
   - Depends on: E-01
   - Expected outcome: one detector; the noninteractive path still refuses every pair it refused before (including companion pairs) with the same substrings; `persist_project_policy` cannot write a second config dir.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `cli._run_install`, immediately after `policy = collect_policy_interactive(...)` returns inside the existing `try`, call `config_placement_switch(str(repo_root), policy, existing_policy=existing_policy)` (the label branch included, so an interactive companion pick refuses exactly as the noninteractive one does) and on a hit raise `PlacementSwitchRequired`, which the existing `except PolicyError as exc: term.status("fail", str(exc)); return 1` handler reports. This runs before the `--dry-run` render, `storage.attach_companion` and `persist_project_policy`, so a refused switch writes nothing (including the interactive and `--delivery-mode` paths of E-01).
+- [x] E-03 In `cli._run_install`, immediately after `policy = collect_policy_interactive(...)` returns inside the existing `try`, call `config_placement_switch(str(repo_root), policy, existing_policy=existing_policy)` (the label branch included, so an interactive companion pick refuses exactly as the noninteractive one does) and on a hit raise `PlacementSwitchRequired`, which the existing `except PolicyError as exc: term.status("fail", str(exc)); return 1` handler reports. This runs before the `--dry-run` render, `storage.attach_companion` and `persist_project_policy`, so a refused switch writes nothing (including the interactive and `--delivery-mode` paths of E-01).
   - Depends on: E-02
   - Expected outcome: both E-01 bypass probes now exit `1` (the CLI one) or raise (the API one) with no new file under `<AW_HOME>/projects/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend spec `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`: add `### 8.1 Placement switch on update` after Section 8's existing paragraphs, stating: (1) a placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`); (2) without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy; (3) supported pairs in this release are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`) and between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh); companion switches refuse (backlog `n9vd2h`); (4) the switch applies the Section 11.2 transaction discipline (writer lock, per-item journal, verify before switch, switch last, resume, rollback, independent check) to classes `config_project`, `state_durable` (durable install history only) and `records`, with `config_local` re-derived, `system` and host adapters re-materialized by the install that follows, and `state_runtime` plus worktree lanes not carried (a live or work-holding lane blocks); because the two sides may be on different filesystems and the old side must stay fully authoritative until the switch, items are COPIED and hash-verified before the switch and their sources removed only after it, so no permanent twin remains (the Section 11.2 no-twin outcome, reached as copy-verify-switch-remove rather than an in-place move); (5) the authority flip is a single atomic write of the merged new `project.json` (all `cutovers`, `setids` and unknown keys carried) followed by removal of every old config file `project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`); rollback is available until the old footprint is retired, after which the remedy is a switch back; (6) old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told); (7) refusal blockers: uncommitted or unmerged changes under the old `.aw/`, a non-empty destination not created by this transaction, a live lane, an unparseable `project.json`. Add a dated `## Workflow history` note line. Section 8's existing sentence "a placement change invokes migration planning rather than silently moving files" is the anchor this extends, not a reversal. Because the spec is `- Status: implemented` while items (2) opt-in and (4) to (6) are not built until Orders 02 to 05, open Section 8.1 with an explicit implementation-status sentence: the refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--relocate` and the transaction are specified for Set `cfgreloc` Orders 02 to 05 and until they ship every placement switch refuses unconditionally. Do not change the spec's `- Status:` (that is `aw specs` territory and Order 05's call).
+- [x] E-04 Amend spec `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`: add `### 8.1 Placement switch on update` after Section 8's existing paragraphs, stating: (1) a placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`); (2) without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy; (3) supported pairs in this release are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`) and between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh); companion switches refuse (backlog `n9vd2h`); (4) the switch applies the Section 11.2 transaction discipline (writer lock, per-item journal, verify before switch, switch last, resume, rollback, independent check) to classes `config_project`, `state_durable` (durable install history only) and `records`, with `config_local` re-derived, `system` and host adapters re-materialized by the install that follows, and `state_runtime` plus worktree lanes not carried (a live or work-holding lane blocks); because the two sides may be on different filesystems and the old side must stay fully authoritative until the switch, items are COPIED and hash-verified before the switch and their sources removed only after it, so no permanent twin remains (the Section 11.2 no-twin outcome, reached as copy-verify-switch-remove rather than an in-place move); (5) the authority flip is a single atomic write of the merged new `project.json` (all `cutovers`, `setids` and unknown keys carried) followed by removal of every old config file `project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`); rollback is available until the old footprint is retired, after which the remedy is a switch back; (6) old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told); (7) refusal blockers: uncommitted or unmerged changes under the old `.aw/`, a non-empty destination not created by this transaction, a live lane, an unparseable `project.json`. Add a dated `## Workflow history` note line. Section 8's existing sentence "a placement change invokes migration planning rather than silently moving files" is the anchor this extends, not a reversal. Because the spec is `- Status: implemented` while items (2) opt-in and (4) to (6) are not built until Orders 02 to 05, open Section 8.1 with an explicit implementation-status sentence: the refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--relocate` and the transaction are specified for Set `cfgreloc` Orders 02 to 05 and until they ship every placement switch refuses unconditionally. Do not change the spec's `- Status:` (that is `aw specs` territory and Order 05's call).
   - Depends on: none
   - Expected outcome: spec carries Section 8.1; `aw specs check` on the spec conforms.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Tests
 
-- [ ] E-05 Create `tests/test_placement_switch_guard.py` (`unittest.TestCase`, each test in its own `tempfile.TemporaryDirectory` with `AW_HOME`, `XDG_CONFIG_HOME`, `HOME` patched inside it via `patch.dict(os.environ, ...)`, and an explicit `env=` with `AW_NO_REEXEC=1` and `PYTHONPATH` for subprocesses): (1) `config_placement_switch` returns `None` for a fresh repo, `None` for a same-placement policy, a `reason="path"` hit with both dirs for a `private-target` repo given a `local-only` policy, a `reason="path"` hit for a repo whose in-tree `.aw/config` holds only `local.json` (no `project.json`) given a `local-only` policy, and a `reason="label"` hit for `existing_policy=private-target` given a `public-target-private-companion` policy (companion dir in the temp dir); (2) `persist_project_policy` with a `local-only` policy on a `private-target` repo raises `PlacementSwitchRequired` and creates nothing under `AW_HOME/projects`; (3) the interactive wizard path of E-01 (a) END TO END, in process: `sys.stdin = io.StringIO("n\n4\nprivate\n\n\n\n\n")` (patched via `unittest.mock.patch("sys.stdin", ...)`) then `cli.main(["--no-color", "install", repo])` WITHOUT `-y`/`--no-interactive`; `collect_policy_interactive` treats a `StringIO` stdin as interactive ("or isinstance(sys.stdin, io.StringIO)"), and the review probe showed this exact call returns `rc 0` and writes `<AW_HOME>/projects/r-40d5aa/config/project.json` today. Assert `rc == 1`, `.aw/config/project.json` byte-identical and no `AW_HOME/projects/*/config/project.json`. If the answer sequence no longer reaches `local-only` at execution HEAD, re-derive it from the prompts E-01 prints and record the sequence used; (4) subprocess `install <repo> --delivery-mode clean-delta --records-backend home -y --no-interactive` on a `private-target` repo exits `1`, output contains `Switching config placement`, `.aw/config/project.json` byte-identical, no `AW_HOME/projects/*/config/project.json`; (5) `--dry-run` with the same flags also exits `1` and writes nothing. Mark the subprocess class `@pytest.mark.slow` (the repo convention; `tests/test_reinstall_preserves_config.py` `TestReinstallPreservesConfigSubprocess`). Mutation proof, three separate temporary mutations, each restored before the next: (M1) delete only the E-03 call in `cli._run_install`: test (3) must fail (the noninteractive tests (4)/(5) keep passing because `resolve_policy_noninteractive` already refuses them, so E-03 is proven by the interactive test alone; the `persist_project_policy` guard then raises an uncaught `PlacementSwitchRequired` instead of `rc 1`); (M2) delete the E-03 call AND the detector call in `resolve_policy_noninteractive`: test (5) must fail (`--dry-run` exits `0`); (M3) delete only the detector call in `persist_project_policy`: test (2) must fail. Restore and confirm with `git diff` (empty for both source files). A mutation under which no test fails is a missing test and must be fixed before V-05 passes. Then run `python3 -m pytest -o addopts="" tests/test_placement_switch_guard.py tests/test_reinstall_preserves_config.py tests/test_install_consent_truth.py tests/test_records_untracked_backend.py tests/test_clean_target_config_home.py -m ''` and bare `python3 -m pytest`.
+- [x] E-05 Create `tests/test_placement_switch_guard.py` (`unittest.TestCase`, each test in its own `tempfile.TemporaryDirectory` with `AW_HOME`, `XDG_CONFIG_HOME`, `HOME` patched inside it via `patch.dict(os.environ, ...)`, and an explicit `env=` with `AW_NO_REEXEC=1` and `PYTHONPATH` for subprocesses): (1) `config_placement_switch` returns `None` for a fresh repo, `None` for a same-placement policy, a `reason="path"` hit with both dirs for a `private-target` repo given a `local-only` policy, a `reason="path"` hit for a repo whose in-tree `.aw/config` holds only `local.json` (no `project.json`) given a `local-only` policy, and a `reason="label"` hit for `existing_policy=private-target` given a `public-target-private-companion` policy (companion dir in the temp dir); (2) `persist_project_policy` with a `local-only` policy on a `private-target` repo raises `PlacementSwitchRequired` and creates nothing under `AW_HOME/projects`; (3) the interactive wizard path of E-01 (a) END TO END, in process: `sys.stdin = io.StringIO("n\n4\nprivate\n\n\n\n\n")` (patched via `unittest.mock.patch("sys.stdin", ...)`) then `cli.main(["--no-color", "install", repo])` WITHOUT `-y`/`--no-interactive`; `collect_policy_interactive` treats a `StringIO` stdin as interactive ("or isinstance(sys.stdin, io.StringIO)"), and the review probe showed this exact call returns `rc 0` and writes `<AW_HOME>/projects/r-40d5aa/config/project.json` today. Assert `rc == 1`, `.aw/config/project.json` byte-identical and no `AW_HOME/projects/*/config/project.json`. If the answer sequence no longer reaches `local-only` at execution HEAD, re-derive it from the prompts E-01 prints and record the sequence used; (4) subprocess `install <repo> --delivery-mode clean-delta --records-backend home -y --no-interactive` on a `private-target` repo exits `1`, output contains `Switching config placement`, `.aw/config/project.json` byte-identical, no `AW_HOME/projects/*/config/project.json`; (5) `--dry-run` with the same flags also exits `1` and writes nothing. Mark the subprocess class `@pytest.mark.slow` (the repo convention; `tests/test_reinstall_preserves_config.py` `TestReinstallPreservesConfigSubprocess`). Mutation proof, three separate temporary mutations, each restored before the next: (M1) delete only the E-03 call in `cli._run_install`: test (3) must fail (the noninteractive tests (4)/(5) keep passing because `resolve_policy_noninteractive` already refuses them, so E-03 is proven by the interactive test alone; the `persist_project_policy` guard then raises an uncaught `PlacementSwitchRequired` instead of `rc 1`); (M2) delete the E-03 call AND the detector call in `resolve_policy_noninteractive`: test (5) must fail (`--dry-run` exits `0`); (M3) delete only the detector call in `persist_project_policy`: test (2) must fail. Restore and confirm with `git diff` (empty for both source files). A mutation under which no test fails is a missing test and must be fixed before V-05 passes. Then run `python3 -m pytest -o addopts="" tests/test_placement_switch_guard.py tests/test_reinstall_preserves_config.py tests/test_install_consent_truth.py tests/test_records_untracked_backend.py tests/test_clean_target_config_home.py -m ''` and bare `python3 -m pytest`.
   - Depends on: E-02, E-03
   - Expected outcome: new module passes; M1 fails (3), M2 fails (5), M3 fails (2), all pass after restore; the `on0keo` suite and `tests/test_clean_target_config_home.py` (which calls `persist_project_policy` directly on fresh repos) stay green; bare suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,30 +133,413 @@ Amends `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-pla
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted probe output for (a) and (b) showing the reader dir, its stored preset/delivery mode, and the home `project.json` list, plus the pasted `grep -n` offsets.
   - Observed evidence:
-  - Result: pending
+    Probe (a) reproduction output:
+    ```
+    READER /tmp/scratch_e01_a/repo/.aw/config
+    STORED PRESET private-target
+    HOME PROJECTS ['/tmp/scratch_e01_a/aw_home/projects/r-repo-a3ea94/config/project.json']
+    ```
 
-- [ ] V-02 validates E-02
+    Probe (b) reproduction output:
+    ```
+    PROBE (b) EXIT: 0
+    READER /tmp/scratch_e01_b/repo/.aw/config
+    STORED PRESET private-target DELIVERY MODE tracked
+    HOME PROJECTS ['/tmp/scratch_e01_b/aw_home/projects/r-repo-4f0147/config/local.json', '/tmp/scratch_e01_b/aw_home/projects/r-repo-4f0147/config/project.json']
+    ```
+
+    Current symbol location offsets:
+    ```
+    agent_workflows/install_wizard.py:988:def persist_project_policy(
+    agent_workflows/install_wizard.py:592:def resolve_policy_noninteractive(
+    agent_workflows/install_wizard.py:619:            raise InvalidPolicyError(
+    agent_workflows/cli.py:8473:            policy = collect_policy_interactive(
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff -- agent_workflows/install_wizard.py` showing the detector, the typed error, and both call sites; pasted output of `python3 -m pytest -o addopts="" tests/test_reinstall_preserves_config.py -m '' -v` passing (all classes, including the slow subprocess class holding `test_subprocess_reinstall_private_target_to_local_only_fails_closed`; `-k cross_placement` alone would miss it); a pasted in-process call showing `resolve_policy_noninteractive` on an `existing_policy=private-target` with `explicit_preset="public-target-private-companion"` still raises `PlacementSwitchRequired` (`reason="label"`).
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/install_wizard.py`:
+    ```diff
+    diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
+    index 4d45eaf13..024b1c52c 100644
+    --- a/agent_workflows/install_wizard.py
+    +++ b/agent_workflows/install_wizard.py
+    @@ -26,7 +26,7 @@ import subprocess
+     import sys
+     from dataclasses import dataclass, field
+     from pathlib import Path
+    -from typing import Any, Dict, List, Optional, Tuple, Union
+    +from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
-- [ ] V-03 validates E-03
+     from agent_workflows.project_schema import (
+         DELIVERY_MODES,
+    @@ -72,6 +72,32 @@ class InvalidPolicyError(PolicyError):
+         pass
+
+
+    +class PlacementSwitch(NamedTuple):
+    +    current_dir: Path
+    +    target_dir: Path
+    +    reason: str
+    +
+    +
+    +class PlacementSwitchRequired(InvalidPolicyError):
+    +    """Raised when an install/update would switch config placement."""
+    +
+    +    def __init__(
+    +        self,
+    +        message: str,
+    +        current_dir: Path,
+    +        target_dir: Path,
+    +        current_preset: Optional[str] = None,
+    +        target_preset: Optional[str] = None,
+    +        reason: str = "path",
+    +    ) -> None:
+    +        super().__init__(message)
+    +        self.current_dir = current_dir
+    +        self.target_dir = target_dir
+    +        self.current_preset = current_preset
+    +        self.target_preset = target_preset
+    +        self.reason = reason
+    +
+    +
+     class IncompletePolicyError(PolicyError):
+         """Raised when noninteractive execution is missing required policy choices."""
+
+    @@ -589,6 +615,65 @@ def resolve_existing_policy(repo_path: str) -> Optional[ProjectPolicy]:
+             return None
+
+
+    +def config_placement_switch(
+    +    repo_path: str | Path,
+    +    policy: ProjectPolicy,
+    +    existing_policy: Optional[ProjectPolicy] = None,
+    +) -> Optional[PlacementSwitch]:
+    +    """Pure detector that checks if policy would switch config placement.
+    +
+    +    Returns PlacementSwitch(current_dir, target_dir, reason) if a switch is required,
+    +    or None if the write is to the authoritative config directory.
+    +    """
+    +    from agent_workflows.project_context import (
+    +        project_config_dir,
+    +        resolve_project_context,
+    +    )
+    +
+    +    current_dir = Path(project_config_dir(repo_path, aw_home=policy.aw_home))
+    +
+    +    ctx = resolve_project_context(
+    +        target_repo=str(repo_path),
+    +        aw_home=policy.aw_home,
+    +        delivery_mode=policy.delivery_mode,
+    +        records_backend=policy.records_backend,
+    +        preset=policy.preset,
+    +        role=policy.role,
+    +        companion_dir=policy.companion_dir,
+    +    )
+    +    target_dir = Path(ctx.physical_classes["config_project"]).parent
+    +
+    # (a) path-based check: any config candidate exists in current_dir and target_dir differs
+    +    has_existing_cfg = any(
+    +        (current_dir / candidate).exists()
+    +        for candidate in ("project.json", "local.json", "config.json", "policy.json")
+    +    )
+    +    if has_existing_cfg and current_dir.resolve() != target_dir.resolve():
+    +        return PlacementSwitch(
+    +            current_dir=current_dir,
+    +            target_dir=target_dir,
+    +            reason="path",
+    +        )
+    +
+    # (b) label-based check: when existing_policy is passed, check preset defaults
+    +    if existing_policy is not None:
+    +        existing_defaults = get_preset_defaults(existing_policy.preset)
+    +        existing_cfg_placement = (
+    +            existing_policy.placements.get(RootClass.CONFIG_PROJECT.value)
+    +            or existing_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+    +        )
+    +        new_defaults = get_preset_defaults(policy.preset)
+    +        new_cfg_placement = new_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+    +        if new_cfg_placement != existing_cfg_placement:
+    +            return PlacementSwitch(
+    +                current_dir=current_dir,
+    +                target_dir=target_dir,
+    +                reason="label",
+    +            )
+    +
+    +    return None
+    +
+    +
+     def resolve_policy_noninteractive(
+         repo_path: str,
+         existing_policy: Optional[ProjectPolicy] = None,
+    @@ -607,18 +692,7 @@ def resolve_policy_noninteractive(
+             )
+             preset = normalized_explicit or existing_policy.preset
+
+    -        existing_defaults = get_preset_defaults(existing_policy.preset)
+    -        existing_cfg_placement = existing_policy.placements.get(
+    -            RootClass.CONFIG_PROJECT.value
+    -        ) or existing_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+             new_defaults = get_preset_defaults(preset)
+    -        new_cfg_placement = new_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+    -
+    -        if new_cfg_placement != existing_cfg_placement:
+    -            raise InvalidPolicyError(
+    -                f"Switching config placement from {existing_policy.preset} ({existing_cfg_placement}) "
+    -                f"to {preset} ({new_cfg_placement}) is not supported by reinstall yet (backlog ui1aln)."
+    -            )
+
+             if normalized_explicit and normalized_explicit != existing_policy.preset:
+                 pls, gps, dm, rb, ds = new_defaults
+    @@ -656,6 +730,18 @@ def resolve_policy_noninteractive(
+                 non_secret_consent=dict(existing_policy.non_secret_consent or {}),
+             )
+             pol.validate(repo_path=repo_path)
+    +
+    +        switch = config_placement_switch(repo_path, pol, existing_policy=existing_policy)
+    +        if switch is not None:
+    +            raise PlacementSwitchRequired(
+    +                f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
+    +                f"to {pol.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+    +                current_dir=switch.current_dir,
+    +                target_dir=switch.target_dir,
+    +                current_preset=existing_policy.preset,
+    +                target_preset=pol.preset,
+    +                reason=switch.reason,
+    +            )
+             return pol
+
+         # First install noninteractive resolution
+    @@ -997,6 +1083,26 @@ def persist_project_policy(
+             res["written_paths"] = []
+             return res
+
+    +    switch = config_placement_switch(repo_path, policy)
+    +    if switch is not None:
+    +        cur_preset = None
+    +        cur_proj = switch.current_dir / "project.json"
+    +        if cur_proj.exists():
+    +            try:
+    +                cur_preset = json.loads(cur_proj.read_text(encoding="utf-8")).get("preset")
+    +            except Exception:
+    +                pass
+    +        from_desc = f"{cur_preset} ({switch.current_dir})" if cur_preset else str(switch.current_dir)
+    +        raise PlacementSwitchRequired(
+    +            f"Switching config placement from {from_desc} "
+    +            f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+    +            current_dir=switch.current_dir,
+    +            target_dir=switch.target_dir,
+    +            current_preset=cur_preset,
+    +            target_preset=policy.preset,
+    +            reason=switch.reason,
+    +        )
+    +
+         from agent_workflows.project_context import resolve_project_context
+
+         ctx = resolve_project_context(
+    ```
+
+    `python3 -m pytest -o addopts="" tests/test_reinstall_preserves_config.py -m '' -v`:
+    ```
+    tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_private_target_to_local_only_fails_closed PASSED [  6%]
+    tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_local_only_to_clean_target_normalizes_and_preserves PASSED [ 12%]
+    tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_fresh_repo_defaults_to_private_target PASSED [ 18%]
+    tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_local_only_preserves_all_keys PASSED [ 25%]
+    tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_private_target_preserves_all_keys PASSED [ 31%]
+    tests/test_reinstall_preserves_config.py::TestProjectPolicySchemaSerialization::test_empty_cutovers_and_setids_preserved PASSED [ 37%]
+    tests/test_reinstall_preserves_config.py::TestProjectPolicySchemaSerialization::test_none_cutovers_and_setids_omitted PASSED [ 43%]
+    tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_preserves_companion_dir_for_companion_backend PASSED [ 50%]
+    tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_preserves_full_v2_policy_keys_on_reinstall PASSED [ 56%]
+    tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_preserves_partial_pre_wizard_project_json PASSED [ 62%]
+    tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_preserves_local_json_keys PASSED [ 68%]
+    tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_resets_config_when_replace_config_true PASSED [ 75%]
+    tests/test_reinstall_preserves_config.py::TestResolveExistingPolicyAndNoninteractive::test_resolve_existing_policy_round_trips_fields PASSED [ 81%]
+    tests/test_reinstall_preserves_config.py::TestResolveExistingPolicyAndNoninteractive::test_resolve_policy_noninteractive_cross_placement_guard_refuses PASSED [ 87%]
+    tests/test_reinstall_preserves_config.py::TestResolveExistingPolicyAndNoninteractive::test_resolve_project_context_enabled_hosts_precedence PASSED [ 93%]
+    tests/test_reinstall_preserves_config.py::TestResolveExistingPolicyAndNoninteractive::test_resolve_policy_noninteractive_normalizes_alias_on_local_only PASSED [100%]
+    ============================= 16 passed in 15.29s ==============================
+    ```
+
+    In-process call showing `resolve_policy_noninteractive` raising `PlacementSwitchRequired`:
+    ```
+    PASS: raised PlacementSwitchRequired
+    reason: label
+    current_preset: private-target
+    target_preset: public-target-private-companion
+    message: Switching config placement from private-target (/tmp/tmpxsup8t25/repo/.aw/config) to public-target-private-companion (/tmp/tmpxsup8t25/repo/.aw/config) is not supported by reinstall yet (backlog ui1aln).
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff -- agent_workflows/cli.py`; pasted re-run of both E-01 probes after the change (reachable via `cli._run_install` -> `collect_policy_interactive` -> `config_placement_switch`) showing exit `1`/the raised error, the message naming both directories, and an empty home `project.json` list; for probe (a) the run is `cli.main(["--no-color", "install", repo])` with the StringIO stdin of E-05 test (3), which reaches `cli._run_install` -> `collect_policy_interactive` (StringIO counts as interactive) -> `config_placement_switch`.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 9201c96dc..902b5ce0d 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -8450,9 +8450,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
+             if not kept_legacy:
+                 # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
+                 from agent_workflows.install_wizard import (
+    +                PlacementSwitchRequired,
+                     PolicyCancelledError,
+                     PolicyError,
+                     collect_policy_interactive,
+    +                config_placement_switch,
+                     persist_project_policy,
+                     render_pre_write_plan,
+                     resolve_existing_policy,
+    @@ -8480,6 +8482,34 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
+                         explicit_backend=getattr(args, "records_backend", None),
+                         explicit_companion=getattr(args, "companion_dir", None),
+                     )
+    +                switch = config_placement_switch(
+    +                    str(repo_root), policy, existing_policy=existing_policy
+    +                )
+    +                if switch is not None:
+    +                    cur_preset = existing_policy.preset if existing_policy else None
+    +                    if not cur_preset and (switch.current_dir / "project.json").exists():
+    +                        try:
+    +                            cur_preset = json.loads(
+    +                                (switch.current_dir / "project.json").read_text(
+    +                                    encoding="utf-8"
+    +                                )
+    +                            ).get("preset")
+    +                        except Exception:
+    +                            pass
+    +                    from_desc = (
+    +                        f"{cur_preset} ({switch.current_dir})"
+    +                        if cur_preset
+    +                        else str(switch.current_dir)
+    +                    )
+    +                    raise PlacementSwitchRequired(
+    +                        f"Switching config placement from {from_desc} "
+    +                        f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+    +                        current_dir=switch.current_dir,
+    +                        target_dir=switch.target_dir,
+    +                        current_preset=cur_preset,
+    +                        target_preset=policy.preset,
+    +                        reason=switch.reason,
+    +                    )
+                 except PolicyCancelledError:
+                     term.status("skip", f"{repo_root}: install cancelled; nothing written.")
+                     returncode = 1
+    ```
 
-- [ ] V-04 validates E-04
+    Post-change probe (a) run (`cli.main` with StringIO stdin):
+    ```
+    FAIL     Switching config placement from private-target (/tmp/tmprg9_mxg4/repo/.aw/config) to local-only (/tmp/tmprg9_mxg4/aw_home/projects/repo-63b837/config) is not supported by reinstall yet (backlog ui1aln).
+    POST-CHANGE PROBE (a) EXIT: 1
+    READER AFTER: /tmp/tmprg9_mxg4/repo/.aw/config
+    HOME PROJECTS: []
+    ```
+
+    Post-change probe (b) run (`install --delivery-mode clean-delta --records-backend home -y --no-interactive`):
+    ```
+    POST-CHANGE PROBE (b) EXIT: 1
+    OUTPUT: FAIL     Switching config placement from private-target (/tmp/tmp0lljtwgg/repo/.aw/config) to private-target (/tmp/tmp0lljtwgg/aw_home/projects/repo-b2596f/config) is not supported by reinstall yet (backlog ui1aln).
+
+    READER AFTER: /tmp/tmp0lljtwgg/repo/.aw/config
+    HOME PROJECTS: []
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff` of the spec showing Section 8.1 and the history line, and pasted `aw specs check <spec>` output conforming.
   - Observed evidence:
-  - Result: pending
+    `git diff -- .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md b/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    index 1932f57bf..2178bf7de 100644
+    --- a/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    +++ b/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    @@ -130,6 +130,18 @@ The final review uses words in addition to color and honors `NO_COLOR`, `FORCE_C
 
-- [ ] V-05 validates E-05
+     A fresh install creates the current `setup-repo` action under `state/durable/actions/open/`. Updates append install history and create a new action generation only for a materially new persistent obligation. `aw attention` remains the only cross-tree projection and reads actions through the resolver.
+
+    +### 8.1 Placement switch on update
+    +
+    +The refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--relocate` and the transaction are specified for Set `cfgreloc` Orders 02 to 05 and until they ship every placement switch refuses unconditionally.
+    +
+    +1. A placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`).
+    +2. Without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy.
+    +3. Supported pairs in this release are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`) and between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh); companion switches refuse (backlog `n9vd2h`).
+    +4. The switch applies the Section 11.2 transaction discipline (writer lock, per-item journal, verify before switch, switch last, resume, rollback, independent check) to classes `config_project`, `state_durable` (durable install history only) and `records`, with `config_local` re-derived, `system` and host adapters re-materialized by the install that follows, and `state_runtime` plus worktree lanes not carried (a live or work-holding lane blocks); because the two sides may be on different filesystems and the old side must stay fully authoritative until the switch, items are COPIED and hash-verified before the switch and their sources removed only after it, so no permanent twin remains (the Section 11.2 no-twin outcome, reached as copy-verify-switch-remove rather than an in-place move).
+    +5. The authority flip is a single atomic write of the merged new `project.json` (all `cutovers`, `setids` and unknown keys carried) followed by removal of every old config file `project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`); rollback is available until the old footprint is retired, after which the remedy is a switch back.
+    +6. Old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told).
+    +7. Refusal blockers: uncommitted or unmerged changes under the old `.aw/`, a non-empty destination not created by this transaction, a live lane, an unparseable `project.json`.
+    +
+     ## 9. Source checkout and packaging
+
+     Ordinary installed projects materialize the packaged manifest beneath their resolved `.aw/system/`. The package, wheel, sdist, installer, version lookup, adapters, and tests consume one canonical system source.
+    @@ -249,6 +261,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
+
+     ## Workflow history
+
+    +- 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch on update (IPD ppu39q, backlog ui1aln)
+     - 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
+     - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)
+     - 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
+    ```
+
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 1 specs checked.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `-v` output of `tests/test_placement_switch_guard.py` passing; pasted failure lines for each of M1 (test 3), M2 (test 5) and M3 (test 2) and the post-restore pass plus `git diff --stat` showing the restore; pasted adjacent-suite and bare-suite summary lines; pasted `aw sanitize --agent` result.
   - Observed evidence:
-  - Result: pending
+    `tests/test_placement_switch_guard.py` passing with `-v`:
+    ```
+    tests/test_placement_switch_guard.py::TestPlacementSwitchGuardSubprocess::test_subprocess_reinstall_delivery_mode_switch_dry_run_refuses PASSED [ 20%]
+    tests/test_placement_switch_guard.py::TestPlacementSwitchGuardSubprocess::test_subprocess_reinstall_delivery_mode_switch_refuses PASSED [ 40%]
+    tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_config_placement_switch_cases PASSED [ 60%]
+    tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_persist_project_policy_refuses_cross_placement PASSED [ 80%]
+    tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_interactive_wizard_end_to_end_refuses PASSED [100%]
+    ============================== 5 passed in 11.95s ==============================
+    ```
+
+    Mutation failure lines:
+    M1 (delete E-03 call in `cli._run_install`):
+    ```
+    FAILED tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_interactive_wizard_end_to_end_refuses - agent_workflows.install_wizard.PlacementSwitchRequired: Switching config placement from private-target (/tmp/tmpuydo8w7j/repo/.aw/config) to local-only (/tmp/tmpuydo8w7j/aw_home/projects/repo-63b837/config) is not supported by reinstall yet (backlog ui1aln).
+    ```
+    M2 (delete E-03 call and `resolve_policy_noninteractive` detector call):
+    ```
+    FAILED tests/test_placement_switch_guard.py::TestPlacementSwitchGuardSubprocess::test_subprocess_reinstall_delivery_mode_switch_dry_run_refuses - AssertionError: 0 != 1
+    ```
+    M3 (delete detector call in `persist_project_policy`):
+    ```
+    FAILED tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_persist_project_policy_refuses_cross_placement - AssertionError: PlacementSwitchRequired not raised
+    ```
+    Post-restore `git diff --stat`:
+    ```
+    0 files changed
+    ```
+
+    Adjacent-suite summary line:
+    ```
+    ======================== 60 passed in 205.97s (0:03:25) ========================
+    ```
+    Bare-suite summary line:
+    ```
+    708 passed in 40.24s
+    ```
+
+    `aw sanitize --agent` result:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5342,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

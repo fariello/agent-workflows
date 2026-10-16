@@ -130,6 +130,18 @@ The final review uses words in addition to color and honors `NO_COLOR`, `FORCE_C
 
 A fresh install creates the current `setup-repo` action under `state/durable/actions/open/`. Updates append install history and create a new action generation only for a materially new persistent obligation. `aw attention` remains the only cross-tree projection and reads actions through the resolver.
 
+### 8.1 Placement switch on update
+
+The refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--relocate` and the transaction are specified for Set `cfgreloc` Orders 02 to 05 and until they ship every placement switch refuses unconditionally.
+
+1. A placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`).
+2. Without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy.
+3. Supported pairs in this release are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`) and between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh); companion switches refuse (backlog `n9vd2h`).
+4. The switch applies the Section 11.2 transaction discipline (writer lock, per-item journal, verify before switch, switch last, resume, rollback, independent check) to classes `config_project`, `state_durable` (durable install history only) and `records`, with `config_local` re-derived, `system` and host adapters re-materialized by the install that follows, and `state_runtime` plus worktree lanes not carried (a live or work-holding lane blocks); because the two sides may be on different filesystems and the old side must stay fully authoritative until the switch, items are COPIED and hash-verified before the switch and their sources removed only after it, so no permanent twin remains (the Section 11.2 no-twin outcome, reached as copy-verify-switch-remove rather than an in-place move).
+5. The authority flip is a single atomic write of the merged new `project.json` (all `cutovers`, `setids` and unknown keys carried) followed by removal of every old config file `project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`); rollback is available until the old footprint is retired, after which the remedy is a switch back.
+6. Old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told).
+7. Refusal blockers: uncommitted or unmerged changes under the old `.aw/`, a non-empty destination not created by this transaction, a live lane, an unparseable `project.json`.
+
 ## 9. Source checkout and packaging
 
 Ordinary installed projects materialize the packaged manifest beneath their resolved `.aw/system/`. The package, wheel, sdist, installer, version lookup, adapters, and tests consume one canonical system source.
@@ -249,6 +261,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch on update (IPD ppu39q, backlog ui1aln)
 - 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
 - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)
 - 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
