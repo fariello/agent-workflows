@@ -283,3 +283,209 @@ def test_case_g_dir_flag_from_different_cwd(tmp_path: Path) -> None:
 
     # Verify other_cwd has no .aw created
     assert not (other_cwd / ".aw").exists()
+
+
+DAG_WORKFLOW = {
+    "id": "wf-dag-01",
+    "steps": [
+        {"id": "S-01", "action": "step 1", "depends_on": [], "satisfies": ["R-01"]},
+        {
+            "id": "S-02",
+            "action": "step 2",
+            "depends_on": ["S-01"],
+            "satisfies": ["R-02"],
+        },
+    ],
+    "requirements": [{"id": "R-01"}, {"id": "R-02"}],
+}
+
+
+def test_case_h_init_creates_workflow_json_beside_ledger(tmp_path: Path) -> None:
+    """Case (a) (o34rb3): aw run init creates workflow.json beside ledger.jsonl whose
+    compute_record_hash(json.loads(...)) equals records[0]["workflow_digest"].
+    """
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+
+    res = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res.returncode == 0, f"init failed: {res.stderr}"
+
+    run_id = _extract_run_id(res.stdout)
+    run_dir = runner_shared.state_root(repo) / run_id
+    wf_sibling = run_dir / "workflow.json"
+    assert wf_sibling.is_file(), f"workflow.json not found at {wf_sibling}"
+
+    ledger_path = run_dir / run_ledger_store.LEDGER_FILENAME
+    records = run_ledger_store.RunLedgerStore(ledger_path).read_records(verify=True)
+    header_digest = records[0]["workflow_digest"]
+
+    sibling_data = json.loads(wf_sibling.read_text(encoding="utf-8"))
+    sibling_digest = run_ledger_store.compute_record_hash(sibling_data)
+    assert sibling_digest == header_digest
+
+
+def test_case_i_dag_execution_without_workflow_flag(tmp_path: Path) -> None:
+    """Case (b) (o34rb3): on a two-step DAG (S-02 depends on S-01), WITHOUT --workflow:
+    aw runs next lists only S-01 (exit 0), aw run start --step S-01 exit 0,
+    aw run record --step S-01 --state performed exit 0,
+    aw runs next then lists S-02 (proving depends_on came from persisted file),
+    aw runs status shows both steps.
+    """
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(DAG_WORKFLOW), encoding="utf-8")
+
+    res_init = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res_init.returncode == 0
+    run_id = _extract_run_id(res_init.stdout)
+
+    # 1. aw runs next lists only S-01 (exit 0)
+    res_next1 = run_cli("runs", "next", run_id, "--json", cwd=repo)
+    assert (
+        res_next1.returncode == 0
+    ), f"runs next exit {res_next1.returncode}: {res_next1.stderr}"
+    data_next1 = json.loads(res_next1.stdout)
+    assert data_next1.get("runnable_steps") == ["S-01"]
+
+    # 2. aw run start --step S-01 exit 0
+    res_start = run_cli("run", "start", run_id, "--step", "S-01", cwd=repo)
+    assert (
+        res_start.returncode == 0
+    ), f"run start failed: {res_start.stdout} {res_start.stderr}"
+
+    # 3. aw run record --step S-01 --state performed exit 0
+    res_rec = run_cli(
+        "run", "record", run_id, "--step", "S-01", "--state", "performed", cwd=repo
+    )
+    assert (
+        res_rec.returncode == 0
+    ), f"run record failed: {res_rec.stdout} {res_rec.stderr}"
+
+    # 4. aw runs next then lists S-02
+    res_next2 = run_cli("runs", "next", run_id, "--json", cwd=repo)
+    assert (
+        res_next2.returncode == 0
+    ), f"runs next exit {res_next2.returncode}: {res_next2.stderr}"
+    data_next2 = json.loads(res_next2.stdout)
+    assert data_next2.get("runnable_steps") == ["S-02"]
+
+    # 5. aw runs status shows both steps
+    res_status = run_cli("runs", "status", run_id, "--json", cwd=repo)
+    assert res_status.returncode in (0, 1)  # incomplete because S-02 not performed yet
+    data_status = json.loads(res_status.stdout)
+    assert "S-01" in data_status.get("steps", {})
+    assert "S-02" in data_status.get("steps", {})
+
+
+def test_case_j_mismatched_workflow_flag_refused(tmp_path: Path) -> None:
+    """Case (c) (o34rb3): mismatched --workflow exits 2 with workflow digest mismatch
+    and leaves the ledger byte-identical.
+    """
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+
+    res_init = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res_init.returncode == 0
+    run_id = _extract_run_id(res_init.stdout)
+    ledger_path = (
+        runner_shared.state_root(repo) / run_id / run_ledger_store.LEDGER_FILENAME
+    )
+    ledger_before = ledger_path.read_bytes()
+
+    wrong_wf = repo / "wrong.json"
+    wrong_wf.write_text(
+        json.dumps({"id": "wf-different", "steps": [], "requirements": []}),
+        encoding="utf-8",
+    )
+
+    res = run_cli(
+        "run", "start", run_id, "--step", "S-01", "--workflow", str(wrong_wf), cwd=repo
+    )
+    assert res.returncode == 2, f"expected exit 2, got {res.returncode}: {res.stdout}"
+    assert (
+        "workflow digest mismatch" in res.stdout
+        or "workflow digest mismatch" in res.stderr
+    )
+    assert ledger_path.read_bytes() == ledger_before
+
+
+def test_case_k_edited_workflow_json_refused(tmp_path: Path) -> None:
+    """Case (d) (o34rb3): edited workflow.json exits 2 with workflow digest mismatch."""
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+
+    res_init = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res_init.returncode == 0
+    run_id = _extract_run_id(res_init.stdout)
+    run_dir = runner_shared.state_root(repo) / run_id
+    wf_sibling = run_dir / "workflow.json"
+    ledger_path = run_dir / run_ledger_store.LEDGER_FILENAME
+    ledger_before = ledger_path.read_bytes()
+
+    # Tamper with workflow.json
+    wf_sibling.write_text(
+        json.dumps({"id": "tampered", "steps": [], "requirements": []}),
+        encoding="utf-8",
+    )
+
+    res = run_cli("run", "start", run_id, "--step", "S-01", cwd=repo)
+    assert res.returncode == 2, f"expected exit 2, got {res.returncode}: {res.stdout}"
+    assert (
+        "workflow digest mismatch" in res.stdout
+        or "workflow digest mismatch" in res.stderr
+    )
+    assert ledger_path.read_bytes() == ledger_before
+
+
+def test_case_l_workflow_json_array_refused(tmp_path: Path) -> None:
+    """Case (e) (o34rb3): workflow.json containing a JSON array exits 2 failed to load workflow."""
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+
+    res_init = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res_init.returncode == 0
+    run_id = _extract_run_id(res_init.stdout)
+    run_dir = runner_shared.state_root(repo) / run_id
+    wf_sibling = run_dir / "workflow.json"
+
+    # Write a JSON array to workflow.json
+    wf_sibling.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+
+    res = run_cli("run", "start", run_id, "--step", "S-01", cwd=repo)
+    assert res.returncode == 2, f"expected exit 2, got {res.returncode}: {res.stdout}"
+    assert (
+        "failed to load workflow" in res.stdout
+        or "failed to load workflow" in res.stderr
+    )
+
+
+def test_case_m_deleted_workflow_json_falls_back(tmp_path: Path) -> None:
+    """Case (f) (o34rb3): deleted workflow.json falls back to reconstructed skeleton."""
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+
+    res_init = run_cli("run", "init", "--workflow", str(wf_file), cwd=repo)
+    assert res_init.returncode == 0
+    run_id = _extract_run_id(res_init.stdout)
+    run_dir = runner_shared.state_root(repo) / run_id
+    wf_sibling = run_dir / "workflow.json"
+
+    # Delete sibling workflow.json
+    wf_sibling.unlink()
+
+    # Without workflow.json and without step_attempts, S-01 is unknown to reconstructed skeleton (exit 2)
+    res_start = run_cli("run", "start", run_id, "--step", "S-01", cwd=repo)
+    assert res_start.returncode == 2
+    assert (
+        "unknown step 'S-01'" in res_start.stdout
+        or "unknown step 'S-01'" in res_start.stderr
+    )
+
+    # aw runs next exits 3 (no runnable steps in empty skeleton)
+    res_next = run_cli("runs", "next", run_id, cwd=repo)
+    assert res_next.returncode == 3

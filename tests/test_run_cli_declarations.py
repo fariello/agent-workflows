@@ -11,7 +11,11 @@ import pytest
 
 from agent_workflows.command_surface import get_declaration
 from agent_workflows.run_ledger_schema import ATTEMPT_STATES
-from agent_workflows.run_ledger_store import RunLedgerStore, SchemaInvalidRecordError
+from agent_workflows.run_ledger_store import (
+    RunLedgerStore,
+    SchemaInvalidRecordError,
+    compute_record_hash,
+)
 from agent_workflows.run_state import STATE_RUNNING
 from agent_workflows.run_viewer import RUNS_VIEWER_LEAF_NAMES
 
@@ -230,23 +234,20 @@ def test_runs_resume_exit_3_is_reachable_and_declared(tmp_path: Path) -> None:
     assert any(f.code == "RL-E030" for f in findings)
 
     # (iii) Demonstrating exit 3 is reachable in a real subprocess over a step_started ledger
-    wf_path = tmp_path / "wf.json"
-    wf_path.write_text(
-        json.dumps(
+    wf_dict = {
+        "id": "wf",
+        "steps": [
             {
-                "id": "wf",
-                "steps": [
-                    {
-                        "id": "s1",
-                        "action": "setup",
-                        "depends_on": [],
-                        "satisfies": ["r1"],
-                    }
-                ],
-                "requirements": [{"id": "r1"}],
+                "id": "s1",
+                "action": "setup",
+                "depends_on": [],
+                "satisfies": ["r1"],
             }
-        )
-    )
+        ],
+        "requirements": [{"id": "r1"}],
+    }
+    wf_path = tmp_path / "wf.json"
+    wf_path.write_text(json.dumps(wf_dict))
     ledger_3 = tmp_path / "ledger_3.jsonl"
     store_3 = RunLedgerStore(ledger_3)
     store_3.append(
@@ -256,7 +257,7 @@ def test_runs_resume_exit_3_is_reachable_and_declared(tmp_path: Path) -> None:
             "run_id": "run-0000abcd",
             "actor": "runtime",
             "parent": "",
-            "workflow_digest": "sha256:" + "0" * 64,
+            "workflow_digest": compute_record_hash(wf_dict),
             "requirement_digest": "sha256:" + "0" * 64,
             "repo": "test-repo",
             "head": "0000abcd",

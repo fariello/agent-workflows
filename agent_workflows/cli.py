@@ -2815,7 +2815,11 @@ def _build_parser() -> argparse.ArgumentParser:
             _pr.add_argument(
                 "--workflow",
                 default=None,
-                help="Optional workflow JSON (id/steps/requirements); else derived from the ledger.",
+                help=(
+                    "Optional workflow JSON (defaults to workflow.json saved beside ledger on init; "
+                    "falls back to ledger-derived steps only when that file is absent; "
+                    "refused exit 2 when its digest differs from the run header)."
+                ),
             )
         if name in ("start", "record", "cancel", "finalize"):
             _pr.add_argument(
