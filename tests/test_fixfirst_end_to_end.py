@@ -79,6 +79,7 @@ ALL_CORRECTION_COUNTERS = (
     runner_shared.FINALIZE_RETRY_COUNT_KEY,
     runner_shared.UNTOOLED_STATUS_RETRY_COUNT_KEY,
     runner_shared.HOOK_BYPASS_RETRY_COUNT_KEY,
+    runner_shared.VERIFICATION_RETRY_COUNT_KEY,
 )
 
 
@@ -998,6 +999,84 @@ class TestFixFirstEndToEnd(unittest.TestCase):
     def test_matrix_hook_skipping_commit_agy(self) -> None:
         self._run_matrix_hook_skipping_commit("agy", agy_runipd)
 
+    def _run_matrix_verifier_transport_error(self, host_label: str, mod: Any) -> None:
+        id6 = f"vte{host_label}"
+        repo, run_dir, state, item = _setup_matrix_run(
+            self.root, mod, id6, isolate=False
+        )
+        state["options"]["no_verify"] = False
+        state["options"]["validate"] = True
+        mod.save_state(run_dir, state)
+
+        log_file = run_dir / "logs" / "attempt.log"
+        log_file.write_text("verifier transport log\n", encoding="utf-8")
+
+        verify_calls = [0]
+        executor_prompts: list[str] = []
+
+        def fake_turn(
+            st: Any, rd: Any, itm: Any, plan_p: Any, prompt_p: Any, att: Any, **kw: Any
+        ) -> Any:
+            is_verify = bool(
+                kw.get("fresh_session") or kw.get("log_suffix") == "verify"
+            )
+            if not is_verify and prompt_p and Path(prompt_p).is_file():
+                executor_prompts.append(Path(prompt_p).read_text(encoding="utf-8"))
+
+            if is_verify:
+                verify_calls[0] += 1
+                if verify_calls[0] == 1:
+                    raise runner_shared.HostSpawnError(
+                        "cannot spawn verifier binary: /usr/bin/missing_binary"
+                    )
+                v_outcome = {
+                    "verdict": "VERIFIED",
+                    "tests_run": ["python3 -m pytest tests/test_demo.py"],
+                }
+                v_file = (
+                    rd
+                    / "outcomes"
+                    / f"{itm['position']:02d}-{itm['id6']}-verification.json"
+                )
+                v_file.write_text(json.dumps(v_outcome), encoding="utf-8")
+                return 0, "vses2", log_file, ["cmd"]
+
+            _write_outcome_file(rd, itm, disposition="executed")
+            return 0, "ses1", log_file, ["cmd"]
+
+        with coordinator_role(), _patch_host_launcher(
+            mod, fake_turn
+        ), mock.patch.object(
+            mod, "driver_begin", lambda *a, **k: (0, "ok")
+        ), mock.patch.object(
+            mod, "driver_finalize", lambda *a, **k: (0, "ok")
+        ), mock.patch.object(mod, "assert_child_tool_identity", lambda *a, **k: None):
+            rc = mod.run_queue(run_dir, retry_incomplete=False)
+
+        self.assertEqual(rc, 0)
+        final_item = mod.load_state(run_dir)["queue"][0]
+        self.assertEqual(final_item["status"], "executed")
+        self._assert_counters_isolated(
+            final_item, runner_shared.VERIFICATION_RETRY_COUNT_KEY
+        )
+        self.assertGreaterEqual(len(executor_prompts), 2)
+        self._assert_v02_prompt(
+            executor_prompts[1],
+            "verifier_transport_error",
+            host_label,
+            "verifier-transport-error",
+        )
+        print(
+            f"[V-01] kind=verifier_transport_error host={host_label} status={final_item['status']} "
+            f"verification_retry_attempts={final_item.get(runner_shared.VERIFICATION_RETRY_COUNT_KEY)}"
+        )
+
+    def test_matrix_verifier_transport_error_oc(self) -> None:
+        self._run_matrix_verifier_transport_error("oc", oc_runipd)
+
+    def test_matrix_verifier_transport_error_agy(self) -> None:
+        self._run_matrix_verifier_transport_error("agy", agy_runipd)
+
     # -------------------------------------------------------------------------
     # E-03: Proposal Continuation (2 tests: oc and agy)
     # -------------------------------------------------------------------------
@@ -1444,10 +1523,15 @@ class TestFixFirstEndToEnd(unittest.TestCase):
         )
 
         # Mutation 3: the verifier transport failure row reverted to Implementing: Order 04 (`ytas91`).
-        target3 = (
+        target3_shipped = (
+            "| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | "
+            "Skeptical verifier session crash or transport failure. Shipped (`yd4tqw`, from backlog `jodcz3`). |"
+        )
+        target3_impl = (
             "| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | "
             "Skeptical verifier session crash or transport failure. Implementing: `yd4tqw` (from backlog `jodcz3`). |"
         )
+        target3 = target3_shipped if target3_shipped in spec_text else target3_impl
         replacement3 = (
             "| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | "
             "Skeptical verifier session crash or transport failure. Implementing: Order 04 (`ytas91`). |"
