@@ -137,6 +137,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: out of scope for aavf6a; data fallback keeps callers working
 - Emitting one aggregate `CommandResult` for `aw index all [--check]`: owned by sibling plan `7i4zba` (backlog `hu2wka`).
   - Carrier: 7i4zba
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-indexallexit-01-7i4zba-emit-one-aggregate-aw-agent-v1-record-for-aw-index-all-acros.ipd.md
 
 ## Scope check
 

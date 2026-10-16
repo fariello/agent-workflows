@@ -199,6 +199,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - **Single aggregate `aw.agent/v1` and `--json` record for `aw index all` (`hu2wka` / `7i4zba`)**: owned by sibling plan `7i4zba` (status `reviewed`). This plan does NOT edit `aggregate_index_results` or `cli._run_noun_verb`: an executor-side conditional edit of a function that may not exist yet makes the scope depend on run order. Instead `emit_index_missing_dir_refusal` honors `_index_result_sink`, so the refusal reaches the aggregate when `7i4zba` is present. One interaction is recorded for `7i4zba`'s executor: its `check=False` branch computes `status = "findings" if exit_code == 1 else "ok"`, so an aggregate with `exit_code == 2` will render `outcome: "error"` rather than `"cannot-run"` (verified at review: `CommandResult(status="ok", exit_code=2).to_agent_record()` gives `kind: "error"`, `outcome: "error"`, `verified: false`, `complete: false`). That is contract-legal under Section 11.4 (`"cannot-run"` or `"error"`), so it is not a defect of either plan, and E-03 (b) asserts only properties that hold in both orders.
   - Carrier: 7i4zba
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-indexallexit-01-7i4zba-emit-one-aggregate-aw-agent-v1-record-for-aw-index-all-acros.ipd.md
 - **Creating the directory and writing an empty index**: decided against in OQ-01. No carrier needed: a settled decision.
   - Carrier-Declined: decided against in OQ-01 as settled decision
 
