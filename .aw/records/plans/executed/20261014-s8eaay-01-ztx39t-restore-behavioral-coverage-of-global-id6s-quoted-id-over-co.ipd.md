@@ -6,7 +6,7 @@
 - Scope: Add one behavioral test module that drives `global_id6s` and `mint_id6` against a temp records tree and asserts the over-collection outcome; refresh the stale "no live guard" sentence in the `global_id6s` docstring.
 - Scope-Paths: tests/test_id6_global_mint.py, agent_workflows/artifact_core.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: ztx39t
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ztx39t verified (set s8eaay, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
