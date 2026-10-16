@@ -173,8 +173,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - OS-level filesystem sandboxing (`bwrap` / `sandbox-exec` / namespaces) to stop an agent that unsets `AW_HOME` or writes `~/.aw` by absolute path. This is out of scope for the same reason recorded by `9y27t2` (the `docs/security.md` item 8 sentence "is an environment selector, not a hardened security boundary" at `docs/security.md:42`); OS-level containment belongs to the hardened execution profile.
+  - Carrier-Declined: belongs to hardened execution profile
 - Moving lane-worktree home-backend records into the main checkout's project directory. Today a lane resolves its own pid (F-06), and this plan preserves that location. Whether lane home records should merge into the main pid is a separate behavior change.
+  - Carrier-Declined: separate behavior change
 - Reconciling `config.get_aw_home` with `project_context._resolve_effective_aw_home` (F-08). This plan only avoids depending on the divergent resolver.
+  - Carrier-Declined: avoids depending on divergent resolver
 
 ## Scope check
 

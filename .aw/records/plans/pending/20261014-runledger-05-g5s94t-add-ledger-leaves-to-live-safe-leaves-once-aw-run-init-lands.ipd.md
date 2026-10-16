@@ -121,16 +121,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Writing `requirement_set` and `verifier_decision` records so `aw run finalize` can reach complete (`exit 0`) on a CLI-created ledger.
-  - Carrier: 8l1hgw (plan `um0twl`). When `um0twl` lands, E-09 (b)'s `finalize` expectation (exit 1) changes; `um0twl` also adds `run verify` to `MUTATION_EXEMPTION_REGISTRY`, which this plan does not touch.
+- Writing `requirement_set` and `verifier_decision` records so `aw run finalize` can reach complete (`exit 0`) on a CLI-created ledger. When `um0twl` lands, E-09 (b)'s `finalize` expectation (exit 1) changes; `um0twl` also adds `run verify` to `MUTATION_EXEMPTION_REGISTRY`, which this plan does not touch.
+  - Carrier: um0twl
 - Persisting the workflow beside the ledger at `aw run init` time so later invocations need no `--workflow`.
-  - Carrier: sflov4 (plan `o34rb3`).
+  - Carrier: o34rb3
 - Rendering a ledger-only run directory cleanly in the bare `aw runs` viewer.
-  - Carrier: nf84rt (plan `3a3hh9`).
+  - Carrier: 3a3hh9
 - Reconciling spec `25kzda` Section 1.2 step 8 and Section 5.1 with the `rdjka2` decision.
-  - Carrier: 66ls4r (plan `9epp40`).
+  - Carrier: 9epp40
 - A machine branch for `runs decisions` / `runs questions`, and redaction of the absolute ledger path in `runs evidence` / `runs verify-ledger` (F-07, F-08).
-  - Carrier: the backlog item E-07 files.
+  - Carrier-Declined: filed as a separate backlog item by E-07 during execution
 
 ## Scope check
 

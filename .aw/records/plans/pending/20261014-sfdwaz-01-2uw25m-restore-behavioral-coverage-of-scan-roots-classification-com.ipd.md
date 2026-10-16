@@ -85,7 +85,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - The other deleted `tests/test_artifact_core.py` classes (e.g. `DanglingTests`) belong to other backlog carriers filed by `ellenm` and are not this item's property.
+  - Carrier: ellenm
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-iosmvn-04-ellenm-reconcile-the-shipped-source-dangling-census-and-file-the-un.ipd.md
 - Making `attention.scan` report root-level unclassified files: a behavior change, not coverage restoration.
+  - Carrier-Declined: behavior change, not coverage restoration
 
 ## Scope check
 

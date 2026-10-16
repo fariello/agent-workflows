@@ -130,6 +130,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 3jkm7y, w9l8ph
 - Cleaning up legacy IPD lint errors across the repository's historical plan corpus if any surface outside clean worktrees.
   - Carrier: r4a4ab
+  - Carrier-Evidence: .aw/records/backlog/done/20261002-r4a4ab-01-r4a4ab-ipd-lint-all-red-blocks-readiness-go.backlog.md
 - Calling `aw releases readiness` automatically from `release-review`, CI, or a pre-push hook.
   - Carrier: uypgvi
 - Modifying `agent_workflows/host_capability_registry.py`, `agent_workflows/release_readiness.py`, or `.aw/system/workflows/conformance/tools/conformance_harness.py`. Consumed unchanged.

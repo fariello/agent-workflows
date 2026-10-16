@@ -99,7 +99,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restoring `test_this_plan_did_not_change_the_default` (`DEFAULT_TIMEOUT == "240m"`): a different property, not named by backlog `m7o4ew`.
+  - Carrier-Declined: not part of backlog m7o4ew
 - Any change to the default itself: forbidden by R4.1c.
+  - Carrier-Declined: forbidden by R4.1c
 
 ## Scope check
 

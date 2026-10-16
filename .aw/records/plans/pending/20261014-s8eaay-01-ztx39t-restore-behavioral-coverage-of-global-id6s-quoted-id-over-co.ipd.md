@@ -75,8 +75,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restoring the other tests from the deleted module (forced cross-tree and terminal collisions) is out of scope: backlog `s8eaay` names only the over-collection property (site S-01). Other sites are owned by their own backlog items.
+  - Carrier-Declined: out of scope for backlog s8eaay
 - The `inspect.signature` pin of `generate_id6` is not restored: it is a code-structure pin forbidden by P16.
+  - Carrier-Declined: forbidden by P16 code-structure pinning rule
 - Bounding `scan_body_identities` is explicitly not wanted (owned/decided by `76w6mq` and `xvon5j`).
+  - Carrier-Declined: owned and decided by 76w6mq and xvon5j
 
 ## Scope check
 

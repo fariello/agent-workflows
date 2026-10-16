@@ -134,7 +134,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Migrating other producers (`agent_workflows/cli.py`, `agent_workflows/artifact_adopt.py`) from `data["repo_root"]` to `CommandResult.repo_root`: out of scope for backlog item `aavf6a`, which scopes `aw index <type> --check --json`. The `data` fallback keeps them working unchanged.
+  - Carrier-Declined: out of scope for aavf6a; data fallback keeps callers working
 - Emitting one aggregate `CommandResult` for `aw index all [--check]`: owned by sibling plan `7i4zba` (backlog `hu2wka`).
+  - Carrier: 7i4zba
 
 ## Scope check
 

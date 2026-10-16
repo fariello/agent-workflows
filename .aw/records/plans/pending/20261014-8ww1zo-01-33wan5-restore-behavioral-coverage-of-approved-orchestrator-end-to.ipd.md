@@ -89,7 +89,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restoring the AST/identity/single-definition pins from the deleted file: prohibited by P16.
+  - Carrier-Declined: prohibited by P16 code-structure pinning rule
 - `test_the_shipped_hand_written_manifests_are_still_understood` (asserted the shipped manifest's shape): pins a data file rather than behavior; E-03 covers the real legacy path instead.
+  - Carrier-Declined: pins data file shape rather than behavior; legacy path covered in E-03
 
 ## Scope check
 

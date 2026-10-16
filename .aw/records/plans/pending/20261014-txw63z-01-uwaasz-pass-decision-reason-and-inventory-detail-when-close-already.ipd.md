@@ -11,6 +11,7 @@
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: txw63z
+- From-Spec: 7ckptx
 - Blocks-Release: next
 - Set: txw63z
 - Order: 1

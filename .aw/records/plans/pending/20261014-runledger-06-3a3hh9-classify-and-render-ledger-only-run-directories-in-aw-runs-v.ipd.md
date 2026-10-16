@@ -11,6 +11,7 @@
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: nf84rt
+- From-Spec: 25kzda
 - Set: runledger
 - Order: 6
 - Highest E allocated: 09
@@ -347,13 +348,21 @@ One line under the top pending release section of `CHANGELOG.md`, then `python3 
 ## Deferred / out of scope (with reason)
 
 - **`aw run init` CLI leaf**: Owned by sibling plan `v47z9u` (Order 03 in Set `runledger`, from backlog `hegwri`), which this plan declares in `- Item-Dependencies: executed:v47z9u`.
+  - Carrier: v47z9u
 - **Amending spec `25kzda` Section 1.2 Step 8 and Section 5.1**: Owned by sibling plan `9epp40` (Order 04 in Set `runledger`, from backlog `66ls4r`).
+  - Carrier: 9epp40
 - **Adding `aw runs` ledger leaves to `LIVE_SAFE_LEAVES`**: Owned by sibling plan `g5s94t` (Order 05 in Set `runledger`, from backlog `a4tjxc`).
+  - Carrier: g5s94t
 - **Writing `requirement_set` on `aw run init` and adding `aw run verify`**: Owned by sibling plan `um0twl` (Order 05 in Set `runledger`, from backlog `8l1hgw`).
+  - Carrier: um0twl
 - **Persisting the workflow beside `ledger.jsonl` so subsequent `aw run` leaves need not repeat `--workflow`**: Owned by sibling plan `o34rb3` (Order 07 in Set `runledger`, from backlog `sflov4`, which is `graduated`, not open). `o34rb3` F-05 already assumes this plan classifies run directories by `state.json`, `execution-report.md` and `ledger.jsonl`, and a persisted `workflow.json` would not change that classification. When `o34rb3` lands, `_load_ledger_run_summary` could prefer the persisted workflow over the reconstructed skeleton; that is `o34rb3`'s to decide, not this plan's.
+  - Carrier: o34rb3
 - **Widening explicit DIRECTORY resolution to `execution-report.md`-only driver directories**: removed at review (PR-006). It is not traceable to `nf84rt`, it changes which DRIVER directories an explicit path reaches, and bare-name resolution already matches such directories by name.
+  - Carrier-Declined: removed at review (PR-006)
 - **Ledger rows in `format_multi_run_summary`, `--summary-only`, `--latest-only` and `--issues`**: those aggregates are defined over driver `StepSummary` rows. A ledger run contributes zero driver steps, which is true, so they stay unchanged (E-04). Redesigning them for a second run model is not what `nf84rt` asks for.
+  - Carrier-Declined: defined over driver StepSummary rows; out of scope for nf84rt
 - **Enveloping the non-empty `aw runs --agent` stream**: already tracked by backlog `4d3ynu` (`docs/cli-output-contract.md` Section 3.1); the new `ledger` key rides in the existing bare per-run object.
+  - Carrier: 4d3ynu
 
 ## Scope check
 

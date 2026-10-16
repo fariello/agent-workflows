@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/ipd_authoring.py, agent_workflows/project_context.py, tests/test_finalize_sendback.py, tests/test_ipd_authoring.py, tests/test_nonsurveyable_root_refusal.py, CHANGELOG.md
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: nj13xp
@@ -148,12 +148,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### OQ-01: Should `project_context.find_project_root` stop climbing when it reaches a `.git` boundary that lacks an AW marker?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
 - Carrier: ivq0nr
-- Resolution or deferral rationale: REOPENED AT REVIEW (PR-001). This is a public-contract decision for the maintainer, not one the repository settles. AGAINST bounding: `project_context.no_project_message`'s docstring records the decided rule "PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO `find_project_root` (`quqyc4` E-02). Root detection is DELIBERATELY git-blind", and `classify_project_dir` says "Git-blind"; the change alters discovery for every `resolve_verb_repo_root` caller (66 call expressions across `agent_workflows/*.py`, re-derive with `grep -rn --include=*.py resolve_verb_repo_root agent_workflows/`) plus `runner_shared`'s analytics-root probe, so any user running `aw` inside a nested uninstalled git repo (a vendored clone, a submodule, a scratch clone under the checkout) loses the outer project and falls back to cwd. FOR bounding: it is resolver hazard 3 (`$HOME` as a project root) generalized, and `doctor.run` already bounds its own climb at the git root for exactly this reason (`sjsb04` E-02). E-01..E-03 alone fix the reported leak, because the test then passes `--dir`. Options: (a) bound the climb (perform E-04 with its docstring sync); (b) keep discovery git-blind (E-04/V-04 become `blocked` with this answer cited, see E-04). Measured at review with an in-memory copy of the proposed loop: inner nested git repo -> `None` (currently the outer project); a subdir of a git-backed project -> that project; a subdir of a non-git project -> that project; this lane worktree -> itself. Author's original rationale, retained: Returning `None` when `(curr / ".git").exists()` is True after `_is_project_marker` is False preserves non-git `.aw/` projects (no `.git` present), preserves subdirectory discovery inside git-backed `.aw/` projects (`_is_project_marker` succeeds at the repo root before `(curr / ".git").exists()` is checked), preserves `quqyc4` (a bare `.git` repo returns `None`), and prevents an uninstalled git repository from escaping across its own `.git` boundary into an ancestor `.aw/` directory (the exact hazard `doctor._run_doctor` at `agent_workflows/doctor.py:2348-2354` worked around locally in IPD `sjsb04`).
+- Resolution or deferral rationale: Maintainer decision 2026-10-15: Bound the climb at git boundaries, with a submodule exception: (1) A registered submodule without its own .aw/ resolves to its parent project. Detect it without spawning git: its .git is a file whose gitdir sits under the parent's .git/modules/, and that admin dir has no commondir. Print one notice line saying the parent project was used. (2) Any other nested git repository without .aw/ (its own .git directory, a vendored or scratch clone) stops at its own boundary and never binds to an outer project. (3) A submodule with its own .aw/ uses itself (unchanged). Linked worktrees of the same project are unaffected; they carry their own .aw/, and plan fnnwj3 handles external worktrees. (4) When no project is found, do not silently create records in the current directory. Refuse with a message suggesting aw install or --dir. Perform E-01..E-03 (the --dir test fix) and a revised E-04 implementing rules 1-4. Update the docstrings that say discovery is git-blind, and the no_project_message docstring. Add outcome tests for all four rules, using real temp repos with a real submodule.
 
 ## Validation and cross-check (verify before reporting done)
 

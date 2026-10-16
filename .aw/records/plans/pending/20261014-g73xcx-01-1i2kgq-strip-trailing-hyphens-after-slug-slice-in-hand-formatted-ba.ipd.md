@@ -82,7 +82,9 @@ Reproduced: `kebab("a"*49 + " b")[:50]` returns `'aaaa...a-'` (49 a's plus `-`).
 ## Deferred / out of scope (with reason)
 
 - `specs.py` and `ipd_authoring.py` slices: verified safe because `build_clustered_name` re-kebabs the slug (see Findings); changing them is unnecessary churn. A defensive `.strip("-")` there is optional and not included.
+  - Carrier-Declined: verified safe; changing is unnecessary churn
 - Replacing the hand-formatted backlog filenames with `build_clustered_name`: a larger refactor beyond the backlog item's ask.
+  - Carrier-Declined: larger refactor beyond backlog item scope
 
 ## Scope check
 

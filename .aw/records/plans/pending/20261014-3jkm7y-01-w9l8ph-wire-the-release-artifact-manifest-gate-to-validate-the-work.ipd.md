@@ -126,7 +126,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Running `aw releases readiness` automatically from `release-review`, CI, or a pre-push hook.
   - Carrier: uypgvi
 - Modifying `engine.parse_manifest`, `migration_inventory.build_inventory`, or `manifest.py`. Consumed unchanged.
-  - Carrier: none (by design)
+  - Carrier-Declined: consumed unchanged by design
 
 ## Scope check
 

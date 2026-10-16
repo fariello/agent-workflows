@@ -123,14 +123,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Persisting the workflow beside the ledger so later step-DAG leaves (`start`, `record`, `next`) do not require `--workflow` repeated.
-  - Carrier: sflov4 (plan `o34rb3`). No ordering edge is needed: both plans edit `_run_init`, and E-08 states how the two writes coexist.
+- Persisting the workflow beside the ledger so later step-DAG leaves (`start`, `record`, `next`) do not require `--workflow` repeated. Both plans edit `_run_init`, and E-08 states how the two writes coexist.
+  - Carrier: o34rb3
 - Rendering a ledger-only run directory in the `aw runs` summary viewer instead of showing `0 steps`.
   - Carrier: nf84rt
 - Replacing the `not_runnable` and `arg_fixture_needed` exemptions for ledger leaves in `tests/conformance_matrix.py` with live conformance-harness scenario rows.
-  - Carrier: a4tjxc (plan `g5s94t`). That plan's writer test expects `run finalize` exit 1 ("no frozen requirement set, `8l1hgw`"); after this plan the reason becomes `unsatisfied requirements` and the code stays 1, so no edit is needed there unless it asserts the reason text.
+  - Carrier: g5s94t
 - A `--clear` / revoke for a verifier decision: a later decision already supersedes (F-08).
-  - Carrier: none needed.
+  - Carrier-Declined: a later decision already supersedes
 
 ## Scope check
 

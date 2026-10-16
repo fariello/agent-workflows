@@ -165,6 +165,7 @@ Measured at starting HEAD `9bd7f2b3c` in this lane.
 
 - Full deleted-test audit and mutation-proving across all 208 uncited files removed in commit `19313eed7` (including the non-bound methods of `tests/test_layout_migration.py`, `tests/test_awphysical_migration.py`, `tests/test_awphysical_routing.py`, and `tests/test_acceptance_matrix.py`): tracked separately by Set `uncitedaudit` (orchestrator `k93w2g`, pending follow-up `xmr5qj`, backlog `e486tz`).
   - Carrier: k93w2g
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-uncitedaudit-00-k93w2g-audit-and-mutation-prove-behavioral-coverage-across-the-unci.ipd.md
 - Remaining two exemptions in `tests.test_uncollected_test_modules.EXEMPT` (`tools/aw_upgrade_test.py` and `tests/test_lift_drift_scan.py`): intentional non-unit harnesses (a standalone upgrade harness and a `-m livecorpus` corpus scan), documented in executed plan `5s31xp` and outside `byz9pj`'s scope.
   - Carrier-Declined: intentional non-pytest-default harnesses documented when `EXEMPT` was created in plan `5s31xp`, not defects.
 - Moving the 11 slow-target tokens (F-08) onto fast-gate tests: those tests are slow-marked because they drive full installs; duplicating them fast is a coverage-policy change for the slow suite, outside `byz9pj`'s binding-repair scope. E-06 makes the slow-only set visible in evidence.

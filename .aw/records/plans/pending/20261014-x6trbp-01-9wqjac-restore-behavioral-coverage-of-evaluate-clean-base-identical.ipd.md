@@ -82,8 +82,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Message-wording tests (shared vs isolated sentence content) from the deleted module: not part of backlog `x6trbp`'s named property, and wording assertions risk P16 text-pinning.
+  - Carrier-Declined: risk P16 text-pinning; not part of backlog x6trbp
 - Per-host (`oc_runipd`/`agy_runipd`) wrapper coverage: both reach the single `runner_shared` definition; adding host-level tests is a separate property.
+  - Carrier-Declined: both reach single runner_shared definition
 - The other S-* sites in `ev7t1w`: each has or would get its own backlog item.
+  - Carrier: ev7t1w
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-iosmvn-03-ev7t1w-retire-or-repoint-the-dangling-test-citations-in-the-non-run.ipd.md
 
 ## Scope check
 

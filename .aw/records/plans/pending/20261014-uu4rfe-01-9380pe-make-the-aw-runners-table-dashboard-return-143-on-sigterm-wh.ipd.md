@@ -109,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - **`aw pwatch` tree-watcher signal handling in `agent_workflows/pwatch.py`.** Already owned by approved sibling plan `ww744p`, which this plan depends on (`executed:ww744p`).
   - Carrier: ww744p
-  - Carrier-Evidence: .aw/records/plans/pending/20261011-x31lcm-01-ww744p-make-aw-pwatch-return-143-on-sigterm-while-keeping-exit-0-on.ipd.md
+  - Carrier-Evidence: .aw/records/plans/executed/20261011-x31lcm-01-ww744p-make-aw-pwatch-return-143-on-sigterm-while-keeping-exit-0-on.ipd.md
 - **Adding `143` to `runners`'s `exit_contract` in `agent_workflows/command_surface.py`.** Refused on D162, not deferred: `143` from `SIGTERM` is signal-derived and D162 excludes signal-derived codes from `exit_contract`.
   - Carrier-Declined: a decision not to act creates no obligation. Recorded in OQ-01 and E-06.
 - **Dying `WIFSIGNALED` (restore `SIG_DFL` and re-send `SIGTERM`) instead of returning `143`.** Rejected in OQ-01 because `runners_monitor.run_table_dashboard` and `runners_monitor.main` are called in-process by `cli._dispatch`, `pwatch.main`, and `tests/test_runners_monitor.py`.
