@@ -231,7 +231,7 @@ fixes: (1) HANDOFF, at least one carrier carrying `- From-Backlog: <this id6>` a
 `- Blocks-Release: <R>` must exist, and EVERY From-Backlog carrier of the item, whatever its gate,
 must be executed or implemented (set with `aw ipd set ... --from-backlog <id6>`);
 a multi-carrier item stays `graduated` until the last carrier executes; (2) SATISFIED, a resolvable in-tree artifact citation
-`aw backlog set done <item> --evidence <path>`, where a cited plan must be executed (a pending, draft, not-executed or superseded plan is refused) while other records artifacts are accepted; (3) DE-GATED, clear the gate first (or in the same call)
+`aw backlog set done <item> --evidence <path>`, where a cited plan must be executed (a pending, draft, not-executed or superseded plan is refused) and a cited spec must be implemented (a non-implemented spec is refused) while other records artifacts are accepted; (3) DE-GATED, clear the gate first (or in the same call)
 with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
 allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs both setter
 spellings, the `aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
