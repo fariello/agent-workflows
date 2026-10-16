@@ -11,6 +11,7 @@ awoptimize Order 10 (4fttzq) E-01..E-04:
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import tempfile
@@ -18,6 +19,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import host_capability_registry as hcr
+from agent_workflows import release_readiness
 from agent_workflows.run_ledger_store import RedactionPolicy
 
 
@@ -664,6 +666,129 @@ class PromotionGateTests(unittest.TestCase):
         )
         self.assertEqual(eval_res.status, hcr.STATUS_UNVERIFIED)
         self.assertFalse(eval_res.is_supported)
+
+
+class TestShippedHostMatrixAndFreshnessGate(unittest.TestCase):
+    """Behavioral and falsifiability tests for the shipped default host matrix and freshness gate."""
+
+    def test_shipped_matrix_shape_and_migration(self):
+        self.assertTrue(
+            hcr.DEFAULT_MATRIX_PATH.is_file(),
+            f"Shipped default matrix path {hcr.DEFAULT_MATRIX_PATH} must exist as a file",
+        )
+        data = hcr.load_host_matrix(hcr.DEFAULT_MATRIX_PATH)
+        hosts = data.get("hosts", {})
+        expected_hosts = {
+            "antigravity",
+            "claude_code",
+            "codex",
+            "copilot",
+            "cursor",
+            "gemini_cli",
+            "kiro",
+            "opencode",
+        }
+        self.assertEqual(set(hosts.keys()), expected_hosts)
+
+        for host_name, cfg in hosts.items():
+            self.assertIn("display_name", cfg)
+            self.assertTrue(cfg.get("display_name"))
+            self.assertIn("command_template", cfg)
+            self.assertTrue(cfg.get("command_template"))
+            self.assertIn("diagnostic_commands", cfg)
+
+            self.assertIn("t1_policy", cfg)
+            self.assertTrue(isinstance(cfg["t1_policy"], dict))
+            self.assertTrue(cfg["t1_policy"].get("mechanism"))
+
+            self.assertIn("t2_layout", cfg)
+            self.assertTrue(isinstance(cfg["t2_layout"], dict))
+            self.assertTrue(cfg["t2_layout"].get("preferred_path"))
+
+            self.assertIn("t3_global", cfg)
+            self.assertTrue(isinstance(cfg["t3_global"], dict))
+            self.assertTrue(cfg["t3_global"].get("global_path"))
+
+        supported_keys = [
+            (h, k)
+            for h, cfg in hosts.items()
+            for k, v in cfg.items()
+            if k.startswith("t") and isinstance(v, dict) and "supported" in v
+        ]
+        self.assertEqual(
+            supported_keys,
+            [],
+            "Shipped host matrix tier objects must not contain 'supported' booleans",
+        )
+
+        reg = hcr.HostCapabilityRegistry()
+        migrated_count = reg.migrate_from_static_matrix(data)
+        self.assertEqual(migrated_count, 24)
+
+        for host_name in expected_hosts:
+            for tier_name in ("t1_policy", "t2_layout", "t3_global"):
+                query_res = reg.query_capability(
+                    host=host_name, exact_version="1.0.0", feature=tier_name
+                )
+                self.assertFalse(query_res.is_supported)
+                rec = reg.get_record(host_name, "1.0.0", tier_name)
+                self.assertIsNotNone(rec)
+                self.assertEqual(rec.result, hcr.STATUS_UNVERIFIED)
+                self.assertEqual(rec.source_type, hcr.SOURCE_STATIC_MIGRATION)
+
+        for host_name in expected_hosts:
+            for tier in ("T1", "T2", "T3"):
+                with self.subTest(host=host_name, tier=tier):
+                    with tempfile.TemporaryDirectory() as td:
+                        base = Path(td)
+                        fixture = hcr.scaffold_probe_fixture(
+                            base, host_name, "1.0.0", tier=tier
+                        )
+                        cmds = hcr.render_probe_commands(
+                            host_name, "1.0.0", tier, base, fixture.nonce
+                        )
+                        self.assertIsNotNone(fixture)
+                        self.assertIsNotNone(cmds)
+
+    def test_freshness_gate_on_shipped_matrix_and_falsifiability_control(self):
+        repo_root = Path(__file__).resolve().parent.parent
+        gate_res = release_readiness.gate_capability_freshness(repo_root=repo_root)
+        self.assertTrue(
+            gate_res.passed,
+            f"gate_capability_freshness failed on repo_root: {gate_res.detail}",
+        )
+        self.assertEqual(gate_res.detail, "no stale capability claims")
+        self.assertEqual(
+            gate_res.evidence,
+            {"stale_claims": [], "claims_checked": 0},
+        )
+
+        data = hcr.load_host_matrix(hcr.DEFAULT_MATRIX_PATH)
+        with tempfile.TemporaryDirectory() as td:
+            t = Path(td)
+            matrix_path = (
+                t
+                / ".aw"
+                / "system"
+                / "workflows"
+                / "conformance"
+                / "tools"
+                / "host_matrix.json"
+            )
+            matrix_path.parent.mkdir(parents=True, exist_ok=True)
+            copy_data = copy.deepcopy(data)
+            copy_data["hosts"]["antigravity"]["t2_layout"]["supported"] = True
+            matrix_path.write_text(json.dumps(copy_data), encoding="utf-8")
+
+            falsify_res = release_readiness.gate_capability_freshness(repo_root=t)
+            self.assertFalse(falsify_res.passed)
+            self.assertEqual(falsify_res.evidence.get("claims_checked"), 1)
+            stale = falsify_res.evidence.get("stale_claims", [])
+            self.assertEqual(len(stale), 1)
+            self.assertTrue(
+                stale[0].startswith("antigravity:t2_layout:"),
+                f"Unexpected stale claim prefix: {stale[0]}",
+            )
 
 
 if __name__ == "__main__":
