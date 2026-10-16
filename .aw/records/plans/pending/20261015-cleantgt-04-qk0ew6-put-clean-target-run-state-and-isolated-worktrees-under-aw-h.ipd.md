@@ -6,7 +6,7 @@
 - Scope: Make `ipd_lifecycle.checkout_control_root` return `<AW_HOME>/projects/<project_id>` for a clean-delta checkout (from the main tree AND from any linked lane), so every existing caller (receipts, locks, journals, owner records, run-record reads) moves with it; add `worktree_lease.worktrees_root` and `ipd_lifecycle.control_state_dir` accessors and route lane allocation, `lanes_cli`, `oc_runipd`'s sibling-lane scan, `work_cmd`'s lease/evidence dir, `checkup.checkup_dir` and `runner_shared.suite_baseline_checkout_path` through them; make a clean-delta lane self-ignore its in-lane scratch; fix the two display heuristics that assume `.aw/worktrees` (`render_stream._relativize_path`, `runner_shared.lane_worktree_display`) and `ipd_lifecycle.is_main_checkout`, which derives the main tree from the control root; refuse the hardened profile for clean-delta honestly; non-clean-delta modes byte-identical. Outcome tests in a new `tests/test_clean_target_control_state.py`.
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/ipd_lifecycle.py, agent_workflows/worktree_lease.py, agent_workflows/work_cmd.py, agent_workflows/checkup.py, agent_workflows/runner_shared.py, agent_workflows/lanes_cli.py, agent_workflows/oc_runipd.py, agent_workflows/render_stream.py, agent_workflows/runner_stop.py, tests/test_clean_target_control_state.py
 - Item-Dependencies: executed:fnnwj3
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qk0ew6
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-008)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-15 to-review (aw set): authored review-ready child of Set cleantgt (orchestrator ucr3h8) from backlog kvwwt0

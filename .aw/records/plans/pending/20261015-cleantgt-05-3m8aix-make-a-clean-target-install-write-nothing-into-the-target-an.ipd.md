@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/engine.py`, add one stored-policy predicate (`engine._is_clean_delta_install`) and, when it is true, skip every target-only write, stage and commit in `engine.install_into_repo` (host adapters, AGENTS pointer, root and `.aw/` gitignores, inbox and workflow-artifacts READMEs, gitleaks/secret-scan setup artifacts, tracked-policy staging) and route the backup directory and created-files record under `<AW_HOME>/projects/<project_id>/state/runtime/backups/` (`engine.allocate_backup_timestamp`, `engine.create_backup_path`, `engine.save_created_files_record`, `engine.prune_old_backups`, `engine.run_rollback`); in `agent_workflows/cli.py` make `cli._install_one` skip `engine.prompt_and_run_commit` and write the setup marker under home runtime state, and teach `attention.setup_needed` to read it there; in `agent_workflows/install_wizard.py` restore the honest ZERO-target-delta line and the no-host-adapter line for clean-delta; lock the behavior with subprocess tests in `tests/test_install_consent_truth.py` and `tests/test_clean_target_config_home.py`.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/attention.py, tests/test_install_consent_truth.py, tests/test_clean_target_config_home.py
 - Item-Dependencies: executed:qk0ew6
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3m8aix
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-008; PR-007 open as non-blocking OQ-03)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-15 to-review (aw set): authored review-ready child of Set cleantgt (orchestrator ucr3h8) from backlog kvwwt0

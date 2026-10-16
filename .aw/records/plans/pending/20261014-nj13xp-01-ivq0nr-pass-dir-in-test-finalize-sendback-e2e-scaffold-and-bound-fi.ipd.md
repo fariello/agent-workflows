@@ -6,7 +6,7 @@
 - Scope: Wire --dir into aw ipd scaffold via resolve_verb_repo_root, pass --dir in test_finalize_sendback e2e subprocesses, and stop find_project_root from climbing past an uninstalled .git boundary.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/ipd_authoring.py, agent_workflows/project_context.py, tests/test_finalize_sendback.py, tests/test_ipd_authoring.py, tests/test_nonsurveyable_root_refusal.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: antigravity
 - Id: ivq0nr
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (OPEN, escalated OQ-01), PR-002..PR-007 fixed
 - 2026-10-14 to-review (antigravity): authored review-ready child IPD for backlog nj13xp
 

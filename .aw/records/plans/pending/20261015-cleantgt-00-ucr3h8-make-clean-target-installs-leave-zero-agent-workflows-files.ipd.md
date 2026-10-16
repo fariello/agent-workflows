@@ -6,7 +6,7 @@
 - Scope: Orchestrate seven children in strict order: (01) one records-root accessor adopted by every records reader/writer; (02) one system-root accessor adopted by every system-bundle reader/writer; (03) recognize a clean-target project with no in-repo `.aw`, including from a worktree outside the repo; (04) put clean-target control state and isolated worktrees under `AW_HOME`; (05) make the installer write nothing into the target and restore the truthful consent text; (06) make uninstall remove the home trees, keeping records unless `--deep`; (07) prove zero target delta end to end through ordinary use on both presets, and amend spec `20260810-1447-01` plus CHANGELOG. Replaces the single plan `irjoga`, which is retired as superseded by this Set. This plan carries orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261015-cleantgt-00-ucr3h8-make-clean-target-installs-leave-zero-agent-workflows-files.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 4ec980a2c583c03acc9a8b58e37a26e96af8b656e2e88b0ed81afcfdce38dd3d
@@ -20,8 +20,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ucr3h8
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-003)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-15 to-review (aw set): authored as the replacement for irjoga per maintainer decision 2026-10-15 (irjoga OQ-03 option A)

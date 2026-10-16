@@ -6,7 +6,7 @@
 - Scope: Amend `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 1.2 step 8, Section 5.1's admissible completion inputs bullet, and the four Section 5.3 sentences that make the same driver-run ledger claim (the durable-state intro, the snapshot/replay sentence, the 5.3a telemetry "hash-chained ledger is the run's record" clause, and resume algorithm step 1) in place with dated provenance citing `rdjka2` OQ-01 and `utb2qr`; correct the matching user-facing claim in `docs/evidence.md`; record the amendment in `## Workflow history` via `aw specs note`; and verify that all spec-citation and ledger-vs-driver boundary tests pass.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, docs/evidence.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: AI Agent
 - Id: 9epp40
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-14 to-review (aw set): Ready for review; graduates backlog 66ls4r
 

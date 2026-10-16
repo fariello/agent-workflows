@@ -6,7 +6,7 @@
 - Scope: Add one end-to-end subprocess test module `tests/test_clean_target_zero_delta_e2e.py` that installs each clean preset into a temp target and drives a fixed sequence of ordinary verbs (`aw backlog new --apply`, `aw index prompts`, `aw research new --apply`, `aw attention`, `aw status`, `aw doctor`, `aw ipd scaffold --apply`, `aw work begin`, `aw oc run start --prepare-only`, `aw uninstall --yes`), asserting after EVERY step that the target is porcelain-ignored empty and HEAD unchanged and that the step's artifact landed under `<AW_HOME>/projects/<project_id>/`, with a mutation proof; amend spec `20260810-1447-01` Section 4 and Section 5 and record it with `aw specs note`; add one `- Fixed:` line to `CHANGELOG.md` under `## 2.0.0 (pending)`.
 - Scope-Paths: tests/test_clean_target_zero_delta_e2e.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:xoy5yg
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nwporz
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-006)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-15 to-review (aw set): authored review-ready child of Set cleantgt (orchestrator ucr3h8) from backlog kvwwt0

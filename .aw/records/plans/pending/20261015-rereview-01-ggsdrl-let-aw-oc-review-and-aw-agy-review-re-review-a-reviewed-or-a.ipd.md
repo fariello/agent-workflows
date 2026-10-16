@@ -6,7 +6,7 @@
 - Scope: When `--action review` is requested (which `aw oc review <sel>` / `aw agy review <sel>` expand to via `cli.expand_host_review_argv`), an IPD reached through a NON-status selector (id6, path or setid; never `reviews`/`all`) at `reviewed`, `approved` or `auto-approved` is admitted for re-review behind a confirmation gate: `--yes` on the command line, or, on an interactive terminal, typing the exact phrase `re-review` at a prompt; unattended without `--yes` the whole run is refused before the run directory exists. Admitted items are frozen with action `review` and a durable `rereview: true` queue flag; nothing is written to the plan at run start. At DISPATCH, inside the review lane and before the lane inputs are materialized, each item is demoted to `to-review` through the existing setter with reason "re-review requested via <host> review" (which, for approved/auto-approved, records APPROVAL WITHDRAWN and strips `- Approval:` and `- Readiness:`), so the demotion integrates with the review output through the existing lane merge, a run refused by any later gate never demotes anything, and the review must write a fresh `- Readiness:`. Both `--full-auto` auto-approve sites (queue build and post-review) are skipped for these items, so a re-reviewed plan always needs a fresh human approval. Orchestrators past review, terminal plans (`executed`, `superseded`, `not-executed`), `reusable` plans and non-IPD types keep today's refusal. A status sweep is unchanged and never sweeps reviewed/approved plans. Spec `25kzda` 2.1 / 2.6 / 3.2 / 4.4 and `ipd-spec`'s "no tool demotes automatically" sentence are amended to match.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_rereview_reviewed_plan.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, .aw/system/workflows/plan-review/plan-review.md, docs/artifact-lifecycles.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ggsdrl
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011
 - 2026-10-15 to-review (aw set): authored from backlog dbr23q at HEAD df9ededb4; maintainer rulings 2026-10-15 recorded in Concern
 

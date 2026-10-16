@@ -6,7 +6,7 @@
 - Scope: Teach `engine.plan_uninstall`, `engine.uninstall_repo`, `engine.plan_deep_cleanup`, `engine.run_deep_cleanup`, `cli._run_uninstall`, `cli._uninstall_dry_run_report` and `cli._offer_deep_cleanup` the clean-delta home layout: remove home `system/`, `config/`, `state/` and `worktrees/` on a normal uninstall, keep home `records/` unless `--deep` (or the interactive records prompt says remove), tear lanes down through `worktree_lease.teardown_worktree` so git's `.git/worktrees/<name>` admin entries and lane branches go too, and REFUSE (exit 1, nothing removed) while any lane under home `worktrees/` is owned by another live process or holds unlanded work, with `--force` overriding only the holds-work case. Tests in `tests/test_clean_target_config_home.py`.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, tests/test_clean_target_config_home.py
 - Item-Dependencies: executed:3m8aix
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xoy5yg
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-009)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-15 to-review (aw set): authored review-ready child of Set cleantgt (orchestrator ucr3h8) from backlog kvwwt0
