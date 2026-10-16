@@ -6,7 +6,7 @@
 - Scope: Align `runner_shared.commit_spec_transition_output` (`agent_workflows/runner_shared.py`, lines 3948-3954) with `runner_shared.commit_backlog_transition_output` (`agent_workflows/runner_shared.py`, lines 4158-4165) and `git_commit_helper.offer_commit` (`agent_workflows/git_commit_helper.py`, lines 1192-1196) by filtering `add_paths` with `(wt / p).exists() or _gch._in_index(wt, p)`; add direct unit coverage of `runner_shared.commit_spec_transition_output` in `TestSpecProductionUnitE10` (`tests/test_spec_production.py`, line 250) across staged `git mv` renames (`RM`), unstaged moves (` D` + `??`), and in-place stage notes (`is_note=True`); and tighten `TestSpecProductionE08.test_5_5_success` (`tests/test_spec_production.py`, line 385) and `TestSpecProductionLifecycleArmAndReportE09.test_review_style_integration_asserted` (`tests/test_spec_production.py`, line 1201) on both hosts (`oc` and `agy`) to assert `spec_transition_commit`, the `spec-transition-committed` event, the `R` rename commit in git history, clean porcelain status, and clean lane teardown after moving the spec to `specs/implementing/`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_spec_production.py, .aw/records/plans/pending/20261014-pex4pv-01-i2ty4u-filter-staged-rename-sources-in-commit-spec-transition-outpu.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: i2ty4u
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: i2ty4u verified (set pex4pv, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; readiness GO - PENDING HUMAN APPROVAL
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD i2ty4u from backlog pex4pv
