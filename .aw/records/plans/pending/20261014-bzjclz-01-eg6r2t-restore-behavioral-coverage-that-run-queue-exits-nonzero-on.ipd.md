@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: A run_queue driving harness
 
-- [ ] E-01 Add to `tests/test_run_exit_aggregate.py` a new `unittest.TestCase` class (e.g. `RunQueueExitCodeReflectsTheRealOutcome`) with a helper that, given a host module and a terminal status, writes a temp `run_dir/state.json` (`schema_version: 1`, `run_id`, `repo` = the temp root, `created_at`/`updated_at`, `selectors`, `options: {}`, `set_sessions: {}`, and a single queue item `{"position": 1, "id6": "aaa111", "setid": "s", "action": "execute", "kind": "child", "status": "queued", "dependencies": [], "attempts": []}`), patches `module.execute_item` with a fake that sets `item["status"]` to the given status and calls `module.save_state(run_dir, state)`, redirects stdout/stderr, calls `module.run_queue(run_dir, retry_incomplete=False)`, and returns the exit code plus the reloaded `state.json`. Use `tempfile.TemporaryDirectory` with `addCleanup` so no run dir outlives the test; do not patch `dispatch_orchestrator_item` or anything else (a one-item `execute` queue needs no other stub, demonstrated at review). Mirror the harness shape of `DispatchRunCase.make_run`/`drive` in `tests/test_orchestrator_retirement.py`. Add a control test asserting, for each host via `subTest`, that a status of `executed` returns 0 and the reloaded item status is `executed`.
+- [x] E-01 Add to `tests/test_run_exit_aggregate.py` a new `unittest.TestCase` class (e.g. `RunQueueExitCodeReflectsTheRealOutcome`) with a helper that, given a host module and a terminal status, writes a temp `run_dir/state.json` (`schema_version: 1`, `run_id`, `repo` = the temp root, `created_at`/`updated_at`, `selectors`, `options: {}`, `set_sessions: {}`, and a single queue item `{"position": 1, "id6": "aaa111", "setid": "s", "action": "execute", "kind": "child", "status": "queued", "dependencies": [], "attempts": []}`), patches `module.execute_item` with a fake that sets `item["status"]` to the given status and calls `module.save_state(run_dir, state)`, redirects stdout/stderr, calls `module.run_queue(run_dir, retry_incomplete=False)`, and returns the exit code plus the reloaded `state.json`. Use `tempfile.TemporaryDirectory` with `addCleanup` so no run dir outlives the test; do not patch `dispatch_orchestrator_item` or anything else (a one-item `execute` queue needs no other stub, demonstrated at review). Mirror the harness shape of `DispatchRunCase.make_run`/`drive` in `tests/test_orchestrator_retirement.py`. Add a control test asserting, for each host via `subTest`, that a status of `executed` returns 0 and the reloaded item status is `executed`.
   - Depends on: none
   - Expected outcome: a reusable dual-host harness, and a passing control proving a clean run exits 0 (so a later nonzero assertion is not vacuous).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The restored property
 
-- [ ] E-02 Add a test asserting, for each host via `subTest`, that when the stubbed turn leaves the item `substantially-complete`, `run_queue` returns a nonzero code, and that the reloaded `state.json` item status is `substantially-complete` (proving the status reached the exit computation rather than being rewritten). The assertion message must state that `substantially-complete` is not a completion success for the exit code.
+- [x] E-02 Add a test asserting, for each host via `subTest`, that when the stubbed turn leaves the item `substantially-complete`, `run_queue` returns a nonzero code, and that the reloaded `state.json` item status is `substantially-complete` (proving the status reached the exit computation rather than being rewritten). The assertion message must state that `substantially-complete` is not a completion success for the exit code.
   - Depends on: E-01
   - Expected outcome: the S-29 property is guarded end to end on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a test asserting, for each host via `subTest`, that a `failed-safely` terminal item makes `run_queue` return nonzero and the reloaded `state.json` item status is `failed-safely` (the sibling `test_a_queue_with_a_non_success_terminal_item_exits_nonzero` deleted in the same commit).
+- [x] E-03 Add a test asserting, for each host via `subTest`, that a `failed-safely` terminal item makes `run_queue` return nonzero and the reloaded `state.json` item status is `failed-safely` (the sibling `test_a_queue_with_a_non_success_terminal_item_exits_nonzero` deleted in the same commit).
   - Depends on: E-01
   - Expected outcome: a plain failure is also never reported as a clean run, on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,20 +109,292 @@ N/A: test-only change restoring coverage; no spec or user-facing behavior change
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_run_exit_aggregate.py -v` output showing the E-01 control test PASSED, and the test source excerpt showing the harness calls the real `module.run_queue(run_dir, retry_incomplete=False)` for both `oc_runipd` and `agy_runipd` with only `execute_item` patched.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_run_exit_aggregate.py -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- .../venv/p3.14/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3213845463
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/eg6r2t
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 11 items
 
-- [ ] V-02 validates E-02
+    tests/test_run_exit_aggregate.py::TestRunExitEquivalenceSweep::test_exhaustive_equivalence_sweep PASSED [  9%]
+    tests/test_run_exit_aggregate.py::RunQueueExitCodeReflectsTheRealOutcome::test_a_fully_executed_queue_exits_zero PASSED [ 18%]
+    tests/test_run_exit_aggregate.py::RunQueueExitCodeReflectsTheRealOutcome::test_the_exit_code_reads_success_states_not_execution_success_states PASSED [ 27%]
+    tests/test_run_exit_aggregate.py::RunQueueExitCodeReflectsTheRealOutcome::test_a_queue_with_a_non_success_terminal_item_exits_nonzero PASSED [ 36%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_b_spec_review_regression_prevented_returns_exit_0 PASSED [ 45%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_a_defect_fixed_human_gate_returns_exit_3 PASSED [ 54%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_c_precedence_gate_over_failure_returns_exit_3 PASSED [ 63%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_e_malformed_entry_is_nonzero_under_both_stopped_arms PASSED [ 72%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_f_nothing_is_mutated PASSED [ 81%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_d2_gated_deliberate_stop_still_exits_0 PASSED [ 90%]
+    tests/test_run_exit_aggregate.py::TestRunExitAggregate::test_case_d_deliberate_stop_with_queued_remainder_exits_0 PASSED [100%]
+
+    ============================== 11 passed in 2.97s ==============================
+    ```
+
+    Harness calls real `module.run_queue(run_dir, retry_incomplete=False)` for both `oc_runipd` and `agy_runipd` with only `execute_item` patched:
+    ```python
+    def _drive_run(self, module, terminal_status: str) -> tuple[int, dict]:
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        run_dir = root / "run-test"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        item = {
+            "position": 1,
+            "id6": "aaa111",
+            "setid": "s",
+            "action": "execute",
+            "kind": "child",
+            "status": "queued",
+            "dependencies": [],
+            "attempts": [],
+        }
+        state = {
+            "schema_version": 1,
+            "run_id": "run-test",
+            "repo": str(root),
+            "created_at": "2026-10-14T00:00:00+00:00",
+            "updated_at": "2026-10-14T00:00:00+00:00",
+            "selectors": ["synthetic"],
+            "options": {},
+            "set_sessions": {},
+            "queue": [item],
+        }
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        def fake_exec(rd, st, it, *a, **kw):
+            it["status"] = terminal_status
+            module.save_state(rd, st)
+
+        buf = io.StringIO()
+        with (
+            patch.object(module, "execute_item", side_effect=fake_exec),
+            contextlib.redirect_stdout(buf),
+            contextlib.redirect_stderr(buf),
+        ):
+            exit_code = module.run_queue(run_dir, retry_incomplete=False)
+
+        reloaded_state = json.loads(
+            (run_dir / "state.json").read_text(encoding="utf-8")
+        )
+        return exit_code, reloaded_state
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the `substantially-complete` test PASSED on both host subtests; plus pasted output of the in-place mutation check (first statement of `runner_shared.run_exit_code` made `return 0`) showing that test FAILED; plus pasted empty `git diff --exit-code agent_workflows/runner_shared.py` after the revert and the test passing again.
   - Observed evidence:
-  - Result: pending
+    Pytest passing run showing `test_the_exit_code_reads_success_states_not_execution_success_states` PASSED:
+    ```
+    tests/test_run_exit_aggregate.py::RunQueueExitCodeReflectsTheRealOutcome::test_the_exit_code_reads_success_states_not_execution_success_states PASSED [ 27%]
+    ```
+    Subtest execution detail (via `python3 -m unittest -v tests/test_run_exit_aggregate.py`):
+    ```
+    test_the_exit_code_reads_success_states_not_execution_success_states (tests.test_run_exit_aggregate.RunQueueExitCodeReflectsTheRealOutcome.test_the_exit_code_reads_success_states_not_execution_success_states)
+    Restored S-29 property (E-02): substantially-complete exits nonzero on both hosts. ... ok
+    ```
 
-- [ ] V-03 validates E-03
+    In-place mutation check (`runner_shared.run_exit_code` made `return 0` as first statement) showing failure:
+    ```
+    _ RunQueueExitCodeReflectsTheRealOutcome.test_the_exit_code_reads_success_states_not_execution_success_states _
+
+    self = <tests.test_run_exit_aggregate.RunQueueExitCodeReflectsTheRealOutcome testMethod=test_the_exit_code_reads_success_states_not_execution_success_states>
+
+        def test_the_exit_code_reads_success_states_not_execution_success_states(self):
+            """Restored S-29 property (E-02): substantially-complete exits nonzero on both hosts."""
+            for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+                with self.subTest(host=host_name):
+                    exit_code, state = self._drive_run(module, "substantially-complete")
+    >               self.assertNotEqual(
+                        exit_code,
+                        0,
+                        f"{host_name}: substantially-complete is not a completion success for the exit code",
+                    )
+    E               AssertionError: 0 == 0 : oc_runipd: substantially-complete is not a completion success for the exit code
+
+    tests/test_run_exit_aggregate.py:244: AssertionError
+    ```
+
+    Revert and empty diff check:
+    ```
+    $ git checkout -- agent_workflows/runner_shared.py
+    $ git diff --exit-code agent_workflows/runner_shared.py
+    (exit code 0, empty diff)
+    ```
+    Post-revert test run passed:
+    ```
+    ============================== 11 passed in 2.97s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing the `failed-safely` test PASSED, and the same mutation run as V-02 showing it FAILED under the mutation; plus pasted bare `python3 -m pytest` output with the `N passed` summary and no new failures; plus pasted `git diff` of the new test code showing no `inspect`/`ast` import, no read of any `agent_workflows/*.py` source, and no assertion on the contents of `SUCCESS_STATES`/`EXECUTION_SUCCESS_STATES` (P16).
   - Observed evidence:
-  - Result: pending
+    Pytest passing run showing `test_a_queue_with_a_non_success_terminal_item_exits_nonzero` PASSED:
+    ```
+    tests/test_run_exit_aggregate.py::RunQueueExitCodeReflectsTheRealOutcome::test_a_queue_with_a_non_success_terminal_item_exits_nonzero PASSED [ 36%]
+    ```
+    Subtest execution detail (via `python3 -m unittest -v tests/test_run_exit_aggregate.py`):
+    ```
+    test_a_queue_with_a_non_success_terminal_item_exits_nonzero (tests.test_run_exit_aggregate.RunQueueExitCodeReflectsTheRealOutcome.test_a_queue_with_a_non_success_terminal_item_exits_nonzero)
+    Restored sibling property (E-03): failed-safely exits nonzero on both hosts. ... ok
+    ```
+
+    In-place mutation check failure for `failed-safely`:
+    ```
+    _ RunQueueExitCodeReflectsTheRealOutcome.test_a_queue_with_a_non_success_terminal_item_exits_nonzero _
+
+    self = <tests.test_run_exit_aggregate.RunQueueExitCodeReflectsTheRealOutcome testMethod=test_a_queue_with_a_non_success_terminal_item_exits_nonzero>
+
+        def test_a_queue_with_a_non_success_terminal_item_exits_nonzero(self):
+            """Restored sibling property (E-03): failed-safely exits nonzero on both hosts."""
+            for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+                with self.subTest(host=host_name):
+                    exit_code, state = self._drive_run(module, "failed-safely")
+    >               self.assertNotEqual(exit_code, 0)
+    E               AssertionError: 0 == 0
+
+    tests/test_run_exit_aggregate.py:256: AssertionError
+    ```
+
+    Bare full pytest suite run (`python3 -m pytest`):
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 10%]
+    ........................................................................ [ 20%]
+    ........................................................................ [ 30%]
+    ......................................................................... [ 41%]
+    ........................................................................ [ 51%]
+    ........................................................................ [ 61%]
+    ........................................................................ [ 71%]
+    ........................................................................ [ 82%]
+    ........................................................................ [ 92%]
+    .....................................................                    [100%]
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    702 passed in 28.95s
+    ```
+
+    Git diff of the new test code in `tests/test_run_exit_aggregate.py` demonstrating no `inspect`/`ast` import, no read of `agent_workflows/*.py` source, and no assertion on `SUCCESS_STATES`/`EXECUTION_SUCCESS_STATES`:
+    ```diff
+    diff --git a/tests/test_run_exit_aggregate.py b/tests/test_run_exit_aggregate.py
+    index ba8f556c1..bdd0cb0f4 100644
+    --- a/tests/test_run_exit_aggregate.py
+    +++ b/tests/test_run_exit_aggregate.py
+    @@ -1,9 +1,22 @@
+     """Tests for runner_shared.aggregated_run_items and run_exit_code (mh60nd/q32qeg E-05, E-06)."""
+
+    +import contextlib
+     import copy
+    +import io
+    +import json
+    +import tempfile
+     import unittest
+    +from pathlib import Path
+    +from unittest.mock import patch
+
+    -from agent_workflows import run_evidence, runner_shared, runner_shutdown, runner_stop
+    +from agent_workflows import (
+    +    agy_runipd,
+    +    oc_runipd,
+    +    run_evidence,
+    +    runner_shared,
+    +    runner_shutdown,
+    +    runner_stop,
+    +)
+
+
+     class TestRunExitAggregate(unittest.TestCase):
+    @@ -164,3 +177,81 @@ class TestRunExitEquivalenceSweep(unittest.TestCase):
+                 all((d[4], d[5]) == (1, 3) for d in diffs),
+                 "Every differing combination must be exactly (old, new) == (1, 3)",
+             )
+    +
+    +
+    +class RunQueueExitCodeReflectsTheRealOutcome(unittest.TestCase):
+    +    """Behavioral tests verifying run_queue exit code reflects terminal item status across hosts (eg6r2t)."""
+    +
+    +    def _drive_run(self, module, terminal_status: str) -> tuple[int, dict]:
+    +        td = tempfile.TemporaryDirectory()
+    +        self.addCleanup(td.cleanup)
+    +        root = Path(td.name)
+    +        run_dir = root / "run-test"
+    +        run_dir.mkdir(parents=True, exist_ok=True)
+    +        item = {
+    +            "position": 1,
+    +            "id6": "aaa111",
+    +            "setid": "s",
+    +            "action": "execute",
+    +            "kind": "child",
+    +            "status": "queued",
+    +            "dependencies": [],
+    +            "attempts": [],
+    +        }
+    +        state = {
+    +            "schema_version": 1,
+    +            "run_id": "run-test",
+    +            "repo": str(root),
+    +            "created_at": "2026-10-14T00:00:00+00:00",
+    +            "updated_at": "2026-10-14T00:00:00+00:00",
+    +            "selectors": ["synthetic"],
+    +            "options": {},
+    +            "set_sessions": {},
+    +            "queue": [item],
+    +        }
+    +        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    +
+    +        def fake_exec(rd, st, it, *a, **kw):
+    +            it["status"] = terminal_status
+    +            module.save_state(rd, st)
+    +
+    +        buf = io.StringIO()
+    +        with (
+    +            patch.object(module, "execute_item", side_effect=fake_exec),
+    +            contextlib.redirect_stdout(buf),
+    +            contextlib.redirect_stderr(buf),
+    +        ):
+    +            exit_code = module.run_queue(run_dir, retry_incomplete=False)
+    +
+    +        reloaded_state = json.loads(
+    +            (run_dir / "state.json").read_text(encoding="utf-8")
+    +        )
+    +        return exit_code, reloaded_state
+    +
+    +    def test_a_fully_executed_queue_exits_zero(self):
+    +        """Control test (E-01): an executed item exits 0 and remains executed on both hosts."""
+    +        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+    +            with self.subTest(host=host_name):
+    +                exit_code, state = self._drive_run(module, "executed")
+    +                self.assertEqual(exit_code, 0)
+    +                self.assertEqual(state["queue"][0]["status"], "executed")
+    +
+    +    def test_the_exit_code_reads_success_states_not_execution_success_states(self):
+    +        """Restored S-29 property (E-02): substantially-complete exits nonzero on both hosts."""
+    +        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+    +            with self.subTest(host=host_name):
+    +                exit_code, state = self._drive_run(module, "substantially-complete")
+    +                self.assertNotEqual(
+    +                    exit_code,
+    +                    0,
+    +                    f"{host_name}: substantially-complete is not a completion success for the exit code",
+    +                )
+    +                self.assertEqual(state["queue"][0]["status"], "substantially-complete")
+    +
+    +    def test_a_queue_with_a_non_success_terminal_item_exits_nonzero(self):
+    +        """Restored sibling property (E-03): failed-safely exits nonzero on both hosts."""
+    +        for host_name, module in (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd)):
+    +            with self.subTest(host=host_name):
+    +                exit_code, state = self._drive_run(module, "failed-safely")
+    +                self.assertNotEqual(exit_code, 0)
+    +                self.assertEqual(state["queue"][0]["status"], "failed-safely")
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
