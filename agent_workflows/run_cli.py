@@ -927,7 +927,7 @@ def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[str
     """Build a minimal workflow skeleton (id/steps/requirements) from ledger records.
 
     Used when no --workflow file is supplied: the ledger is authoritative, and step ids + requirement
-    ids can be recovered from step_attempt and requirement_set records. Dependency edges are unknown
+    ids can be recovered from step_started, step_attempt, and requirement_set records. Dependency edges are unknown
     from the ledger alone, so the skeleton has no depends_on/gates (ledger-driven commands like status
     /resume/cancel/finalize do not need the DAG).
     """
@@ -942,7 +942,7 @@ def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[str
             wf_id = (
                 str(rec.get("workflow_digest", "reconstructed"))[:16] or "reconstructed"
             )
-        elif kind == "step_attempt":
+        elif kind in ("step_started", "step_attempt"):
             sid = str(rec.get("step", ""))
             if sid and sid not in seen_steps:
                 seen_steps.add(sid)

@@ -1776,6 +1776,51 @@ class TestRunCliSubcommands(unittest.TestCase):
             "the append was not durable",
         )
 
+    def test_reconstructed_workflow_from_ledger_sees_step_started(self) -> None:
+        """Ledger leaves run without --workflow recover step_started steps (3a3hh9 E-08)."""
+        store = self._store()
+        store.append(_run_record())
+        store.append(
+            {
+                "schema_version": schema.LEDGER_SCHEMA_VERSION,
+                "kind": "step_started",
+                "run_id": RUN_ID,
+                "actor": "runtime",
+                "step": "S-01",
+                "attempt": 1,
+                "parent": "",
+            }
+        )
+
+        # 1. runs status --json lists S-01 as running
+        rc_status, out_status = self._cli("runs", "status", str(self.ledger), "--json")
+        self.assertEqual(rc_status, run_cli.EXIT_INCOMPLETE)
+        data_status = json.loads(out_status)
+        self.assertIn("S-01", data_status.get("steps", {}))
+        self.assertEqual(data_status["steps"]["S-01"]["state"], "running")
+
+        # 2. runs resume --json exits EXIT_BLOCKED (3) with unknown_outcome
+        rc_resume, out_resume = self._cli("runs", "resume", str(self.ledger), "--json")
+        self.assertEqual(rc_resume, run_cli.EXIT_BLOCKED)
+        data_resume = json.loads(out_resume)
+        self.assertEqual(data_resume.get("condition"), run_recovery.UNKNOWN_OUTCOME)
+        self.assertIn("S-01", data_resume.get("unknown_outcome_steps", []))
+
+        # 3. run record --step S-01 --state performed --json exits EXIT_OK (0)
+        rc_record, out_record = self._cli(
+            "run",
+            "record",
+            str(self.ledger),
+            "--step",
+            "S-01",
+            "--state",
+            "performed",
+            "--json",
+        )
+        self.assertEqual(rc_record, run_cli.EXIT_OK)
+        data_record = json.loads(out_record)
+        self.assertEqual(data_record.get("recorded", {}).get("state"), "performed")
+
     def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
         """Kept separate: unpatched CLI test driving a subprocess over a started step.
 
