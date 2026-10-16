@@ -11,16 +11,21 @@ path, severity_label, format_fix), ensuring:
 
 from __future__ import annotations
 
+import argparse
+from collections import Counter
 import io
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from agent_workflows import config as CFG
+from agent_workflows import pwatch, render_stream, runners_monitor
 from agent_workflows import term as T
 
 
@@ -53,6 +58,13 @@ class _DepthTestBase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.addCleanup(self._restore_env)
         self.addCleanup(T.set_color_override, None)
+        try:
+            sigint = signal.getsignal(signal.SIGINT)
+            sigterm = signal.getsignal(signal.SIGTERM)
+            self.addCleanup(signal.signal, signal.SIGINT, sigint)
+            self.addCleanup(signal.signal, signal.SIGTERM, sigterm)
+        except ValueError:
+            pass
 
     def _restore_env(self) -> None:
         for k, v in self._saved.items():
@@ -305,6 +317,514 @@ class GenericColorDepthTests(_DepthTestBase):
         out = t.status_256("up to date")
         self.assertIn("\033", out, "Expected ANSI escapes for vt100")
         self.assertNotIn("38;5;", out, "Expected no 38;5; in 16-color detection")
+
+
+class RawLiteralColorDepthTests(_DepthTestBase):
+    """Behavioral tests verifying raw-literal modules honor color_depth (IPD 32fso3).
+
+    Covers pwatch.py, runners_monitor.py, and render_stream.py (Palette.__call__,
+    headers, badges, statusline, and run summary table).
+    Tests are portable across Linux, macOS, and Windows: no real /proc access.
+    """
+
+    @staticmethod
+    def _sgr_escapes(text: str) -> list[str]:
+        return re.findall(r"\033\[[0-9;]*m", text)
+
+    def _make_process_tree(self) -> dict[int, pwatch.Process]:
+        p_root = pwatch.Process(
+            pid=100,
+            ppid=1,
+            name="python3",
+            cmdline=("python3", "-m", "agent_workflows", "run"),
+        )
+        p_c1 = pwatch.Process(
+            pid=101,
+            ppid=100,
+            name="pytest",
+            cmdline=("pytest", "-v", "tests/test_a.py"),
+            threads=Counter({"worker": 2}),
+        )
+        p_c2 = pwatch.Process(
+            pid=102,
+            ppid=100,
+            name="pytest",
+            cmdline=("pytest", "-v", "tests/test_b.py"),
+        )
+        p_c3 = pwatch.Process(
+            pid=103,
+            ppid=100,
+            name="bash",
+            cmdline=("bash", "-c", "echo hello", "/tmp/foo.txt"),
+        )
+        p_c4 = pwatch.Process(
+            pid=104,
+            ppid=100,
+            name="agy",
+            cmdline=("agy", "run", "all"),
+        )
+        p_root.children = [p_c1, p_c2, p_c3, p_c4]
+        return {
+            100: p_root,
+            101: p_c1,
+            102: p_c2,
+            103: p_c3,
+            104: p_c4,
+        }
+
+    def _make_runners(self) -> list[runners_monitor.RunnerInfo]:
+        r_high = runners_monitor.RunnerInfo(
+            pid=1001,
+            run_id="run-1",
+            run_dir=Path("/dummy/1"),
+            host="agy",
+            step_str="1/2",
+            setid="set1",
+            id6="id0001",
+            action="execute",
+            attempt=1,
+            status="running",
+            activity="pytest (4 procs)",
+            cpu_pct=95.0,
+            cum_cpu_sec=10.0,
+            rss_bytes=1024 * 1024 * 100,
+            num_procs=4,
+            descendant_pids={1002, 1003},
+            total_cpus=4,
+        )
+        r_mid = runners_monitor.RunnerInfo(
+            pid=2001,
+            run_id="run-2",
+            run_dir=Path("/dummy/2"),
+            host="opencode",
+            step_str="2/2",
+            setid="set2",
+            id6="id0002",
+            action="review",
+            attempt=1,
+            status="running",
+            activity="idle / coordinating",
+            cpu_pct=40.0,
+            cum_cpu_sec=5.0,
+            rss_bytes=1024 * 1024 * 50,
+            num_procs=1,
+            descendant_pids=set(),
+            total_cpus=4,
+        )
+        r_low = runners_monitor.RunnerInfo(
+            pid=3001,
+            run_id="run-3",
+            run_dir=Path("/dummy/3"),
+            host="agy",
+            step_str="1/1",
+            setid="set3",
+            id6="id0003",
+            action="execute",
+            attempt=1,
+            status="running",
+            activity="git status",
+            cpu_pct=5.0,
+            cum_cpu_sec=1.0,
+            rss_bytes=1024 * 1024 * 20,
+            num_procs=1,
+            descendant_pids=set(),
+            total_cpus=4,
+        )
+        return [r_high, r_mid, r_low]
+
+    def test_pwatch_color_depth_ladder(self) -> None:
+        """pwatch coloring ladder across none, 16, 256, NO_COLOR=1, and TERM=vt100."""
+        procs = self._make_process_tree()
+        rules = [pwatch.Rule.create("python3", pwatch.MatchKind.MATCH_CS)]
+        empty_rules = [pwatch.Rule.create("nonexistent", pwatch.MatchKind.MATCH_CS)]
+        decorations = {104: "step 1/3 [agy]"}
+
+        self._capable_tty()
+        self._pin("256")
+        base_color = pwatch.get_process_color(procs[104].name)
+        base_arg_flag = pwatch.format_colored_argument("-v", color_enabled=True)
+        base_arg_path = pwatch.format_colored_argument(
+            "/tmp/foo.txt", color_enabled=True
+        )
+        base_arg_text = pwatch.format_colored_argument("hello", color_enabled=True)
+        base_snap, _ = pwatch.render_snapshot(
+            procs,
+            rules,
+            [],
+            max_depth=5,
+            width=80,
+            color_enabled=True,
+            runner_decorations=decorations,
+        )
+        base_snap_trunc, _ = pwatch.render_snapshot(
+            procs,
+            rules,
+            [],
+            max_depth=5,
+            width=40,
+            color_enabled=True,
+            runner_decorations=decorations,
+        )
+
+        with patch("agent_workflows.pwatch.read_processes", return_value=procs), patch(
+            "agent_workflows.runners_monitor.find_active_runners",
+            return_value=[(100, Path("/dummy/run"), "run-1")],
+        ), patch(
+            "agent_workflows.runners_monitor.extract_journey_info",
+            return_value=("1/3", "myset", "abc123", "execute", 1, "agy"),
+        ):
+            for pin in ("none", "16", "256", "vt100"):
+                self._capable_tty()
+                if pin == "vt100":
+                    os.environ["TERM"] = "vt100"
+                else:
+                    self._pin(pin)
+
+                c_proc = pwatch.get_process_color(procs[104].name)
+                c_flag = pwatch.format_colored_argument("-v", color_enabled=True)
+                c_path = pwatch.format_colored_argument(
+                    "/tmp/foo.txt", color_enabled=True
+                )
+                c_text = pwatch.format_colored_argument("hello", color_enabled=True)
+                snap, _ = pwatch.render_snapshot(
+                    procs,
+                    rules,
+                    [],
+                    max_depth=5,
+                    width=80,
+                    color_enabled=True,
+                    runner_decorations=decorations,
+                )
+                snap_trunc, _ = pwatch.render_snapshot(
+                    procs,
+                    rules,
+                    [],
+                    max_depth=5,
+                    width=40,
+                    color_enabled=True,
+                    runner_decorations=decorations,
+                )
+                snap_empty, _ = pwatch.render_snapshot(
+                    procs, empty_rules, [], max_depth=5, width=80, color_enabled=True
+                )
+
+                fake_out_pat = _FakeTTY()
+                with patch("sys.stdout", fake_out_pat):
+                    ret_pat = pwatch.main(["--once", "python3"])
+                self.assertEqual(ret_pat, 0)
+                out_pat = fake_out_pat.getvalue()
+
+                fake_out_run = _FakeTTY()
+                with patch("sys.stdout", fake_out_run):
+                    ret_run = pwatch.main(["--once", "--runners"])
+                self.assertEqual(ret_run, 0)
+                out_run = fake_out_run.getvalue()
+
+                if pin == "none":
+                    for name, s in (
+                        ("proc_color", c_proc),
+                        ("arg_flag", c_flag),
+                        ("arg_path", c_path),
+                        ("arg_text", c_text),
+                        ("snapshot", snap),
+                        ("snapshot_trunc", snap_trunc),
+                        ("snapshot_empty", snap_empty),
+                        ("main_pat", out_pat),
+                        ("main_run", out_run),
+                    ):
+                        self.assertNotIn(
+                            "\033", s, f"pwatch {name} emitted escape at pin none"
+                        )
+                elif pin in ("16", "vt100"):
+                    self.assertIn("\033", c_proc)
+                    self.assertNotIn("38;5;", c_proc)
+                    self.assertIn("\033", c_flag)
+                    self.assertNotIn("38;5;", c_flag)
+                    self.assertIn("\033", snap)
+                    self.assertNotIn("38;5;", snap)
+                    self.assertIn("\033", snap_trunc)
+                    self.assertNotIn("38;5;", snap_trunc)
+                    self.assertNotIn("38;5;", snap_empty)
+
+                    sgr_pat = self._sgr_escapes(out_pat)
+                    self.assertGreater(len(sgr_pat), 0)
+                    self.assertNotIn("38;5;", out_pat)
+
+                    sgr_run = self._sgr_escapes(out_run)
+                    self.assertGreater(len(sgr_run), 0)
+                    self.assertNotIn("38;5;", out_run)
+                elif pin == "256":
+                    self.assertEqual(c_proc, base_color)
+                    self.assertEqual(c_flag, base_arg_flag)
+                    self.assertEqual(c_path, base_arg_path)
+                    self.assertEqual(c_text, base_arg_text)
+                    self.assertEqual(snap, base_snap)
+                    self.assertEqual(snap_trunc, base_snap_trunc)
+                    self.assertIn("38;5;", c_proc)
+                    self.assertIn("38;5;", c_flag)
+                    self.assertIn("38;5;", snap)
+                    self.assertIn("38;5;", out_pat)
+                    self.assertIn("38;5;", out_run)
+
+            self._capable_tty()
+            self._pin("256")
+            os.environ["NO_COLOR"] = "1"
+
+            fake_no_col_pat = _FakeTTY()
+            with patch("sys.stdout", fake_no_col_pat):
+                self.assertEqual(pwatch.main(["--once", "python3"]), 0)
+            self.assertEqual(len(self._sgr_escapes(fake_no_col_pat.getvalue())), 0)
+
+            fake_no_col_run = _FakeTTY()
+            with patch("sys.stdout", fake_no_col_run):
+                self.assertEqual(pwatch.main(["--once", "--runners"]), 0)
+            self.assertEqual(len(self._sgr_escapes(fake_no_col_run.getvalue())), 0)
+
+    def test_runners_monitor_color_depth_ladder(self) -> None:
+        """runners_monitor coloring ladder across none, 16, 256, NO_COLOR=1, and TERM=vt100."""
+        runners = self._make_runners()
+        args = argparse.Namespace(
+            repo=".",
+            once=True,
+            interval=2.0,
+            width=120,
+            raw_cpu=False,
+            json=False,
+            agent=False,
+            no_color=False,
+        )
+
+        with patch(
+            "agent_workflows.runners_monitor.sample_runners", return_value=runners
+        ):
+            for pin in ("none", "16", "256", "vt100"):
+                self._capable_tty()
+                if pin == "vt100":
+                    os.environ["TERM"] = "vt100"
+                else:
+                    self._pin(pin)
+
+                table = runners_monitor.render_runner_table(runners, color_enabled=True)
+
+                fake_out = _FakeTTY()
+                with patch("sys.stdout", fake_out):
+                    ret = runners_monitor.run_table_dashboard(args)
+                self.assertEqual(ret, 0)
+                out = fake_out.getvalue()
+
+                if pin == "none":
+                    self.assertNotIn("\033", table)
+                    self.assertIn("PID", table)
+                    self.assertIn("1001", table)
+                    self.assertIn("pytest (4 procs)", table)
+                    self.assertNotIn("\033", out)
+                    self.assertIn("aw runners", out)
+                elif pin in ("16", "vt100"):
+                    self.assertIn("\033", table)
+                    self.assertNotIn("38;5;", table)
+                    sgr_out = self._sgr_escapes(out)
+                    self.assertGreater(len(sgr_out), 0)
+                    self.assertNotIn("38;5;", out)
+                elif pin == "256":
+                    self.assertIn("38;5;", table)
+                    self.assertIn("38;5;", out)
+
+            self._capable_tty()
+            self._pin("256")
+            os.environ["NO_COLOR"] = "1"
+
+            fake_no_col = _FakeTTY()
+            with patch("sys.stdout", fake_no_col):
+                self.assertEqual(runners_monitor.run_table_dashboard(args), 0)
+            self.assertEqual(len(self._sgr_escapes(fake_no_col.getvalue())), 0)
+
+    def test_render_stream_headers_statusline_and_palette_color_depth_ladder(
+        self,
+    ) -> None:
+        """render_stream badges, statusline, palette, and summary table color depth ladder."""
+        summary_state = {
+            "queue": ["32fso3"],
+            "plan_actions": {"32fso3": "execute"},
+            "items": {
+                "32fso3": {
+                    "title": "Raw SGR escapes in pwatch",
+                    "setid": "y11p5u",
+                    "lifecycle_state": "COMPLETED",
+                    "duration": 42.0,
+                    "cost": 0.12,
+                    "tokens": {"total": 1000, "input": 800, "output": 200, "cache": 0},
+                    "verify": "pass",
+                    "disposition": "executed",
+                }
+            },
+            "spend": {"total_cost": 0.12},
+            "tokens": {"total": 1000, "input": 800, "output": 200, "cache": 0},
+            "created_at": "2026-10-14T00:00:00Z",
+            "updated_at": "2026-10-14T00:00:42Z",
+        }
+
+        self._capable_tty()
+        self._pin("256")
+        base_pal_out = render_stream.Palette(True)("boom", "red", "bold")
+        base_prefix_out = render_stream.format_event_prefix(
+            "bash", pal=render_stream.Palette(True)
+        )
+        base_badge_col, _ = render_stream.make_badge(
+            "agy", "Gemini 4", "High", color=True
+        )
+        base_summary = render_stream.render_run_summary_table(
+            summary_state, pal=render_stream.Palette(True)
+        )
+
+        for pin in ("none", "16", "256", "vt100"):
+            self._capable_tty()
+            if pin == "vt100":
+                os.environ["TERM"] = "vt100"
+            else:
+                self._pin(pin)
+
+            pal = render_stream.Palette(True)
+            styled_text = pal("boom", "red", "bold")
+            event_prefix = render_stream.format_event_prefix("bash", pal=pal)
+            badge_col, badge_plain = render_stream.make_badge(
+                "agy", "Gemini 4", "High", color=True
+            )
+
+            summary = render_stream.render_run_summary_table(summary_state, pal=pal)
+
+            for u in (True, False):
+                for lvl in (1, 2, 3, 4, "custom"):
+                    sc, sp = render_stream.format_stop_badge(
+                        lvl, use_unicode=u, color=True
+                    )
+                    if pin == "none":
+                        self.assertEqual(sc, sp)
+                        self.assertNotIn("\033", sc)
+                    elif pin in ("16", "vt100"):
+                        self.assertIn("\033", sc)
+                        self.assertNotIn("38;5;", sc)
+                        self.assertNotIn("48;5;", sc)
+                    elif pin == "256":
+                        if u:
+                            self.assertIn("48;5;", sc)
+                        else:
+                            self.assertIn("\033", sc)
+
+                for passed, failed in ((2, 0), (2, 1)):
+                    tc, tp = render_stream.format_tally_badge(
+                        passed, failed, use_unicode=u, color=True
+                    )
+                    if pin == "none":
+                        self.assertEqual(tc, tp)
+                        self.assertNotIn("\033", tc)
+                    elif pin in ("16", "vt100"):
+                        self.assertIn("\033", tc)
+                        self.assertNotIn("38;5;", tc)
+                        self.assertNotIn("48;5;", tc)
+                    elif pin == "256":
+                        self.assertIn("38;5;", tc)
+
+                lines = render_stream.format_statusline_lines(
+                    now_ts=1000.0,
+                    run_start_ts=900.0,
+                    item_start_ts=950.0,
+                    last_act_ts=995.0,
+                    current_idx=1,
+                    total_items=3,
+                    setid="y11p5u",
+                    id6="32fso3",
+                    pal=pal,
+                    stall_remaining=120.0,
+                    action="execute",
+                    use_unicode=u,
+                    activity="executing",
+                    runner="agy",
+                    model="Gemini 4",
+                    variant="High",
+                    stop_level=1,
+                    items_passed=2,
+                    items_failed=1,
+                    cwd="/repo/test",
+                    run_id="run-1",
+                )
+                plain_lines = render_stream.format_statusline_lines(
+                    now_ts=1000.0,
+                    run_start_ts=900.0,
+                    item_start_ts=950.0,
+                    last_act_ts=995.0,
+                    current_idx=1,
+                    total_items=3,
+                    setid="y11p5u",
+                    id6="32fso3",
+                    pal=render_stream.Palette(False),
+                    stall_remaining=120.0,
+                    action="execute",
+                    use_unicode=u,
+                    activity="executing",
+                    runner="agy",
+                    model="Gemini 4",
+                    variant="High",
+                    stop_level=1,
+                    items_passed=2,
+                    items_failed=1,
+                    cwd="/repo/test",
+                    run_id="run-1",
+                )
+                self.assertEqual(len(lines), 4)
+
+                if pin == "none":
+                    for line_out, line_plain in zip(lines, plain_lines):
+                        self.assertNotIn("\033", line_out)
+                        self.assertEqual(line_out, line_plain)
+                elif pin in ("16", "vt100"):
+                    widths = [
+                        T.visible_width(render_stream._strip_ansi(line_out))
+                        for line_out in lines
+                    ]
+                    self.assertEqual(
+                        len(set(widths)),
+                        1,
+                        f"Expected rectangular statusline, widths={widths}",
+                    )
+                    for line_out, line_plain in zip(lines, plain_lines):
+                        self.assertIn("\033", line_out)
+                        self.assertNotIn("38;5;", line_out)
+                        self.assertNotIn("48;5;", line_out)
+                        self.assertEqual(
+                            render_stream._strip_ansi(line_out), line_plain
+                        )
+                elif pin == "256":
+                    for line_out in lines:
+                        self.assertIn("\033", line_out)
+                    all_text = "".join(lines)
+                    self.assertIn("38;5;", all_text)
+                    if u:
+                        self.assertIn("48;5;", all_text)
+
+            if pin == "none":
+                self.assertEqual(styled_text, "boom")
+                self.assertNotIn("\033", styled_text)
+                self.assertNotIn("\033", event_prefix)
+                self.assertEqual(badge_col, badge_plain)
+                self.assertNotIn("\033", badge_col)
+                self.assertNotIn("\033", summary)
+            elif pin in ("16", "vt100"):
+                self.assertIn("\033", styled_text)
+                self.assertNotIn("38;5;", styled_text)
+                self.assertIn("\033", event_prefix)
+                self.assertNotIn("38;5;", event_prefix)
+                self.assertIn("\033", badge_col)
+                self.assertNotIn("38;5;", badge_col)
+                self.assertNotIn("48;5;", badge_col)
+                self.assertIn("\033", summary)
+                self.assertNotIn("38;5;", summary)
+                self.assertNotIn("48;5;", summary)
+            elif pin == "256":
+                self.assertEqual(styled_text, base_pal_out)
+                self.assertEqual(event_prefix, base_prefix_out)
+                self.assertEqual(badge_col, base_badge_col)
+                self.assertEqual(summary, base_summary)
+                self.assertIn("38;5;", badge_col)
 
 
 if __name__ == "__main__":

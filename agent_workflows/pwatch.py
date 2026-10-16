@@ -63,6 +63,48 @@ C_ARG_FLAG = "\033[38;5;117m"  # Ice cyan for flags (-c, --foo)
 C_ARG_PATH = "\033[38;5;186m"  # Muted cream/khaki for file paths & scripts
 C_ARG_TEXT = "\033[38;5;252m"  # Off-white for general arguments
 
+# Integer palette index constants (256-color palette indices)
+IDX_TREE = 241
+IDX_AGY = 48
+IDX_AGENT = 177
+IDX_PYTHON = 75
+IDX_SHELL = 208
+IDX_TOOL = 221
+IDX_PROC_DEFAULT = 255
+IDX_PID = 245
+IDX_COUNT = 220
+IDX_PARENT = 141
+IDX_THREAD = 139
+IDX_THREAD_TAG = 242
+IDX_BANNER = 39
+IDX_RECORD = 203
+IDX_TIMESTAMP = 244
+IDX_ARG_FLAG = 117
+IDX_ARG_PATH = 186
+IDX_ARG_TEXT = 252
+IDX_RUNNER_DEC = 81
+
+
+def _effective_depth(color_enabled: bool, *, depth: str | None = None) -> str:
+    """Return the effective color depth tier based on color_enabled and optional depth."""
+    if not color_enabled:
+        return term.DEPTH_NONE
+    if depth in term.COLOR_DEPTHS:
+        return depth
+    return term.resolve_color_depth(override=True)
+
+
+def sgr_256(code: int, *, bold: bool = False, depth: str | None = None) -> str:
+    """Format an SGR escape sequence for a 256-color palette index honoring depth."""
+    tier = term.resolve_color_depth(override=True) if depth is None else depth
+    if tier == term.DEPTH_NONE:
+        return ""
+    prefix = "1;" if bold else ""
+    if tier == term.DEPTH_16:
+        return f"\033[{prefix}{term.color_16_for_index(code)}m"
+    return f"\033[{prefix}38;5;{code}m"
+
+
 # Terminal control escapes
 ENTER_ALT_SCREEN = "\033[?1049h\033[?25l"
 LEAVE_ALT_SCREEN = "\033[?1049l\033[?25h"
@@ -79,13 +121,19 @@ def strip_ansi(text: str) -> str:
 
 
 def ansi_truncate(
-    text: str, max_width: int, color_enabled: bool, show_long: bool = False
+    text: str,
+    max_width: int,
+    color_enabled: bool,
+    show_long: bool = False,
+    *,
+    depth: str | None = None,
 ) -> str:
     """Truncate text to max_width visible characters, preserving ANSI codes."""
     if show_long:
         return text
 
-    if not color_enabled:
+    tier = _effective_depth(color_enabled, depth=depth)
+    if tier == term.DEPTH_NONE:
         clean = strip_ansi(text)
         if len(clean) <= max_width:
             return clean
@@ -313,17 +361,20 @@ def read_processes(proc_dir: Path = Path("/proc")) -> dict[int, Process]:
     return processes
 
 
-def get_process_color(name: str) -> str:
+def get_process_color(name: str, *, depth: str | None = None) -> str:
     """Return appropriate 256-color code based on process role."""
+    tier = term.resolve_color_depth(override=True) if depth is None else depth
+    if tier == term.DEPTH_NONE:
+        return ""
     n = name.lower()
     if n in ("agy", "antigravity", "antigravity-cli", "gemini"):
-        return C_AGY
+        return sgr_256(IDX_AGY, bold=True, depth=tier)
     if n in ("opencode", "claude", "codex", "hermes"):
-        return C_AGENT
+        return sgr_256(IDX_AGENT, bold=True, depth=tier)
     if n in ("python", "python3", "node", "bun", "deno"):
-        return C_PYTHON
+        return sgr_256(IDX_PYTHON, bold=True, depth=tier)
     if n in ("bash", "sh", "zsh", "fish", "dash"):
-        return C_SHELL
+        return sgr_256(IDX_SHELL, bold=True, depth=tier)
     if n in (
         "make",
         "pytest",
@@ -335,27 +386,35 @@ def get_process_color(name: str) -> str:
         "cargo",
         "go",
     ):
-        return C_TOOL
-    return C_PROC_DEFAULT
+        return sgr_256(IDX_TOOL, bold=True, depth=tier)
+    return sgr_256(IDX_PROC_DEFAULT, bold=True, depth=tier)
 
 
-def format_colored_argument(arg: str, color_enabled: bool) -> str:
+def format_colored_argument(
+    arg: str, color_enabled: bool, *, depth: str | None = None
+) -> str:
     """Format an argument with shell quoting and syntax highlighting."""
     quoted = shlex.quote(arg)
-    if not color_enabled:
+    tier = _effective_depth(color_enabled, depth=depth)
+    if tier == term.DEPTH_NONE:
         return quoted
 
     if arg.startswith("-"):
-        return f"{C_ARG_FLAG}{quoted}{C_RESET}"
+        return f"{sgr_256(IDX_ARG_FLAG, depth=tier)}{quoted}{C_RESET}"
     if "/" in arg or arg.endswith((".py", ".md", ".json", ".sh", ".txt", ".rs", ".go")):
-        return f"{C_ARG_PATH}{quoted}{C_RESET}"
-    return f"{C_ARG_TEXT}{quoted}{C_RESET}"
+        return f"{sgr_256(IDX_ARG_PATH, depth=tier)}{quoted}{C_RESET}"
+    return f"{sgr_256(IDX_ARG_TEXT, depth=tier)}{quoted}{C_RESET}"
 
 
-def format_arguments(arguments: tuple[str, ...], color_enabled: bool) -> str:
-    if not color_enabled:
+def format_arguments(
+    arguments: tuple[str, ...], color_enabled: bool, *, depth: str | None = None
+) -> str:
+    tier = _effective_depth(color_enabled, depth=depth)
+    if tier == term.DEPTH_NONE:
         return " ".join(shlex.quote(arg) for arg in arguments)
-    return " ".join(format_colored_argument(arg, color_enabled) for arg in arguments)
+    return " ".join(
+        format_colored_argument(arg, color_enabled, depth=tier) for arg in arguments
+    )
 
 
 def process_label(
@@ -367,34 +426,41 @@ def process_label(
     color_enabled: bool = True,
     show_long: bool = False,
     runner_decorations: dict[int, str] | None = None,
+    depth: str | None = None,
 ) -> str:
+    tier = _effective_depth(color_enabled, depth=depth)
+    styled = tier != term.DEPTH_NONE
+
     representative = members[0]
-    arguments = format_arguments(representative.arguments, color_enabled)
+    arguments = format_arguments(representative.arguments, styled, depth=tier)
 
     # Parent suffix for root processes
     parent_suffix = ""
     if is_root and processes and representative.ppid in processes:
         parent = processes[representative.ppid]
         if parent.pid > 1:
-            if color_enabled:
+            if styled:
+                c_parent = sgr_256(IDX_PARENT, depth=tier)
                 parent_suffix = (
-                    f" {C_PARENT}[parent: {parent.name},{parent.pid}]{C_RESET}"
+                    f" {c_parent}[parent: {parent.name},{parent.pid}]{C_RESET}"
                 )
             else:
                 parent_suffix = f" [parent: {parent.name},{parent.pid}]"
 
     # Head (count + process name + PID)
-    proc_color = get_process_color(representative.name) if color_enabled else ""
-    reset = C_RESET if color_enabled else ""
+    proc_color = get_process_color(representative.name, depth=tier) if styled else ""
+    reset = C_RESET if styled else ""
+    c_pid = sgr_256(IDX_PID, depth=tier) if styled else ""
 
     if len(members) == 1:
-        if color_enabled:
-            head = f"{proc_color}{representative.name}{reset}{C_PID},{representative.pid}{reset}"
+        if styled:
+            head = f"{proc_color}{representative.name}{reset}{c_pid},{representative.pid}{reset}"
         else:
             head = f"{representative.name},{representative.pid}"
     else:
-        if color_enabled:
-            head = f"{C_COUNT}{len(members)}x{reset} {proc_color}{representative.name}{reset}"
+        if styled:
+            c_count = sgr_256(IDX_COUNT, bold=True, depth=tier)
+            head = f"{c_count}{len(members)}x{reset} {proc_color}{representative.name}{reset}"
         else:
             head = f"{len(members)}x {representative.name}"
 
@@ -407,7 +473,7 @@ def process_label(
         label = f"{label}{runner_suffix}"
     if parent_suffix:
         label = f"{label}{parent_suffix}"
-    return ansi_truncate(label, width, color_enabled, show_long=show_long)
+    return ansi_truncate(label, width, styled, show_long=show_long, depth=tier)
 
 
 def group_processes(processes: list[Process]) -> list[list[Process]]:
@@ -435,10 +501,14 @@ def render_group(
     is_last: bool = True,
     is_root: bool = False,
     runner_decorations: dict[int, str] | None = None,
+    depth: str | None = None,
 ) -> list[str]:
+    tier = _effective_depth(color_enabled, depth=depth)
+    styled = tier != term.DEPTH_NONE
+
     # Use Unicode box line art characters
-    tree_c = C_TREE if color_enabled else ""
-    reset = C_RESET if color_enabled else ""
+    tree_c = sgr_256(IDX_TREE, depth=tier) if styled else ""
+    reset = C_RESET if styled else ""
 
     if is_root:
         connector = ""
@@ -448,7 +518,7 @@ def render_group(
         connector = f"{tree_c}├── {reset}"
 
     lines = [
-        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled, show_long=show_long, runner_decorations=runner_decorations)}"
+        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=styled, show_long=show_long, runner_decorations=runner_decorations, depth=tier)}"
     ]
 
     if level >= max_depth:
@@ -488,9 +558,11 @@ def render_group(
 
         if entry_type == "thread":
             thread_name, count = value  # type: ignore[misc]
-            if color_enabled:
+            if styled:
+                c_thread = sgr_256(IDX_THREAD, depth=tier)
+                c_thread_tag = sgr_256(IDX_THREAD_TAG, depth=tier)
                 lines.append(
-                    f"{child_prefix}{entry_connector}{C_THREAD}{count}x {{{thread_name}}}{C_RESET} {C_THREAD_TAG}[threads]{C_RESET}"
+                    f"{child_prefix}{entry_connector}{c_thread}{count}x {{{thread_name}}}{C_RESET} {c_thread_tag}[threads]{C_RESET}"
                 )
             else:
                 lines.append(
@@ -504,12 +576,13 @@ def render_group(
                     max_depth=max_depth,
                     width=width,
                     processes=processes,
-                    color_enabled=color_enabled,
+                    color_enabled=styled,
                     show_long=show_long,
                     exclude_rules=exclude_rules,
                     prefix=child_prefix,
                     is_last=entry_is_last,
                     runner_decorations=runner_decorations,
+                    depth=tier,
                 )
             )
 
@@ -696,7 +769,12 @@ def render_snapshot(
     show_long: bool = False,
     root_pids: set[int] | None = None,
     runner_decorations: dict[int, str] | None = None,
+    *,
+    depth: str | None = None,
 ) -> tuple[str, list[Process]]:
+    tier = _effective_depth(color_enabled, depth=depth)
+    styled = tier != term.DEPTH_NONE
+
     roots = matching_roots(processes, proc_rules, exclude_rules, root_pids=root_pids)
     if not roots:
         if root_pids is not None:
@@ -704,7 +782,7 @@ def render_snapshot(
         else:
             pat_desc = ", ".join(r.pattern for r in proc_rules)
             msg = f"No processes matching {pat_desc!r} found."
-        if color_enabled:
+        if styled:
             return f"{C_DIM}{msg}{C_RESET}", []
         return msg, []
 
@@ -718,11 +796,12 @@ def render_snapshot(
                     max_depth=max_depth,
                     width=width,
                     processes=processes,
-                    color_enabled=color_enabled,
+                    color_enabled=styled,
                     show_long=show_long,
                     exclude_rules=exclude_rules,
                     is_root=True,
                     runner_decorations=runner_decorations,
+                    depth=tier,
                 )
             )
         )
@@ -1047,7 +1126,8 @@ def main(argv: list[str] | None = None) -> int:
     # `FORCE_COLOR` completely, so `FORCE_COLOR=1 aw pwatch | cat` was plain while every other
     # command colorized, and it ignored `TERM`, so `TERM=dumb` got color. Both are now `term`'s
     # answers.
-    color_enabled = not args.no_color and term.should_color(sys.stdout)
+    depth = term.DEPTH_NONE if args.no_color else term.resolve_color_depth(sys.stdout)
+    color_enabled = depth != term.DEPTH_NONE
 
     old_sigint = signal.getsignal(signal.SIGINT)
     old_sigterm = signal.getsignal(signal.SIGTERM)
@@ -1126,7 +1206,8 @@ def main(argv: list[str] | None = None) -> int:
                     parts.append(f"{runners_monitor.format_bytes(tot_rss)} RAM")
                     dec_text = f"[{' | '.join(parts)}]"
                     if color_enabled:
-                        runner_decorations[pid] = f"\033[38;5;81m{dec_text}\033[0m"
+                        c_run_dec = sgr_256(IDX_RUNNER_DEC, depth=depth)
+                        runner_decorations[pid] = f"{c_run_dec}{dec_text}{C_RESET}"
                     else:
                         runner_decorations[pid] = dec_text
 
@@ -1140,6 +1221,7 @@ def main(argv: list[str] | None = None) -> int:
                 show_long=args.long,
                 root_pids=root_pids,
                 runner_decorations=runner_decorations,
+                depth=depth,
             )
 
             # Record matching processes in tree if recorder active
@@ -1149,7 +1231,8 @@ def main(argv: list[str] | None = None) -> int:
             rec_banner = ""
             if recorder is not None:
                 if color_enabled:
-                    rec_banner = f" {C_RECORD}[recording -> {recorder.output_path.name}]{C_RESET}"
+                    c_record = sgr_256(IDX_RECORD, bold=True, depth=depth)
+                    rec_banner = f" {c_record}[recording -> {recorder.output_path.name}]{C_RESET}"
                 else:
                     rec_banner = f" [recording -> {recorder.output_path.name}]"
 
@@ -1160,10 +1243,13 @@ def main(argv: list[str] | None = None) -> int:
                 summary_str = ", ".join(summary_parts)
 
             if color_enabled:
+                c_banner = sgr_256(IDX_BANNER, bold=True, depth=depth)
+                c_tree = sgr_256(IDX_TREE, depth=depth)
+                c_timestamp = sgr_256(IDX_TIMESTAMP, depth=depth)
                 header = (
-                    f"{C_BANNER}pwatch: {summary_str}{C_RESET}{rec_banner} "
-                    f"{C_DIM}(every {args.interval}s){C_RESET} {C_TREE}──{C_RESET} "
-                    f"{C_TIMESTAMP}{now_display}{C_RESET}\n\n"
+                    f"{c_banner}pwatch: {summary_str}{C_RESET}{rec_banner} "
+                    f"{C_DIM}(every {args.interval}s){C_RESET} {c_tree}──{C_RESET} "
+                    f"{c_timestamp}{now_display}{C_RESET}\n\n"
                 )
             else:
                 header = (
