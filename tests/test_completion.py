@@ -1049,7 +1049,16 @@ class CompleteQueryTests(_DynamicRepoFixture):
             (
                 (
                     "equals",
-                    ["as", "cancel", "finalize", "init", "ipd", "record", "start"],
+                    [
+                        "as",
+                        "cancel",
+                        "finalize",
+                        "init",
+                        "ipd",
+                        "record",
+                        "start",
+                        "verify",
+                    ],
                 ),
                 ("excludes", ("show", "status", "evidence", "verify-ledger", "list")),
                 ("excludes", ("tabcomp", "run-20260829T000000Z-1")),

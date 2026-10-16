@@ -610,6 +610,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
             "ledger in tests/test_live_conformance_sweep.py."
         ),
     ),
+    "run verify": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires target positional argument.",
+    ),
     "set": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",

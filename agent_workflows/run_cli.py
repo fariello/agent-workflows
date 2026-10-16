@@ -45,6 +45,7 @@ from agent_workflows import (
     agent_schema,
     artifact_core,
     run_engine,
+    run_freeze,
     run_ledger_schema,
     run_recovery,
     run_state,
@@ -118,12 +119,14 @@ def run_cli(args: argparse.Namespace) -> int:
         return _run_status(args)
     if sub == "finalize":
         return _run_finalize(args)
+    if sub == "verify":
+        return _run_verify(args)
     if sub == "decisions":
         return _run_decisions(args)
     if sub == "questions":
         return _run_questions(args)
     _print_human(
-        "usage: aw run {init|start|record|cancel|finalize} <run-id-or-path> "
+        "usage: aw run {init|start|record|verify|cancel|finalize} <run-id-or-path> "
         "[--agent|--json] [--dir <dir>]\n"
         "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
         "<run-id-or-path> [--agent|--json] [--dir <dir>]"
@@ -1160,6 +1163,14 @@ def _run_init(args: argparse.Namespace) -> int:
             EXIT_INVALID_INVOCATION,
         )
 
+    # Freeze workflow requirements before reserving directory
+    try:
+        frozen = run_freeze.freeze_workflow_requirements(workflow)
+    except ValueError as exc:
+        return _emit_error(
+            args, f"failed to freeze requirements: {exc}", EXIT_INVALID_INVOCATION
+        )
+
     # Reserve the directory race-safely
     run_dir = state_root(repo) / run_id
     run_dir_created = False
@@ -1179,10 +1190,7 @@ def _run_init(args: argparse.Namespace) -> int:
     workflow_path = run_dir / WORKFLOW_FILENAME
     try:
         workflow_digest = _workflow_digest(workflow)
-        reqs = workflow.get("requirements")
-        if not isinstance(reqs, list):
-            reqs = []
-        requirement_digest = store.compute_record_hash(reqs)
+        requirement_digest = frozen.requirement_digest
         head = evidence.get_git_head(repo)
         repo_name = repo.name
 
@@ -1198,6 +1206,15 @@ def _run_init(args: argparse.Namespace) -> int:
             "head": head,
         }
 
+        req_set_rec = run_freeze.requirement_set_record(
+            run_id=run_id,
+            seq=1,
+            actor="runtime",
+            timestamp="",
+            parent="",
+            frozen=frozen,
+        )
+
         # Persist canonical workflow JSON beside ledger.jsonl before appending header
         wf_content = (
             json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
@@ -1205,7 +1222,9 @@ def _run_init(args: argparse.Namespace) -> int:
         artifact_core.atomic_write(workflow_path, wf_content)
 
         ledger_store = store.RunLedgerStore(ledger_path)
-        ledger_store.append(header)
+        with ledger_store.writer_lock():
+            ledger_store.append_held(header)
+            ledger_store.append_held(req_set_rec)
     except Exception as exc:
         if run_dir_created:
             shutil.rmtree(run_dir, ignore_errors=True)
@@ -1657,4 +1676,89 @@ def _run_finalize(args: argparse.Namespace) -> int:
         _emit_machine(args, payload)
     else:
         _print_human(f"Finalized run {snapshot.run_id}: COMPLETE")
+    return EXIT_OK
+
+
+# ---- verify --------------------------------------------------------------------------------------
+
+
+def _run_verify(args: argparse.Namespace) -> int:
+    """Record an independent verifier decision for a requirement in the append-only ledger."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    req_id = getattr(args, "requirement", None)
+    result = getattr(args, "result", None)
+    if not req_id or not result:
+        return _emit_error(
+            args,
+            "verify requires --requirement <req-id> --result <satisfied|partial|failed|not_verifiable>",
+            EXIT_INVALID_INVOCATION,
+        )
+
+    if result not in run_ledger_schema.VERIFIER_RESULTS:
+        return _emit_error(
+            args,
+            f"invalid --result '{result}'; must be one of {sorted(run_ledger_schema.VERIFIER_RESULTS)}",
+            EXIT_INVALID_INVOCATION,
+        )
+
+    snapshot = engine.reconstruct_state()
+    if snapshot.state in run_state.TERMINAL_STATES:
+        return _emit_error(
+            args,
+            f"cannot record verifier decision on terminal run '{snapshot.run_id}' (state: {snapshot.state})",
+            EXIT_OPERATIONAL,
+        )
+
+    frozen_req_ids = set()
+    has_requirement_set = False
+    for rec in records:
+        if rec.get("kind") == "requirement_set":
+            has_requirement_set = True
+            for req in rec.get("requirements", []):
+                if isinstance(req, dict) and "id" in req:
+                    frozen_req_ids.add(req["id"])
+
+    if not has_requirement_set:
+        return _emit_error(
+            args,
+            "no frozen requirements defined in ledger",
+            EXIT_INVALID_INVOCATION,
+        )
+
+    if req_id not in frozen_req_ids:
+        return _emit_error(
+            args,
+            f"unknown requirement '{req_id}'",
+            EXIT_INVALID_INVOCATION,
+        )
+
+    actor = getattr(args, "actor", None) or "verifier"
+
+    try:
+        engine.record_verifier_decision(req_id, result=result, actor=actor)
+    except (run_state.RunStateError, store.LedgerLockError) as exc:
+        return _emit_error(args, f"operational error: {exc}", EXIT_OPERATIONAL)
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    snapshot = engine.reconstruct_state()
+    if _machine(args):
+        payload = _snapshot_payload(snapshot)
+        payload["recorded_decision"] = {
+            "requirement": req_id,
+            "result": result,
+            "actor": actor,
+        }
+        _emit_machine(args, payload)
+    else:
+        _print_human(f"Recorded verifier decision: {req_id} -> {result}")
+
+    if result in ("partial", "failed", "not_verifiable"):
+        return EXIT_BLOCKED
     return EXIT_OK

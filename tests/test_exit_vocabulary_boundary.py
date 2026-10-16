@@ -52,6 +52,9 @@ OUT_OF_RANGE_DECLARATION_ALLOWLIST: Dict[str, str] = {
     "run finalize": (
         "Run finalization lifecycle command using run-execution vocabulary (codes 0, 1, 2, 4, 6)."
     ),
+    "run verify": (
+        "Verifier decision recording lifecycle command using run-execution vocabulary (codes 0, 2, 3, 5, 6)."
+    ),
     "oc runipd": (
         "OpenCode driver run execution command admitting exit 3 for human gate / needs-input."
     ),

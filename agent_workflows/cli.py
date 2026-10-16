@@ -2674,6 +2674,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw run init --workflow <path>          # initialize a new run ledger with a header\n"
             "  aw run start <target> --step S-01      # take the lease and start a runnable step\n"
             "  aw run record <target> --step S-01 --state performed\n"
+            "  aw run verify <target> --requirement <id> --result <verdict>\n"
             "  aw run cancel <target> --reason ...    # record a terminal cancellation\n"
             "  aw run finalize <target>               # complete the run (coordinator authority)\n"
             "\n"
@@ -2757,6 +2758,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "terminal completion. Requires coordinator authority. Exit 0 complete, 1 incomplete, "
             "4 invalid evidence, 6 unauthorized/operational.",
         ),
+        (
+            "verify",
+            "Record an independent verifier decision for a requirement in the ledger.",
+            "Record an independent verifier decision for a frozen requirement in the append-only "
+            "ledger. Exit 0 on satisfied, 3 on non-satisfied (partial/failed/not_verifiable), "
+            "2 bad invocation, 5 corrupted, 6 operational.",
+        ),
         # execset Order 05 (2h7777): read-only inspection of a Set run's durable projections.
         (
             "decisions",
@@ -2811,6 +2819,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "cancel",
             "status",
             "finalize",
+            "verify",
         ):
             _pr.add_argument(
                 "--workflow",
@@ -2821,7 +2830,7 @@ def _build_parser() -> argparse.ArgumentParser:
                     "refused exit 2 when its digest differs from the run header)."
                 ),
             )
-        if name in ("start", "record", "cancel", "finalize"):
+        if name in ("start", "record", "cancel", "finalize", "verify"):
             _pr.add_argument(
                 "--actor",
                 default=None,
@@ -2836,6 +2845,17 @@ def _build_parser() -> argparse.ArgumentParser:
                 "--state",
                 default=None,
                 help="Attempt outcome: performed | blocked | failed.",
+            )
+        if name == "verify":
+            _pr.add_argument(
+                "--requirement",
+                default=None,
+                help="Requirement id to verify (e.g. R-01).",
+            )
+            _pr.add_argument(
+                "--result",
+                default=None,
+                help="Verifier result: satisfied, partial, failed, or not_verifiable.",
             )
         if name == "cancel":
             _pr.add_argument(

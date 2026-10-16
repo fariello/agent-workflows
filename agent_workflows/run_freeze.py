@@ -172,6 +172,118 @@ def freeze_requirements(requirements: Mapping[str, Sequence[str]]) -> Requiremen
     return RequirementSet(requirement_digest=requirement_digest, items=tuple(items))
 
 
+def freeze_workflow_requirements(workflow: Mapping[str, Any]) -> RequirementSet:
+    """Freeze a workflow's explicit requirements into stable ids + per-item digests + a set digest.
+
+    Unwraps a compiled {"workflow": {...}} mapping if wrapped. Preserves the workflow's explicit requirement
+    ids in input order. Computes each item digest via _digest(category, _normalize(text)) and the set
+    digest as SHA-256 over the sorted item digests.
+    """
+    wf_dict: Mapping[str, Any]
+    if isinstance(workflow, Mapping):
+        if "workflow" in workflow and isinstance(workflow["workflow"], Mapping):
+            wf_dict = workflow["workflow"]
+        else:
+            wf_dict = workflow
+    else:
+        wf_dict = {}
+
+    reqs = wf_dict.get("requirements")
+    if not isinstance(reqs, (list, tuple)) or len(reqs) == 0:
+        raise ValueError(
+            "cannot freeze workflow requirements: "
+            + "RF-E007 requirements: workflow requirements must be a non-empty list"
+        )
+
+    findings: List[Finding] = []
+    seen_ids: set[str] = set()
+    items: List[FrozenItem] = []
+
+    for idx, it in enumerate(reqs):
+        if not isinstance(it, Mapping):
+            findings.append(
+                Finding(
+                    "RF-E008",
+                    f"requirements[{idx}]",
+                    "requirement entry must be a mapping",
+                )
+            )
+            continue
+        req_id = it.get("id")
+        if not isinstance(req_id, str) or not req_id.strip():
+            findings.append(
+                Finding(
+                    "RF-E008",
+                    f"requirements[{idx}]",
+                    "requirement entry must contain a non-empty string 'id'",
+                )
+            )
+            continue
+        if req_id in seen_ids:
+            findings.append(
+                Finding("RF-E009", req_id, f"duplicate requirement id '{req_id}'")
+            )
+            continue
+        seen_ids.add(req_id)
+
+        cat = it.get("category", "must")
+        if cat not in CATEGORIES:
+            findings.append(
+                Finding("RF-E003", cat, f"unknown requirement category '{cat}'")
+            )
+            continue
+
+        raw_text = it.get("text") if "text" in it else it.get("description")
+        if raw_text is None:
+            text = req_id
+        else:
+            if not isinstance(raw_text, str):
+                findings.append(
+                    Finding(
+                        "RF-E005",
+                        f"requirements[{idx}]",
+                        "requirement item must be a string",
+                    )
+                )
+                continue
+            if not _normalize(raw_text):
+                findings.append(
+                    Finding(
+                        "RF-E006",
+                        f"requirements[{idx}]",
+                        "requirement item must be non-empty after normalization",
+                    )
+                )
+                continue
+            text = raw_text
+
+        normalized = _normalize(text)
+        items.append(
+            FrozenItem(
+                id=req_id,
+                category=cat,
+                text=text,
+                digest=_digest(cat, normalized),
+            )
+        )
+
+    if findings:
+        raise ValueError(
+            "cannot freeze workflow requirements: "
+            + "; ".join(
+                "{0} {1}: {2}".format(f.code, f.where, f.message) for f in findings
+            )
+        )
+
+    set_payload = json.dumps(
+        sorted(it.digest for it in items),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    requirement_digest = hashlib.sha256(set_payload).hexdigest()
+    return RequirementSet(requirement_digest=requirement_digest, items=tuple(items))
+
+
 def requirement_set_record(
     run_id: str,
     seq: int,

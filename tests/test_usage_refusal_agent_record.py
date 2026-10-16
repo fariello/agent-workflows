@@ -84,7 +84,7 @@ REQUIRED_LEAVES: list[str] = [
 def test_exclusion_set_size_and_members() -> None:
     """Explicit visibility of the exclusion set size and members."""
     assert len(EXCLUDED_LEAVES) == 0
-    assert len(REQUIRED_LEAVES) == 68
+    assert len(REQUIRED_LEAVES) == 69
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

@@ -188,13 +188,13 @@ The `aw runs` viewer's read paths (bare `aw runs` and its identical leaf `aw run
 Two distinct live exit tables govern these verbs and disagree on the meaning of codes `3` and `4`. They are not reconciled into a single table:
 
 1. **The `aw runs` inspection and step lifecycle table** (defined by constants `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER` in `agent_workflows/run_cli.py`):
-   - `0`: Clean / success. Run completed cleanly or inspection succeeded.
+   - `0`: Clean / success. Run completed cleanly or inspection succeeded (`run verify`).
    - `1`: Incomplete run. Run finished with unsatisfied predicates or pending steps (`runs status`, `run finalize`).
-   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, workflow digest mismatch, or command syntax error (`run init`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
-   - `3`: Blocked. Run execution cannot proceed due to an unknown outcome, exhausted retry budget, or non-runnable state (`run start`, `runs next`, `run record`, `runs resume`, `runs status`).
+   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, workflow digest mismatch, or command syntax error (`run init`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`, `run verify`).
+   - `3`: Blocked. Run execution cannot proceed due to an unknown outcome, exhausted retry budget, or non-runnable state (`run start`, `runs next`, `run record`, `runs resume`, `runs status`, `run verify`).
    - `4`: Invalid evidence. Captured step evidence is invalid or rejected by completion checks (`run finalize`).
-   - `5`: Ledger corruption. Hash chain break, schema mismatch, or torn record in ledger (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`).
-   - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run init`, `run start`, `run record`, `run cancel`, `run finalize`).
+   - `5`: Ledger corruption. Hash chain break, schema mismatch, or torn record in ledger (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run verify`).
+   - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run init`, `run start`, `run record`, `run cancel`, `run finalize`, `run verify`).
    - `7`: Not a ledger. Target path exists and contains valid JSONL, but lacks mandatory ledger envelope fields (`runs next`, `runs resume`, `runs status`).
 
    `aw run init` is the one `run`-family leaf whose SUCCESS `--agent` output is an `aw.agent/v1` record while its refusals keep the family's bare-JSON shape.

@@ -1322,6 +1322,23 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2, 4, 6),
     ),
     CommandDeclaration(
+        command="run verify",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--workflow",
+            "--actor",
+            "--requirement",
+            "--result",
+            "--agent",
+            "--json",
+        ),
+        exit_contract=(0, 2, 3, 5, 6),
+    ),
+    CommandDeclaration(
         # execset Order 05 (2h7777): read-only inspection of a Set run's durable decisions
         # projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Exit 0 found / 1 none / 2 missing.
         command="runs decisions",

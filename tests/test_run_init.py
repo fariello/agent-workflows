@@ -66,7 +66,7 @@ def test_case_a_init_creates_valid_ledger_record(tmp_path: Path) -> None:
     assert ledger_path.is_file(), f"Ledger file not found at {ledger_path}"
 
     records = run_ledger_store.RunLedgerStore(ledger_path).read_records(verify=True)
-    assert len(records) == 1, f"Expected 1 record, got {len(records)}"
+    assert len(records) == 2, f"Expected 2 records, got {len(records)}"
 
     val_res = run_ledger_schema.validate_records(records)
     assert val_res.ok, f"validate_records failed: {val_res.findings}"
@@ -77,13 +77,21 @@ def test_case_a_init_creates_valid_ledger_record(tmp_path: Path) -> None:
     expected_wf_digest = run_ledger_store.compute_record_hash(SAMPLE_WORKFLOW)
     assert rec["workflow_digest"] == expected_wf_digest
 
+    rec_req = records[1]
+    assert rec_req["kind"] == "requirement_set"
+    assert rec_req["run_id"] == run_id
+    assert rec_req["requirement_digest"] == rec["requirement_digest"]
+    assert len(rec_req["requirements"]) == 1
+    assert rec_req["requirements"][0]["id"] == "R-01"
+
 
 def test_case_b_follow_on_sequence(tmp_path: Path) -> None:
-    """Case (b): the follow-on sequence: aw run start <id> --step S-01 --workflow wf.json exit 0,
-    aw run record <id> --step S-01 --state performed --workflow wf.json exit 0,
-    aw runs status <id> --workflow wf.json output contains S-01: performed (exit 1, run still incomplete),
-    and aw runs verify-ledger <id> output contains Hash Chain: CLEAN (exit 1, completion UNSATISFIED
-    with 'no frozen requirements defined').
+    """Case (b): complete sequence: init, start, record --state performed,
+    verify-ledger exit 1 naming unsatisfied requirements: ['R-01'],
+    verify --requirement R-01 --result satisfied exit 0,
+    verify-ledger exit 0 with Completion Predicates: SATISFIED,
+    finalize exit 0 with finalized: true and run_state: complete,
+    and status exit 0.
     """
     repo = _create_scratch_repo(tmp_path / "repo")
     wf_file = repo / "workflow.json"
@@ -116,14 +124,42 @@ def test_case_b_follow_on_sequence(tmp_path: Path) -> None:
         res_record.returncode == 0
     ), f"record failed: {res_record.stdout} {res_record.stderr}"
 
-    res_status = run_cli("runs", "status", run_id, "--workflow", str(wf_file), cwd=repo)
-    assert res_status.returncode == 1, f"status exit: {res_status.returncode}"
-    assert "S-01: performed" in res_status.stdout
+    res_verify_fail = run_cli("runs", "verify-ledger", run_id, cwd=repo)
+    assert (
+        res_verify_fail.returncode == 1
+    ), f"verify-ledger exit: {res_verify_fail.returncode}"
+    assert "unsatisfied requirements: ['R-01']" in res_verify_fail.stdout
 
-    res_verify = run_cli("runs", "verify-ledger", run_id, cwd=repo)
-    assert res_verify.returncode == 1, f"verify-ledger exit: {res_verify.returncode}"
-    assert "Hash Chain: CLEAN" in res_verify.stdout
-    assert "no frozen requirements defined" in res_verify.stdout
+    res_verify_req = run_cli(
+        "run",
+        "verify",
+        run_id,
+        "--requirement",
+        "R-01",
+        "--result",
+        "satisfied",
+        cwd=repo,
+    )
+    assert (
+        res_verify_req.returncode == 0
+    ), f"run verify failed: {res_verify_req.stdout} {res_verify_req.stderr}"
+
+    res_verify_pass = run_cli("runs", "verify-ledger", run_id, cwd=repo)
+    assert (
+        res_verify_pass.returncode == 0
+    ), f"verify-ledger exit: {res_verify_pass.returncode}: {res_verify_pass.stdout}"
+    assert "Completion Predicates: SATISFIED" in res_verify_pass.stdout
+
+    res_finalize = run_cli("run", "finalize", run_id, "--json", cwd=repo)
+    assert (
+        res_finalize.returncode == 0
+    ), f"finalize failed: {res_finalize.stdout} {res_finalize.stderr}"
+    fin_data = json.loads(res_finalize.stdout)
+    assert fin_data.get("finalized") is True
+    assert fin_data.get("run_state") == "complete"
+
+    res_status = run_cli("runs", "status", run_id, cwd=repo)
+    assert res_status.returncode == 0, f"status exit: {res_status.returncode}"
 
 
 def test_case_c_second_init_existing_id_refusal(tmp_path: Path) -> None:
@@ -196,6 +232,38 @@ def test_case_d_refusals_leave_filesystem_unchanged(tmp_path: Path) -> None:
     wf_array.write_text("[1, 2, 3]", encoding="utf-8")
     res = run_cli("run", "init", "--workflow", str(wf_array), cwd=repo)
     assert res.returncode == 2, f"JSON array returned {res.returncode}"
+    assert _state_entries() == initial_entries
+
+    # 5. Empty requirements list
+    wf_empty = repo / "empty_reqs.json"
+    wf_empty.write_text(
+        json.dumps(
+            {
+                "id": "wf-empty",
+                "steps": [{"id": "S-01", "action": "test"}],
+                "requirements": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    res = run_cli("run", "init", "--workflow", str(wf_empty), cwd=repo)
+    assert res.returncode == 2, f"empty requirements returned {res.returncode}"
+    assert _state_entries() == initial_entries
+
+    # 6. Id-less requirement entry
+    wf_idless = repo / "idless_reqs.json"
+    wf_idless.write_text(
+        json.dumps(
+            {
+                "id": "wf-idless",
+                "steps": [{"id": "S-01", "action": "test"}],
+                "requirements": [{"text": "no id"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    res = run_cli("run", "init", "--workflow", str(wf_idless), cwd=repo)
+    assert res.returncode == 2, f"idless requirement returned {res.returncode}"
     assert _state_entries() == initial_entries
 
 
