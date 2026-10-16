@@ -9205,19 +9205,34 @@ def _teach(term: Term) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def _format_cleanup_root(repo_root: Path, root: str, n: int) -> str:
+def _format_cleanup_root(
+    repo_root: Path, root: str, n: int, is_records: bool = False
+) -> str:
     plural = "file" if n == 1 else "files"
-    target = repo_root / root
-    if target.is_file() or not root.startswith((".aw/records", ".agents")):
-        return f"{root} ({n} {plural})"
-    return f"{n} {plural} under {root}/"
+    home_dir = str(Path.home())
+    display_root = root
+    if display_root.startswith(home_dir):
+        display_root = "~" + display_root[len(home_dir) :]
+    target = Path(root) if Path(root).is_absolute() else repo_root / root
+    if target.is_file() or not (
+        is_records or root.startswith((".aw/records", ".agents"))
+    ):
+        return f"{display_root} ({n} {plural})"
+    return f"{n} {plural} under {display_root.rstrip('/')}/"
 
 
 def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
     """Report what a normal + deep uninstall WOULD do, changing nothing."""
+    home_dir = str(Path.home())
+
+    def _fmt(p: Path | str) -> str:
+        s = str(p)
+        if s.startswith(home_dir):
+            return "~" + s[len(home_dir) :]
+        return s
 
     plan = engine.plan_uninstall(repo_root)
-    term.status("ok", f"[dry-run] uninstall plan for {repo_root}:")
+    term.status("ok", f"[dry-run] uninstall plan for {_fmt(repo_root)}:")
     if plan.has_manifest:
         print(f"  would remove {len(plan.remove)} owned file(s)")
         if plan.drifted:
@@ -9231,9 +9246,57 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
         print("  would remove the manifest last")
     else:
         print("  no manifest: would fall back to removing the framework namespace")
-    from agent_workflows.project_context import project_config_dir
 
-    if not (repo_root / ".aw" / "config").is_dir():
+    home_trees = engine._clean_delta_home_trees(repo_root)
+    if home_trees is not None:
+        sys_dir = home_trees.get("system")
+        cfg_dir = home_trees.get("config")
+        state_dir = home_trees.get("state")
+        wt_dir = home_trees.get("worktrees")
+        proj_dir = home_trees.get("project_dir")
+
+        sys_files = (
+            [p for p in sys_dir.rglob("*") if p.is_file()]
+            if sys_dir and sys_dir.is_dir()
+            else []
+        )
+        cfg_files = (
+            [p for p in cfg_dir.rglob("*") if p.is_file()]
+            if cfg_dir and cfg_dir.is_dir()
+            else []
+        )
+        state_files = (
+            [p for p in state_dir.rglob("*") if p.is_file()]
+            if state_dir and state_dir.is_dir()
+            else []
+        )
+
+        print(f"  clean-target home trees under {_fmt(proj_dir)}:")
+        print(f"    - system: {len(sys_files)} file(s)")
+        print(f"    - config: {len(cfg_files)} file(s)")
+        print(f"    - state: {len(state_files)} file(s)")
+
+        if wt_dir:
+            from agent_workflows import runner_shared
+
+            live, holds_work, detached, removable = engine._home_lane_preflight(
+                repo_root, proj_dir, wt_dir
+            )
+            peers = runner_shared.peer_drivers(repo_root)
+            live_peers = [
+                p
+                for p in peers
+                if p.state in (runner_shared.PEER_LIVE, runner_shared.PEER_UNKNOWN)
+            ]
+            print(
+                f"    - worktrees: {len(removable)} removable, {len(detached)} detached, "
+                f"{len(holds_work)} holds-work, {len(live)} live lane(s)"
+            )
+            if live_peers:
+                print(f"    - peer drivers: {len(live_peers)} live/unknown run(s)")
+    elif not (repo_root / ".aw" / "config").is_dir():
+        from agent_workflows.project_context import project_config_dir
+
         home_cfg = project_config_dir(repo_root)
         if home_cfg.is_dir() and home_cfg != (repo_root / ".aw" / "config"):
             project_dir = home_cfg.parent
@@ -9250,12 +9313,15 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
             if home_files:
                 print(f"  would remove {len(home_files)} home config/state file(s):")
                 for hf in home_files:
-                    print(f"    - {hf}")
-    deep = engine.plan_deep_cleanup(repo_root)
+                    print(f"    - {_fmt(hf)}")
+    deep = engine.plan_deep_cleanup(repo_root, home_trees=home_trees)
     if not deep.is_empty:
         print("  deeper cleanup (offered separately) WOULD remove:")
         for root, n in sorted(deep.counts.items()):
-            print(f"    - {_format_cleanup_root(repo_root, root, n)}")
+            is_rec = deep.is_records_root(root)
+            print(
+                f"    - {_format_cleanup_root(repo_root, root, n, is_records=is_rec)}"
+            )
         if deep.at_risk:
             print(
                 f"    ! {len(deep.at_risk)} of these are NOT recoverable from git "
@@ -9265,17 +9331,28 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
 
 
 def _offer_deep_cleanup(
-    term: Term, repo_root: Path, use_git: bool, args, changed: list[str]
+    term: Term,
+    repo_root: Path,
+    use_git: bool,
+    args,
+    changed: list[str],
+    *,
+    home_trees: Optional[dict[str, Any]] = None,
 ) -> None:
     """Offer (or, under --deep, perform) the deeper scaffolding and records cleanup."""
 
-    plan = engine.plan_deep_cleanup(repo_root)
+    plan = engine.plan_deep_cleanup(repo_root, home_trees=home_trees)
     if plan.is_empty:
         return
 
     if args.deep:
         for a in engine.run_deep_cleanup(
-            repo_root, plan, use_git, changed_out=changed, remove_records=True
+            repo_root,
+            plan,
+            use_git,
+            changed_out=changed,
+            remove_records=True,
+            home_trees=home_trees,
         ):
             term.status("ok", a)
         return
@@ -9295,8 +9372,10 @@ def _offer_deep_cleanup(
         print()
         print("A deeper cleanup can also remove other agent-workflows scaffolding:")
         for root, n in sorted(plan.counts.items()):
-            if not root.startswith((".aw/records", ".agents")):
-                print(f"  - {_format_cleanup_root(repo_root, root, n)}")
+            if not plan.is_records_root(root):
+                print(
+                    f"  - {_format_cleanup_root(repo_root, root, n, is_records=False)}"
+                )
         other_at_risk = [f for f in plan.at_risk if f in plan.other_files]
         if other_at_risk:
             print(
@@ -9337,8 +9416,10 @@ def _offer_deep_cleanup(
         print()
         print("Authoring records found under .aw/records/ (or .agents/):")
         for root, n in sorted(plan.counts.items()):
-            if root.startswith((".aw/records", ".agents")):
-                print(f"  - {_format_cleanup_root(repo_root, root, n)}")
+            if plan.is_records_root(root):
+                print(
+                    f"  - {_format_cleanup_root(repo_root, root, n, is_records=True)}"
+                )
         records_at_risk = [f for f in plan.at_risk if f in plan.records_files]
         if records_at_risk:
             print(
@@ -9382,6 +9463,7 @@ def _offer_deep_cleanup(
             use_git,
             changed_out=changed,
             remove_records=remove_records,
+            home_trees=home_trees,
         ):
             term.status("ok", a)
     else:
@@ -9392,8 +9474,20 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     repo_root = Path(args.target).expanduser().resolve()
     from agent_workflows.project_context import project_config_dir
 
+    home_trees = engine._clean_delta_home_trees(repo_root)
     home_cfg = project_config_dir(repo_root)
     has_home_cfg = home_cfg.is_dir() and home_cfg != (repo_root / ".aw" / "config")
+    has_home_trees_footprint = False
+    if home_trees is not None:
+        has_framework = any(
+            (home_trees[k].exists() if home_trees.get(k) else False)
+            for k in ("system", "config", "state", "worktrees")
+        )
+        has_records = bool(home_trees.get("records") and home_trees["records"].exists())
+        has_home_trees_footprint = has_framework or (
+            has_records
+            and (getattr(args, "deep", False) or getattr(args, "dry_run", False))
+        )
     has_footprint = (
         (repo_root / engine.AW_SYSTEM_WORKFLOWS_DIR).is_dir()
         or (repo_root / engine.WORKFLOWS_DIR).is_dir()
@@ -9403,6 +9497,7 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
         or (repo_root / ".aw" / "system").is_dir()
         or (repo_root / ".aw").is_dir()
         or has_home_cfg
+        or has_home_trees_footprint
     )
     if not has_footprint:
         term.status(
@@ -9413,6 +9508,60 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     if getattr(args, "dry_run", False):
         return _uninstall_dry_run_report(term, repo_root)
 
+    # Preflight check for clean-delta targets before confirmation (E-03)
+    if home_trees is not None:
+        from agent_workflows import runner_shared
+
+        proj_dir = home_trees["project_dir"]
+        wt_root = home_trees["worktrees"]
+        live, holds_work, detached, removable = engine._home_lane_preflight(
+            repo_root, proj_dir, wt_root
+        )
+        peers = runner_shared.peer_drivers(repo_root)
+        live_peers = [
+            p
+            for p in peers
+            if p.state in (runner_shared.PEER_LIVE, runner_shared.PEER_UNKNOWN)
+        ]
+
+        if live or live_peers:
+            for lane in live:
+                term.status(
+                    "err",
+                    f"lane {lane['lane_id']} ({lane['path']}) is owned by a live process.",
+                )
+            for p in live_peers:
+                term.status(
+                    "err",
+                    f"run {p.run_id} is currently running (driver.lock is held).",
+                )
+            term.status(
+                "hint",
+                "Stop the running execution with 'aw oc run stop' or run 'aw lanes prune --apply'.",
+            )
+            return 1
+
+        if holds_work and not args.force:
+            for lane in holds_work:
+                ca = lane.get("commits_ahead", 0)
+                dirty_str = "dirty" if lane.get("dirty") else "clean"
+                term.status(
+                    "err",
+                    f"lane {lane['lane_id']} on branch {lane['branch']} holds unlanded work "
+                    f"({ca} commit(s) ahead, {dirty_str}). Pass --force to remove unlanded work, or land it first.",
+                )
+            return 1
+
+        if holds_work and args.force:
+            for lane in holds_work:
+                ca = lane.get("commits_ahead", 0)
+                dirty_str = "dirty" if lane.get("dirty") else "clean"
+                term.status(
+                    "warn",
+                    f"force-removing lane {lane['lane_id']} on branch {lane['branch']} which holds work "
+                    f"({ca} commit(s) ahead, {dirty_str}).",
+                )
+
     if not _confirm(
         term,
         f"Remove agent-workflows from {repo_root}? "
@@ -9422,7 +9571,7 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
         term.status("skip", "aborted; nothing changed.")
         return 1
 
-    use_git = engine.git_available(repo_root)
+    use_git = engine.git_available(repo_root) if home_trees is None else False
 
     # Interactive per-drifted-file decision (keep [default] / remove / diff). Non-interactive
     # or --force is handled inside uninstall_repo (preserve unless --force).
@@ -9453,18 +9602,26 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
         return "remove" if choice == "yes" else "keep"
 
     changed: list[str] = []
-    actions = engine.uninstall_repo(
-        repo_root,
-        use_git,
-        drift_decider=None if args.force else _drift_decider,
-        force=args.force,
-        changed_out=changed,
-    )
+    from agent_workflows import worktree_lease
+
+    try:
+        actions = engine.uninstall_repo(
+            repo_root,
+            use_git,
+            drift_decider=None if args.force else _drift_decider,
+            force=args.force,
+            changed_out=changed,
+            home_trees=home_trees,
+        )
+    except worktree_lease.WorktreeError as exc:
+        term.status("err", str(exc))
+        return 1
+
     for a in actions:
         term.status("ok", a)
 
     # Offer (or, under --deep, perform) the deeper .agents/ cleanup.
-    _offer_deep_cleanup(term, repo_root, use_git, args, changed)
+    _offer_deep_cleanup(term, repo_root, use_git, args, changed, home_trees=home_trees)
 
     # Drop the repo from the config allowlist, if present.
     cfg = config.load()

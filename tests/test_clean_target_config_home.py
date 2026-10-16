@@ -31,14 +31,16 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import shutil
 from pathlib import Path
 
-from agent_workflows import config
+from agent_workflows import config, ipd_lifecycle
 from agent_workflows.project_context import project_config_dir, resolve_project_context
 
 
 class TestCleanTargetConfigHome(unittest.TestCase):
     def setUp(self) -> None:
+        ipd_lifecycle.clear_checkout_control_root_cache()
         self.test_dir = tempfile.TemporaryDirectory()
         self.base = Path(self.test_dir.name)
         self.repo = self.base / "repo"
@@ -784,6 +786,391 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         removed = engine.remove_setup_marker(self.repo)
         self.assertTrue(removed)
         self.assertFalse(attention.setup_needed(self.repo))
+
+    def test_case_o_uninstall_keeps_home_records(self) -> None:
+        """Case (o): aw uninstall --yes on clean targets keeps home records byte-identical and cleans everything else."""
+        import hashlib
+
+        for preset in ("completely-clean-target", "local-only"):
+            with self.subTest(preset=preset):
+                r = self.base / f"repo_o_{preset}"
+                r.mkdir()
+                subprocess.run(
+                    ["git", "init", "-b", "main", "-q"], cwd=str(r), check=True
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "Test User"],
+                    cwd=str(r),
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", "test@example.com"],
+                    cwd=str(r),
+                    check=True,
+                )
+                (r / "README.md").write_text("# Test\n", encoding="utf-8")
+                subprocess.run(["git", "add", "README.md"], cwd=str(r), check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "initial"], cwd=str(r), check=True
+                )
+
+                self._run_aw(
+                    "install",
+                    str(r),
+                    "--preset",
+                    preset,
+                    "-y",
+                    "--no-interactive",
+                )
+                self._run_aw(
+                    "backlog",
+                    "new",
+                    "--summary",
+                    f"item for {preset}",
+                    "--priority",
+                    "high",
+                    "--work-kind",
+                    "bug",
+                    "--apply",
+                    cwd=r,
+                )
+
+                ctx = resolve_project_context(
+                    target_repo=str(r), aw_home=str(self.aw_home)
+                )
+                proj_dir = self.aw_home / "projects" / ctx.project_id
+                rec_dir = proj_dir / "records"
+                self.assertTrue(rec_dir.is_dir())
+
+                def hash_records():
+                    hashes = {}
+                    for p in sorted(rec_dir.rglob("*")):
+                        if p.is_file():
+                            rel = p.relative_to(rec_dir).as_posix()
+                            hashes[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
+                    return hashes
+
+                before_hashes = hash_records()
+                self.assertTrue(len(before_hashes) > 0)
+
+                head_proc = subprocess.run(
+                    ["git", "-C", str(r), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                head_before = head_proc.stdout.strip()
+
+                un_res = self._run_aw("uninstall", str(r), "--yes")
+                self.assertEqual(un_res.returncode, 0)
+                self.assertNotIn("Deletions are STAGED", un_res.stdout)
+                self.assertNotIn("Deletions are STAGED", un_res.stderr)
+                self.assertNotIn("Traceback", un_res.stderr)
+
+                # Home system, config, state, worktrees are absent
+                self.assertFalse((proj_dir / "system").exists())
+                self.assertFalse((proj_dir / "config").exists())
+                self.assertFalse((proj_dir / "state").exists())
+                self.assertFalse((proj_dir / "worktrees").exists())
+
+                # records/ is present and byte-identical
+                self.assertTrue(rec_dir.is_dir())
+                after_hashes = hash_records()
+                self.assertEqual(before_hashes, after_hashes)
+
+                # Target git status porcelain ignored is empty and HEAD is unchanged
+                st_proc = subprocess.run(
+                    ["git", "-C", str(r), "status", "--porcelain", "--ignored"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.assertEqual(st_proc.stdout.strip(), "")
+                head_proc_after = subprocess.run(
+                    ["git", "-C", str(r), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.assertEqual(head_proc_after.stdout.strip(), head_before)
+
+    def test_case_p_uninstall_deep_removes_project_dir(self) -> None:
+        """Case (p): aw uninstall --deep --yes removes project directory completely."""
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        self._run_aw(
+            "backlog",
+            "new",
+            "--summary",
+            "item deep",
+            "--priority",
+            "high",
+            "--work-kind",
+            "bug",
+            "--apply",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+        self.assertTrue(proj_dir.is_dir())
+
+        un_res = self._run_aw("uninstall", ".", "--deep", "--yes")
+        self.assertEqual(un_res.returncode, 0)
+        self.assertFalse(proj_dir.exists())
+
+        st_proc = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(st_proc.stdout.strip(), "")
+
+    def test_case_q_uninstall_tears_down_idle_lane(self) -> None:
+        """Case (q): uninstall tears down idle branch lane, merged lane, and detached checkout."""
+        from agent_workflows import worktree_lease
+
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+
+        # 1. Idle branch lane
+        worktree_lease.allocate_worktree(self.repo, "idle01")
+        worktree_lease.clear_lane_owner(self.repo, "idle01")
+
+        # 2. Already-merged lane
+        h2 = worktree_lease.allocate_worktree(self.repo, "mrg002")
+        (Path(h2.path) / "test.txt").write_text("merged content\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(h2.path), "add", "test.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(h2.path), "commit", "-qm", "merge commit"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "merge", "--ff-only", h2.branch],
+            check=True,
+        )
+        worktree_lease.clear_lane_owner(self.repo, "mrg002")
+
+        # 3. Detached checkout under state/suite-baselines/
+        baseline_dir = proj_dir / "state" / "suite-baselines" / "base-01"
+        baseline_dir.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.repo),
+                "worktree",
+                "add",
+                "--detach",
+                str(baseline_dir),
+                "HEAD",
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        un_res = self._run_aw("uninstall", ".", "--yes")
+        self.assertEqual(un_res.returncode, 0)
+
+        # Afterwards:
+        git_wt_dir = self.repo / ".git" / "worktrees"
+        if git_wt_dir.exists():
+            self.assertEqual(len(list(git_wt_dir.iterdir())), 0)
+        br_proc = subprocess.run(
+            ["git", "-C", str(self.repo), "branch", "--list", "aw/lane/*"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(br_proc.stdout.strip(), "")
+        wt_proc = subprocess.run(
+            ["git", "-C", str(self.repo), "worktree", "list"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        lines = [line.strip() for line in wt_proc.stdout.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("main", lines[0])
+
+    def test_case_r_uninstall_refuses_live_lane(self) -> None:
+        """Case (r): uninstall refuses while a lane is live-owned; refuses holds-work without --force; proceeds under --force."""
+        from agent_workflows import worktree_lease
+
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+
+        # Live-owned lane
+        h_live = worktree_lease.allocate_worktree(self.repo, "live01")
+        worktree_lease.write_lane_owner(self.repo, "live01")
+
+        # Plain --yes refuses with exit 1
+        res1 = self._run_aw("uninstall", ".", "--yes", check=False)
+        self.assertEqual(res1.returncode, 1)
+        self.assertIn("live01", res1.stderr + res1.stdout)
+        self.assertTrue((proj_dir / "system").exists())
+        self.assertTrue((proj_dir / "config").exists())
+        self.assertTrue((proj_dir / "state").exists())
+        self.assertTrue((proj_dir / "worktrees").exists())
+
+        # --yes --force ALSO refuses when live
+        res_force = self._run_aw("uninstall", ".", "--yes", "--force", check=False)
+        self.assertEqual(res_force.returncode, 1)
+        self.assertIn("live01", res_force.stderr + res_force.stdout)
+        self.assertTrue((proj_dir / "system").exists())
+
+        # Now test dirty non-live lane
+        worktree_lease.clear_lane_owner(self.repo, "live01")
+        worktree_lease.teardown_worktree(self.repo, h_live, force=True)
+
+        h_dirty = worktree_lease.allocate_worktree(self.repo, "dirty02")
+        worktree_lease.clear_lane_owner(self.repo, "dirty02")
+        (Path(h_dirty.path) / "dirty.txt").write_text(
+            "uncommitted work\n", encoding="utf-8"
+        )
+
+        res_dirty_no_force = self._run_aw("uninstall", ".", "--yes", check=False)
+        self.assertEqual(res_dirty_no_force.returncode, 1)
+        self.assertIn("dirty02", res_dirty_no_force.stderr + res_dirty_no_force.stdout)
+
+        res_dirty_force = self._run_aw(
+            "uninstall", ".", "--yes", "--force", check=False
+        )
+        self.assertEqual(res_dirty_force.returncode, 0)
+        self.assertIn("dirty02", res_dirty_force.stderr + res_dirty_force.stdout)
+
+    def test_case_s_uninstall_refuses_live_driver(self) -> None:
+        """Case (s): uninstall refuses while a peer driver holds driver.lock."""
+        from agent_workflows import platform_lock
+
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+
+        run_dir = proj_dir / "records" / "runs" / "run-20261016T120000Z-999999"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        lock_file = run_dir / "driver.lock"
+
+        with platform_lock.acquire(lock_file):
+            res = self._run_aw("uninstall", ".", "--yes", check=False)
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("run-20261016T120000Z-999999", res.stderr + res.stdout)
+            self.assertTrue((proj_dir / "system").exists())
+            self.assertTrue((proj_dir / "config").exists())
+            self.assertTrue((proj_dir / "state").exists())
+
+    def test_case_t_uninstall_dry_run_lists_home_trees(self) -> None:
+        """Case (t): dry-run lists all home trees with counts and ~-relative paths, changing nothing."""
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        self._run_aw(
+            "backlog",
+            "new",
+            "--summary",
+            "item t",
+            "--priority",
+            "high",
+            "--work-kind",
+            "bug",
+            "--apply",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+
+        res = self._run_aw("uninstall", ".", "--dry-run")
+        self.assertEqual(res.returncode, 0)
+        out = res.stdout
+
+        self.assertIn("system:", out)
+        self.assertIn("config:", out)
+        self.assertIn("state:", out)
+        self.assertIn("worktrees:", out)
+        self.assertIn("records", out)
+
+        # No line contains the temp HOME absolute prefix
+        self.assertNotIn(str(self.home), out)
+        self.assertNotIn(str(self.home), res.stderr)
+
+        # Nothing changes
+        self.assertTrue((proj_dir / "system").exists())
+        self.assertTrue((proj_dir / "config").exists())
+        self.assertTrue((proj_dir / "state").exists())
+        self.assertTrue((proj_dir / "records").exists())
+
+    def test_case_u_uninstall_recovers_partial(self) -> None:
+        """Case (u): partial-uninstall recovery deletes leftover home system and worktrees even when config is gone."""
+        self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        ctx = resolve_project_context(
+            target_repo=str(self.repo), aw_home=str(self.aw_home)
+        )
+        proj_dir = self.aw_home / "projects" / ctx.project_id
+
+        # Delete config by hand to simulate partial uninstall
+        shutil.rmtree(proj_dir / "config")
+        self.assertFalse((proj_dir / "config").exists())
+        self.assertTrue((proj_dir / "system").exists())
+
+        res1 = self._run_aw("uninstall", ".", "--yes")
+        self.assertEqual(res1.returncode, 0)
+        self.assertFalse((proj_dir / "system").exists())
+        self.assertFalse((proj_dir / "worktrees").exists())
+
+        # Second run reports framework not installed
+        res2 = self._run_aw("uninstall", ".", "--yes", check=False)
+        self.assertEqual(res2.returncode, 1)
+        self.assertIn("framework not installed", res2.stderr + res2.stdout)
 
 
 if __name__ == "__main__":

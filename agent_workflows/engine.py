@@ -80,7 +80,7 @@ import shlex
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Optional
 
 from . import artifact_core
 from . import versioning as _VERSIONING
@@ -493,6 +493,220 @@ def _backups_root(repo_root: Path) -> Path:
         ctx = resolve_project_context(target_repo=str(root))
         return Path(ctx.physical_classes["state_runtime"]) / "backups"
     return root / BACKUPS_DIR
+
+
+def _clean_delta_home_trees(repo_root: Path) -> Optional[dict[str, Any]]:
+    """Return the home paths for a clean-delta project, or None (IPD xoy5yg E-02).
+
+    Returns a dict with keys:
+      {"project_dir", "system", "config", "state", "worktrees", "records"}
+    (where "records" is included only when records_backend == "home" resolving under project_dir).
+    In the partial-uninstall recovery case (b), adds "recovered": True.
+    """
+    repo = Path(repo_root)
+    try:
+        from agent_workflows import project_context, worktree_lease
+
+        # (a) Stored policy resolves as clean-delta
+        if _is_clean_delta_install(repo):
+            ctx = project_context.resolve_project_context(target_repo=str(repo))
+            phys = ctx.physical_classes
+            system_path = Path(phys["system"])
+            config_path = Path(phys["config_project"]).parent
+            state_path = Path(phys["state_durable"]).parent
+            worktrees_path = worktree_lease.worktrees_root(repo)
+            project_dir = (
+                project_context.clean_delta_project_dir(repo) or config_path.parent
+            )
+            trees: dict[str, Any] = {
+                "project_dir": project_dir,
+                "system": system_path,
+                "config": config_path,
+                "state": state_path,
+                "worktrees": worktrees_path,
+            }
+            if "records" in phys:
+                rec_path = Path(phys["records"])
+                try:
+                    rec_path.resolve().relative_to(project_dir.resolve())
+                    trees["records"] = rec_path
+                except (ValueError, OSError):
+                    pass
+            return trees
+
+        # (b) PARTIAL-UNINSTALL RECOVERY (PR-002)
+        # When no stored policy resolves, check derived project directory under AW_HOME
+        eff_aw_home, _, _ = project_context._resolve_effective_aw_home()
+        anchor = repo
+        try:
+            if (repo / ".git").exists():
+                anchor = project_context.checkout_main_root(repo) or repo
+        except (OSError, RuntimeError):
+            anchor = repo
+        anchor_abs = project_context._canonical_path(anchor)
+        derived_pid = project_context._derive_project_id(anchor_abs)
+        candidate_dir = Path(eff_aw_home) / "projects" / derived_pid
+        if candidate_dir.is_dir():
+            has_child = any(
+                (candidate_dir / child).exists()
+                for child in ("system", "state", "worktrees", "records")
+            )
+            if has_child:
+                return {
+                    "project_dir": candidate_dir,
+                    "system": candidate_dir / "system",
+                    "config": candidate_dir / "config",
+                    "state": candidate_dir / "state",
+                    "worktrees": candidate_dir / "worktrees",
+                    "records": candidate_dir / "records",
+                    "recovered": True,
+                }
+    except Exception:
+        return None
+    return None
+
+
+def _home_lane_preflight(
+    repo_root: Path, project_dir: Path, worktrees_root: Path
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Enumerate and classify git worktrees under project_dir and unregistered worktree dirs (IPD xoy5yg E-03).
+
+    Returns:
+      (live, holds_work, detached, removable)
+    """
+    repo = Path(repo_root)
+    proj = Path(project_dir).resolve()
+    wt_root = Path(worktrees_root).resolve()
+
+    res = subprocess.run(
+        ["git", "-C", str(repo), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        text=True,
+    )
+    cur: dict[str, Any] = {}
+    worktree_records: list[dict[str, Any]] = []
+    if res.returncode == 0:
+        for line in res.stdout.splitlines() + [""]:
+            line = line.rstrip("\n")
+            if not line:
+                if "worktree" in cur:
+                    worktree_records.append(cur)
+                cur = {}
+                continue
+            if line.startswith("worktree "):
+                cur["worktree"] = line[len("worktree ") :]
+            elif line.startswith("HEAD "):
+                cur["HEAD"] = line[len("HEAD ") :]
+            elif line.startswith("branch "):
+                cur["branch"] = line[len("branch ") :]
+            elif line == "detached":
+                cur["detached"] = True
+            elif line == "locked" or line.startswith("locked "):
+                cur["locked"] = (
+                    line[len("locked ") :] if len(line) > len("locked") else ""
+                )
+            elif line == "prunable" or line.startswith("prunable "):
+                cur["prunable"] = True
+
+    from agent_workflows import worktree_lease
+
+    live: list[dict[str, Any]] = []
+    holds_work: list[dict[str, Any]] = []
+    detached: list[dict[str, Any]] = []
+    removable: list[dict[str, Any]] = []
+
+    registered_paths: set[Path] = set()
+
+    for rec in worktree_records:
+        wt_path = Path(rec["worktree"]).resolve()
+        try:
+            wt_path.relative_to(proj)
+        except ValueError:
+            continue  # not under project_dir
+        registered_paths.add(wt_path)
+
+        if rec.get("detached") or not rec.get("branch"):
+            detached.append(
+                {
+                    "path": Path(rec["worktree"]),
+                    "head": rec.get("HEAD"),
+                    "is_detached": True,
+                    "is_registered": True,
+                }
+            )
+            continue
+
+        branch_ref = rec["branch"]
+        branch = (
+            branch_ref[len("refs/heads/") :]
+            if branch_ref.startswith("refs/heads/")
+            else branch_ref
+        )
+        lane_id = (
+            worktree_lease.lane_id_from_branch(branch) or Path(rec["worktree"]).name
+        )
+        item: dict[str, Any] = {
+            "lane_id": lane_id,
+            "path": Path(rec["worktree"]),
+            "branch": branch,
+            "is_detached": False,
+            "is_registered": True,
+        }
+        if worktree_lease.lane_owned_by_other_live_process(repo, lane_id):
+            live.append(item)
+            continue
+
+        st = worktree_lease.inspect_lane(repo, lane_id)
+        item["inspect"] = st
+        item["commits_ahead"] = st.commits_ahead
+        item["dirty"] = st.dirty
+        if not st.reclaimable:
+            holds_work.append(item)
+        else:
+            removable.append(item)
+
+    # Enumerate unregistered directories under worktrees_root, excluding .owners
+    if wt_root.is_dir():
+        for child in sorted(wt_root.iterdir()):
+            if child.name == ".owners" or not child.is_dir():
+                continue
+            child_res = child.resolve()
+            if child_res in registered_paths:
+                continue
+
+            lane_id = child.name
+            branch = worktree_lease.lane_branch_name(lane_id)
+            rc, _out, _err = worktree_lease._git(
+                repo, ["rev-parse", "--verify", branch]
+            )
+            branch_exists = rc == 0
+            item = {
+                "lane_id": lane_id,
+                "path": child,
+                "branch": branch if branch_exists else "",
+                "is_detached": False,
+                "is_registered": False,
+            }
+            if worktree_lease.lane_owned_by_other_live_process(repo, lane_id):
+                live.append(item)
+            elif branch_exists:
+                st = worktree_lease.inspect_lane(repo, lane_id)
+                item["inspect"] = st
+                item["commits_ahead"] = st.commits_ahead
+                item["dirty"] = st.dirty
+                if not st.reclaimable:
+                    holds_work.append(item)
+                else:
+                    removable.append(item)
+            else:
+                removable.append(item)
+
+    return (live, holds_work, detached, removable)
 
 
 def allocate_backup_timestamp(repo_root: Path) -> str:
@@ -2250,7 +2464,10 @@ def _shim_is_user_modified(
 
 
 def _system_member_destination(
-    repo_root: Path, relative_posix: str
+    repo_root: Path,
+    relative_posix: str,
+    *,
+    home_trees: Optional[dict[str, Any]] = None,
 ) -> tuple[Path, bool]:
     """Map a member path onto its physical destination and report whether it is inside repo_root."""
     from agent_workflows.project_context import (
@@ -2260,11 +2477,21 @@ def _system_member_destination(
     )
 
     prefix = f"{AW_SYSTEM_DIR}/"
+    if relative_posix.startswith(prefix) or relative_posix == AW_SYSTEM_DIR:
+        if home_trees is None:
+            home_trees = _clean_delta_home_trees(repo_root)
+        if home_trees is not None and "system" in home_trees:
+            sys_dir = home_trees["system"]
+        else:
+            sys_dir = project_system_dir(repo_root)
+    else:
+        sys_dir = project_system_dir(repo_root)
+
     if relative_posix.startswith(prefix):
         tail = relative_posix[len(prefix) :]
-        dest = project_system_dir(repo_root) / tail
+        dest = sys_dir / tail
     elif relative_posix == AW_SYSTEM_DIR:
-        dest = project_system_dir(repo_root)
+        dest = sys_dir
     else:
         dest = repo_root / relative_posix
 
@@ -5097,6 +5324,7 @@ class DeepCleanupPlan:
     at_risk: list[str] = field(default_factory=list)
     records_files: list[str] = field(default_factory=list)
     other_files: list[str] = field(default_factory=list)
+    records_roots: set[str] = field(default_factory=set)
 
     @property
     def is_empty(self) -> bool:
@@ -5106,12 +5334,16 @@ class DeepCleanupPlan:
     def all_recoverable(self) -> bool:
         return not self.at_risk
 
+    def is_records_root(self, root: str) -> bool:
+        return root in self.records_roots or root.startswith((".aw/records", ".agents"))
+
     def filtered(
         self, *, records: bool = True, other: bool = True
     ) -> "DeepCleanupPlan":
         sub = DeepCleanupPlan()
+        sub.records_roots = set(self.records_roots)
         for root, count in self.counts.items():
-            is_rec = root.startswith((".aw/records", ".agents"))
+            is_rec = self.is_records_root(root)
             if (is_rec and records) or (not is_rec and other):
                 sub.counts[root] = count
         for f in self.files:
@@ -5127,7 +5359,11 @@ class DeepCleanupPlan:
         return sub
 
 
-def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
+def plan_deep_cleanup(
+    repo_root: Path,
+    *,
+    home_trees: Optional[dict[str, Any]] = None,
+) -> DeepCleanupPlan:
     """Enumerate the non-owned scaffolding still present, with per-root counts and git-state
     classification (IPD 04). Pure: reads the tree + git state, mutates nothing."""
 
@@ -5141,6 +5377,8 @@ def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
         else:
             continue
         is_records = root.startswith((".aw/records", ".agents"))
+        if is_records:
+            plan.records_roots.add(root)
         n = 0
         for p in candidates:
             rel = p.relative_to(repo_root).as_posix()
@@ -5160,6 +5398,30 @@ def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
             n += 1
         if n:
             plan.counts[root] = n
+
+    if home_trees is None:
+        home_trees = _clean_delta_home_trees(repo_root)
+    if home_trees is not None and "records" in home_trees:
+        records_dir = home_trees["records"]
+        if records_dir.is_dir():
+            for item in sorted(records_dir.iterdir()):
+                root_str = str(item)
+                if item.is_file():
+                    candidates = [item]
+                elif item.is_dir():
+                    candidates = [p for p in sorted(item.rglob("*")) if p.is_file()]
+                else:
+                    continue
+                if candidates:
+                    n = len(candidates)
+                    plan.counts[root_str] = n
+                    plan.records_roots.add(root_str)
+                    for p in candidates:
+                        p_str = str(p)
+                        plan.files.append(p_str)
+                        plan.records_files.append(p_str)
+                        plan.at_risk.append(p_str)
+
     plan.files.sort()
     plan.records_files.sort()
     plan.other_files.sort()
@@ -5174,6 +5436,7 @@ def run_deep_cleanup(
     changed_out: "Optional[list[str]]" = None,
     *,
     remove_records: bool = True,
+    home_trees: Optional[dict[str, Any]] = None,
 ) -> list[str]:
     """Remove exactly the files in `plan` (git rm when tracked, else unlink), then prune any
     now-empty scaffolding directories. Never rm -rf a host dir; never touch a path outside
@@ -5187,12 +5450,15 @@ def run_deep_cleanup(
         if remove_records or rel not in set(plan.records_files)
     ]
     for rel in files_to_remove:
-        target = repo_root / rel
+        target = Path(rel) if Path(rel).is_absolute() else repo_root / rel
         if not target.is_file():
             continue
-        _uninstall_remove(repo_root, rel, use_git)
-        if changed_out is not None:
-            changed_out.append(rel)
+        if target.is_absolute():
+            target.unlink()
+        else:
+            _uninstall_remove(repo_root, rel, use_git)
+            if changed_out is not None:
+                changed_out.append(rel)
     # Prune now-empty dirs under the scaffolding roots (deepest first); never remove the repo
     # root or a host dir that still has content.
     for root in _DEEP_CLEANUP_ROOTS:
@@ -5214,6 +5480,32 @@ def run_deep_cleanup(
             base.rmdir()
         except OSError:
             pass
+
+    if home_trees is None:
+        home_trees = _clean_delta_home_trees(repo_root)
+    if remove_records and home_trees is not None and "records" in home_trees:
+        records_dir = home_trees["records"]
+        if records_dir.is_dir():
+            for d in sorted(
+                (p for p in records_dir.rglob("*") if p.is_dir()),
+                key=lambda p: len(p.parts),
+                reverse=True,
+            ):
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
+            try:
+                records_dir.rmdir()
+            except OSError:
+                pass
+        proj_dir = home_trees.get("project_dir")
+        if proj_dir and proj_dir.is_dir():
+            try:
+                proj_dir.rmdir()
+            except OSError:
+                pass
+
     try:
         agents_dir = repo_root / ".agents"
         if agents_dir.is_dir() and not any(agents_dir.iterdir()):
@@ -5261,7 +5553,11 @@ class UninstallPlan:
     has_manifest: bool = False
 
 
-def plan_uninstall(repo_root: Path) -> UninstallPlan:
+def plan_uninstall(
+    repo_root: Path,
+    *,
+    home_trees: Optional[dict[str, Any]] = None,
+) -> UninstallPlan:
     """Classify the manifest-owned file/shim entries into remove/drifted/missing (IPD 04).
 
     Only `kind in {"file", "shim"}` entries are considered (U8): a `kind == "section"` entry
@@ -5270,7 +5566,19 @@ def plan_uninstall(repo_root: Path) -> UninstallPlan:
     block-strip path. Pure: reads the manifest + file contents, mutates nothing.
     """
 
+    if home_trees is None:
+        home_trees = _clean_delta_home_trees(repo_root)
+
     manifest_path = manifest_mod.resolve_manifest_path(repo_root)
+    if (
+        not manifest_path.is_file()
+        and home_trees is not None
+        and "system" in home_trees
+    ):
+        cand = home_trees["system"] / "managed-sections.json"
+        if cand.is_file():
+            manifest_path = cand
+
     plan = UninstallPlan()
     if not manifest_path.is_file():
         return plan  # has_manifest stays False -> caller uses the namespace fallback
@@ -5280,7 +5588,9 @@ def plan_uninstall(repo_root: Path) -> UninstallPlan:
     for rel, entry in sorted(manifest.files.items()):
         if entry.kind not in ("file", "shim"):
             continue  # sections are strip targets, never file-removal candidates (U8)
-        dest = repo_root / rel
+        dest, in_tree = _system_member_destination(
+            repo_root, rel, home_trees=home_trees
+        )
         if not dest.is_file():
             plan.missing.append(rel)
             continue
@@ -5305,6 +5615,7 @@ def uninstall_repo(
     drift_decider: "Optional[Callable[[str], str]]" = None,
     force: bool = False,
     changed_out: "Optional[list[str]]" = None,
+    home_trees: "Optional[dict[str, Any]]" = None,
 ) -> list[str]:
     """Remove the framework from a repo, conservatively and manifest-driven (IPD 04).
 
@@ -5327,26 +5638,112 @@ def uninstall_repo(
         if changed_out is not None:
             changed_out.append(rel)
 
-    plan = plan_uninstall(repo_root)
+    if home_trees is None:
+        home_trees = _clean_delta_home_trees(repo_root)
+
+    # Clean-delta: tear down lanes and remove worktrees FIRST (E-04)
+    if home_trees is not None:
+        from agent_workflows import worktree_lease
+
+        project_dir = home_trees["project_dir"]
+        worktrees_root = home_trees["worktrees"]
+        live, holds_work, detached, removable = _home_lane_preflight(
+            repo_root, project_dir, worktrees_root
+        )
+
+        if live:
+            raise worktree_lease.WorktreeError(
+                f"Cannot uninstall while lane {live[0]['lane_id']} is owned by a live process."
+            )
+        if holds_work and not force:
+            raise worktree_lease.WorktreeError(
+                f"Cannot uninstall while lane {holds_work[0]['lane_id']} holds work without force."
+            )
+
+        # 1. Tear down removable lanes and holds_work lanes (under force)
+        for lane in removable + (holds_work if force else []):
+            if lane.get("is_registered") or lane.get("branch"):
+                handle = worktree_lease.WorktreeHandle(
+                    lane_id=lane["lane_id"],
+                    path=Path(lane["path"]),
+                    branch=lane.get("branch")
+                    or worktree_lease.lane_branch_name(lane["lane_id"]),
+                    base_commit="",
+                    disposition="reused",
+                    displaced_from=None,
+                    disposition_detail="",
+                )
+                worktree_lease.teardown_worktree(repo_root, handle, force=True)
+                actions.append(f"torn down lane {lane['lane_id']} ({lane['path']})")
+            else:
+                p = Path(lane["path"])
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                    actions.append(f"removed unregistered lane directory {p}")
+
+        # 2. Remove detached checkouts
+        for item in detached:
+            from agent_workflows import runner_shared
+
+            runner_shared.remove_suite_baseline_checkout(repo_root, Path(item["path"]))
+            actions.append(f"removed detached checkout {item['path']}")
+
+        # 3. Run git worktree prune and clear owner records
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "prune"],
+            capture_output=True,
+            check=False,
+        )
+        owners_dir = worktrees_root / ".owners"
+        if owners_dir.is_dir():
+            shutil.rmtree(owners_dir, ignore_errors=True)
+
+        # 4. Remove remaining contents of worktrees_root and worktrees_root itself
+        if worktrees_root.is_dir():
+            shutil.rmtree(worktrees_root, ignore_errors=True)
+            actions.append(f"removed {worktrees_root}")
+
+    plan = plan_uninstall(repo_root, home_trees=home_trees)
 
     if plan.has_manifest:
         # 1. Owned files/shims, classified by the manifest.
         for rel in plan.remove:
-            _uninstall_remove(repo_root, rel, use_git)
-            _record_changed(rel)
-            actions.append(f"removed {rel}")
+            dest, in_tree = _system_member_destination(
+                repo_root, rel, home_trees=home_trees
+            )
+            if in_tree:
+                _uninstall_remove(repo_root, rel, use_git)
+                _record_changed(rel)
+                actions.append(f"removed {rel}")
+            else:
+                if dest.is_file():
+                    dest.unlink()
+                    actions.append(f"removed {dest}")
         for rel in plan.missing:
             actions.append(f"{rel} already absent (manifest entry stale)")
         for rel in plan.drifted:
             decision = "remove" if force else "keep"
             if drift_decider is not None and not force:
                 decision = drift_decider(rel)
+            dest, in_tree = _system_member_destination(
+                repo_root, rel, home_trees=home_trees
+            )
             if decision == "remove":
-                _uninstall_remove(repo_root, rel, use_git)
-                _record_changed(rel)
-                actions.append(f"removed {rel} (you chose to remove your edited copy)")
+                if in_tree:
+                    _uninstall_remove(repo_root, rel, use_git)
+                    _record_changed(rel)
+                    actions.append(
+                        f"removed {rel} (you chose to remove your edited copy)"
+                    )
+                else:
+                    if dest.is_file():
+                        dest.unlink()
+                    actions.append(
+                        f"removed {dest} (you chose to remove your edited copy)"
+                    )
             else:
-                actions.append(f"PRESERVED {rel} (you edited it; left in place)")
+                target_str = rel if in_tree else str(dest)
+                actions.append(f"PRESERVED {target_str} (you edited it; left in place)")
     else:
         # Pre-manifest fallback: the legacy namespace sweep (all owned files removed).
         for w_dir in (AW_SYSTEM_WORKFLOWS_DIR, WORKFLOWS_DIR):
@@ -5397,71 +5794,83 @@ def uninstall_repo(
 
     # 4. Deterministic framework-created lifecycle files (config, state, .aw/.gitignore)
     # not in the manifest (E-01).
-    cfg_dir = repo_root / ".aw" / "config"
-    if cfg_dir.is_dir():
-        for p in sorted(cfg_dir.rglob("*")):
-            if p.is_file():
-                rel = p.relative_to(repo_root).as_posix()
-                _uninstall_remove(repo_root, rel, use_git)
-                _record_changed(rel)
-                actions.append(f"removed {rel}")
-    else:
-        from agent_workflows.project_context import project_config_dir
-
-        home_cfg = project_config_dir(repo_root)
-        if home_cfg.is_dir() and home_cfg != cfg_dir:
-            project_dir = home_cfg.parent
-            for fname in ("project.json", "local.json"):
-                fpath = home_cfg / fname
-                if fpath.is_file():
+    if home_trees is not None:
+        home_sys = home_trees.get("system")
+        if home_sys and home_sys.is_dir():
+            for fname in ("layout.json", "layout.schema.json", VERSION_FILE):
+                fp = home_sys / fname
+                if fp.is_file():
                     try:
-                        fpath.unlink()
-                        actions.append(f"removed {fpath}")
+                        fp.unlink()
+                        actions.append(f"removed {fp}")
                     except OSError:
                         pass
-            try:
-                home_cfg.rmdir()
-            except OSError:
-                pass
+    else:
+        cfg_dir = repo_root / ".aw" / "config"
+        if cfg_dir.is_dir():
+            for p in sorted(cfg_dir.rglob("*")):
+                if p.is_file():
+                    rel = p.relative_to(repo_root).as_posix()
+                    _uninstall_remove(repo_root, rel, use_git)
+                    _record_changed(rel)
+                    actions.append(f"removed {rel}")
+        else:
+            from agent_workflows.project_context import project_config_dir
 
-            home_state = project_dir / "state"
-            if home_state.is_dir():
-                for p in sorted(home_state.rglob("*")):
-                    if p.is_file():
+            home_cfg = project_config_dir(repo_root)
+            if home_cfg.is_dir() and home_cfg != cfg_dir:
+                project_dir = home_cfg.parent
+                for fname in ("project.json", "local.json"):
+                    fpath = home_cfg / fname
+                    if fpath.is_file():
                         try:
-                            p.unlink()
-                            actions.append(f"removed {p}")
-                        except OSError:
-                            pass
-                for p in sorted(home_state.rglob("*"), reverse=True):
-                    if p.is_dir():
-                        try:
-                            p.rmdir()
+                            fpath.unlink()
+                            actions.append(f"removed {fpath}")
                         except OSError:
                             pass
                 try:
-                    home_state.rmdir()
+                    home_cfg.rmdir()
                 except OSError:
                     pass
-            try:
-                project_dir.rmdir()
-            except OSError:
-                pass
 
-    state_dir = repo_root / ".aw" / "state"
-    if state_dir.is_dir():
-        for p in sorted(state_dir.rglob("*")):
-            if p.is_file():
-                rel = p.relative_to(repo_root).as_posix()
+                home_state = project_dir / "state"
+                if home_state.is_dir():
+                    for p in sorted(home_state.rglob("*")):
+                        if p.is_file():
+                            try:
+                                p.unlink()
+                                actions.append(f"removed {p}")
+                            except OSError:
+                                pass
+                    for p in sorted(home_state.rglob("*"), reverse=True):
+                        if p.is_dir():
+                            try:
+                                p.rmdir()
+                            except OSError:
+                                pass
+                    try:
+                        home_state.rmdir()
+                    except OSError:
+                        pass
+                try:
+                    project_dir.rmdir()
+                except OSError:
+                    pass
+
+        state_dir = repo_root / ".aw" / "state"
+        if state_dir.is_dir():
+            for p in sorted(state_dir.rglob("*")):
+                if p.is_file():
+                    rel = p.relative_to(repo_root).as_posix()
+                    _uninstall_remove(repo_root, rel, use_git)
+                    _record_changed(rel)
+                    actions.append(f"removed {rel}")
+
+        for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH):
+            if (repo_root / rel).is_file():
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
-
-    for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH):
-        if (repo_root / rel).is_file():
-            _uninstall_remove(repo_root, rel, use_git)
-            _record_changed(rel)
-            actions.append(f"removed {rel}")
 
     aw_gi = ".aw/.gitignore"
     if (repo_root / aw_gi).is_file():
@@ -5470,18 +5879,112 @@ def uninstall_repo(
         actions.append(f"removed {aw_gi}")
 
     # 5. Setup marker (.aw/setup-repo-needed.md) (E-02).
+    p_marker = setup_marker_path(repo_root)
     if remove_setup_marker(repo_root):
-        _record_changed(SETUP_MARKER_PATH)
-        actions.append(f"removed {SETUP_MARKER_PATH}")
+        if home_trees is None and not p_marker.is_absolute():
+            _record_changed(SETUP_MARKER_PATH)
+            actions.append(f"removed {SETUP_MARKER_PATH}")
+        elif home_trees is None and p_marker.is_relative_to(repo_root):
+            rel_m = p_marker.relative_to(repo_root).as_posix()
+            _record_changed(rel_m)
+            actions.append(f"removed {rel_m}")
+        else:
+            actions.append(f"removed {p_marker}")
 
     # 6. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
     #    so a mid-uninstall failure still leaves the ownership record intact for a retry (U3).
     manifest_path = manifest_mod.resolve_manifest_path(repo_root)
+    if (
+        not manifest_path.is_file()
+        and home_trees is not None
+        and "system" in home_trees
+    ):
+        cand = home_trees["system"] / "managed-sections.json"
+        if cand.is_file():
+            manifest_path = cand
     if manifest_path.is_file():
-        manifest_rel = manifest_path.relative_to(repo_root).as_posix()
-        _uninstall_remove(repo_root, manifest_rel, use_git)
-        _record_changed(manifest_rel)
-        actions.append(f"removed {manifest_rel}")
+        try:
+            manifest_rel = manifest_path.relative_to(repo_root).as_posix()
+            _uninstall_remove(repo_root, manifest_rel, use_git)
+            _record_changed(manifest_rel)
+            actions.append(f"removed {manifest_rel}")
+        except ValueError:
+            manifest_path.unlink()
+            actions.append(f"removed {manifest_path}")
+
+    # For clean-delta: finalize system tree pruning, remove state, config, and prune project_dir (E-05)
+    if home_trees is not None:
+        home_sys = home_trees.get("system")
+        if home_sys and home_sys.is_dir():
+            for d in sorted(
+                (p for p in home_sys.rglob("*") if p.is_dir()),
+                key=lambda p: len(p.parts),
+                reverse=True,
+            ):
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
+            try:
+                home_sys.rmdir()
+            except OSError:
+                pass
+
+        home_state = home_trees.get("state")
+        if home_state and home_state.is_dir():
+            for p in sorted(home_state.rglob("*")):
+                if p.is_file():
+                    try:
+                        p.unlink()
+                        actions.append(f"removed {p}")
+                    except OSError:
+                        pass
+            for p in sorted(home_state.rglob("*"), reverse=True):
+                if p.is_dir():
+                    try:
+                        p.rmdir()
+                    except OSError:
+                        pass
+            try:
+                home_state.rmdir()
+            except OSError:
+                pass
+
+        # Remove config/ LAST of home trees
+        home_cfg = home_trees.get("config")
+        if home_cfg and home_cfg.is_dir():
+            for fname in (
+                "project.json",
+                "local.json",
+                "config.json",
+                "policy.json",
+            ):
+                fp = home_cfg / fname
+                if fp.is_file():
+                    try:
+                        fp.unlink()
+                        actions.append(f"removed {fp}")
+                    except OSError:
+                        pass
+            for p in sorted(home_cfg.rglob("*")):
+                if p.is_file():
+                    try:
+                        p.unlink()
+                        actions.append(f"removed {p}")
+                    except OSError:
+                        pass
+            try:
+                home_cfg.rmdir()
+            except OSError:
+                pass
+
+        # Prune project_dir only when empty
+        proj_dir = home_trees.get("project_dir")
+        if proj_dir and proj_dir.is_dir():
+            try:
+                proj_dir.rmdir()
+            except OSError:
+                pass
 
     # 7. Prune now-empty directories under .aw (deepest first). (E-04)
     aw_base = repo_root / ".aw"
