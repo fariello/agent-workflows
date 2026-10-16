@@ -351,6 +351,7 @@ One line under the top pending release section of `CHANGELOG.md`, then `python3 
   - Carrier: v47z9u
 - **Amending spec `25kzda` Section 1.2 Step 8 and Section 5.1**: Owned by sibling plan `9epp40` (Order 04 in Set `runledger`, from backlog `66ls4r`).
   - Carrier: 9epp40
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - **Adding `aw runs` ledger leaves to `LIVE_SAFE_LEAVES`**: Owned by sibling plan `g5s94t` (Order 05 in Set `runledger`, from backlog `a4tjxc`).
   - Carrier: g5s94t
 - **Writing `requirement_set` on `aw run init` and adding `aw run verify`**: Owned by sibling plan `um0twl` (Order 05 in Set `runledger`, from backlog `8l1hgw`).

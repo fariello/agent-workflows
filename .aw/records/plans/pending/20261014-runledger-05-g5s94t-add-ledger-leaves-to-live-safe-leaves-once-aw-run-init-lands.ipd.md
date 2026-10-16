@@ -129,6 +129,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 3a3hh9
 - Reconciling spec `25kzda` Section 1.2 step 8 and Section 5.1 with the `rdjka2` decision.
   - Carrier: 9epp40
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - A machine branch for `runs decisions` / `runs questions`, and redaction of the absolute ledger path in `runs evidence` / `runs verify-ledger` (F-07, F-08).
   - Carrier-Declined: filed as a separate backlog item by E-07 during execution
 

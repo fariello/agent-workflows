@@ -108,6 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Amending spec `25kzda` Section 1.2 step 8 and Section 5.1 to scope `ledger.jsonl` to discrete `aw run` / `aw runs` invocations: owned by sibling pending IPD `9epp40` (from backlog item `66ls4r`).
   - Carrier: 9epp40
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - Updating stale Set `fixfirst` and `verifier transport failure` owner plan IDs in spec `25kzda` Section 5.5: owned by sibling pending IPD `6g08rp` (from backlog item `w5opbr`).
   - Carrier: 6g08rp
 
