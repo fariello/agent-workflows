@@ -5646,13 +5646,13 @@ class ActionLegalityTests(unittest.TestCase):
     def test_alias_refusal_and_acceptance(self):
         res, status, runs = self._refusal_run("appr01")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
-        self.assertIn("--action review is illegal", res.stderr)
+        self.assertIn("requires confirmation", res.stderr)
         self.assertEqual(runs, [])
         self.assertEqual(status, "- Status: approved")
 
         res, status, runs = self._refusal_run("revw01", "--full-auto")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
-        self.assertIn("--action review is illegal", res.stderr)
+        self.assertIn("requires confirmation", res.stderr)
         self.assertEqual(runs, [])
         self.assertEqual(status, "- Status: reviewed")
 

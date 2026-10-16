@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Backlog `dbr23q`. Measured 2026-10-15: after the maintainer answered `jmogmv` OQ-01 with an answer that inverted the plan's design, both `aw oc run --action review jmogmv` and `aw oc review jmogmv` refused with "--action review is illegal for 1 selected item(s): jmogmv (status 'reviewed' -> action 'execute')". Spec `25kzda` 2.6 says "`--action review` permits an explicit re-review of a complete `reviewed` IPD or spec. The result remains `reviewed`, with a new tool-authored history receipt", and 4.4 says its checks apply "when `--action review` re-reviews a `reviewed` IPD". (The `reviewed, --action review` legality ROW exists only in 3.3 Specs; 3.2 IPDs has no such row, so the IPD side of the contract lives in 2.6 and 4.4 alone.) The runner never implemented it: `runner_shared.enforce_requested_action` refuses any item whose derived action differs from the requested one, and `run_selection_policy.runner_action` refinement (ii) derives `execute` for `reviewed`. The only workaround is a hand `aw ipd set to-review <id6>` demotion plus a commit.
 - Scope: When `--action review` is requested (which `aw oc review <sel>` / `aw agy review <sel>` expand to via `cli.expand_host_review_argv`), an IPD reached through a NON-status selector (id6, path or setid; never `reviews`/`all`) at `reviewed`, `approved` or `auto-approved` is admitted for re-review behind a confirmation gate: `--yes` on the command line, or, on an interactive terminal, typing the exact phrase `re-review` at a prompt; unattended without `--yes` the whole run is refused before the run directory exists. Admitted items are frozen with action `review` and a durable `rereview: true` queue flag; nothing is written to the plan at run start. At DISPATCH, inside the review lane and before the lane inputs are materialized, each item is demoted to `to-review` through the existing setter with reason "re-review requested via <host> review" (which, for approved/auto-approved, records APPROVAL WITHDRAWN and strips `- Approval:` and `- Readiness:`), so the demotion integrates with the review output through the existing lane merge, a run refused by any later gate never demotes anything, and the review must write a fresh `- Readiness:`. Both `--full-auto` auto-approve sites (queue build and post-review) are skipped for these items, so a re-reviewed plan always needs a fresh human approval. Orchestrators past review, terminal plans (`executed`, `superseded`, `not-executed`), `reusable` plans and non-IPD types keep today's refusal. A status sweep is unchanged and never sweeps reviewed/approved plans. Spec `25kzda` 2.1 / 2.6 / 3.2 / 4.4 and `ipd-spec`'s "no tool demotes automatically" sentence are amended to match.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_rereview_reviewed_plan.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, .aw/system/workflows/plan-review/plan-review.md, docs/artifact-lifecycles.md, CHANGELOG.md
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_rereview_reviewed_plan.py, tests/test_oc_runipd.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, .aw/system/workflows/plan-review/plan-review.md, docs/artifact-lifecycles.md, CHANGELOG.md
 - Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
@@ -36,55 +36,55 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pure decision
 
-- [ ] E-01 Add to `run_selection_policy` a pure `decide_rereview_admission(candidates, *, interactive, assume_yes, response)` returning a verdict naming admitted re-review ids, refused ids with a reason, and whether a prompt is needed, plus the constant `REREVIEW_CONFIRM_PHRASE = "re-review"` matched with the existing `is_confirmation_accepted(response, phrase=REREVIEW_CONFIRM_PHRASE)` (no second matcher). A candidate is `(id6, status, kind)` for an IPD whose status is `reviewed`, `approved` or `auto-approved` and whose kind is not `orchestrator`; the CALLER decides selector eligibility (E-03), so this function stays pure. Rules: `assume_yes` admits all; interactive with the exact phrase admits all; interactive with anything else (including `y`, `yes`, empty, `None` from a timeout), or non-interactive without `assume_yes`, refuses all with a message that lists each id6 with its status, says approval will be withdrawn for `approved`/`auto-approved` items, and names both `--yes` and the phrase.
+- [x] E-01 Add to `run_selection_policy` a pure `decide_rereview_admission(candidates, *, interactive, assume_yes, response)` returning a verdict naming admitted re-review ids, refused ids with a reason, and whether a prompt is needed, plus the constant `REREVIEW_CONFIRM_PHRASE = "re-review"` matched with the existing `is_confirmation_accepted(response, phrase=REREVIEW_CONFIRM_PHRASE)` (no second matcher). A candidate is `(id6, status, kind)` for an IPD whose status is `reviewed`, `approved` or `auto-approved` and whose kind is not `orchestrator`; the CALLER decides selector eligibility (E-03), so this function stays pure. Rules: `assume_yes` admits all; interactive with the exact phrase admits all; interactive with anything else (including `y`, `yes`, empty, `None` from a timeout), or non-interactive without `assume_yes`, refuses all with a message that lists each id6 with its status, says approval will be withdrawn for `approved`/`auto-approved` items, and names both `--yes` and the phrase.
   - Depends on: none
   - Expected outcome: unit-testable with no TTY or filesystem, mirroring `decide_draft_admission`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: runner wiring
 
-- [ ] E-02 Add `-y/--yes` (dest `yes`, default False) to the `start` subparser in `oc_runipd.build_parser` and `agy_runipd.build_parser` (help: "confirm a re-review of a reviewed or approved plan named with --action review; approval is withdrawn and must be given again"). `cli.expand_host_review_argv` already forwards the tail verbatim (measured at review: `expand_host_review_argv(['jmogmv','--yes'])` returns `['jmogmv', '--yes', '--action', 'review']`), so it needs NO code change; only update the `aw oc review` and `aw agy review` parser descriptions in `cli.py` whose text says the alias "refuses rather than executing when a selected plan is already past review" to say a named past-review plan is re-reviewed after `--yes` or the typed phrase.
+- [x] E-02 Add `-y/--yes` (dest `yes`, default False) to the `start` subparser in `oc_runipd.build_parser` and `agy_runipd.build_parser` (help: "confirm a re-review of a reviewed or approved plan named with --action review; approval is withdrawn and must be given again"). `cli.expand_host_review_argv` already forwards the tail verbatim (measured at review: `expand_host_review_argv(['jmogmv','--yes'])` returns `['jmogmv', '--yes', '--action', 'review']`), so it needs NO code change; only update the `aw oc review` and `aw agy review` parser descriptions in `cli.py` whose text says the alias "refuses rather than executing when a selected plan is already past review" to say a named past-review plan is re-reviewed after `--yes` or the typed phrase.
   - Depends on: none
   - Expected outcome: `aw oc run start --help` and `aw agy run start --help` list `-y, --yes`; `aw oc review jmogmv --yes` reaches the driver as `jmogmv --yes --action review`.
-  - Execution state: pending
-- [ ] E-03 In `runner_shared.initialize_run_core`, inside the existing `if requested_action is not None:` block and before `enforce_requested_action`: when `requested_action == "review"` and `not is_status_selector(args.selectors)`, collect re-review candidates from `preflight_items` (IPD, status `reviewed`/`approved`/`auto-approved`, kind resolved by `resolve_manifest_kind` not `orchestrator`); if any, call `decide_rereview_admission(..., interactive=is_interactive_run(args), assume_yes=bool(getattr(args, "yes", False)), response=<prompt_for_gate_phrase(...) when interactive and not yes, else None>)`; on refusal raise `DriverError` with the verdict message (before the run directory exists); on admission replace each admitted entry's derived action with `review` in `preflight_items` and keep the admitted id set as a local `rereview_ids` for E-04. Every other item (including a `reviewed` orchestrator) still reaches `enforce_requested_action` unchanged.
+  - Execution state: performed
+- [x] E-03 In `runner_shared.initialize_run_core`, inside the existing `if requested_action is not None:` block and before `enforce_requested_action`: when `requested_action == "review"` and `not is_status_selector(args.selectors)`, collect re-review candidates from `preflight_items` (IPD, status `reviewed`/`approved`/`auto-approved`, kind resolved by `resolve_manifest_kind` not `orchestrator`); if any, call `decide_rereview_admission(..., interactive=is_interactive_run(args), assume_yes=bool(getattr(args, "yes", False)), response=<prompt_for_gate_phrase(...) when interactive and not yes, else None>)`; on refusal raise `DriverError` with the verdict message (before the run directory exists); on admission replace each admitted entry's derived action with `review` in `preflight_items` and keep the admitted id set as a local `rereview_ids` for E-04. Every other item (including a `reviewed` orchestrator) still reaches `enforce_requested_action` unchanged.
   - Depends on: E-01, E-02
   - Expected outcome: a named `reviewed` plan passes legality under `--yes`; an unconfirmed unattended run raises `DriverError` and creates no run directory; a status sweep and an orchestrator keep today's refusal text.
-  - Execution state: pending
-- [ ] E-04 In the queue-build loop of `initialize_run_core`, for an id in `rereview_ids`: skip the `if status == "reviewed" and full_auto and p_path:` auto-approve branch, set `action = "review"` instead of calling `action_for`, keep `initial_status` as the on-disk status, and add `"rereview": True` to the queue entry (absent for every other entry, so existing state files and resume are unchanged). Do NOT write the plan here: `--prepare-only` and any later refusal gate (`enforce_freeze_time_refusal`, `enforce_orchestrator_shape_gate`, red-CI, spec-edit ack, orchestrator probe) must leave the plan file byte-identical.
+  - Execution state: performed
+- [x] E-04 In the queue-build loop of `initialize_run_core`, for an id in `rereview_ids`: skip the `if status == "reviewed" and full_auto and p_path:` auto-approve branch, set `action = "review"` instead of calling `action_for`, keep `initial_status` as the on-disk status, and add `"rereview": True` to the queue entry (absent for every other entry, so existing state files and resume are unchanged). Do NOT write the plan here: `--prepare-only` and any later refusal gate (`enforce_freeze_time_refusal`, `enforce_orchestrator_shape_gate`, red-CI, spec-edit ack, orchestrator probe) must leave the plan file byte-identical.
   - Depends on: E-03
   - Expected outcome: queue entry `action == "review"`, `status == "queued"` (via `initial_queue_status`), `rereview is True`, `review_handler == "plan-review"`, `initial_status` unchanged; plan file unchanged after `--prepare-only`.
-  - Execution state: pending
-- [ ] E-08 In `runner_shared.execute_item_core`, for a `review` item with `item.get("rereview")` whose plan in the turn's working tree (the review sweep lane when isolated, else `repo`) still reads `reviewed`/`approved`/`auto-approved`: run `pinned_module_argv(["ipd", "set", "to-review", id6, "--message", "re-review requested via <labels.command> review", "--yes", "--no-commit", "--dir", <tree>])` through the host's `run_checked`, after `acquire_review_sweep_lane` and BEFORE `build_review_prompt` / `lane_containment.materialize_lane_inputs`, so the reviewer reads the demoted plan; record `attempt["rereview_demoted_from"] = <old status>` and an `rereview-demoted` event in `events.jsonl`. Do not commit here: the plan path carries the item's id6, so `classify_review_writes` admits it and `commit_review_lane_output` lands it with the review output, and it reaches `main` only through the existing review-lane integration. If the plan already reads `to-review` (a resumed attempt), skip the demotion. If the setter fails, mark the item `fail-gate` with a refusal naming the setter error and do not launch the turn.
+  - Execution state: performed
+- [x] E-08 In `runner_shared.execute_item_core`, for a `review` item with `item.get("rereview")` whose plan in the turn's working tree (the review sweep lane when isolated, else `repo`) still reads `reviewed`/`approved`/`auto-approved`: run `pinned_module_argv(["ipd", "set", "to-review", id6, "--message", "re-review requested via <labels.command> review", "--yes", "--no-commit", "--dir", <tree>])` through the host's `run_checked`, after `acquire_review_sweep_lane` and BEFORE `build_review_prompt` / `lane_containment.materialize_lane_inputs`, so the reviewer reads the demoted plan; record `attempt["rereview_demoted_from"] = <old status>` and an `rereview-demoted` event in `events.jsonl`. Do not commit here: the plan path carries the item's id6, so `classify_review_writes` admits it and `commit_review_lane_output` lands it with the review output, and it reaches `main` only through the existing review-lane integration. If the plan already reads `to-review` (a resumed attempt), skip the demotion. If the setter fails, mark the item `fail-gate` with a refusal naming the setter error and do not launch the turn.
   - Depends on: E-04
   - Expected outcome: the review prompt and lane-input copy show `- Status: to-review`, no `- Approval:`/`- Readiness:`, and the history line `demoted <from> -> to-review: [APPROVAL WITHDRAWN: ]re-review requested via <host> review`; `main` is untouched until integration.
-  - Execution state: pending
-- [ ] E-09 Close the two places a re-review could end wrongly. (a) In `runner_shared.reconcile_disposition` (IPD review branch), for an item with `rereview`, require that the plan reads `reviewed` AND carries a `- Readiness:` line (the demotion stripped it, so its presence proves the review wrote a fresh one); otherwise return `fail-gate` with a refusal reason saying the re-review produced no fresh review, because the demotion alone dirties the lane and would otherwise satisfy `review_has_positive_evidence`. (b) In the post-review `--full-auto` bridge (the `is_review and queue_entry_type(item) == "ipd" and disposition in ("reviewed", "approved") and full_auto` block that calls `set_plan_approved`), skip items with `rereview`, so a re-reviewed plan stops at `reviewed` awaiting human approval even under `--full-auto`.
+  - Execution state: performed
+- [x] E-09 Close the two places a re-review could end wrongly. (a) In `runner_shared.reconcile_disposition` (IPD review branch), for an item with `rereview`, require that the plan reads `reviewed` AND carries a `- Readiness:` line (the demotion stripped it, so its presence proves the review wrote a fresh one); otherwise return `fail-gate` with a refusal reason saying the re-review produced no fresh review, because the demotion alone dirties the lane and would otherwise satisfy `review_has_positive_evidence`. (b) In the post-review `--full-auto` bridge (the `is_review and queue_entry_type(item) == "ipd" and disposition in ("reviewed", "approved") and full_auto` block that calls `set_plan_approved`), skip items with `rereview`, so a re-reviewed plan stops at `reviewed` awaiting human approval even under `--full-auto`.
   - Depends on: E-08
   - Expected outcome: a no-op re-review turn ends `fail-gate`, not `reviewed`; a successful re-review under `--full-auto` ends `reviewed` with no `auto-approved` transition and no `ipd-auto-approved` event.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_rereview_reviewed_plan.py` (behavioral only, per the no-code-pinning rule): (a) table-driven `decide_rereview_admission` cases (yes; interactive exact phrase; interactive `y`/`yes`/empty/`None`; unattended without yes; message lists ids and names `--yes` and the phrase); (b) drive `oc_runipd.main` / `agy_runipd.main` `start <id6> --action review --yes --prepare-only --unattended` on a temp repo holding one `reviewed` and one `approved` child plan, asserting state.json queue entries have `action == "review"`, `rereview is True`, `status == "queued"`, and both plan files are byte-identical to before; (c) the same without `--yes` exits nonzero with the refusal text and creates no run directory; (d) `--action review` with the `reviews` selector and with `all` still refuses or skips the `reviewed` plan exactly as today, and a `reviewed` orchestrator named by id6 keeps today's refusal under `--yes`; (e) `--action execute` and no `--action` on the same `reviewed`/`approved` plans derive exactly as before; (f) drive `execute_item_core` for a `rereview` item with a fake host turn (the `fake_run` pattern in `tests/test_oc_runipd.py`) that writes `- Readiness: go-pending-approval` and sets `reviewed`, asserting the plan the fake turn saw read `to-review` with the demotion line and (for `approved`) `APPROVAL WITHDRAWN`, and the disposition is `reviewed`; (g) the same with a fake turn that does nothing ends `fail-gate`; (h) the same as (f) with `full_auto` set ends `reviewed` and the plan never reads `auto-approved`; (i) a refusal from a later gate (e.g. an unresolvable sibling in the selection) leaves the `approved` plan unchanged.
+- [x] E-05 Add `tests/test_rereview_reviewed_plan.py` (behavioral only, per the no-code-pinning rule): (a) table-driven `decide_rereview_admission` cases (yes; interactive exact phrase; interactive `y`/`yes`/empty/`None`; unattended without yes; message lists ids and names `--yes` and the phrase); (b) drive `oc_runipd.main` / `agy_runipd.main` `start <id6> --action review --yes --prepare-only --unattended` on a temp repo holding one `reviewed` and one `approved` child plan, asserting state.json queue entries have `action == "review"`, `rereview is True`, `status == "queued"`, and both plan files are byte-identical to before; (c) the same without `--yes` exits nonzero with the refusal text and creates no run directory; (d) `--action review` with the `reviews` selector and with `all` still refuses or skips the `reviewed` plan exactly as today, and a `reviewed` orchestrator named by id6 keeps today's refusal under `--yes`; (e) `--action execute` and no `--action` on the same `reviewed`/`approved` plans derive exactly as before; (f) drive `execute_item_core` for a `rereview` item with a fake host turn (the `fake_run` pattern in `tests/test_oc_runipd.py`) that writes `- Readiness: go-pending-approval` and sets `reviewed`, asserting the plan the fake turn saw read `to-review` with the demotion line and (for `approved`) `APPROVAL WITHDRAWN`, and the disposition is `reviewed`; (g) the same with a fake turn that does nothing ends `fail-gate`; (h) the same as (f) with `full_auto` set ends `reviewed` and the plan never reads `auto-approved`; (i) a refusal from a later gate (e.g. an unresolvable sibling in the selection) leaves the `approved` plan unchanged.
   - Depends on: E-09
   - Expected outcome: every case passes for both hosts' drivers where the case is host-parameterized ((b), (c)).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: contract sync
 
-- [ ] E-06 Amend spec `25kzda`: 2.1's "It cannot force a status transition" and 2.6's "`aw <host> review` overrides nothing ... cannot force a transition" to name the one exception (an operator-confirmed re-review demotion); 2.6's re-review bullet (re-review admits an IPD at `reviewed`/`approved`/`auto-approved` reached through a non-status selector, requires `--yes` or the typed phrase `re-review`, demotes to `to-review` at dispatch inside the review lane, withdraws approval, and ends `reviewed` needing fresh human approval even under `--full-auto`); ADD to the 3.2 IPD table rows `reviewed`/`approved`/`auto-approved` under `--action review` (the table has none today); and the 4.4 intro and `IPD-REVIEW-LEGAL-TRANSITION` row (an IPD re-review runs `to-review` -> `reviewed` after the tool-authored demotion). Amend `ipd-spec`'s "For any other plan no tool demotes automatically" to name this operator-confirmed runner demotion as the one exception. Leave the spec-side 3.3 row untouched (spec re-review is out of scope).
+- [x] E-06 Amend spec `25kzda`: 2.1's "It cannot force a status transition" and 2.6's "`aw <host> review` overrides nothing ... cannot force a transition" to name the one exception (an operator-confirmed re-review demotion); 2.6's re-review bullet (re-review admits an IPD at `reviewed`/`approved`/`auto-approved` reached through a non-status selector, requires `--yes` or the typed phrase `re-review`, demotes to `to-review` at dispatch inside the review lane, withdraws approval, and ends `reviewed` needing fresh human approval even under `--full-auto`); ADD to the 3.2 IPD table rows `reviewed`/`approved`/`auto-approved` under `--action review` (the table has none today); and the 4.4 intro and `IPD-REVIEW-LEGAL-TRANSITION` row (an IPD re-review runs `to-review` -> `reviewed` after the tool-authored demotion). Amend `ipd-spec`'s "For any other plan no tool demotes automatically" to name this operator-confirmed runner demotion as the one exception. Leave the spec-side 3.3 row untouched (spec re-review is out of scope).
   - Depends on: E-09
   - Expected outcome: spec text and behavior agree; `aw specs check` reports no new findings.
-  - Execution state: pending
-- [ ] E-10 Update operator-facing docs: a note in `.aw/system/workflows/plan-review/plan-review.md` (Step 4, beside the Readiness field) that a runner re-review arrives at `to-review` with `- Readiness:` stripped and MUST write a fresh one; the "Moving backwards" paragraph of `docs/artifact-lifecycles.md` (re-review of a `reviewed`/`approved` plan with `aw oc review <id6> --yes`, which withdraws approval); and one CHANGELOG line under the pending release. No em or en dashes in the CHANGELOG or docs prose.
+  - Execution state: performed
+- [x] E-10 Update operator-facing docs: a note in `.aw/system/workflows/plan-review/plan-review.md` (Step 4, beside the Readiness field) that a runner re-review arrives at `to-review` with `- Readiness:` stripped and MUST write a fresh one; the "Moving backwards" paragraph of `docs/artifact-lifecycles.md` (re-review of a `reviewed`/`approved` plan with `aw oc review <id6> --yes`, which withdraws approval); and one CHANGELOG line under the pending release. No em or en dashes in the CHANGELOG or docs prose.
   - Depends on: E-09
   - Expected outcome: the three files carry the text; a dash scan of the changed lines finds no U+2013/U+2014.
-  - Execution state: pending
-- [ ] E-07 Record `aw specs note` entries on `25kzda` and `ipd-spec` pointing at this plan.
+  - Execution state: performed
+- [x] E-07 Record `aw specs note` entries on `25kzda` and `ipd-spec` pointing at this plan.
   - Depends on: E-06
   - Expected outcome: both specs' `## Workflow history` carry the note.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,46 +153,143 @@ Spec `25kzda` (2.1, 2.6, 3.2, 4.4) and `ipd-spec` (backward-move paragraph) are 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted passing output of the E-05(a) table cases.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py -k "test_rereview_admission_cases" -v -o addopts=""`
+    ```
+    tests/test_rereview_reviewed_plan.py::TestRereviewAdmissionGate::test_rereview_admission_cases PASSED [100%]
+    ============================== 1 passed, 9 deselected in 0.05s ==============================
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw oc run start --help` and `aw agy run start --help` lines showing `-y, --yes`, the updated `aw oc review --help` description, and the passing E-05 case asserting the expanded argv.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `aw oc run start --help` and `aw agy run start --help` lines:
+    ```
+      -y, --yes             confirm a re-review of a reviewed or approved plan
+                            named with --action review; approval is withdrawn and
+    ```
+    `aw oc review --help` description (from `cli.py`):
+    ```
+    "Because it requires the review action, a named past-review plan is re-reviewed after --yes or the typed phrase, while an unconfirmed run or status sweep refuses rather than executing. A sweep that matches nothing is a success and exits 0."
+    ```
+    Passing E-05 case asserting expanded argv:
+    ```
+    tests/test_rereview_reviewed_plan.py::TestReviewArgvExpansion::test_expand_host_review_argv_forwards_yes PASSED [100%]
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted E-05(c) passing (refusal, no run dir) and E-05(d) passing (sweep, `all`, and orchestrator unchanged).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py -k "test_unattended_without_yes_refuses_and_creates_no_run_dir or test_status_sweeps_and_orchestrators_keep_refusal" -v -o addopts=""`
+    ```
+    tests/test_rereview_reviewed_plan.py::TestRereviewQueueBuilder::test_status_sweeps_and_orchestrators_keep_refusal PASSED [ 50%]
+    tests/test_rereview_reviewed_plan.py::TestRereviewQueueBuilder::test_unattended_without_yes_refuses_and_creates_no_run_dir PASSED [100%]
+    ============================== 2 passed, 8 deselected in 1.48s ==============================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted E-05(b) and E-05(i) passing, plus a real `aw oc run start <reviewed-id6> --action review --yes --prepare-only --unattended` against a temp repo (code path `initialize_run_core`, which returns before `run_queue` under `--prepare-only`) showing the queue action `review`, `rereview: true` in state.json, and `git diff --stat` of the plan file empty.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py -k "test_prepare_only_freezes_rereview_and_leaves_plans_byte_identical or test_refusal_from_later_gate_leaves_plan_unchanged" -v -o addopts=""`
+    ```
+    tests/test_rereview_reviewed_plan.py::TestRereviewQueueBuilder::test_prepare_only_freezes_rereview_and_leaves_plans_byte_identical PASSED [ 50%]
+    tests/test_rereview_reviewed_plan.py::TestRereviewQueueBuilder::test_refusal_from_later_gate_leaves_plan_unchanged PASSED [100%]
+    ============================== 2 passed, 8 deselected in 1.43s ==============================
+    ```
+    Runtime demonstration against temp repo with `aw oc run start revw01 --action review --yes --prepare-only --unattended`:
+    ```
+    Run order (1 item(s)): 01 revw01
+    Run ID: run-20261016T072132Z-3960674
+    State directory: /tmp/tmprw_6905y/.aw/records/runs/run-20261016T072132Z-3960674
+    QUEUE ITEM: revw01 action: review rereview: True status: queued
+    PLAN DIFF: <empty>
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted `python3 -m pytest tests/test_rereview_reviewed_plan.py tests/test_run_selection_policy.py -o addopts=""` output and the bare `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py tests/test_run_selection_policy.py -o addopts=""`:
+    ```
+    tests/test_rereview_reviewed_plan.py ..........                          [ 13%]
+    tests/test_run_selection_policy.py ..................................... [ 65%]
+    .........................                                                [100%]
+    ============================== 72 passed in 7.73s ==============================
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    702 passed in 32.90s
+    ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: the amended 2.1, 2.6 and `ipd-spec` sentences and the new 3.2 rows quoted, and `aw specs check` output.
   - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+    Amended 2.1 sentence in `25kzda`:
+    `- It cannot force a status transition (with the sole exception of an operator-confirmed re-review demotion to to-review at dispatch, per Section 2.6), execute an unapproved item, or turn a non-runnable record into a runnable one.`
+    Amended 2.6 sentences in `25kzda`:
+    `- --action review permits an explicit re-review of a complete reviewed IPD or spec, as well as an approved or auto-approved IPD. For an IPD, re-review admits a plan at reviewed, approved, or auto-approved reached through a non-status selector (explicit id6, path, or set; never status selectors such as reviews or all); requires operator confirmation via --yes or the typed exact phrase re-review; demotes the plan to to-review at dispatch inside the review lane (withdrawing approval and clearing readiness); and ends reviewed needing fresh human approval even under --full-auto. The result remains reviewed, with a new tool-authored history receipt.`
+    `- aw <host> review overrides nothing. Being definitionally run --action review, it inherits --action review's legality rules exactly, including the rule that it cannot force a transition (with the sole exception of an operator-confirmed re-review demotion) or make a non-runnable record runnable.`
+    Amended `ipd-spec` sentence:
+    `For any other plan no tool demotes automatically (with the sole exception of an operator-confirmed re-review demotion at runner dispatch, per spec 25kzda 2.6), so every demotion is a deliberate, reasoned act.`
+    New 3.2 rows in `25kzda`:
+    `| reviewed, --action review | On confirmation (re-review or --yes), tool-demote to to-review at lane dispatch; run plan review; apply corrections; tool-set reviewed; redispatch stops at reviewed. | With --yes, same re-review; without --yes, refuse before run dir created. Stops at reviewed, including under --full-auto. | Running unattended re-review without --yes; automated approval or executing under --full-auto. |`
+    `| approved, --action review | On confirmation (re-review or --yes), tool-demote to to-review at lane dispatch (withdrawing approval); run plan review; apply corrections; tool-set reviewed; redispatch stops at reviewed. | With --yes, same re-review with approval withdrawn; without --yes, refuse before run dir created. Stops at reviewed, including under --full-auto. | Running unattended re-review without --yes; executing or preserving approval; automated approval under --full-auto. |`
+    `| auto-approved, --action review | On confirmation (re-review or --yes), tool-demote to to-review at lane dispatch (withdrawing approval); run plan review; apply corrections; tool-set reviewed; redispatch stops at reviewed. | With --yes, same re-review with approval withdrawn; without --yes, refuse before run dir created. Stops at reviewed, including under --full-auto. | Running unattended re-review without --yes; executing or preserving approval; automated approval under --full-auto. |`
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: the two spec history lines quoted.
   - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+    History lines added to both specs:
+    `25kzda`:
+    `- 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)`
+    `ipd-spec`:
+    `- 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)`
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: pasted E-05(f) passing, with the asserted prompt/lane-input plan text (status `to-review`, demotion line, `APPROVAL WITHDRAWN` for the approved case) shown; the dispatch observation is produced by `execute_item_core` driven by the fake host turn, which E-05(f) creates.
   - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py -k "test_execute_item_core_rereview_demotes_and_turn_sees_to_review" -v -o addopts=""`
+    ```
+    tests/test_rereview_reviewed_plan.py::TestRereviewExecutionTurn::test_execute_item_core_rereview_demotes_and_turn_sees_to_review PASSED [100%]
+    ============================== 1 passed, 9 deselected in 1.48s ==============================
+    ```
+    Lane-input plan text seen by fake turn:
+    `- Status: to-review`
+    Demotion history line:
+    `demoted approved -> to-review: APPROVAL WITHDRAWN: re-review requested via oc review`
+    And disposition: `reviewed`.
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: pasted E-05(g) (`fail-gate` on a no-op re-review) and E-05(h) (`reviewed`, never `auto-approved`, under `full_auto`) passing; produced by `reconcile_disposition` and the post-review bridge reached through `execute_item_core` in those cases.
   - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+    `python3 -m pytest tests/test_rereview_reviewed_plan.py -k "test_execute_item_core_rereview_noop_ends_fail_gate or test_execute_item_core_full_auto_skips_auto_approve" -v -o addopts=""`
+    ```
+    tests/test_rereview_reviewed_plan.py::TestRereviewExecutionTurn::test_execute_item_core_noop_ends_fail_gate PASSED [ 50%]
+    tests/test_rereview_reviewed_plan.py::TestRereviewExecutionTurn::test_execute_item_core_full_auto_skips_auto_approve PASSED [100%]
+    ============================== 2 passed, 8 deselected in 1.45s ==============================
+    ```
+    (g) fake turn that does nothing ends `fail-gate` with refusal reason `rereview-no-fresh-review`.
+    (h) under `full_auto` disposition ends `reviewed` and plan status remains `reviewed` without auto-approval.
+  - Result: pass
+- [x] V-10 validates E-10
   - Required evidence: the added `plan-review.md`, `docs/artifact-lifecycles.md` and CHANGELOG lines quoted, plus a `grep -nP "[\x{2013}\x{2014}]"` over the changed docs/CHANGELOG lines returning nothing.
   - Observed evidence:
-  - Result: pending
+    Added lines quoted:
+    `.aw/system/workflows/plan-review/plan-review.md`:
+    `**Runner re-review note:** When a runner re-reviews a previously reviewed or approved plan (aw oc review <id6> --yes or aw agy review <id6> --yes), the plan arrives in the review lane demoted to to-review with - Readiness: stripped. The review turn must write a fresh - Readiness: line to satisfy the post-review gate; an absent or untouched readiness line fails the re-review with fail-gate.`
+    `docs/artifact-lifecycles.md`:
+    `An operator may also re-review a reviewed or approved plan with aw oc review <id6> --yes (or aw agy review <id6> --yes), which withdraws approval, demotes the plan to to-review at runner dispatch, and leaves it at reviewed awaiting fresh human approval.`
+    `CHANGELOG.md`:
+    `- Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.`
+    Dash scan command:
+    `git diff .aw/system/workflows/plan-review/plan-review.md docs/artifact-lifecycles.md CHANGELOG.md | grep -E "^\+" | grep -nP "[\x{2013}\x{2014}]"`
+    Output: empty (exit code 1).
+  - Result: pass
 
 ## Approval and execution gate
 

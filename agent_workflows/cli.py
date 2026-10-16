@@ -5425,9 +5425,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "<selector> --action review`, and with no selector it is exactly `aw oc runipd reviews "
             "--action review`, which sweeps every IPD whose next legal action is review and shares "
             "one host session across them. It adds nothing of its own: every flag, gate, exit code, "
-            "and run record is the driver's. Because it requires the review action, it refuses "
-            "rather than executing when a selected plan is already past review. A sweep that matches "
-            "nothing is a success and exits 0."
+            "and run record is the driver's. Because it requires the review action, a named past-review "
+            "plan is re-reviewed after --yes or the typed phrase, while an unconfirmed run or status "
+            "sweep refuses rather than executing. A sweep that matches nothing is a success and exits 0."
         ),
     )
     p_oc_review.add_argument(
@@ -5727,9 +5727,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "<selector> --action review`, and with no selector it is exactly `aw agy runipd reviews "
             "--action review`, which sweeps every IPD whose next legal action is review and shares "
             "one host session across them. It adds nothing of its own: every flag, gate, exit code, "
-            "and run record is the driver's. Because it requires the review action, it refuses "
-            "rather than executing when a selected plan is already past review. A sweep that matches "
-            "nothing is a success and exits 0."
+            "and run record is the driver's. Because it requires the review action, a named past-review "
+            "plan is re-reviewed after --yes or the typed phrase, while an unconfirmed run or status "
+            "sweep refuses rather than executing. A sweep that matches nothing is a success and exits 0."
         ),
     )
     p_agy_review.add_argument(
