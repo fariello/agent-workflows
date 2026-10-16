@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: run-once | Id: wazeo5 | Set: testprune | Status: pending | Created: 2026-10-15 | Author: opencode (its_direct/pt3-claude-opus-5.5-1m-us) | Targets: AI coding agent | Concerns: Two test tiers: core default under 30s on 6 CPUs, thorough pre-push/release suite (unified from 86tbqk and the opencode draft) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: run-once | Id: wazeo5 | Set: testprune | Status: executed | Created: 2026-10-15 | Author: opencode (its_direct/pt3-claude-opus-5.5-1m-us) | Targets: AI coding agent | Concerns: Two test tiers: core default under 30s on 6 CPUs, thorough pre-push/release suite (unified from 86tbqk and the opencode draft) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a senior test-infrastructure engineer working in the `agent-workflows` repository. It is public and is the codebase under discussion: https://github.com/fariello/agent-workflows. Your task is to give it two test tiers: a fast CORE gate that runs by default, and a THOROUGH regression suite that runs before push and before release.
 
 # Read first (do not trust this prompt's summary of them)
@@ -54,3 +54,5 @@ You are a senior test-infrastructure engineer working in the `agent-workflows` r
 - Every file changed, by path.
 
 Return your final report as a single DOWNLOADABLE markdown (`.md`) file.
+## Workflow history
+- 2026-10-16 executed (aw set): executed: produced plan hguae9 (to-review) and research 7ry5kv; implementation awaits plan approval
