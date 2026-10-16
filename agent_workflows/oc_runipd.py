@@ -5457,13 +5457,12 @@ def main(argv: list[str] | None = None) -> int:
     # `main()` and NOT in `build_parser()`, so adding the `stop` subparser alone does not cover it -
     # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
     # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
-    # of the operator's intent. The behavioral tests asserting the bare form is not rewritten were
-    # deleted in `19313eed7`; restoring that coverage for `stop` and `audit` is tracked by backlog `2ohbkj`.
+    # of the operator's intent. Behavioral coverage asserting bare `stop` and `audit` are not rewritten
+    # into `start` is driven through `main()` in `tests/test_runner_bare_verb_shim.py` (backlog `2ohbkj`).
     # KEEP THIS AS AN INLINE SET LITERAL. The inline literal is kept for symmetry with the agy twin and
     # because no test now constrains its form. The historical structural guard (`tests/test_runner_stop_triggers.py`),
     # which regexed `subcommands = \{(.*?)\}` in both drivers' sources, was a code pin deleted in `19313eed7`
-    # that will not return under P16; until behavioral coverage returns under `2ohbkj`, lockstep of the two sets
-    # is held by review.
+    # that will not return under P16; lockstep of non-hazardous set tokens remains held by review.
     #
     # streamfmt (mm6wuz) E-05 / OQ-02 (resolved): `"-v"` and `"--version"` USED TO BE LISTED HERE and
     # were REMOVED. `-v` now means `--verbose` on `start` and `resume`, and while it sat in this set a
@@ -5477,16 +5476,15 @@ def main(argv: list[str] | None = None) -> int:
     # integpath-04 (`rl67b0`) E-02: `"integrate"` MUST be listed here for the SAME measured reason
     # `stop` must: an unregistered first token is rewritten into `start <token>`, so
     # `integrate <id6>` would LAUNCH A RUN with `integrate` as a selector, which is the opposite of
-    # the operator's intent and is silent. Added in lockstep with the agy twin. Unlike `stop` and
-    # `audit`, `integrate` is still driven through the real `main` in `tests/test_oc_runipd.py` (e.g.
-    # `driver.main(["integrate", "mm6wuz"])`), which exercises its not-rewritten path, while `stop`
-    # and `audit` have no such coverage.
+    # the operator's intent and is silent. Added in lockstep with the agy twin. Bare `integrate` is
+    # driven through the real `main` in `tests/test_oc_runipd.py` (e.g. `driver.main(["integrate", "mm6wuz"])`),
+    # while bare `stop` and `audit` are driven through `main` in `tests/test_runner_bare_verb_shim.py`.
     # reverify-01 (`mp289j`) E-05: `"audit"` MUST be listed here for the SAME measured reason `stop`
     # and `integrate` must. An unregistered first token is rewritten into `start <token>`, so
     # `audit <id6>` would LAUNCH A RUN with `audit` as a selector - which for this verb is worse than
     # for the other two, because an operator asking for a cheap second opinion on FINISHED work would
-    # instead pay for a full execution attempt against an already-executed plan. Neither `stop` nor
-    # `audit` currently has live coverage driving the bare form through `main`, which is tracked by `2ohbkj`.
+    # instead pay for a full execution attempt against an already-executed plan. Bare `stop` and
+    # `audit` are driven through `main()` in `tests/test_runner_bare_verb_shim.py` (backlog `2ohbkj`).
     subcommands = {
         "start",
         "resume",
