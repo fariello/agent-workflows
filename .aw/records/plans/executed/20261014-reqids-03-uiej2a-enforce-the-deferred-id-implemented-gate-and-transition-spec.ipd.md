@@ -6,7 +6,7 @@
 - Scope: Implement the spec 89xjll R-9 / Section 6.5 / AC-10 refusal on transitioning a spec with remaining [Deferred] IDs to implemented in agent_workflows/specs.py and agent_workflows/status_set.py; wire spec_plan_trace_deferred into the spec production block in agent_workflows/runner_shared.py to emit a distinguishable partial-pass event (89xjll R-6 / Section 6.3 / AC-9); add the 89xjll Section 6.2b qualified-citation instruction to the approved-spec branch of build_spec_production_prompt in agent_workflows/runner_shared.py and to both plan-review variants (.aw/system/workflows/plan-review/plan-review.md and .aw/system/workflows/plan-review-long/review-rubric.md, kept in deliberate parity); add behavioral tests in tests/test_production_checks_trace.py and tests/test_spec_production.py; and transition spec 89xjll approved -> implementing -> implemented via aw specs set so backlog vy20et can close to done.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/runner_shared.py, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, tests/test_production_checks_trace.py, tests/test_spec_production.py, .aw/records/specs/approved/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/specs/implementing/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/specs/implemented/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md, .aw/records/plans/pending/20261014-reqids-03-uiej2a-enforce-the-deferred-id-implemented-gate-and-transition-spec.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: uiej2a
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uiej2a verified (set reqids, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/implementing/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review, opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD uiej2a from backlog vy20et and spec 89xjll
