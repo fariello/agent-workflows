@@ -1566,9 +1566,10 @@ class LifecycleColorDepthSeamSweepTests(_DepthTestBase):
     """Guard the 256/16/none lifecycle color-depth ladder across all rendering seams (E-03).
 
     Residual exposure and limits (E-05):
-    1. Covers the LIFECYCLE axis only: the generic color axis (colorize, color256,
-       status_256, badge, format_path) ignores the depth pin entirely per finding F-08,
-       tracked in carrier backlog item cvtg9u.
+    1. Scopes assertions to the lifecycle axis only; the generic Term axis
+       (lv0dvv) and the out-of-Term raw-literal surfaces covered by y11p5u
+       (pwatch, runners_monitor, and render_stream headers, statusline, and
+       Palette.__call__) are guarded in tests/test_generic_color_depth.py.
     2. Proves the five enumerated public rendering seams across all stages, tiers, and
        streams, but does not mechanically prevent a future renderer from re-deriving or
        coercing a tier; it catches a re-collapse by asserting on returned byte output
@@ -1672,10 +1673,10 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
     """End-to-end CLI guard across terminal surfaces on a synthesized fixture repo (E-04).
 
     Residual exposure and limits (E-05):
-    1. Covers the LIFECYCLE axis only: generic color output (paths, badges, status)
-       ignores color_depth per F-08 (tracked in backlog item cvtg9u), so assertions
-       on the 'none' tier are scoped strictly to lifecycle tokens rather than blanket
-       escape absence.
+    1. Scopes assertions to the lifecycle axis only; the generic Term axis
+       (lv0dvv) and the out-of-Term raw-literal surfaces covered by y11p5u
+       (pwatch, runners_monitor, and render_stream headers, statusline, and
+       Palette.__call__) are guarded in tests/test_generic_color_depth.py.
     2. Proves the CLI command(s) driven against the synthesized fixture, exercising
        the full real subprocess execution path, but is a sample rather than an exhaustive
        sweep across every CLI subcommand (which was measured at 108s+ over live corpus).
@@ -1819,7 +1820,7 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
                     f"[{cmd_name}] Expected no 38;5; escape for lifecycle words in 16 pin output, got: {spans_16}",
                 )
 
-                # Cell 3 (none tier): NO lifecycle word is styled at all (token-scoped per F-08)
+                # Cell 3 (none tier): NO lifecycle word is styled at all (lifecycle-scoped; generic/raw surfaces tested in test_generic_color_depth.py)
                 _pin_tier("none")
                 res_none = subprocess.run(
                     [sys.executable, "-m", "agent_workflows", *cmd_args],

@@ -36,27 +36,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: capture the baseline
 
-- [ ] E-01 Capture the pre-edit test baseline before modifying any file: run the targeted suite `python3 -m pytest tests/test_term.py tests/test_generic_color_depth.py tests/test_runners_monitor.py tests/test_statusline_behavior.py tests/test_statusline_stop_tally.py tests/test_run_summary_table.py -o addopts=""` and the bare suite `python3 -m pytest`, recording the summary line and any failing node ids. (Measured at authoring in this lane: the 6-file targeted run passes `181 passed in 36.57s`; that count is context, not the bar.) The post-change bar is zero regressions relative to this baseline. ALSO, before any edit, write the pin-`256` (isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`) output of one fixed probe script under `/tmp` (not in the repo) that calls every function V-02 and V-03 name, with fixed inputs, `repr()`-dumping each return value to `/tmp/32fso3-baseline-256.txt`. The same script, re-run after E-02/E-03/E-06, is the only evidence for "byte-identical at pin `256`".
+- [x] E-01 Capture the pre-edit test baseline before modifying any file: run the targeted suite `python3 -m pytest tests/test_term.py tests/test_generic_color_depth.py tests/test_runners_monitor.py tests/test_statusline_behavior.py tests/test_statusline_stop_tally.py tests/test_run_summary_table.py -o addopts=""` and the bare suite `python3 -m pytest`, recording the summary line and any failing node ids. (Measured at authoring in this lane: the 6-file targeted run passes `181 passed in 36.57s`; that count is context, not the bar.) The post-change bar is zero regressions relative to this baseline. ALSO, before any edit, write the pin-`256` (isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`) output of one fixed probe script under `/tmp` (not in the repo) that calls every function V-02 and V-03 name, with fixed inputs, `repr()`-dumping each return value to `/tmp/32fso3-baseline-256.txt`. The same script, re-run after E-02/E-03/E-06, is the only evidence for "byte-identical at pin `256`".
   - Depends on: none
   - Expected outcome: recorded summary lines and failing-node-id lists for both the 6-file targeted run and the bare suite, plus `/tmp/32fso3-baseline-256.txt` and the probe script that wrote it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route raw SGR literals through `term.resolve_color_depth` and `term.color_16_for_index`
 
-- [ ] E-02 In `agent_workflows/pwatch.py`, replace hard-coded `38;5;` SGR rendering with depth-resolved SGR formatting backed by `term.resolve_color_depth` and `term.color_16_for_index`:
+- [x] E-02 In `agent_workflows/pwatch.py`, replace hard-coded `38;5;` SGR rendering with depth-resolved SGR formatting backed by `term.resolve_color_depth` and `term.color_16_for_index`:
   1. Keep `C_RESET = "\033[0m"`, `C_BOLD = "\033[1m"`, and `C_DIM = "\033[2m"`. KEEP the 18 module-level `38;5;` string constants (`C_TREE` through `C_ARG_TEXT`) unchanged as deprecated 256-tier aliases, because `tools/pwatch.py` re-exports every `agent_workflows.pwatch` attribute "for any operator code that imported them off this module" (its docstring), so deleting them is a compatibility break; but stop using them in any render path. Add integer palette index constants (`IDX_TREE = 241`, `IDX_AGY = 48`, `IDX_AGENT = 177`, `IDX_PYTHON = 75`, `IDX_SHELL = 208`, `IDX_TOOL = 221`, `IDX_PROC_DEFAULT = 255`, `IDX_PID = 245`, `IDX_COUNT = 220`, `IDX_PARENT = 141`, `IDX_THREAD = 139`, `IDX_THREAD_TAG = 242`, `IDX_BANNER = 39`, `IDX_RECORD = 203`, `IDX_TIMESTAMP = 244`, `IDX_ARG_FLAG = 117`, `IDX_ARG_PATH = 186`, `IDX_ARG_TEXT = 252`, plus `IDX_RUNNER_DEC = 81`). Bold is NOT encoded in the index, so every former call site must pass `bold=True` exactly where the old constant began `\033[1;` (`C_AGY`, `C_AGENT`, `C_PYTHON`, `C_SHELL`, `C_TOOL`, `C_PROC_DEFAULT`, `C_COUNT`, `C_BANNER`, `C_RECORD`), or pin `256` is not byte-identical.
   2. Add `_effective_depth(color_enabled: bool, *, depth: str | None = None) -> str` (returning `term.DEPTH_NONE` when `not color_enabled`, `depth` when `depth in term.COLOR_DEPTHS`, else `term.resolve_color_depth(override=True)`) and `sgr_256(code: int, *, bold: bool = False, depth: str | None = None) -> str` (resolving `tier = term.resolve_color_depth(override=True) if depth is None else depth`; returning `""` at `term.DEPTH_NONE`, `f"\033[{'1;' if bold else ''}{term.color_16_for_index(n)}m"` at `term.DEPTH_16`, and `f"\033[{'1;' if bold else ''}38;5;{n}m"` at `term.DEPTH_256`).
   3. Thread optional keyword-only `*, depth: str | None = None` through `ansi_truncate`, `get_process_color`, `format_colored_argument`, `format_arguments`, `process_label`, `render_group`, and `render_snapshot`, resolving `tier = _effective_depth(color_enabled, depth=depth)` once in `render_snapshot` (and as the fallback in each function when called directly) so `tier == term.DEPTH_NONE` takes the plain uncolored branch (emitting no `C_DIM`, `C_RESET`, or `sgr_256` escapes) and `tier == term.DEPTH_16` emits 16-color SGR codes with no `38;5;`. In `pwatch.main`, resolve `depth = term.DEPTH_NONE if args.no_color else term.resolve_color_depth(sys.stdout)` and `color_enabled = depth != term.DEPTH_NONE`, and format `runner_decorations[pid]`, `rec_banner`, and `header` using `sgr_256(..., depth=depth)` and `render_snapshot(..., depth=depth)`; every paired `C_RESET` / `\033[0m` (including the one closing `runner_decorations[pid]`) is emitted only when `depth != term.DEPTH_NONE`.
   - Depends on: E-01
   - Expected outcome: at pin `none` on a capable TTY, `pwatch.render_snapshot(..., color_enabled=True)`, `pwatch.get_process_color`, `pwatch.format_colored_argument(..., True)`, and `pwatch.main` emit zero `\033[` SGR escapes; at pin `16` (and unpinned `TERM=vt100`) they emit 16-color SGR escapes with zero `38;5;` sequences; at pin `256` they are byte-identical to the E-01 baseline file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `agent_workflows/runners_monitor.py`, update `render_runner_table` to resolve `depth = pwatch._effective_depth(color_enabled)` and `styled = depth != term.DEPTH_NONE`, gating `r`, `bold`, and `dim` on `styled` and formatting `c_pid` (`pwatch.IDX_PID`), `c_step` (`81`), `c_set` (`186`), `c_id6` (`220`, `bold=True`), `c_act` (`214`), `c_cpu_high` (`203`, `bold=True`), `c_cpu_mid` (`215`), and `c_activity` (`255`) via `pwatch.sgr_256(..., depth=depth)`. In `run_table_dashboard`, resolve `depth = term.DEPTH_NONE if getattr(args, "no_color", False) else term.resolve_color_depth(sys.stdout)` and `color_enabled = depth != term.DEPTH_NONE`, and format `c_banner` (`pwatch.IDX_BANNER`, `bold=True`) and `c_time` (`pwatch.IDX_TIMESTAMP`) via `pwatch.sgr_256(..., depth=depth)`, gating `r` and `c_dim` on `color_enabled`.
+- [x] E-06 In `agent_workflows/runners_monitor.py`, update `render_runner_table` to resolve `depth = pwatch._effective_depth(color_enabled)` and `styled = depth != term.DEPTH_NONE`, gating `r`, `bold`, and `dim` on `styled` and formatting `c_pid` (`pwatch.IDX_PID`), `c_step` (`81`), `c_set` (`186`), `c_id6` (`220`, `bold=True`), `c_act` (`214`), `c_cpu_high` (`203`, `bold=True`), `c_cpu_mid` (`215`), and `c_activity` (`255`) via `pwatch.sgr_256(..., depth=depth)`. In `run_table_dashboard`, resolve `depth = term.DEPTH_NONE if getattr(args, "no_color", False) else term.resolve_color_depth(sys.stdout)` and `color_enabled = depth != term.DEPTH_NONE`, and format `c_banner` (`pwatch.IDX_BANNER`, `bold=True`) and `c_time` (`pwatch.IDX_TIMESTAMP`) via `pwatch.sgr_256(..., depth=depth)`, gating `r` and `c_dim` on `color_enabled`.
   - Depends on: E-02
   - Expected outcome: at pin `none` on a capable TTY, `runners_monitor.render_runner_table(..., color_enabled=True)` and `runners_monitor.run_table_dashboard` emit zero `\033[` SGR escapes (in `--once` mode, which writes no alt-screen controls); at pin `16` (and unpinned `TERM=vt100`) they emit 16-color SGR escapes with zero `38;5;` sequences; at pin `256` they are byte-identical to the E-01 baseline file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/render_stream.py`, route `Palette.__call__`, `make_badge`, `format_stop_badge`, `format_tally_badge`, `format_statusline_lines`, and `render_run_summary_table` through the resolved color depth tier:
+- [x] E-03 In `agent_workflows/render_stream.py`, route `Palette.__call__`, `make_badge`, `format_stop_badge`, `format_tally_badge`, `format_statusline_lines`, and `render_run_summary_table` through the resolved color depth tier:
   1. In `Palette.__call__`, after `if not self.enabled or not styles: return text`, add `if self.lifecycle_term().lifecycle_depth() == _T.DEPTH_NONE: return text` so event/severity styling turns off at pin `none`; update `Palette`'s docstring accordingly.
   2. Add module-private helpers `_effective_color_depth(color: bool, *, pal: Palette | None = None, depth: str | None = None) -> str` (returning `_T.DEPTH_NONE` when `not color`, `depth` when `depth in _T.COLOR_DEPTHS`, `pal.lifecycle_term().lifecycle_depth()` when `pal is not None`, else `_T.resolve_color_depth(override=True)`), `_sgr256(code: int, *, bold: bool = False, depth: str = _T.DEPTH_256) -> str`, `_sgr_bg256(code: int, *, depth: str = _T.DEPTH_256) -> str` (returning `""` at `DEPTH_NONE`, `f"\033[{_T.color_16_for_index(n) + 10}m"` at `DEPTH_16`, and `f"\033[48;5;{n}m"` at `DEPTH_256`), and `_sgr_dark_fg(depth: str = _T.DEPTH_256) -> str` (returning `""` at `DEPTH_NONE`, `"\033[1;30m"` at `DEPTH_16`, and `"\033[38;5;16;1m"` at `DEPTH_256`; see OQ-01).
   3. In `make_badge`, `format_stop_badge`, and `format_tally_badge`, accept optional keyword-only `depth: str | None = None`, resolve `tier = _effective_color_depth(color, depth=depth)` and `styled = tier != _T.DEPTH_NONE`, and replace all raw `38;5;` and `48;5;` literals with `_sgr256`, `_sgr_bg256`, and `_sgr_dark_fg` at `depth=tier` (returning `(plain, plain)` when `not styled`).
@@ -64,27 +64,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   5. In `render_run_summary_table` (the function is `render_run_summary_table`; no `format_run_summary_box` exists), change `color = pal.enabled` to `color = pal.enabled and pal_term.lifecycle_depth() != _T.DEPTH_NONE` so the summary box's banner/header SGR codes (`c_bold`, `c_cyan`, `c_green`, `c_yellow`, `c_red`, `c_reset`) are suppressed at pin `none`.
   - Depends on: E-01
   - Expected outcome: at pin `none` on a capable TTY, `Palette(True)("boom", "red", "bold")`, `make_badge`, `format_stop_badge`, `format_tally_badge`, `format_statusline_lines`, and `render_run_summary_table` emit zero `\033` escapes; at pin `16` (and unpinned `TERM=vt100`) they emit 16-color SGR escapes with zero `38;5;` and zero `48;5;` sequences while preserving statusline rectangularity and `_strip_ansi(styled) == plain`; at pin `256` they are byte-identical to the E-01 baseline file.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: docstring sync, behavioral tests, and changelog
 
-- [ ] E-07 In `tests/test_term.py`, update bullet `1.` of `LifecycleColorDepthSeamSweepTests` and bullet `1.` of `LifecycleColorDepthCrossSurfaceCliTests` (and the `# Cell 3 (none tier)` comment in `test_cross_surface_cli_color_depth_ladder`) to remove `"generic axis ... ignores the depth pin entirely per finding F-08, tracked in carrier backlog item cvtg9u"` and `"ignores color_depth per F-08 (tracked in backlog item cvtg9u)"`, rewording them to state that those two classes scope their assertions to the lifecycle axis while the generic `Term` axis (`lv0dvv` / `cvtg9u`) and the out-of-`Term` raw-literal surfaces covered by `y11p5u` (`pwatch`, `runners_monitor`, and `render_stream` headers, statusline, and `Palette.__call__`) are guarded in `tests/test_generic_color_depth.py`. Comment and docstring text only; no assertion changes.
+- [x] E-07 In `tests/test_term.py`, update bullet `1.` of `LifecycleColorDepthSeamSweepTests` and bullet `1.` of `LifecycleColorDepthCrossSurfaceCliTests` (and the `# Cell 3 (none tier)` comment in `test_cross_surface_cli_color_depth_ladder`) to remove `"generic axis ... ignores the depth pin entirely per finding F-08, tracked in carrier backlog item cvtg9u"` and `"ignores color_depth per F-08 (tracked in backlog item cvtg9u)"`, rewording them to state that those two classes scope their assertions to the lifecycle axis while the generic `Term` axis (`lv0dvv` / `cvtg9u`) and the out-of-`Term` raw-literal surfaces covered by `y11p5u` (`pwatch`, `runners_monitor`, and `render_stream` headers, statusline, and `Palette.__call__`) are guarded in `tests/test_generic_color_depth.py`. Comment and docstring text only; no assertion changes.
   - Depends on: E-04
   - Expected outcome: neither `F-08` nor `cvtg9u` appears in those two class docstrings or the `Cell 3` comment, and `python3 -m pytest tests/test_term.py -o addopts=""` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_generic_color_depth.py`, add `RawLiteralColorDepthTests(_DepthTestBase)` with behavioral tests (no source inspection, per P16). PORTABILITY AND ISOLATION, required because CI runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` (`.github/workflows/tests.yml`) and `pwatch.read_processes` raises `RuntimeError` without `/proc`: never read the real process table or real runners. Patch `pwatch.read_processes` to return a synthetic `pwatch.Process` tree (as `tests/test_runners_monitor.py` builds one), patch `runners_monitor.find_active_runners` and `runners_monitor.extract_journey_info` for `--runners` mode, and patch `runners_monitor.sample_runners` to return fixed `RunnerInfo` rows for `run_table_dashboard` (which otherwise sleeps and reads `/proc`). Patch `sys.stdout` with `_FakeTTY()` for the CLI entry points, and restore the `SIGINT`/`SIGTERM` handlers that `pwatch.main` and `run_table_dashboard` install (`addCleanup(signal.signal, ...)`). Count only SGR escapes (`re.findall(r"\033\[[0-9;]*m", out)`), not cursor controls.
+- [x] E-04 In `tests/test_generic_color_depth.py`, add `RawLiteralColorDepthTests(_DepthTestBase)` with behavioral tests (no source inspection, per P16). PORTABILITY AND ISOLATION, required because CI runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` (`.github/workflows/tests.yml`) and `pwatch.read_processes` raises `RuntimeError` without `/proc`: never read the real process table or real runners. Patch `pwatch.read_processes` to return a synthetic `pwatch.Process` tree (as `tests/test_runners_monitor.py` builds one), patch `runners_monitor.find_active_runners` and `runners_monitor.extract_journey_info` for `--runners` mode, and patch `runners_monitor.sample_runners` to return fixed `RunnerInfo` rows for `run_table_dashboard` (which otherwise sleeps and reads `/proc`). Patch `sys.stdout` with `_FakeTTY()` for the CLI entry points, and restore the `SIGINT`/`SIGTERM` handlers that `pwatch.main` and `run_table_dashboard` install (`addCleanup(signal.signal, ...)`). Count only SGR escapes (`re.findall(r"\033\[[0-9;]*m", out)`), not cursor controls.
      - `test_pwatch_color_depth_ladder`: exercises `get_process_color`, `format_colored_argument` (flag, path, text), `render_snapshot` (populated tree with parent, collapsed group, threads, runner decorations, truncated width, plus empty-match fallback), and `pwatch.main(["--once", ...])` on `_FakeTTY()` (both pattern mode and `--runners` mode) across pins `none` (0 `\033`), `16` (`\033[` present, 0 `38;5;`), `256` (`38;5;` present and matching 256-color bytes), `NO_COLOR=1` at pin `256` (0 SGR escapes, asserted through the CLI entry point only, see F-07), and unpinned `TERM=vt100` (`\033[` present, 0 `38;5;`).
      - `test_runners_monitor_color_depth_ladder`: exercises `render_runner_table` (high/mid/low CPU rows) and `run_table_dashboard` (`--once` on `_FakeTTY()`) across pins `none` (0 `\033`, words intact), `16` (`\033[` present, 0 `38;5;`), `256` (`38;5;` present), `NO_COLOR=1` at pin `256` (0 SGR escapes, asserted through the CLI entry point only, see F-07), and unpinned `TERM=vt100` (`\033[` present, 0 `38;5;`).
      - `test_render_stream_headers_statusline_and_palette_color_depth_ladder`: exercises `Palette(True)("boom", "red", "bold")`, `format_event_prefix("bash", pal=Palette(True))`, `make_badge`, `format_stop_badge` (levels `1..4` and `"custom"`, Unicode and ASCII), `format_tally_badge` (`failed=0` and `failed=1`, Unicode and ASCII), `format_statusline_lines` (with `model`, `variant`, `stop_level=1`, `items_passed=2`, `items_failed=1`, `cwd`, `run_id`, `activity="executing"`, `stall_remaining=120.0`, Unicode and ASCII), and `render_run_summary_table` across pins `none` (0 `\033`, `colored == plain`), `16` (`\033[` present, 0 `38;5;` and 0 `48;5;`, 4-line single visible width, `_strip_ansi(styled) == plain`), `256` (`38;5;` and `48;5;` present, byte-identical to 256-color output), and unpinned `TERM=vt100` (`\033[` present, 0 `38;5;` and 0 `48;5;`).
   - Depends on: E-02, E-03, E-06
   - Expected outcome: `python3 -m pytest tests/test_generic_color_depth.py -o addopts=""` passes on every OS (no `/proc` access); with E-02, E-03, and E-06 temporarily reverted, `tests/test_generic_color_depth.py` still collects and every `RawLiteralColorDepthTests` method fails individually (none errors).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add one `- Fixed:` bullet at the top of the `## 2.0.0 (pending)` change list in `CHANGELOG.md`: `aw pwatch`, `aw runners`, and runner stream headers, statuslines, event prefixes, and run summaries now honor the `color_depth` pin and 16-color terminal detection, so `none` removes all ANSI color escapes from those surfaces and `16` uses basic 16-color ANSI codes instead of 256-color sequences; write no em or en dashes (user-facing prose rule).
+- [x] E-05 Add one `- Fixed:` bullet at the top of the `## 2.0.0 (pending)` change list in `CHANGELOG.md`: `aw pwatch`, `aw runners`, and runner stream headers, statuslines, event prefixes, and run summaries now honor the `color_depth` pin and 16-color terminal detection, so `none` removes all ANSI color escapes from those surfaces and `16` uses basic 16-color ANSI codes instead of 256-color sequences; write no em or en dashes (user-facing prose rule).
   - Depends on: E-02, E-03, E-06
   - Expected outcome: one new `- Fixed:` bullet under `## 2.0.0 (pending)` in `CHANGELOG.md`, containing no em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,40 +155,375 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted summary line of the 6-file targeted `python3 -m pytest ... -o addopts=""` run and pasted final summary line (plus any `FAILED` node-id list) of the bare `python3 -m pytest` baseline run before any edit.
   - Observed evidence:
-  - Result: pending
+    Targeted 6-file baseline before any edit:
+    `============================= 181 passed in 51.68s =============================`
 
-- [ ] V-02 validates E-02
+    Bare baseline before any edit:
+    `NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all`
+    `695 passed in 52.59s`
+    `FAILED node-id list: (none)`
+
+    Probe baseline written to `/tmp/32fso3-baseline-256.txt` (10,208 bytes).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/pwatch.py` pasted (showing the `C_*` constants retained); plus pasted output of the E-01 probe (isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`) exercising `pwatch.render_snapshot(..., color_enabled=True)`, `pwatch.get_process_color`, and `pwatch.format_colored_argument(..., True)` at pins `none`, `16`, and `256`, showing SGR count 0 at `none`, SGR count > 0 and `38;5;` count 0 at `16`, and at `256` an empty `diff` of the pwatch section against `/tmp/32fso3-baseline-256.txt`. Code path: `pwatch.render_snapshot` -> `pwatch._effective_depth` -> `pwatch.sgr_256` (E-02).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/pwatch.py` excerpt showing C_* retained and IDX_*/helpers added:
+    ```diff
+    @@ -63,6 +63,48 @@ C_ARG_FLAG = "\033[38;5;117m"  # Ice cyan for flags (-c, --foo)
+     C_ARG_PATH = "\033[38;5;186m"  # Muted cream/khaki for file paths & scripts
+     C_ARG_TEXT = "\033[38;5;252m"  # Off-white for general arguments
 
-- [ ] V-03 validates E-03
+    +# Integer palette index constants (256-color palette indices)
+    +IDX_TREE = 241
+    +IDX_AGY = 48
+    +IDX_AGENT = 177
+    +IDX_PYTHON = 75
+    +IDX_SHELL = 208
+    +IDX_TOOL = 221
+    +IDX_PROC_DEFAULT = 255
+    +IDX_PID = 245
+    +IDX_COUNT = 220
+    +IDX_PARENT = 141
+    +IDX_THREAD = 139
+    +IDX_THREAD_TAG = 242
+    +IDX_BANNER = 39
+    +IDX_RECORD = 203
+    +IDX_TIMESTAMP = 244
+    +IDX_ARG_FLAG = 117
+    +IDX_ARG_PATH = 186
+    +IDX_ARG_TEXT = 252
+    +IDX_RUNNER_DEC = 81
+    +
+    +
+    +def _effective_depth(color_enabled: bool, *, depth: str | None = None) -> str:
+    +    if not color_enabled:
+    +        return term.DEPTH_NONE
+    +    if depth in term.COLOR_DEPTHS:
+    +        return depth
+    +    return term.resolve_color_depth(override=True)
+    +
+    +
+    +def sgr_256(code: int, *, bold: bool = False, depth: str | None = None) -> str:
+    +    tier = term.resolve_color_depth(override=True) if depth is None else depth
+    +    if tier == term.DEPTH_NONE:
+    +        return ""
+    +    prefix = "1;" if bold else ""
+    +    if tier == term.DEPTH_16:
+    +        return f"\033[{prefix}{term.color_16_for_index(code)}m"
+    +    return f"\033[{prefix}38;5;{code}m"
+    ```
+
+    E-01 Probe sweep for PWATCH:
+    ```
+    --- PWATCH ---
+    [none/xterm-256color] SGR count = 0, 38;5; = 0, 48;5; = 0
+    [16/xterm-256color] SGR count = 35, 38;5; = 0, 48;5; = 0
+    [256/xterm-256color] SGR count = 35, 38;5; = 21, 48;5; = 0
+    [vt100/vt100] SGR count = 35, 38;5; = 0, 48;5; = 0
+    ```
+
+    Byte identity at 256:
+    `$ python3 /tmp/32fso3_probe.py dump && diff -u /tmp/32fso3-baseline-256.txt /tmp/32fso3-current-256.txt`
+    (empty diff, exit code 0)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff agent_workflows/render_stream.py` pasted; plus pasted output of a `python3 -c` probe (isolated `XDG_CONFIG_HOME`, `TERM=xterm-256color`) exercising `Palette(True)("boom", "red", "bold")`, `make_badge`, `format_stop_badge`, `format_tally_badge`, `format_statusline_lines`, and `render_run_summary_table` at pins `none`, `16`, and `256`, showing `esc=0` at `none`, `esc>0` with `38;5=0` and `48;5=0` at `16`, and at `256` an empty `diff` of the render_stream section against `/tmp/32fso3-baseline-256.txt`. The code paths producing the observation are `render_stream.Palette.__call__`, `render_stream.make_badge`, `render_stream.format_stop_badge`, `render_stream.format_tally_badge`, `render_stream.format_statusline_lines`, and `render_stream.render_run_summary_table` -> `render_stream._effective_color_depth` (E-03).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/render_stream.py` excerpt showing helpers and depth routing:
+    ```diff
+    @@ -280,6 +280,8 @@ class Palette:
+         def __call__(self, text: str, *styles: str) -> str:
+             if not self.enabled or not styles:
+                 return text
+    +        if self.lifecycle_term().lifecycle_depth() == _T.DEPTH_NONE:
+    +            return text
+             codes = []
+             for s in styles:
+                 if s in self.STYLES:
+    @@ -1349,6 +1386,41 @@ def format_runner_name(runner: str) -> str:
+         return name
 
-- [ ] V-04 validates E-04
+
+    +def _effective_color_depth(
+    +    color: bool,
+    +    *,
+    +    pal: Palette | None = None,
+    +    depth: str | None = None,
+    +) -> str:
+    +    if not color:
+    +        return _T.DEPTH_NONE
+    +    if depth in _T.COLOR_DEPTHS:
+    +        return depth
+    +    if pal is not None:
+    +        return pal.lifecycle_term().lifecycle_depth()
+    +    return _T.resolve_color_depth(override=True)
+    +
+    +
+    +def _sgr256(code: int, *, bold: bool = False, depth: str = _T.DEPTH_256) -> str:
+    +    if depth == _T.DEPTH_NONE:
+    +        return ""
+    +    prefix = "1;" if bold else ""
+    +    if depth == _T.DEPTH_16:
+    +        return f"\033[{prefix}{_T.color_16_for_index(code)}m"
+    +    return f"\033[{prefix}38;5;{code}m"
+    +
+    +
+    +def _sgr_bg256(code: int, *, depth: str = _T.DEPTH_256) -> str:
+    +    if depth == _T.DEPTH_NONE:
+    +        return ""
+    +    if depth == _T.DEPTH_16:
+    +        return f"\033[{_T.color_16_for_index(code) + 10}m"
+    +    return f"\033[48;5;{code}m"
+    +
+    +
+    +def _sgr_dark_fg(depth: str = _T.DEPTH_256) -> str:
+    +    if depth == _T.DEPTH_NONE:
+    +        return ""
+    +    if depth == _T.DEPTH_16:
+    +        return "\033[1;30m"
+    +    return "\033[38;5;16;1m"
+    ```
+
+    E-01 Probe sweep for RENDER_STREAM:
+    ```
+    --- RENDER_STREAM ---
+    [none/xterm-256color] SGR count = 0, 38;5; = 0, 48;5; = 0
+    [16/xterm-256color] SGR count = 338, 38;5; = 0, 48;5; = 0
+    [256/xterm-256color] SGR count = 338, 38;5; = 192, 48;5; = 7
+    [vt100/vt100] SGR count = 338, 38;5; = 0, 48;5; = 0
+    ```
+
+    Byte identity at 256:
+    `$ python3 /tmp/32fso3_probe.py dump && diff -u /tmp/32fso3-baseline-256.txt /tmp/32fso3-current-256.txt`
+    (empty diff, exit code 0)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted test source excerpt (or `git diff tests/test_generic_color_depth.py`) showing the `pwatch.read_processes` / `runners_monitor.sample_runners` / `find_active_runners` patches (no real `/proc` read); pasted output of `python3 -m pytest tests/test_generic_color_depth.py tests/test_term.py tests/test_runners_monitor.py tests/test_statusline_behavior.py tests/test_statusline_stop_tally.py tests/test_run_summary_table.py -o addopts=""` showing all passed; pasted output of `python3 -m pytest tests/test_generic_color_depth.py -k RawLiteralColorDepthTests -o addopts=""` with E-02, E-03, and E-06 temporarily reverted showing every `RawLiteralColorDepthTests` method FAILED and none ERROR, followed by `git status --short` confirming the fix is restored; and pasted final summary line of the post-change bare `python3 -m pytest` run confirming no new failures relative to V-01.
   - Observed evidence:
-  - Result: pending
+    Test source excerpt (`tests/test_generic_color_depth.py`):
+    ```python
+    class RawLiteralColorDepthTests(_DepthTestBase):
+        def test_pwatch_color_depth_ladder(self) -> None:
+            ...
+            with patch("agent_workflows.pwatch.read_processes", return_value=procs), \
+                 patch("agent_workflows.runners_monitor.find_active_runners", return_value=[(100, Path("/dummy/run"), "run-1")]), \
+                 patch("agent_workflows.runners_monitor.extract_journey_info", return_value=("1/3", "myset", "abc123", "execute", 1, "agy")):
+                for pin in ("none", "16", "256", "vt100"):
+                    ...
 
-- [ ] V-06 validates E-06
+        def test_runners_monitor_color_depth_ladder(self) -> None:
+            ...
+            with patch("agent_workflows.runners_monitor.sample_runners", return_value=runners):
+                for pin in ("none", "16", "256", "vt100"):
+                    ...
+    ```
+
+    6-file targeted test suite:
+    `$ python3 -m pytest tests/test_generic_color_depth.py tests/test_term.py tests/test_runners_monitor.py tests/test_statusline_behavior.py tests/test_statusline_stop_tally.py tests/test_run_summary_table.py -o addopts=""`
+    `============================= 184 passed in 46.98s =============================`
+
+    Negative control output with E-02, E-03, and E-06 temporarily reverted:
+    `$ python3 -m pytest tests/test_generic_color_depth.py -k RawLiteralColorDepthTests -o addopts=""`
+    ```
+    FAILED tests/test_generic_color_depth.py::RawLiteralColorDepthTests::test_runners_monitor_color_depth_ladder
+    FAILED tests/test_generic_color_depth.py::RawLiteralColorDepthTests::test_pwatch_color_depth_ladder
+    FAILED tests/test_generic_color_depth.py::RawLiteralColorDepthTests::test_render_stream_headers_statusline_and_palette_color_depth_ladder
+    ======================= 3 failed, 8 deselected in 0.48s ========================
+    ```
+
+    `$ git status --short`
+    ```
+     M CHANGELOG.md
+     M agent_workflows/pwatch.py
+     M agent_workflows/render_stream.py
+     M agent_workflows/runners_monitor.py
+     M tests/test_generic_color_depth.py
+     M tests/test_term.py
+    ```
+
+    Post-change bare suite run:
+    `$ python3 -m pytest`
+    `NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all`
+    `695 passed in 20.98s`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `git diff agent_workflows/runners_monitor.py` pasted; plus pasted output of the E-01 probe exercising `runners_monitor.render_runner_table(..., color_enabled=True)` (high/mid/low CPU rows) at pins `none`, `16`, and `256`, showing SGR count 0 at `none`, SGR count > 0 and `38;5;` count 0 at `16`, and at `256` an empty `diff` of the runners_monitor section against `/tmp/32fso3-baseline-256.txt`. Code path: `runners_monitor.render_runner_table` -> `pwatch._effective_depth` -> `pwatch.sgr_256` (E-06).
   - Observed evidence:
-  - Result: pending
+    `$ git diff agent_workflows/runners_monitor.py`
+    ```diff
+    diff --git a/agent_workflows/runners_monitor.py b/agent_workflows/runners_monitor.py
+    index a4eac34de..cc1b35392 100644
+    --- a/agent_workflows/runners_monitor.py
+    +++ b/agent_workflows/runners_monitor.py
+    @@ -444,18 +444,21 @@ def render_runner_table(
+             else:
+                 total_cpus = os.cpu_count() or 1
 
-- [ ] V-07 validates E-07
+    +    depth = pwatch._effective_depth(color_enabled)
+    +    styled = depth != term.DEPTH_NONE
+    +
+         # ANSI styles
+    -    r = pwatch.C_RESET if color_enabled else ""
+    -    bold = pwatch.C_BOLD if color_enabled else ""
+    -    dim = pwatch.C_DIM if color_enabled else ""
+    -    c_pid = pwatch.C_PID if color_enabled else ""
+    -    c_step = "\033[38;5;81m" if color_enabled else ""
+    -    c_set = "\033[38;5;186m" if color_enabled else ""
+    -    c_id6 = "\033[1;38;5;220m" if color_enabled else ""
+    -    c_act = "\033[38;5;214m" if color_enabled else ""
+    -    c_cpu_high = "\033[1;38;5;203m" if color_enabled else ""
+    -    c_cpu_mid = "\033[38;5;215m" if color_enabled else ""
+    -    c_activity = "\033[38;5;255m" if color_enabled else ""
+    +    r = pwatch.C_RESET if styled else ""
+    +    bold = pwatch.C_BOLD if styled else ""
+    +    dim = pwatch.C_DIM if styled else ""
+    +    c_pid = pwatch.sgr_256(pwatch.IDX_PID, depth=depth) if styled else ""
+    +    c_step = pwatch.sgr_256(81, depth=depth) if styled else ""
+    +    c_set = pwatch.sgr_256(186, depth=depth) if styled else ""
+    +    c_id6 = pwatch.sgr_256(220, bold=True, depth=depth) if styled else ""
+    +    c_act = pwatch.sgr_256(214, depth=depth) if styled else ""
+    +    c_cpu_high = pwatch.sgr_256(203, bold=True, depth=depth) if styled else ""
+    +    c_cpu_mid = pwatch.sgr_256(215, depth=depth) if styled else ""
+    +    c_activity = pwatch.sgr_256(255, depth=depth) if styled else ""
+
+         show_raw_in_col = not raw_cpu and (width is None or width >= 115)
+
+    @@ -553,9 +556,12 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
+         """Run runner table dashboard loop (or single snapshot)."""
+         repo = Path(getattr(args, "repo", ".") or ".").resolve()
+         is_interactive = not getattr(args, "once", False) and sys.stdout.isatty()
+    -    color_enabled = not getattr(args, "no_color", False) and term.should_color(
+    -        sys.stdout
+    +    depth = (
+    +        term.DEPTH_NONE
+    +        if getattr(args, "no_color", False)
+    +        else term.resolve_color_depth(sys.stdout)
+         )
+    +    color_enabled = depth != term.DEPTH_NONE
+         interval = float(getattr(args, "interval", 2.0))
+         user_width = getattr(args, "width", None)
+         raw_cpu = getattr(args, "raw_cpu", False)
+    @@ -605,9 +611,17 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
+                 )
+
+                 r = pwatch.C_RESET if color_enabled else ""
+    -            c_banner = pwatch.C_BANNER if color_enabled else ""
+    +            c_banner = (
+    +                pwatch.sgr_256(pwatch.IDX_BANNER, bold=True, depth=depth)
+    +                if color_enabled
+    +                else ""
+    +            )
+                 c_dim = pwatch.C_DIM if color_enabled else ""
+    -            c_time = pwatch.C_TIMESTAMP if color_enabled else ""
+    +            c_time = (
+    +                pwatch.sgr_256(pwatch.IDX_TIMESTAMP, depth=depth)
+    +                if color_enabled
+    +                else ""
+    +            )
+
+                 header = (
+                     f"{c_banner}aw runners{r} {c_dim}(every {interval}s | {total_cpus} CPUs){r} {c_dim}──{r} "
+    ```
+
+    E-01 Probe sweep for RUNNERS_MONITOR:
+    ```
+    --- RUNNERS_MONITOR ---
+    [none/xterm-256color] SGR count = 0, 38;5; = 0, 48;5; = 0
+    [16/xterm-256color] SGR count = 56, 38;5; = 0, 48;5; = 0
+    [256/xterm-256color] SGR count = 56, 38;5; = 20, 48;5; = 0
+    [vt100/vt100] SGR count = 56, 38;5; = 0, 48;5; = 0
+    ```
+
+    Byte identity at 256:
+    `$ python3 /tmp/32fso3_probe.py dump && diff -u /tmp/32fso3-baseline-256.txt /tmp/32fso3-current-256.txt`
+    (empty diff, exit code 0)
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: `git diff tests/test_term.py` pasted showing only docstring/comment lines changed in `LifecycleColorDepthSeamSweepTests`, `LifecycleColorDepthCrossSurfaceCliTests`, and the `Cell 3` comment, with no `F-08` or `cvtg9u` left in them; and pasted summary line of `python3 -m pytest tests/test_term.py -o addopts=""` passing.
   - Observed evidence:
-  - Result: pending
+    `$ git diff tests/test_term.py`
+    ```diff
+    diff --git a/tests/test_term.py b/tests/test_term.py
+    index bdfabe772..d97d945db 100644
+    --- a/tests/test_term.py
+    +++ b/tests/test_term.py
+    @@ -1566,9 +1566,10 @@ class LifecycleColorDepthSeamSweepTests(_DepthTestBase):
+         """Guard the 256/16/none lifecycle color-depth ladder across all rendering seams (E-03).
 
-- [ ] V-05 validates E-05
+         Residual exposure and limits (E-05):
+    -    1. Covers the LIFECYCLE axis only: the generic color axis (colorize, color256,
+    -       status_256, badge, format_path) ignores the depth pin entirely per finding F-08,
+    -       tracked in carrier backlog item cvtg9u.
+    +    1. Scopes assertions to the lifecycle axis only; the generic Term axis
+    +       (lv0dvv) and the out-of-Term raw-literal surfaces covered by y11p5u
+    +       (pwatch, runners_monitor, and render_stream headers, statusline, and
+    +       Palette.__call__) are guarded in tests/test_generic_color_depth.py.
+         2. Proves the five enumerated public rendering seams across all stages, tiers, and
+            streams, but does not mechanically prevent a future renderer from re-deriving or
+            coercing a tier; it catches a re-collapse by asserting on returned byte output
+    @@ -1672,10 +1673,10 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
+         """End-to-end CLI guard across terminal surfaces on a synthesized fixture repo (E-04).
+
+         Residual exposure and limits (E-05):
+    -    1. Covers the LIFECYCLE axis only: generic color output (paths, badges, status)
+    -       ignores color_depth per F-08 (tracked in backlog item cvtg9u), so assertions
+    -       on the 'none' tier are scoped strictly to lifecycle tokens rather than blanket
+    -       escape absence.
+    +    1. Scopes assertions to the lifecycle axis only; the generic Term axis
+    +       (lv0dvv) and the out-of-Term raw-literal surfaces covered by y11p5u
+    +       (pwatch, runners_monitor, and render_stream headers, statusline, and
+    +       Palette.__call__) are guarded in tests/test_generic_color_depth.py.
+         2. Proves the CLI command(s) driven against the synthesized fixture, exercising
+            the full real subprocess execution path, but is a sample rather than an exhaustive
+            sweep across every CLI subcommand (which was measured at 108s+ over live corpus).
+    @@ -1819,7 +1820,7 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
+                         f"[{cmd_name}] Expected no 38;5; escape for lifecycle words in 16 pin output, got: {spans_16}",
+                     )
+
+    -                # Cell 3 (none tier): NO lifecycle word is styled at all (token-scoped per F-08)
+    +                # Cell 3 (none tier): NO lifecycle word is styled at all (lifecycle-scoped; generic/raw surfaces tested in test_generic_color_depth.py)
+                     _pin_tier("none")
+                     res_none = subprocess.run(
+                         [sys.executable, "-m", "agent_workflows", *cmd_args],
+    ```
+
+    `$ grep -En "cvtg9u|F-08" tests/test_term.py` (exit 1, no matches)
+
+    `$ python3 -m pytest tests/test_term.py -o addopts=""`
+    `============================= 32 passed in 16.49s ==============================`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `git diff CHANGELOG.md` pasted showing the single added `- Fixed:` bullet under `## 2.0.0 (pending)`, and `git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'` returning empty (exit 1).
   - Observed evidence:
-  - Result: pending
+    `$ git diff CHANGELOG.md`
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index f3abcdeba..b0b9f8d21 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: aw pwatch, aw runners, and runner stream headers, statuslines, event prefixes, and run summaries now honor the color_depth pin and 16-color terminal detection, so none removes all ANSI color escapes from those surfaces and 16 uses basic 16-color ANSI codes instead of 256-color sequences.
+     - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.
+     - Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
+     - Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact in any tracked tree, while keeping legitimate empty answers at exit 0. `aw ipd recheck-readiness` moves from exit 1 to exit 2 for unresolved or non-plan selectors and now refuses a mixed invocation before re-checking or writing anything. Standing vocabulary queries remain exempt at exit 0 across all four verbs.
+    ```
+
+    `$ git diff CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'`
+    (exit 1, no matches)
+  - Result: pass
 
 ## Approval and execution gate
 

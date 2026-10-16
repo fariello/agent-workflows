@@ -444,18 +444,21 @@ def render_runner_table(
         else:
             total_cpus = os.cpu_count() or 1
 
+    depth = pwatch._effective_depth(color_enabled)
+    styled = depth != term.DEPTH_NONE
+
     # ANSI styles
-    r = pwatch.C_RESET if color_enabled else ""
-    bold = pwatch.C_BOLD if color_enabled else ""
-    dim = pwatch.C_DIM if color_enabled else ""
-    c_pid = pwatch.C_PID if color_enabled else ""
-    c_step = "\033[38;5;81m" if color_enabled else ""
-    c_set = "\033[38;5;186m" if color_enabled else ""
-    c_id6 = "\033[1;38;5;220m" if color_enabled else ""
-    c_act = "\033[38;5;214m" if color_enabled else ""
-    c_cpu_high = "\033[1;38;5;203m" if color_enabled else ""
-    c_cpu_mid = "\033[38;5;215m" if color_enabled else ""
-    c_activity = "\033[38;5;255m" if color_enabled else ""
+    r = pwatch.C_RESET if styled else ""
+    bold = pwatch.C_BOLD if styled else ""
+    dim = pwatch.C_DIM if styled else ""
+    c_pid = pwatch.sgr_256(pwatch.IDX_PID, depth=depth) if styled else ""
+    c_step = pwatch.sgr_256(81, depth=depth) if styled else ""
+    c_set = pwatch.sgr_256(186, depth=depth) if styled else ""
+    c_id6 = pwatch.sgr_256(220, bold=True, depth=depth) if styled else ""
+    c_act = pwatch.sgr_256(214, depth=depth) if styled else ""
+    c_cpu_high = pwatch.sgr_256(203, bold=True, depth=depth) if styled else ""
+    c_cpu_mid = pwatch.sgr_256(215, depth=depth) if styled else ""
+    c_activity = pwatch.sgr_256(255, depth=depth) if styled else ""
 
     show_raw_in_col = not raw_cpu and (width is None or width >= 115)
 
@@ -553,9 +556,12 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
     """Run runner table dashboard loop (or single snapshot)."""
     repo = Path(getattr(args, "repo", ".") or ".").resolve()
     is_interactive = not getattr(args, "once", False) and sys.stdout.isatty()
-    color_enabled = not getattr(args, "no_color", False) and term.should_color(
-        sys.stdout
+    depth = (
+        term.DEPTH_NONE
+        if getattr(args, "no_color", False)
+        else term.resolve_color_depth(sys.stdout)
     )
+    color_enabled = depth != term.DEPTH_NONE
     interval = float(getattr(args, "interval", 2.0))
     user_width = getattr(args, "width", None)
     raw_cpu = getattr(args, "raw_cpu", False)
@@ -605,9 +611,17 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
             )
 
             r = pwatch.C_RESET if color_enabled else ""
-            c_banner = pwatch.C_BANNER if color_enabled else ""
+            c_banner = (
+                pwatch.sgr_256(pwatch.IDX_BANNER, bold=True, depth=depth)
+                if color_enabled
+                else ""
+            )
             c_dim = pwatch.C_DIM if color_enabled else ""
-            c_time = pwatch.C_TIMESTAMP if color_enabled else ""
+            c_time = (
+                pwatch.sgr_256(pwatch.IDX_TIMESTAMP, depth=depth)
+                if color_enabled
+                else ""
+            )
 
             header = (
                 f"{c_banner}aw runners{r} {c_dim}(every {interval}s | {total_cpus} CPUs){r} {c_dim}──{r} "
