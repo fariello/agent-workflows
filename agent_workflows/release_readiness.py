@@ -32,6 +32,19 @@ The gates it aggregates (each a :class:`GateResult`):
 The leak-scan and IPD-lint gates actually SHELL OUT (per the IPD); the rest are asserted with
 deterministic logic / fixtures where a live subprocess is too heavy.
 
+Gates and absent inputs (not-applicable outcome):
+A gate whose required input files are absent reports NOT-APPLICABLE (:data:`GATE_STATUS_NOT_APPLICABLE`,
+``GateResult.applicable=False``, ``GateResult.passed=False``). It is never counted as passed, does not
+force NO-GO on its own, and is surfaced prominently in every output mode.
+The gates that report not-applicable when their inputs are absent:
+  * ``docs_checks``           - missing ``docs/`` directory.
+  * ``capability_freshness``  - missing ``host_matrix.json``.
+  * ``generated_drift``       - workflows tree exists with zero ``*/workflow.yaml`` packages.
+  * ``workflow_disposition``  - missing workflow manifest ``index.md``.
+  * ``changelog_versioning``  - missing ``CHANGELOG.md`` while version is resolvable.
+All other gates (``full_suite``, ``residual_risk``, ``leak_scan``, ``ipd_lint``,
+``benchmark_thresholds``, ``artifact_manifest``) never report not-applicable.
+
 Pure stdlib (D138); no runtime YAML (D139). Python 3.9+.
 """
 
@@ -47,6 +60,10 @@ from agent_workflows.runner_shared import pinned_child_env, pinned_module_argv
 
 VERDICT_GO = "GO"
 VERDICT_NO_GO = "NO-GO"
+
+GATE_STATUS_PASS = "pass"
+GATE_STATUS_FAIL = "fail"
+GATE_STATUS_NOT_APPLICABLE = "not-applicable"
 
 # Actions this review is FORBIDDEN from performing (a separately authorized release action).
 FORBIDDEN_RELEASE_ACTIONS: Tuple[str, ...] = (
@@ -86,6 +103,13 @@ class GateResult:
     passed: bool
     detail: str
     evidence: Dict[str, Any] = field(default_factory=dict)
+    applicable: bool = True
+
+    @property
+    def status(self) -> str:
+        if not self.applicable:
+            return GATE_STATUS_NOT_APPLICABLE
+        return GATE_STATUS_PASS if self.passed else GATE_STATUS_FAIL
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -93,7 +117,34 @@ class GateResult:
             "passed": self.passed,
             "detail": self.detail,
             "evidence": dict(self.evidence),
+            "applicable": self.applicable,
+            "status": self.status,
         }
+
+
+def _not_applicable(
+    name: str,
+    detail: str,
+    path: str,
+    extra_evidence: Optional[Dict[str, Any]] = None,
+) -> GateResult:
+    """Construct a not-applicable GateResult for an absent required input file/directory."""
+    suffix = " (input absent, NOT verified)"
+    full_detail = detail if detail.endswith(suffix) else f"{detail}{suffix}"
+    ev: Dict[str, Any] = {
+        "missing": True,
+        "path": path,
+        "not_applicable": True,
+    }
+    if extra_evidence:
+        ev.update(extra_evidence)
+    return GateResult(
+        name=name,
+        passed=False,
+        detail=full_detail,
+        evidence=ev,
+        applicable=False,
+    )
 
 
 @dataclass
@@ -104,21 +155,30 @@ class ReleaseReadinessReport:
 
     @property
     def verdict(self) -> str:
-        if not self.gates:
+        applicable_gates = [g for g in self.gates if g.applicable]
+        if not applicable_gates:
             return VERDICT_NO_GO
-        return VERDICT_GO if all(g.passed for g in self.gates) else VERDICT_NO_GO
+        return VERDICT_GO if all(g.passed for g in applicable_gates) else VERDICT_NO_GO
 
     @property
     def is_go(self) -> bool:
         return self.verdict == VERDICT_GO
 
     def failing_gates(self) -> List[str]:
-        return [g.name for g in self.gates if not g.passed]
+        return [g.name for g in self.gates if g.applicable and not g.passed]
+
+    def not_applicable_gates(self) -> List[str]:
+        return [g.name for g in self.gates if not g.applicable]
+
+    def passed_gates(self) -> List[str]:
+        return [g.name for g in self.gates if g.applicable and g.passed]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "verdict": self.verdict,
             "failing_gates": self.failing_gates(),
+            "not_applicable_gates": self.not_applicable_gates(),
+            "passed_gates": self.passed_gates(),
             "gates": [g.to_dict() for g in self.gates],
         }
 
@@ -133,15 +193,37 @@ class ReleaseReadinessReport:
             "|---|---|---|",
         ]
         for g in self.gates:
-            lines.append(
-                f"| {g.name} | {'PASS' if g.passed else 'FAIL'} | {g.detail} |"
-            )
+            if not g.applicable:
+                res_str = "N/A"
+            elif g.passed:
+                res_str = "PASS"
+            else:
+                res_str = "FAIL"
+            lines.append(f"| {g.name} | {res_str} | {g.detail} |")
+
         if not self.is_go:
             failing = self.failing_gates()
-            detail = (
-                ", ".join(failing) if failing else "empty gate set (no gates evaluated)"
-            )
+            if failing:
+                detail = ", ".join(failing)
+            elif not self.gates:
+                detail = "empty gate set (no gates evaluated)"
+            else:
+                detail = "none (no applicable gates were evaluated)"
             lines.extend(["", f"Failing gates: {detail}"])
+
+        na_gates = self.not_applicable_gates()
+        if na_gates:
+            lines.extend(
+                [
+                    "",
+                    f"WARNING: not-applicable gates (input absent, NOT verified): {', '.join(na_gates)}",
+                ]
+            )
+
+        n_pass = len(self.passed_gates())
+        n_na = len(na_gates)
+        n_fail = len(self.failing_gates())
+        lines.extend(["", f"{n_pass} passed, {n_na} not-applicable, {n_fail} failed"])
         return "\n".join(lines)
 
 
@@ -288,11 +370,11 @@ def gate_generated_drift(
         yaml_paths = sorted(wf_dir.glob("*/workflow.yaml"))
         packages_checked = len(yaml_paths)
         if packages_checked == 0:
-            return GateResult(
+            return _not_applicable(
                 name="generated_drift",
-                passed=True,
                 detail="no canonical workflow packages to check",
-                evidence={"packages_checked": 0, "drift_files": []},
+                path=f"{wf_rel}/*/workflow.yaml",
+                extra_evidence={"packages_checked": 0, "drift_files": []},
             )
 
         drift = []
@@ -358,11 +440,11 @@ def gate_docs_checks(
     root = repo_root or _repo_root()
     docs_dir = root / "docs"
     if not docs_dir.is_dir():
-        return GateResult(
+        return _not_applicable(
             name="docs_checks",
-            passed=False,
             detail="docs tree missing or not a directory: docs",
-            evidence={"missing": True, "path": "docs", "findings": []},
+            path="docs",
+            extra_evidence={"findings": []},
         )
 
     try:
@@ -417,6 +499,16 @@ def gate_workflow_disposition(
             passed=False,
             detail=f"workflow packages tree missing or not a directory: {wf_rel}",
             evidence={"missing": True, "path": wf_rel, "undispositioned": []},
+        )
+
+    manifest_rel = f"{wf_rel}/index.md"
+    manifest_file = wf_dir / "index.md"
+    if not manifest_file.is_file():
+        return _not_applicable(
+            name="workflow_disposition",
+            detail=f"workflow manifest missing: {manifest_rel}",
+            path=manifest_rel,
+            extra_evidence={"undispositioned": []},
         )
 
     try:
@@ -489,11 +581,11 @@ def gate_capability_freshness(
         / "host_matrix.json"
     )
     if not matrix_file.is_file():
-        return GateResult(
+        return _not_applicable(
             name="capability_freshness",
-            passed=False,
             detail=f"capability matrix missing: {matrix_rel}",
-            evidence={"missing": True, "path": matrix_rel, "stale_claims": []},
+            path=matrix_rel,
+            extra_evidence={"stale_claims": []},
         )
 
     try:
@@ -591,6 +683,13 @@ def gate_changelog_versioning(repo_root: Optional[Path] = None) -> GateResult:
             version_str = vfile.read_text(encoding="utf-8").strip()
             version_ok = bool(version_str and version_str != "unknown")
     passed = has_changelog and version_ok
+    if not changelog.is_file() and version_ok:
+        return _not_applicable(
+            name="changelog_versioning",
+            detail="missing changelog file: CHANGELOG.md",
+            path="CHANGELOG.md",
+            extra_evidence={"changelog": False, "version": version_str},
+        )
     return GateResult(
         name="changelog_versioning",
         passed=passed,
@@ -899,7 +998,25 @@ def run_readiness(args: Any) -> int:
     is_go = report.is_go
     exit_code = 0 if is_go else 1
     failing = report.failing_gates()
-    summary = "Verdict: GO" if is_go else f"Verdict: NO-GO ({', '.join(failing)})"
+    na_gates = report.not_applicable_gates()
+    if is_go:
+        summary_verdict = "Verdict: GO"
+    else:
+        if failing:
+            detail = ", ".join(failing)
+        elif not report.gates:
+            detail = "empty gate set"
+        else:
+            detail = "none (no applicable gates were evaluated)"
+        summary_verdict = f"Verdict: NO-GO ({detail})"
+
+    if na_gates:
+        summary = (
+            f"{summary_verdict}; WARNING not-applicable (input absent, NOT verified): "
+            f"{', '.join(na_gates)}"
+        )
+    else:
+        summary = summary_verdict
 
     if ctx.is_agent or ctx.is_json:
         diagnostics = [
@@ -910,8 +1027,18 @@ def run_readiness(args: Any) -> int:
                 severity="error",
             )
             for g in report.gates
-            if not g.passed
+            if g.applicable and not g.passed
         ]
+        for g in report.gates:
+            if not g.applicable:
+                diagnostics.append(
+                    Diagnostic(
+                        location=g.name,
+                        rule=f"readiness.{g.name}.not-applicable",
+                        detail=g.detail,
+                        severity="warning",
+                    )
+                )
         res = CommandResult(
             command="releases readiness",
             status="clean" if is_go else "findings",
@@ -923,11 +1050,15 @@ def run_readiness(args: Any) -> int:
         return get_renderer(ctx).emit(res, ctx)
 
     sys.stdout.write(report.render() + "\n")
+    if na_gates:
+        sys.stderr.write(
+            f"WARNING: not-applicable gates (input absent, NOT verified): {', '.join(na_gates)}\n"
+        )
     needs_hint = any(
         (g.name == "full_suite" and "not supplied" in g.detail)
         or (g.name == "residual_risk" and "sign-off missing" in g.detail)
         for g in report.gates
-        if not g.passed
+        if g.applicable and not g.passed
     )
     if needs_hint:
         sys.stderr.write(
@@ -940,6 +1071,9 @@ def run_readiness(args: Any) -> int:
 __all__ = [
     "VERDICT_GO",
     "VERDICT_NO_GO",
+    "GATE_STATUS_PASS",
+    "GATE_STATUS_FAIL",
+    "GATE_STATUS_NOT_APPLICABLE",
     "FORBIDDEN_RELEASE_ACTIONS",
     "ReleaseActionForbiddenError",
     "assert_no_release_action",
