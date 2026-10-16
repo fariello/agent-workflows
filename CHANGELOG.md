@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
 - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
 - Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
 - Fixed: project_context.resolve_project_context and project_context.project_config_dir now read user configuration through config.config_dir() (honoring AW_CONFIG_DIR and XDG_CONFIG_HOME) instead of a hard-coded ~/.config/agent-workflows path when user_config_dir is omitted.

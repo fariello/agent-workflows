@@ -1622,7 +1622,7 @@ No timeout or default answer may synthesize consent.
 
 These do not change the behavioral specification:
 
-- the durable storage location for run ledgers and large captured outputs;
+- the durable storage location for run ledgers (decided 2026-10-16 by plan v47z9u, backlog hegwri: `<runs root>/<run-id>/ledger.jsonl`, where the runs root is `runner_shared.state_root`, which follows the configured records backend and is gitignored, so a ledger is box-local and not committed) and large captured outputs (still requiring repository-level definition);
 - the authenticated approval-receipt mechanism for named human approvers;
 - the repository-controlled check-recipe registry format;
 - the exact set of host sandbox capabilities used to deny push/network access;
@@ -1747,6 +1747,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 ## Workflow history
 
 - 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)
+- 2026-10-16 note (aw specs): AMENDED 2026-10-16 (plan v47z9u, backlog hegwri): Section 6.2 amended to record the durable storage location for run ledgers as <runs root>/<run-id>/ledger.jsonl (runner_shared.state_root), leaving large captured outputs open.
 - 2026-10-16 note (aw specs): Section 5.5 retry policy table owner citations, Order numbers, and status labels updated per plan 6g08rp (backlog w5opbr)
 - 2026-10-16 note (aw specs): 9epp40 (66ls4r): amend 1.2 step 8, 5.1, 5.3 (intro, snapshot sentence, resume step 1) and 5.3a in place to scope the hash-chained ledger.jsonl to the discrete aw run / aw runs workflow path and state that driver runs (aw oc run / aw agy run) record execution in un-chained state.json and events.jsonl, per the 2026-10-08 maintainer Option (b) decision (rdjka2 OQ-01, utb2qr).
 - 2026-10-14 note (aw specs): IPD 0o0wt2 (suiteeff-02): Section 5.1's per-lane suite check (run_suite_check), the pre-work baseline (start_suite_baseline), and GATE 2's post-merge revalidation (make_integration_validation_runner) route through aw suite (agent_workflows/suite_cache.py:run_full_suite) and may be satisfied by an exact-key cached PASS in <git-common-dir>/aw-suite-cache/<digest>.json; a cached failure is advisory only and is never served to a gate.
