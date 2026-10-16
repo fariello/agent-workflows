@@ -97,7 +97,10 @@ def test_arm_a_go_tree_exits_0_and_renders_go_verdict(
     )
     assert proc.returncode == 0, f"stderr={proc.stderr!r}\nstdout={proc.stdout!r}"
     assert "Verdict: GO" in proc.stdout
-    assert proc.stderr == ""
+    assert (
+        proc.stderr
+        == "WARNING: not-applicable gates (input absent, NOT verified): generated_drift\n"
+    )
 
 
 def test_arm_b_no_suite_flag_reports_not_supplied_and_emits_stderr_hint(
@@ -144,7 +147,10 @@ def test_arm_c_suite_failed_exits_1_with_full_suite_red(
     assert rc == 1
     assert "| full_suite | FAIL | full suite RED |" in out
     assert "Failing gates: full_suite" in out
-    assert err == ""
+    assert (
+        err
+        == "WARNING: not-applicable gates (input absent, NOT verified): generated_drift\n"
+    )
 
 
 def test_arm_d_missing_signer_exits_1_with_residual_risk_failing(
@@ -220,10 +226,15 @@ def test_arm_f_agent_mode_emits_schema_valid_record_with_exit_and_diagnostic_par
     assert rec["cmd"] == "releases readiness"
     assert rec["exit"] == proc_nogo.returncode == 1
     assert rec["outcome"] == "findings"
-    assert rec["findings"] == 2
-    assert len(rec["diagnostics"]) == 2
+    assert rec["findings"] == 3
+    assert len(rec["diagnostics"]) == 3
     rules = {d["rule"] for d in rec["diagnostics"]}
-    assert rules == {"readiness.full_suite", "readiness.residual_risk"}
+    assert rules == {
+        "readiness.full_suite",
+        "readiness.residual_risk",
+        "readiness.generated_drift.not-applicable",
+    }
+    assert rec["findings_by_severity"] == {"error": 2, "warning": 1, "info": 0}
 
     proc_go = _run_subprocess(
         [
@@ -242,7 +253,8 @@ def test_arm_f_agent_mode_emits_schema_valid_record_with_exit_and_diagnostic_par
     assert rec_go["cmd"] == "releases readiness"
     assert rec_go["exit"] == proc_go.returncode == 0
     assert rec_go["outcome"] == "clean"
-    assert rec_go["findings"] == 0
+    assert rec_go["findings"] == 1
+    assert rec_go["findings_by_severity"] == {"error": 0, "warning": 1, "info": 0}
 
 
 def test_arm_g_json_output_verdict_matches_exit_code(

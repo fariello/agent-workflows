@@ -207,7 +207,7 @@ def test_gate_changelog_versioning_valid_tree_passes(
     assert res.evidence["version"] == "1.0.0"
 
 
-def test_gate_changelog_versioning_missing_changelog_fails(
+def test_gate_changelog_versioning_missing_changelog_is_not_applicable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
@@ -218,7 +218,13 @@ def test_gate_changelog_versioning_missing_changelog_fails(
     res = rr.gate_changelog_versioning(tmp_path)
     assert res.name == "changelog_versioning"
     assert res.passed is False
+    assert res.applicable is False
+    assert res.status == "not-applicable"
+    assert res.evidence["missing"] is True
+    assert res.evidence["path"] == "CHANGELOG.md"
     assert res.evidence["changelog"] is False
+    assert res.evidence["version"] == "1.0.0"
+    assert res.detail.endswith("(input absent, NOT verified)")
 
 
 def test_gate_changelog_versioning_changelog_without_heading_fails(

@@ -62,14 +62,19 @@ def test_clean_docs_tree_passes_gate(tmp_path: Path) -> None:
     assert res.evidence == {"findings": []}
 
 
-def test_missing_docs_directory_fails_gate(tmp_path: Path) -> None:
-    """Arm (c): an absent docs directory fails closed with a distinct detail."""
+def test_missing_docs_directory_is_not_applicable(tmp_path: Path) -> None:
+    """Arm (c): an absent docs directory reports not-applicable with a distinct detail."""
     res = rr.gate_docs_checks(repo_root=tmp_path)
     assert res.name == "docs_checks"
     assert res.passed is False
+    assert res.applicable is False
+    assert res.status == "not-applicable"
     assert res.detail != "docs checks pass"
     assert "doc finding(s)" not in res.detail
-    assert res.detail == "docs tree missing or not a directory: docs"
+    assert (
+        res.detail
+        == "docs tree missing or not a directory: docs (input absent, NOT verified)"
+    )
     assert res.evidence.get("missing") is True
     assert res.evidence.get("path") == "docs"
     assert res.evidence.get("findings") == []
