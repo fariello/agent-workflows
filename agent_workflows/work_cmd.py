@@ -363,9 +363,14 @@ def run_work_begin(args: argparse.Namespace) -> int:
         print(f"aw work begin: worktree allocation failed: {exc}")
         return 2
 
+    try:
+        plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
+    except ValueError:
+        plan_rel = str(plan_path)
+
     lease = {
         "plan_id": plan_id,
-        "plan_path": str(plan_path.relative_to(repo_root)),
+        "plan_path": plan_rel,
         "lane_id": handle.lane_id,
         "worktree_path": str(handle.path),
         "branch": handle.branch,
