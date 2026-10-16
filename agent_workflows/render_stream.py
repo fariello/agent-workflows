@@ -1585,8 +1585,19 @@ def format_tally_badge(
     return colored, plain
 
 
-def compute_queue_tally(queue: Sequence[Mapping[str, Any]] | None) -> tuple[int, int]:
-    """Compute (passed_count, failed_count) for items that have finished so far in the queue."""
+def compute_queue_tally(
+    queue: Sequence[Mapping[str, Any]] | None,
+    *,
+    in_flight_id6: str | None = None,
+) -> tuple[int, int]:
+    """Compute (passed_count, failed_count) for items that have finished so far in the queue.
+
+    ``in_flight_id6`` names the item the driver is still working on; its FAILURE is not counted
+    (its success is). Between the
+    agent turn and integration the runner holds a PROVISIONAL `fail-gate` on it (a self-claimed
+    `executed` is not completion authority until verify + merge land), so counting it showed a
+    phantom "1 fail" for minutes on every item that went on to succeed.
+    """
     if not queue:
         return 0, 0
     passed = 0
@@ -1601,6 +1612,10 @@ def compute_queue_tally(queue: Sequence[Mapping[str, Any]] | None) -> tuple[int,
             continue
         if item_reached_success(it):
             passed += 1
+        elif in_flight_id6 and it.get("id6") == in_flight_id6:
+            # Only the FAILURE side is deferred: a success is final the moment it is recorded, while a
+            # genuine failure of this item is counted as soon as the driver moves to the next item.
+            continue
         elif st in TERMINAL_STATES or str(st).startswith("fail") or "error" in str(st):
             failed += 1
     return passed, failed
@@ -2276,7 +2291,9 @@ class Statusline:
             passed = self.items_passed or 0
             failed = self.items_failed or 0
         elif self.state is not None and self.state.get("queue"):
-            passed, failed = compute_queue_tally(self.state.get("queue"))
+            passed, failed = compute_queue_tally(
+                self.state.get("queue"), in_flight_id6=self.id6 or None
+            )
         else:
             passed, failed = None, None
 
