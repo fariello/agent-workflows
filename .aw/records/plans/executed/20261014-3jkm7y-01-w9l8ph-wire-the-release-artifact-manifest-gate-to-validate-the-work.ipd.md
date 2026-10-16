@@ -12,7 +12,7 @@
 - Scope: IN: (1) give `release_readiness.gate_artifact_manifest` and `release_readiness.build_report` `None` sentinel defaults for `manifest_present` and `consistent` / `manifest_consistent` plus `repo_root: Optional[Path] = None`, preserving explicit boolean injection for unit tests while computing presence and consistency of `.aw/system/workflows/index.md` from `repo_root` when not injected; (2) fail closed (never raising `SystemExit` or unhandled exceptions) when `.aw/system/workflows/index.md` is absent, unparseable by `engine.parse_manifest`, contains duplicate `command` rows, declares a `body` or `lens` path that is missing on disk or escapes `repo_root`, or carries a `WORKFLOWS-VERSION` / `Version:` stamp that disagrees with itself or with `.aw/system/VERSION`; (3) extend `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree` so its declared `whatnext` body file exists on disk, keeping all existing GO test fixtures across the four release-readiness test files green without weakening any assertion; (4) add behavioral and falsifiability test arms in `tests/test_release_readiness_producers.py` (shown RED against the pre-change module) proving missing or inconsistent manifests fail `gate_artifact_manifest` and flip `build_report` from `GO` to `NO-GO` with `failing_gates() == ["artifact_manifest"]`; (5) update `docs/recovery.md` to remove the note that `artifact_manifest` is not yet computed from disk (`3jkm7y`). OUT: modifying `engine.parse_manifest`, `migration_inventory`, or `manifest.py`; clearing live NO-GO causes on this repository's tree (`5gzno3`, `r4a4ab`); running release readiness from CI or release-review (`uypgvi`); and any tag, publish, push, or release action (`assert_no_release_action`).
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_producers.py, docs/recovery.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -22,9 +22,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: w9l8ph
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: w9l8ph verified (set 3jkm7y, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-14 to-review (aw set): Authored from backlog 3jkm7y at HEAD fed8ead60: wire gate_artifact_manifest and build_report to validate .aw/system/workflows/index.md presence and consistency on disk.
