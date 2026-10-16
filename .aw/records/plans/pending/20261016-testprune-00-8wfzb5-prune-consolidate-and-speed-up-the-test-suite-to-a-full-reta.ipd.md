@@ -91,6 +91,7 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
 
 - Changing which tests are `core`: owned by plan `hguae9`.
   - Carrier: hguae9
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-testtier-01-hguae9-split-the-suite-into-a-marker-selected-core-tier-under-30s-a.ipd.md
 
 ## Scope check
 

@@ -132,6 +132,7 @@ E-01 baseline -> E-02/E-03 heavy leaves off the live corpus (largest single win,
   - Carrier: vgus66
 - Speeding the core tier itself or changing its membership.
   - Carrier: hguae9
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-testtier-01-hguae9-split-the-suite-into-a-marker-selected-core-tier-under-30s-a.ipd.md
 - Making `aw doctor`/`aw status` themselves faster on a large records corpus (F-9 shows `review_findings.subject_gating_blocks` dominates): a production performance change, outside this test-only Set; if the executor judges the measured cost user-perceptible, file it with `aw backlog new` citing F-2 and F-9.
   - Carrier-Declined: production code is out of scope for Set `testprune`; filing is the executor's call with the measurement attached.
 
