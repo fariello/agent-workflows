@@ -6,9 +6,10 @@
 - Scope: Orchestration only: sequence the three children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cmpreloc-00-aqun5z-support-placement-switches-into-and-out-of-the-public-target.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: a583eeb0933ce398ebae7504d3ce3ba13ce8a30a4b5a4a6ea718b66dacd47ca6
+- Coverage-Fingerprint: 13badcceab78bba7b9d9e031299bc3916ad4af1071b708344b1731211f3a514f
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: low
@@ -20,7 +21,9 @@
 - Id: aqun5z
 
 ## Workflow history
+- 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
+- 2026-10-16 coverage pass (aw oc run): fingerprint 13badcceab78, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 coverage pass (aw oc run): fingerprint a583eeb0933c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready orchestrator of Set cmpreloc graduating backlog n9vd2h.
@@ -55,18 +58,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | `xc8nae` | `20261016-cmpreloc-01-xc8nae-extend-the-placement-switch-planner-to-companion-pairs.ipd.md` | Read-only companion census for the six pairs, per-repository source/destination, attach/detach, companion blockers and warnings, with purity tests (also needs cfgreloc `xvlemm`, declared in its `- Item-Dependencies:`). | none |
-| 02 | `fo08zx` | `20261016-cmpreloc-02-fo08zx-execute-companion-placement-switches-with-companion-staging.ipd.md` | Executes companion plans inside the cfgreloc journal: companion creation, per-repository staging with an ignore filter, attach/detach, config retracking, resume, rollback, fault points and tests (also needs cfgreloc `6u755v`). | 01 |
+| 02 | `fo08zx` | `20261016-cmpreloc-02-fo08zx-execute-companion-placement-switches-with-companion-staging.ipd.md` | Executes companion plans inside the cfgreloc journal: companion creation, per-repository staging with an ignore filter, attach/detach, config retracking, resume, rollback, fault points and tests, and lifts the interim `companion-unsupported` planner blocker Order 01 keeps (also needs cfgreloc `6u755v`). | 01 |
 | 03 | `y1e2m9` | `20261016-cmpreloc-03-y1e2m9-make-companion-placement-switches-reachable-from-aw-install.ipd.md` | Makes companion switches reachable from `aw install --relocate` with preview lines, updates the cfgreloc CLI test, adds end-to-end tests, CHANGELOG, README and the spec Section 8.1 item 3 amendment (also needs cfgreloc `ozr356`). | 02 |
 
 ## Completion criteria (the whole Set is done only when)
 
-- The planner computes a populated plan, not `companion-unsupported`, for every pair into or out of `public-target-private-companion`, and blocks unsafe companion states. Owner: xc8nae
-- A companion switch completes, resumes or rolls back with both repositories byte-checked, staged and never committed. Owner: fo08zx
+- The planner computes a fully populated plan for every pair into or out of `public-target-private-companion` and blocks unsafe companion states, while still carrying `companion-unsupported` as an ordinary interim blocker so the cfgreloc executor and CLI keep refusing until execution support exists (`xc8nae` OQ-03). Owner: xc8nae
+- A companion switch completes, resumes or rolls back with both repositories byte-checked, staged and never committed, and the planner no longer emits `companion-unsupported` for any companion pair (lifted in the same change as executor support). Owner: fo08zx
 - `aw install --relocate` reaches companion switches, previews them, and the CHANGELOG, README and spec Section 8.1 describe the shipped behavior. Owner: y1e2m9
 
 ## Cross-IPD validation
 
-- The plan fields Order 01 adds (`companion_action`, `source_git`, `dest_git`, `companion_create`, `config_retrack`, `retire_side=None`) are exactly the fields Order 02 consumes; Order 02's tests drive real plans from `plan_placement_switch`, never hand-built ones. Owner: fo08zx
+- The plan fields Order 01 adds (`companion_action`, `companion_dir`, `source_git`, `dest_git`, `companion_create`, `config_retrack`, `direction="in-place"`, `retire_side=None`) are exactly the fields Order 02 consumes; Order 02's tests drive real plans from `plan_placement_switch`, never hand-built ones. Owner: fo08zx
 - The preview Order 03 renders shows the warnings Order 01 computes. Owner: y1e2m9
 - The full placement-switch suite (cfgreloc and cmpreloc modules) passes together under `make test-all`. Owner: y1e2m9
 
@@ -100,7 +103,7 @@ This plan runs no tests. Planner tests: xc8nae. Executor tests including every f
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `aw find plans xc8nae` (or `ls .aw/records/plans/executed/ | grep xc8nae`) output and its `- Status: executed` line.
+  - Required evidence: pasted `ls .aw/records/plans/executed/ | grep xc8nae` output and its `- Status: executed` line.
   - Observed evidence:
   - Result: pending
 
@@ -119,4 +122,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). This orchestrator performs no work: under `aw oc run` / `aw agy run` it is retired once every child is `executed`. By hand, execute the children in Order, then confirm each row above. Never push.
+Execute only after explicit human approval (`Status: approved`). EXECUTION CONTRACT: all open questions are resolved. This orchestrator performs no work of its own: under `aw oc run` / `aw agy run` it is retired once every child is `executed`. By hand, execute the children in Order (each under its own gate), then confirm each row above, pasting the ACTUAL command output each `V-*` demands (never claim a child executed without it). Scope fence: `- Scope-Paths:` (this plan file only); justify any other edit at finalize. Commit through `aw commit aqun5z -- <paths>`; never `git add -A`, never push. Under a runner the runner retires this plan; by hand, `aw ipd finalize aqun5z` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms.
