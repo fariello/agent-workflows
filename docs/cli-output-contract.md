@@ -204,13 +204,13 @@ Two distinct live exit tables govern these verbs and disagree on the meaning of 
    - `1`: Queue findings or stranded work. At least one item failed, ended with unsatisfied dependencies, or finished with unintegrated work.
    - `2`: Invalid invocation, invalid selector, or unknown action type.
    - `3`: Human input required (`AGGREGATE_NEEDS_INPUT`). A human approval gate or review gate stopped execution, requiring operator action.
-   - `4`: Run-wide abort class. Enumerated in spec `25kzda` 5.6 for run-wide integrity failures; not returned by current driver `run_queue` dispatch.
+   - `4`: Run-wide abort class. Enumerated in spec `25kzda` 5.6 for run-wide integrity failures; the drivers do not return `4`: a corrupt or unreadable run state (`state.json`) is reported as exit `2` in every output mode, with a message naming the file and how to recover.
 
 #### Disagreement on Codes 3 and 4
 
 Callers and scripts must note the divergence between these two tables:
 - **Code 3**: In `run_cli`, code 3 means execution is blocked (`EXIT_BLOCKED`, unknown outcome or exhausted retries). In `oc runipd` and `agy runipd`, code 3 means human input or approval is required (`AGGREGATE_NEEDS_INPUT`).
-- **Code 4**: In `run_cli`, code 4 means invalid evidence (`EXIT_INVALID_EVIDENCE`). In spec `25kzda` 5.6, code 4 represents run-wide abort classes.
+- **Code 4**: In `run_cli`, code 4 means invalid evidence (`EXIT_INVALID_EVIDENCE`). In spec `25kzda` 5.6, code 4 represents run-wide abort classes; the drivers do not return code 4, reporting a corrupt run state as exit 2 in every output mode with recovery guidance.
 
 A third internal table exists as `compat_migration.EXIT_CODES` in `agent_workflows/compat_migration.py` (which maps `gate_failed` to 3 and `compatibility_break` to 4), but it is an unconsumed internal constant with zero callers across the repository and does not represent an observable CLI exit surface.
 

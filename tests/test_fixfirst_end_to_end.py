@@ -1262,28 +1262,166 @@ class TestFixFirstEndToEnd(unittest.TestCase):
     # -------------------------------------------------------------------------
 
     def _run_corrupt_state(self, host_label: str, mod: Any) -> None:
-        repo = self.root / f"repo_crp_{host_label}"
-        repo.mkdir()
-        run_dir = self.root / f"run_crp_{host_label}"
-        run_dir.mkdir()
-        (run_dir / "state.json").write_text("{corrupt json", encoding="utf-8")
+        bodies: list[str | bytes] = [
+            "{corrupt json",
+            b"\xff\xfe",
+            "[1]",
+            '{"queue": "x"}',
+            '{"queue": ["x"]}',
+            '{"repo": "."}',
+        ]
+        for idx, body in enumerate(bodies):
+            with self.subTest(host=host_label, idx=idx, body=body):
+                repo = self.root / f"repo_crp_{host_label}_{idx}"
+                repo.mkdir(parents=True, exist_ok=True)
+                run_dir = self.root / f"run_crp_{host_label}_{idx}"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                state_file = run_dir / "state.json"
+                if isinstance(body, bytes):
+                    state_file.write_bytes(body)
+                else:
+                    state_file.write_text(body, encoding="utf-8")
 
-        stderr_io = io.StringIO()
-        with coordinator_role(), mock.patch("sys.stderr", stderr_io):
-            rc = mod.main(["resume", str(run_dir), "--repo", str(repo)])
+                stderr_io = io.StringIO()
+                with coordinator_role(), mock.patch("sys.stderr", stderr_io):
+                    rc = mod.main(["resume", str(run_dir), "--repo", str(repo)])
 
-        # Measured: exits 2 with DriverError naming state.json, not exit 4
-        self.assertEqual(rc, 2)
-        err_msg = stderr_io.getvalue().strip()
-        self.assertIn("state.json", err_msg)
-        self.assertIn("Invalid JSON", err_msg)
-        print(f"[V-04-a] host={host_label} corrupt_state rc={rc} stderr={err_msg!r}")
+                # Corrupt run state exits 2 with recovery guidance naming state.json
+                self.assertEqual(rc, 2)
+                err_msg = stderr_io.getvalue().strip()
+                self.assertIn("state.json", err_msg)
+                self.assertIn("start a new run", err_msg)
+                print(
+                    f"[V-04-a] host={host_label} idx={idx} corrupt_state rc={rc} stderr={err_msg!r}"
+                )
 
     def test_corrupt_state_oc(self) -> None:
         self._run_corrupt_state("oc", oc_runipd)
 
     def test_corrupt_state_agy(self) -> None:
         self._run_corrupt_state("agy", agy_runipd)
+
+    def _run_corrupt_state_agent(self, host_label: str, mod: Any) -> None:
+        bodies = ["{corrupt json", '{"queue": "x"}']
+        for idx, body in enumerate(bodies):
+            with self.subTest(host=host_label, idx=idx, body=body):
+                repo = self.root / f"repo_crp_agent_{host_label}_{idx}"
+                repo.mkdir(parents=True, exist_ok=True)
+                run_dir = self.root / f"run_crp_agent_{host_label}_{idx}"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                (run_dir / "state.json").write_text(body, encoding="utf-8")
+
+                stdout_io = io.StringIO()
+                stderr_io = io.StringIO()
+                with coordinator_role(), mock.patch(
+                    "sys.stdout", stdout_io
+                ), mock.patch("sys.stderr", stderr_io):
+                    rc = mod.main(
+                        ["resume", str(run_dir), "--repo", str(repo), "--agent"]
+                    )
+
+                self.assertEqual(rc, 2)
+                out_lines = [
+                    line.strip()
+                    for line in stdout_io.getvalue().splitlines()
+                    if line.strip()
+                ]
+                self.assertTrue(out_lines, "Expected stdout output under --agent")
+                last_rec = json.loads(out_lines[-1])
+                self.assertEqual(last_rec.get("schema"), "aw.agent/v1")
+                self.assertEqual(last_rec.get("exit"), 2)
+                self.assertEqual(last_rec.get("outcome"), "cannot-run")
+                self.assertIn("start a new run", last_rec.get("summary", ""))
+
+    def test_corrupt_state_agent_oc(self) -> None:
+        self._run_corrupt_state_agent("oc", oc_runipd)
+
+    def test_corrupt_state_agent_agy(self) -> None:
+        self._run_corrupt_state_agent("agy", agy_runipd)
+
+    def _run_mid_run_corrupt_state(self, host_label: str, mod: Any) -> None:
+        repo = _make_test_repo(self.root / f"repo_mid_crp_{host_label}")
+        id1 = f"mc1{host_label}"
+        id2 = f"mc2{host_label}"
+        plan1 = _write_plan(repo, id6=id1, order=1)
+        plan2 = _write_plan(repo, id6=id2, order=2)
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+
+        run_dir = self.root / f"run_mid_crp_{host_label}"
+        run_dir.mkdir(parents=True)
+        item1 = {
+            "id6": id1,
+            "action": "execute",
+            "setid": "fixfirst",
+            "position": 1,
+            "status": "queued",
+            "attempts": [],
+            "configured_file": str(plan1.relative_to(repo)),
+        }
+        item2 = {
+            "id6": id2,
+            "action": "execute",
+            "setid": "fixfirst",
+            "position": 2,
+            "status": "queued",
+            "attempts": [],
+            "configured_file": str(plan2.relative_to(repo)),
+        }
+        state = {
+            "schema_version": 2,
+            "repo": str(repo),
+            "run_id": f"run_mid_crp_{host_label}",
+            "options": {"isolate_worktree": False, "no_verify": True},
+            "queue": [item1, item2],
+        }
+        mod.save_state(run_dir, state)
+
+        dispatched: list[str] = []
+
+        def fake_turn(
+            st: Any, rd: Any, itm: Any, plan_p: Any, prompt_p: Any, att: Any, **kw: Any
+        ) -> Any:
+            dispatched.append(itm["id6"])
+            _write_outcome_file(rd, itm, disposition="executed")
+            return 0, "s1", rd / "log", ["cmd"]
+
+        orig_load_state = mod.load_state
+        injected = False
+
+        def wrapping_load_state(rd: Path) -> dict[str, Any]:
+            nonlocal injected
+            st = orig_load_state(rd)
+            if not injected:
+                it1 = next(
+                    (x for x in st.get("queue", []) if x.get("id6") == id1), None
+                )
+                if it1 and it1.get("status") not in ("queued", "running"):
+                    (rd / "state.json").write_text("{corrupt json", encoding="utf-8")
+                    injected = True
+                    return orig_load_state(rd)
+            return st
+
+        with coordinator_role(), _patch_host_launcher(
+            mod, fake_turn
+        ), mock.patch.object(
+            mod, "driver_begin", lambda *a, **k: (0, "ok")
+        ), mock.patch.object(
+            mod, "driver_finalize", lambda *a, **k: (0, "ok")
+        ), mock.patch.object(
+            mod, "assert_child_tool_identity", lambda *a, **k: None
+        ), mock.patch.object(mod, "load_state", side_effect=wrapping_load_state):
+            with self.assertRaises(runner_shared.CorruptRunStateError):
+                mod.run_queue(run_dir, retry_incomplete=False)
+
+        self.assertEqual(dispatched, [id1])
+        self.assertNotIn(id2, dispatched)
+
+    def test_mid_run_corrupt_state_oc(self) -> None:
+        self._run_mid_run_corrupt_state("oc", oc_runipd)
+
+    def test_mid_run_corrupt_state_agy(self) -> None:
+        self._run_mid_run_corrupt_state("agy", agy_runipd)
 
     def _run_non_abort_hook_bypass(self, host_label: str, mod: Any) -> None:
         repo = _make_test_repo(self.root / f"repo_nab_{host_label}")
