@@ -111,6 +111,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - Updating stale Set `fixfirst` and `verifier transport failure` owner plan IDs in spec `25kzda` Section 5.5: owned by sibling pending IPD `6g08rp` (from backlog item `w5opbr`).
   - Carrier: 6g08rp
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-w5opbr-01-6g08rp-replace-stale-and-non-resolving-owner-plan-ids-in-spec-25kzd.ipd.md
 
 ## Scope check
 
