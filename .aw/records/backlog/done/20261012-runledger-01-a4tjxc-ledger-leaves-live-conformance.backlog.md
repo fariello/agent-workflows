@@ -1,5 +1,5 @@
 - Id: a4tjxc
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Make the eight ledger-reading runs leaves live conformance rows once aw run init (plan v47z9u) can create a ledger fixture
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD g5s94t executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-runledger-05-g5s94t-add-ledger-leaves-to-live-safe-leaves-once-aw-run-init-lands.ipd.md); evidence .aw/records/plans/executed/20261014-runledger-05-g5s94t-add-ledger-leaves-to-live-safe-leaves-once-aw-run-init-lands.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: g5s94t
 - 2026-10-12 created (aw backlog): Filed while authoring plan v47z9u from backlog hegwri: the conformance_matrix not_runnable exemptions cite the absence of any ledger, which v47z9u removes.
 

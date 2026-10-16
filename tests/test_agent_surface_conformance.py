@@ -246,7 +246,7 @@ def test_agent_surface_conformance_mutation(
     Section 11.3 preview/applied rules, path absence, and fixture isolation (E-03).
     """
     iso = isolated_mutation_project
-    full_argv = leaf.split() + ["--agent"]
+    full_argv = leaf.split() + RUNNABLE_ARGV.get(leaf, []) + ["--agent"]
 
     res = run_cli(
         full_argv,

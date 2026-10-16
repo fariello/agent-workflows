@@ -37,6 +37,7 @@ goldens do not flake across supported CPython versions.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -46,6 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from agent_workflows import runner_shared, set_records
 from agent_workflows.command_surface import (
     CommandDeclaration,
     discover_parser_leaves,
@@ -91,10 +93,32 @@ def required_scenarios(decl: CommandDeclaration) -> Tuple[str, ...]:
 # Curated live-executable safe leaves
 # --------------------------------------------------------------------------------------------------
 
+LEDGER_FIXTURE_RUN_ID = "run-abcdef1234"
+LEDGER_FIXTURE_WORKFLOW = {
+    "id": "wf-fixture",
+    "steps": [{"id": "S-01", "satisfies": ["R-01"], "depends_on": []}],
+    "requirements": [{"id": "R-01"}],
+}
+LEDGER_SAFE_LEAVES = frozenset(
+    {
+        "runs decisions",
+        "runs evidence",
+        "runs next",
+        "runs questions",
+        "runs resume",
+        "runs show",
+        "runs status",
+        "runs verify-ledger",
+    }
+)
+
 # Read/check leaves that are SAFE to execute live in the repo working tree: they
 # never write, never touch the network, and are deterministic enough to gate on
 # schema / ANSI / exit-code invariants (not on exact finding COUNTS). The value is
-# the extra argv needed to make the leaf runnable non-interactively.
+# the extra argv needed to make the leaf runnable non-interactively. The eight ledger
+# leaves (runs decisions, runs evidence, runs next, runs questions, runs resume,
+# runs show, runs status, runs verify-ledger) are read-only and run against an isolated
+# aw run init fixture via live_leaf_argv, never against the repository checkout.
 LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "status": [],
     "context": [],
@@ -115,6 +139,14 @@ LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "check-local-leaks": [],
     "workflow validate": [],
     "workflow check-generated": [],
+    "runs decisions": [LEDGER_FIXTURE_RUN_ID],
+    "runs evidence": [LEDGER_FIXTURE_RUN_ID],
+    "runs next": [LEDGER_FIXTURE_RUN_ID],
+    "runs questions": [LEDGER_FIXTURE_RUN_ID],
+    "runs resume": [LEDGER_FIXTURE_RUN_ID],
+    "runs show": [LEDGER_FIXTURE_RUN_ID],
+    "runs status": [LEDGER_FIXTURE_RUN_ID],
+    "runs verify-ledger": [LEDGER_FIXTURE_RUN_ID],
 }
 
 # Leaves whose invocation wall time is too heavy for the default test suite.
@@ -156,6 +188,7 @@ RUNNABLE_ARGV: Dict[str, List[str]] = {
     "config get": ["interactive"],
     "config is": ["interactive"],
     "index": ["plans", "--check"],
+    "run init": ["--workflow", "wf.json"],
 }
 
 # --------------------------------------------------------------------------------------------------
@@ -176,7 +209,7 @@ class Exemption:
 
 
 EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    # sanctioned_raw (5):
+    # sanctioned_raw (11):
     "find": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 12",
@@ -210,7 +243,61 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="tools/completion.py",
         reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
     ),
-    # not_runnable (16):
+    "runs evidence": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs next": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs resume": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs show": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs status": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs verify-ledger": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    # not_runnable (11):
     "ipd begin": Exemption(
         reason_kind="not_runnable",
         citation="aw ipd begin runner protocol",
@@ -223,43 +310,19 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
     ),
     "runs decisions": Exemption(
         reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs evidence": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs next": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+        citation="agent_workflows/run_cli.py",
+        reason=(
+            "Reads set_records markdown projections instead of ledger.jsonl and "
+            "prints raw markdown under all modes, including --agent and --json (gap hbok5d)."
+        ),
     ),
     "runs questions": Exemption(
         reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs resume": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs show": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs status": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
-    ),
-    "runs verify-ledger": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_ledger_store.py",
-        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+        citation="agent_workflows/run_cli.py",
+        reason=(
+            "Reads set_records markdown projections instead of ledger.jsonl and "
+            "prints raw markdown under all modes, including --agent and --json (gap hbok5d)."
+        ),
     ),
     "test": Exemption(
         reason_kind="not_runnable",
@@ -509,12 +572,20 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
     "run cancel": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
-        reason="Requires target positional argument.",
+        reason=(
+            "Requires target positional argument; emits bare JSON dicts under "
+            "docs/cli-output-contract.md Section 3.1; live-tested against fixture "
+            "ledger in tests/test_live_conformance_sweep.py."
+        ),
     ),
     "run finalize": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
-        reason="Requires target positional argument.",
+        reason=(
+            "Requires target positional and --workflow flags; emits bare JSON dicts under "
+            "docs/cli-output-contract.md Section 3.1; live-tested against fixture "
+            "ledger in tests/test_live_conformance_sweep.py."
+        ),
     ),
     "run ipd": Exemption(
         reason_kind="arg_fixture_needed",
@@ -524,12 +595,20 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
     "run record": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
-        reason="Requires target positional argument.",
+        reason=(
+            "Requires target positional and --step/--state/--workflow flags; emits bare "
+            "JSON dicts under docs/cli-output-contract.md Section 3.1; live-tested against "
+            "fixture ledger in tests/test_live_conformance_sweep.py."
+        ),
     ),
     "run start": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
-        reason="Requires target positional argument.",
+        reason=(
+            "Requires target positional and --step/--workflow flags; emits bare JSON dicts "
+            "under docs/cli-output-contract.md Section 3.1; live-tested against fixture "
+            "ledger in tests/test_live_conformance_sweep.py."
+        ),
     ),
     "set": Exemption(
         reason_kind="arg_fixture_needed",
@@ -747,6 +826,77 @@ def run_cli_tty(
 
 
 # --------------------------------------------------------------------------------------------------
+# Ledger fixture helpers (g5s94t E-02)
+# --------------------------------------------------------------------------------------------------
+
+
+def seed_ledger_fixture(root: Path, run_id: str = LEDGER_FIXTURE_RUN_ID) -> Path:
+    """Initialize an isolated ledger fixture inside root (E-02).
+
+    (a) Creates root/.aw/records if absent (F-09).
+    (b) Writes root/wf.json with LEDGER_FIXTURE_WORKFLOW.
+    (c) Invokes aw run init and asserts returncode 0 and ledger inside root.
+    (d) Writes decisions.md and open-questions.md projections under set_records.run_artifacts_dir.
+    (e) Returns root.
+    """
+    (root / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+    wf_path = root / "wf.json"
+    wf_path.write_text(json.dumps(LEDGER_FIXTURE_WORKFLOW), encoding="utf-8")
+
+    res = run_cli(
+        [
+            "run",
+            "init",
+            "--workflow",
+            str(wf_path),
+            "--run-id",
+            run_id,
+            "--dir",
+            str(root),
+        ]
+    )
+    assert (
+        res.returncode == 0
+    ), f"seed_ledger_fixture run init failed: {res.stderr}\nStdout: {res.stdout}"
+
+    ledger_file = runner_shared.state_root(root) / run_id / "ledger.jsonl"
+    assert ledger_file.is_file(), f"Expected ledger file at {ledger_file}"
+    assert str(ledger_file.resolve()).startswith(
+        str(root.resolve())
+    ), f"Ledger file path {ledger_file} is not inside root {root.resolve()}"
+
+    proj_dir = set_records.run_artifacts_dir(root, "exec-set", run_id)
+    proj_dir.mkdir(parents=True, exist_ok=True)
+    (proj_dir / set_records.DECISIONS_FILE).write_text(
+        "_No autonomous decisions recorded._\n", encoding="utf-8"
+    )
+    (proj_dir / set_records.OPEN_QUESTIONS_FILE).write_text(
+        "_No unresolved questions._\n", encoding="utf-8"
+    )
+    return root
+
+
+def live_leaf_argv(leaf: str, ledger_fixture_dir: Optional[Path] = None) -> List[str]:
+    """Return the full argv for a live safe leaf.
+
+    For the eight ``aw runs`` leaves, requires a non-None ``ledger_fixture_dir``
+    and appends ``["--dir", str(ledger_fixture_dir)]`` and, for ``runs next``,
+    ``runs resume``, ``runs status`` only,
+    ``["--workflow", str(ledger_fixture_dir / "wf.json")]``.
+    Raises ValueError if called for a ledger leaf with ``ledger_fixture_dir is None``.
+    """
+    if leaf in LEDGER_SAFE_LEAVES:
+        if ledger_fixture_dir is None:
+            raise ValueError(f"ledger leaf {leaf!r} requires a ledger_fixture_dir")
+        extra = list(LIVE_SAFE_LEAVES.get(leaf, []))
+        argv = [*leaf.split(), *extra, "--dir", str(ledger_fixture_dir)]
+        if leaf in ("runs next", "runs resume", "runs status"):
+            argv.extend(["--workflow", str(ledger_fixture_dir / "wf.json")])
+        return argv
+    return [*leaf.split(), *LIVE_SAFE_LEAVES[leaf]]
+
+
+# --------------------------------------------------------------------------------------------------
 # Isolated project fixture and clone helpers (vfv2db E-01)
 # --------------------------------------------------------------------------------------------------
 
@@ -842,6 +992,11 @@ def build_installed_project_template(base_dir: Path) -> InstalledProjectTemplate
         assert (
             aw_dir / required_subdir
         ).is_dir(), f".aw/{required_subdir} missing from template at {proj_dir}"
+
+    # Write wf.json for run init in mutation clones (captured after baseline status)
+    (proj_dir / "wf.json").write_text(
+        json.dumps(LEDGER_FIXTURE_WORKFLOW), encoding="utf-8"
+    )
 
     return InstalledProjectTemplate(
         template_dir=proj_dir,

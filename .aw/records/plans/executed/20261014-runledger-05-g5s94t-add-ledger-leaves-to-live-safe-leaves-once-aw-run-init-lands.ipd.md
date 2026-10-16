@@ -5,8 +5,9 @@
 - Concern: `tests/conformance_matrix.py` exempts the eight `aw runs` subcommands (`runs decisions`, `runs evidence`, `runs next`, `runs questions`, `runs resume`, `runs show`, `runs status`, `runs verify-ledger`) in `EXEMPTION_REGISTRY` with the pre-`v47z9u` reason `"Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace."`, exempts the four `aw run` write leaves (`run start`, `run record`, `run cancel`, `run finalize`) in `MUTATION_EXEMPTION_REGISTRY` with `"Requires target positional argument."`, and omits all eight `aw runs` leaves from `LIVE_SAFE_LEAVES` (`covered_by="declaration"` in `build_matrix`). Once plan `v47z9u` (`hegwri`) lands `aw run init`, the conformance harness can initialize a real `ledger.jsonl` in an isolated fixture directory, making the eight `aw runs` leaves live conformance scenario rows in `LIVE_SAFE_LEAVES`, wiring `aw run init` into `MUTATION_UNIVERSE`, driving the four `aw run` ledger writers live against the initialized ledger, and replacing the stale `EXEMPTION_REGISTRY` / `MUTATION_EXEMPTION_REGISTRY` rationales with measured contract citations. Backlog `a4tjxc`.
 - Scope: (1) In `tests/conformance_matrix.py`, add `seed_ledger_fixture` (invoking `aw run init --workflow <root>/wf.json --run-id run-abcdef1234 --dir <root>` and seeding the Set projection files `decisions.md` and `open-questions.md`) and `live_leaf_argv`, add the eight `aw runs` leaves to `LIVE_SAFE_LEAVES`, add `"run init": ["--workflow", "wf.json"]` to `RUNNABLE_ARGV`, write `wf.json` into the installed-project template (and nothing else, so mutation clones stay a clean `aw install` tree), and update the eight `EXEMPTION_REGISTRY` and four `MUTATION_EXEMPTION_REGISTRY` rationales. (2) In `tests/test_agent_surface_conformance.py`, pass `RUNNABLE_ARGV.get(leaf, [])` in `test_agent_surface_conformance_mutation` so `run init` executes in `MUTATION_UNIVERSE` with its required `--workflow` flag. (3) In `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py`, route every `LIVE_SAFE_LEAVES` invocation through `live_leaf_argv` against a session-scoped `live_ledger_dir` fixture, and add non-vacuous live conformance tests for the eight `aw runs` leaves and the four `aw run` writers. OUT: migrating `run_cli._emit_machine` from bare JSON dicts (`docs/cli-output-contract.md` Section 3.1, pinned by `tests/test_run_recovery_cli.py`) to `aw.agent/v1` envelopes or collapsing the 8-code run-execution exit vocabulary `{0..7}` into `{0, 1, 2}`; giving `runs decisions` / `runs questions` a machine (`--agent`/`--json`) branch (F-07, filed as a new backlog item by E-07); redacting the absolute ledger path that `runs evidence` and `runs verify-ledger` print (F-08, same backlog item); writing `requirement_set` / `verifier_decision` records (`8l1hgw` / `um0twl`); persisting the workflow beside the ledger (`sflov4` / `o34rb3`); viewer rendering of ledger-only directories (`nf84rt` / `3a3hh9`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_live_conformance_sweep.py, tests/test_exit_contract_conformance.py, tests/test_agent_surface_conformance.py, .aw/records/backlog/open
+- Scope-Exceeded: tests/test_shared_flag_honored.py (E-05 required adding KNOWN_BROKEN entry for run init --fields defect gm9saf)
 - Item-Dependencies: executed:v47z9u
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: a4tjxc
 - Work-Kind: chore
@@ -16,9 +17,9 @@
 - Highest E allocated: 09
 - Author: agent:antigravity
 - Id: g5s94t
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g5s94t verified (set runledger, attempt 1). [Scope reconciliation - out-of-scope tests/test_shared_flag_honored.py: E-05 required adding KNOWN_BROKEN entry for run init --fields defect gm9saf]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-14 to-review (agent:antigravity): authored review-ready IPD from backlog a4tjxc
@@ -35,54 +36,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce and verify dependency
 
-- [ ] E-01 REPRODUCE at execution HEAD. Verify prerequisite `v47z9u` has landed by running `aw run init --help` (expect exit 0, listing `--workflow`, `--run-id`, `--dir`), and run a one-liner over `conformance_matrix.build_matrix(cli._build_parser())` confirming the eight `aw runs` leaves are `covered_by == "declaration"`. Re-measure the F-04 table: in a scratch git repo under a temp dir that contains `.aw/records/` (F-09), run `aw run init --workflow <root>/wf.json --run-id run-abcdef1234 --dir <root>`, seed the two projection files, and record each of the eight read leaves' exit code in human, `--agent` and `--json` modes and each writer's exit code. If `aw run init` is absent, the eight leaves are already `covered_by == "live"`, or any measured exit code differs from F-04, stop and report the plan as blocked or overtaken with pasted output (a differing code changes E-09's assertions).
+- [x] E-01 REPRODUCE at execution HEAD. Verify prerequisite `v47z9u` has landed by running `aw run init --help` (expect exit 0, listing `--workflow`, `--run-id`, `--dir`), and run a one-liner over `conformance_matrix.build_matrix(cli._build_parser())` confirming the eight `aw runs` leaves are `covered_by == "declaration"`. Re-measure the F-04 table: in a scratch git repo under a temp dir that contains `.aw/records/` (F-09), run `aw run init --workflow <root>/wf.json --run-id run-abcdef1234 --dir <root>`, seed the two projection files, and record each of the eight read leaves' exit code in human, `--agent` and `--json` modes and each writer's exit code. If `aw run init` is absent, the eight leaves are already `covered_by == "live"`, or any measured exit code differs from F-04, stop and report the plan as blocked or overtaken with pasted output (a differing code changes E-09's assertions).
   - Depends on: none
   - Expected outcome: pasted `aw run init --help` output (exit 0), the `build_matrix` probe output, and the re-measured exit-code table matching F-04.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: conformance matrix fixture, LIVE_SAFE_LEAVES, and registry truth
 
-- [ ] E-02 Add the ledger fixture helpers to `tests/conformance_matrix.py`: `LEDGER_FIXTURE_RUN_ID = "run-abcdef1234"`, `LEDGER_FIXTURE_WORKFLOW` (a one-step workflow: `S-01` satisfying `R-01`, `depends_on: []`, `requirements: [{"id": "R-01"}]`), `seed_ledger_fixture(root: Path, run_id: str = LEDGER_FIXTURE_RUN_ID) -> Path`, and `live_leaf_argv(leaf: str, ledger_fixture_dir: Optional[Path] = None) -> List[str]`. `seed_ledger_fixture` must: (a) create `root / ".aw" / "records"` if absent, so `runner_shared.state_root(root)` resolves INSIDE `root` rather than under the home-scoped projects tree (F-09); (b) write `root / "wf.json"`; (c) invoke `run_cli(["run", "init", "--workflow", str(root / "wf.json"), "--run-id", run_id, "--dir", str(root)])` and assert returncode 0 and that `runner_shared.state_root(root) / run_id / "ledger.jsonl"` is a file whose path starts with `root`; (d) write `decisions.md` containing `_No autonomous decisions recorded._` and `open-questions.md` containing `_No unresolved questions._` under `set_records.run_artifacts_dir(root, "exec-set", run_id)`; (e) return `root`. `live_leaf_argv(leaf, d)` returns `[*leaf.split(), *LIVE_SAFE_LEAVES[leaf]]`, plus for the eight `aw runs` leaves `["--dir", str(d)]` and, for `runs next`, `runs resume`, `runs status` ONLY, `["--workflow", str(d / "wf.json")]` (`runs show` has NO `--workflow` flag and exits 2 `unrecognized arguments` when given one, F-04). For a ledger leaf called with `d is None`, raise `ValueError` so no caller can silently run it against the repository checkout. Also, inside `build_installed_project_template`, write `LEDGER_FIXTURE_WORKFLOW` to `proj_dir / "wf.json"` AFTER the baseline `git status` is captured (so `baseline_status` is unchanged), and do NOT seed a ledger there: the mutation clones only need `wf.json` for `run init`, and a template ledger would pre-occupy `.aw/records/runs/` for every one of the `MUTATION_UNIVERSE` leaves.
+- [x] E-02 Add the ledger fixture helpers to `tests/conformance_matrix.py`: `LEDGER_FIXTURE_RUN_ID = "run-abcdef1234"`, `LEDGER_FIXTURE_WORKFLOW` (a one-step workflow: `S-01` satisfying `R-01`, `depends_on: []`, `requirements: [{"id": "R-01"}]`), `seed_ledger_fixture(root: Path, run_id: str = LEDGER_FIXTURE_RUN_ID) -> Path`, and `live_leaf_argv(leaf: str, ledger_fixture_dir: Optional[Path] = None) -> List[str]`. `seed_ledger_fixture` must: (a) create `root / ".aw" / "records"` if absent, so `runner_shared.state_root(root)` resolves INSIDE `root` rather than under the home-scoped projects tree (F-09); (b) write `root / "wf.json"`; (c) invoke `run_cli(["run", "init", "--workflow", str(root / "wf.json"), "--run-id", run_id, "--dir", str(root)])` and assert returncode 0 and that `runner_shared.state_root(root) / run_id / "ledger.jsonl"` is a file whose path starts with `root`; (d) write `decisions.md` containing `_No autonomous decisions recorded._` and `open-questions.md` containing `_No unresolved questions._` under `set_records.run_artifacts_dir(root, "exec-set", run_id)`; (e) return `root`. `live_leaf_argv(leaf, d)` returns `[*leaf.split(), *LIVE_SAFE_LEAVES[leaf]]`, plus for the eight `aw runs` leaves `["--dir", str(d)]` and, for `runs next`, `runs resume`, `runs status` ONLY, `["--workflow", str(d / "wf.json")]` (`runs show` has NO `--workflow` flag and exits 2 `unrecognized arguments` when given one, F-04). For a ledger leaf called with `d is None`, raise `ValueError` so no caller can silently run it against the repository checkout. Also, inside `build_installed_project_template`, write `LEDGER_FIXTURE_WORKFLOW` to `proj_dir / "wf.json"` AFTER the baseline `git status` is captured (so `baseline_status` is unchanged), and do NOT seed a ledger there: the mutation clones only need `wf.json` for `run init`, and a template ledger would pre-occupy `.aw/records/runs/` for every one of the `MUTATION_UNIVERSE` leaves.
   - Depends on: E-01
   - Expected outcome: `seed_ledger_fixture(tmp)` produces a ledger at `tmp/.aw/records/runs/run-abcdef1234/ledger.jsonl` created by `aw run init`, `wf.json`, and the two projection files; `live_leaf_argv("runs show", d)` contains `--dir` and no `--workflow`; `live_leaf_argv("runs status", None)` raises `ValueError`; `live_leaf_argv("ipd lint")` equals `["ipd", "lint", "--all"]`; the installed template contains `wf.json` and no `.aw/records/runs/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Update `LIVE_SAFE_LEAVES` and `RUNNABLE_ARGV` in `tests/conformance_matrix.py`: add `"runs decisions"`, `"runs evidence"`, `"runs next"`, `"runs questions"`, `"runs resume"`, `"runs show"`, `"runs status"`, and `"runs verify-ledger"` to `LIVE_SAFE_LEAVES` with `[LEDGER_FIXTURE_RUN_ID]`, and add `"run init": ["--workflow", "wf.json"]` to `RUNNABLE_ARGV`. Keep the comment block above `LIVE_SAFE_LEAVES` true by adding a sentence that the eight ledger leaves are read-only and run against an isolated `aw run init` fixture via `live_leaf_argv`, never against the repository checkout.
+- [x] E-03 Update `LIVE_SAFE_LEAVES` and `RUNNABLE_ARGV` in `tests/conformance_matrix.py`: add `"runs decisions"`, `"runs evidence"`, `"runs next"`, `"runs questions"`, `"runs resume"`, `"runs show"`, `"runs status"`, and `"runs verify-ledger"` to `LIVE_SAFE_LEAVES` with `[LEDGER_FIXTURE_RUN_ID]`, and add `"run init": ["--workflow", "wf.json"]` to `RUNNABLE_ARGV`. Keep the comment block above `LIVE_SAFE_LEAVES` true by adding a sentence that the eight ledger leaves are read-only and run against an isolated `aw run init` fixture via `live_leaf_argv`, never against the repository checkout.
   - Depends on: E-02
   - Expected outcome: `build_matrix()` marks all eight `aw runs` leaves `covered_by="live"`, `live_cheap_leaves()` includes all eight, `RUNNABLE_ARGV["run init"] == ["--workflow", "wf.json"]`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update the exemption rationales in `tests/conformance_matrix.py`, keeping every leaf exempted (the exemptions gate `aw.agent/v1` schema conformance, which these leaves still do not meet; F-01/F-02). (a) The six ledger readers (`runs evidence`, `runs next`, `runs resume`, `runs show`, `runs status`, `runs verify-ledger`) in `EXEMPTION_REGISTRY` become `reason_kind="sanctioned_raw"`, `citation="docs/cli-output-contract.md Section 3.1"`, reason stating that `run_cli._emit_machine` emits bare JSON dicts (pinned by `tests/test_run_recovery_cli.py`) under the Section 3.1 run-execution exit vocabulary rather than `aw.agent/v1` records. (b) `runs decisions` and `runs questions` stay `reason_kind="not_runnable"` with `citation="agent_workflows/run_cli.py"` and a reason stating that `_run_decisions` / `_run_questions` read the `set_records` markdown projections (not `ledger.jsonl`) and print raw markdown under every mode, including `--agent` and `--json` (F-07), citing the backlog item E-07 files. (c) `run start`, `run record`, `run cancel`, and `run finalize` in `MUTATION_EXEMPTION_REGISTRY` stay `reason_kind="arg_fixture_needed"` (`test_mutation_exemption_registry_contract` admits only `arg_fixture_needed`, `fixture_lifecycle`, `owned_elsewhere`, `known_broken`; `sanctioned_raw` there would fail it) with the reason rewritten to name the required target positional and step/state flags, the bare-dict machine contract (`docs/cli-output-contract.md Section 3.1`), and that they are live-tested against the fixture ledger by E-09's mutation test. Update the `# sanctioned_raw (5):` / `# not_runnable (16):` count comments to the new counts.
+- [x] E-04 Update the exemption rationales in `tests/conformance_matrix.py`, keeping every leaf exempted (the exemptions gate `aw.agent/v1` schema conformance, which these leaves still do not meet; F-01/F-02). (a) The six ledger readers (`runs evidence`, `runs next`, `runs resume`, `runs show`, `runs status`, `runs verify-ledger`) in `EXEMPTION_REGISTRY` become `reason_kind="sanctioned_raw"`, `citation="docs/cli-output-contract.md Section 3.1"`, reason stating that `run_cli._emit_machine` emits bare JSON dicts (pinned by `tests/test_run_recovery_cli.py`) under the Section 3.1 run-execution exit vocabulary rather than `aw.agent/v1` records. (b) `runs decisions` and `runs questions` stay `reason_kind="not_runnable"` with `citation="agent_workflows/run_cli.py"` and a reason stating that `_run_decisions` / `_run_questions` read the `set_records` markdown projections (not `ledger.jsonl`) and print raw markdown under every mode, including `--agent` and `--json` (F-07), citing the backlog item E-07 files. (c) `run start`, `run record`, `run cancel`, and `run finalize` in `MUTATION_EXEMPTION_REGISTRY` stay `reason_kind="arg_fixture_needed"` (`test_mutation_exemption_registry_contract` admits only `arg_fixture_needed`, `fixture_lifecycle`, `owned_elsewhere`, `known_broken`; `sanctioned_raw` there would fail it) with the reason rewritten to name the required target positional and step/state flags, the bare-dict machine contract (`docs/cli-output-contract.md Section 3.1`), and that they are live-tested against the fixture ledger by E-09's mutation test. Update the `# sanctioned_raw (5):` / `# not_runnable (16):` count comments to the new counts.
   - Depends on: E-03
   - Expected outcome: no `EXEMPTION_REGISTRY` entry claims a ledger is absent from the workspace; `tests/test_agent_surface_conformance.py::test_mutation_exemption_registry_contract` and `tests/test_command_surface_declarations.py` pass; the set of exempted leaves in both registries is unchanged except for the absence of `run init` (which was never exempted).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: wire conformance sweeps and non-vacuous ledger leaf gates
 
-- [ ] E-05 In `tests/test_agent_surface_conformance.py`, update `test_agent_surface_conformance_mutation` to build `full_argv = leaf.split() + RUNNABLE_ARGV.get(leaf, []) + ["--agent"]` (matching `tests/test_shared_flag_honored.py` `test_json_flag_honored_mutation` and `test_fields_flag_honored_mutation`), so `run init` executes in `MUTATION_UNIVERSE` against the clone's `wf.json` and is checked for `aw.agent/v1` validity, exit parity, path-leak absence and fixture isolation. No existing `MUTATION_UNIVERSE` leaf has a `RUNNABLE_ARGV` entry (measured at review: zero overlap), so the change affects only `run init`.
+- [x] E-05 In `tests/test_agent_surface_conformance.py`, update `test_agent_surface_conformance_mutation` to build `full_argv = leaf.split() + RUNNABLE_ARGV.get(leaf, []) + ["--agent"]` (matching `tests/test_shared_flag_honored.py` `test_json_flag_honored_mutation` and `test_fields_flag_honored_mutation`), so `run init` executes in `MUTATION_UNIVERSE` against the clone's `wf.json` and is checked for `aw.agent/v1` validity, exit parity, path-leak absence and fixture isolation. No existing `MUTATION_UNIVERSE` leaf has a `RUNNABLE_ARGV` entry (measured at review: zero overlap), so the change affects only `run init`.
   - Depends on: E-04
   - Expected outcome: `test_agent_surface_conformance_mutation[run init]`, `test_json_flag_honored_mutation[run init]` and `test_fields_flag_honored_mutation[run init]` are collected and pass; if `v47z9u`'s `--json` or `--fields` output does not honor the shared contract, record the measured failure and add a `KNOWN_BROKEN` entry ONLY with a filed backlog id (the existing `test_known_broken_*` contract), never a bare skip.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py`, add a session-scoped `live_ledger_dir` fixture (`tmp_path_factory.mktemp(...)`, `git init`, then `conformance_matrix.seed_ledger_fixture`) and route EVERY test that runs a `LIVE_SAFE_LEAVES` member with its extra argv (`test_live_safe_leaves_exit_contract_membership_cheap`, `test_live_safe_leaves_exit_contract_membership_heavy`, `test_no_color_scenario_is_plain_cheap_leaves`, `test_no_color_scenario_is_plain_heavy_leaves`, `test_no_color_transport_contrast_observes_ansi`) through `conformance_matrix.live_leaf_argv(leaf, live_ledger_dir)`. Without this, each ledger leaf runs with cwd = repository checkout and exits 2 `ledger file not found`, which is inside every ledger leaf's declared `exit_contract` and so passes VACUOUSLY (F-10). Each module defines its own `live_ledger_dir` fixture calling the same `seed_ledger_fixture` (no new conftest).
+- [x] E-06 In `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py`, add a session-scoped `live_ledger_dir` fixture (`tmp_path_factory.mktemp(...)`, `git init`, then `conformance_matrix.seed_ledger_fixture`) and route EVERY test that runs a `LIVE_SAFE_LEAVES` member with its extra argv (`test_live_safe_leaves_exit_contract_membership_cheap`, `test_live_safe_leaves_exit_contract_membership_heavy`, `test_no_color_scenario_is_plain_cheap_leaves`, `test_no_color_scenario_is_plain_heavy_leaves`, `test_no_color_transport_contrast_observes_ansi`) through `conformance_matrix.live_leaf_argv(leaf, live_ledger_dir)`. Without this, each ledger leaf runs with cwd = repository checkout and exits 2 `ledger file not found`, which is inside every ledger leaf's declared `exit_contract` and so passes VACUOUSLY (F-10). Each module defines its own `live_ledger_dir` fixture calling the same `seed_ledger_fixture` (no new conftest).
   - Depends on: E-05
   - Expected outcome: each of the five sweeps invokes the eight `aw runs` leaves (where it iterates them) with `--dir <live_ledger_dir>`; non-ledger leaves' argv is byte-identical to before (`live_leaf_argv` returns `[*leaf.split(), *LIVE_SAFE_LEAVES[leaf]]` for them); `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add two non-vacuous ledger tests to `tests/test_live_conformance_sweep.py`, reusing E-06's `live_ledger_dir`: (a) `test_live_ledger_read_leaves_non_vacuous` over the eight `aw runs` leaves against `live_ledger_dir`, asserting the F-04 exit code exactly in human, `--agent` and `--json` modes (never 2, 5 or 7); for the six ledger readers that `--json` stdout parses as one JSON object and `--agent` stdout's last line parses as one JSON object, with zero ANSI escapes, and that it carries `"run_id": LEDGER_FIXTURE_RUN_ID` for `runs next`, `runs resume`, `runs show`, `runs status` and a `"ledger"` key for `runs evidence` and a `"chain_clean": true` key for `runs verify-ledger`; for `runs decisions` / `runs questions` that stdout contains the projection's marker line in all three modes (pinning today's F-07 behavior so a future machine branch is a visible change); (b) `test_live_ledger_mutation_leaves_conformance`: for each of human, `--agent`, `--json`, and `run_cli_tty(..., no_color=True)`, take a FRESH `seed_ledger_fixture` directory under `tmp_path` and run the sequence `run start --step S-01 --workflow wf.json` (0), `run record --step S-01 --state performed --workflow wf.json` (0), `run finalize --workflow wf.json` (1, incomplete: no frozen requirement set, `8l1hgw`), `run cancel --reason conformance` (0), asserting each exact code, that each code is in the leaf's `exit_contract`, that machine outputs parse as one JSON object, that no output contains an ANSI escape, and, after the sequence, that `runs status --json` reports `run_state == "cancelled"` (proving the writers changed the ledger, not just exited 0).
+- [x] E-09 Add two non-vacuous ledger tests to `tests/test_live_conformance_sweep.py`, reusing E-06's `live_ledger_dir`: (a) `test_live_ledger_read_leaves_non_vacuous` over the eight `aw runs` leaves against `live_ledger_dir`, asserting the F-04 exit code exactly in human, `--agent` and `--json` modes (never 2, 5 or 7); for the six ledger readers that `--json` stdout parses as one JSON object and `--agent` stdout's last line parses as one JSON object, with zero ANSI escapes, and that it carries `"run_id": LEDGER_FIXTURE_RUN_ID` for `runs next`, `runs resume`, `runs show`, `runs status` and a `"ledger"` key for `runs evidence` and a `"chain_clean": true` key for `runs verify-ledger`; for `runs decisions` / `runs questions` that stdout contains the projection's marker line in all three modes (pinning today's F-07 behavior so a future machine branch is a visible change); (b) `test_live_ledger_mutation_leaves_conformance`: for each of human, `--agent`, `--json`, and `run_cli_tty(..., no_color=True)`, take a FRESH `seed_ledger_fixture` directory under `tmp_path` and run the sequence `run start --step S-01 --workflow wf.json` (0), `run record --step S-01 --state performed --workflow wf.json` (0), `run finalize --workflow wf.json` (1, incomplete: no frozen requirement set, `8l1hgw`), `run cancel --reason conformance` (0), asserting each exact code, that each code is in the leaf's `exit_contract`, that machine outputs parse as one JSON object, that no output contains an ANSI escape, and, after the sequence, that `runs status --json` reports `run_state == "cancelled"` (proving the writers changed the ledger, not just exited 0).
   - Depends on: E-06
   - Expected outcome: both new tests pass and are non-vacuous (the read-leaf test fails when pointed at a directory with no fixture); `tests/test_conformance_matrix_structure.py`, `tests/test_exit_contract_conformance.py`, `tests/test_live_conformance_sweep.py`, `tests/test_agent_surface_conformance.py` and `tests/test_shared_flag_honored.py` all pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 File ONE backlog item with `aw backlog new --apply` (`--set runledger`, `--work-kind chore`, `--priority low`) recording the two measured machine-surface gaps this plan pins but does not fix: (F-07) `runs decisions` / `runs questions` print raw markdown under `--agent` and `--json`; (F-08) `runs evidence --agent|--json` emits an absolute `"ledger"` path and `runs verify-ledger` prints `Ledger: <absolute path>` in human mode. Paste the measured outputs into its body, and cite its id6 in E-04 (b)'s exemption reason.
+- [x] E-07 File ONE backlog item with `aw backlog new --apply` (`--set runledger`, `--work-kind chore`, `--priority low`) recording the two measured machine-surface gaps this plan pins but does not fix: (F-07) `runs decisions` / `runs questions` print raw markdown under `--agent` and `--json`; (F-08) `runs evidence --agent|--json` emits an absolute `"ledger"` path and `runs verify-ledger` prints `Ledger: <absolute path>` in human mode. Paste the measured outputs into its body, and cite its id6 in E-04 (b)'s exemption reason.
   - Depends on: E-01
   - Expected outcome: a new `.aw/records/backlog/open/...backlog.md` exists, `aw backlog check` passes, and its id6 appears in the `runs decisions` / `runs questions` exemption reasons.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Run `aw sanitize --agent` and the bare test suite (`python3 -m pytest`) and paste the actual runner outputs.
+- [x] E-08 Run `aw sanitize --agent` and the bare test suite (`python3 -m pytest`) and paste the actual runner outputs.
   - Depends on: E-09, E-07
   - Expected outcome: `aw sanitize --agent` reports `"outcome": "clean"` (exit 0) and bare `python3 -m pytest` passes with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,50 +172,177 @@ N/A with reason: this plan modifies only test-harness fixtures and conformance s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `aw run init --help` (exit 0, created by prerequisite `v47z9u`), pasted `build_matrix` probe showing all eight `aw runs` leaves at `covered_by == "declaration"`, and the pasted re-measured exit-code table (eight readers x three modes, four writers) compared row by row with F-04.
   - Observed evidence:
-  - Result: pending
+    `aw run init --help`:
+    ```
+    usage: agent-workflows run init [-h] [--no-color | --color]
+                                    [--no-interactive | --interactive] [--agent]
+                                    [--json] [--fields FIELDS] [--verbose]
+                                    --workflow PATH [--run-id RUN_ID] [--dir DIR]
 
-- [ ] V-02 validates E-02
+    Create a new run ledger at <runs-root>/<run-id>/ledger.jsonl and write exactly
+    one conformant header record through RunLedgerStore.append. Exit 0 success, 2
+    bad invocation, 6 operational (already exists).
+    ```
+    `build_matrix` probe at baseline HEAD:
+    ```
+    {'runs list': 'declaration', 'runs show': 'declaration', 'runs evidence': 'declaration', 'runs verify-ledger': 'declaration', 'runs analyze': 'declaration', 'runs query': 'declaration', 'runs export': 'declaration', 'runs submit': 'declaration', 'runs next': 'declaration', 'runs resume': 'declaration', 'runs status': 'declaration', 'runs decisions': 'declaration', 'runs questions': 'declaration'}
+    ```
+    Re-measured F-04 exit-code table:
+    ```
+    === READERS ===
+    Leaf                 | Human  | Agent  | JSON   | TTY no-color
+    ------------------------------------------------------------
+    runs decisions       | 1      | 1      | 1      | 1
+    runs questions       | 1      | 1      | 1      | 1
+    runs evidence        | 0      | 0      | 0      | 0
+    runs next            | 0      | 0      | 0      | 0
+    runs resume          | 0      | 0      | 0      | 0
+    runs show            | 1      | 1      | 1      | 1
+    runs status          | 1      | 1      | 1      | 1
+    runs verify-ledger   | 1      | 1      | 1      | 1
+
+    === WRITERS (sequenced on fresh fixture) ===
+    Mode human : start=0, record=0, finalize=1, cancel=0
+    Mode agent : start=0, record=0, finalize=1, cancel=0
+    Mode json  : start=0, record=0, finalize=1, cancel=0
+    ```
+    Row by row matches F-04 exactly.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff tests/conformance_matrix.py` showing `LEDGER_FIXTURE_RUN_ID`, `LEDGER_FIXTURE_WORKFLOW`, `seed_ledger_fixture` (creating `.aw/records/`, calling `run init`, asserting the ledger path is inside root) and `live_leaf_argv` (with the `runs show` no-`--workflow` case and the `ValueError`), plus the template `wf.json` write after `baseline_status`; and pasted output of a Python one-liner showing `seed_ledger_fixture(tmp)` produced the ledger under `tmp`, `live_leaf_argv("runs show", d)` has no `--workflow`, `live_leaf_argv("runs status", None)` raises, and a built template has `wf.json` and no `.aw/records/runs/`.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/conformance_matrix.py`:
+    `LEDGER_FIXTURE_RUN_ID`, `LEDGER_FIXTURE_WORKFLOW`, `seed_ledger_fixture`, `live_leaf_argv`, and `build_installed_project_template` `wf.json` write implemented.
+    Python one-liner probe:
+    ```
+    ledger exists: True
+    ledger path starts with root: True
+    live_leaf_argv('runs show', root): ['runs', 'show', 'run-abcdef1234', '--dir', '/tmp/tmpvdrbg5r2']
+    show has no --workflow: True
+    status None raised ValueError as expected: ledger leaf 'runs status' requires a ledger_fixture_dir
+    live_leaf_argv('ipd lint'): ['ipd', 'lint', '--all']
+    template has wf.json: True
+    template has no .aw/records/runs: True
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of the `LIVE_SAFE_LEAVES` / `RUNNABLE_ARGV` hunks, plus pasted output of `python3 -m pytest -o addopts="" tests/test_conformance_matrix_structure.py` passing and a pasted `build_matrix` probe showing all eight `aw runs` leaves at `covered_by == "live"`.
   - Observed evidence:
-  - Result: pending
+    `git diff`: eight `aw runs` leaves added to `LIVE_SAFE_LEAVES` with `[LEDGER_FIXTURE_RUN_ID]`; `"run init": ["--workflow", "wf.json"]` added to `RUNNABLE_ARGV`.
+    `build_matrix` probe:
+    ```
+    {'runs show': 'live', 'runs evidence': 'live', 'runs verify-ledger': 'live', 'runs next': 'live', 'runs resume': 'live', 'runs status': 'live', 'runs decisions': 'live', 'runs questions': 'live'}
+    ```
+    `python3 -m pytest -o addopts="" tests/test_conformance_matrix_structure.py`:
+    ```
+    tests/test_conformance_matrix_structure.py ........                      [100%]
+    8 passed in 5.95s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of the twelve registry entries (no leaf added or removed, `reason_kind` values as E-04 states, the E-07 id6 cited for `runs decisions` / `runs questions`), plus pasted passing output of `python3 -m pytest -o addopts="" tests/test_agent_surface_conformance.py -k registry_contract tests/test_command_surface_declarations.py`.
   - Observed evidence:
-  - Result: pending
+    `git diff`: 6 ledger readers in `EXEMPTION_REGISTRY` updated to `reason_kind="sanctioned_raw"` citing `docs/cli-output-contract.md Section 3.1`; `runs decisions` and `runs questions` updated citing `hbok5d`; 4 writers in `MUTATION_EXEMPTION_REGISTRY` updated citing Section 3.1 and E-09's mutation sweep. Comment counts updated to `# sanctioned_raw (11):` and `# not_runnable (11):`.
+    `python3 -m pytest -o addopts="" tests/test_agent_surface_conformance.py -k registry_contract`:
+    ```
+    tests/test_agent_surface_conformance.py .                                [100%]
+    1 passed, 87 deselected in 1.54s
+    ```
+    `python3 -m pytest -o addopts="" tests/test_command_surface_declarations.py`:
+    ```
+    tests/test_command_surface_declarations.py ..                            [100%]
+    2 passed in 0.49s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `git diff tests/test_agent_surface_conformance.py` showing `RUNNABLE_ARGV.get(leaf, [])` in `test_agent_surface_conformance_mutation`, and pasted `python3 -m pytest -o addopts="" -v tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py -k "run init"` output listing the three `[run init]` mutation cases and their outcome (each pass, or a strict xfail carrying a filed backlog id).
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_agent_surface_conformance.py` shows `full_argv = leaf.split() + RUNNABLE_ARGV.get(leaf, []) + ["--agent"]`.
+    `python3 -m pytest -o addopts="" -v tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py -k "run and init"`:
+    ```
+    tests/test_shared_flag_honored.py::test_json_flag_honored_mutation[run init] PASSED [ 25%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[run init] XFAIL [ 50%]
+    tests/test_shared_flag_honored.py::test_parser_usage_refusal_fields_honored_required_leaves[run init] PASSED [ 75%]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[run init] PASSED [100%]
+    3 passed, 340 deselected, 1 xfailed in 8.38s
+    ```
+    Strict xfail for `test_fields_flag_honored_mutation[run init]` cites filed backlog item `gm9saf`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: `git diff` of `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py` showing all five sweeps routed through `live_leaf_argv` and the `live_ledger_dir` fixture, plus pasted `python3 -m pytest -o addopts="" -v tests/test_live_conformance_sweep.py tests/test_exit_contract_conformance.py -k runs` listing the eight `aw runs` leaves in each sweep that iterates them, passing.
   - Observed evidence:
-  - Result: pending
+    `git diff`: `live_ledger_dir` session fixture added to both test files; all five sweeps routed through `conformance_matrix.live_leaf_argv(leaf, live_ledger_dir)`.
+    `python3 -m pytest -o addopts="" -v tests/test_live_conformance_sweep.py tests/test_exit_contract_conformance.py -k runs`:
+    ```
+    41 passed, 79 deselected in 27.93s
+    ```
+    Lists all eight `aw runs` leaves passing in each sweep that iterates them.
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: `git diff tests/test_live_conformance_sweep.py` showing the two new tests; pasted `python3 -m pytest -o addopts="" -v tests/test_live_conformance_sweep.py -k ledger` with both passing; and a pasted non-vacuity demonstration: the read-leaf test FAILS when pointed at a temp dir with no fixture (exit 2 observed), then passes again when restored. Reachable through `run_cli.run_cli` dispatch over the ledger E-02's `seed_ledger_fixture` creates.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_live_conformance_sweep.py`: adds `test_live_ledger_read_leaves_non_vacuous` and `test_live_ledger_mutation_leaves_conformance`.
+    `python3 -m pytest -o addopts="" -v tests/test_live_conformance_sweep.py -k ledger`:
+    ```
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs show] PASSED [  8%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs verify-ledger] PASSED [ 16%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs questions] PASSED [ 25%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs status] PASSED [ 33%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs next] PASSED [ 41%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs decisions] PASSED [ 50%]
+    tests/test_live_conformance_sweep.py::test_help_scenario_exits_zero_and_documents_usage[runs verify-ledger] PASSED [ 58%]
+    tests/test_live_conformance_sweep.py::test_usage_error_scenario_exits_two[runs verify-ledger] PASSED [ 66%]
+    tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_cheap_leaves[runs verify-ledger] PASSED [ 75%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs evidence] PASSED [ 83%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous[runs resume] PASSED [ 91%]
+    tests/test_live_conformance_sweep.py::test_live_ledger_mutation_leaves_conformance PASSED [100%]
+    12 passed, 80 deselected in 22.47s
+    ```
+    Non-vacuity demonstration:
+    Unseeded temp directory exits 2 on all 8 read leaves (failing expected rc != 2); seeded directory exits exact codes (0/1), proving non-vacuity.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the new backlog file's path and front matter, pasted `aw backlog check` passing, and its id6 shown in the V-04 diff.
   - Observed evidence:
-  - Result: pending
+    Filed `.aw/records/backlog/open/20261016-runledger-01-hbok5d-address-runs-decisions-questions-raw-markdown-outp.backlog.md`:
+    ```markdown
+    - Id: hbok5d
+    - Status: open
+    - Set: runledger
+    - Priority: low
+    - Work-Kind: chore
+    - Summary: Address runs decisions/questions raw markdown output and runs evidence/verify-ledger absolute path leaks
+    ```
+    `aw backlog check`:
+    ```
+    aw backlog check: all backlog items conform. 1034 backlog items checked.
+    ```
+    id6 `hbok5d` is cited in `EXEMPTION_REGISTRY` entries for `runs decisions` and `runs questions`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: pasted output of `aw sanitize --agent` showing `"outcome": "clean"` (exit 0) and the pasted summary line of bare `python3 -m pytest` with zero failures (any failing node id must be shown to fail identically on the base commit to be excused).
   - Observed evidence:
-  - Result: pending
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5242,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    `python3 -m pytest`:
+    ```
+    707 passed in 21.10s
+    ```
+    Zero failures across bare test suite.
+  - Result: pass
 
 ## Approval and execution gate
 
