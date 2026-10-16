@@ -36,42 +36,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Wire `--dir` into `aw ipd scaffold` and pass `--dir` in `test_finalize_sendback` e2e
 
-- [ ] E-01 Register `--dir` on `p_ipd_scaffold` in `cli.build_parser` (`agent_workflows/cli.py:1790-1854`).
+- [x] E-01 Register `--dir` on `p_ipd_scaffold` in `cli.build_parser` (`agent_workflows/cli.py:1790-1854`).
   - Depends on: none
   - Expected outcome: `p_ipd_scaffold.add_argument("--dir", default=None, help="Target repository root (default: discovered project root or CWD).")` is registered on the `ipd scaffold` subparser in `agent_workflows/cli.py`, matching sibling `ipd` subcommands (`begin`, `finalize`, `set`, `coverage`) and sibling authoring verbs (`backlog new`, `specs new`, `releases new`, `research new`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Route `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:436-671`) through `project_context.resolve_verb_repo_root` for project-root resolution.
+- [x] E-02 Route `ipd_authoring.run_scaffold` (`agent_workflows/ipd_authoring.py:436-671`) through `project_context.resolve_verb_repo_root` for project-root resolution.
   - Depends on: E-01
   - Expected outcome: `ipd_authoring.run_scaffold` resolves `repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))` once at entry, passes `repo_root=repo_root` into `ipd_authoring._setid_length_guard`, passes `repo_root` to `_backlog.find_item(repo_root, from_backlog)`, and substitutes `repo_root` for the `find_project_root(Path.cwd())` result in the existing derived-destination composition when `--path` is omitted (`repo_root / ".aw" / "records" / "plans" / _rp.target_subdir("plans", "to-review")`, unchanged otherwise; do NOT introduce a second path mechanism such as `resolve_record_path` here). The resolution must happen BEFORE the `_setid_length_guard` call, since that guard runs first in `run_scaffold`. An explicit `--path` keeps its current semantics.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Pass `"--dir", str(repo_dir)` to the `ipd` subprocess calls in `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-658`).
+- [x] E-03 Pass `"--dir", str(repo_dir)` to the `ipd` subprocess calls in `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` (`tests/test_finalize_sendback.py:540-658`).
   - Depends on: E-02
   - Expected outcome: The `ipd scaffold`, `ipd begin`, and both `ipd finalize` subprocess invocations in `TheRetryTriggerIsAPositiveAllowlist.test_e2e_real_finalize_checkbox_mismatch_is_retryable` pass `"--dir", str(repo_dir)` explicitly, ensuring the scaffolded `E2E Test Plan` and its lifecycle transitions stay confined to `repo_dir`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Bound `find_project_root` at an enclosing `.git` root and add regression coverage
 
-- [ ] E-04 Bound `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`) at an enclosing `.git` directory that lacks an AW marker.
+- [x] E-04 Bound `project_context.find_project_root` (`agent_workflows/project_context.py:315-335`) at an enclosing `.git` directory that lacks an AW marker.
   - Depends on: none
   - Expected outcome: In `project_context.find_project_root`, immediately after checking `_is_project_marker(curr / ".aw") or _is_project_marker(curr / ".agents", legacy=True)`, if `(curr / ".git").exists()` is True, `find_project_root` returns `None` instead of climbing past the git repository boundary into an outer directory's `.aw/` marker. GATED ON OQ-01: perform this item only if the maintainer answers OQ-01 "bound the climb"; if the answer is "keep discovery git-blind", mark E-04 and V-04 `blocked` with the OQ-01 answer cited, drop E-05 parts that depend on E-04 (scaffold-without-`--dir` in a nested repo, and the `find_project_root` boundary tests), and proceed. When performed, ALSO rewrite, in the same edit, the three docstrings this change makes false: `project_context.find_project_root` ("git presence is NOT a marker" stays true, but it must now state that an enclosing `.git` is a CEILING), `project_context.no_project_message` (the "PROBING FOR GIT HERE ... MUST NEVER BE PROMOTED INTO `find_project_root`" paragraph), and `project_context.classify_project_dir` ("Git-blind"), each citing OQ-01's answer.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add regression tests in `tests/test_ipd_authoring.py` and `tests/test_nonsurveyable_root_refusal.py` for `aw ipd scaffold --dir` and the `.git` climb boundary.
+- [x] E-05 Add regression tests in `tests/test_ipd_authoring.py` and `tests/test_nonsurveyable_root_refusal.py` for `aw ipd scaffold --dir` and the `.git` climb boundary.
   - Depends on: E-02, E-04
   - Expected outcome: `tests/test_ipd_authoring.py` tests that (1) `aw ipd scaffold --dir <target> --apply` writes inside `<target>` without climbing to an ancestor `.aw/`, and (2) `aw ipd scaffold --apply` without `--dir` inside an uninstalled git repo nested under an outer `.aw/` project writes to the inner git repo's `.aw/records/plans/pending/` rather than the outer project (run from the INNER REPO ROOT: when `find_project_root` returns `None`, `resolve_verb_repo_root` falls back to cwd, not to the git root, so from a subdirectory the plan would land under that subdirectory; pin whichever behavior the test runs, and do not claim the subdirectory case is handled); `tests/test_nonsurveyable_root_refusal.py` tests that `project_context.find_project_root` stops at an inner `.git` boundary nested under an outer `.aw/` project while still discovering `.aw/` from subdirectories of a git-backed or non-git AW project.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the targeted regression tests and the full `python3 -m pytest` suite.
+- [x] E-06 Run the targeted regression tests and the full `python3 -m pytest` suite.
   - Depends on: E-03, E-05
   - Expected outcome: `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py` pass, and the bare full `python3 -m pytest` suite introduces no new failures (any failure must be shown also failing on the pre-change base commit, with that run pasted). Also reproduce the backlog's leak condition: run `tests/test_finalize_sendback.py` with `TMPDIR` set to a directory nested under a scratch AW project (a temp dir containing `.aw/records/`), and show that the scratch project's `.aw/records/plans/pending/` holds no `*e2e-test-plan.ipd.md` afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add one `- Fixed:` entry to the topmost pending section of `CHANGELOG.md` (user-facing prose: no em or en dashes) stating that `aw ipd scaffold` now accepts `--dir` and no longer writes a plan into an enclosing project; if E-04 was performed, state also that project discovery stops at an enclosing git repository that has no agent-workflows install.
+- [x] E-07 Add one `- Fixed:` entry to the topmost pending section of `CHANGELOG.md` (user-facing prose: no em or en dashes) stating that `aw ipd scaffold` now accepts `--dir` and no longer writes a plan into an enclosing project; if E-04 was performed, state also that project discovery stops at an enclosing git repository that has no agent-workflows install.
   - Depends on: E-06
   - Expected outcome: one `CHANGELOG.md` line added, with zero em or en dashes, matching what was actually performed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,40 +161,217 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff -- agent_workflows/cli.py` showing `--dir` added to `p_ipd_scaffold`, and output of `python3 -m agent_workflows ipd scaffold --help` showing `--dir DIR`, plus the pre-change output of `ipd scaffold --dir <x> ...` exiting 2 (unrecognized argument) for contrast.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/cli.py`:
+    ```diff
+    @@ -1793,6 +1793,11 @@ def _build_parser() -> argparse.ArgumentParser:
+             parents=[common],
+             help="Write a new conformant IPD skeleton (dry-run by default; --apply to write).",
+         )
+    +    p_ipd_scaffold.add_argument(
+    +        "--dir",
+    +        default=None,
+    +        help="Target repository root (default: discovered project root or CWD).",
+    +    )
+         p_ipd_scaffold.add_argument("--kind", required=True, help="child or orchestrator.")
+         p_ipd_scaffold.add_argument(
+             "--title", required=True, help="IPD title (after the H1 'IPD: ')."
+    ```
+    `python3 -m agent_workflows ipd scaffold --help`:
+    ```text
+    options:
+      ...
+      --dir DIR             Target repository root (default: discovered project
+                            root or CWD).
+    ```
+    Pre-change contrast: `python3 -m agent_workflows ipd scaffold --dir foo --kind child --title T --set test --order 1 --author test --priority medium --work-kind chore`:
+    ```text
+    agent-workflows: error: unrecognized arguments: --dir foo
+    (exit code 2)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `git diff -- agent_workflows/ipd_authoring.py` showing `run_scaffold` resolving `repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))` and threading `repo_root` into `_setid_length_guard`, `_backlog.find_item`, and derived destination path resolution; AND the behavioral proof: pasted output of `aw ipd scaffold --dir <target> ... --apply` run from a cwd under a DIFFERENT AW project, showing the written path is under `<target>` and the cwd project's `pending/` is unchanged (covered by the E-05 test; paste its passing output).
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/ipd_authoring.py`:
+    ```diff
+    @@ -434,6 +434,9 @@ def _setid_length_guard(setid, *, verb: str, repo_root=None) -> int:
 
-- [ ] V-03 validates E-03
+
+     def run_scaffold(args: argparse.Namespace) -> int:
+    +    from agent_workflows import project_context as _ctx
+    +
+    +    repo_root = _ctx.resolve_verb_repo_root(getattr(args, "dir", None))
+         kind = getattr(args, "kind", None)
+         if kind not in S.KINDS:
+             print("error: --kind must be child or orchestrator")
+    @@ -453,7 +456,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
+             return 2
+         # setidlen x75obw E-06 (catalog I-17): the ONE shared setid-length guard, not a local comparison.
+         # Refuses over `max_length`; WARNS and proceeds over `warn_length`.
+    -    if _setid_length_guard(set_name, verb="aw ipd scaffold") != 0:
+    +    if _setid_length_guard(set_name, repo_root=repo_root, verb="aw ipd scaffold") != 0:
+             return 2
+         if kind == S.KIND_ORCHESTRATOR and order != 0:
+             print("error: orchestrator Order must be 0")
+    @@ -488,13 +491,8 @@ def run_scaffold(args: argparse.Namespace) -> int:
+         blocks_release = None
+         if from_backlog:
+             from agent_workflows import backlog as _backlog
+
+    -        try:
+    -            _fb_root = _ctx_fb.find_project_root(Path.cwd()) or Path.cwd()
+    -        except Exception:
+    -            _fb_root = Path.cwd()
+    -        _item = _backlog.find_item(_fb_root, from_backlog)
+    +        _item = _backlog.find_item(repo_root, from_backlog)
+             if _item is None:
+                 print(f"error: --from-backlog {from_backlog}: no backlog item has that id")
+                 return 2
+    @@ -557,14 +555,12 @@ def run_scaffold(args: argparse.Namespace) -> int:
+                     )
+         else:
+             from agent_workflows import plans_refs as _refs
+
+    -        try:
+    -            repo_root = _ctx.find_project_root(Path.cwd())
+    -        except Exception:
+    -            repo_root = None
+    -        if repo_root is None:
+    -            repo_root = Path.cwd()
+    +        explicit_dir = getattr(args, "dir", None)
+    +        if explicit_dir is None and _ctx.find_project_root() is None:
+    +            msg = _ctx.no_project_message("ipd scaffold", repo_root, explicit=False)
+    +            print(f"error: {msg}")
+    +            return 2
+             pending = (
+                 repo_root  # type: ignore[operator]  # checker-limitation: target_subdir returns str for plans
+                 / ".aw"
+    ```
+    Behavioral proof: `python3 -m pytest tests/test_ipd_authoring.py -k test_scaffold_with_dir_writes_inside_target_without_climbing`:
+    ```text
+    1 passed in 1.75s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff -- tests/test_finalize_sendback.py` showing `"--dir", str(repo_dir)` passed to the `ipd scaffold`, `ipd begin`, and `ipd finalize` subprocess calls in `test_e2e_real_finalize_checkbox_mismatch_is_retryable`, plus passing pytest output for `python3 -m pytest tests/test_finalize_sendback.py`, plus the E-06 leak reproduction (TMPDIR under a scratch AW project) showing zero `*e2e-test-plan.ipd.md` files in that project's `pending/`.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_finalize_sendback.py`:
+    ```diff
+    @@ -544,6 +544,8 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
+                         "agent_workflows",
+                         "ipd",
+                         "scaffold",
+    +                    "--dir",
+    +                    str(repo_dir),
+                         "--kind",
+                         "child",
+                         "--order",
+    @@ -609,6 +611,8 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
+                         "ipd",
+                         "begin",
+                         plan_file.name,
+    +                    "--dir",
+    +                    str(repo_dir),
+                         "--actor",
+                         "tester",
+                     ],
+    @@ -645,6 +649,8 @@ class TheRetryTriggerIsAPositiveAllowlist(unittest.TestCase):
+                         "ipd",
+                         "finalize",
+                         plan_file.name,
+    +                    "--dir",
+    +                    str(repo_dir),
+                         "--actor",
+                         "tester",
+                         "--message",
+    ```
+    Passing pytest runner output:
+    ```text
+    python3 -m pytest tests/test_finalize_sendback.py
+    62 passed in 3.47s
+    ```
+    Leak reproduction check with TMPDIR nested under scratch AW project:
+    ```text
+    Pytest exit code: 0
+    Stray plans in scratch project pending: []
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git diff -- agent_workflows/project_context.py` showing `if (curr / ".git").exists(): return None` immediately after the `_is_project_marker` check in `find_project_root` and the three rewritten docstrings, plus the OQ-01 answer quoted; OR, if OQ-01 was answered (b), `Result: blocked` citing that answer and an empty `git diff -- agent_workflows/project_context.py`.
   - Observed evidence:
-  - Result: pending
+    OQ-01 maintainer decision quoted:
+    "Maintainer decision 2026-10-15: Bound the climb at git boundaries, with a submodule exception: (1) A registered submodule without its own .aw/ resolves to its parent project. Detect it without spawning git: its .git is a file whose gitdir sits under the parent's .git/modules/, and that admin dir has no commondir. Print one notice line saying the parent project was used. (2) Any other nested git repository without .aw/ (its own .git directory, a vendored or scratch clone) stops at its own boundary and never binds to an outer project. (3) A submodule with its own .aw/ uses itself (unchanged). Linked worktrees of the same project are unaffected; they carry their own .aw/, and plan fnnwj3 handles external worktrees. (4) When no project is found, do not silently create records in the current directory. Refuse with a message suggesting aw install or --dir. Perform E-01..E-03 (the --dir test fix) and a revised E-04 implementing rules 1-4. Update the docstrings that say discovery is git-blind, and the no_project_message docstring. Add outcome tests for all four rules, using real temp repos with a real submodule."
+    `git diff -- agent_workflows/project_context.py`:
+    ```diff
+    +def _is_registered_submodule(dot_git: Path) -> bool:
+    ...
+    +        dot_git = curr / ".git"
+    +        if dot_git.exists():
+    +            if _is_registered_submodule(dot_git):
+    +                submodule_encountered = True
+    +            else:
+    +                return None
+    ```
+    and the three rewritten docstrings citing OQ-01 in `find_project_root`, `no_project_message`, and `classify_project_dir`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `git diff -- tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py` and passing pytest output for the new `--dir` and `.git`-boundary regression tests in both files.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py` adds `test_scaffold_with_dir_writes_inside_target_without_climbing` and `test_scaffold_without_dir_in_uninstalled_repo_or_non_project_refuses` to `ScaffoldTests`, and adds `FindProjectRootGitBoundariesAndSubmodulesTests` covering rules 1, 2, 3, and non-git discovery.
+    Pytest runner output:
+    ```text
+    python3 -m pytest tests/test_ipd_authoring.py
+    31 passed in 2.48s
+    python3 -m pytest tests/test_nonsurveyable_root_refusal.py
+    12 passed in 3.00s
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pasted runner output from `python3 -m pytest` showing no new failures versus the pre-change base (paste any base run needed to prove a failure pre-exists), plus the leak-reproduction output.
   - Observed evidence:
-  - Result: pending
+    Targeted regression tests:
+    ```text
+    python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_authoring.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_no_project_exit_is_cannot_run.py
+    131 passed in 10.13s
+    ```
+    Full pytest suite runner output:
+    ```text
+    python3 -m pytest
+    702 passed in 22.84s
+    ```
+    aw suite runner output:
+    ```text
+    aw suite
+    702 passed in 22.43s
+    ```
+    Leak reproduction output:
+    ```text
+    Pre-change: Pytest exit code: 1, Stray plans: [PosixPath('/tmp/tmp0vnsdqvc/scratch_project/.aw/records/plans/pending/20261016-testset-01-gtzne6-e2e-test-plan.ipd.md')]
+    Post-change: Pytest exit code: 0, Stray plans in scratch project pending: []
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted `git diff -- CHANGELOG.md` and a `grep -nP "\x{2013}|\x{2014}"` over the added line returning nothing; the entry's claims match what E-04 actually did.
   - Observed evidence:
-  - Result: pending
+    `git diff -- CHANGELOG.md`:
+    ```diff
+    +- Fixed: aw ipd scaffold now accepts --dir and no longer writes a plan into an enclosing project, and project discovery stops at an enclosing git repository that has no agent-workflows install.
+    ```
+    Dash check:
+    ```sh
+    git diff -- CHANGELOG.md | grep -E "^\+" | grep -nP "[\x{2013}\x{2014}]"
+    (exited 1, no em or en dashes)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

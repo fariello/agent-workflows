@@ -395,5 +395,205 @@ class NonsurveyableRootRefusalTests(unittest.TestCase):
         )
 
 
+class FindProjectRootGitBoundariesAndSubmodulesTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir_obj = tempfile.TemporaryDirectory()
+        self.fix_root = Path(self.temp_dir_obj.name).resolve()
+
+    def tearDown(self):
+        self.temp_dir_obj.cleanup()
+
+    def test_inner_git_boundary_stops_discovery_under_outer_aw_project(self):
+        """Rule 2: An uninstalled nested git repo stops discovery at its own boundary and never binds to outer AW project."""
+        outer = self.fix_root / "outer_project"
+        outer.mkdir()
+        (outer / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+
+        inner = outer / "nested_clone"
+        inner.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", str(inner)], check=True, capture_output=True
+        )
+
+        inner_sub = inner / "src" / "deep"
+        inner_sub.mkdir(parents=True)
+
+        self.assertIsNone(find_project_root(inner), "nested git repo must return None")
+        self.assertIsNone(
+            find_project_root(inner_sub),
+            "subdirectory of nested git repo must return None",
+        )
+
+    def test_nongit_aw_project_subdirectories_discover_root(self):
+        """Subdirectories of a non-git AW project successfully discover project root."""
+        nongit = self.fix_root / "nongit_project"
+        nongit.mkdir()
+        (nongit / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+
+        sub = nongit / "pkg" / "module"
+        sub.mkdir(parents=True)
+
+        self.assertEqual(find_project_root(sub), nongit)
+        self.assertEqual(find_project_root(nongit), nongit)
+
+    def test_git_submodule_without_aw_resolves_to_parent_with_notice(self):
+        """Rule 1: Registered submodule without .aw/ resolves to parent project and prints notice line."""
+        parent = self.fix_root / "parent_proj"
+        parent.mkdir()
+        (parent / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+        try:
+            subprocess.run(
+                ["git", "init", "-b", "main", str(parent)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=parent,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "test"], cwd=parent, check=True
+            )
+            (parent / "readme.txt").write_text("parent")
+            subprocess.run(["git", "add", "readme.txt"], cwd=parent, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "parent init"], cwd=parent, check=True
+            )
+
+            sub_source = self.fix_root / "sub_source"
+            sub_source.mkdir()
+            subprocess.run(
+                ["git", "init", "-b", "main", str(sub_source)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=sub_source,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "test"],
+                cwd=sub_source,
+                check=True,
+            )
+            (sub_source / "sub.txt").write_text("sub")
+            subprocess.run(["git", "add", "sub.txt"], cwd=sub_source, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "sub init"], cwd=sub_source, check=True
+            )
+
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "protocol.file.allow=always",
+                    "submodule",
+                    "add",
+                    str(sub_source),
+                    "sub_no_aw",
+                ],
+                cwd=parent,
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise unittest.SkipTest(f"git operations restricted: {exc}")
+
+        sub_no_aw = parent / "sub_no_aw"
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            res = find_project_root(sub_no_aw)
+        self.assertEqual(res, parent)
+        self.assertIn("notice: parent project was used", buf.getvalue())
+
+        sub_deep = sub_no_aw / "subpkg"
+        sub_deep.mkdir()
+        buf_deep = io.StringIO()
+        with contextlib.redirect_stderr(buf_deep):
+            res_deep = find_project_root(sub_deep)
+        self.assertEqual(res_deep, parent)
+        self.assertIn("notice: parent project was used", buf_deep.getvalue())
+
+    def test_git_submodule_with_own_aw_uses_itself_without_notice(self):
+        """Rule 3: Submodule with its own .aw/ uses itself without printing notice."""
+        parent = self.fix_root / "parent_proj_3"
+        parent.mkdir()
+        (parent / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+        try:
+            subprocess.run(
+                ["git", "init", "-b", "main", str(parent)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=parent,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "test"], cwd=parent, check=True
+            )
+            (parent / "readme.txt").write_text("parent")
+            subprocess.run(["git", "add", "readme.txt"], cwd=parent, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "parent init"], cwd=parent, check=True
+            )
+
+            sub_source_aw = self.fix_root / "sub_source_aw"
+            sub_source_aw.mkdir()
+            (sub_source_aw / ".aw" / "records" / "specs" / "draft").mkdir(parents=True)
+            (
+                sub_source_aw / ".aw" / "records" / "specs" / "draft" / "dummy.txt"
+            ).write_text("spec")
+            subprocess.run(
+                ["git", "init", "-b", "main", str(sub_source_aw)],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=sub_source_aw,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "test"],
+                cwd=sub_source_aw,
+                check=True,
+            )
+            (sub_source_aw / "sub_aw.txt").write_text("sub_aw")
+            subprocess.run(["git", "add", "."], cwd=sub_source_aw, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "sub aw init"],
+                cwd=sub_source_aw,
+                check=True,
+            )
+
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "protocol.file.allow=always",
+                    "submodule",
+                    "add",
+                    str(sub_source_aw),
+                    "sub_with_aw",
+                ],
+                cwd=parent,
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise unittest.SkipTest(f"git operations restricted: {exc}")
+
+        sub_with_aw = parent / "sub_with_aw"
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            res = find_project_root(sub_with_aw)
+        self.assertEqual(res, sub_with_aw)
+        self.assertEqual("", buf.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
