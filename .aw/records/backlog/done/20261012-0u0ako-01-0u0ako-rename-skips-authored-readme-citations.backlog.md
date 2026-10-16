@@ -1,5 +1,5 @@
 - Id: 0u0ako
-- Status: graduated
+- Status: done
 - Graduated-To: 0u0ako
 - Set: 0u0ako
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw rename/group skip every README.md as a generated manifest, so a hand-authored records README citing a renamed artifact is never rewritten
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD h9pezo executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-0u0ako-01-h9pezo-scan-readme-md-files-for-citation-rewrites-on-rename-and-gro.ipd.md); evidence .aw/records/plans/executed/20261014-0u0ako-01-h9pezo-scan-readme-md-files-for-citation-rewrites-on-rename-and-gro.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: h9pezo
 - 2026-10-12 created (aw backlog): Found while graduating xp6o3v (plan 1v2e1o): artifact_refs._SKIP_NAMES drops README.md from the citation scan
 
