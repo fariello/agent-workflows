@@ -5737,8 +5737,7 @@ def main(argv: list[str] | None = None) -> int:
         #
         # AFTER THE BRANCH, NOT INSIDE EITHER, for two reasons. It is true on BOTH exits, and keeping
         # it out of the branch bodies leaves each existing sentence byte-identical and contiguous,
-        # which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted
-        # (deleted in `19313eed`; no live guard currently asserts this).
+        # which is what `tests/test_oc_runipd_main_interrupt.py` asserts.
         #
         # PHRASED AS WHAT IS AVAILABLE NEXT TIME, because this handler cannot know which R12 path or
         # which ladder rung produced the exit, so naming a level would risk describing the wrong one.
