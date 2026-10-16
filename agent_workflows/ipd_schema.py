@@ -1613,7 +1613,10 @@ CARRIER_FIELD = "Carrier"
 
 #: The SATISFIED field: `- Carrier-Evidence: <repo-relative path>` cites an in-tree artifact showing the
 #: defect is already addressed. Same shape `aw backlog set done --evidence` accepts, resolved by the
-#: same shared `check_engine.resolve_evidence_artifact`.
+#: same shared `check_engine.resolve_evidence_artifact` (which checks safety, containment, existence,
+#: and records-tree location only, while `evaluate_blocking_close` and `evaluate_carrier_obligation`
+#: enforce that a cited plan must be executed and a cited spec must be implemented, and the carrier
+#: predicate defers to `- Carrier:` when one is present).
 CARRIER_EVIDENCE_FIELD = "Carrier-Evidence"
 
 #: The DECLINED field: `- Carrier-Declined: <reason>` is the explicit recorded decision not to carry it,

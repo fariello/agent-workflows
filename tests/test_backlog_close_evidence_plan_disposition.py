@@ -118,6 +118,46 @@ def _create_plan(
     return p
 
 
+def _create_spec(
+    repo: Path,
+    *,
+    status: str = "approved",
+    dir_status: str | None = None,
+    spec_id: str = "sp0001",
+    base: str = ".aw/records/specs",
+    sharded: str | None = None,
+    is_readme: bool = False,
+) -> Path:
+    """Create a real .spec.md fixture with - Id:, - Status:, and ## Workflow history."""
+    if is_readme:
+        spec_dir = repo / base
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        p = spec_dir / "README.md"
+        p.write_text("# Specs README\n\nDocs for specs.\n", encoding="utf-8")
+        return p
+    if dir_status is None:
+        dir_status = status
+    if sharded:
+        spec_dir = repo / base / dir_status / sharded
+    elif base.endswith("specs") and "records" in base:
+        spec_dir = repo / base / dir_status
+    else:
+        # legacy flat .agents/docs/specs/
+        spec_dir = repo / base
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    p = spec_dir / f"20261011-{spec_id}-01-{spec_id}-test.spec.md"
+    content = (
+        f"# Spec: Test spec {spec_id}\n\n"
+        f"- Id: {spec_id}\n"
+        f"- Status: {status}\n"
+        "- Scope: test\n\n"
+        "## Workflow history\n"
+        f"- 2026-10-11 {status} (tester): initial\n"
+    )
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
 def _find_item(repo: Path, item_id: str) -> Path:
     """Locate the item file regardless of which status directory it moved into."""
     matches = list(
@@ -693,3 +733,458 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertFalse(verdict.legitimate)
             self.assertIn(rel_plan, verdict.reason)
             self.assertIn("has not shipped", verdict.reason)
+
+    # =========================================================================
+    # Spec citation tests (IPD 3392n9 / E-01)
+    # =========================================================================
+
+    def test_spec_approved_refused_status_spelling(self) -> None:
+        """Status spelling refuses close when citing an approved spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            original_bytes = item_path.read_bytes()
+            spec_path = _create_spec(repo, status="approved", spec_id="sp0001")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(item_path),
+                        "--status",
+                        "done",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 1)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "open")
+            self.assertEqual(found.read_bytes(), original_bytes)
+
+            stderr_val = err.getvalue()
+            self.assertIn(rel_spec, stderr_val)
+            self.assertIn(
+                "names a spec that has not shipped (status is not implemented)",
+                stderr_val,
+            )
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertFalse(verdict.legitimate)
+            self.assertIsNone(verdict.path)
+            self.assertIn(rel_spec, verdict.reason)
+            self.assertIn(
+                "names a spec that has not shipped (status is not implemented)",
+                verdict.reason,
+            )
+
+    def test_spec_approved_refused_positional_spelling(self) -> None:
+        """Positional spelling refuses close when citing an approved spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            original_bytes = item_path.read_bytes()
+            spec_path = _create_spec(repo, status="approved", spec_id="sp0001")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 1)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "open")
+            self.assertEqual(found.read_bytes(), original_bytes)
+
+            stderr_val = err.getvalue()
+            self.assertIn(rel_spec, stderr_val)
+            self.assertIn(
+                "names a spec that has not shipped (status is not implemented)",
+                stderr_val,
+            )
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertFalse(verdict.legitimate)
+            self.assertIsNone(verdict.path)
+            self.assertIn(rel_spec, verdict.reason)
+            self.assertIn(
+                "names a spec that has not shipped (status is not implemented)",
+                verdict.reason,
+            )
+
+    def test_spec_approved_refused_dry_run(self) -> None:
+        """--dry-run refuses close citing an approved spec with exit code 1."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            original_bytes = item_path.read_bytes()
+            spec_path = _create_spec(repo, status="approved", spec_id="sp0001")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_spec,
+                        "--dry-run",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 1)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "open")
+            self.assertEqual(found.read_bytes(), original_bytes)
+
+    def test_spec_non_implemented_statuses_refused_predicate(self) -> None:
+        """Predicate refuses close citing draft, to-review, reviewed, implementing, deferred, parked, superseded specs."""
+        non_implemented = (
+            "draft",
+            "to-review",
+            "reviewed",
+            "implementing",
+            "deferred",
+            "parked",
+            "superseded",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            for st in non_implemented:
+                spec_path = _create_spec(repo, status=st, spec_id=f"sp_{st[:4]}")
+                rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+                verdict = check_engine.evaluate_blocking_close(
+                    repo, item_path, "done", evidence=rel_spec
+                )
+                self.assertFalse(
+                    verdict.legitimate, f"Expected status {st} to be refused"
+                )
+                self.assertIsNone(verdict.path)
+
+    def test_spec_readme_refused_predicate(self) -> None:
+        """Predicate refuses close citing .aw/records/specs/README.md."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            readme_path = _create_spec(repo, is_readme=True)
+            rel_readme = str(readme_path.relative_to(repo)).replace("\\", "/")
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_readme
+            )
+            self.assertFalse(verdict.legitimate)
+            self.assertIsNone(verdict.path)
+
+    def test_spec_dir_status_mismatch_refused_predicate(self) -> None:
+        """Predicate refuses close when directory and metadata status disagree."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            # approved/ directory with - Status: implemented
+            p1 = _create_spec(
+                repo, status="implemented", dir_status="approved", spec_id="spmis1"
+            )
+            rel1 = str(p1.relative_to(repo)).replace("\\", "/")
+            v1 = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel1
+            )
+            self.assertFalse(v1.legitimate)
+            self.assertIsNone(v1.path)
+
+            # implemented/ directory with - Status: approved
+            p2 = _create_spec(
+                repo, status="approved", dir_status="implemented", spec_id="spmis2"
+            )
+            rel2 = str(p2.relative_to(repo)).replace("\\", "/")
+            v2 = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel2
+            )
+            self.assertFalse(v2.legitimate)
+            self.assertIsNone(v2.path)
+
+    def test_spec_implemented_accepted_status_spelling(self) -> None:
+        """Status spelling accepts close citing an implemented spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            spec_path = _create_spec(repo, status="implemented", spec_id="spgood")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "SATISFIED")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        str(item_path),
+                        "--status",
+                        "done",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "done")
+            content = found.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+
+    def test_spec_implemented_accepted_positional_spelling(self) -> None:
+        """Positional spelling accepts close citing an implemented spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            spec_path = _create_spec(repo, status="implemented", spec_id="spgood")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "SATISFIED")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "done")
+            content = found.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+
+    def test_spec_sharded_implemented_accepted(self) -> None:
+        """Sharded specs/implemented/YYYYMM/ spec is accepted as close evidence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            spec_path = _create_spec(
+                repo,
+                status="implemented",
+                sharded="202610",
+                spec_id="spshd1",
+            )
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "SATISFIED")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "done")
+            content = found.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+
+    def test_spec_legacy_flat_implemented_accepted(self) -> None:
+        """Legacy flat .agents/docs/specs/ spec is accepted as close evidence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            item_path = _create_item(
+                repo, status="open", work_kind="bug", blocks_release="next"
+            )
+            spec_path = _create_spec(
+                repo,
+                status="implemented",
+                spec_id="spleg1",
+                base=".agents/docs/specs",
+            )
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo, item_path, "done", evidence=rel_spec
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "SATISFIED")
+
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_spec,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            found = _find_item(repo, "bk0001")
+            self.assertEqual(found.parent.name, "done")
+            content = found.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+
+    def test_spec_at_rest_consistency_flags_approved_spec(self) -> None:
+        """At-rest release gate consistency flags a done item citing an approved spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Tester"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+            (repo / ".aw" / "config" / "project.json").write_text(
+                '{"cutovers": {"release_gate_at_rest": "2026-10-01"}}\n',
+                encoding="utf-8",
+            )
+            spec_path = _create_spec(repo, status="approved", spec_id="sp0001")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+            _create_item(
+                repo,
+                item_id="bk0001",
+                status="done",
+                work_kind="bug",
+                blocks_release="next",
+                close_evidence=rel_spec,
+                history_date="2026-10-05",
+            )
+
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "."], check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "initial with done item"],
+                check=True,
+                capture_output=True,
+            )
+
+            findings = check_engine.check_release_gate_consistency(repo, at_rest=True)
+            rules = [f.rule for f in findings]
+            self.assertIn("check.blocking-item-closed-without-gate", rules)
+
+    def test_spec_at_rest_consistency_clean_for_implemented_spec(self) -> None:
+        """At-rest release gate consistency returns clean for a done item citing an implemented spec."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Tester"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+            (repo / ".aw" / "config" / "project.json").write_text(
+                '{"cutovers": {"release_gate_at_rest": "2026-10-01"}}\n',
+                encoding="utf-8",
+            )
+            spec_path = _create_spec(repo, status="implemented", spec_id="sp0001")
+            rel_spec = str(spec_path.relative_to(repo)).replace("\\", "/")
+            _create_item(
+                repo,
+                item_id="bk0001",
+                status="done",
+                work_kind="bug",
+                blocks_release="next",
+                close_evidence=rel_spec,
+                history_date="2026-10-05",
+            )
+
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "."], check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "initial with done item"],
+                check=True,
+                capture_output=True,
+            )
+
+            findings = check_engine.check_release_gate_consistency(repo, at_rest=True)
+            self.assertEqual(findings, [])

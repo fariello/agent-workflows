@@ -36,7 +36,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import check_engine as ce
+from agent_workflows import attention_contract, check_engine as ce, ipd_lint
 
 NONCONFORMANT = "check.name-nonconformant"
 ID6_COLLISION = "check.id6-collision"
@@ -2281,6 +2281,600 @@ class NameIdentityDriftTests(unittest.TestCase):
             )
             self.assertIn("[drift]", drift[0].detail)
             self.assertIn("Set: topic", drift[0].detail)
+
+
+class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
+    """Pin SATISFIED Carrier-Evidence plan and spec disposition rules (IPD 3392n9 / E-02)."""
+
+    def _setup_repo(self, td: str) -> Path:
+        root = Path(td)
+        for p in (
+            ".aw/records/backlog/open",
+            ".aw/records/backlog/done",
+            ".aw/records/plans/pending",
+            ".aw/records/plans/executed",
+            ".aw/records/plans/not-executed",
+            ".aw/records/plans/superseded",
+            ".aw/records/plans/reusable",
+            ".aw/records/specs/approved",
+            ".aw/records/specs/implemented",
+            ".aw/records/specs/draft",
+            ".aw/records/specs/to-review",
+            ".aw/records/specs/reviewed",
+            ".aw/records/specs/implementing",
+            ".aw/records/specs/deferred",
+            ".aw/records/specs/parked",
+            ".aw/records/specs/superseded",
+            ".agents/plans/executed",
+            ".agents/docs/specs",
+            ".aw/records/research",
+            ".aw/records/reviews",
+            ".aw/records/releases",
+        ):
+            (root / p).mkdir(parents=True, exist_ok=True)
+        return root
+
+    def test_plan_refusal_deferred_and_oq(self) -> None:
+        """Refusal: pending, not-executed, superseded, reusable plans, and plans dir itself are refused."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            # Create plans in various buckets
+            p_drf = (
+                root
+                / ".aw/records/plans/pending/20261011-test01-01-pdrf01-draft.ipd.md"
+            )
+            p_drf.write_text("# IPD\n- Id: pdrf01\n- Status: draft\n", encoding="utf-8")
+
+            p_rev = (
+                root
+                / ".aw/records/plans/pending/20261011-test01-01-prev01-toreview.ipd.md"
+            )
+            p_rev.write_text(
+                "# IPD\n- Id: prev01\n- Status: to-review\n", encoding="utf-8"
+            )
+
+            p_not = (
+                root
+                / ".aw/records/plans/not-executed/20261011-test01-01-pnot01-notexecuted.ipd.md"
+            )
+            p_not.write_text(
+                "# IPD\n- Id: pnot01\n- Status: not-executed\n", encoding="utf-8"
+            )
+
+            p_sup = (
+                root
+                / ".aw/records/plans/superseded/20261011-test01-01-psup01-superseded.ipd.md"
+            )
+            p_sup.write_text(
+                "# IPD\n- Id: psup01\n- Status: superseded\n", encoding="utf-8"
+            )
+
+            p_reu = (
+                root
+                / ".aw/records/plans/reusable/20261011-test01-01-preu01-reusable.ipd.md"
+            )
+            p_reu.write_text(
+                "# IPD\n- Id: preu01\n- Status: reusable\n", encoding="utf-8"
+            )
+
+            p_dir = root / ".aw/records/plans"
+
+            unshipped_targets = [
+                str(p_drf.relative_to(root)).replace("\\", "/"),
+                str(p_rev.relative_to(root)).replace("\\", "/"),
+                str(p_not.relative_to(root)).replace("\\", "/"),
+                str(p_sup.relative_to(root)).replace("\\", "/"),
+                str(p_reu.relative_to(root)).replace("\\", "/"),
+                str(p_dir.relative_to(root)).replace("\\", "/"),
+            ]
+
+            for target in unshipped_targets:
+                # 1. On a ## Deferred / out of scope bullet
+                ob_def = ce.CarrierObligation(
+                    "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": target}
+                )
+                v_def = ce.evaluate_carrier_obligation(root, ob_def)
+                self.assertFalse(
+                    v_def.legitimate, f"Expected {target} to be refused on deferred"
+                )
+                self.assertEqual(v_def.rule, "check.ipd-uncarried-obligation")
+                self.assertIn(
+                    "names a plan that has not shipped (is not in `executed/`)",
+                    v_def.reason,
+                )
+
+                # 2. On an ### OQ-01 block
+                ob_oq = ce.CarrierObligation(
+                    "question", "OQ-01", 20, {"Carrier-Evidence": target}
+                )
+                v_oq = ce.evaluate_carrier_obligation(root, ob_oq)
+                self.assertFalse(
+                    v_oq.legitimate, f"Expected {target} to be refused on OQ"
+                )
+                self.assertEqual(v_oq.rule, "check.ipd-uncarried-obligation")
+                self.assertIn(
+                    "names a plan that has not shipped (is not in `executed/`)",
+                    v_oq.reason,
+                )
+
+    def test_spec_refusal_without_carrier(self) -> None:
+        """Refusal: non-implemented specs, README.md, and dir/status mismatches are refused."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            statuses = (
+                "draft",
+                "to-review",
+                "reviewed",
+                "approved",
+                "implementing",
+                "deferred",
+                "parked",
+                "superseded",
+            )
+            for st in statuses:
+                p = (
+                    root
+                    / f".aw/records/specs/{st}/20261011-spc{st[:3]}-01-spc{st[:3]}-test.spec.md"
+                )
+                p.write_text(
+                    f"# Spec\n- Id: spc{st[:3]}\n- Status: {st}\n\n## Workflow history\n- 2026-10-11 {st}: test\n",
+                    encoding="utf-8",
+                )
+                rel = str(p.relative_to(root)).replace("\\", "/")
+                ob = ce.CarrierObligation(
+                    "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": rel}
+                )
+                verdict = ce.evaluate_carrier_obligation(root, ob)
+                self.assertFalse(
+                    verdict.legitimate, f"Expected {st} spec to be refused"
+                )
+                self.assertEqual(verdict.rule, "check.ipd-uncarried-obligation")
+                self.assertIn(
+                    "names a spec that has not shipped (status is not `implemented`)",
+                    verdict.reason,
+                )
+
+            # README.md
+            readme = root / ".aw/records/specs/README.md"
+            readme.write_text("# Specs README\n", encoding="utf-8")
+            rel_rm = str(readme.relative_to(root)).replace("\\", "/")
+            ob_rm = ce.CarrierObligation(
+                "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": rel_rm}
+            )
+            v_rm = ce.evaluate_carrier_obligation(root, ob_rm)
+            self.assertFalse(v_rm.legitimate)
+            self.assertEqual(v_rm.rule, "check.ipd-uncarried-obligation")
+            self.assertIn(
+                "names a spec that has not shipped (status is not `implemented`)",
+                v_rm.reason,
+            )
+
+            # Directory approved/ with - Status: implemented
+            p_mis1 = (
+                root
+                / ".aw/records/specs/approved/20261011-spmis1-01-spmis1-test.spec.md"
+            )
+            p_mis1.write_text(
+                "# Spec\n- Id: spmis1\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                encoding="utf-8",
+            )
+            rel_mis1 = str(p_mis1.relative_to(root)).replace("\\", "/")
+            ob_mis1 = ce.CarrierObligation(
+                "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": rel_mis1}
+            )
+            v_mis1 = ce.evaluate_carrier_obligation(root, ob_mis1)
+            self.assertFalse(v_mis1.legitimate)
+            self.assertEqual(v_mis1.rule, "check.ipd-uncarried-obligation")
+            self.assertIn(
+                "names a spec that has not shipped (status is not `implemented`)",
+                v_mis1.reason,
+            )
+
+            # Directory implemented/ with - Status: approved
+            p_mis2 = (
+                root
+                / ".aw/records/specs/implemented/20261011-spmis2-01-spmis2-test.spec.md"
+            )
+            p_mis2.write_text(
+                "# Spec\n- Id: spmis2\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                encoding="utf-8",
+            )
+            rel_mis2 = str(p_mis2.relative_to(root)).replace("\\", "/")
+            ob_mis2 = ce.CarrierObligation(
+                "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": rel_mis2}
+            )
+            v_mis2 = ce.evaluate_carrier_obligation(root, ob_mis2)
+            self.assertFalse(v_mis2.legitimate)
+            self.assertEqual(v_mis2.rule, "check.ipd-uncarried-obligation")
+            self.assertIn(
+                "names a spec that has not shipped (status is not `implemented`)",
+                v_mis2.reason,
+            )
+
+    def test_fall_through_live_carrier_accepted(self) -> None:
+        """Fall-through (F-08): unshipped Carrier-Evidence with valid - Carrier: returns HANDOFF (legitimate=True)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            car_path = (
+                root / ".aw/records/plans/pending/20261011-test01-01-car001-live.ipd.md"
+            )
+            car_path.write_text(
+                "# IPD\n- Id: car001\n- Status: to-review\n- Set: test01\n- Order: 1\n",
+                encoding="utf-8",
+            )
+            pnd_path = (
+                root / ".aw/records/plans/pending/20261011-test01-01-pnd001-test.ipd.md"
+            )
+            pnd_path.write_text(
+                "# IPD\n- Id: pnd001\n- Status: to-review\n- Set: test01\n- Order: 2\n",
+                encoding="utf-8",
+            )
+            spc_path = (
+                root
+                / ".aw/records/specs/approved/20261011-spc001-01-spc001-test.spec.md"
+            )
+            spc_path.write_text(
+                "# Spec\n- Id: spc001\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                encoding="utf-8",
+            )
+
+            rel_pnd = str(pnd_path.relative_to(root)).replace("\\", "/")
+            rel_spc = str(spc_path.relative_to(root)).replace("\\", "/")
+
+            carrier_index = ce._carrier_index(root)
+
+            for ev in (rel_pnd, rel_spc):
+                ob = ce.CarrierObligation(
+                    "deferred",
+                    "p:Deferred[1]",
+                    10,
+                    {"Carrier-Evidence": ev, "Carrier": "car001"},
+                )
+                verdict = ce.evaluate_carrier_obligation(
+                    root, ob, carrier_index=carrier_index
+                )
+                self.assertTrue(verdict.legitimate)
+                if hasattr(ce, "_evidence_spec_unshipped"):
+                    self.assertEqual(verdict.path, "HANDOFF")
+                else:
+                    self.assertIn(verdict.path, ("HANDOFF", "SATISFIED"))
+
+    def test_fall_through_unknown_carrier_refused(self) -> None:
+        """Fall-through (F-08): unshipped Carrier-Evidence with unknown - Carrier: is refused."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            pnd_path = (
+                root / ".aw/records/plans/pending/20261011-test01-01-pnd001-test.ipd.md"
+            )
+            pnd_path.write_text(
+                "# IPD\n- Id: pnd001\n- Status: to-review\n- Set: test01\n- Order: 1\n",
+                encoding="utf-8",
+            )
+            spc_path = (
+                root
+                / ".aw/records/specs/approved/20261011-spc001-01-spc001-test.spec.md"
+            )
+            spc_path.write_text(
+                "# Spec\n- Id: spc001\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                encoding="utf-8",
+            )
+
+            rel_pnd = str(pnd_path.relative_to(root)).replace("\\", "/")
+            rel_spc = str(spc_path.relative_to(root)).replace("\\", "/")
+
+            carrier_index = ce._carrier_index(root)
+
+            for ev in (rel_pnd, rel_spc):
+                ob = ce.CarrierObligation(
+                    "deferred",
+                    "p:Deferred[1]",
+                    10,
+                    {"Carrier-Evidence": ev, "Carrier": "unk999"},
+                )
+                verdict = ce.evaluate_carrier_obligation(
+                    root, ob, carrier_index=carrier_index
+                )
+                self.assertFalse(verdict.legitimate)
+                self.assertEqual(verdict.rule, "check.ipd-uncarried-obligation")
+
+    def test_acceptance_shipped_plans_and_specs_and_other_artifacts(self) -> None:
+        """Acceptance: executed plans, implemented specs, and other records artifacts return SATISFIED."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            # 1. Executed plan
+            p_exc = (
+                root
+                / ".aw/records/plans/executed/20261011-test01-01-pexc01-test.ipd.md"
+            )
+            p_exc.write_text(
+                "# IPD\n- Id: pexc01\n- Status: executed\n", encoding="utf-8"
+            )
+            # 2. Sharded executed plan
+            (root / ".aw/records/plans/executed/202610").mkdir(
+                parents=True, exist_ok=True
+            )
+            p_shd = (
+                root
+                / ".aw/records/plans/executed/202610/20261011-test01-01-pshd01-test.ipd.md"
+            )
+            p_shd.write_text(
+                "# IPD\n- Id: pshd01\n- Status: executed\n", encoding="utf-8"
+            )
+            # 3. Legacy executed plan
+            p_leg = (
+                root / ".agents/plans/executed/20261011-test01-01-pleg01-test.ipd.md"
+            )
+            p_leg.write_text(
+                "# IPD\n- Id: pleg01\n- Status: executed\n", encoding="utf-8"
+            )
+            # 4. Implemented spec
+            s_imp = (
+                root
+                / ".aw/records/specs/implemented/20261011-simp01-01-simp01-test.spec.md"
+            )
+            s_imp.write_text(
+                "# Spec\n- Id: simp01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                encoding="utf-8",
+            )
+            # 5. Sharded implemented spec
+            (root / ".aw/records/specs/implemented/202610").mkdir(
+                parents=True, exist_ok=True
+            )
+            s_shd = (
+                root
+                / ".aw/records/specs/implemented/202610/20261011-sshd01-01-sshd01-test.spec.md"
+            )
+            s_shd.write_text(
+                "# Spec\n- Id: sshd01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                encoding="utf-8",
+            )
+            # 6. Legacy flat implemented spec
+            s_leg = root / ".agents/docs/specs/20261011-sleg01-01-sleg01-test.spec.md"
+            s_leg.write_text(
+                "# Spec\n- Id: sleg01\n- Status: implemented\n\n## Workflow history\n- 2026-10-11 implemented: ok\n",
+                encoding="utf-8",
+            )
+            # 7. Backlog done
+            b_don = (
+                root
+                / ".aw/records/backlog/done/20261011-bdon01-01-bdon01-test.backlog.md"
+            )
+            b_don.write_text(
+                "# Backlog\n- Id: bdon01\n- Status: done\n", encoding="utf-8"
+            )
+            # 8. Backlog open
+            b_opn = (
+                root
+                / ".aw/records/backlog/open/20261011-bopn01-01-bopn01-test.backlog.md"
+            )
+            b_opn.write_text(
+                "# Backlog\n- Id: bopn01\n- Status: open\n", encoding="utf-8"
+            )
+            # 9. Research
+            res = root / ".aw/records/research/20261011-res001-test.research.md"
+            res.write_text("# Research\n", encoding="utf-8")
+            # 10. Review
+            rev = root / ".aw/records/reviews/20261011-rev001-test.review.md"
+            rev.write_text("# Review\n", encoding="utf-8")
+            # 11. Release
+            rel = root / ".aw/records/releases/20261011-rel001-test.release.md"
+            rel.write_text(
+                "# Release\n- Id: rel001\n- Status: planned\n", encoding="utf-8"
+            )
+
+            accepted_artifacts = [
+                p_exc,
+                p_shd,
+                p_leg,
+                s_imp,
+                s_shd,
+                s_leg,
+                b_don,
+                b_opn,
+                res,
+                rev,
+                rel,
+            ]
+            for art in accepted_artifacts:
+                rel_path = str(art.relative_to(root)).replace("\\", "/")
+                ob = ce.CarrierObligation(
+                    "deferred", "p:Deferred[1]", 10, {"Carrier-Evidence": rel_path}
+                )
+                verdict = ce.evaluate_carrier_obligation(root, ob)
+                self.assertTrue(
+                    verdict.legitimate,
+                    f"Expected {rel_path} to be accepted as SATISFIED",
+                )
+                self.assertEqual(
+                    verdict.path,
+                    "SATISFIED",
+                    f"Expected {rel_path} path to be SATISFIED",
+                )
+
+    def test_descriptive_bound_plan_and_spec_136_char_path(self) -> None:
+        """Bound: evaluate_durable_carrier and ipd_lint satisfy MAX_DESCRIPTIVE_LEN on 136-char path."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            # Exactly 136-character relative paths
+            # prefix (58) + pad (71) + suffix (7) = 136
+            path_plan_136 = (
+                ".aw/records/plans/pending/20261014-clusteredset-01-pln123-"
+                + ("a" * 71)
+                + ".ipd.md"
+            )
+            self.assertEqual(len(path_plan_136), 136)
+            (root / path_plan_136).parent.mkdir(parents=True, exist_ok=True)
+            (root / path_plan_136).write_text(
+                "# IPD: Target\n\n- Id: pln123\n- Status: to-review\n",
+                encoding="utf-8",
+            )
+
+            # prefix (59) + pad (69) + suffix (8) = 136
+            path_spec_136 = (
+                ".aw/records/specs/approved/20261014-clusteredset-01-spc123-"
+                + ("b" * 69)
+                + ".spec.md"
+            )
+            self.assertEqual(len(path_spec_136), 136)
+            (root / path_spec_136).parent.mkdir(parents=True, exist_ok=True)
+            (root / path_spec_136).write_text(
+                "# Spec: Target\n\n- Id: spc123\n- Status: approved\n\n## Workflow history\n- 2026-10-14 approved: ok\n",
+                encoding="utf-8",
+            )
+
+            # Test plan case
+            plan_file = (
+                root
+                / ".aw/records/plans/pending/20261014-testset-01-plntst-test.ipd.md"
+            )
+            plan_text_plan = (
+                "# IPD: Test Plan\n\n"
+                "- Date: 2026-10-14\n"
+                "- Id: plntst\n"
+                "- Status: pending\n"
+                "- Set: testset\n"
+                "- Order: 1\n"
+                "- Highest E allocated: 01\n"
+                "- Readiness: go-pending-approval\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "- [ ] E-01 Item 1\n"
+                "  - Execution state: performed\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Result: pass\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                "- Row 1\n"
+                f"  - Carrier-Evidence: {path_plan_136}\n"
+                "- Row 2\n"
+                f"  - Carrier-Evidence: {path_plan_136}\n"
+                "- Row 3\n"
+                f"  - Carrier-Evidence: {path_plan_136}\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Question\n\n"
+                f"- Carrier-Evidence: {path_plan_136}\n"
+            )
+            plan_file.write_text(plan_text_plan, encoding="utf-8")
+
+            drifts = ce.evaluate_durable_carrier(
+                root, plan_path=plan_file, plan_text=plan_text_plan
+            )
+            self.assertEqual(len(drifts), 1)
+            d = drifts[0]
+            self.assertEqual(d.rule, "check.ipd-uncarried-obligation")
+            self.assertTrue(attention_contract.is_safe_descriptive(d.detail))
+            self.assertLessEqual(len(d.detail), attention_contract.MAX_DESCRIPTIVE_LEN)
+
+            res = ipd_lint.lint_file(plan_file, checkpoint="pre-transition")
+            uncarried = [
+                diag
+                for diag in res.diagnostics
+                if diag.code == "check.ipd-uncarried-obligation"
+            ]
+            self.assertTrue(len(uncarried) >= 1)
+            for diag in uncarried:
+                self.assertTrue(attention_contract.is_safe_descriptive(diag.message))
+                self.assertLessEqual(
+                    len(diag.message), attention_contract.MAX_DESCRIPTIVE_LEN
+                )
+
+            # Test spec case
+            spec_file = (
+                root
+                / ".aw/records/plans/pending/20261014-testset-02-spctst-test.ipd.md"
+            )
+            plan_text_spec = (
+                "# IPD: Test Spec\n\n"
+                "- Date: 2026-10-14\n"
+                "- Id: spctst\n"
+                "- Status: pending\n"
+                "- Set: testset\n"
+                "- Order: 2\n"
+                "- Highest E allocated: 01\n"
+                "- Readiness: go-pending-approval\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "- [ ] E-01 Item 1\n"
+                "  - Execution state: performed\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Result: pass\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                "- Row 1\n"
+                f"  - Carrier-Evidence: {path_spec_136}\n"
+                "- Row 2\n"
+                f"  - Carrier-Evidence: {path_spec_136}\n"
+                "- Row 3\n"
+                f"  - Carrier-Evidence: {path_spec_136}\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Question\n\n"
+                f"- Carrier-Evidence: {path_spec_136}\n"
+            )
+            spec_file.write_text(plan_text_spec, encoding="utf-8")
+
+            drifts_s = ce.evaluate_durable_carrier(
+                root, plan_path=spec_file, plan_text=plan_text_spec
+            )
+            self.assertEqual(len(drifts_s), 1)
+            d_s = drifts_s[0]
+            self.assertEqual(d_s.rule, "check.ipd-uncarried-obligation")
+            self.assertTrue(attention_contract.is_safe_descriptive(d_s.detail))
+            self.assertLessEqual(
+                len(d_s.detail), attention_contract.MAX_DESCRIPTIVE_LEN
+            )
+
+            res_s = ipd_lint.lint_file(spec_file, checkpoint="pre-transition")
+            uncarried_s = [
+                diag
+                for diag in res_s.diagnostics
+                if diag.code == "check.ipd-uncarried-obligation"
+            ]
+            self.assertTrue(len(uncarried_s) >= 1)
+            for diag in uncarried_s:
+                self.assertTrue(attention_contract.is_safe_descriptive(diag.message))
+                self.assertLessEqual(
+                    len(diag.message), attention_contract.MAX_DESCRIPTIVE_LEN
+                )
+
+    def test_grandfathering_executed_plan_ignored_by_check_durable_carrier(
+        self,
+    ) -> None:
+        """Grandfathering: check_durable_carrier ignores an executed/ plan carrying unshipped Carrier-Evidence."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_repo(td)
+            p_pend = (
+                root / ".aw/records/plans/pending/20261011-test01-01-ppnd01-test.ipd.md"
+            )
+            p_pend.write_text(
+                "# IPD\n- Id: ppnd01\n- Status: to-review\n", encoding="utf-8"
+            )
+            s_app = (
+                root
+                / ".aw/records/specs/approved/20261011-sapp01-01-sapp01-test.spec.md"
+            )
+            s_app.write_text(
+                "# Spec\n- Id: sapp01\n- Status: approved\n\n## Workflow history\n- 2026-10-11 approved: ok\n",
+                encoding="utf-8",
+            )
+            rel_p = str(p_pend.relative_to(root)).replace("\\", "/")
+            rel_s = str(s_app.relative_to(root)).replace("\\", "/")
+
+            p_old = (
+                root / ".aw/records/plans/executed/20261001-test01-01-plnold-old.ipd.md"
+            )
+            p_old.write_text(
+                f"# IPD: Old Plan\n\n"
+                f"- Date: 2026-10-01\n"
+                f"- Id: plnold\n"
+                f"- Status: executed\n\n"
+                f"## Deferred / out of scope (with reason)\n\n"
+                f"- Row 1\n"
+                f"  - Carrier-Evidence: {rel_p}\n"
+                f"- Row 2\n"
+                f"  - Carrier-Evidence: {rel_s}\n",
+                encoding="utf-8",
+            )
+
+            drift = ce.check_durable_carrier(root)
+            self.assertEqual([d for d in drift if "plnold" in d.path], [])
 
 
 if __name__ == "__main__":
