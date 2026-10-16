@@ -3228,7 +3228,8 @@ OUTCOME_CLASS_NONE: str = "none"
 # RULE: A legacy alias is classified by what its spelling MEANT when it was written,
 # because TERMINAL_STATUS_ALIASES is lossy (three distinct historical meanings fold
 # into fail-gate) and a run summary must be reproducible from the run's own record
-# without re-labelling history; the canonical fail-gate is BLOCKED per OQ-01.
+# without re-labelling history; the canonical fail-gate is BLOCKED at token level
+# and is discriminated per item by outcome_class_of_item.
 # --------------------------------------------------------------------------------------------------
 
 #: Total mapping of every terminal runner status token in runner_shared.TERMINAL_STATES
@@ -3276,7 +3277,8 @@ RUN_OUTCOME_CLASS_BY_STATUS: Mapping[str, str] = types.MappingProxyType(
 DECLARED_OUTCOME_ALIAS_DIVERGENCES: Mapping[str, str] = types.MappingProxyType(
     {
         "failed-safely": (
-            "FAILED vs canonical fail-gate BLOCKED: the alias is lossy, failed-safely meant a "
+            "FAILED vs canonical fail-gate BLOCKED at token level (discriminated per item by "
+            "outcome_class_of_item): the alias is lossy, failed-safely meant a "
             "nonzero-exit or retry-exhausted turn, and it is still written today by retry and error "
             "handlers (cite fr19jr F-08 and backlog 79d4ix)"
         ),
@@ -3290,12 +3292,73 @@ DECLARED_OUTCOME_ALIAS_DIVERGENCES: Mapping[str, str] = types.MappingProxyType(
             "incomplete work and renders PARTIAL (cite qvfd4l OQ-03 raw-first precedent)"
         ),
         "substantially-complete": (
-            "success vs canonical fail-gate BLOCKED: pinned COMPLETED by plan 4po0sc, and its "
+            "success vs canonical fail-gate BLOCKED at token level (discriminated per item by "
+            "outcome_class_of_item): pinned COMPLETED by plan 4po0sc, and its "
             "non-landing case is caught by the refusal_of_item / work_did_not_land guards rather "
             "than by the status (cite zzcrlo, ys1dor, 4po0sc)"
         ),
     }
 )
+
+_PRODUCTION_FAILED_REFUSAL_CODES = (
+    "SPEC-PRODUCTION-FAILED",
+    "BACKLOG-PRODUCTION-FAILED",
+)
+_CLAIMED_SUCCESS_DISPOSITIONS = ("executed", "completed", "substantially-complete")
+
+
+def outcome_class_of_item(item: Mapping[str, Any]) -> str:
+    """Classify one queue item's outcome for the run summary outcome-word ladder.
+
+    Returns the item's token-level class from RUN_OUTCOME_CLASS_BY_STATUS for all statuses other
+    than "fail-gate". For "fail-gate", discriminates live producers using recorded fields:
+    crashed/nonzero-exit/production-failed turns -> OUTCOME_CLASS_FAILED, gate refusals ->
+    OUTCOME_CLASS_BLOCKED, and refusal-free executed-claim turns with recorded exit 0 ->
+    OUTCOME_CLASS_SUCCESS.
+    """
+    if not isinstance(item, Mapping):
+        return OUTCOME_CLASS_NONE
+    status = item.get("status")
+    if status != "fail-gate":
+        return RUN_OUTCOME_CLASS_BY_STATUS.get(status, OUTCOME_CLASS_NONE)
+    attempts = item.get("attempts")
+    last = (
+        next((a for a in reversed(attempts) if isinstance(a, Mapping)), None)
+        if isinstance(attempts, list)
+        else None
+    )
+    exit_code = last.get("exit_code") if last is not None else None
+    ran = isinstance(exit_code, int) and not isinstance(exit_code, bool)
+    if last is not None:
+        tfk = last.get("turn_failure_kind")
+        if (
+            (isinstance(tfk, str) and tfk.strip())
+            or (ran and exit_code != 0)
+            or last.get("host_error")
+        ):
+            return OUTCOME_CLASS_FAILED
+    if item.get("host_error"):
+        return OUTCOME_CLASS_FAILED
+    refusal = refusal_of_item(item if isinstance(item, dict) else dict(item))
+    if refusal is not None:
+        return (
+            OUTCOME_CLASS_FAILED
+            if refusal.code in _PRODUCTION_FAILED_REFUSAL_CODES
+            else OUTCOME_CLASS_BLOCKED
+        )
+    lo = item.get("last_outcome")
+    if (
+        ran
+        and exit_code == 0
+        and str(item.get("action") or "execute") == "execute"
+        and not item.get("proposal_record")
+        and not item.get("needs_input")
+        and isinstance(lo, Mapping)
+        and str(lo.get("disposition") or "").strip().lower()
+        in _CLAIMED_SUCCESS_DISPOSITIONS
+    ):
+        return OUTCOME_CLASS_SUCCESS
+    return OUTCOME_CLASS_BLOCKED
 
 
 def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
@@ -4289,28 +4352,24 @@ def render_run_summary_table(
         outcome_str = exit_reason
     elif any(
         isinstance(it, Mapping)
-        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
-        == OUTCOME_CLASS_INTERRUPTED
+        and outcome_class_of_item(it) == OUTCOME_CLASS_INTERRUPTED
         for it in queue
     ):
         outcome_str = "INTERRUPTED"
     elif any(
-        isinstance(it, Mapping)
-        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_FAILED
+        isinstance(it, Mapping) and outcome_class_of_item(it) == OUTCOME_CLASS_FAILED
         for it in queue
     ):
         outcome_str = "FAILED"
     elif any(
-        isinstance(it, Mapping)
-        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_BLOCKED
+        isinstance(it, Mapping) and outcome_class_of_item(it) == OUTCOME_CLASS_BLOCKED
         for it in queue
     ):
         outcome_str = "BLOCKED"
     elif (
         all(
             isinstance(it, Mapping)
-            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
-            == OUTCOME_CLASS_SUCCESS
+            and outcome_class_of_item(it) == OUTCOME_CLASS_SUCCESS
             for it in queue
         )
         and total_items > 0
@@ -4362,8 +4421,7 @@ def render_run_summary_table(
     elif (
         all(
             isinstance(it, Mapping)
-            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
-            == OUTCOME_CLASS_SUCCESS
+            and outcome_class_of_item(it) == OUTCOME_CLASS_SUCCESS
             for it in queue
         )
         and total_items > 0
