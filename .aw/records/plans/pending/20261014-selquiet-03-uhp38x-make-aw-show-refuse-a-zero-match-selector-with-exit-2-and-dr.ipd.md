@@ -37,39 +37,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Pre-change baseline capture
 
-- [ ] E-01 Capture the pre-change baseline in this worktree before editing any file: run `python3 -m pytest` (bare, with default `xdist` and `pytest-randomly` flags intact) and record the summary line; re-derive at execution time one standing-vocabulary token that matches zero displayable artifacts (a member of `cli.find_selector_vocabulary()` such as `prompt-library`; if `aw show <token>` now matches something, pick another member and record which); then drive `aw show` (via `python3 -m agent_workflows show ...`) across its 3 output surfaces (`human`, `--agent`, `--json`) x 5 token classes (`UNKNOWN` `zzzzzz`, `VOCABULARY-ZERO-MATCH` the re-derived token, `VOCABULARY-MATCHING` `approved`, `MATCHING` `f36de0`, and `NON-DISPLAYED-REAL-ARTIFACT` `f33nrj`, the release record id6 under `.aw/records/releases/`, which `_run_show`'s `record_types` does not search), recording `(exit_code, len(stdout), len(stderr), outcome/status)` for all 15 invocations.
+- [x] E-01 Capture the pre-change baseline in this worktree before editing any file: run `python3 -m pytest` (bare, with default `xdist` and `pytest-randomly` flags intact) and record the summary line; re-derive at execution time one standing-vocabulary token that matches zero displayable artifacts (a member of `cli.find_selector_vocabulary()` such as `prompt-library`; if `aw show <token>` now matches something, pick another member and record which); then drive `aw show` (via `python3 -m agent_workflows show ...`) across its 3 output surfaces (`human`, `--agent`, `--json`) x 5 token classes (`UNKNOWN` `zzzzzz`, `VOCABULARY-ZERO-MATCH` the re-derived token, `VOCABULARY-MATCHING` `approved`, `MATCHING` `f36de0`, and `NON-DISPLAYED-REAL-ARTIFACT` `f33nrj`, the release record id6 under `.aw/records/releases/`, which `_run_show`'s `record_types` does not search), recording `(exit_code, len(stdout), len(stderr), outcome/status)` for all 15 invocations.
   - Depends on: none
   - Expected outcome: The baseline suite passes and the 15-cell pre-change matrix shows `zzzzzz`, the vocabulary-zero-match token, and `f33nrj` exiting `1` with `outcome: "findings"` / `rule: "show.not_found"` and human output on `stdout` (`len(stderr) == 0`), while `approved` and `f36de0` exit `0` with `outcome: "clean"`. Any deviation from this expected baseline is recorded verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Align `cli._run_show`, `show` help text, and `command_surface.py`
 
-- [ ] E-02 Replace the zero-match tail of `cli._run_show` in `agent_workflows/cli.py` (the block after `if unique:` that builds `CommandResult(command="show", status="findings", exit_code=1, ...)` with `rule="show.not_found"`, plus the human `term.empty_result(..., status="fail")` / `return 1`) with the SHARED read-verb mechanism shipped by executed sibling `yxsfjc`: (1) `refusable = selector_tokens_naming_no_artifact(repo_root, [ref])`; (2) if `refusable` is non-empty, `return emit_zero_match_selector_refusal(ctx=ctx, cmd="show", tokens=refusable, next_cmd="aw find", next_desc="list all records", searched="all artifact types", term=term)` (that emitter already redacts every token through `agent_schema.redact_home_paths`, hand-builds and schema-validates the `--agent` `kind: "error"` record, emits `--json` `status="cannot-run"`/`exit_code=2`, and writes the human message to `stderr` with `stdout` empty; do NOT re-implement any of it); (3) otherwise (a standing-vocabulary token, an existing file path, or a token naming a real artifact in a tree `_run_show` does not display, such as a `releases` or `reviews` record) return exit `0`: on `--agent`/`--json` emit `CommandResult(command="show", status="clean", exit_code=0, summary=f"matched 0 displayable artifact(s) for '{ref}'", evidence=[Evidence(key="show-match", value={"count": 0}, status="verified")], data={"matches": [], "contents": {}}, next_actions=[NextAction(command=f"aw find {ref}", description="search every record tree")])` through `get_renderer(ctx).emit(res, ctx)`, and on human call `term.empty_result(summary=f"no displayable records for '{ref}'", filters={"ref": ref}, next_action=NextAction(command=f"aw find {ref}", description="search every record tree"), status="clean")` (on `stdout`) and `return 0`. Drop the `Diagnostic` import from `_run_show` if nothing else there uses it. Do NOT modify `selector_tokens_naming_no_artifact`, `emit_zero_match_selector_refusal`, or the `record_types` tuple.
+- [x] E-02 Replace the zero-match tail of `cli._run_show` in `agent_workflows/cli.py` (the block after `if unique:` that builds `CommandResult(command="show", status="findings", exit_code=1, ...)` with `rule="show.not_found"`, plus the human `term.empty_result(..., status="fail")` / `return 1`) with the SHARED read-verb mechanism shipped by executed sibling `yxsfjc`: (1) `refusable = selector_tokens_naming_no_artifact(repo_root, [ref])`; (2) if `refusable` is non-empty, `return emit_zero_match_selector_refusal(ctx=ctx, cmd="show", tokens=refusable, next_cmd="aw find", next_desc="list all records", searched="all artifact types", term=term)` (that emitter already redacts every token through `agent_schema.redact_home_paths`, hand-builds and schema-validates the `--agent` `kind: "error"` record, emits `--json` `status="cannot-run"`/`exit_code=2`, and writes the human message to `stderr` with `stdout` empty; do NOT re-implement any of it); (3) otherwise (a standing-vocabulary token, an existing file path, or a token naming a real artifact in a tree `_run_show` does not display, such as a `releases` or `reviews` record) return exit `0`: on `--agent`/`--json` emit `CommandResult(command="show", status="clean", exit_code=0, summary=f"matched 0 displayable artifact(s) for '{ref}'", evidence=[Evidence(key="show-match", value={"count": 0}, status="verified")], data={"matches": [], "contents": {}}, next_actions=[NextAction(command=f"aw find {ref}", description="search every record tree")])` through `get_renderer(ctx).emit(res, ctx)`, and on human call `term.empty_result(summary=f"no displayable records for '{ref}'", filters={"ref": ref}, next_action=NextAction(command=f"aw find {ref}", description="search every record tree"), status="clean")` (on `stdout`) and `return 0`. Drop the `Diagnostic` import from `_run_show` if nothing else there uses it. Do NOT modify `selector_tokens_naming_no_artifact`, `emit_zero_match_selector_refusal`, or the `record_types` tuple.
   - Depends on: E-01
   - Expected outcome: `aw show` exits `2` (`cannot-run`, naming the redacted token; human on `stderr` with empty `stdout`) exactly when `selector_tokens_naming_no_artifact` returns the token; exits `0` (`clean`, human on `stdout`, empty `stderr`) for a non-refusable zero-match token (standing vocabulary, existing file path, or real artifact in a non-displayed tree); and keeps its existing exit `0` output unchanged when one or more artifacts match. No code path in `_run_show` returns `1`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Correct the stale `aw show` help text in `agent_workflows/cli.py`: rewrite `_DESCRIPTIONS["show"]` (the `"show": (` entry, which says it "falls back to the operational action ledger (an action id, or id@generation)"), the `p_show = sub.add_parser("show", ...)` `help=` string ("records first, then the action ledger"), its epilog example `aw show setup-repo-v1  # an action from the ledger`, and the `action_ref` argument help ("or an action id[@generation]"), so they describe only the records lookup `_run_show` actually performs (action-ledger support was removed in `19bd75020`) and state that a selector naming no artifact anywhere exits 2 while a standing-status token with nothing to show exits 0. Keep the argparse dest `action_ref` unchanged. Write no em or en dashes in the new help text.
+- [x] E-06 Correct the stale `aw show` help text in `agent_workflows/cli.py`: rewrite `_DESCRIPTIONS["show"]` (the `"show": (` entry, which says it "falls back to the operational action ledger (an action id, or id@generation)"), the `p_show = sub.add_parser("show", ...)` `help=` string ("records first, then the action ledger"), its epilog example `aw show setup-repo-v1  # an action from the ledger`, and the `action_ref` argument help ("or an action id[@generation]"), so they describe only the records lookup `_run_show` actually performs (action-ledger support was removed in `19bd75020`) and state that a selector naming no artifact anywhere exits 2 while a standing-status token with nothing to show exits 0. Keep the argparse dest `action_ref` unchanged. Write no em or en dashes in the new help text.
   - Depends on: E-02
   - Expected outcome: `python3 -m agent_workflows show --help` no longer mentions an action ledger or `id@generation`, documents the exit-2 refusal and the exit-0 standing-status answer, and contains no `\u2014`/`\u2013` characters.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Update `CommandDeclaration(command="show", ...)` in `agent_workflows/command_surface.py` from `exit_contract=(0, 1, 2)` to `exit_contract=(0, 2)` with a one-line comment explaining that `aw show` is a pure read verb whose zero-match refusal exits `2` (`upryxf`; `docs/cli-output-contract.md` Section 11.1) and has no reachable exit `1` path (so `tests.conformance_matrix.required_scenarios` does not demand a synthetic `domain_failure` scenario), then run the command-surface and conformance test modules.
+- [x] E-03 Update `CommandDeclaration(command="show", ...)` in `agent_workflows/command_surface.py` from `exit_contract=(0, 1, 2)` to `exit_contract=(0, 2)` with a one-line comment explaining that `aw show` is a pure read verb whose zero-match refusal exits `2` (`upryxf`; `docs/cli-output-contract.md` Section 11.1) and has no reachable exit `1` path (so `tests.conformance_matrix.required_scenarios` does not demand a synthetic `domain_failure` scenario), then run the command-surface and conformance test modules.
   - Depends on: E-02
   - Expected outcome: `command_surface.get_declaration("show").exit_contract == (0, 2)`, `"domain_failure" not in conformance_matrix.required_scenarios(get_declaration("show"))`, and `pytest tests/test_command_surface_declarations.py tests/test_conformance_matrix_structure.py tests/test_exit_contract_conformance.py tests/test_agent_surface_conformance.py` passes with 0 failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Regression tests, documentation sync, and final validation gates
 
-- [ ] E-04 Create `tests/test_cli_show.py` exercising `aw show` through `cli.main(["show", <token>, "--dir", <tmp>, ...])` against an isolated temporary repository fixture (pattern: `tests/test_read_verb_zero_match_refusal.py` `setUp`; the fixture holds plans, a backlog item, and one `.aw/records/releases/` record), capturing `stdout`/`stderr` and asserting on exit codes and parsed output across all three surfaces (`human`, `--agent`, `--json`). No test reads production source (P16). Cases: (1) `UNKNOWN` non-vocabulary token (`zzzzzz`) exits `2` (`human` writes to `stderr` with `stdout == ""` and names `zzzzzz` + `aw find`; `--agent` emits one record passing `agent_schema.assert_valid_agent_record` with `kind == "error"`, `cmd == "show"`, `outcome == "cannot-run"`, `exit == 2`, `verified is False`, `complete is False`, `unresolved_selectors == ["zzzzzz"]`, `unresolved_targets == ["zzzzzz"]`, `"zzzzzz" in error`, `next == "aw find"`; `--json` emits `status == "cannot-run"`, `exit_code == 2`, `verified is False`, `complete is False`, `data["unresolved_selectors"] == ["zzzzzz"]`, `data["unresolved_targets"] == ["zzzzzz"]`); (2) home-path-shaped unknown token (`f"{Path.home()}/secret-missing-ref"`) exits `2` on all three surfaces with `~/secret-missing-ref` (the `agent_schema.redact_home_paths` form) in the output and the literal `str(Path.home())` absent from both streams; (3) standing-vocabulary tokens with zero displayable matches in the fixture (`reusable` and `prompt-library`) exit `0` on all three surfaces (`human`: `stdout` non-empty and naming the token, `stderr == ""`; `--agent`: `kind == "result"`, `outcome == "clean"`, `exit == 0`, `verified is True`, `complete is True`, `findings == 0`; `--json`: `status == "clean"`, `exit_code == 0`, `data["matches"] == []`, `data["contents"] == {}`); (4) a token naming a REAL artifact in a tree `aw show` does not display (the fixture release record's id6) exits `0` and is not refused on all three surfaces; (5) matching selector tokens (by `id6`, `setid`, standing status `to-review`, and filename substring) exit `0` on all three surfaces and return the matched artifact path and markdown body in `stdout` / `data["matches"]` / `data["contents"]`; and (6) every exit code observed in cases (1)-(5) is a member of `command_surface.get_declaration("show").exit_contract`, none is `1`, and `"domain_failure" not in conformance_matrix.required_scenarios(command_surface.get_declaration("show"))`.
+- [x] E-04 Create `tests/test_cli_show.py` exercising `aw show` through `cli.main(["show", <token>, "--dir", <tmp>, ...])` against an isolated temporary repository fixture (pattern: `tests/test_read_verb_zero_match_refusal.py` `setUp`; the fixture holds plans, a backlog item, and one `.aw/records/releases/` record), capturing `stdout`/`stderr` and asserting on exit codes and parsed output across all three surfaces (`human`, `--agent`, `--json`). No test reads production source (P16). Cases: (1) `UNKNOWN` non-vocabulary token (`zzzzzz`) exits `2` (`human` writes to `stderr` with `stdout == ""` and names `zzzzzz` + `aw find`; `--agent` emits one record passing `agent_schema.assert_valid_agent_record` with `kind == "error"`, `cmd == "show"`, `outcome == "cannot-run"`, `exit == 2`, `verified is False`, `complete is False`, `unresolved_selectors == ["zzzzzz"]`, `unresolved_targets == ["zzzzzz"]`, `"zzzzzz" in error`, `next == "aw find"`; `--json` emits `status == "cannot-run"`, `exit_code == 2`, `verified is False`, `complete is False`, `data["unresolved_selectors"] == ["zzzzzz"]`, `data["unresolved_targets"] == ["zzzzzz"]`); (2) home-path-shaped unknown token (`f"{Path.home()}/secret-missing-ref"`) exits `2` on all three surfaces with `~/secret-missing-ref` (the `agent_schema.redact_home_paths` form) in the output and the literal `str(Path.home())` absent from both streams; (3) standing-vocabulary tokens with zero displayable matches in the fixture (`reusable` and `prompt-library`) exit `0` on all three surfaces (`human`: `stdout` non-empty and naming the token, `stderr == ""`; `--agent`: `kind == "result"`, `outcome == "clean"`, `exit == 0`, `verified is True`, `complete is True`, `findings == 0`; `--json`: `status == "clean"`, `exit_code == 0`, `data["matches"] == []`, `data["contents"] == {}`); (4) a token naming a REAL artifact in a tree `aw show` does not display (the fixture release record's id6) exits `0` and is not refused on all three surfaces; (5) matching selector tokens (by `id6`, `setid`, standing status `to-review`, and filename substring) exit `0` on all three surfaces and return the matched artifact path and markdown body in `stdout` / `data["matches"]` / `data["contents"]`; and (6) every exit code observed in cases (1)-(5) is a member of `command_surface.get_declaration("show").exit_contract`, none is `1`, and `"domain_failure" not in conformance_matrix.required_scenarios(command_surface.get_declaration("show"))`.
   - Depends on: E-02, E-03, E-06
   - Expected outcome: `python3 -m pytest tests/test_cli_show.py` passes all tests in the new module with 0 failures.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update `docs/cli-output-contract.md` Section 11.1 (the "Precedent and Scope" bullet, whose read-verb list names `aw attention`, `aw find`, `aw reviews decisions`, `aw record-history`, `aw graduation` and `aw ipd recheck-readiness`) to add `aw show` to that list, and add one `- Changed:` bullet to `CHANGELOG.md` under the current `## 2.0.0 (pending)` heading (beside the existing bullet beginning "- Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2"; this CHANGELOG has no `## [Unreleased]` / `### Changed` headings) recording that `aw show <ref>` now refuses at exit 2 (`cannot-run`) a selector naming no artifact anywhere, answers exit 0 when a standing-status token or a real but non-displayed artifact has nothing to show, and no longer exits 1. Write zero em/en dashes (`\u2014` / `\u2013`) in added lines. Then run the full suite (`python3 -m pytest`), `aw ipd lint --phase pre-transition <this plan>`, `aw check release-gates`, and `aw sanitize --agent`.
+- [x] E-05 Update `docs/cli-output-contract.md` Section 11.1 (the "Precedent and Scope" bullet, whose read-verb list names `aw attention`, `aw find`, `aw reviews decisions`, `aw record-history`, `aw graduation` and `aw ipd recheck-readiness`) to add `aw show` to that list, and add one `- Changed:` bullet to `CHANGELOG.md` under the current `## 2.0.0 (pending)` heading (beside the existing bullet beginning "- Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2"; this CHANGELOG has no `## [Unreleased]` / `### Changed` headings) recording that `aw show <ref>` now refuses at exit 2 (`cannot-run`) a selector naming no artifact anywhere, answers exit 0 when a standing-status token or a real but non-displayed artifact has nothing to show, and no longer exits 1. Write zero em/en dashes (`\u2014` / `\u2013`) in added lines. Then run the full suite (`python3 -m pytest`), `aw ipd lint --phase pre-transition <this plan>`, `aw check release-gates`, and `aw sanitize --agent`.
   - Depends on: E-04
   - Expected outcome: `docs/cli-output-contract.md` and `CHANGELOG.md` reflect the shipped behavior with 0 em/en dashes; the full `python3 -m pytest` suite, `aw ipd lint --phase pre-transition`, `aw check release-gates`, and `aw sanitize --agent` all exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -162,35 +162,323 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `python3 -m pytest` summary line from the pre-change worktree, the name of the re-derived vocabulary-zero-match token, and the pasted 15-cell pre-change table (`human`, `--agent`, `--json` x `zzzzzz`, that token, `approved`, `f36de0`, `f33nrj`) produced by `python3 -m agent_workflows show ...`, showing `zzzzzz`, the vocabulary token and `f33nrj` exiting `1` prior to the fix (or the verbatim deviation).
   - Observed evidence:
-  - Result: pending
+    Pre-change `python3 -m pytest` summary line:
+    ```
+    705 passed in 29.35s
+    ```
+    Re-derived vocabulary-zero-match token:
+    `prompt-library`
+    Pasted 15-cell pre-change measurement table:
+    ```
+    Category                       | Token            | Surface  | Exit | len(out) | len(err) | Outcome/Status
+    -----------------------------------------------------------------------------------------------
+    UNKNOWN                        | zzzzzz           | human    | 1    | 110      | 0        | n/a
+    UNKNOWN                        | zzzzzz           | --agent  | 1    | 264      | 0        | findings
+    UNKNOWN                        | zzzzzz           | --json   | 1    | 520      | 0        | findings
+    VOCABULARY-ZERO-MATCH          | prompt-library   | human    | 1    | 126      | 0        | n/a
+    VOCABULARY-ZERO-MATCH          | prompt-library   | --agent  | 1    | 272      | 0        | findings
+    VOCABULARY-ZERO-MATCH          | prompt-library   | --json   | 1    | 544      | 0        | findings
+    VOCABULARY-MATCHING            | approved         | human    | 0    | 2004028  | 0        | n/a
+    VOCABULARY-MATCHING            | approved         | --agent  | 0    | 164      | 0        | clean
+    VOCABULARY-MATCHING            | approved         | --json   | 0    | 2039449  | 0        | clean
+    MATCHING                       | f36de0           | human    | 0    | 91689    | 0        | n/a
+    MATCHING                       | f36de0           | --agent  | 0    | 164      | 0        | clean
+    MATCHING                       | f36de0           | --json   | 0    | 93753    | 0        | clean
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | human    | 1    | 110      | 0        | n/a
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | --agent  | 1    | 264      | 0        | findings
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | --json   | 1    | 520      | 0        | findings
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -- agent_workflows/cli.py` hunk for `_run_show` showing it calls `selector_tokens_naming_no_artifact` and `emit_zero_match_selector_refusal` and no longer contains `show.not_found` or a `return 1`, and the pasted 15-cell post-change matrix (same tokens and surfaces as V-01): `zzzzzz` exits `2` on all 3 surfaces (human `len(stdout) == 0`, `len(stderr) > 0`; `--agent` `kind == "error"`, `outcome == "cannot-run"`, `verified is False`, `complete is False`, `unresolved_selectors == ["zzzzzz"]`; `--json` `status == "cannot-run"`, `exit_code == 2`); the vocabulary token and `f33nrj` exit `0` on all 3 surfaces (human `len(stdout) > 0`, `len(stderr) == 0`; `--agent` `outcome == "clean"`; `--json` `status == "clean"`); and `approved` and `f36de0` exit `0` with the same matched-path set as in V-01. The observation is produced by the `_run_show` code path E-02 writes.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff -- agent_workflows/cli.py` hunk for `_run_show`:
+    ```diff
+    @@ -12588,7 +12588,6 @@ def _run_show(
+         from agent_workflows.renderers import get_renderer
+         from agent_workflows.result_types import (
+             CommandResult,
+    -        Diagnostic,
+             Evidence,
+             NextAction,
+             select_output,
+    @@ -12643,33 +12642,49 @@ def _run_show(
+                 print(p.read_text(encoding="utf-8"))
+             return 0
 
-- [ ] V-03 validates E-03
+    +    refusable = selector_tokens_naming_no_artifact(repo_root, [ref])
+    +    if refusable:
+    +        return emit_zero_match_selector_refusal(
+    +            ctx=ctx,
+    +            cmd="show",
+    +            tokens=refusable,
+    +            next_cmd="aw find",
+    +            next_desc="list all records",
+    +            searched="all artifact types",
+    +            term=term,
+    +        )
+    +
+         if ctx.is_agent or ctx.is_json:
+             res = CommandResult(
+                 command="show",
+    -            status="findings",
+    -            exit_code=1,
+    -            summary=f"No records artifact matched '{ref}'.",
+    -            diagnostics=[
+    -                Diagnostic(
+    -                    location=ref,
+    -                    rule="show.not_found",
+    -                    detail=f"No records artifact matched '{ref}'.",
+    -                    severity="error",
+    +            status="clean",
+    +            exit_code=0,
+    +            summary=f"matched 0 displayable artifact(s) for '{ref}'",
+    +            evidence=[
+    +                Evidence(
+    +                    key="show-match",
+    +                    value={"count": 0},
+    +                    status="verified",
+                     )
+                 ],
+    +            data={"matches": [], "contents": {}},
+                 next_actions=[
+    -                NextAction(command="aw find", description="list all records")
+    +                NextAction(
+    +                    command=f"aw find {ref}", description="search every record tree"
+    +                )
+                 ],
+             )
+             return get_renderer(ctx).emit(res, ctx)
+
+         term.empty_result(
+    -        summary=f"no records artifact matched '{ref}'",
+    +        summary=f"no displayable records for '{ref}'",
+             filters={"ref": ref},
+    -        next_action=NextAction(command="aw find", description="list all records"),
+    -        status="fail",
+    +        next_action=NextAction(
+    +            command=f"aw find {ref}", description="search every record tree"
+    +        ),
+    +        status="clean",
+         )
+    -    return 1
+    +    return 0
+    ```
+    Pasted 15-cell post-change measurement table:
+    ```
+    Category                       | Token            | Surface  | Exit | len(out) | len(err) | Outcome/Status
+    -----------------------------------------------------------------------------------------------
+    UNKNOWN                        | zzzzzz           | human    | 2    | 0        | 157      | n/a
+    UNKNOWN                        | zzzzzz           | --agent  | 2    | 315      | 0        | cannot-run
+    UNKNOWN                        | zzzzzz           | --json   | 2    | 537      | 0        | cannot-run
+    VOCABULARY-ZERO-MATCH          | prompt-library   | human    | 0    | 149      | 0        | n/a
+    VOCABULARY-ZERO-MATCH          | prompt-library   | --agent  | 0    | 184      | 0        | clean
+    VOCABULARY-ZERO-MATCH          | prompt-library   | --json   | 0    | 574      | 0        | clean
+    VOCABULARY-MATCHING            | approved         | human    | 0    | 2004028  | 0        | n/a
+    VOCABULARY-MATCHING            | approved         | --agent  | 0    | 164      | 0        | clean
+    VOCABULARY-MATCHING            | approved         | --json   | 0    | 2039449  | 0        | clean
+    MATCHING                       | f36de0           | human    | 0    | 91689    | 0        | n/a
+    MATCHING                       | f36de0           | --agent  | 0    | 164      | 0        | clean
+    MATCHING                       | f36de0           | --json   | 0    | 93753    | 0        | clean
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | human    | 0    | 125      | 0        | n/a
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | --agent  | 0    | 176      | 0        | clean
+    NON-DISPLAYED-REAL-ARTIFACT    | f33nrj           | --json   | 0    | 558      | 0        | clean
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff -- agent_workflows/command_surface.py` showing `exit_contract=(0, 2)` on `CommandDeclaration(command="show", ...)`, plus pasted output of `python3 -m pytest tests/test_command_surface_declarations.py tests/test_conformance_matrix_structure.py tests/test_exit_contract_conformance.py tests/test_agent_surface_conformance.py` with its `passed` summary line and exit `0`.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff -- agent_workflows/command_surface.py`:
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index bacfafcb2..1d61b0975 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -224,7 +224,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+             agent_record_kind="result",
+             mutation_gate="none",
+             empty_error_renderer="shared_empty_result",
+    -        exit_contract=(0, 1, 2),
+    +        # Pure read verb: zero-match refusal exits 2 (upryxf; docs/cli-output-contract.md Section 11.1); no reachable exit 1 path.
+    +        exit_contract=(0, 2),
+         ),
+         CommandDeclaration(
+             command="record-history",
+    ```
+    Pasted output of `python3 -m pytest tests/test_command_surface_declarations.py tests/test_conformance_matrix_structure.py tests/test_exit_contract_conformance.py tests/test_agent_surface_conformance.py`:
+    ```
+    ........................................................................ [ 64%]
+    ........................................                                 [100%]
+    NOTE: 3 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    112 passed in 42.53s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted output of `python3 -m pytest -o addopts="" tests/test_cli_show.py -v` showing every test in the module passing (exit `0`), with test names or docstrings showing each of E-04's six cases is pinned (unknown-token exit 2 on all 3 surfaces, home-path redaction, standing-vocabulary zero-match exit 0, non-displayed real artifact exit 0, positive matches, observed exits within the declared `exit_contract`); plus pasted output of `python3 -m pytest tests/test_read_verb_zero_match_refusal.py` passing, proving the shared helpers were not regressed.
   - Observed evidence:
-  - Result: pending
+    Pasted output of `python3 -m pytest -o addopts="" tests/test_cli_show.py -v`:
+    ```
+    tests/test_cli_show.py::CliShowCommandTests::test_home_path_redaction_across_all_surfaces PASSED [ 16%]
+    tests/test_cli_show.py::CliShowCommandTests::test_matching_selectors_exit_0_and_return_content PASSED [ 33%]
+    tests/test_cli_show.py::CliShowCommandTests::test_exit_contract_and_conformance_matrix PASSED [ 50%]
+    tests/test_cli_show.py::CliShowCommandTests::test_unknown_token_refusal_across_all_surfaces PASSED [ 66%]
+    tests/test_cli_show.py::CliShowCommandTests::test_non_displayed_real_artifact_exits_0 PASSED [ 83%]
+    tests/test_cli_show.py::CliShowCommandTests::test_standing_vocabulary_zero_match_exits_0 PASSED [100%]
 
-- [ ] V-05 validates E-05
+    ============================== 6 passed in 2.67s ===============================
+    ```
+    Pasted output of `python3 -m pytest tests/test_read_verb_zero_match_refusal.py`:
+    ```
+    ...........                                                              [100%]
+    11 passed in 2.36s
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted `git diff -- docs/cli-output-contract.md CHANGELOG.md`; pasted output of a check over the ADDED lines of that diff for `\u2014` / `\u2013` returning no matches; and pasted exit-0 outputs of `python3 -m pytest` (bare full suite, with its summary line), `aw ipd lint --phase pre-transition <this plan>`, `aw check release-gates`, and `aw sanitize --agent`.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff -- docs/cli-output-contract.md CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index ed070db80..f3c4e3815 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -36,6 +36,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
+     - Changed: aw runners (table dashboard) now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
+     - Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact in any tracked tree, while keeping legitimate empty answers at exit 0. `aw ipd recheck-readiness` moves from exit 1 to exit 2 for unresolved or non-plan selectors and now refuses a mixed invocation before re-checking or writing anything. Standing vocabulary queries remain exempt at exit 0 across all four verbs.
+    +- Changed: `aw show <ref>` now refuses at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact anywhere in the repository, answers exit 0 when a standing-status token or a real but non-displayed artifact has nothing to show, and no longer exits 1.
+     - Added: every commit and merge created by `aw` now keeps the user as author and records `AW Agent (<model>) <local+aw@domain>` as committer (or `local+tag-aw@domain` when already tagged), stamps `AW-Runner` (`aw oc run`, `aw agy run`, or `aw commit`) alongside `AW-Run` and `AW-Item` when known, exports the agent committer identity and `AW_RUNNER` into runner agent turns, and preserves commit signing by supplying `user.signingkey` from the author identity when `commit.gpgsign` is enabled with no explicit key (see `docs/commit-identity.md`).
+     - Fixed: aw rename and aw group now also rewrite citations that name a record by its filename without the type suffix, and skip with a warning when another record shares that name.
+     - Fixed: when `aw runs --agent` or `aw runs list --agent` finds no matching runs it now prints a standard `aw.agent/v1` summary record (clean, exit 0, zero counts, plus any excluded runs and active filters) instead of a bare `{"runs": []}` object; `--json` output and exit codes are unchanged.
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 4a2e42e12..2bdedaf41 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -432,7 +432,7 @@ When a query, find, search, or list verb matches zero records or produces an emp
+       - **Assertions that a named artifact exists**: A query specifying an artifact identifier (an id6, a setid, or a filename fragment) asserts that a specific artifact exists. If that selector matches zero records, the invocation is treated under Section 11.4 as an unresolved selector refusal and exits 2 (`attention.EXIT_UNRESOLVED_SELECTOR`) with `outcome: "cannot-run"`, `verified: false`, and `complete: false`.
+       - **Resolving selectors in excluded trees**: A query specifying an artifact selector (an id6, a setid, or a filename fragment) that resolves to an artifact on disk, but whose artifact resides in a tree excluded from the view by policy. Because the selector resolved, this is neither a standing question nor an unresolvable assertion. The class covers every tree marked excluded (`tracked=False`) in the policy inventory `attention_contract.TREE_POLICY`, which serves as the authority (including walkthroughs, roadmaps, comms, docs-prompts, and reviews). The invocation is **not refused** (evaluated via `attention.resolve_excluded_tree_matches` and `attention.SelectorMatchFacts.excluded_tree`). When not accompanied by a refusable selector, it yields a clean outcome with `outcome: "clean"`, `exit: 0`, and `verified: true`, naming the matched tree and quoting that policy's own recorded `reason`. In agent mode (`--agent`), `attention.excluded_tree_agent_record` emits a `kind: "result"` record with `excluded_tree_selectors` and `excluded_artifacts` details. The offered remedy is `aw find <token>` (suggested via `next: "aw find <token>"`), which resolves these artifacts directly. Under `attention._emit_excluded_tree_explanation`, the explanation is emitted to `stdout` for machine surfaces (`--agent`, `--json`/`--format json`, and `--check`), and to `stderr` for the interactive human board and list modes (`-id`, `--paths`, `--filenames`), ensuring list-mode `stdout` remains strictly clean (0 bytes) for pipe safety.
+     - **Precedent and Scope**:
+    -  Spec `25kzda` Sections 2.3 and 2.4a established the precedent for this distinction, observing that an empty status query such as `reviews` matching nothing is a successful answer rather than an error, while a misspelled id6 exits 2. Spec `25kzda` specifically governs the runner verbs `aw oc run` and `aw agy run` rather than read verbs generally, so its status-selector carve-out serves as precedent rather than a binding contract. The read verbs `aw attention`, `aw find`, `aw reviews decisions`, `aw record-history`, `aw graduation` and `aw ipd recheck-readiness` follow and extend this pattern by deriving their exempt vocabulary (via `attention.selector_vocabulary` and `cli.find_selector_vocabulary`) and evaluating refusable match facts, following the shipped precedent in `run_viewer.emit_unresolvable_target_refusal`. Under the shared predicate (`cli.selector_tokens_naming_no_artifact`), a selector that names a real artifact with nothing to report is a clean empty answer, while one naming no artifact anywhere in the repository is refused with exit 2.
+    +  Spec `25kzda` Sections 2.3 and 2.4a established the precedent for this distinction, observing that an empty status query such as `reviews` matching nothing is a successful answer rather than an error, while a misspelled id6 exits 2. Spec `25kzda` specifically governs the runner verbs `aw oc run` and `aw agy run` rather than read verbs generally, so its status-selector carve-out serves as precedent rather than a binding contract. The read verbs `aw attention`, `aw find`, `aw show`, `aw reviews decisions`, `aw record-history`, `aw graduation` and `aw ipd recheck-readiness` follow and extend this pattern by deriving their exempt vocabulary (via `attention.selector_vocabulary` and `cli.find_selector_vocabulary`) and evaluating refusable match facts, following the shipped precedent in `run_viewer.emit_unresolvable_target_refusal`. Under the shared predicate (`cli.selector_tokens_naming_no_artifact`), a selector that names a real artifact with nothing to report is a clean empty answer, while one naming no artifact anywhere in the repository is refused with exit 2.
+     - **Not Refused vs. Exit Codes (Drift Separation)**:
+       The exemptions for standing questions and excluded-tree selectors are worded as **not refused** rather than flatly "exits 0". The exemption skips the refusal predicate, after which the verb's ordinary exit classification still applies. In a repository without drift or findings, the exempt query yields `outcome: "clean"` with exit 0. However, if the repository concurrently contains contract drift or policy violations, a concurrent drift finding still reports itself normally and exits 1 through the drift path. Conversely, a selector refusal is a separate condition from a contract finding: it neither appends a drift record nor flips the `--json` `valid` flag, ensuring an operator typo is never misreported as repository damage.
+     - **List-Mode Stream Rule (Pipe Safety)**:
+    ```
+    Pasted dash check output:
+    ```
+    NO DASHES FOUND (0 occurrences of \u2014 / \u2013 in added lines)
+    ```
+    Pasted `python3 -m pytest` full suite summary line:
+    ```
+    705 passed in 20.03s
+    ```
+    Pasted `aw check release-gates` output:
+    ```
+    AW check  release-gates                                                  1748 ms
+    ✓ CONFORMS  124 release-gates checked
 
-- [ ] V-06 validates E-06
+    Evidence
+      backlog  50   specs  19   plans  54   releases  1
+      errors  0   warnings  0   info  0
+
+    Next  aw releases list
+    Agent output: --agent
+    ```
+    Pasted `aw sanitize --agent` output:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5227,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted `git diff -- agent_workflows/cli.py` hunks for `_DESCRIPTIONS["show"]` and `p_show`, and the pasted full output of `python3 -m agent_workflows show --help`, showing no occurrence of `ledger` or `@generation`, the exit-2 refusal and exit-0 standing-status behavior described, and no `\u2014`/`\u2013` characters.
   - Observed evidence:
-  - Result: pending
+    Pasted `git diff -- agent_workflows/cli.py` hunks for `_DESCRIPTIONS["show"]` and `p_show`:
+    ```diff
+    @@ -491,11 +491,11 @@ _DESCRIPTIONS = {
+         # all four spellings. Declaring only the canonical `next` key is therefore both the smaller change
+         # and the correct one: every spelling shows the one authored description.
+         "show": (
+    -        "Inspect a record or action and print its full content. Resolves the given selector as a "
+    -        "RECORDS artifact first (an id6 like pp6y76, a set id, a filename fragment, or a status, "
+    -        "across plans/specs/research/backlog/prompts/walkthroughs/roadmaps), and falls back to the "
+    -        "operational action ledger (an action id, or id@generation) if nothing matches. Use --dir to "
+    -        "point the records lookup at a specific repo."
+    +        "Inspect a records artifact and print its full content. Resolves the given selector as a "
+    +        "records artifact (an id6 like pp6y76, a set id, a filename fragment, or a status, "
+    +        "across plans/specs/research/backlog/prompts/walkthroughs/roadmaps). A selector naming no "
+    +        "artifact anywhere exits 2, while a standing-status token with nothing to show exits 0. "
+    +        "Use --dir to point the records lookup at a specific repo."
+         ),
+         "record-history": (
+             "Print workflow history from the machine-local .aw/records/history.jsonl activity log by "
+    @@ -4396,18 +4396,18 @@ def _build_parser() -> argparse.ArgumentParser:
+         p_show = sub.add_parser(
+             "show",
+             parents=[common],
+    -        help="Inspect a record or action by id6, set id, filename, or status (records first, then the action ledger).",
+    +        help="Inspect a record by id6, set id, filename, or status (unknown selector exits 2, standing status with no matches exits 0).",
+             formatter_class=_AlphaHelpFormatter,
+             epilog=(
+                 "EXAMPLES\n"
+                 "  aw show pp6y76               # print the record with id6 pp6y76 (plans/specs/research/...)\n"
+                 "  aw show <set-id>             # the records in a Set\n"
+    -            "  aw show setup-repo-v1        # an action from the ledger\n"
+    +            "  aw show to-review            # records with status to-review (exits 0 even if none)\n"
+             ),
+         )
+         p_show.add_argument(
+             "action_ref",
+    -        help="A selector: an id6 (e.g. pp6y76), a set id, a filename fragment, a status, or an action id[@generation].",
+    +        help="A selector: an id6 (e.g. pp6y76), a set id, a filename fragment, or a status.",
+         )
+         p_show.add_argument(
+             "--dir",
+    ```
+    Pasted `python3 -m agent_workflows show --help`:
+    ```
+    usage: agent-workflows show [-h] [--no-color | --color] [--no-interactive |
+                                --interactive] [--agent] [--json] [--fields FIELDS]
+                                [--verbose] [--dir DIR]
+                                action_ref
+
+    Inspect a records artifact and print its full content. Resolves the given selector as a records artifact (an id6 like pp6y76, a set id, a filename fragment, or a status, across plans/specs/research/backlog/prompts/walkthroughs/roadmaps). A selector naming no artifact anywhere exits 2, while a standing-status token with nothing to show exits 0. Use --dir to point the records lookup at a specific repo.
+
+    positional arguments:
+      action_ref        A selector: an id6 (e.g. pp6y76), a set id, a filename
+                        fragment, or a status.
+
+    options:
+      -h, --help        show this help message and exit
+      --no-color        Disable ANSI color (also honored via NO_COLOR).
+      --color           Force ANSI color on even when stdout is not a terminal
+                        (beats NO_COLOR).
+      --no-interactive  Disable interactive prompting (declining confirmations and
+                        taking non-interactive defaults).
+      --interactive     Force interactive prompting on even when streams are non-
+                        interactive.
+      --agent           Machine-readable output (aw.agent/v1 JSONL).
+      --json            Emit full structured JSON representation.
+      --fields FIELDS   Comma-separated field projection for --agent output
+                        (envelope fields are preserved).
+      --verbose         Include full nested diagnostics, change details, and
+                        evidence dictionaries.
+      --dir DIR         Repo root to search for a records artifact (default: current
+                        directory).
+
+    EXAMPLES
+      aw show pp6y76               # print the record with id6 pp6y76 (plans/specs/research/...)
+      aw show <set-id>             # the records in a Set
+      aw show to-review            # records with status to-review (exits 0 even if none)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -491,11 +491,11 @@ _DESCRIPTIONS = {
     # all four spellings. Declaring only the canonical `next` key is therefore both the smaller change
     # and the correct one: every spelling shows the one authored description.
     "show": (
-        "Inspect a record or action and print its full content. Resolves the given selector as a "
-        "RECORDS artifact first (an id6 like pp6y76, a set id, a filename fragment, or a status, "
-        "across plans/specs/research/backlog/prompts/walkthroughs/roadmaps), and falls back to the "
-        "operational action ledger (an action id, or id@generation) if nothing matches. Use --dir to "
-        "point the records lookup at a specific repo."
+        "Inspect a records artifact and print its full content. Resolves the given selector as a "
+        "records artifact (an id6 like pp6y76, a set id, a filename fragment, or a status, "
+        "across plans/specs/research/backlog/prompts/walkthroughs/roadmaps). A selector naming no "
+        "artifact anywhere exits 2, while a standing-status token with nothing to show exits 0. "
+        "Use --dir to point the records lookup at a specific repo."
     ),
     "record-history": (
         "Print workflow history from the machine-local .aw/records/history.jsonl activity log by "
@@ -4396,18 +4396,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_show = sub.add_parser(
         "show",
         parents=[common],
-        help="Inspect a record or action by id6, set id, filename, or status (records first, then the action ledger).",
+        help="Inspect a record by id6, set id, filename, or status (unknown selector exits 2, standing status with no matches exits 0).",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw show pp6y76               # print the record with id6 pp6y76 (plans/specs/research/...)\n"
             "  aw show <set-id>             # the records in a Set\n"
-            "  aw show setup-repo-v1        # an action from the ledger\n"
+            "  aw show to-review            # records with status to-review (exits 0 even if none)\n"
         ),
     )
     p_show.add_argument(
         "action_ref",
-        help="A selector: an id6 (e.g. pp6y76), a set id, a filename fragment, a status, or an action id[@generation].",
+        help="A selector: an id6 (e.g. pp6y76), a set id, a filename fragment, or a status.",
     )
     p_show.add_argument(
         "--dir",
@@ -12588,7 +12588,6 @@ def _run_show(
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
         CommandResult,
-        Diagnostic,
         Evidence,
         NextAction,
         select_output,
@@ -12643,33 +12642,49 @@ def _run_show(
             print(p.read_text(encoding="utf-8"))
         return 0
 
+    refusable = selector_tokens_naming_no_artifact(repo_root, [ref])
+    if refusable:
+        return emit_zero_match_selector_refusal(
+            ctx=ctx,
+            cmd="show",
+            tokens=refusable,
+            next_cmd="aw find",
+            next_desc="list all records",
+            searched="all artifact types",
+            term=term,
+        )
+
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="show",
-            status="findings",
-            exit_code=1,
-            summary=f"No records artifact matched '{ref}'.",
-            diagnostics=[
-                Diagnostic(
-                    location=ref,
-                    rule="show.not_found",
-                    detail=f"No records artifact matched '{ref}'.",
-                    severity="error",
+            status="clean",
+            exit_code=0,
+            summary=f"matched 0 displayable artifact(s) for '{ref}'",
+            evidence=[
+                Evidence(
+                    key="show-match",
+                    value={"count": 0},
+                    status="verified",
                 )
             ],
+            data={"matches": [], "contents": {}},
             next_actions=[
-                NextAction(command="aw find", description="list all records")
+                NextAction(
+                    command=f"aw find {ref}", description="search every record tree"
+                )
             ],
         )
         return get_renderer(ctx).emit(res, ctx)
 
     term.empty_result(
-        summary=f"no records artifact matched '{ref}'",
+        summary=f"no displayable records for '{ref}'",
         filters={"ref": ref},
-        next_action=NextAction(command="aw find", description="list all records"),
-        status="fail",
+        next_action=NextAction(
+            command=f"aw find {ref}", description="search every record tree"
+        ),
+        status="clean",
     )
-    return 1
+    return 0
 
 
 def _run_record_history(
