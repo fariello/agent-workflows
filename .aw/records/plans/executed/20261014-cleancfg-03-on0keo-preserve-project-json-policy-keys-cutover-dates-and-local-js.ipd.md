@@ -6,7 +6,7 @@
 - Scope: Preserve `cutovers`, `setids`, `unknown_fields`, and `non_secret_consent` when writing `project.json` and preserve `human_slug`, `worktree_path`, `common_dir`, `local_aliases`, `runtime_overrides`, `companion_dir`, and `unknown_fields` (`run_analytics_sharing`, `run_analytics_telemetry`) when writing `local.json` in `install_wizard.persist_project_policy` (`replace_config=False`); preserve empty-dict `cutovers`/`setids` in `ProjectPolicySchema.to_dict`; preserve `enabled_hosts`, `role`, `companion_dir`, `non_secret_consent`, and existing presets across `resolve_project_context`, `resolve_existing_policy`, `resolve_policy_noninteractive`, and `cli._run_install`; refuse a reinstall preset switch that would move config between the target and `AW_HOME` (relocation deferred to backlog `ui1aln`); add `CHANGELOG.md` entry; and add unit + subprocess regression tests in `tests/test_reinstall_preserves_config.py`.
 - Scope-Paths: agent_workflows/project_schema.py, agent_workflows/project_context.py, agent_workflows/install_wizard.py, agent_workflows/cli.py, CHANGELOG.md, tests/test_reinstall_preserves_config.py
 - Item-Dependencies: executed:p425hv
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: antigravity
 - Id: on0keo
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: on0keo verified (set cleancfg, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010; new backlog ui1aln carries cross-placement relocation
