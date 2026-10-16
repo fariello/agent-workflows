@@ -150,6 +150,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Retiring the nine `(leaf, "--fields"): "aws1tg"` entries in `tests/test_shared_flag_honored.KNOWN_BROKEN` — owned by sibling pending IPD `83ns86` (`From-Backlog: aws1tg`).
   - Carrier: 83ns86
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-aws1tg-01-83ns86-honor-the-shared-fields-projection-under-agent-across-the-ni.ipd.md
 - Retiring the four `(leaf, "--fields"): "4y614a"` entries (`ipd scaffold`, `research new`, `research new-comparison`, `storage move`) in `tests/test_shared_flag_honored.KNOWN_BROKEN` — owned by backlog item `4y614a` and its pending IPD `ksmdcd`.
   - Carrier: ksmdcd
 

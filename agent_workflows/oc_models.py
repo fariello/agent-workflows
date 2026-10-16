@@ -1026,6 +1026,7 @@ def build_parser(prog: str = "aw oc update-models") -> argparse.ArgumentParser:
         "--json", dest="as_json", action="store_true", help=argparse.SUPPRESS
     )
     parser.add_argument("--no-color", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--fields", default=None, help=argparse.SUPPRESS)
     return parser
 
 
@@ -1044,6 +1045,7 @@ def run(
     argv: Optional[List[str]] = None,
     fetch: Optional[Callable[[str, str], Optional[Any]]] = None,
     env: Optional[Mapping[str, str]] = None,
+    context: Optional[Any] = None,
 ) -> int:
     """Preview or apply the model/pricing sync. Returns a process exit code."""
 
@@ -1053,7 +1055,7 @@ def run(
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import CommandResult, NextAction, select_output
 
-    ctx = select_output(args)
+    ctx = context if context is not None else select_output(args)
     is_agent_or_json = ctx.is_agent or ctx.is_json
 
     if args.config:

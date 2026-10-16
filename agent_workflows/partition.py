@@ -959,6 +959,12 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     order_by_flag = getattr(args, "order_by", None)
     is_json = bool(getattr(args, "json", False))
     is_agent = bool(getattr(args, "agent", False))
+    if context is not None:
+        fields = getattr(context, "fields", None)
+    else:
+        from agent_workflows.result_types import select_output
+
+        fields = select_output(args).fields
 
     # Stdin handling
     stdin_ids: Optional[List[str]] = None
@@ -1069,6 +1075,8 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                     "complete": True,
                     "blocked_sets": [cs.to_dict() for cs in blocked_sets],
                 }
+                if fields:
+                    record = agent_schema.filter_record_fields(record, fields)
                 sys.stdout.write(agent_schema.render_jsonl_record(record))
                 return 2
 
@@ -1214,6 +1222,8 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
         }
         if held_back_orchestrators:
             record["held_back_orchestrators"] = held_back_orchestrators
+        if fields:
+            record = agent_schema.filter_record_fields(record, fields)
         sys.stdout.write(agent_schema.render_jsonl_record(record))
         return 0
 
