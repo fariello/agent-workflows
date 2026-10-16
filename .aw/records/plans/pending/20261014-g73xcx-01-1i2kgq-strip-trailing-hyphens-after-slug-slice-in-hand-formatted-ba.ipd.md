@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the two hand-formatted slug slices
 
-- [ ] E-01 In `agent_workflows/backlog.py` `run_new`, change the slug expression `core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"` to strip hyphens after the slice (`[:50].strip("-") or "item"`), matching the existing idiom in `prompts.py` (`core.kebab(slug_arg)[:60].strip("-")`).
+- [x] E-01 In `agent_workflows/backlog.py` `run_new`, change the slug expression `core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"` to strip hyphens after the slice (`[:50].strip("-") or "item"`), matching the existing idiom in `prompts.py` (`core.kebab(slug_arg)[:60].strip("-")`).
   - Depends on: none
   - Expected outcome: a summary whose kebab form has `-` at index 49 yields a slug with no trailing hyphen; all other slugs are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/set_records.py` `promote_question_to_backlog`, change `(_core.kebab(summary or "question")[:50]) or "question"` to `_core.kebab(summary or "question")[:50].strip("-") or "question"`.
+- [x] E-02 In `agent_workflows/set_records.py` `promote_question_to_backlog`, change `(_core.kebab(summary or "question")[:50]) or "question"` to `_core.kebab(summary or "question")[:50].strip("-") or "question"`.
   - Depends on: none
   - Expected outcome: a promoted deferred question whose summary has `-` at kebab index 49 is written with a conformant filename (pre-fix it is NOT refused: `validate_item` passes and the nonconformant name is written, measured at review).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral regression tests
 
-- [ ] E-03 Add `tests/test_slug_slice_trailing_hyphen.py` with behavioral tests that (a) drive `backlog.run_new` (via an `argparse.Namespace` with `dir`, `summary`, `set`, `priority`, `kind`, `apply=True`, as `tests/test_backlog.py` `_new`/`_args` do) in a `git init`ed temp repo with a summary engineered so its kebab form has a hyphen at index 49 (`"a" * 49 + " tail words"`), assert exit 0, assert exactly one `*.backlog.md` was written whose name does not end in `-.backlog.md`, and assert `check_engine.check_names(repo, "backlog")` reports no `check.name-nonconformant` drift; and (b) call `set_records.promote_question_to_backlog(repo, decision_number=1, summary=<same>, resume_command=...)` in a fresh temp repo and assert the returned `path.name` does not end in `-.backlog.md`, the file exists, and `check_engine.check_names(repo, "backlog")` reports no `check.name-nonconformant` drift. Do NOT use `backlog.run_check` or `backlog.validate_item` as the oracle: neither checks the filename grammar, and both pass on the pre-fix name (measured at review, see Findings). Tests exercise the code; they do not read source. Author and run this file BEFORE applying E-01/E-02 to capture the red run V-03 demands (so it has no execution dependency, although it passes only after E-01 and E-02).
+- [x] E-03 Add `tests/test_slug_slice_trailing_hyphen.py` with behavioral tests that (a) drive `backlog.run_new` (via an `argparse.Namespace` with `dir`, `summary`, `set`, `priority`, `kind`, `apply=True`, as `tests/test_backlog.py` `_new`/`_args` do) in a `git init`ed temp repo with a summary engineered so its kebab form has a hyphen at index 49 (`"a" * 49 + " tail words"`), assert exit 0, assert exactly one `*.backlog.md` was written whose name does not end in `-.backlog.md`, and assert `check_engine.check_names(repo, "backlog")` reports no `check.name-nonconformant` drift; and (b) call `set_records.promote_question_to_backlog(repo, decision_number=1, summary=<same>, resume_command=...)` in a fresh temp repo and assert the returned `path.name` does not end in `-.backlog.md`, the file exists, and `check_engine.check_names(repo, "backlog")` reports no `check.name-nonconformant` drift. Do NOT use `backlog.run_check` or `backlog.validate_item` as the oracle: neither checks the filename grammar, and both pass on the pre-fix name (measured at review, see Findings). Tests exercise the code; they do not read source. Author and run this file BEFORE applying E-01/E-02 to capture the red run V-03 demands (so it has no execution dependency, although it passes only after E-01 and E-02).
   - Depends on: none
   - Expected outcome: both tests fail on the pre-fix code (the name ends `-.backlog.md` and `check_names` returns `check.name-nonconformant`) and pass after E-01/E-02.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,20 +114,139 @@ N/A: the clustered naming grammar already forbids a trailing hyphen in the slug;
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff agent_workflows/backlog.py` showing `.strip("-")` applied after the `[:50]` slice in `run_new`, plus pasted output of the E-03 `run_new` test passing (that test drives `backlog.run_new` and checks the name with `check_engine.check_names`).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/backlog.py`:
+    ```diff
+    diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+    index b281e192c..5d997b95a 100644
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -1278,7 +1278,8 @@ def run_new(args) -> int:
 
-- [ ] V-02 validates E-02
+         today = datetime.date.today().strftime("%Y%m%d")
+         slug = (
+    -        core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"
+    +        core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50].strip("-")
+    +        or "item"
+         )
+         filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
+         dest = (
+    ```
+    Passing `run_new` test output (`python3 -m pytest tests/test_slug_slice_trailing_hyphen.py -k test_run_new_strips_trailing_hyphen_after_slug_slice`):
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    .                                                                        [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+    1 passed in 1.97s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff agent_workflows/set_records.py` showing `.strip("-")` applied after the `[:50]` slice in `promote_question_to_backlog`, plus pasted output of the E-03 promotion test passing.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/set_records.py`:
+    ```diff
+    diff --git a/agent_workflows/set_records.py b/agent_workflows/set_records.py
+    index 49bb533ef..8079a62c3 100644
+    --- a/agent_workflows/set_records.py
+    +++ b/agent_workflows/set_records.py
+    @@ -346,7 +346,7 @@ def promote_question_to_backlog(
+         # Validate BEFORE writing (fail-closed): the promoted item must pass backlog validation.
+         root = _backlog._resolve_backlog_root(repo_root)
+         today = datetime.date.today().strftime("%Y%m%d")
+    -    slug = (_core.kebab(summary or "question")[:50]) or "question"
+    +    slug = _core.kebab(summary or "question")[:50].strip("-") or "question"
+         filename = "{0}-{1}-01-{2}-{3}.backlog.md".format(today, item.set, item.id, slug)
+         dest = root / "blocked" / filename
+         drift = _backlog.validate_item(dest, rendered)
+    ```
+    Passing promotion test output (`python3 -m pytest tests/test_slug_slice_trailing_hyphen.py -k test_promote_question_to_backlog_strips_trailing_hyphen_after_slug_slice`):
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    .                                                                        [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus', and -k/--deselect also contributed); run everything with: make test-all
+    1 passed in 2.19s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output for `tests/test_slug_slice_trailing_hyphen.py` FAILING before E-01/E-02 are applied (both tests red, the failure naming the trailing-hyphen filename or `check.name-nonconformant`) and PASSING after; and the pasted summary line of a bare `python3 -m pytest` run with no new failures (any failure must be shown pre-existing by re-running it on the unmodified tree).
   - Observed evidence:
-  - Result: pending
+    Failing pytest output before E-01/E-02 (`python3 -m pytest tests/test_slug_slice_trailing_hyphen.py`):
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    FF                                                                       [100%]
+    =================================== FAILURES ===================================
+    _ SlugSliceTrailingHyphenTests.test_run_new_strips_trailing_hyphen_after_slug_slice _
+    [gw4] linux -- Python 3.14.6 python3
+
+    self = <tests.test_slug_slice_trailing_hyphen.SlugSliceTrailingHyphenTests testMethod=test_run_new_strips_trailing_hyphen_after_slug_slice>
+
+        def test_run_new_strips_trailing_hyphen_after_slug_slice(self) -> None:
+            summary = "a" * 49 + " tail words"
+            args = argparse.Namespace(
+                dir=str(self.repo),
+                summary=summary,
+                set="s",
+                priority="high",
+                kind="bug",
+                apply=True,
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = backlog.run_new(args)
+
+            self.assertEqual(rc, 0)
+            items = list(self.repo.rglob("*.backlog.md"))
+            self.assertEqual(len(items), 1)
+            filename = items[0].name
+    >       self.assertFalse(
+                filename.endswith("-.backlog.md"),
+                f"backlog filename {filename} ends with trailing hyphen before extension",
+            )
+    E       AssertionError: True is not false : backlog filename 20261016-s-01-zhu791-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-.backlog.md ends with trailing hyphen before extension
+
+    tests/test_slug_slice_trailing_hyphen.py:50: AssertionError
+    _ SlugSliceTrailingHyphenTests.test_promote_question_to_backlog_strips_trailing_hyphen_after_slug_slice _
+    [gw5] linux -- Python 3.14.6 python3
+
+    self = <tests.test_slug_slice_trailing_hyphen.SlugSliceTrailingHyphenTests testMethod=test_promote_question_to_backlog_strips_trailing_hyphen_after_slug_slice>
+
+        def test_promote_question_to_backlog_strips_trailing_hyphen_after_slug_slice(
+            self,
+        ) -> None:
+            summary = "a" * 49 + " tail words"
+            result = set_records.promote_question_to_backlog(
+                self.repo,
+                decision_number=1,
+                summary=summary,
+                resume_command="aw oc run",
+            )
+            self.assertTrue(result.path.is_file(), f"promoted file {result.path} does not exist")
+    >       self.assertFalse(
+                result.path.name.endswith("-.backlog.md"),
+                f"promoted backlog filename {result.path.name} ends with trailing hyphen before extension",
+            )
+    E       AssertionError: True is not false : promoted backlog filename 20261016-58rbzs-01-58rbzs-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-.backlog.md ends with trailing hyphen before extension
+
+    tests/test_slug_slice_trailing_hyphen.py:76: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_slug_slice_trailing_hyphen.py::SlugSliceTrailingHyphenTests::test_run_new_strips_trailing_hyphen_after_slug_slice
+    FAILED tests/test_slug_slice_trailing_hyphen.py::SlugSliceTrailingHyphenTests::test_promote_question_to_backlog_strips_trailing_hyphen_after_slug_slice
+    2 failed in 2.07s
+    ```
+    Passing pytest output after E-01/E-02 (`python3 -m pytest tests/test_slug_slice_trailing_hyphen.py`):
+    ```
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ..                                                                       [100%]
+    2 passed in 2.29s
+    ```
+    Summary line of bare `python3 -m pytest`:
+    ```
+    695 passed in 41.49s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

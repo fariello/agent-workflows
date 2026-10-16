@@ -1278,7 +1278,10 @@ def run_new(args) -> int:
 
     today = datetime.date.today().strftime("%Y%m%d")
     slug = (
-        core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"
+        core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50].strip(
+            "-"
+        )
+        or "item"
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = (
