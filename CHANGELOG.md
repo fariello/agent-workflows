@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: aw run init persists workflow.json beside the ledger and later aw run/runs leaves resolve it automatically when --workflow is omitted, verifying the workflow digest against the run header (refusing mismatches with exit 2).
 - Added: aw runs now surfaces the count, keys, and event details of discarded agent user-config changes per run in human, --json, and --agent output from the run's durable events.jsonl log.
 - Fixed: the run summary Outcome word again reads FAILED for a turn that crashed or exited nonzero and COMPLETED or STRANDED for a turn that finished its work, instead of BLOCKED, which is now reserved for items waiting on a gate or a human.
 - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.

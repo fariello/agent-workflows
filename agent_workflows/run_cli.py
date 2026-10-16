@@ -39,10 +39,11 @@ import re
 import secrets
 import shutil
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from agent_workflows import (
     agent_schema,
+    artifact_core,
     run_engine,
     run_ledger_schema,
     run_recovery,
@@ -72,6 +73,14 @@ EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
 EXIT_NOT_A_LEDGER: int = (
     7  # the target is healthy JSONL but is NOT a ledger (wrong format, NOT corruption)
 )
+
+# Workflow filename persisted beside ledger.jsonl on aw run init (o34rb3 E-02)
+WORKFLOW_FILENAME: str = "workflow.json"
+
+
+def _workflow_digest(workflow: Mapping[str, Any]) -> str:
+    """Canonical SHA-256 digest of a workflow definition mapping."""
+    return store.compute_record_hash(workflow)
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -905,22 +914,43 @@ def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
     return ledger_file, EXIT_OK
 
 
-def _load_workflow_arg(args: argparse.Namespace) -> Optional[Dict[str, Any]]:
-    """Load a workflow definition from --workflow JSON path, or None if not supplied."""
+def _load_workflow_arg(
+    args: argparse.Namespace, ledger_file: Optional[Path] = None
+) -> Optional[Dict[str, Any]]:
+    """Load a workflow definition from --workflow JSON path, or sibling workflow.json, or None."""
     wf_path = getattr(args, "workflow", None)
-    if not wf_path:
-        return None
-    p = Path(wf_path)
-    if not p.is_file():
-        raise FileNotFoundError(f"workflow file not found: {wf_path}")
-    data = json.loads(p.read_text(encoding="utf-8"))
-    if (
-        isinstance(data, dict)
-        and "workflow" in data
-        and isinstance(data["workflow"], dict)
-    ):
+    if wf_path:
+        p = Path(wf_path)
+        if not p.is_file():
+            raise FileNotFoundError(f"workflow file not found: {wf_path}")
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if (
+            isinstance(data, dict)
+            and "workflow" in data
+            and isinstance(data["workflow"], dict)
+        ):
+            return data
+        if not isinstance(data, dict):
+            raise ValueError(f"workflow file must contain a JSON object: {wf_path}")
         return data
-    return data if isinstance(data, dict) else None
+
+    if ledger_file is not None:
+        sibling = ledger_file.parent / WORKFLOW_FILENAME
+        if sibling.is_file():
+            data = json.loads(sibling.read_text(encoding="utf-8"))
+            if (
+                isinstance(data, dict)
+                and "workflow" in data
+                and isinstance(data["workflow"], dict)
+            ):
+                return data
+            if not isinstance(data, dict):
+                raise ValueError(
+                    f"workflow file must contain a JSON object: {sibling.name}"
+                )
+            return data
+
+    return None
 
 
 def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -988,7 +1018,7 @@ def _build_engine(
         return None, [], _emit_error(args, "ledger is empty", EXIT_INVALID_INVOCATION)
 
     try:
-        workflow = _load_workflow_arg(args)
+        workflow = _load_workflow_arg(args, ledger_file=ledger_file)
     except (OSError, ValueError) as exc:
         return (
             None,
@@ -997,10 +1027,30 @@ def _build_engine(
                 args, f"failed to load workflow: {exc}", EXIT_INVALID_INVOCATION
             ),
         )
+
+    run_rec = records[0] if records[0].get("kind") == "run" else {}
+    if workflow is not None:
+        expected_digest = str(run_rec.get("workflow_digest") or "")
+        actual_digest = _workflow_digest(workflow)
+        if expected_digest and actual_digest != expected_digest:
+            raw_wf = getattr(args, "workflow", None)
+            if raw_wf:
+                wf_source = f"--workflow {Path(raw_wf).name if Path(raw_wf).is_absolute() else raw_wf}"
+            else:
+                wf_source = WORKFLOW_FILENAME
+            return (
+                None,
+                records,
+                _emit_error(
+                    args,
+                    f"workflow digest mismatch: ledger expects {expected_digest}, got {actual_digest} ({wf_source})",
+                    EXIT_INVALID_INVOCATION,
+                ),
+            )
+
     if workflow is None:
         workflow = _reconstruct_workflow_from_ledger(records)
 
-    run_rec = records[0] if records[0].get("kind") == "run" else {}
     run_id = str(run_rec.get("run_id") or "run-00000001")
     engine = run_engine.RunEngine(workflow, ledger_store, run_id=run_id)
     return engine, records, EXIT_OK
@@ -1126,8 +1176,9 @@ def _run_init(args: argparse.Namespace) -> int:
         )
 
     ledger_path = run_dir / store.LEDGER_FILENAME
+    workflow_path = run_dir / WORKFLOW_FILENAME
     try:
-        workflow_digest = store.compute_record_hash(workflow)
+        workflow_digest = _workflow_digest(workflow)
         reqs = workflow.get("requirements")
         if not isinstance(reqs, list):
             reqs = []
@@ -1146,6 +1197,12 @@ def _run_init(args: argparse.Namespace) -> int:
             "repo": repo_name,
             "head": head,
         }
+
+        # Persist canonical workflow JSON beside ledger.jsonl before appending header
+        wf_content = (
+            json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+        )
+        artifact_core.atomic_write(workflow_path, wf_content)
 
         ledger_store = store.RunLedgerStore(ledger_path)
         ledger_store.append(header)

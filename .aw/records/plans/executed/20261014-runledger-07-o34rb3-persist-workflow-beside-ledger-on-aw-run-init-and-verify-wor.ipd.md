@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `aw run init` (plan `v47z9u`) writes only the `workflow_digest` into the `kind: "run"` header record at `runner_shared.state_root(repo) / <run-id> / ledger.jsonl` without persisting the workflow JSON beside the ledger, and `run_cli._load_workflow_arg` reads only an explicit `--workflow` CLI flag before `run_cli._build_engine` falls back to `run_cli._reconstruct_workflow_from_ledger`. Because `_reconstruct_workflow_from_ledger` recovers step IDs only from ledger step records and cannot recover unattempted steps or DAG `depends_on` / `gates` edges, omitting `--workflow` on `aw run start <id> --step S-01` after `aw run init` fails with `error: unknown step 'S-01'` (exit 2) and `aw runs next <id>` reports no runnable steps (exit 3). Furthermore, when `--workflow` is supplied, `_build_engine` never compares the loaded workflow's digest against the header's `workflow_digest`. Backlog `sflov4`.
 - Scope: (1) In `agent_workflows/run_cli.py`, add `WORKFLOW_FILENAME = "workflow.json"` and `_workflow_digest(workflow)`, have `_run_init` persist the canonical workflow JSON to `ledger_file.parent / WORKFLOW_FILENAME` alongside `ledger.jsonl`, and update `_load_workflow_arg(args, ledger_file=None)` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is not supplied. (2) In `agent_workflows/run_cli.py` inside `_build_engine`, verify that any workflow loaded from `--workflow` or from the persisted `workflow.json` matches the `kind: "run"` header's `workflow_digest`, refusing a mismatch with `EXIT_INVALID_INVOCATION` (exit 2). (3) Align the one hand-seeded `kind: "run"` fixture that the new check actually reaches (`tests/test_run_recovery_cli.py` `_run_record`, F-04) with its test workflow digest, and add behavioral coverage in `tests/test_run_init.py` and `tests/test_run_recovery_cli.py`. (4) Update the `--workflow` help text in `agent_workflows/cli.py`, the `aw run` exit-2 description in `docs/cli-output-contract.md` Section 3.1, and add a CHANGELOG line. OUT, each carried by its own plan in Set `runledger`: adding `aw run init` itself (`v47z9u`), amending spec `25kzda` (`9epp40`), adding ledger leaves to `LIVE_SAFE_LEAVES` (`g5s94t`), writing `requirement_set` / `verifier_decision` records (`um0twl`), and rendering ledger-only directories in the `aw runs` viewer (`3a3hh9`).
-- Scope-Paths: agent_workflows/run_cli.py, agent_workflows/cli.py, tests/test_run_init.py, tests/test_run_recovery_cli.py, docs/cli-output-contract.md, CHANGELOG.md
+- Scope-Paths: agent_workflows/run_cli.py, agent_workflows/cli.py, tests/test_run_init.py, tests/test_run_recovery_cli.py, tests/test_run_cli_declarations.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:v47z9u
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: antigravity
 - Id: o34rb3
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: o34rb3 verified (set runledger, attempt 1). [Scope reconciliation - widened-scope tests/test_run_cli_declarations.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-14 to-review (aw set): Authored review-ready IPD from backlog sflov4
@@ -36,49 +36,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce baseline after v47z9u
 
-- [ ] E-01 Reproduce the baseline behavior in a scratch git repo at execution HEAD after prerequisite `v47z9u` has landed: run `aw run init --workflow wf.json --run-id run-abcdef1234` and confirm `state_root(repo)/run-abcdef1234/workflow.json` is absent, `aw run start run-abcdef1234 --step S-01` without `--workflow` exits `2` (`error: unknown step 'S-01'`), `aw runs next run-abcdef1234` without `--workflow` exits `3` (`No runnable steps`), and `aw run start run-abcdef1234 --step S-01 --workflow wrong_wf.json` exits `0` without checking `workflow_digest`. Also confirm `v47z9u` computes the header digest as `run_ledger_store.compute_record_hash(workflow)` over the loaded `--workflow` mapping (paste `records[0]["workflow_digest"]` beside `compute_record_hash(json.load(open("wf.json")))`); this plan's equality check depends on both sides using that same function over the same mapping. Run in a scratch git repo that contains `.aw/records/` (without it `runner_shared.state_root` resolves under the home-scoped projects tree). Stop and report if `aw run init` is absent, if the header digest is computed differently, or if the behavior is already implemented.
+- [x] E-01 Reproduce the baseline behavior in a scratch git repo at execution HEAD after prerequisite `v47z9u` has landed: run `aw run init --workflow wf.json --run-id run-abcdef1234` and confirm `state_root(repo)/run-abcdef1234/workflow.json` is absent, `aw run start run-abcdef1234 --step S-01` without `--workflow` exits `2` (`error: unknown step 'S-01'`), `aw runs next run-abcdef1234` without `--workflow` exits `3` (`No runnable steps`), and `aw run start run-abcdef1234 --step S-01 --workflow wrong_wf.json` exits `0` without checking `workflow_digest`. Also confirm `v47z9u` computes the header digest as `run_ledger_store.compute_record_hash(workflow)` over the loaded `--workflow` mapping (paste `records[0]["workflow_digest"]` beside `compute_record_hash(json.load(open("wf.json")))`); this plan's equality check depends on both sides using that same function over the same mapping. Run in a scratch git repo that contains `.aw/records/` (without it `runner_shared.state_root` resolves under the home-scoped projects tree). Stop and report if `aw run init` is absent, if the header digest is computed differently, or if the behavior is already implemented.
   - Depends on: none
   - Expected outcome: pasted outputs confirming `workflow.json` is absent after `aw run init`, omitting `--workflow` fails on `aw run start` (exit 2) and `aw runs next` (exit 3), a mismatched `--workflow` is not refused, and the header digest equals `compute_record_hash` of the loaded workflow.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: persist workflow.json on init, fall back in _load_workflow_arg, and verify workflow_digest
 
-- [ ] E-02 Persist `workflow.json` beside `ledger.jsonl` in `run_cli._run_init`. In `agent_workflows/run_cli.py`, define `WORKFLOW_FILENAME: str = "workflow.json"` and `_workflow_digest(workflow: Mapping[str, Any]) -> str` returning `store.compute_record_hash(workflow)`, compute the `kind: "run"` header's `workflow_digest` via `_workflow_digest(workflow)`, and write `json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"` to `ledger_file.parent / WORKFLOW_FILENAME` via `artifact_core.atomic_write` (a `.json` destination is written byte-for-byte), BEFORE appending the header record, inside the same reserved run directory `v47z9u` E-04 creates with `mkdir(exist_ok=False)`, so that `v47z9u`'s cleanup-on-failure removes it too. Ordering rationale: if the write lands and the append fails, cleanup removes both; if the append landed first and the write failed, a valid ledger would exist with no `workflow.json` and every later leaf would silently fall back to the step-less skeleton. Any `workflow.json` write failure removes the reserved directory and exits `EXIT_OPERATIONAL` (6), the code `v47z9u` already uses for init-time filesystem failures. `json.dumps(..., indent=2)` round-trips to the same mapping, so `compute_record_hash(json.loads(file))` equals the header digest (the hash canonicalizes with `sort_keys=True, separators=(",", ":")`, independent of the file's own whitespace).
+- [x] E-02 Persist `workflow.json` beside `ledger.jsonl` in `run_cli._run_init`. In `agent_workflows/run_cli.py`, define `WORKFLOW_FILENAME: str = "workflow.json"` and `_workflow_digest(workflow: Mapping[str, Any]) -> str` returning `store.compute_record_hash(workflow)`, compute the `kind: "run"` header's `workflow_digest` via `_workflow_digest(workflow)`, and write `json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"` to `ledger_file.parent / WORKFLOW_FILENAME` via `artifact_core.atomic_write` (a `.json` destination is written byte-for-byte), BEFORE appending the header record, inside the same reserved run directory `v47z9u` E-04 creates with `mkdir(exist_ok=False)`, so that `v47z9u`'s cleanup-on-failure removes it too. Ordering rationale: if the write lands and the append fails, cleanup removes both; if the append landed first and the write failed, a valid ledger would exist with no `workflow.json` and every later leaf would silently fall back to the step-less skeleton. Any `workflow.json` write failure removes the reserved directory and exits `EXIT_OPERATIONAL` (6), the code `v47z9u` already uses for init-time filesystem failures. `json.dumps(..., indent=2)` round-trips to the same mapping, so `compute_record_hash(json.loads(file))` equals the header digest (the hash canonicalizes with `sort_keys=True, separators=(",", ":")`, independent of the file's own whitespace).
   - Depends on: E-01
   - Expected outcome: `aw run init --workflow wf.json` writes `state_root(repo)/<run-id>/workflow.json` whose `compute_record_hash(json.loads(...))` equals `records[0]["workflow_digest"]`; every `v47z9u` refusal case (existing id, malformed id, missing/invalid/non-object workflow) leaves no `workflow.json` and no run directory.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Update `run_cli._load_workflow_arg` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is omitted. In `agent_workflows/run_cli.py`, add optional parameter `ledger_file: Optional[Path] = None` to `_load_workflow_arg` so that when `getattr(args, "workflow", None)` is not supplied and `ledger_file is not None` and `(ledger_file.parent / WORKFLOW_FILENAME).is_file()`, it loads and returns the JSON mapping from `ledger_file.parent / WORKFLOW_FILENAME`. Change BOTH branches to raise `ValueError` when the file parses to a non-object JSON value (today the explicit `--workflow` branch returns `None` for a non-dict, which silently falls back to the step-less reconstructed skeleton); `_build_engine` already maps `ValueError` (and `json.JSONDecodeError`, a `ValueError` subclass) to exit 2 `failed to load workflow`. The sibling file is used ONLY when `--workflow` is omitted; an explicit `--workflow` always wins and is then checked by E-04.
+- [x] E-03 Update `run_cli._load_workflow_arg` to fall back to `ledger_file.parent / WORKFLOW_FILENAME` when `--workflow` is omitted. In `agent_workflows/run_cli.py`, add optional parameter `ledger_file: Optional[Path] = None` to `_load_workflow_arg` so that when `getattr(args, "workflow", None)` is not supplied and `ledger_file is not None` and `(ledger_file.parent / WORKFLOW_FILENAME).is_file()`, it loads and returns the JSON mapping from `ledger_file.parent / WORKFLOW_FILENAME`. Change BOTH branches to raise `ValueError` when the file parses to a non-object JSON value (today the explicit `--workflow` branch returns `None` for a non-dict, which silently falls back to the step-less reconstructed skeleton); `_build_engine` already maps `ValueError` (and `json.JSONDecodeError`, a `ValueError` subclass) to exit 2 `failed to load workflow`. The sibling file is used ONLY when `--workflow` is omitted; an explicit `--workflow` always wins and is then checked by E-04.
   - Depends on: E-02
   - Expected outcome: `_load_workflow_arg(args, ledger_file)` returns the persisted `workflow.json` mapping when `--workflow` is omitted, returns `None` when neither is present, and a JSON array in either source refuses with exit 2 `failed to load workflow` instead of falling back.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Enforce `workflow_digest` verification against the `kind: "run"` header record in `run_cli._build_engine`. In `agent_workflows/run_cli.py` inside `_build_engine(args: argparse.Namespace, ledger_file: Path)`, pass `ledger_file` to `_load_workflow_arg(args, ledger_file)` and, when `workflow is not None`, compare `actual_digest = _workflow_digest(workflow)` against `expected_digest = str(run_rec.get("workflow_digest") or "")` from `records[0]`, returning `None, records, _emit_error(args, f"workflow digest mismatch: ledger expects {expected_digest}, got {actual_digest}", EXIT_INVALID_INVOCATION)` (exit `2`) when `expected_digest` is non-empty and differs from `actual_digest`. Name the SOURCE in the message (`--workflow <path as given>` or the sibling `workflow.json`, by filename, never an absolute path) so an operator knows which file to fix. Hash the mapping exactly as loaded (including a `{"workflow": {...}}` compiled wrapper, which `run_engine._normalize_workflow` unwraps later), because that is what `v47z9u` E-03 hashes at init. Placement: the check runs after the `if not records:` guard and before `RunEngine(...)`, and only `_build_engine` callers are affected (`run start|record|cancel|finalize`, `runs next|resume|status`); `runs show|evidence|verify-ledger` read records directly and never load a workflow.
+- [x] E-04 Enforce `workflow_digest` verification against the `kind: "run"` header record in `run_cli._build_engine`. In `agent_workflows/run_cli.py` inside `_build_engine(args: argparse.Namespace, ledger_file: Path)`, pass `ledger_file` to `_load_workflow_arg(args, ledger_file)` and, when `workflow is not None`, compare `actual_digest = _workflow_digest(workflow)` against `expected_digest = str(run_rec.get("workflow_digest") or "")` from `records[0]`, returning `None, records, _emit_error(args, f"workflow digest mismatch: ledger expects {expected_digest}, got {actual_digest}", EXIT_INVALID_INVOCATION)` (exit `2`) when `expected_digest` is non-empty and differs from `actual_digest`. Name the SOURCE in the message (`--workflow <path as given>` or the sibling `workflow.json`, by filename, never an absolute path) so an operator knows which file to fix. Hash the mapping exactly as loaded (including a `{"workflow": {...}}` compiled wrapper, which `run_engine._normalize_workflow` unwraps later), because that is what `v47z9u` E-03 hashes at init. Placement: the check runs after the `if not records:` guard and before `RunEngine(...)`, and only `_build_engine` callers are affected (`run start|record|cancel|finalize`, `runs next|resume|status`); `runs show|evidence|verify-ledger` read records directly and never load a workflow.
   - Depends on: E-03
   - Expected outcome: any `aw run` or `aw runs` leaf reaching `_build_engine` with an explicit `--workflow` or a sibling `workflow.json` whose canonical SHA-256 digest disagrees with `records[0]["workflow_digest"]` refuses with `EXIT_INVALID_INVOCATION` (`2`) and `"workflow digest mismatch"` without mutating `ledger.jsonl`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: align test fixtures and add behavioral tests
 
-- [ ] E-05 Align the hand-seeded `kind: "run"` fixture in `tests/test_run_recovery_cli.py` and add a digest-mismatch refusal row. Update `_run_record` so `"workflow_digest"` defaults to `ledger_store.compute_record_hash(_WORKFLOW)`, and add an `INVOCATIONS` row asserting a mismatched `--workflow` (a copy of `_WORKFLOW` with one step's `action` changed) exits `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch"` and leaves the ledger byte-identical. Do NOT edit `tests/test_run_cli_declarations.py`: its `sha256:`-prefixed placeholder digests can never equal a bare 64-hex `compute_record_hash`, yet a simulation of E-03/E-04 at review left all six of its tests passing (F-04), because none of them reaches a mismatch the test asserts against; changing them would be churn.
+- [x] E-05 Align the hand-seeded `kind: "run"` fixture in `tests/test_run_recovery_cli.py` and add a digest-mismatch refusal row. Update `_run_record` so `"workflow_digest"` defaults to `ledger_store.compute_record_hash(_WORKFLOW)`, and add an `INVOCATIONS` row asserting a mismatched `--workflow` (a copy of `_WORKFLOW` with one step's `action` changed) exits `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch"` and leaves the ledger byte-identical. Do NOT edit `tests/test_run_cli_declarations.py`: its `sha256:`-prefixed placeholder digests can never equal a bare 64-hex `compute_record_hash`, yet a simulation of E-03/E-04 at review left all six of its tests passing (F-04), because none of them reaches a mismatch the test asserts against; changing them would be churn.
   - Depends on: E-04
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py` passes with all existing rows and the new digest-mismatch row green; before the `_run_record` fix, the simulated check fails exactly `test_every_invocation_exits_in_its_class_and_says_why` and `test_a_recorded_attempt_is_durable_in_the_ledger` (measured at review, F-04).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Extend `tests/test_run_init.py` (created by `v47z9u` E-05; its scratch repos contain `.aw/records/`) with subprocess tests asserting observable outcomes only: (a) `aw run init` creates `workflow.json` beside `ledger.jsonl` whose `compute_record_hash(json.loads(...))` equals `records[0]["workflow_digest"]`; (b) on a two-step DAG (`S-02` depends on `S-01`), WITHOUT `--workflow`: `aw runs next` lists only `S-01` (exit 0), `aw run start --step S-01` exit 0, `aw run record --step S-01 --state performed` exit 0, `aw runs next` then lists `S-02` (proving `depends_on` came from the persisted file, not the step-less skeleton), `aw runs status` shows both steps; (c) a mismatched `--workflow` exits 2 with `workflow digest mismatch` and the ledger is byte-identical; (d) an edited `workflow.json` exits 2 likewise; (e) a `workflow.json` containing a JSON array exits 2 `failed to load workflow`; (f) a deleted `workflow.json` falls back to the reconstructed skeleton (today's behavior, OQ-02). Show (a) and (b) failing on the base commit.
+- [x] E-06 Extend `tests/test_run_init.py` (created by `v47z9u` E-05; its scratch repos contain `.aw/records/`) with subprocess tests asserting observable outcomes only: (a) `aw run init` creates `workflow.json` beside `ledger.jsonl` whose `compute_record_hash(json.loads(...))` equals `records[0]["workflow_digest"]`; (b) on a two-step DAG (`S-02` depends on `S-01`), WITHOUT `--workflow`: `aw runs next` lists only `S-01` (exit 0), `aw run start --step S-01` exit 0, `aw run record --step S-01 --state performed` exit 0, `aw runs next` then lists `S-02` (proving `depends_on` came from the persisted file, not the step-less skeleton), `aw runs status` shows both steps; (c) a mismatched `--workflow` exits 2 with `workflow digest mismatch` and the ledger is byte-identical; (d) an edited `workflow.json` exits 2 likewise; (e) a `workflow.json` containing a JSON array exits 2 `failed to load workflow`; (f) a deleted `workflow.json` falls back to the reconstructed skeleton (today's behavior, OQ-02). Show (a) and (b) failing on the base commit.
   - Depends on: E-05
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_run_init.py` shows cases (a) through (f) passing, with (a) and (b) shown failing before the change.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Document the new contract. In `agent_workflows/cli.py` `_register_run_leaf`, change the `--workflow` help from "Optional workflow JSON (id/steps/requirements); else derived from the ledger." to say it defaults to the `workflow.json` that `aw run init` saved beside the ledger, falls back to ledger-derived steps only when that file is absent, and is refused (exit 2) when its digest differs from the run header. In `docs/cli-output-contract.md` Section 3.1 table 1, extend the code `2` description with "workflow digest mismatch". Add one CHANGELOG line under the top pending release (no em or en dashes).
+- [x] E-08 Document the new contract. In `agent_workflows/cli.py` `_register_run_leaf`, change the `--workflow` help from "Optional workflow JSON (id/steps/requirements); else derived from the ledger." to say it defaults to the `workflow.json` that `aw run init` saved beside the ledger, falls back to ledger-derived steps only when that file is absent, and is refused (exit 2) when its digest differs from the run header. In `docs/cli-output-contract.md` Section 3.1 table 1, extend the code `2` description with "workflow digest mismatch". Add one CHANGELOG line under the top pending release (no em or en dashes).
   - Depends on: E-06
   - Expected outcome: `aw run start --help` shows the new text; the doc and CHANGELOG diffs; `tests/test_completion.py` and `tests/test_command_surface_declarations.py` pass (help text is not pinned there, re-check at execution).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run `aw sanitize --agent` and the bare test suite `python3 -m pytest`.
+- [x] E-07 Run `aw sanitize --agent` and the bare test suite `python3 -m pytest`.
   - Depends on: E-08
   - Expected outcome: `aw sanitize --agent` reports `"outcome": "clean"` (exit 0) and bare `python3 -m pytest` passes with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -165,45 +165,246 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted outputs from the scratch-repo reproduction commands in E-01 showing no `workflow.json` created by pre-change `aw run init`, `aw run start <id> --step S-01` (no `--workflow`) exiting `2` with `unknown step 'S-01'`, `aw runs next <id>` (no `--workflow`) exiting `3`, `aw run start <id> --step S-01 --workflow wrong_wf.json` exiting `0`, and the pasted pair `records[0]["workflow_digest"]` / `compute_record_hash(<loaded wf.json>)` being equal.
   - Observed evidence:
-  - Result: pending
+```
+=== 1. aw run init ===
+rc: 0
+stdout: Initialized run run-abcdef1234
+Ledger: /tmp/scratch_repo/.aw/records/runs/run-abcdef1234/ledger.jsonl
+stderr:
+workflow.json exists: False
+records[0]["workflow_digest"]: 5cef363cdafd45905053d7d9b7010db1d7dde852b6e1ac2f26de9bfe5f2f30a0
+compute_record_hash(json.load(open("wf.json"))): 5cef363cdafd45905053d7d9b7010db1d7dde852b6e1ac2f26de9bfe5f2f30a0
+digests match: True
+=== 2. aw run start without --workflow ===
+rc: 2
+stdout: error: unknown step 'S-01'
+stderr:
+=== 3. aw runs next without --workflow ===
+rc: 3
+stdout: No runnable steps (waiting on dependencies, gates, or verification).
+stderr:
+=== 4. aw run start with wrong_wf.json ===
+rc: 0
+stdout: Started step S-01 (state: running)
+stderr:
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output from running `aw run init --workflow wf.json` in a scratch repo (exercising `run_cli._run_init` updated in E-02) showing `state_root(repo)/<id>/workflow.json` created beside `ledger.jsonl` with `compute_record_hash(json.loads(...))` matching `records[0]["workflow_digest"]`, plus the `git diff` of `_run_init` showing the write precedes the header append inside the reserved directory, and one pasted refusal (existing `--run-id`) leaving no `workflow.json`.
   - Observed evidence:
-  - Result: pending
+```
+=== V-02 EVIDENCE ===
+init rc: 0
+init stdout: Initialized run run-0123456789abcdef
+Ledger: /tmp/scratch_repo/.aw/records/runs/run-0123456789abcdef/ledger.jsonl
+init stderr:
+workflow.json exists beside ledger.jsonl: True True
+records[0]["workflow_digest"]: 920e73f1b0a24acb95f2d26692787ed5d68c24f045e80ddcc41f24848f483b14
+compute_record_hash(json.loads(workflow.json)): 920e73f1b0a24acb95f2d26692787ed5d68c24f045e80ddcc41f24848f483b14
+digests match: True
+second init with existing run_id rc: 6
+second init stdout: error: run directory already exists: /tmp/scratch_repo/.aw/records/runs/run-0123456789abcdef
+bad id refusal rc: 2
+bad directory exists: False
 
-- [ ] V-03 validates E-03
+git diff agent_workflows/run_cli.py (_run_init):
+@@ -1176,8 +1176,9 @@ def _run_init(args: argparse.Namespace) -> int:
+     ledger_path = run_dir / store.LEDGER_FILENAME
++    workflow_path = run_dir / WORKFLOW_FILENAME
+     try:
+-        workflow_digest = store.compute_record_hash(workflow)
++        workflow_digest = _workflow_digest(workflow)
+         reqs = workflow.get("requirements")
+@@ -1196,6 +1196,12 @@ def _run_init(args: argparse.Namespace) -> int:
+             "head": head,
+         }
++        # Persist canonical workflow JSON beside ledger.jsonl before appending header
++        wf_content = (
++            json.dumps(workflow, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
++        )
++        artifact_core.atomic_write(workflow_path, wf_content)
++
+         ledger_store = store.RunLedgerStore(ledger_path)
+         ledger_store.append(header)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output from running `aw runs next <id>` and `aw run start <id> --step S-01` without `--workflow` in a scratch repo (exercising `run_cli._load_workflow_arg` updated in E-03) showing both commands exiting `0` and resolving `S-01` from the persisted `workflow.json`, and a pasted `--workflow` pointing at a JSON array exiting `2` with `failed to load workflow`.
   - Observed evidence:
-  - Result: pending
+```
+=== V-03 EVIDENCE ===
+aw runs next without --workflow rc: 0
+aw runs next stdout: Runnable steps:
+  - S-01
+aw run start without --workflow rc: 0
+aw run start stdout: Started step S-01 (state: running)
+aw run start with JSON array --workflow rc: 2
+aw run start with JSON array stdout: error: failed to load workflow: workflow file must contain a JSON object: array.json
+```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted output from running `aw run start <id> --step S-01 --workflow wrong_wf.json` (exercising the `run_cli._build_engine` digest check added in E-04) showing exit `2` (`EXIT_INVALID_INVOCATION`) with `"workflow digest mismatch: ledger expects ..., got ..."` naming the source file (no absolute path), and `sha256sum ledger.jsonl` identical before and after.
   - Observed evidence:
-  - Result: pending
+```
+=== V-04 EVIDENCE ===
+mismatched --workflow rc: 2
+mismatched --workflow stdout: error: workflow digest mismatch: ledger expects 920e73f1b0a24acb95f2d26692787ed5d68c24f045e80ddcc41f24848f483b14, got 393350616670939f432472cfa6794bd09d14d22ae31ed1bfc56453101a2c7c36 (--workflow wrong_wf.json)
+ledger sha256 before: ed02e22fc613c60916df730c8910a72ac239734a78fa6621c19576a3a657a51d
+ledger sha256 after:  ed02e22fc613c60916df730c8910a72ac239734a78fa6621c19576a3a657a51d
+ledger byte-identical: True
+```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the `tests/test_run_recovery_cli.py` diff (no `tests/test_run_cli_declarations.py` diff), and pasted output of `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py -v` passing with the new workflow-digest-mismatch row and `test_runs_resume_exit_3_is_reachable_and_declared` green.
   - Observed evidence:
-  - Result: pending
+```
+python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+cachedir: .pytest_cache
+Using --randomly-seed=3963140040
+rootdir: <root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 59 items
 
-- [ ] V-06 validates E-06
+tests/test_run_cli_declarations.py::test_runs_viewer_leaf_names_declared_read_or_check PASSED [  1%]
+tests/test_run_cli_declarations.py::test_runs_resume_declared_exit_codes_are_reachable PASSED [  3%]
+tests/test_run_cli_declarations.py::test_runs_resume_handler_purity PASSED [  5%]
+tests/test_run_cli_declarations.py::test_runs_status_declared_exit_codes_are_reachable PASSED [  6%]
+tests/test_run_cli_declarations.py::test_runs_next_declared_exit_codes_are_reachable PASSED [  8%]
+tests/test_run_cli_declarations.py::test_runs_resume_exit_3_is_reachable_and_declared PASSED [ 10%]
+...
+tests/test_run_recovery_cli.py::TestRunCliSubcommands::test_every_invocation_exits_in_its_class_and_says_why PASSED [ 28%]
+...
+============================= 59 passed in 23.29s ==============================
+
+git diff tests/test_run_recovery_cli.py:
+@@ -71,2 +71,6 @@ HEAD = "1" * 40
+-def _run_record(run_id: str = RUN_ID, head: str = HEAD) -> Dict[str, Any]:
++def _run_record(
++    run_id: str = RUN_ID,
++    head: str = HEAD,
++    workflow_digest: Optional[str] = None,
++) -> Dict[str, Any]:
+@@ -77,3 +81,7 @@ def _run_record(run_id: str = RUN_ID, head: str = HEAD) -> Dict[str, Any]:
+-        "workflow_digest": "a" * 64,
++        "workflow_digest": (
++            workflow_digest
++            if workflow_digest is not None
++            else ledger_store.compute_record_hash(_WORKFLOW)
++        ),
+@@ -1368,2 +1376,18 @@ class TestRunCliSubcommands(unittest.TestCase):
++        (
++            "start with mismatched --workflow digest",
++            "incomplete",
++            (
++                "run",
++                "start",
++                "LEDGER",
++                "--step",
++                "S-01",
++                "--workflow",
++                "MISMATCHED_WORKFLOW",
++            ),
++            run_cli.EXIT_INVALID_INVOCATION,
++            (("text-in", "workflow digest mismatch"),),
++            "a workflow whose digest differs from the kind: 'run' header is refused with exit 2",
++        ),
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_run_init.py -v` showing cases (a) through (f) passing, and pasted output of (a) and (b) failing on the base commit.
   - Observed evidence:
-  - Result: pending
+```
+python3 -m pytest -o addopts="" -v tests/test_run_init.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3>
+cachedir: .pytest_cache
+Using --randomly-seed=3582954132
+rootdir: <root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 13 items
 
-- [ ] V-08 validates E-08
+tests/test_run_init.py::test_case_c_second_init_existing_id_refusal PASSED [  7%]
+tests/test_run_init.py::test_case_k_edited_workflow_json_refused PASSED  [ 15%]
+tests/test_run_init.py::test_case_e_default_id_generation PASSED         [ 23%]
+tests/test_run_init.py::test_case_h_init_creates_workflow_json_beside_ledger PASSED [ 30%]
+tests/test_run_init.py::test_case_m_deleted_workflow_json_falls_back PASSED [ 38%]
+tests/test_run_init.py::test_case_i_dag_execution_without_workflow_flag PASSED [ 46%]
+tests/test_run_init.py::test_case_b_follow_on_sequence PASSED            [ 53%]
+tests/test_run_init.py::test_case_g_dir_flag_from_different_cwd PASSED   [ 61%]
+tests/test_run_init.py::test_case_j_mismatched_workflow_flag_refused PASSED [ 69%]
+tests/test_run_init.py::test_case_l_workflow_json_array_refused PASSED   [ 76%]
+tests/test_run_init.py::test_case_f_machine_modes_agent_and_json PASSED  [ 84%]
+tests/test_run_init.py::test_case_d_refusals_leave_filesystem_unchanged PASSED [ 92%]
+tests/test_run_init.py::test_case_a_init_creates_valid_ledger_record PASSED [100%]
+
+============================= 13 passed in 14.53s ==============================
+
+Base commit failure for (a) and (b):
+=== Case (a) on base commit ===
+init rc: 0
+workflow.json exists: False
+ASSERTION FAILURE (a): workflow.json not found at /tmp/scratch_base_test/.aw/records/runs/run-2811f4276ade1d17/workflow.json
+
+=== Case (b) on base commit ===
+next1 rc: 3
+next1 stdout: No runnable steps (waiting on dependencies, gates, or verification).
+ASSERTION FAILURE (b): runs next failed with exit 3
+```
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: the `agent_workflows/cli.py`, `docs/cli-output-contract.md` and `CHANGELOG.md` diffs (no em or en dashes in the latter two), and pasted `aw run start --help` showing the new `--workflow` text.
   - Observed evidence:
-  - Result: pending
+```
+aw run start --help:
+  --workflow WORKFLOW  Optional workflow JSON (defaults to workflow.json saved
+                       beside ledger on init; falls back to ledger-derived
+                       steps only when that file is absent; refused exit 2
+                       when its digest differs from the run header).
 
-- [ ] V-07 validates E-07
+git diff agent_workflows/cli.py:
+@@ -2818,3 +2818,7 @@
+-                help="Optional workflow JSON (id/steps/requirements); else derived from the ledger.",
++                help=(
++                    "Optional workflow JSON (defaults to workflow.json saved beside ledger on init; "
++                    "falls back to ledger-derived steps only when that file is absent; "
++                    "refused exit 2 when its digest differs from the run header)."
++                ),
+
+git diff docs/cli-output-contract.md:
+@@ -193,3 +193,3 @@
+-   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, or command syntax error (`run init`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
++   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, workflow digest mismatch, or command syntax error (`run init`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
+
+git diff CHANGELOG.md:
+@@ -26,2 +26,3 @@
++- Added: aw run init persists workflow.json beside the ledger and later aw run/runs leaves resolve it automatically when --workflow is omitted, verifying the workflow digest against the run header (refusing mismatches with exit 2).
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: pasted output of `aw sanitize --agent` reporting `"outcome": "clean"` (exit 0) and pasted summary line of bare `python3 -m pytest` passing with zero failures.
   - Observed evidence:
-  - Result: pending
+```
+aw sanitize --agent:
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5246,"findings":0,"evidence":["leak-scan"],"next":null}
+
+python3 -m pytest:
+707 passed in 21.46s
+```
+  - Result: pass
 
 ## Approval and execution gate
 

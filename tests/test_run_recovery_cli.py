@@ -55,7 +55,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 from agent_workflows import cli, run_engine, run_evidence, run_recovery, run_state
@@ -68,13 +68,21 @@ RUN_ID = "run-abcdef1234"
 HEAD = "1" * 40
 
 
-def _run_record(run_id: str = RUN_ID, head: str = HEAD) -> Dict[str, Any]:
+def _run_record(
+    run_id: str = RUN_ID,
+    head: str = HEAD,
+    workflow_digest: Optional[str] = None,
+) -> Dict[str, Any]:
     return {
         "schema_version": schema.LEDGER_SCHEMA_VERSION,
         "kind": "run",
         "run_id": run_id,
         "actor": "runtime",
-        "workflow_digest": "a" * 64,
+        "workflow_digest": (
+            workflow_digest
+            if workflow_digest is not None
+            else ledger_store.compute_record_hash(_WORKFLOW)
+        ),
         "requirement_digest": "b" * 64,
         "repo": "agent-workflows",
         "head": head,
@@ -1360,6 +1368,22 @@ class TestRunCliSubcommands(unittest.TestCase):
             "an UNKNOWN step is exit 2 while a known-but-not-runnable step is exit 3 (the row "
             "below). Collapsing the two would hide a typo'd step id as a dependency problem",
         ),
+        (
+            "start with mismatched --workflow digest",
+            "incomplete",
+            (
+                "run",
+                "start",
+                "LEDGER",
+                "--step",
+                "S-01",
+                "--workflow",
+                "MISMATCHED_WORKFLOW",
+            ),
+            run_cli.EXIT_INVALID_INVOCATION,
+            (("text-in", "workflow digest mismatch"),),
+            "a workflow whose digest differs from the kind: 'run' header is refused with exit 2",
+        ),
         # ---- exit 1: incomplete. The run was read fine; its predicates are unsatisfied. ----------
         (
             "status on an incomplete run (human output)",
@@ -1564,7 +1588,14 @@ class TestRunCliSubcommands(unittest.TestCase):
         for case, seed, template, expected_rc, checks, why in self.INVOCATIONS:
             with tempfile.TemporaryDirectory() as seed_dir:
                 argv = self._materialize(template, Path(seed_dir), seed)
+                ledger_path = Path(seed_dir) / "run.jsonl"
+                before_bytes = (
+                    ledger_path.read_bytes() if ledger_path.is_file() else None
+                )
                 rc, out = self._cli(*argv)
+                after_bytes = (
+                    ledger_path.read_bytes() if ledger_path.is_file() else None
+                )
             problems = []
             if rc != expected_rc:
                 by_code[expected_rc] = by_code.get(expected_rc, 0) + 1
@@ -1572,6 +1603,12 @@ class TestRunCliSubcommands(unittest.TestCase):
                     f"exit code expected {expected_rc} "
                     f"({self._exit_name(expected_rc)}), got {rc} ({self._exit_name(rc)})"
                 )
+            if (
+                expected_rc == run_cli.EXIT_INVALID_INVOCATION
+                and before_bytes is not None
+                and after_bytes != before_bytes
+            ):
+                problems.append("invalid invocation modified the ledger")
             problems.extend(_stdout_problems(out, checks))
             if "\x1b" in out:
                 problems.append(
@@ -1637,10 +1674,23 @@ class TestRunCliSubcommands(unittest.TestCase):
             assert seed == "none", f"unknown seed {seed!r}"
         workflow = str(seed_dir / "wf.json")
         (seed_dir / "wf.json").write_text(json.dumps(_WORKFLOW), encoding="utf-8")
+        mismatched_wf = dict(_WORKFLOW)
+        mismatched_wf["steps"] = [
+            dict(_WORKFLOW["steps"][0], action="mismatched-action"),
+            *_WORKFLOW["steps"][1:],
+        ]
+        mismatched_path = str(seed_dir / "mismatched_wf.json")
+        (seed_dir / "mismatched_wf.json").write_text(
+            json.dumps(mismatched_wf), encoding="utf-8"
+        )
         return [
             str(self.ledger)
             if arg == "LEDGER"
-            else (workflow if arg == "WORKFLOW" else arg)
+            else (
+                mismatched_path
+                if arg == "MISMATCHED_WORKFLOW"
+                else (workflow if arg == "WORKFLOW" else arg)
+            )
             for arg in template
         ]
 
