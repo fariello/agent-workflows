@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile as _tempfile
 import threading as _threading
+import time
 
 import pytest
 
@@ -155,6 +156,64 @@ def pytest_collection_modifyitems(
         if deselected_items:
             config.hook.pytest_deselected(items=deselected_items)
             items[:] = core_items
+
+
+_CORE_TEST_DURATIONS: list[tuple[float, str]] = []
+
+
+@pytest.hookimpl
+def pytest_sessionstart(session: pytest.Session) -> None:
+    session.config._core_session_start_time = time.perf_counter()  # type: ignore[attr-defined]
+    _CORE_TEST_DURATIONS.clear()
+
+
+@pytest.hookimpl
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    if (
+        report.when == "call"
+        and hasattr(report, "duration")
+        and hasattr(report, "nodeid")
+    ):
+        _CORE_TEST_DURATIONS.append((report.duration, report.nodeid))
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Enforce the wall-time budget on the core tier (IPD hguae9 E-05)."""
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        return
+    if not getattr(session.config, "_core_filter_applied", False):
+        return
+
+    start_time = getattr(session.config, "_core_session_start_time", None)
+    if start_time is None:
+        return
+
+    elapsed = time.perf_counter() - start_time
+    budget_env = os.environ.get("AW_CORE_BUDGET_SECONDS")
+    budget = float(budget_env) if budget_env else 30.0
+
+    if elapsed > budget:
+        durations = list(_CORE_TEST_DURATIONS)
+        durations.sort(key=lambda x: x[0], reverse=True)
+        slowest = durations[:10]
+        slowest_lines = "\n".join(
+            f"  {idx + 1:2d}. {dur:6.2f}s  {nodeid}"
+            for idx, (dur, nodeid) in enumerate(slowest)
+        )
+        msg = (
+            f"\n================================ CORE TIER BUDGET EXCEEDED ================================\n"
+            f"Core tier wall time: {elapsed:.2f}s exceeded budget of {budget:.2f}s.\n"
+            f"Top 10 slowest core tests:\n{slowest_lines}\n"
+            f"===========================================================================================\n"
+        )
+        cpu_count = int(os.environ.get("AW_TEST_CPU_COUNT", str(os.cpu_count() or 1)))
+        enforce = os.environ.get("AW_CORE_BUDGET_ENFORCE") != "0"
+        if cpu_count >= 12 and enforce:
+            sys.stderr.write(msg)
+            session.exitstatus = 1
+        else:
+            sys.stderr.write(f"\nWARNING: {msg}")
 
 
 # --------------------------------------------------------------------------------------
