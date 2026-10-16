@@ -32955,6 +32955,7 @@ def initialize_run_core(
     enforce_dependency_preflight_fn(repo, selected_plan_paths)
 
     requested_action = getattr(args, "action", None)
+    rereview_ids: set[str] = set()
     if requested_action is not None:
         # artdispatch 8l8dgb E-06: Preflight reads each id's status and action from its own typed map,
         # so legality agrees with dispatch and `--action review` on a spec or backlog item checks its real
@@ -32962,6 +32963,7 @@ def initialize_run_core(
         from agent_workflows import run_selection_policy as _policy
 
         preflight_items: list[tuple[str, str, str]] = []
+        rereview_candidates: list[tuple[str, str, str]] = []
         for id6 in queue_ids:
             atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
             if atype == "ipd":
@@ -32978,11 +32980,17 @@ def initialize_run_core(
                     except Exception:
                         st = None
                 st = st or "approved"
+                kind = resolve_manifest_kind(item_info, probe_path)
                 act = action_for(
-                    resolve_manifest_kind(item_info, probe_path),
+                    kind,
                     st,
                     for_legality=True,
                 )
+                if (
+                    st in ("reviewed", "approved", "auto-approved")
+                    and kind != "orchestrator"
+                ):
+                    rereview_candidates.append((id6, st, kind))
             else:
                 st = item_info.get("status") or (
                     "to-review" if atype == "spec" else "open"
@@ -32996,6 +33004,37 @@ def initialize_run_core(
                     atype, st, for_legality=True, uncited_trace_ids=uncited
                 )
             preflight_items.append((id6, st, act))
+
+        if requested_action == "review" and not is_status_selector(args.selectors):
+            if rereview_candidates:
+                interactive = is_interactive_run(args)
+                assume_yes = bool(getattr(args, "yes", False))
+                response = None
+                if interactive and not assume_yes:
+                    cand_details = ", ".join(
+                        f"{c[0]} (status {c[1]!r})" for c in rereview_candidates
+                    )
+                    question = (
+                        f"Re-review requested for {len(rereview_candidates)} plan(s): {cand_details}.\n"
+                        f"Approval will be withdrawn for approved plan(s) and must be given again.\n"
+                        f"Type '{_policy.REREVIEW_CONFIRM_PHRASE}' to confirm re-review, anything else to abort: "
+                    )
+                    response = prompt_for_gate_phrase(question)
+
+                verdict = _policy.decide_rereview_admission(
+                    rereview_candidates,
+                    interactive=interactive,
+                    assume_yes=assume_yes,
+                    response=response,
+                )
+                if verdict.refused:
+                    raise DriverError(verdict.message or verdict.reason)
+                rereview_ids = set(verdict.admitted)
+                preflight_items = [
+                    (id6, st, "review") if id6 in rereview_ids else (id6, st, act)
+                    for id6, st, act in preflight_items
+                ]
+
         action_labels = (
             labels
             if labels is not None
@@ -33065,52 +33104,58 @@ def initialize_run_core(
             if not status:
                 status = "approved"
 
-            if status == "reviewed" and full_auto and p_path:
-                try:
-                    if is_plan_review_approved_fn(p_path):
-                        set_plan_approved_fn(repo, id6)
-                        status = "auto-approved"
-                except Exception:
-                    pass
-
             kind = resolve_manifest_kind(plan, p_path)
-            norm_st = (status or "approved").strip().lower()
-            complete = None
-            if norm_st == "draft":
-                complete = plan_authoring_complete(repo, str(plan.get("file", "")))
-            action = action_for(kind, status or "approved", authoring_complete=complete)
+            if id6 in rereview_ids:
+                action = "review"
+            else:
+                if status == "reviewed" and full_auto and p_path:
+                    try:
+                        if is_plan_review_approved_fn(p_path):
+                            set_plan_approved_fn(repo, id6)
+                            status = "auto-approved"
+                    except Exception:
+                        pass
+
+                norm_st = (status or "approved").strip().lower()
+                complete = None
+                if norm_st == "draft":
+                    complete = plan_authoring_complete(repo, str(plan.get("file", "")))
+                action = action_for(
+                    kind, status or "approved", authoring_complete=complete
+                )
             if (
                 action in ("review", "execute", "orchestrate")
                 and resolve_err is not None
             ):
                 unresolvable_ipds.append((id6, plan.get("file", ""), str(resolve_err)))
-            queue.append(
-                {
-                    "position": position,
-                    "id6": id6,
-                    "setid": setid,
-                    "configured_file": plan["file"],
-                    "artifact_type": "ipd",
-                    "dependencies": plan.get("dependencies", []),
-                    "kind": kind,
-                    "order": plan.get("order"),
-                    "from_backlog": plan.get("from_backlog")
-                    or (getattr(rec, "from_backlog", None) if p_path else None),
-                    "initial_status": status or "approved",
-                    "action": action,
-                    "status": initial_queue_status(status, action=action),
-                    "review_handler": "plan-review" if action == "review" else None,
-                    "attempts": [],
-                    # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
-                    # rather than left implicit in the queue status. It was already implicit here (an item
-                    # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
-                    # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
-                    # reported differently by each surface. Children 02/03 of this Set print and count it,
-                    # so it is named once, here, under the token the package already ships for this
-                    # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
-                    NEEDS_INPUT_KEY: item_needs_approval(status, action),
-                }
-            )
+            q_entry: dict[str, Any] = {
+                "position": position,
+                "id6": id6,
+                "setid": setid,
+                "configured_file": plan["file"],
+                "artifact_type": "ipd",
+                "dependencies": plan.get("dependencies", []),
+                "kind": kind,
+                "order": plan.get("order"),
+                "from_backlog": plan.get("from_backlog")
+                or (getattr(rec, "from_backlog", None) if p_path else None),
+                "initial_status": status or "approved",
+                "action": action,
+                "status": initial_queue_status(status, action=action),
+                "review_handler": "plan-review" if action == "review" else None,
+                "attempts": [],
+                # zz5yxq E-03: the needs-approval fact, made EXPLICIT and DURABLE at queue-build time
+                # rather than left implicit in the queue status. It was already implicit here (an item
+                # whose plan status is outside `NON_TERMINAL_QUEUE_STATUSES` is frozen `reviewed` and
+                # never dispatched), but a fact a reporting surface has to INFER is a fact that gets
+                # reported differently by each surface. Children 02/03 of this Set print and count it,
+                # so it is named once, here, under the token the package already ships for this
+                # meaning (`run_gates.GATE_STATUS_NEEDS_INPUT`).
+                NEEDS_INPUT_KEY: item_needs_approval(status, action),
+            }
+            if id6 in rereview_ids:
+                q_entry["rereview"] = True
+            queue.append(q_entry)
         else:
             # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
             status = item_info.get("status") or (
@@ -36009,6 +36054,21 @@ def reconcile_disposition(
                     remedy=f"re-run review for {item.get('id6', '<unknown>')}",
                 )
                 return "fail-gate", None
+            if item.get("rereview"):
+                has_readiness = bool(re.search(r"(?m)^-[ \t]*Readiness:", text or ""))
+                if status != "reviewed" or not has_readiness:
+                    reason = (
+                        f"re-review of {item.get('id6', '<unknown>')} produced no fresh review "
+                        f"(status is {status!r}, readiness present: {has_readiness})"
+                    )
+                    record_refusal(
+                        item,
+                        code="rereview-no-fresh-review",
+                        reason=reason,
+                        remedy=f"re-run review for {item.get('id6', '<unknown>')}",
+                    )
+                    return "fail-gate", None
+                return "reviewed", None
             if status in ("reviewed", "approved"):
                 return status, None
             return "reviewed", None
@@ -38296,8 +38356,90 @@ def execute_item_core(
             },
         )
         save_state(run_dir, state)
-    if work_dir and is_review:
-        lane_root = Path(work_dir)
+    if is_review:
+        target_tree = Path(work_dir) if (work_dir and isolate) else repo
+        if item.get("rereview"):
+            try:
+                target_plan_path = (
+                    queue_artifact_path(target_tree, item)
+                    if queue_entry_type(item) == "spec"
+                    else resolve_plan_path(
+                        target_tree, item.get("configured_file", ""), item["id6"]
+                    )
+                )
+            except Exception:
+                target_plan_path = plan_path
+
+            plan_rec = None
+            try:
+                plan_rec = parse_plan_file(target_plan_path, target_tree)
+            except Exception:
+                pass
+            current_plan_status = plan_rec.status if plan_rec else None
+
+            if current_plan_status in ("reviewed", "approved", "auto-approved"):
+                host_tok = (
+                    host_labels.argv_tokens[0] if host_labels.argv_tokens else "oc"
+                )
+                cmd = pinned_module_argv(
+                    [
+                        "ipd",
+                        "set",
+                        "to-review",
+                        item["id6"],
+                        "--message",
+                        f"re-review requested via {host_tok} review",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(target_tree),
+                    ]
+                )
+                try:
+                    run_checked(cmd, cwd=target_tree)
+                except Exception as exc:
+                    attempt["ended_at"] = utc_now()
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    item["rereview_demote_error"] = str(exc)
+                    record_refusal(
+                        item,
+                        code="rereview-demote-failed",
+                        reason=str(exc),
+                        remedy=f"{host_labels.command} {item['id6']}",
+                    )
+                    save_state(run_dir, state)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "rereview-demote-failed",
+                            "id6": item["id6"],
+                            "detail": str(exc),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"\u2717 IPD {seq:02d}/{total} {item['id6']} re-review demote "
+                            f"failed; not launching. {exc}",
+                            "red",
+                        ),
+                        file=sys.stderr,
+                    )
+                    return
+                attempt["rereview_demoted_from"] = current_plan_status
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "rereview-demoted",
+                        "id6": item["id6"],
+                        "from": current_plan_status,
+                        "to": "to-review",
+                        "tree": str(target_tree),
+                    },
+                )
+        lane_root = target_tree
         try:
             lane_plan_path = (
                 queue_artifact_path(lane_root, item)
@@ -38309,32 +38451,38 @@ def execute_item_core(
         except DriverError:
             lane_plan_path = plan_path
         prompt_text = build_review_prompt(
-            item, state, run_dir, lane_plan_path, repo, lane_root=lane_root
+            item,
+            state,
+            run_dir,
+            lane_plan_path,
+            repo,
+            lane_root=lane_root if (work_dir and isolate) else None,
         )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
         attempt["prompt_sha256"] = sha256_file(prompt_path)
         attempt["lane_plan_path"] = str(lane_plan_path)
-        lane_manifest = lane_containment.materialize_lane_inputs(
-            lane_root=lane_root,
-            plan_path=lane_plan_path,
-            runbook_path=None,
-            repo=lane_root,
-            revision=int(item["position"]),
-        )
-        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
-        attempt["lane_input_revision"] = lane_manifest.revision
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": utc_now(),
-                "event": "lane-inputs-materialized",
-                "id6": item["id6"],
-                "revision": lane_manifest.revision,
-                "manifest": str(lane_manifest.manifest_path),
-                "inputs": [entry.path for entry in lane_manifest.entries],
-            },
-        )
+        if work_dir and isolate:
+            lane_manifest = lane_containment.materialize_lane_inputs(
+                lane_root=lane_root,
+                plan_path=lane_plan_path,
+                runbook_path=None,
+                repo=lane_root,
+                revision=int(item["position"]),
+            )
+            attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+            attempt["lane_input_revision"] = lane_manifest.revision
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-inputs-materialized",
+                    "id6": item["id6"],
+                    "revision": lane_manifest.revision,
+                    "manifest": str(lane_manifest.manifest_path),
+                    "inputs": [entry.path for entry in lane_manifest.entries],
+                },
+            )
         save_state(run_dir, state)
     if work_dir and (is_spec_production or is_backlog_production):
         lane_root = Path(work_dir)
@@ -43556,6 +43704,7 @@ def execute_item_core(
             and queue_entry_type(item) == "ipd"
             and disposition in ("reviewed", "approved")
             and full_auto
+            and not item.get("rereview")
         ):
             plan_curr = resolve_plan_path(
                 repo, item.get("configured_file", ""), item["id6"]

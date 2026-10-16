@@ -35,6 +35,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import (
+    Any,
     Callable,
     Dict,
     Iterable,
@@ -1324,6 +1325,132 @@ def decide_selection_gates(
         selector=selector,
     )
     return CombinedGateVerdict(proceed=mixed.proceed, mixed=mixed, drafts=drafts)
+
+
+# --------------------------------------------------------------------------------------------------
+# rereview (`ggsdrl`) E-01: re-review admission gate
+# --------------------------------------------------------------------------------------------------
+
+REREVIEW_CONFIRM_PHRASE: str = "re-review"
+
+
+class RereviewCandidate(NamedTuple):
+    """One candidate item for re-review admission."""
+
+    id6: str
+    status: str
+    kind: str
+
+
+class RereviewVerdict(NamedTuple):
+    """The outcome of the re-review admission gate."""
+
+    admitted: Tuple[str, ...]
+    refused: Tuple[str, ...]
+    reason: str
+    needs_prompt: bool = False
+    message: Optional[str] = None
+
+    @property
+    def prompt_needed(self) -> bool:
+        return self.needs_prompt
+
+
+def render_rereview_refusal(candidates: Sequence[Tuple[str, str, str]]) -> str:
+    """Refusal message when re-review is not confirmed."""
+    details = ", ".join(f"{c[0]} (status {c[1]!r})" for c in candidates)
+    return (
+        f"Re-review of {len(candidates)} plan(s) requires confirmation: {details}. "
+        f"Approval will be withdrawn for approved/auto-approved plan(s) and must be given again. "
+        f"To confirm re-review, pass --yes on the command line or type the exact phrase {REREVIEW_CONFIRM_PHRASE!r} when prompted."
+    )
+
+
+def decide_rereview_admission(
+    candidates: Sequence[Any],
+    *,
+    interactive: bool,
+    assume_yes: bool = False,
+    response: Optional[str] = None,
+) -> RereviewVerdict:
+    """Decide which candidate items may be admitted for re-review (IPD `ggsdrl` E-01).
+
+    PURE: no TTY, no filesystem, no ledger.
+    Candidates are (id6, status, kind) for an IPD whose status is 'reviewed', 'approved' or
+    'auto-approved' and whose kind is not 'orchestrator'. The CALLER decides selector eligibility.
+
+    Rules:
+      * assume_yes admits all admissible candidates;
+      * interactive with exact phrase 're-review' admits all admissible candidates;
+      * interactive with anything else, or non-interactive without assume_yes, refuses all
+        with a message that lists each id6 with its status, says approval will be withdrawn
+        for approved/auto-approved items, and names both --yes and the phrase.
+    """
+    parsed: List[Tuple[str, str, str]] = []
+    for c in candidates:
+        if isinstance(c, (tuple, list)) and len(c) >= 3:
+            parsed.append((str(c[0]), str(c[1]), str(c[2])))
+        else:
+            parsed.append(
+                (
+                    str(getattr(c, "id6", getattr(c, "identity", ""))),
+                    str(getattr(c, "status", "")),
+                    str(getattr(c, "kind", "")),
+                )
+            )
+
+    if not parsed:
+        return RereviewVerdict(
+            admitted=(),
+            refused=(),
+            reason="no candidates to re-review",
+            needs_prompt=False,
+            message=None,
+        )
+
+    # Kind 'orchestrator' or non-matching status is never admissible for re-review
+    admissible: List[Tuple[str, str, str]] = [
+        c
+        for c in parsed
+        if c[1] in ("reviewed", "approved", "auto-approved") and c[2] != "orchestrator"
+    ]
+    ineligible: List[Tuple[str, str, str]] = [c for c in parsed if c not in admissible]
+
+    if assume_yes:
+        return RereviewVerdict(
+            admitted=tuple(c[0] for c in admissible),
+            refused=tuple(c[0] for c in ineligible),
+            reason="re-review confirmed via --yes",
+            needs_prompt=False,
+            message=None,
+        )
+
+    if interactive and is_confirmation_accepted(
+        response, phrase=REREVIEW_CONFIRM_PHRASE
+    ):
+        return RereviewVerdict(
+            admitted=tuple(c[0] for c in admissible),
+            refused=tuple(c[0] for c in ineligible),
+            reason=f"re-review confirmed by exact phrase {REREVIEW_CONFIRM_PHRASE!r}",
+            needs_prompt=False,
+            message=None,
+        )
+
+    # Refuse all
+    msg = render_rereview_refusal(parsed)
+    reason = (
+        f"interactive confirmation phrase {REREVIEW_CONFIRM_PHRASE!r} not entered"
+        if interactive
+        else "--yes not provided for unattended re-review"
+    )
+    needs_prompt = bool(interactive and response is None)
+    return RereviewVerdict(
+        admitted=(),
+        refused=tuple(c[0] for c in parsed),
+        reason=reason,
+        needs_prompt=needs_prompt,
+        message=msg,
+    )
 
 
 # --------------------------------------------------------------------------------------------------
