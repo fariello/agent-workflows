@@ -35,29 +35,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pre-change baseline
 
-- [ ] E-01 Capture the pre-change baseline at the executing HEAD without modifying any tracked file: (a) run `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py -v` and record all passing test names (20 at authoring; context, not a bar; re-derive at execution); (b) run read-only planner probes via `artifact_refs.plan_reference_rewrites_with_warnings(Path("."), {old: new})` for (1) plan `qrokie` (`20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` -> `20260723-instsafe-07-qrokie-probe-slug.ipd.md`), (2) research record `tmylmj` (`20260713-occomms-03-tmylmj-executive-summary.executive-summary.md` -> `20260713-occomms-03-tmylmj-probe-slug.executive-summary.md`; this is the real tracked file under `.aw/records/research/archive/202607/`, cited by name in the occomms bundle `README.md`), and (3) legacy spec `20260813-1833-01-attention-visible-backlog-tier.spec.md` -> `20260813-attnbklg-01-a1b2c3-attention-visible-backlog-tier.spec.md`, recording the `README.md` subset of planned `RefEdit`s (0 at authoring for all three despite real citations in `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md`, `.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md`, and `.aw/records/backlog/README.md`); and (c) run a read-only corpus census across the `README.md` files yielded by `artifact_core.iter_scan_files(Path("."), artifact_core.REFERENCE_SCAN_ROOTS, suffixes=artifact_core._REFERENCE_TEXT_SUFFIXES)` recording which `README.md` files contain record citations that a slug rename or `--to-id6` rename would rewrite once `README.md` is no longer skipped; and (d) record the baseline `python3 -m agent_workflows check --agent` result (findings count by severity and the rule ids present; the repository corpus is NOT clean at authoring, so this is the comparison point for E-04) and the baseline `artifact_refs.dead_filename_citations(Path("."), "plans")` result.
+- [x] E-01 Capture the pre-change baseline at the executing HEAD without modifying any tracked file: (a) run `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py -v` and record all passing test names (20 at authoring; context, not a bar; re-derive at execution); (b) run read-only planner probes via `artifact_refs.plan_reference_rewrites_with_warnings(Path("."), {old: new})` for (1) plan `qrokie` (`20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` -> `20260723-instsafe-07-qrokie-probe-slug.ipd.md`), (2) research record `tmylmj` (`20260713-occomms-03-tmylmj-executive-summary.executive-summary.md` -> `20260713-occomms-03-tmylmj-probe-slug.executive-summary.md`; this is the real tracked file under `.aw/records/research/archive/202607/`, cited by name in the occomms bundle `README.md`), and (3) legacy spec `20260813-1833-01-attention-visible-backlog-tier.spec.md` -> `20260813-attnbklg-01-a1b2c3-attention-visible-backlog-tier.spec.md`, recording the `README.md` subset of planned `RefEdit`s (0 at authoring for all three despite real citations in `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md`, `.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md`, and `.aw/records/backlog/README.md`); and (c) run a read-only corpus census across the `README.md` files yielded by `artifact_core.iter_scan_files(Path("."), artifact_core.REFERENCE_SCAN_ROOTS, suffixes=artifact_core._REFERENCE_TEXT_SUFFIXES)` recording which `README.md` files contain record citations that a slug rename or `--to-id6` rename would rewrite once `README.md` is no longer skipped; and (d) record the baseline `python3 -m agent_workflows check --agent` result (findings count by severity and the rule ids present; the repository corpus is NOT clean at authoring, so this is the comparison point for E-04) and the baseline `artifact_refs.dead_filename_citations(Path("."), "plans")` result.
   - Depends on: none
   - Expected outcome: Pasted baseline transcript showing all existing tests in `tests/test_artifact_refs_rewrite.py` passing, all three read-only planner probes emitting zero `RefEdit`s for any `README.md`, and the corpus `README.md` citation census re-derived at the executing HEAD and pasted (F-04's 4 files / 22 `RefEdit`s plus 3 legacy-prefix files is authoring-time context, not the bar; the bar is that the census is produced by the shipped planner and lists every `README.md` that would gain an edit).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: separate generated manifests from non-record filenames in `artifact_refs`
 
-- [ ] E-02 In `agent_workflows/artifact_refs.py`, define `_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}` immediately below `_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}` and change the citing-file scan guard in `artifact_refs.plan_reference_rewrites_with_warnings` from `if f.name in _SKIP_NAMES:` to `if f.name in _GENERATED_MANIFEST_NAMES:`. Update the comment above that guard to explain why `INDEX.md` and `STATUS.md` are skipped (generated manifests per `4r0qp1` E-05: `INDEX.md` is gitignored and regenerated by the caller; `STATUS.md` is written only by `aw plans --write-index` and must not be hand- or rename-edited) while `README.md` is scanned as a citing document (`0u0ako`), and why `_SKIP_NAMES` remains `{"README.md", "INDEX.md", "STATUS.md"}` for `artifact_refs.dead_filename_citations`'s target-record enumeration loop (`for p in d.rglob("*.md"): if p.name in _SKIP_NAMES: continue`).
+- [x] E-02 In `agent_workflows/artifact_refs.py`, define `_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}` immediately below `_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}` and change the citing-file scan guard in `artifact_refs.plan_reference_rewrites_with_warnings` from `if f.name in _SKIP_NAMES:` to `if f.name in _GENERATED_MANIFEST_NAMES:`. Update the comment above that guard to explain why `INDEX.md` and `STATUS.md` are skipped (generated manifests per `4r0qp1` E-05: `INDEX.md` is gitignored and regenerated by the caller; `STATUS.md` is written only by `aw plans --write-index` and must not be hand- or rename-edited) while `README.md` is scanned as a citing document (`0u0ako`), and why `_SKIP_NAMES` remains `{"README.md", "INDEX.md", "STATUS.md"}` for `artifact_refs.dead_filename_citations`'s target-record enumeration loop (`for p in d.rglob("*.md"): if p.name in _SKIP_NAMES: continue`).
   - Depends on: E-01
   - Expected outcome: `artifact_refs.plan_reference_rewrites_with_warnings` scans `README.md` files reached by `artifact_core.iter_scan_files` and emits `FULL_NAME`, `BARE_STEM`, and `FACETLESS_STEM` `RefEdit`s (and shared-stem warnings when applicable) for citations in `README.md` files, while continuing to skip `INDEX.md` and `STATUS.md` as citing files and continuing to exclude `README.md`, `INDEX.md`, and `STATUS.md` from target-record enumeration in `artifact_refs.dead_filename_citations`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: outcome tests and documentation sync
 
-- [ ] E-03 Add CLI-driven outcome tests to `tests/test_artifact_refs_rewrite.py` reusing `_RepoTestCase` and its `_run` helper: (1) renaming a plan (`rename plans <id6> --slug <new> --apply --no-commit`) rewrites a facet-less stem citation inside a research-bundle `.aw/records/research/<bundle>/README.md` and lists that `README.md` in preview (`rename plans <id6> --slug <new>`); (2) renaming a research report (`research mv <old> --slug <new> --apply --no-commit`) rewrites both full-filename and whole-stem citations in `.aw/records/research/<bundle>/README.md` and `.aw/records/research/README.md`; (3) renaming a plan rewrites a citation in the repo-root `README.md` (`artifact_core.SCAN_ROOTS` entry `"README.md"`) while preserving citations inside fenced code blocks and pinned permalinks in that `README.md`; (4) converting a legacy spec with `rename specs <legacy> --to-id6 --apply --no-commit` rewrites a legacy-prefix short handle (`YYYYMMDD-HHMM-NN`) in `.aw/records/backlog/README.md`; and (5) when `.aw/records/plans/INDEX.md` and `.aw/records/plans/STATUS.md` exist on disk containing the old plan filename and stem, `rename plans <id6> --slug <new> --apply --no-commit` does not list `INDEX.md` or `STATUS.md` in `plan_reference_rewrites_with_warnings` and leaves an un-regenerated `STATUS.md` untouched by the reference rewriter. Verify that tests (1)-(4) fail on the unmodified base commit before E-02 and pass with E-02 applied.
+- [x] E-03 Add CLI-driven outcome tests to `tests/test_artifact_refs_rewrite.py` reusing `_RepoTestCase` and its `_run` helper: (1) renaming a plan (`rename plans <id6> --slug <new> --apply --no-commit`) rewrites a facet-less stem citation inside a research-bundle `.aw/records/research/<bundle>/README.md` and lists that `README.md` in preview (`rename plans <id6> --slug <new>`); (2) renaming a research report (`research mv <old> --slug <new> --apply --no-commit`) rewrites both full-filename and whole-stem citations in `.aw/records/research/<bundle>/README.md` and `.aw/records/research/README.md`; (3) renaming a plan rewrites a citation in the repo-root `README.md` (`artifact_core.SCAN_ROOTS` entry `"README.md"`) while preserving citations inside fenced code blocks and pinned permalinks in that `README.md`; (4) converting a legacy spec with `rename specs <legacy> --to-id6 --apply --no-commit` rewrites a legacy-prefix short handle (`YYYYMMDD-HHMM-NN`) in `.aw/records/backlog/README.md`; and (5) when `.aw/records/plans/INDEX.md` and `.aw/records/plans/STATUS.md` exist on disk containing the old plan filename and stem, `rename plans <id6> --slug <new> --apply --no-commit` does not list `INDEX.md` or `STATUS.md` in `plan_reference_rewrites_with_warnings` and leaves an un-regenerated `STATUS.md` untouched by the reference rewriter. Verify that tests (1)-(4) fail on the unmodified base commit before E-02 and pass with E-02 applied.
   - Depends on: E-02
   - Expected outcome: Every new E-03 behavior (1)-(5) is pinned by a passing test and every E-01 baseline test still passes (counts are context, not the bar), with tests (1)-(4) demonstrated failing on the pre-E-02 code and test (5) pinning the `4r0qp1` generated-manifest skip invariant.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one `- Fixed:` entry to the topmost pending section of `CHANGELOG.md` (user-facing prose: no em or en dashes) stating that `aw rename` and `aw group` now scan `README.md` files for citation rewrites while still skipping generated `INDEX.md` and `STATUS.md` manifests; re-run the three E-01(b) read-only planner probes at the post-E-02 tree to verify the `README.md` `RefEdit`s are now planned; run the bare `python3 -m pytest` suite and compare its failing-test set against the pre-change baseline; and run `python3 -m agent_workflows sanitize --agent` and `python3 -m agent_workflows check`.
+- [x] E-04 Add one `- Fixed:` entry to the topmost pending section of `CHANGELOG.md` (user-facing prose: no em or en dashes) stating that `aw rename` and `aw group` now scan `README.md` files for citation rewrites while still skipping generated `INDEX.md` and `STATUS.md` manifests; re-run the three E-01(b) read-only planner probes at the post-E-02 tree to verify the `README.md` `RefEdit`s are now planned; run the bare `python3 -m pytest` suite and compare its failing-test set against the pre-change baseline; and run `python3 -m agent_workflows sanitize --agent` and `python3 -m agent_workflows check`.
   - Depends on: E-03
   - Expected outcome: `CHANGELOG.md` entry added with zero em/en dashes; the three E-01(b) read-only planner probes now list `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md` (`facetless-stem` for `qrokie`), `.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md` (`full-name` and `bare-stem` for `tmylmj`), and `.aw/records/backlog/README.md` (`bare-stem` for `20260813-1833-01`); bare `python3 -m pytest` introduces no new failures; `aw sanitize --agent` is clean; `aw check --agent` reports no finding absent from the E-01(d) baseline (it is not expected to exit 0, because the corpus carries pre-existing findings).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,25 +130,198 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste (a) the pre-change `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py -v` output with all passing test names; (b) the output of the read-only `artifact_refs.plan_reference_rewrites_with_warnings` probes for `qrokie`, `tmylmj`, and `20260813-1833-01-attention-visible-backlog-tier.spec.md` showing 0 `README.md` `RefEdit`s; and (c) the `README.md` citation census script and its output at the executing HEAD; and (d) the baseline `aw check --agent` summary (counts by severity, rule ids) and the baseline `dead_filename_citations(Path("."), "plans")` output. Produced by `artifact_refs.plan_reference_rewrites_with_warnings`, `artifact_core.iter_scan_files`, `check_engine`, and `artifact_refs.dead_filename_citations` (E-01).
   - Observed evidence:
-  - Result: pending
+    (a) Pre-change pytest run on tests/test_artifact_refs_rewrite.py:
+    ```
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_e_guard_classifies_receipt_corrupt_noid_as_must_skip_and_provably_absent_as_rewritable PASSED [  5%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_b_name_keyed_map_unchanged_filename_plans_zero_edits PASSED [ 10%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_c_executed_plan_and_tests_byte_unchanged PASSED [ 15%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_a_path_keyed_rewrites_scope_paths_and_preserves_prose_and_fenced PASSED [ 20%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_d_forward_declaration_skipped_with_reason_and_byte_unchanged PASSED [ 25%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_b_tests_citation_rewritten_noninteractive PASSED [ 30%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_c_short_handle_maps_to_short_handle PASSED [ 35%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_e_shared_legacy_prefix_skipped_and_warned PASSED [ 40%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_5_sibling_without_citation_does_not_warn PASSED [ 45%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_plans_refs_shared_prefix_warning_and_reviews_rewrite PASSED [ 50%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_research_refs_reviews_and_tests_rewrite PASSED [ 55%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_2_all_three_forms_rewritten_no_doubled_suffix PASSED [ 60%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_4_fenced_preserved_outside_rewritten_and_bare_slug_unchanged PASSED [ 65%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_3_sibling_shared_stem_skipped_and_warned PASSED [ 70%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_f_pinned_permalink_preserved PASSED [ 75%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_group_generic_rewrites_tests_and_reviews PASSED [ 80%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_1_backlog_prose_rewritten_and_preview_shows_kind PASSED [ 85%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_d_fenced_transcript_preserved_and_outside_rewritten PASSED [ 90%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_a_reviews_citation_rewritten PASSED [ 95%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_6_undated_record_stem_not_rewritten_in_prose PASSED [100%]
+    ============================== 20 passed in 2.24s ==============================
+    ```
+    (b) Pre-change read-only planner probes:
+    ```
+    Probe qrokie: total edits=11, readme edits=0, warnings=0
+    Probe tmylmj: total edits=8, readme edits=0, warnings=0
+    Probe legacy_spec: total edits=28, readme edits=0, warnings=0
+    ```
+    (c) Corpus census re-derived at executing HEAD:
+    Total 33 README.md files in REFERENCE_SCAN_ROOTS.
+    Under slug renames: 22 RefEdits across 4 README files:
+    - .aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md (2 facetless-stem edits, 1 hit each, for qrokie and kemhdg)
+    - .aw/records/research/README.md (1 full-name and 1 bare-stem edit for 20260730-2152-01-agents-artifact-organization.spec.md)
+    - .aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md (8 full-name and 8 bare-stem edits for 8 occomms reports)
+    - .aw/records/research/opencode/README.md (1 full-name and 1 bare-stem edit for 20260713-occomms-11-8xgwvm-sources.research-report.md)
+    Under legacy spec --to-id6 renames: 3 RefEdits across 3 README files:
+    - .aw/records/backlog/README.md (1 bare-stem edit: 20260813-1833-01)
+    - .aw/records/roadmaps/README.md (1 bare-stem edit: 20260808-1945-01)
+    - .aw/records/walkthroughs/README.md (1 bare-stem edit: 20260808-1945-01)
+    (d) Baseline aw check --agent:
+    Total findings: 80
+    Rules: {'check.lifecycle-transition-unvalidated': 31, 'check.ipd-carrier-finished-unverified': 3, 'check.ipd-carrier-ungated': 2, 'check.spec-criteria-uncovered': 1, 'check.source-test-citation-dangling': 42, 'check.system-layout-missing': 1}
+    Baseline dead_filename_citations count: 2959
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/artifact_refs.py` showing `_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}` defined beside `_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}`, `plan_reference_rewrites_with_warnings` checking `if f.name in _GENERATED_MANIFEST_NAMES:`, and `dead_filename_citations` still checking `if p.name in _SKIP_NAMES:`. Also paste a Python one-liner calling `artifact_refs.dead_filename_citations(Path("."), "plans")` after E-02 and showing its result is identical to the E-01(d) baseline (proving the target-record enumeration is unchanged). Produced by `artifact_refs.plan_reference_rewrites_with_warnings` and `artifact_refs.dead_filename_citations` (E-02).
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/artifact_refs.py b/agent_workflows/artifact_refs.py
+    index f54a2de78..ff8066277 100644
+    --- a/agent_workflows/artifact_refs.py
+    +++ b/agent_workflows/artifact_refs.py
+    @@ -60,6 +60,7 @@ facet (F-09).
+     """
 
-- [ ] V-03 validates E-03
+     _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+    +_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}
+
+     # The legacy old-style plan stem prefix: YYYYMMDD-HHMM-NN.
+     _LEGACY_PREFIX_RE = re.compile(r"\A(\d{8}-\d{4}-\d{2})-")
+    @@ -308,14 +309,17 @@ def plan_reference_rewrites_with_warnings(
+
+         edits: List[RefEdit] = []
+         for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
+    -        # NEVER rewrite a GENERATED manifest (INDEX.md/README.md/STATUS.md). Doing so is both
+    +        # NEVER rewrite a GENERATED manifest (INDEX.md or STATUS.md). Doing so is both
+             # pointless and harmful: the caller REGENERATES the manifest from the renamed corpus
+             # immediately after this rewrite, so the edit is overwritten anyway, and meanwhile the
+             # manifest lands in the caller's `touched_paths`, which is its COMMIT path-set. That put a
+             # generated (now gitignored) file into a commit, which is what idxuntrack `4r0qp1` E-05
+    -        # exists to eliminate. `_SKIP_NAMES` is already the module's name for "not a citing
+    -        # document"; it was applied when COLLECTING names but not when SCANNING them.
+    -        if f.name in _SKIP_NAMES:
+    +        # exists to eliminate. `INDEX.md` is gitignored and regenerated by the caller; `STATUS.md`
+    +        # is written only by `aw plans --write-index` and must not be hand- or rename-edited.
+    +        # `README.md` is scanned as a citing document (0u0ako), while `_SKIP_NAMES` remains
+    +        # {"README.md", "INDEX.md", "STATUS.md"} for `artifact_refs.dead_filename_citations`'s
+    +        # target-record enumeration loop (excluding non-record filenames).
+    +        if f.name in _GENERATED_MANIFEST_NAMES:
+                 continue
+             try:
+                 text = f.read_text(encoding="utf-8")
+    ```
+    dead_filename_citations verification after E-02:
+    ```
+    $ python3 -c 'from pathlib import Path; from agent_workflows import artifact_refs; print(len(artifact_refs.dead_filename_citations(Path("."), "plans")))'
+    2959
+    ```
+    (identical to E-01 baseline 2959, proving target-record enumeration unchanged).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste (a) the failure lines of E-03 tests (1)-(4) when run against the pre-E-02 `agent_workflows/artifact_refs.py`, proving falsifiability; (b) the full `python3 -m pytest -o addopts="" tests/test_artifact_refs_rewrite.py -v` output after E-02 showing every E-01 baseline test still passing and a passing test pinning each E-03 behavior (1)-(5) (test names are non-binding pointers); and (c) `grep -nE "\binspect\b|\bast\.|artifact_refs\.py" tests/test_artifact_refs_rewrite.py` showing zero source-pinning hits. Produced by `plans_refs.cmd_rename`, `research_refs.cmd_mv`, and `artifact_rename.cmd_rename` delegating to `artifact_refs.plan_reference_rewrites_with_warnings` (E-02, E-03).
   - Observed evidence:
-  - Result: pending
+    (a) Failure output of tests (1)-(4) against pre-E-02 code:
+    ```
+    FAILED tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_3_plan_citation_rewritten_in_root_readme_with_fenced_and_permalink_preserved - AssertionError: 'Outside: .aw/records/plans/pending/20260701-testset-01-p10003-new-plan.ipd.md' not found in '# Project\n\nOutside: .aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md\n\n```sh\nInside fence: .aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md\n```\n\n[Perm](https://example.invalid/o/r/blob/0123456789abcdef/.aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md)\n'
+    FAILED tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_2_research_report_full_and_whole_stem_rewritten_in_bundle_and_records_readme - AssertionError: 'Cites full: 20260701-seta-01-r10002-new-rep.research-report.md' not found in 'Cites full: 20260701-seta-01-r10002-old-rep.research-report.md\nCites stem: 20260701-seta-01-r10002-old-rep.research-report\n'
+    FAILED tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_1_plan_facetless_stem_rewritten_in_research_bundle_readme_and_preview_lists_it - AssertionError: 'README.md' not found in '--- would rename 20260701-testset-01-p10001-old-plan.ipd.md -> 20260701-testset-01-p10001-new-plan.ipd.md ---\n'
+    FAILED tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_4_legacy_spec_short_handle_rewritten_in_backlog_readme - AssertionError: '`20260701-d20ofw-01`' not found in 'Tracks spec `20260701-1200-01` short handle citation.\n'
+    ================== 4 failed, 1 passed, 20 deselected in 1.07s ==================
+    ```
+    (b) Full pytest output after E-02:
+    ```
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_c_executed_plan_and_tests_byte_unchanged PASSED [  4%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_a_path_keyed_rewrites_scope_paths_and_preserves_prose_and_fenced PASSED [  8%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_d_forward_declaration_skipped_with_reason_and_byte_unchanged PASSED [ 12%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_b_name_keyed_map_unchanged_filename_plans_zero_edits PASSED [ 16%]
+    tests/test_artifact_refs_rewrite.py::TestScopePathCitationRewriteHelper::test_e_guard_classifies_receipt_corrupt_noid_as_must_skip_and_provably_absent_as_rewritable PASSED [ 20%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_d_fenced_transcript_preserved_and_outside_rewritten PASSED [ 24%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_1_plan_facetless_stem_rewritten_in_research_bundle_readme_and_preview_lists_it PASSED [ 28%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_1_backlog_prose_rewritten_and_preview_shows_kind PASSED [ 32%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_3_sibling_shared_stem_skipped_and_warned PASSED [ 36%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_b_tests_citation_rewritten_noninteractive PASSED [ 40%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_3_plan_citation_rewritten_in_root_readme_with_fenced_and_permalink_preserved PASSED [ 44%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_c_short_handle_maps_to_short_handle PASSED [ 48%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_e_shared_legacy_prefix_skipped_and_warned PASSED [ 52%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_a_reviews_citation_rewritten PASSED [ 56%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_5_sibling_without_citation_does_not_warn PASSED [ 60%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_research_refs_reviews_and_tests_rewrite PASSED [ 64%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_4_fenced_preserved_outside_rewritten_and_bare_slug_unchanged PASSED [ 68%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_5_generated_manifests_index_and_status_skipped_by_plan_and_untouched_on_disk PASSED [ 72%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_f_pinned_permalink_preserved PASSED [ 76%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_group_generic_rewrites_tests_and_reviews PASSED [ 80%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_4_legacy_spec_short_handle_rewritten_in_backlog_readme PASSED [ 84%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_call_site_plans_refs_shared_prefix_warning_and_reviews_rewrite PASSED [ 88%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_readme_2_research_report_full_and_whole_stem_rewritten_in_bundle_and_records_readme PASSED [ 92%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_6_undated_record_stem_not_rewritten_in_prose PASSED [ 96%]
+    tests/test_artifact_refs_rewrite.py::TestArtifactRefsRewrite::test_facetless_2_all_three_forms_rewritten_no_doubled_suffix PASSED [100%]
+    ============================== 25 passed in 2.65s ==============================
+    ```
+    (c) Source-pinning grep check:
+    ```
+    $ grep -nE "\binspect\b|\bast\.|artifact_refs\.py" tests/test_artifact_refs_rewrite.py
+    (exit code 1, zero matches)
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste (a) `git diff CHANGELOG.md` and `grep -nP "\x{2013}|\x{2014}" CHANGELOG.md` over the added line showing zero em or en dashes; (b) the re-run E-01(b) read-only planner probes showing `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md` (`facetless-stem` for `qrokie`), `.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md` (`full-name` and `bare-stem` for `tmylmj`), and `.aw/records/backlog/README.md` (`bare-stem` for `20260813-1833-01`) now listed in planned `RefEdit`s; (c) the bare `python3 -m pytest` summary line compared against the pre-change baseline; and (d) the `python3 -m agent_workflows sanitize --agent` output (outcome clean) and the `python3 -m agent_workflows check --agent` output compared against the E-01(d) baseline showing no new finding (an exit 1 caused only by pre-existing findings is acceptable). Produced by `artifact_refs.plan_reference_rewrites_with_warnings`, `pytest`, `check_local_leaks`, and `check_engine` (E-04).
   - Observed evidence:
-  - Result: pending
+    (a) git diff CHANGELOG.md and dash check:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index f3abcdeba..ae347d0a8 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
+     - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.
+     - Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
+     - Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact in any tracked tree, while keeping legitimate empty answers at exit 0. `aw ipd recheck-readiness` moves from exit 1 to exit 2 for unresolved or non-plan selectors and now refuses a mixed invocation before re-checking or writing anything. Standing vocabulary queries remain exempt at exit 0 across all four verbs.
+    ```
+    Dash check on added line:
+    ```
+    $ sed -n '27p' CHANGELOG.md | grep -nP "\x{2013}|\x{2014}"
+    (exit code 1, zero matches)
+    ```
+    (b) Re-run E-01(b) read-only planner probes:
+    ```
+    Probe qrokie: total edits=12, readme edits=1, warnings=0
+      file=.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md kind=facetless-stem old=20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec hits=1
+    Probe tmylmj: total edits=10, readme edits=2, warnings=0
+      file=.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md kind=full-name old=20260713-occomms-03-tmylmj-executive-summary.executive-summary.md hits=2
+      file=.aw/records/research/opencode/20260713-1330-gpt56-opencode-inter-instance-agent-communication/README.md kind=bare-stem old=20260713-occomms-03-tmylmj-executive-summary.executive-summary hits=2
+    Probe legacy_spec: total edits=29, readme edits=1, warnings=0
+      file=.aw/records/backlog/README.md kind=bare-stem old=20260813-1833-01 hits=1
+    ```
+    (c) Bare python3 -m pytest summary line:
+    ```
+    695 passed in 27.16s
+    ```
+    (identical pass count to pre-change baseline 695 passed in 26.79s; zero new failures).
+    (d) python3 -m agent_workflows sanitize --agent:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5207,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    python3 -m agent_workflows check --agent:
+    ```
+    Total findings: 80 (identical to E-01(d) baseline)
+    Rules: {'check.lifecycle-transition-unvalidated': 31, 'check.ipd-carrier-finished-unverified': 3, 'check.ipd-carrier-ungated': 2, 'check.spec-criteria-uncovered': 1, 'check.source-test-citation-dangling': 42, 'check.system-layout-missing': 1}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

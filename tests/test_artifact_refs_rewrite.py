@@ -471,6 +471,217 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         artifact_refs.apply_reference_rewrites(edits)
         self.assertEqual(citing_file.read_text(encoding="utf-8"), initial_text)
 
+    def test_readme_1_plan_facetless_stem_rewritten_in_research_bundle_readme_and_preview_lists_it(
+        self,
+    ):
+        plan = self.plans / "20260701-testset-01-p10001-old-plan.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p10001\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        bundle_dir = self.tmp / ".aw" / "records" / "research" / "20260701-0001-bundle"
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        bundle_readme = bundle_dir / "README.md"
+        bundle_readme.write_text(
+            "See plan 20260701-testset-01-p10001-old-plan for details.\n",
+            encoding="utf-8",
+        )
+
+        rc_prev, out_prev = self._run(
+            ["rename", "plans", "p10001", "--slug", "new-plan", "--no-commit"]
+        )
+        self.assertEqual(rc_prev, 0, f"preview failed with rc={rc_prev}:\n{out_prev}")
+        self.assertIn("README.md", out_prev)
+        self.assertIn("[facetless-stem]", out_prev)
+
+        rc_app, out_app = self._run(
+            [
+                "rename",
+                "plans",
+                "p10001",
+                "--slug",
+                "new-plan",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc_app, 0, f"apply failed with rc={rc_app}:\n{out_app}")
+        content = bundle_readme.read_text(encoding="utf-8")
+        self.assertIn("20260701-testset-01-p10001-new-plan", content)
+        self.assertNotIn("old-plan", content)
+
+    def test_readme_2_research_report_full_and_whole_stem_rewritten_in_bundle_and_records_readme(
+        self,
+    ):
+        bundle_dir = self.tmp / ".aw" / "records" / "research" / "20260701-0001-bundle"
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        rsch = bundle_dir / "20260701-seta-01-r10002-old-rep.research-report.md"
+        rsch.write_text(
+            "# Report\n- Date: 2026-07-01\n- Id: r10002\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        records_readme = self.tmp / ".aw" / "records" / "research" / "README.md"
+        records_readme.write_text(
+            "Cites full: 20260701-seta-01-r10002-old-rep.research-report.md\n"
+            "Cites stem: 20260701-seta-01-r10002-old-rep.research-report\n",
+            encoding="utf-8",
+        )
+        bundle_readme = bundle_dir / "README.md"
+        bundle_readme.write_text(
+            "Bundle full: 20260701-seta-01-r10002-old-rep.research-report.md\n"
+            "Bundle stem: 20260701-seta-01-r10002-old-rep.research-report\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            [
+                "research",
+                "mv",
+                "r10002",
+                "--slug",
+                "new-rep",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, f"research mv failed with rc={rc}:\n{out}")
+
+        new_full = "20260701-seta-01-r10002-new-rep.research-report.md"
+        new_stem = "20260701-seta-01-r10002-new-rep.research-report"
+
+        r_content = records_readme.read_text(encoding="utf-8")
+        self.assertIn(f"Cites full: {new_full}", r_content)
+        self.assertIn(f"Cites stem: {new_stem}", r_content)
+        self.assertNotIn("old-rep", r_content)
+
+        b_content = bundle_readme.read_text(encoding="utf-8")
+        self.assertIn(f"Bundle full: {new_full}", b_content)
+        self.assertIn(f"Bundle stem: {new_stem}", b_content)
+        self.assertNotIn("old-rep", b_content)
+
+    def test_readme_3_plan_citation_rewritten_in_root_readme_with_fenced_and_permalink_preserved(
+        self,
+    ):
+        plan = self.plans / "20260701-testset-01-p10003-my-plan.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p10003\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        root_readme = self.tmp / "README.md"
+        fence_block = (
+            "```sh\n"
+            "Inside fence: .aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md\n"
+            "```"
+        )
+        permalink_line = "[Perm](https://example.invalid/o/r/blob/0123456789abcdef/.aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md)"
+        root_readme.write_text(
+            f"# Project\n\n"
+            f"Outside: .aw/records/plans/pending/20260701-testset-01-p10003-my-plan.ipd.md\n\n"
+            f"{fence_block}\n\n"
+            f"{permalink_line}\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p10003",
+                "--slug",
+                "new-plan",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, f"rename plans failed with rc={rc}:\n{out}")
+
+        content = root_readme.read_text(encoding="utf-8")
+        self.assertIn(
+            "Outside: .aw/records/plans/pending/20260701-testset-01-p10003-new-plan.ipd.md",
+            content,
+        )
+        self.assertIn(fence_block, content)
+        self.assertIn(permalink_line, content)
+
+    def test_readme_4_legacy_spec_short_handle_rewritten_in_backlog_readme(
+        self,
+    ):
+        backlog_dir = self.tmp / ".aw" / "records" / "backlog"
+        backlog_dir.mkdir(parents=True, exist_ok=True)
+        backlog_readme = backlog_dir / "README.md"
+        backlog_readme.write_text(
+            "Tracks spec `20260701-1200-01` short handle citation.\n",
+            encoding="utf-8",
+        )
+
+        rc, out = self._run(
+            ["rename", "specs", self.spec_name, "--to-id6", "--apply", "--no-commit"]
+        )
+        self.assertEqual(rc, 0, f"rename specs failed with rc={rc}:\n{out}")
+
+        new_name = self._new_spec_name()
+        parts = new_name.split("-")
+        expected_short = f"{parts[0]}-{parts[1]}-01"
+
+        content = backlog_readme.read_text(encoding="utf-8")
+        self.assertIn(f"`{expected_short}`", content)
+        self.assertNotIn("20260701-1200-01", content)
+
+    def test_readme_5_generated_manifests_index_and_status_skipped_by_plan_and_untouched_on_disk(
+        self,
+    ):
+        from agent_workflows import artifact_refs
+
+        plan = self.plans / "20260701-testset-01-p10005-plan-five.ipd.md"
+        plan.write_text(
+            "# Plan\n\n- Date: 2026-07-01\n- Id: p10005\n- Set: testset\n- Status: draft\n",
+            encoding="utf-8",
+        )
+        plans_dir = self.tmp / ".aw" / "records" / "plans"
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        index_file = plans_dir / "INDEX.md"
+        status_file = plans_dir / "STATUS.md"
+        orig_index = "Index citing 20260701-testset-01-p10005-plan-five.ipd.md and 20260701-testset-01-p10005-plan-five\n"
+        orig_status = "Status citing 20260701-testset-01-p10005-plan-five.ipd.md and 20260701-testset-01-p10005-plan-five\n"
+        index_file.write_text(orig_index, encoding="utf-8")
+        status_file.write_text(orig_status, encoding="utf-8")
+
+        # 1. Probe artifact_refs.plan_reference_rewrites_with_warnings directly
+        edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+            self.tmp,
+            {
+                "20260701-testset-01-p10005-plan-five.ipd.md": "20260701-testset-01-p10005-new-five.ipd.md"
+            },
+        )
+        planned_edit_files = [e.file.name for e in edits]
+        self.assertNotIn("INDEX.md", planned_edit_files)
+        self.assertNotIn("STATUS.md", planned_edit_files)
+
+        # 2. Rename preview output does not list INDEX.md or STATUS.md
+        rc_prev, out_prev = self._run(
+            ["rename", "plans", "p10005", "--slug", "new-five", "--no-commit"]
+        )
+        self.assertEqual(rc_prev, 0, f"preview failed with rc={rc_prev}:\n{out_prev}")
+        self.assertNotIn("INDEX.md", out_prev)
+        self.assertNotIn("STATUS.md", out_prev)
+
+        # 3. Rename apply leaves status_file untouched
+        rc_app, out_app = self._run(
+            [
+                "rename",
+                "plans",
+                "p10005",
+                "--slug",
+                "new-five",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc_app, 0, f"apply failed with rc={rc_app}:\n{out_app}")
+        self.assertNotIn("INDEX.md", out_app)
+        self.assertNotIn("STATUS.md", out_app)
+        self.assertEqual(status_file.read_text(encoding="utf-8"), orig_status)
+
 
 class TestScopePathCitationRewriteHelper(_RepoTestCase):
     """Behavior tests for Scope-Paths citation rewrite helper and in-flight guard (IPD 5h3qyy E-07)."""
