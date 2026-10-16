@@ -6,7 +6,7 @@
 - Scope: IN: delegate `ipd_lifecycle._repo_relative` and `attention._rel_posix` to `artifact_core.repo_relative_posix`, render `ipd_lifecycle.run_begin`'s `receipt_path` against the checkout control root, and make `run_begin`/`run_finalize` refuse an out-of-root plan path (E-06); replace both inline `Drift.location` relativization blocks in `doctor.probe_artifacts` with `doctor._normalize_rel_path` and normalize its four `loc.split(os.sep)` segment checks to `loc.split("/")`; keep `layout_inventory._repo_relative` separate and document its load-bearing `None` and non-resolving symlink contract in its docstring; extend `tests/test_repo_relative_posix.py` to pin parity across the three adopting callers and the distinct `None`/`external` contract of `layout_inventory._repo_relative`. OUT: changing `layout_inventory._repo_relative`'s behavior; changing `check_engine.finding_dict` or `research_cmd._rel_posix` (neither is named by `rd6ei9`); any change to which findings fire in `aw check` or `aw doctor` in normal in-root operation.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/attention.py, agent_workflows/doctor.py, agent_workflows/layout_inventory.py, tests/test_repo_relative_posix.py, .aw/records/plans/pending/20261014-rd6ei9-01-61lsze-adopt-the-shared-repo-relative-posix-renderer-across-the-rem.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: Antigravity Gemini 4 Argon model=High
 - Id: 61lsze
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 61lsze verified (set rd6ei9, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete; PR-001..PR-006 fixed
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (E-06 containment refusal added so delegated plan_rel cannot alias an in-root file, receipt_path anchored on the checkout control root, doctor parity made non-vacuous by injection, validation tightened); review record `.aw/records/reviews/20261014-rd6ei9-01-61lsze-adopt-the-shared-repo-relative-posix-renderer-across-the-rem.review.md`.
