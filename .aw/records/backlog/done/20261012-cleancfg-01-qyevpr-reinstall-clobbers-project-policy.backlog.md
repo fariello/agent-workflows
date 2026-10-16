@@ -1,5 +1,5 @@
 - Id: qyevpr
-- Status: graduated
+- Status: done
 - Graduated-To: cleancfg
 - Blocks-Release: next
 - Set: cleancfg
@@ -8,6 +8,7 @@
 - Summary: re-running aw install overwrites .aw/config/project.json wholesale, discarding run policy, setids, release_gate_work_kinds and every hand-set or earlier-stamped cutover date
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD on0keo executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-cleancfg-03-on0keo-preserve-project-json-policy-keys-cutover-dates-and-local-js.ipd.md); evidence .aw/records/plans/executed/20261014-cleancfg-03-on0keo-preserve-project-json-policy-keys-cutover-dates-and-local-js.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: on0keo
 - 2026-10-12 created (aw backlog): found while graduating mbx0o4 (plan p425hv)
 
