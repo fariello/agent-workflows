@@ -35,29 +35,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Item-level `fail-gate` outcome-class discriminator in `render_stream.py`
 
-- [ ] E-01 In `agent_workflows/render_stream.py`, define a pure helper `outcome_class_of_item(item: Mapping[str, Any]) -> str` AFTER `DECLARED_OUTCOME_ALIAS_DIVERGENCES` (it calls `refusal_of_item`, defined later in the module, which is fine at call time). It returns `OUTCOME_CLASS_NONE` for a non-`Mapping`, and `RUN_OUTCOME_CLASS_BY_STATUS.get(item.get("status"), OUTCOME_CLASS_NONE)` for any status other than `"fail-gate"`. For `"fail-gate"` it discriminates the three live producers from recorded fields, in this order: (1) `OUTCOME_CLASS_FAILED` when the last `Mapping` entry of `item.get("attempts")` has a non-blank `str` `turn_failure_kind`, a non-`bool` `int` `exit_code != 0`, or a truthy `host_error`, or when `item.get("host_error")` is truthy, or when the recorded refusal's `.code` is in `("SPEC-PRODUCTION-FAILED", "BACKLOG-PRODUCTION-FAILED")`; (2) `OUTCOME_CLASS_BLOCKED` when any other refusal is recorded; (3) `OUTCOME_CLASS_SUCCESS` only when the last attempt RECORDS `exit_code == 0` (a non-`bool` `int`; an ABSENT exit code is not success, so zero/one-attempt fixtures without one stay `BLOCKED`), `item.get("action", "execute") == "execute"`, `not item.get("proposal_record")`, `not item.get("needs_input")`, and `item.get("last_outcome")` is a `Mapping` whose `disposition` (stripped, lowercased) is in `("executed", "completed", "substantially-complete")`; (4) otherwise `OUTCOME_CLASS_BLOCKED`. TWO TYPE TRAPS, both measured at review: `refusal_of_item` returns a frozen `@dataclass` `Refusal`, so read `refusal.code` (it has no `.get`, and `refusal.get("code")` raises `AttributeError`); and `refusal_of_item` returns `None` for any non-`dict` (`if not isinstance(item, dict): return None`), so pass `item if isinstance(item, dict) else dict(item)` or a `Mapping` input silently loses its refusal and can be misread as success. Update the two `DECLARED_OUTCOME_ALIAS_DIVERGENCES` reason strings for `failed-safely` and `substantially-complete`, and the `RULE:` comment above the table, to say the canonical `fail-gate` is BLOCKED at TOKEN level and is discriminated per item by `outcome_class_of_item` (keys and classes unchanged).
+- [x] E-01 In `agent_workflows/render_stream.py`, define a pure helper `outcome_class_of_item(item: Mapping[str, Any]) -> str` AFTER `DECLARED_OUTCOME_ALIAS_DIVERGENCES` (it calls `refusal_of_item`, defined later in the module, which is fine at call time). It returns `OUTCOME_CLASS_NONE` for a non-`Mapping`, and `RUN_OUTCOME_CLASS_BY_STATUS.get(item.get("status"), OUTCOME_CLASS_NONE)` for any status other than `"fail-gate"`. For `"fail-gate"` it discriminates the three live producers from recorded fields, in this order: (1) `OUTCOME_CLASS_FAILED` when the last `Mapping` entry of `item.get("attempts")` has a non-blank `str` `turn_failure_kind`, a non-`bool` `int` `exit_code != 0`, or a truthy `host_error`, or when `item.get("host_error")` is truthy, or when the recorded refusal's `.code` is in `("SPEC-PRODUCTION-FAILED", "BACKLOG-PRODUCTION-FAILED")`; (2) `OUTCOME_CLASS_BLOCKED` when any other refusal is recorded; (3) `OUTCOME_CLASS_SUCCESS` only when the last attempt RECORDS `exit_code == 0` (a non-`bool` `int`; an ABSENT exit code is not success, so zero/one-attempt fixtures without one stay `BLOCKED`), `item.get("action", "execute") == "execute"`, `not item.get("proposal_record")`, `not item.get("needs_input")`, and `item.get("last_outcome")` is a `Mapping` whose `disposition` (stripped, lowercased) is in `("executed", "completed", "substantially-complete")`; (4) otherwise `OUTCOME_CLASS_BLOCKED`. TWO TYPE TRAPS, both measured at review: `refusal_of_item` returns a frozen `@dataclass` `Refusal`, so read `refusal.code` (it has no `.get`, and `refusal.get("code")` raises `AttributeError`); and `refusal_of_item` returns `None` for any non-`dict` (`if not isinstance(item, dict): return None`), so pass `item if isinstance(item, dict) else dict(item)` or a `Mapping` input silently loses its refusal and can be misread as success. Update the two `DECLARED_OUTCOME_ALIAS_DIVERGENCES` reason strings for `failed-safely` and `substantially-complete`, and the `RULE:` comment above the table, to say the canonical `fail-gate` is BLOCKED at TOKEN level and is discriminated per item by `outcome_class_of_item` (keys and classes unchanged).
   - Depends on: none
   - Expected outcome: `render_stream.outcome_class_of_item` is importable and classifies `"fail-gate"` items into `OUTCOME_CLASS_FAILED`, `OUTCOME_CLASS_SUCCESS`, or `OUTCOME_CLASS_BLOCKED` according to recorded attempt/outcome/refusal fields while preserving `RUN_OUTCOME_CLASS_BY_STATUS["fail-gate"] == OUTCOME_CLASS_BLOCKED` as the token-level default.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/render_stream.py` `render_run_summary_table`, replace EVERY occurrence of `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` in the outcome-word ladder with `outcome_class_of_item(it)` (five at review: the `INTERRUPTED`, `FAILED`, and `BLOCKED` `any(...)` arms and the two `all(...)` success tests feeding `COMPLETED` and `NO WORK PERFORMED`), re-deriving the count at execution. Change nothing else in the ladder: its order, the `isinstance(it, Mapping)` guards, the `refusal_of_item`/`work_did_not_land`/`queue_performed_no_work` conditions, and the `STRANDED`/`PARTIAL`/`QUEUED` tail stay as they are. There is NO `all_failed` variable, NO `OUTCOME_CLASS_SKIPPED` constant and NO success-plus-skipped arm in this function; do not add any. Effect: a crashed `fail-gate` item renders `FAILED` (and, because the `FAILED` arm is `any(...)`, so does any queue containing one, including `[executed, crashed fail-gate]`); a refusal-free executed-claim `fail-gate` item renders `COMPLETED`, or `STRANDED` when `work_did_not_land(it)`; a gate-refusal or bare `fail-gate` item renders `BLOCKED`.
+- [x] E-02 In `agent_workflows/render_stream.py` `render_run_summary_table`, replace EVERY occurrence of `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` in the outcome-word ladder with `outcome_class_of_item(it)` (five at review: the `INTERRUPTED`, `FAILED`, and `BLOCKED` `any(...)` arms and the two `all(...)` success tests feeding `COMPLETED` and `NO WORK PERFORMED`), re-deriving the count at execution. Change nothing else in the ladder: its order, the `isinstance(it, Mapping)` guards, the `refusal_of_item`/`work_did_not_land`/`queue_performed_no_work` conditions, and the `STRANDED`/`PARTIAL`/`QUEUED` tail stay as they are. There is NO `all_failed` variable, NO `OUTCOME_CLASS_SKIPPED` constant and NO success-plus-skipped arm in this function; do not add any. Effect: a crashed `fail-gate` item renders `FAILED` (and, because the `FAILED` arm is `any(...)`, so does any queue containing one, including `[executed, crashed fail-gate]`); a refusal-free executed-claim `fail-gate` item renders `COMPLETED`, or `STRANDED` when `work_did_not_land(it)`; a gate-refusal or bare `fail-gate` item renders `BLOCKED`.
   - Depends on: E-01
   - Expected outcome: `render_run_summary_table` contains no remaining `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` call and derives each item's class through `outcome_class_of_item(it)`; every existing word for every non-`fail-gate` token is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Unit and regression tests in `tests/test_outcome_word_ladder.py`
 
-- [ ] E-03 In `tests/test_outcome_word_ladder.py`, add tests exercising `outcome_class_of_item` and `render_run_summary_table` across all three live `"fail-gate"` producer shapes: (a) nonzero-exit / crashed turns (`exit_code != 0`, `turn_failure_kind` set, `host_error` set, and `SPEC-PRODUCTION-FAILED` / `BACKLOG-PRODUCTION-FAILED` refusal codes) rendering `Outcome: FAILED`, including a mixed `[executed, crashed fail-gate]` queue (the `FAILED` arm is `any(...)`; measured at review, `[executed, failed-safely]` already renders `FAILED`), plus a review-action `fail-gate` with `exit_code=1` rendering `FAILED`; (b) executed-claim-not-moved turns (`exit_code == 0`, no refusal, `last_outcome={"disposition": "executed"}` or `"substantially-complete"`) rendering `Outcome: COMPLETED` when `work_did_not_land` is false and `Outcome: STRANDED` when `integration_signal` is a non-landing signal (`"suite-failed"`); and (c) gate refusals awaiting a human continuing to render `Outcome: BLOCKED`: a recorded refusal with code `awaiting-human-decision` (`render_stream.GATE_ANSWER_NEEDS_HUMAN_CODE`), a legacy flat `finalize_refusal` string over an executed claim, `proposal_record` plus `needs_input`, a `clean_base_refused` attempt, a `SPEC-PLAN-COUNT` refusal with `exit_code == 0`, an agent-recorded `last_outcome={"disposition": "blocked"}` at `exit_code == 0`, a bare `fail-gate` with `attempts=[]`, and one with `attempts=[{"number": 1}]` (no exit code). Also add one case passing a non-`dict` `Mapping` (`types.MappingProxyType`) of a refused executed-claim item and asserting `OUTCOME_CLASS_BLOCKED` (the type trap in E-01). Keep `test_case_a_word_table`, `test_case_c_alias_agreement` and `test_case_d_canonical_fail_gate` unchanged and passing: their shapes carry no `exit_code`, so they pin the token-level default; update only the module docstring's `(d)` line to say the TOKEN-level default is BLOCKED and producers are discriminated per item.
+- [x] E-03 In `tests/test_outcome_word_ladder.py`, add tests exercising `outcome_class_of_item` and `render_run_summary_table` across all three live `"fail-gate"` producer shapes: (a) nonzero-exit / crashed turns (`exit_code != 0`, `turn_failure_kind` set, `host_error` set, and `SPEC-PRODUCTION-FAILED` / `BACKLOG-PRODUCTION-FAILED` refusal codes) rendering `Outcome: FAILED`, including a mixed `[executed, crashed fail-gate]` queue (the `FAILED` arm is `any(...)`; measured at review, `[executed, failed-safely]` already renders `FAILED`), plus a review-action `fail-gate` with `exit_code=1` rendering `FAILED`; (b) executed-claim-not-moved turns (`exit_code == 0`, no refusal, `last_outcome={"disposition": "executed"}` or `"substantially-complete"`) rendering `Outcome: COMPLETED` when `work_did_not_land` is false and `Outcome: STRANDED` when `integration_signal` is a non-landing signal (`"suite-failed"`); and (c) gate refusals awaiting a human continuing to render `Outcome: BLOCKED`: a recorded refusal with code `awaiting-human-decision` (`render_stream.GATE_ANSWER_NEEDS_HUMAN_CODE`), a legacy flat `finalize_refusal` string over an executed claim, `proposal_record` plus `needs_input`, a `clean_base_refused` attempt, a `SPEC-PLAN-COUNT` refusal with `exit_code == 0`, an agent-recorded `last_outcome={"disposition": "blocked"}` at `exit_code == 0`, a bare `fail-gate` with `attempts=[]`, and one with `attempts=[{"number": 1}]` (no exit code). Also add one case passing a non-`dict` `Mapping` (`types.MappingProxyType`) of a refused executed-claim item and asserting `OUTCOME_CLASS_BLOCKED` (the type trap in E-01). Keep `test_case_a_word_table`, `test_case_c_alias_agreement` and `test_case_d_canonical_fail_gate` unchanged and passing: their shapes carry no `exit_code`, so they pin the token-level default; update only the module docstring's `(d)` line to say the TOKEN-level default is BLOCKED and producers are discriminated per item.
   - Depends on: E-01, E-02
   - Expected outcome: the focused modules listed under Required tests and the bare full suite pass with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Release notes
 
-- [ ] E-04 Add one `Fixed:` bullet under the existing `## 2.0.0 (pending)` heading in `CHANGELOG.md` stating that the run summary's `Outcome:` word again reads `FAILED` for a turn that crashed or exited nonzero and `COMPLETED` or `STRANDED` for a turn that finished its work, instead of `BLOCKED`, which is now reserved for items waiting on a gate or a human. Add no heading, reword no neighbouring bullet, and write no em or en dashes (user-facing prose).
+- [x] E-04 Add one `Fixed:` bullet under the existing `## 2.0.0 (pending)` heading in `CHANGELOG.md` stating that the run summary's `Outcome:` word again reads `FAILED` for a turn that crashed or exited nonzero and `COMPLETED` or `STRANDED` for a turn that finished its work, instead of `BLOCKED`, which is now reserved for items waiting on a gate or a human. Add no heading, reword no neighbouring bullet, and write no em or en dashes (user-facing prose).
   - Depends on: E-03
   - Expected outcome: a single added `Fixed:` bullet in `CHANGELOG.md` with zero em/en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,25 +146,171 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff agent_workflows/render_stream.py` showing `outcome_class_of_item(item)` defined after `DECLARED_OUTCOME_ALIAS_DIVERGENCES`, reading `refusal.code` (not `.get`), passing a `dict` to `refusal_of_item`, requiring a recorded `exit_code == 0` for success, and handling all three `"fail-gate"` producer cases (attempt failure / nonzero exit / host error / production-crash refusal code -> `OUTCOME_CLASS_FAILED`; refusal-free executed/completed/substantially-complete `last_outcome` -> `OUTCOME_CLASS_SUCCESS`; gate refusals and bare `fail-gate` -> `OUTCOME_CLASS_BLOCKED`).
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/render_stream.py` shows `outcome_class_of_item` defined after `DECLARED_OUTCOME_ALIAS_DIVERGENCES`:
+    ```python
+    _PRODUCTION_FAILED_REFUSAL_CODES = ("SPEC-PRODUCTION-FAILED", "BACKLOG-PRODUCTION-FAILED")
+    _CLAIMED_SUCCESS_DISPOSITIONS = ("executed", "completed", "substantially-complete")
 
-- [ ] V-02 validates E-02
+
+    def outcome_class_of_item(item: Mapping[str, Any]) -> str:
+        """Classify one queue item's outcome for the run summary outcome-word ladder.
+
+        Returns the item's token-level class from RUN_OUTCOME_CLASS_BY_STATUS for all statuses other
+        than "fail-gate". For "fail-gate", discriminates live producers using recorded fields:
+        crashed/nonzero-exit/production-failed turns -> OUTCOME_CLASS_FAILED, gate refusals ->
+        OUTCOME_CLASS_BLOCKED, and refusal-free executed-claim turns with recorded exit 0 ->
+        OUTCOME_CLASS_SUCCESS.
+        """
+        if not isinstance(item, Mapping):
+            return OUTCOME_CLASS_NONE
+        status = item.get("status")
+        if status != "fail-gate":
+            return RUN_OUTCOME_CLASS_BY_STATUS.get(status, OUTCOME_CLASS_NONE)
+        attempts = item.get("attempts")
+        last = (
+            next((a for a in reversed(attempts) if isinstance(a, Mapping)), None)
+            if isinstance(attempts, list)
+            else None
+        )
+        exit_code = last.get("exit_code") if last is not None else None
+        ran = isinstance(exit_code, int) and not isinstance(exit_code, bool)
+        if last is not None:
+            tfk = last.get("turn_failure_kind")
+            if (
+                (isinstance(tfk, str) and tfk.strip())
+                or (ran and exit_code != 0)
+                or last.get("host_error")
+            ):
+                return OUTCOME_CLASS_FAILED
+        if item.get("host_error"):
+            return OUTCOME_CLASS_FAILED
+        refusal = refusal_of_item(item if isinstance(item, dict) else dict(item))
+        if refusal is not None:
+            return (
+                OUTCOME_CLASS_FAILED
+                if refusal.code in _PRODUCTION_FAILED_REFUSAL_CODES
+                else OUTCOME_CLASS_BLOCKED
+            )
+        lo = item.get("last_outcome")
+        if (
+            ran
+            and exit_code == 0
+            and str(item.get("action") or "execute") == "execute"
+            and not item.get("proposal_record")
+            and not item.get("needs_input")
+            and isinstance(lo, Mapping)
+            and str(lo.get("disposition") or "").strip().lower() in _CLAIMED_SUCCESS_DISPOSITIONS
+        ):
+            return OUTCOME_CLASS_SUCCESS
+        return OUTCOME_CLASS_BLOCKED
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/render_stream.py` showing `render_run_summary_table`'s ladder calling `outcome_class_of_item(it)` at every former `RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))` site and no other ladder change, plus pasted `rg -n 'RUN_OUTCOME_CLASS_BY_STATUS.get\(it.get' agent_workflows/render_stream.py` returning nothing.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/render_stream.py` showing the 5 replaced ladder sites:
+    ```diff
+    @@ -4348,8 +4348,7 @@ def render_run_summary_table(
+             outcome_str = exit_reason
+         elif any(
+             isinstance(it, Mapping)
+    -        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    -        == OUTCOME_CLASS_INTERRUPTED
+    +        and outcome_class_of_item(it) == OUTCOME_CLASS_INTERRUPTED
+             for it in queue
+         ):
+             outcome_str = "INTERRUPTED"
+    @@ -4356,5 +4356,5 @@ def render_run_summary_table(
+             isinstance(it, Mapping)
+    -        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_FAILED
+    +        and outcome_class_of_item(it) == OUTCOME_CLASS_FAILED
+             for it in queue
+         ):
+             outcome_str = "FAILED"
+    @@ -4361,5 +4361,5 @@ def render_run_summary_table(
+             isinstance(it, Mapping)
+    -        and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status")) == OUTCOME_CLASS_BLOCKED
+    +        and outcome_class_of_item(it) == OUTCOME_CLASS_BLOCKED
+             for it in queue
+         ):
+             outcome_str = "BLOCKED"
+    @@ -4366,7 +4366,6 @@ def render_run_summary_table(
+             all(
+                 isinstance(it, Mapping)
+    -            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    -            == OUTCOME_CLASS_SUCCESS
+    +            and outcome_class_of_item(it) == OUTCOME_CLASS_SUCCESS
+                 for it in queue
+             )
+             and total_items > 0
+    @@ -4417,8 +4417,7 @@ def render_run_summary_table(
+         elif (
+             all(
+                 isinstance(it, Mapping)
+    -            and RUN_OUTCOME_CLASS_BY_STATUS.get(it.get("status"))
+    -            == OUTCOME_CLASS_SUCCESS
+    +            and outcome_class_of_item(it) == OUTCOME_CLASS_SUCCESS
+                 for it in queue
+             )
+             and total_items > 0
+    ```
+    Verification command:
+    `rg -n 'RUN_OUTCOME_CLASS_BY_STATUS.get\(it.get' agent_workflows/render_stream.py` exited 1 (no occurrences).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted verbose output of the focused test run in Required tests showing every new producer-shape test and the unchanged `test_case_a_word_table` / `test_case_c_alias_agreement` / `test_case_d_canonical_fail_gate` passing; the quoted assertions showing they check only `outcome_class_of_item` return values and the rendered `Outcome:` word (P16); and the pasted BARE `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
+    Focused test run:
+    ```
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_d_canonical_fail_gate PASSED [ 56%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_g_fail_gate_producer_gate_refusals_render_blocked PASSED [ 57%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_c_alias_agreement PASSED [ 58%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_a_word_table PASSED [ 58%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_e_fail_gate_producer_nonzero_exit_and_crashes_render_failed PASSED [ 59%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_b_totality PASSED [ 60%]
+    tests/test_outcome_word_ladder.py::OutcomeWordLadderBehavioralFenceTests::test_case_f_fail_gate_producer_executed_claim_renders_completed_or_stranded PASSED [ 61%]
+    ...
+    ============================= 117 passed in 50.10s =============================
+    ```
+    Quoted assertions checking outcome_class_of_item and rendered Outcome word (P16):
+    ```python
+    self.assertEqual(render_stream.outcome_class_of_item(it_exit1), render_stream.OUTCOME_CLASS_FAILED)
+    self.assertEqual(_render_queue_word([it_exit1]), "FAILED")
+    self.assertEqual(render_stream.outcome_class_of_item(it_exec), render_stream.OUTCOME_CLASS_SUCCESS)
+    self.assertEqual(_render_queue_word([it_exec]), "COMPLETED")
+    self.assertEqual(render_stream.outcome_class_of_item(it_stranded), render_stream.OUTCOME_CLASS_SUCCESS)
+    self.assertEqual(_render_queue_word([it_stranded]), "STRANDED")
+    self.assertEqual(render_stream.outcome_class_of_item(it_await_human), render_stream.OUTCOME_CLASS_BLOCKED)
+    self.assertEqual(_render_queue_word([it_await_human]), "BLOCKED")
+    ```
+    Bare full suite summary line:
+    `707 passed in 20.72s`
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff CHANGELOG.md` showing exactly one added `Fixed:` bullet under `## 2.0.0 (pending)` and no other change, plus a pasted check confirming zero em or en dashes (`\u2013`, `\u2014`) in the added line.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 2bd64eae7..efb079f86 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: the run summary Outcome word again reads FAILED for a turn that crashed or exited nonzero and COMPLETED or STRANDED for a turn that finished its work, instead of BLOCKED, which is now reserved for items waiting on a gate or a human.
+     - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+    ```
+    Zero em/en dashes verification:
+    `python3 -c "import subprocess; out = subprocess.check_output(['git', 'diff', 'CHANGELOG.md']).decode(); assert '\u2013' not in out and '\u2014' not in out; print('Zero em or en dashes confirmed.')"` -> `Zero em or en dashes confirmed.`
+  - Result: pass
 
 ## Approval and execution gate
 
