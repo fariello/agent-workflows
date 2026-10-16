@@ -10212,8 +10212,8 @@ def evaluate_durable_carrier(
     ``ipd_lint._merge_durable_carrier``) both call THIS function, so the sweep and the checkpoint gate
     cannot drift apart in what counts as carried. That single-predicate property is the stated design
     intent of the nearest precedent (:func:`evaluate_review_finding_escalation`) and was asserted
-    directly by ``tests/test_durable_capture.py`` (deleted in ``19313eed``; no live guard
-    currently asserts this).
+    directly by ``tests/test_durable_capture.py`` (deleted in ``19313eed``; live guard is
+    ``tests/test_durable_carrier_shared_predicate.py``).
 
     Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
     uncarried/abandoned at `error`), enumerating grouped offending locators selected by descriptive
