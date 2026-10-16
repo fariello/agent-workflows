@@ -18,7 +18,7 @@ move or delete files.
   deterministic migration evidence and identify remaining work.
 - `migration-scenarios.json`: the closed initial scenario catalog that Order 12 must bind to
   executable tests and documentation.
-- `test_awphysical_tools.py`: isolated tests for the three Python tools.
+- `tests/test_awphysical_tools.py`: isolated tests for the three Python tools.
 
 ## Safety boundary
 
