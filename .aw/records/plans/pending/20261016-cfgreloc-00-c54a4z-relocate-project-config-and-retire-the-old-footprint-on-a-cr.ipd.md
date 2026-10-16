@@ -6,9 +6,9 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cfgreloc-00-c54a4z-relocate-project-config-and-retire-the-old-footprint-on-a-cr.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Coverage: pass
-- Coverage-Fingerprint: b86a4c428cd6b72e2161ba7f23876aac6aa9ca80d88f8ace328579762a6ed797
+- Coverage-Fingerprint: 396ffd40cc17e644fb2946239463cd6c985b189f1860e7ba03b481d430883164
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: medium
@@ -21,7 +21,10 @@
 - Id: c54a4z
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
+- 2026-10-16 coverage pass (aw oc run): fingerprint 396ffd40cc17, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-16 coverage pass (aw oc run): fingerprint 7751c6707540, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 coverage pass (aw oc run): fingerprint b86a4c428cd6, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready orchestrator graduating backlog ui1aln.
@@ -69,7 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 02 | `xvlemm` | `20261016-cfgreloc-02-xvlemm-pure-placement-switch-planner-with-blockers-and-per-item-mov.ipd.md` | New `agent_workflows/placement_switch.py` with a pure, read-only `plan_placement_switch` returning per-class moves, discards, retirements and blockers. | `executed:ppu39q` |
 | 03 | `gjylny` | `20261016-cfgreloc-03-gjylny-retire-the-old-placement-s-aw-owned-footprint-after-a-placem.ipd.md` | Footprint retirement scoped to ONE explicit side (target or home), reusing `engine.uninstall_repo` for the target side without its AW_HOME auto-detection. | `executed:xvlemm` |
 | 04 | `6u755v` | `20261016-cfgreloc-04-6u755v-journaled-placement-switch-executor-with-verify-authority-fl.ipd.md` | `execute_placement_switch`: lock, stage, verify, single-file authority flip, retire, receipt; resume and rollback from a journal that survives the flip; fault injection. | `executed:xvlemm`, `executed:gjylny` |
-| 05 | `ozr356` | `20261016-cfgreloc-05-ozr356-wire-the-placement-switch-into-aw-install-behind-an-explicit.ipd.md` | `aw install --relocate` / `--relocate-rollback`, dry-run preview, refusal message update, end-to-end subprocess tests both directions, CHANGELOG and README. | `executed:6u755v` |
+| 05 | `ozr356` | `20261016-cfgreloc-05-ozr356-wire-the-placement-switch-into-aw-install-behind-an-explicit.ipd.md` | `aw install --relocate` / `--relocate-resume` / `--relocate-rollback`, dry-run preview, refusal message update, end-to-end subprocess tests both directions, CHANGELOG and README. | `executed:6u755v` |
 
 Orders run strictly in sequence: each consumes the previous child's module surface.
 
@@ -78,15 +81,15 @@ Orders run strictly in sequence: each consumes the previous child's module surfa
 1. No install entry point (noninteractive `--preset`, interactive wizard, `--delivery-mode`/`--records-backend` flags) writes a `project.json` at a path other than the currently authoritative one unless a relocation was requested. Owner: ppu39q (E-02, E-03).
 2. The placement-switch contract (supported pairs, opt-in, what moves, what is discarded, staging-not-committing, blockers) is written into spec `20260810-1447-01` Section 8.1. Owner: ppu39q (E-04).
 3. A pure planner reports every move, discard, retirement and blocker for a switch without writing. Owner: xvlemm (E-01..E-03).
-4. The old placement's AW-owned footprint can be retired on one explicit side without touching the other side. Owner: gjylny (E-01..E-03).
+4. The old placement's AW-owned footprint can be retired on one explicit side without touching the other side. Owner: gjylny (E-01..E-04).
 5. A switch is a journaled transaction that ends with exactly one authoritative `project.json`, preserved keys and cutovers, moved records, and resumes or rolls back after an injected crash. Owner: 6u755v (E-01..E-06).
 6. `aw install --relocate` performs the switch end-to-end in both directions and every user-facing surface describes it. Owner: ozr356 (E-01..E-05).
 
 ## Cross-IPD validation
 
-- Order 02's planner uses Order 01's `install_wizard.config_placement_switch` for detection, so the refusal and the planner can never disagree about what is a cross-placement switch. Owner: xvlemm (V-01).
+- Order 02's planner uses Order 01's `install_wizard.config_placement_switch` for detection, so the refusal and the planner can never disagree about what is a cross-placement switch. Since the `ppu39q` review (PR-001) the detector returns a `PlacementSwitch(current_dir, target_dir, reason)` and detects companion pairs only through its `label` branch, which runs when `existing_policy` is passed; the planner must therefore call it with the stored policy as `existing_policy`, or a `private-target` -> `public-target-private-companion` request returns `None` and is reported `not-a-placement-switch` instead of `companion-unsupported`. Owner: xvlemm (V-01).
 - Order 04's retire phase calls Order 03's `retire_footprint` with the side the Order 02 plan names. Owner: 6u755v (V-03).
-- Order 05's end-to-end tests assert the same invariants Order 04's unit tests do, through the real CLI. Owner: ozr356 (V-04).
+- Order 05's end-to-end tests assert the same invariants Order 04's unit tests do, through the real CLI. Owner: ozr356 (E-05, V-05; its V-04 covers only CHANGELOG and README).
 
 ## Deferred / out of scope (with reason)
 
