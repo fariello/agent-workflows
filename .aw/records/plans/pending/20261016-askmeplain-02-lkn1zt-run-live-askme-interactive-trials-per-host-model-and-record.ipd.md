@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Plan `er11a0` rewrites the `/askme` workflow body, its manifest row and generated entry points, and the always-loaded communication contract. Its tests (`tests/test_askme_command_delivery.py`) prove the instructions are generated and DELIVERED; they cannot prove an agent then produces a question a human can answer. Research `y0vcm9` ("Actual questions produced by agents") says so directly ("Automated checks can establish that instructions were generated and delivered. They cannot prove that the resulting explanation is understandable") and prescribes a 12-row live trial table. `er11a0` defers exactly that work to backlog `jymlaw` (its `## Deferred / out of scope` row, `- Carrier: jymlaw`). Without the trials, nobody has observed whether the rewritten `/askme` fixes the reported failure ("/askme that question again" producing another unintelligible question).
 - Scope: IN: run the 12 `y0vcm9` trials on each host/model combination in use in this repository (inventory established in E-01), in a disposable worktree against a planted fixture record; capture the ACTUAL question-interface fields (question text, header, every option label and description, free-text handling) and the subsequent handling for every trial; judge each with the `y0vcm9` test; record everything in one new research findings doc in Set `askmeplain`; scaffold one review-ready corrective plan per distinct failure. OUT: fixing any failure (each corrective plan carries its own fix); changing `/askme`, the reporting contract, the generator or the runner; building an automated prompt-quality checker (`y0vcm9`: "Start with these source and instruction changes before adding a new enforcement service").
-- Scope-Paths: .aw/records/research/**/*-askme-live-trials.findings.md, .aw/records/plans/pending/*-askmeplain-*.ipd.md
+- Scope-Paths: .aw/records/research/**/*-askme-live-trials.findings.md, .aw/records/plans/**/*-askmeplain-*.ipd.md
 - Item-Dependencies: executed:er11a0
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: jymlaw
@@ -17,9 +18,9 @@
 - Id: lkn1zt
 
 ## Workflow history
-
-- 2026-10-16 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
+- 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 - 2026-10-16 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog jymlaw and research y0vcm9 "Actual questions produced by agents".
+- 2026-10-16 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
 ## Goal
 
@@ -31,43 +32,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: preflight and the evidence record
 
-- [ ] E-01 Preflight. Confirm `er11a0` is `executed` (`aw find er11a0`) and that the delivered workflow carries the new scopes (`grep -n "^## " .aw/system/workflows/askme/askme.md` shows "Recognize the request"). If either fails, STOP: mark every later item `blocked` and report, because trials against the old workflow measure nothing this item asks about. Then establish the host/model inventory from evidence, not assumption: `opencode --version`, `claude --version`, `agy --version`, `aw host capabilities` (lists the hosts the runners drive), and the model each host is configured to use (OpenCode `opencode models` plus the configured default; Claude Code `--model` default; Antigravity `--model` default). At authoring the installed hosts were OpenCode 1.18.35, Claude Code 2.1.283 and Antigravity CLI 1.4.0, and OpenCode's model was `its_direct/pt3-claude-opus-5.5-1m-us`; re-derive, these drift. A combination counts as "in use" if a host is installed AND this repo ships an entry point or runner for it (`.opencode/commands/askme.md`, `.claude/commands/askme.md`, `aw agy run`). Drop a combination only with a recorded reason (for example the binary is absent).
+- [ ] E-01 Preflight. Confirm `er11a0` is `executed` (`aw find er11a0`) and that the delivered workflow carries the new scopes (`grep -n "^## " .aw/system/workflows/askme/askme.md` shows "Recognize the request"). If either fails, STOP: mark every later item `blocked` and report, because trials against the old workflow measure nothing this item asks about. Then establish the host/model inventory from evidence, not assumption: `opencode --version`, `claude --version`, `agy --version`, `aw host capabilities` (lists the hosts the runners drive), and the model each host is configured to use (OpenCode: every profile in `aw oc profile list` plus the configured default, since each runner profile is a model in use; Claude Code: its `--model` default; Antigravity: its `--model` default). At authoring the installed hosts were OpenCode 1.18.35, Claude Code 2.1.283 and Antigravity CLI 1.4.0, and the OpenCode runner profiles were `opus` (`uri/its_direct/pt3-claude-opus-5.5-1m-us`, the default) and `gem` (`google/gemini-3.8-flash`); re-derive, these drift. A combination counts as "in use" if a host is installed AND this repo ships an entry point or runner for it (`.opencode/commands/askme.md`, `.claude/commands/askme.md`, `aw agy run`). Drop a combination only with a recorded reason (for example the binary is absent).
   - Depends on: none
   - Expected outcome: a host/model inventory table (host, version, model, entry point used for `/askme`, in-use reason) ready to paste into the findings doc; or every later item `blocked` with the reason.
   - Execution state: pending
-- [ ] E-02 Create the findings doc with the tool, not by hand: `aw research new --kind findings --set askmeplain --slug askme-live-trials --topic askme --summary "Live /askme interactive trial results per host/model (y0vcm9 trial table)" --apply` (dry-run at authoring derived `.aw/records/research/20261014-askmeplain-02-<id6>-askme-live-trials.findings.md`), then `aw research index`. Write into it: `## Method` (disposable worktree, fixture, capture procedure, the E-01 inventory table), `## Judging rule` (quote `y0vcm9`: "Judge the output by whether you can identify the subject, its purpose, the decision, and the consequences of each answer without looking elsewhere. If a trial requires asking 'What does that mean?' or 'Which file is that?', record that failure"), and an empty `## Trial results` section with one subsection per host/model.
+- [ ] E-02 Create the findings doc with the tool, not by hand: `aw research new --kind findings --set askmeplain --slug askme-live-trials --topic askme --summary "Live /askme interactive trial results per host/model (y0vcm9 trial table)" --apply` (dry-run at authoring derived `.aw/records/research/20261014-askmeplain-02-<id6>-askme-live-trials.findings.md`), then `aw research index`. Write into it: `## Method` (disposable worktree, fixture, capture procedure, the E-01 inventory table), `## Judging rule` (quote `y0vcm9`: "Judge the output by whether you can identify the subject, its purpose, the decision, and the consequences of each answer without looking elsewhere. If a trial requires asking 'What does that mean?' or 'Which file is that?', record that failure"), the verdict vocabulary (`pass`, `fail`, or `not-run` with the reason, the last only for a trial the host gives no mechanism to stage, never for a trial that was merely inconvenient), and an empty `## Trial results` section with one subsection per host/model.
   - Depends on: E-01
   - Expected outcome: the doc exists under `.aw/records/research/` with `kind: findings`, `set: askmeplain`, and the three sections; `aw research index --check` reports no drift.
   - Execution state: pending
-- [ ] E-03 Prepare the disposable trial bed so no trial can mutate a real record: `git worktree add` a throwaway worktree at the current `HEAD` OUTSIDE `.aw/worktrees/` (for example under `/tmp/opencode/`), and plant in it only a fixture IPD under `.aw/records/plans/pending/` whose `## Open questions` holds (a) one `Blocking: yes` design choice with NO malfunction (trial "New design choice with no malfunction"), (b) one question whose meaning depends on (a)'s answer (trial "Follow-up depends on an earlier answer"), and (c) a third independent question, so "Several open questions" has three to order. Describe the fixture verbatim in `## Method`. Never commit the fixture; the worktree is removed in E-08.
+- [ ] E-03 Prepare the disposable trial bed so no trial can mutate a real record: `git worktree add --detach` a throwaway worktree at the current `HEAD` OUTSIDE `.aw/worktrees/` (for example under `/tmp/opencode/`; `--detach` so no branch is created and any commit a trial session makes is discarded with the worktree), and plant in it only a fixture IPD under `.aw/records/plans/pending/` whose `## Open questions` holds (a) one `Blocking: yes` design choice with NO malfunction (trial "New design choice with no malfunction"), (b) one question whose meaning depends on (a)'s answer (trial "Follow-up depends on an earlier answer"), and (c) a third independent question, so "Several open questions" has three to order. Describe the fixture verbatim in `## Method`. Never commit the fixture; the worktree is removed in E-08. Create the capture directory `.aw/state/askme-trials/` in the EXECUTING checkout (not in the disposable worktree, whose contents E-08 deletes).
   - Depends on: E-02
   - Expected outcome: a disposable worktree path and fixture id6 recorded in `## Method`; `git -C <primary lane> status --porcelain` shows no fixture file.
   - Execution state: pending
 
 ### Task group 2: the live trials (a human must be present)
 
-- [ ] E-04 On the OpenCode combination(s), run all 12 `y0vcm9` trials in the disposable worktree in an INTERACTIVE session, with the maintainer answering. Use the trial wording from the table: "use /askme" after a deliberately unclear question; "/askme that question again"; `/askme <question text>`; `/askme <fixture id6>`; `/askme` with no arguments and no outstanding question; the design-choice and follow-up questions from the fixture; a free-text "I don't understand" answer; a definite choice plus a wording complaint; question tool unavailable (deny the `question` permission through `OPENCODE_CONFIG_CONTENT`, the same mechanism `lane_containment.LANE_PERMISSION_POLICY` uses); an explicit noninteractive run (`opencode run` with the driver sentence "this run is non-interactive: do not invoke an interactive question tool or wait for human input", the text in `runner_shared` `build_prompt`); and several open questions. For each trial record in `## Trial results`: the exact input, the ACTUAL question-interface fields copied from the session (question, header, every option label and description, whether free text was offered), what the agent did next (waited, recorded, rescanned, guessed), the record edits it made, the judging verdict (`pass`/`fail`) and, for `fail`, the specific missing fact ("Which file is that?"). Capture each session with `opencode export <sessionID> --sanitize` into the gitignored `.aw/state/askme-trials/`; quote fields from it, do not commit it.
+- [ ] E-04 On the OpenCode combination(s), run all 12 `y0vcm9` trials in the disposable worktree in an INTERACTIVE session, with the maintainer answering. Use the trial wording from the table: "use /askme" after a deliberately unclear question (stage it by first telling the agent "ask me fixture question (b) in one terse sentence, using only its identifiers", then, after it asks, sending "use /askme"); "/askme that question again" (sent right after an unclear question staged the same way); `/askme <question text>`; `/askme <fixture id6>`; `/askme` with no arguments and no outstanding question; the design-choice and follow-up questions from the fixture; a free-text "I don't understand" answer; a definite choice plus a wording complaint; question tool unavailable (deny the `question` permission through `OPENCODE_CONFIG_CONTENT`, the same mechanism `lane_containment.LANE_PERMISSION_POLICY` uses); an explicit noninteractive run (`opencode run` with the driver sentence "this run is non-interactive: do not invoke an interactive question tool or wait for human input", the text in `runner_shared` `build_prompt`); and several open questions. For each trial record in `## Trial results`: the exact input, the ACTUAL question-interface fields copied from the session (question, header, every option label and description, whether free text was offered), what the agent did next (waited, recorded, rescanned, guessed), the record edits it made, the judging verdict (`pass`/`fail`) and, for `fail`, the specific missing fact ("Which file is that?"). Capture each session with `opencode export <sessionID> --sanitize > <executing checkout>/.aw/state/askme-trials/opencode-<profile>-<NN>.json` (the gitignored capture directory from E-03); quote fields from it, do not commit it. Trial sessions must not commit or push.
   - Depends on: E-03
   - Expected outcome: 12 filled trial rows per OpenCode combination, each with the actual fields and a verdict.
   - Execution state: pending
-- [ ] E-05 Repeat E-04's 12 trials and capture on the Claude Code combination(s) (`claude` interactive, `/askme` from `.claude/commands/askme.md`; tool unavailable via `--disallowedTools AskUserQuestion`; noninteractive via `claude -p` with the driver sentence).
+- [ ] E-05 Repeat E-04's 12 trials and capture on the Claude Code combination(s) (`claude` interactive, `/askme` from `.claude/commands/askme.md`; tool unavailable via `--disallowedTools AskUserQuestion`; noninteractive via `claude -p` with the driver sentence). Capture each session by copying its transcript (`~/.claude/projects/<project dir for the disposable worktree>/<session-id>.jsonl`) to `.aw/state/askme-trials/claude-<NN>.jsonl` in the executing checkout.
   - Depends on: E-03
   - Expected outcome: 12 filled trial rows per Claude Code combination, each with the actual fields and a verdict.
   - Execution state: pending
-- [ ] E-06 Repeat E-04's 12 trials and capture on the Antigravity combination(s). Antigravity has no repo slash-command mechanism (`index.md` host table: "use the universal fallback"), so the invocation is "read and execute `.aw/system/workflows/askme/askme.md`" plus the trial's argument; record that substitution in each row. Noninteractive via `agy -p` with the driver sentence.
+- [ ] E-06 Repeat E-04's 12 trials and capture on the Antigravity combination(s). Antigravity has no repo slash-command mechanism (`index.md` host table: "use the universal fallback"), so the invocation is "read and execute `.aw/system/workflows/askme/askme.md`" plus the trial's argument; record that substitution in each row. Noninteractive via `agy -p` with the driver sentence. For "question tool unavailable", use an `agy` mechanism that disables its interactive question tool if `agy --help` or its settings expose one, and record which; if none exists, record that trial as `not-run` with the reason (no fabricated substitute). Capture each session by copying its conversation record from `~/.gemini/antigravity-cli/conversations/` to `.aw/state/askme-trials/agy-<NN>.<ext>` in the executing checkout; if a conversation cannot be located, paste the question fields into the row verbatim from the screen at the time of the trial and say so.
   - Depends on: E-03
-  - Expected outcome: 12 filled trial rows per Antigravity combination, each with the actual fields and a verdict; or a recorded reason the host is not in use (from E-01).
+  - Expected outcome: 12 filled trial rows per Antigravity combination, each with the actual fields and a verdict (`not-run` only with its reason); or a recorded reason the host is not in use (from E-01).
   - Execution state: pending
 
 ### Task group 3: conclusions and corrective plans
 
-- [ ] E-07 Write `## Summary` in the findings doc: a host/model by trial verdict matrix, and a deduplicated list of DISTINCT failures (same root cause across hosts counts once, with every affected cell named). For each distinct failure, scaffold one corrective plan with `aw ipd scaffold --kind child --set askmeplain --order <next free> --work-kind bug --priority <judgement> --title ... --apply`, carrying `- Blocks-Release: next` (an agent producing an unanswerable question is a user-perceptible defect, so the every-live-bug-gates-the-release rule applies), citing this plan, the findings doc id6 and the failing trial rows, and complete it to `to-review` with `aw ipd lint` conforming. Record each new plan's id6 against its failure in `## Summary`. If there is no failure, write "no failure observed; no corrective plan filed" and file none.
+- [ ] E-07 Write `## Summary` in the findings doc: a host/model by trial verdict matrix, and a deduplicated list of DISTINCT failures (same root cause across hosts counts once, with every affected cell named). For each distinct failure, scaffold one corrective plan with `aw ipd scaffold --kind child --set askmeplain --order <next free> --work-kind bug --priority <judgement> --title ... --apply`, then set its gate with the tool, `aw ipd set to-review <new plan> --blocks-release next` (an agent producing an unanswerable question is a user-perceptible defect, so the every-live-bug-gates-the-release rule applies; `aw ipd scaffold` has no gate flag), citing this plan, the findings doc id6 and the failing trial rows, and complete it to `to-review` with `aw ipd lint` conforming. Record each new plan's id6 against its failure in `## Summary`. If there is no failure, write "no failure observed; no corrective plan filed" and file none.
   - Depends on: E-04, E-05, E-06
   - Expected outcome: `## Summary` with the matrix and failure list; one `to-review`, lint-conforming corrective plan per distinct failure, or the explicit no-failure sentence.
   - Execution state: pending
-- [ ] E-08 Close out: `git worktree remove` the disposable worktree and confirm it is gone (`git worktree list`); run `aw sanitize --agent` and fix any finding in the findings doc (session ids and absolute paths must not appear); set the doc outcome with `aw research set-outcome` naming this plan as consumer; `aw research index`; commit only the findings doc and any corrective plans through `aw commit lkn1zt -- <paths>`.
+- [ ] E-08 Close out: `git worktree remove` the disposable worktree and confirm it is gone (`git worktree list`); run `aw sanitize --agent` and fix any finding in the findings doc (session ids and absolute paths must not appear); set the doc outcome with `aw research set-outcome <doc id6> --to adopted --consumed-by lkn1zt --apply` when E-07 filed a corrective plan, or `--to informational` when it filed none; `aw research index`; commit only the findings doc and any corrective plans through `aw commit lkn1zt -- <paths>`.
   - Depends on: E-07
-  - Expected outcome: no disposable worktree remains; sanitizer `pass`; one commit containing exactly the findings doc and the corrective plans.
+  - Expected outcome: no disposable worktree remains (if `git worktree remove` refuses because of untracked trial edits, use `--force` on that path only, since it is disposable by construction); sanitizer `pass`; one commit containing exactly the findings doc and the corrective plans.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -77,7 +78,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Unattended runners deny the OpenCode `question` permission (`lane_containment.LANE_PERMISSION_POLICY`, `"question": "deny"`) and tell the agent the run is non-interactive (`runner_shared` `build_prompt`). A human-answered trial therefore cannot run under `aw oc run` / `aw agy run`; see the execution gate.
 - Antigravity has no repo-file slash-command mechanism (`.aw/system/workflows/index.md` host table), so its trials use the "read and execute" fallback.
 - A plan that changes no spec carries no spec edit; Scope-Paths status-agnostic record entries use `.aw/records/<type>/**/<filename>` form (spec `ipd-structure-and-linting` Section 4.5).
-- Every live bug gates the next release (AGENTS.md "Every live bug gates the next release"), hence `--blocks-release next` on corrective plans.
+- Every live bug gates the next release (AGENTS.md "Every live bug gates the next release"), hence `--blocks-release next` on corrective plans, set through `aw ipd set ... --blocks-release next`.
+- Host capture mechanisms verified at review: `opencode export [sessionID] --sanitize` exists; `claude --help` lists `--disallowedTools` and `-p/--print`; `agy --help` lists `-p/--print`, `--conversation` and `--model` but no flag to disable its question tool; Claude Code keeps transcripts under `~/.claude/projects/`, Antigravity under `~/.gemini/antigravity-cli/conversations/`.
+- OpenCode's question tool is disabled through `OPENCODE_CONFIG_CONTENT` as `{"permission": {"question": "deny"}}`, the JSON shape `lane_containment` builds (`json.dumps({"permission": requested}, ...)`).
 
 ## Findings
 
@@ -119,15 +122,15 @@ N/A: this plan changes no behavior, spec or user-facing doc. The findings doc is
 
 - Blocking: no
 - Status: resolved
-- Owner: opencode
-- Resolution or deferral rationale: Resolved from evidence 2026-10-16: a combination is in use when the host binary is installed AND this repo ships an `/askme` entry point or runner for it (F-4: OpenCode and Claude Code shims, `aw oc run`, `aw agy run`). E-01 re-derives the inventory at execution time and records any dropped combination with its reason.
+- Owner: plan author
+- Resolution or deferral rationale: Resolved from evidence 2026-10-16: a combination is in use when the host binary is installed AND this repo ships an `/askme` entry point or runner for it (F-4: OpenCode and Claude Code shims, `aw oc run`, `aw agy run`). Each OpenCode runner profile (`aw oc profile list`) is a separate combination, because each names a different model. E-01 re-derives the inventory at execution time and records any dropped combination with its reason.
 
 ### OQ-02: Can an unattended runner execute this plan?
 
 - Blocking: no
 - Status: resolved
-- Owner: opencode
-- Resolution or deferral rationale: Resolved from evidence 2026-10-16: no for E-04 to E-06. A runner turn denies the `question` permission and says the run is non-interactive (F-5), so it cannot observe a human answering. A runner that dispatches this plan anyway must mark E-04 to E-06 `blocked` and report, never simulate the human. The plan is executed by hand in an attended session (execution gate).
+- Owner: plan author
+- Resolution or deferral rationale: Resolved from evidence 2026-10-16: no for E-04 to E-06. A runner turn denies the `question` permission and says the run is non-interactive (F-5), so it cannot observe a human answering. A runner that dispatches this plan anyway performs only E-01, marks E-02 to E-08 `blocked` and reports, never simulating the human (execution gate). The plan is executed by hand in an attended session (execution gate).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -146,15 +149,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: for each OpenCode combination, the 12 trial rows QUOTED from the doc, each carrying the actual question/header/option fields (not a paraphrase or "the agent followed the workflow"), the next action and a verdict; plus `ls .aw/state/askme-trials/` showing one export per session (observation produced by the E-04 interactive sessions).
+  - Required evidence: for each OpenCode combination, the 12 trial rows QUOTED from the doc, each carrying the actual question/header/option fields (not a paraphrase or "the agent followed the workflow"), the next action and a verdict; plus `ls .aw/state/askme-trials/` in the executing checkout showing one export per session (observation produced by the E-04 interactive sessions).
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: for each Claude Code combination, the 12 trial rows QUOTED from the doc with actual fields, next action and verdict, plus the captured transcript file list (observation produced by the E-05 sessions).
+  - Required evidence: for each Claude Code combination, the 12 trial rows QUOTED from the doc with actual fields, next action and verdict, plus `ls .aw/state/askme-trials/claude-*` (observation produced by the E-05 sessions).
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: for each Antigravity combination, the 12 trial rows QUOTED from the doc with actual fields, next action, verdict and the read-and-execute substitution noted, plus the captured transcript file list (observation produced by the E-06 sessions); or the E-01 not-in-use reason quoted.
+  - Required evidence: for each Antigravity combination, the 12 trial rows QUOTED from the doc with actual fields, next action, verdict and the read-and-execute substitution noted, plus `ls .aw/state/askme-trials/agy-*` or the stated screen-copy fallback, and for any `not-run` row its reason (observation produced by the E-06 sessions); or the E-01 not-in-use reason quoted.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
@@ -162,7 +165,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: pasted `git worktree list` without the disposable worktree; pasted `aw sanitize --agent` result `pass`; pasted `git show --stat HEAD` listing only the findings doc and the corrective plans.
+  - Required evidence: pasted `git worktree list` without the disposable worktree; pasted `aw research set-outcome ... --apply` output; pasted `aw sanitize --agent` result `pass`; pasted `git show --stat HEAD` listing only the findings doc and the corrective plans.
   - Observed evidence:
   - Result: pending
 
@@ -171,10 +174,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`) and only after `er11a0` is `executed` (`- Item-Dependencies: executed:er11a0`). THIS PLAN NEEDS A HUMAN IN THE LOOP: E-04 to E-06 require the maintainer to answer `/askme` prompts live, so execute it by hand in an attended session (`aw work begin lkn1zt`), not in an `aw oc run` / `aw agy run` queue. If a runner dispatches it anyway, perform E-01 to E-03, mark E-04 to E-08 `blocked` with the reason, and report; never simulate the human's answers or invent question fields.
+Execute only after explicit human approval (`Status: approved`) and only after `er11a0` is `executed` (`- Item-Dependencies: executed:er11a0`). THIS PLAN NEEDS A HUMAN IN THE LOOP: E-04 to E-06 require the maintainer to answer `/askme` prompts live, so execute it by hand in an attended session (`aw work begin lkn1zt`), not in an `aw oc run` / `aw agy run` queue. If a runner dispatches it anyway, perform only the read-only E-01, mark E-02 to E-08 `blocked` with the reason "needs an attended session", and report; do not create the findings doc or the disposable worktree (E-02, E-03), because a blocked run would never reach E-08 to remove them. Never simulate the human's answers or invent question fields. The maintainer should approve this plan only when ready to run it attended, since `aw oc run all` dispatches approved plans.
 
 Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an edit outside it is justified at finalize with `--scope-reason`. The disposable worktree and `.aw/state/askme-trials/` are outside history by construction. Never run a trial in the primary checkout or this lane, because `/askme` edits records.
 
 Honesty: copy the ACTUAL question fields from the captured sessions; a paraphrase or a "followed the workflow" claim does not count as evidence (`y0vcm9`: "not just a prose claim that the agent followed the workflow"). Paste the actual output of every command in each `V-*`.
 
-Commits: only the findings doc and corrective plans, through `aw commit lkn1zt -- <paths>`; never `git add -A`, never push, never tag. Finalize with `aw ipd finalize lkn1zt` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms.
+Open questions: OQ-01 and OQ-02 are resolved; nothing blocks execution beyond the attended-session requirement above.
+
+Commits: only the findings doc and corrective plans, through `aw commit lkn1zt -- <paths>`; never `git add -A`, never push, never tag.
+
+Lifecycle: this plan is executed by hand, so the executor finalizes: `aw ipd finalize lkn1zt --actor <agent/model> --message <summary> --apply`, only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms. If a runner did dispatch it, the runner owns finalize and the plan stays in `pending/` with its blocked items. Never `git mv` the plan to `executed/`.
