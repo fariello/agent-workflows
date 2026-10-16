@@ -2530,9 +2530,8 @@ def run_agy_turn(
     # (`--no-dangerously-skip-permissions`) requires INTERACTIVE permissions an unattended turn has no
     # answerer for, and running without it was measured to fail or deadlock repeatedly. That is a
     # DECIDED CONSTRAINT this spec adopts (R4.1c), not a defect it tolerates, and R4.1b puts closing
-    # it out of scope. Do NOT "harden" it: `tests/test_lane_permission_posture.py` was deleted in
-    # `19313eed`; no live guard currently asserts this default, but running without it remains
-    # unsupported by design.
+    # it out of scope. Do NOT "harden" it: `tests/test_agy_skip_permissions_default.py` is the live
+    # guard asserting this default, and running without it remains unsupported by design.
     #
     # CONSEQUENCE, which is why R4.1a requires it be RECORDED and not glossed: on this host the host
     # layer contributes NOTHING to containment, so the guarantee rests ENTIRELY on R1 (the prompt
