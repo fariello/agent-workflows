@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_benchmark_runners_reports.py` byte-for-byte from `19313eed^` (it passes unchanged at authoring HEAD: `14 passed in 0.20s`), commit it, then re-run the audit's own instrument `tools/mutation_probe.py` with a NARROWED selection so the `unprovable` verdict is replaced by a measured `guarded` / `unguarded` verdict. No production code changes.
 - Scope-Paths: tests/test_benchmark_runners_reports.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 24h56i
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-16 draft (opencode): created.

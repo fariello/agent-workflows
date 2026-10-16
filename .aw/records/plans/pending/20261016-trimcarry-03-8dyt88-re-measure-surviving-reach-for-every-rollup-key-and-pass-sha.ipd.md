@@ -6,7 +6,7 @@
 - Scope: IN: create the Set's findings doc; record a fresh surviving-suite coverage baseline over the FULL `tests/` tree with `tools/replay_coverage_diff.py baseline`; for each of the 747 keys record existence at HEAD and its reach class (`key-gone` / `unreached` / `subprocess-only` / `reached`) with its surviving contexts; re-diff the 17 `pass-shared` files and the 4 recreated files with `tools/replay_coverage_diff.py diff` against that baseline; write the per-key and per-file tables. OUT: mutation probing (Order 05 `rf1xxr`); classifying the missing recreated names (Order 04 `we3kkb`); filing (Order 06 `z2xs98`); any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:24h56i, executed:x9z0ve
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 8dyt88
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.

@@ -6,7 +6,7 @@
 - Scope: Batch by subsystem. For each batch, read every candidate (the rows the `qqrgv3` decision table assigns to owner `83nnyn`, plus large parametrize matrices; the `offdhr` lists are authoring context only, because `offdhr` itself records that its per-test numbers under-record and "must not drive any deletion"), merge near-identical tests into one table-driven test (P16 row shape: case id first, trailing `why`), reduce combinatorial matrices to happy path, boundaries, one representative per equivalence class and every distinct error branch, fold defect-citing tests into rows that keep their id6 in `why`, introduce a shared copy-on-write temp git repo helper for the duplicated per-module repo builders the batch touches, and prove per batch with `qqrgv3`'s `percov_analyze --compare` (line and arc) that no line or branch of `agent_workflows/` lost its last covering test. Records one decision-table row per consolidated or deleted node id. Converts no subprocess test to in-process and does no timing work (child `c8bfp9`).
 - Scope-Paths: tests/, conftest.py, .aw/records/research/*testprune*
 - Item-Dependencies: executed:tv72xy
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,8 +15,10 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 83nnyn
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011
 - 2026-10-16 to-review (aw set): authored from prompt 4ul37x (Set testprune) with baseline research offdhr/7ry5kv

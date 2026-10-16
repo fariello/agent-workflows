@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `cli.main(["migrate-layout", ...])` in temporary git repos seeded with a legacy `.agents/` tree, asserting on exit codes and on-disk side effects; prove with an in-memory return-none mutant that the module kills the measured mutation. No production code changes.
 - Scope-Paths: tests/test_migrate_layout_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 1ue3kr
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004 PR-005 PR-006
 - 2026-10-16 to-review (opencode): authored review-ready plan graduating backlog 5slmvq.
 - 2026-10-16 draft (opencode): created.

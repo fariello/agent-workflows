@@ -6,7 +6,7 @@
 - Scope: Restore the module from `19313eed^` at its original path with (a) the spec lookup made id6-based (`rglob("*-25kzda-*.spec.md")`, the shape `tests/test_run_finding_spec_transcription.py` `locate_spec_25kzda` already uses) and (b) the three tests that encode deliberately superseded contracts updated to the current contract, each change citing the commit that superseded it. No production code changes.
 - Scope-Paths: tests/test_run_evidence_completion.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: x9z0ve
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.

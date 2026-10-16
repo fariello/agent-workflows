@@ -6,7 +6,7 @@
 - Scope: IN: group every remaining gap (`unguarded`, `unguarded-unreached`, `unprovable`, `property-unidentifiable`, `budget-exhausted` keys; `exclusive-now` and `replay-unverified` pass-shared files; `gap` and `regression` recreated names; `PROP-02` when Order 01 did not end `guarded`; any suspected regression Order 02 recorded) by (production module, remedy shape); dedupe each group against live items; file one backlog item per group with `aw backlog new` (cap 15 groups, the rest in ONE residual rollup item naming them); write `## Filing plan`, `## Filed items` and `## Reconciliation` in the Set's findings doc; run the whole-Set checks. OUT: writing replacement tests or fixing regressions (each filed item's own work); changing backlog `9qvfie`'s status (the runner sets `graduated`; closing it `done` follows from this Set executing).
 - Scope-Paths: .aw/records/backlog/, .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:24h56i, executed:x9z0ve, executed:8dyt88, executed:we3kkb, executed:rf1xxr
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: z2xs98
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.

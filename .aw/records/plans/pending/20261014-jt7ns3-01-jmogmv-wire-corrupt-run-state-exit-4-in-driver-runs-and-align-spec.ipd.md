@@ -6,7 +6,7 @@
 - Scope: Add `CorruptRunStateError(DriverError)` in `agent_workflows/runner_shared.py` and make `load_state` raise it, with a message naming the file and giving recovery guidance, for unparseable/undecodable JSON and for a document that is not an object with a list `queue` of objects; handle it in `main` of `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` so every output mode (human, `--json`, `--agent`) exits `2` with that message and no traceback; amend spec `25kzda` Sections 5.5 and 5.6 and `docs/cli-output-contract.md` Section 3.1 to drop exit `4` for this condition; update `agent_workflows/command_surface.py`'s reachability comment; add a CHANGELOG `Fixed` line; cover it with behavioral tests in `tests/test_fixfirst_end_to_end.py` and `tests/test_runner_shared.py`.
 - Scope-Paths: .aw/records/plans/**/20261014-jt7ns3-01-jmogmv-wire-corrupt-run-state-exit-4-in-driver-runs-and-align-spec.ipd.md, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/command_surface.py, .aw/records/specs/**/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, docs/cli-output-contract.md, CHANGELOG.md, tests/test_fixfirst_end_to_end.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: jmogmv
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; round 2 PR-201..PR-209; plan re-cut to the maintainer's OQ-01 answer (exit 2 everywhere, recovery text)
 - 2026-10-15 to-review (aw set): demoted reviewed -> to-review: returned to to-review: maintainer resolved OQ-01 on 2026-10-15 (exit 2 everywhere + recovery text), which inverts the plan's exit-4 design; it must be re-reviewed against that answer
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-002..PR-008 fixed; PR-001 open as blocking OQ-01; readiness NO-GO

@@ -6,7 +6,7 @@
 - Scope: IN: run the 12 `y0vcm9` trials on each host/model combination in use in this repository (inventory established in E-01), in a disposable worktree against a planted fixture record; capture the ACTUAL question-interface fields (question text, header, every option label and description, free-text handling) and the subsequent handling for every trial; judge each with the `y0vcm9` test; record everything in one new research findings doc in Set `askmeplain`; scaffold one review-ready corrective plan per distinct failure. OUT: fixing any failure (each corrective plan carries its own fix); changing `/askme`, the reporting contract, the generator or the runner; building an automated prompt-quality checker (`y0vcm9`: "Start with these source and instruction changes before adding a new enforcement service").
 - Scope-Paths: .aw/records/research/**/*-askme-live-trials.findings.md, .aw/records/plans/**/*-askmeplain-*.ipd.md
 - Item-Dependencies: executed:er11a0
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lkn1zt
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 - 2026-10-16 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog jymlaw and research y0vcm9 "Actual questions produced by agents".
 - 2026-10-16 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

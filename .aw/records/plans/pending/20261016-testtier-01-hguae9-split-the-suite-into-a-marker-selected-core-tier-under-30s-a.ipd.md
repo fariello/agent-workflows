@@ -6,7 +6,7 @@
 - Scope: Replace the `testpaths` file list with an explicit `core` marker that selects the default run across `tests/` ONLY when pytest falls back to `testpaths` (an explicit path or node id runs every non-slow test it names, exactly as today); choose core membership by measured coverage (every module and every declared `aw` leaf command executed by at least one core test, plus a few end-to-end smoke tests); add a wall-time budget guard; give `aw suite` a thorough mode; add a `pre-push` pre-commit stage running it; make CI's required job run core plus thorough; align `AGENTS.md` (repo-local section only), `CONTRIBUTING.md`, `RELEASING.md`, `Makefile`, `docs/row-level-test-evidence.md`, `docs/cli-human-guide.md` and release-review Section 8 on the same two commands. Deletes and skips NO test (pruning is prompt `4ul37x`, Set `testprune`).
 - Scope-Paths: pyproject.toml, conftest.py, Makefile, .pre-commit-config.yaml, .github/workflows/tests.yml, agent_workflows/suite_cache.py, agent_workflows/cli.py, tests/, AGENTS.md, CONTRIBUTING.md, RELEASING.md, docs/row-level-test-evidence.md, docs/cli-human-guide.md, .aw/system/workflows/release-review/08-final-ship-review.md, .aw/records/research/20261016-testtier-01-7ry5kv-test-tier-baseline.assessment.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,8 +15,10 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hguae9
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
 - 2026-10-16 to-review (aw set): authored from prompt wazeo5 with baseline research 7ry5kv at main eca2e2211

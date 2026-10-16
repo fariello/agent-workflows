@@ -6,7 +6,7 @@
 - Scope: Add reusable, uncollected tooling under `tests/tools/`: (1) a pytest plugin that switches the coverage dynamic context per test node id in the worker AND re-serializes the subprocess coverage config so children inherit the node id as their static context; (2) a runner that executes the full suite (`-m ''`) under `coverage run` with branch coverage, `patch = subprocess` and the C tracer, then combines; (3) an analyzer computing per-test line and arc sets, unique lines and unique arcs per test, identical and subset coverage groups, tests with no recorded coverage, and a per-module rollup; (4) a classifier joining that with `--durations` timings, markers (`core`, `slow`, `livecorpus`), id6/incident citations and the structure-pin scan, emitting a per-module keep / consolidate / speed-up / delete table with a reason; (5) a research record created with `aw research new` holding that table, which later children update. Adds behavioral tests for the analyzer and classifier over synthesized coverage data. Deletes, edits or re-marks NO existing test.
 - Scope-Paths: tests/tools/, tests/test_testprune_tools.py, pyproject.toml, CONTRIBUTING.md, .aw/records/research/, .aw/records/plans/pending/20261016-testprune-03-83nnyn-consolidate-duplicate-marginal-and-combinatorial-tests-into.ipd.md, .aw/records/plans/pending/20261016-testprune-05-vgus66-prove-the-pruned-suite-still-catches-regressions-with-covera.ipd.md
 - Item-Dependencies: executed:hguae9
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,8 +15,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qqrgv3
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-16 to-review (aw set): authored from prompt 4ul37x (Set testprune) with baseline research offdhr/7ry5kv

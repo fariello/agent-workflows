@@ -6,7 +6,7 @@
 - Scope: After `83nnyn` has consolidated, (1) point conformance sweeps that do not assert on this repository's records at a seeded, session-built fixture project instead of `REPO_ROOT`; (2) replace subprocess `aw` invocations with in-process `agent_workflows.cli.main([...])` where the process boundary is not under test, keeping a small, named set of true subprocess smoke tests; (3) build installed-project and temp-repo templates once per session and copy per test; (4) replace real sleeps and wall-clock waits with injected clocks or shortened timeouts through existing parameters; (5) split remaining long tests so `--dist=worksteal` can balance; (6) record a justification for every test still over 2s. Never weakens an assertion; `livecorpus` tests stay and are sped up only by caching, never by narrowing their corpus.
 - Scope-Paths: tests/, conftest.py, pyproject.toml, .gitignore, .aw/records/research/*testprune*
 - Item-Dependencies: executed:83nnyn
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,8 +15,10 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: c8bfp9
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011, PR-012
 - 2026-10-16 to-review (aw set): authored from prompt 4ul37x (Set testprune) with baseline research offdhr/7ry5kv

@@ -6,7 +6,7 @@
 - Scope: IN: compute the exact missing-name list per file; replay each deleted file at HEAD with `tools/deleted_test_replay.py` for per-test outcomes; classify every missing name with a fixed, ordered rule; write the `## Recreated missing names` section of the Set's findings doc. OUT: restoring tests and filing items (Order 06 `z2xs98` files every `gap` and `regression`); code or test edits.
 - Scope-Paths: .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:8dyt88
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: we3kkb
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.

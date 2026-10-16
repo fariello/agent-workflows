@@ -6,7 +6,7 @@
 - Scope: Orchestrate five children in strict order: (01) measurement tooling and decision table; (02) delete structure/name/architecture pins; (03) consolidate duplicates, marginal and combinatorial tests; (04) speed up to under 120s; (05) prove nothing was lost (coverage parity, mutation spot-check, flakes, final numbers). Runs after `hguae9` (Set `testtier`) so the `core` marker exists and is protected. Orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261016-testprune-00-8wfzb5-prune-consolidate-and-speed-up-the-test-suite-to-a-full-reta.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 153a062252c4516c10eb91dd738ba25a83ddee5a5c792aa03cd5f10046bdd40c
@@ -18,8 +18,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8wfzb5
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 coverage pass (aw oc run): fingerprint 153a062252c4, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004

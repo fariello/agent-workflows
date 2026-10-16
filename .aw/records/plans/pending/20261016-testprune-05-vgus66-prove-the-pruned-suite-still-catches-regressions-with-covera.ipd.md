@@ -6,7 +6,7 @@
 - Scope: Read-only on production code except for temporary, reverted mutations. Measure the final suite against the Set baseline (THE baseline is the `qqrgv3` E-07 run directory and its `meta.json` HEAD recorded in the `qqrgv3` decision-table research; research `offdhr` and `7ry5kv` are pre-`qqrgv3` context, lines-only and under-recording per `offdhr`'s own CORRECTION section, and are never the coverage bar): union line and branch coverage of `agent_workflows/`, a list of every line or branch that lost all coverage with a justification or a restored behavioral test; the mutation spot-check; a flake check of three randomized runs plus a serial run; final counts and timings; a CHANGELOG line; finalize the decision-table research; and write the Set's final report as a research record. Restoring a test (or writing a better behavioral one) when a mutation survives is IN scope.
 - Scope-Paths: tests/, conftest.py, CHANGELOG.md, .aw/records/research/*testprune*, .aw/records/backlog/
 - Item-Dependencies: executed:c8bfp9
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,8 +15,10 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vgus66
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011, PR-012
 - 2026-10-16 to-review (aw set): authored from prompt 4ul37x (Set testprune) with baseline research offdhr/7ry5kv

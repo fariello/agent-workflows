@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the six children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-trimcarry-00-e5jijr-carry-the-uncited-trim-audit-carrier-needed-outcomes-to-reso.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 9206f2fa887b74a99c4bcaf92fbba2ab7a16618802ba0abad3dca9d274170826
@@ -19,8 +19,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: e5jijr
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint 9206f2fa887b, model uri/its_direct/pt3-claude-opus-5.5-1m-us

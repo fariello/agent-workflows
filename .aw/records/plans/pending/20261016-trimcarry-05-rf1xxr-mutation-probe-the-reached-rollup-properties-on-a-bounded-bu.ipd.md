@@ -6,7 +6,7 @@
 - Scope: IN: assign every key a final verdict from its reach class and `hpjj44` classification without a probe where the class decides it (`pin-retired`, `property-unidentifiable`, `key-gone`, `unreached`); probe `reached` keys (and then `subprocess-only` keys with the explicit full non-slow `tests/` selection, budget permitting) with `tools/mutation_probe.py`, survivor plus positive control, in descending `hpjj44` exclusive-line order until a 10,800s cumulative cap; write `## Rollup mutation results` and totals. OUT: filing (Order 06 `z2xs98`); code or test edits.
 - Scope-Paths: .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:8dyt88
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: rf1xxr
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-16 draft (opencode): created.
