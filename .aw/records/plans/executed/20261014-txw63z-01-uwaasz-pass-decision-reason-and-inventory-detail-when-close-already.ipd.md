@@ -6,7 +6,7 @@
 - Scope: Update `runner_shared._close_already_complete_backlog_item` (`def _close_already_complete_backlog_item(` in `agent_workflows/runner_shared.py`, lines 37083-37096) to pass `detail=decision.inventory.as_dict()` alongside `reason=f"teardown refused: {decision.reason}"` and `reason_codes=decision.reason_codes` to `lane_containment.record_lane_preserved` and document the `LaneTeardownDecision` (`txw63z` / spec `7ckptx` R5.6) contract; add direct unit coverage in `TestBacklogAlreadyCompleteUnitE02` (`tests/test_backlog_already_complete.py`, line 69) and end-to-end isolated runner coverage across both hosts (`oc` and `agy`) in `TestBacklogAlreadyCompleteIntegrationE05` (`tests/test_backlog_already_complete.py`, line 149) exercising the `if not decision.torn_down:` branch of `_close_already_complete_backlog_item`; and verify failure sensitivity and full-suite conformance so `txw63z` closes with a verified release-gate carrier.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_backlog_already_complete.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -18,9 +18,9 @@
 - Highest E allocated: 03
 - Author: Antigravity
 - Id: uwaasz
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uwaasz verified (set txw63z, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD uwaasz from backlog txw63z
