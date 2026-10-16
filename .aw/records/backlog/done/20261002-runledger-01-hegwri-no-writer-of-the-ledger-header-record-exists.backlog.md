@@ -1,5 +1,5 @@
 - Id: hegwri
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Nothing in the package can create a run ledger: no writer of a kind='run' header record exists, so RunLedgerStore refuses every first append with RL-E041
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD v47z9u executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261012-runledger-03-v47z9u-add-aw-run-init-the-one-writer-of-a-conformant-ledger-header.ipd.md); evidence .aw/records/plans/executed/20261012-runledger-03-v47z9u-add-aw-run-init-the-one-writer-of-a-conformant-ledger-header.ipd.md
 - 2026-10-13 graduated (aw backlog): graduated to plan v47z9u (completed by hand at the maintainer's direction after the authoring session timed out in run-20261012T005641Z-2321995)
 - 2026-10-09 same-status (aw backlog): Scoped to aw run execution path per rdjka2 maintainer decision (option b); not a driver obligation
 - 2026-10-02 created (aw backlog): Filed while graduating backlog ye28s6 into plan rdjka2: this is the measured prerequisite for any ledger wiring, whichever way ye28s6's question is answered.
