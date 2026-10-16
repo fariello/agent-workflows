@@ -112,7 +112,7 @@ Measured at HEAD `62803305b` with a scratch `aw install <tmp>/r --preset complet
 ## Deferred / out of scope (with reason)
 
 - Routing the record-file-to-root walkers (`artifact_core.repo_root_of`, `specs._repo_root_of`, `status_set._repo_root_of`, `record_placement._find_repo_root`, `ipd_lint.lint_file`, `orchestrator_readiness.run_coverage`, `check_engine._identity_rename_hint`) for records that live under `AW_HOME`: they derive a root from a RECORD path, which is the records-root accessor's job.
-  - Carrier: kfnfji
+  - Carrier: 4uw2a6
 - Moving control state and isolated worktrees under `AW_HOME`, and making `ipd_lifecycle.checkout_control_root`, `runner_shared.state_root`, `worktree_lease` and the path heuristics honor it: this plan only makes the lane RECOGNIZE its project.
   - Carrier: qk0ew6
 - Changing `engine.read_installed_version` to find a home `system/VERSION`: the system-root accessor child owns it; E-05 reuses whatever it returns.
