@@ -543,9 +543,9 @@ class ProjectPolicySchema:
             res["delivery_mode"] = self.delivery_mode
         if self.records_backend:
             res["records_backend"] = self.records_backend
-        if self.cutovers:
+        if self.cutovers is not None:
             res["cutovers"] = dict(self.cutovers)
-        if self.setids:
+        if self.setids is not None:
             res["setids"] = dict(self.setids)
         if self.unknown_fields:
             for k, v in self.unknown_fields.items():
