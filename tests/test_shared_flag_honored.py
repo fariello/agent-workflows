@@ -29,7 +29,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import pytest
 
-from agent_workflows import cli
+from agent_workflows import agent_schema, cli
 from agent_workflows.agent_schema import _PRESERVED_FIELDS
 from tests.conformance_matrix import (
     RUNNABLE_ARGV,
@@ -43,6 +43,7 @@ from tests.test_agent_surface_conformance import (
     MUTATION_UNIVERSE,
     UNIVERSE,
 )
+from tests.test_usage_refusal_agent_record import REQUIRED_LEAVES, _capture_cli
 
 # --------------------------------------------------------------------------------------------------
 # Known broken ceiling (E-04b)
@@ -58,11 +59,6 @@ KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
     ("upgrade-test env", "--json"): "jfdk7p",
     ("upgrade-test probe", "--json"): "jfdk7p",
     ("upgrade-test clean", "--json"): "jfdk7p",
-    # --fields unhonored on parser usage refusal on four leaves (4y614a):
-    ("ipd scaffold", "--fields"): "4y614a",
-    ("research new", "--fields"): "4y614a",
-    ("research new-comparison", "--fields"): "4y614a",
-    ("storage move", "--fields"): "4y614a",
 }
 
 
@@ -713,3 +709,156 @@ def test_upgrade_rehearsal_standalone_fields_behavior() -> None:
     assert rc == 0
     rec = json.loads(buf.getvalue().strip())
     assert "findings" in rec
+
+
+# --------------------------------------------------------------------------------------------------
+# Tests: Parser usage-refusal --fields projection under --agent (4y614a ksmdcd E-04)
+# --------------------------------------------------------------------------------------------------
+
+
+def _parse_last_agent_record(out: str) -> dict:
+    """Parse and validate the last non-empty line of stdout as an aw.agent/v1 record."""
+    non_empty = [line.strip() for line in out.strip().splitlines() if line.strip()]
+    assert non_empty, "No output lines emitted"
+    rec = json.loads(non_empty[-1])
+    agent_schema.validate_agent_record(rec)
+    return rec
+
+
+@pytest.mark.parametrize("leaf", REQUIRED_LEAVES)
+def test_parser_usage_refusal_fields_honored_required_leaves(leaf: str) -> None:
+    """(a) All 67 canonical required-argument leaves honor --fields cmd under --agent."""
+    rc, out, err = _capture_cli(leaf.split() + ["--agent", "--fields", "cmd"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    allowed = agent_schema._PRESERVED_FIELDS | {"cmd"}
+    unrequested = set(rec.keys()) - allowed
+    assert not unrequested, f"Leaf {leaf!r} emitted unrequested keys: {unrequested}"
+    assert "findings" not in rec
+
+
+FOUR_4Y614A_LEAVES = [
+    "ipd scaffold",
+    "research new",
+    "research new-comparison",
+    "storage move",
+]
+
+
+@pytest.mark.parametrize("leaf", FOUR_4Y614A_LEAVES)
+def test_parser_usage_refusal_fields_absence_four_leaves(leaf: str) -> None:
+    """(b.1) The four 4y614a leaves omit unrequested findings under --agent --fields cmd."""
+    rc, out, err = _capture_cli(leaf.split() + ["--agent", "--fields", "cmd"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    allowed = agent_schema._PRESERVED_FIELDS | {"cmd"}
+    assert set(rec.keys()) <= allowed
+
+
+@pytest.mark.parametrize("leaf", FOUR_4Y614A_LEAVES)
+def test_parser_usage_refusal_fields_presence_four_leaves(leaf: str) -> None:
+    """(b.2) Non-vacuity: findings is present without --fields and retained when requested."""
+    # (1) --agent without --fields includes "findings": 0
+    rc, out, err = _capture_cli(leaf.split() + ["--agent"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    # (2) --agent --fields cmd,findings retains "findings": 0
+    rc, out, err = _capture_cli(leaf.split() + ["--agent", "--fields", "cmd,findings"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    # (3) --fields=cmd,findings retains "findings": 0
+    rc, out, err = _capture_cli(leaf.split() + ["--agent", "--fields=cmd,findings"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+
+def test_parser_usage_refusal_fields_projection_edge_cases() -> None:
+    """(c.1) _AwArgumentParser.error edge cases where --fields projection omits unrequested fields."""
+    # Global flags before the leaf
+    rc, out, err = _capture_cli(["--agent", "--fields", "cmd", "ipd", "scaffold"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    assert set(rec.keys()) <= agent_schema._PRESERVED_FIELDS | {"cmd"}
+
+    rc, out, err = _capture_cli(["--agent", "--fields=cmd", "ipd", "set"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    assert set(rec.keys()) <= agent_schema._PRESERVED_FIELDS | {"cmd"}
+
+    # Repeated --fields obeying last-flag-wins: --fields cmd,findings --fields cmd omits findings
+    rc, out, err = _capture_cli(
+        ["ipd", "scaffold", "--agent", "--fields", "cmd,findings", "--fields", "cmd"]
+    )
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+
+    # Other _AwArgumentParser.error refusal classes:
+    # Unknown top-level command
+    rc, out, err = _capture_cli(["nosuch", "--agent", "--fields", "cmd"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    assert set(rec.keys()) <= agent_schema._PRESERVED_FIELDS | {"cmd"}
+
+    # Invalid choice subcommand
+    rc, out, err = _capture_cli(["ipd", "nosuch", "--agent", "--fields", "cmd"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    assert set(rec.keys()) <= agent_schema._PRESERVED_FIELDS | {"cmd"}
+
+    # Unrecognized option
+    rc, out, err = _capture_cli(
+        ["status", "--nosuchflag", "--agent", "--fields", "cmd"]
+    )
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert "findings" not in rec
+    assert set(rec.keys()) <= agent_schema._PRESERVED_FIELDS | {"cmd"}
+
+
+def test_parser_usage_refusal_fields_presence_edge_cases() -> None:
+    """(c.2) _AwArgumentParser.error edge cases where findings is retained or unprojected."""
+    # Repeated --fields obeying last-flag-wins: --fields cmd --fields cmd,findings retains findings
+    rc, out, err = _capture_cli(
+        ["ipd", "scaffold", "--agent", "--fields", "cmd", "--fields", "cmd,findings"]
+    )
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    # Bare -- boundary: --fields after bare -- is ignored, retaining findings
+    rc, out, err = _capture_cli(["ipd", "scaffold", "--agent", "--", "--fields", "cmd"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    # Missing --fields argument safety: exits 2 with valid cannot-run record, retains findings,
+    # does not treat "--agent" as a field name
+    rc, out, err = _capture_cli(["ipd", "scaffold", "--agent", "--fields"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    rc, out, err = _capture_cli(["ipd", "scaffold", "--fields", "--agent"])
+    assert rc == 2
+    rec = _parse_last_agent_record(out)
+    assert rec.get("findings") == 0
+
+    # Unprojected --json --fields cmd: stdout is one pretty-printed JSON object
+    rc, out, err = _capture_cli(["ipd", "scaffold", "--json", "--fields", "cmd"])
+    assert rc == 2
+    json_payload = json.loads(out)
+    for expected_key in ("summary", "diagnostics", "next_actions", "data"):
+        assert (
+            expected_key in json_payload
+        ), f"Expected key {expected_key!r} in --json payload"
