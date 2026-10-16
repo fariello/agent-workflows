@@ -251,6 +251,189 @@ class LiftauditStopHaltsRunTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 runner_shared._record_forced_stop(run_dir, state, item, stop)  # type: ignore[call-arg]
 
+    def test_record_checkpoint_stop_dirty_isolated_worktree(self):
+        for mod, driver_name in (
+            (oc_runipd, "oc_runipd"),
+            (agy_runipd, "agy_runipd"),
+        ):
+            with self.subTest(driver=driver_name):
+                with tempfile.TemporaryDirectory() as temp:
+                    tmp = Path(temp)
+                    main_repo = _init_clean_repo(tmp / "main")
+                    lane_repo = _init_clean_repo(tmp / "lane")
+                    (lane_repo / "dirty_file.txt").write_text(
+                        "lane dirty\n", encoding="utf-8"
+                    )
+                    run_dir = main_repo / ".aw" / "records" / "runs" / "run-test"
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    events_file = run_dir / "events.jsonl"
+                    events_file.touch()
+
+                    state = {"repo": str(main_repo)}
+                    item = {"id6": "qa0001"}
+                    obs = runner_stop.CheckpointObserver(
+                        detector=lambda line: True,
+                        requested_level=3,
+                    )
+                    rec = mod._record_checkpoint_stop(
+                        run_dir, state, item, obs, work_dir=lane_repo
+                    )
+                    self.assertIn("dirty_file.txt", rec["git_state"])
+                    self.assertFalse(rec["git_state"].startswith("<unobserved"))
+                    self.assertEqual(item["stopped"]["git_state"], rec["git_state"])
+                    self.assertTrue(item["stopped"]["stopped_deliberately"])
+                    self.assertEqual(item["stopped"]["level"], 3)
+
+                    events_lines = [
+                        json.loads(line)
+                        for line in events_file.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                    self.assertEqual(len(events_lines), 1)
+                    self.assertEqual(events_lines[0].get("id6"), "qa0001")
+
+    def test_record_checkpoint_stop_worktree_resolution_precedence(self):
+        for mod, driver_name in (
+            (oc_runipd, "oc_runipd"),
+            (agy_runipd, "agy_runipd"),
+        ):
+            with tempfile.TemporaryDirectory() as temp:
+                tmp = Path(temp)
+                main_repo = _init_clean_repo(tmp / "main")
+                lane_repo = _init_clean_repo(tmp / "lane")
+                (main_repo / "main_dirty.txt").write_text(
+                    "main dirty\n", encoding="utf-8"
+                )
+                (lane_repo / "dirty_file.txt").write_text(
+                    "lane dirty\n", encoding="utf-8"
+                )
+                run_dir = main_repo / ".aw" / "records" / "runs" / "run-test"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                events_file = run_dir / "events.jsonl"
+                events_file.touch()
+
+                state = {"repo": str(main_repo)}
+                obs = runner_stop.CheckpointObserver(
+                    detector=lambda line: True,
+                    requested_level=3,
+                )
+
+                cases = [
+                    (
+                        "item_worktree",
+                        {"id6": "qa0001", "worktree": str(lane_repo)},
+                        None,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "attempts_worktree",
+                        {
+                            "id6": "qa0001",
+                            "attempts": [{"worktree": str(lane_repo)}],
+                        },
+                        None,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "work_dir_precedence",
+                        {"id6": "qa0001", "worktree": str(main_repo)},
+                        lane_repo,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "fallback_repo",
+                        {"id6": "qa0001"},
+                        None,
+                        "main_dirty.txt",
+                        "dirty_file.txt",
+                    ),
+                ]
+
+                for (
+                    case_name,
+                    item_dict,
+                    work_dir,
+                    expected_dirty,
+                    forbidden_dirty,
+                ) in cases:
+                    with self.subTest(driver=driver_name, case=case_name):
+                        item = dict(item_dict)
+                        rec = mod._record_checkpoint_stop(
+                            run_dir, state, item, obs, work_dir=work_dir
+                        )
+                        self.assertIn(expected_dirty, rec["git_state"])
+                        self.assertNotIn(forbidden_dirty, rec["git_state"])
+                        self.assertFalse(rec["git_state"].startswith("<unobserved"))
+
+    def test_record_checkpoint_stop_injected_git_status(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            (run_dir / "events.jsonl").touch()
+            lane_path = Path(temp) / "my_lane"
+            lane_path.mkdir()
+            state = {"repo": temp}
+            item = {"id6": "qa0001"}
+            obs = runner_stop.CheckpointObserver(
+                detector=lambda line: True,
+                requested_level=3,
+            )
+            rec = runner_shared._record_checkpoint_stop(
+                run_dir,
+                state,
+                item,
+                obs,
+                work_dir=lane_path,
+                git_status_fn=lambda repo: f"?? {repo.name}-dirty",
+            )
+            expected = f"?? {lane_path.name}-dirty"
+            self.assertEqual(rec["git_state"], expected)
+            self.assertEqual(item["stopped"]["git_state"], expected)
+
+    def test_record_checkpoint_stop_raising_git_status_fn_yields_unobserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            (run_dir / "events.jsonl").touch()
+            state = {"repo": temp}
+            item = {"id6": "qa0001"}
+            obs = runner_stop.CheckpointObserver(
+                detector=lambda line: True,
+                requested_level=3,
+            )
+
+            def bad_status_fn(repo: Path) -> str:
+                raise RuntimeError("git execution failed")
+
+            rec = runner_shared._record_checkpoint_stop(
+                run_dir,
+                state,
+                item,
+                obs,
+                git_status_fn=bad_status_fn,
+            )
+            self.assertTrue(rec["git_state"].startswith("<unobserved:"))
+            self.assertIn("git execution failed", rec["git_state"])
+            self.assertEqual(item["stopped"]["git_state"], rec["git_state"])
+
+    def test_record_checkpoint_stop_omitted_git_status_fn_raises(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp)
+            state = {"repo": temp}
+            item = {"id6": "qa0001"}
+            obs = runner_stop.CheckpointObserver(
+                detector=lambda line: True,
+                requested_level=3,
+            )
+            with self.assertRaises(TypeError):
+                runner_shared._record_checkpoint_stop(
+                    run_dir,
+                    state,
+                    item,
+                    obs,  # type: ignore[call-arg]
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

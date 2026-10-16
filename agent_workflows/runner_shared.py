@@ -35512,8 +35512,9 @@ def _record_checkpoint_stop(
     stop -- silently replacing the observed working-tree state, which is the whole evidentiary point of
     a level-3 stop record, with an error string. That was invisible precisely BECAUSE the definition was
     dead; pointing the hosts at it is what would have shipped the defect
-    (`tests/test_runner_stop.py::test_stop_isolated_git_status` was deleted in `19313eed`; no live
-    guard currently asserts this). Injecting the host's own
+    (`tests/test_runner_stop.py::test_stop_isolated_git_status` was removed in `19313eed`; the
+    property is now asserted behaviorally by the dual-host dirty-lane tests in
+    `tests/test_liftaudit_stop_halts_run.py`). Injecting the host's own
     bound `git_status` is the seam this module already uses for exactly this dependency, and no default
     is offered so the mistake cannot recur silently.
     """
