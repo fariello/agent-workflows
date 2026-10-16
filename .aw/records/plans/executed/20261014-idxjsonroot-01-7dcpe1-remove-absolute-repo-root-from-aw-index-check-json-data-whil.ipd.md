@@ -6,7 +6,7 @@
 - Scope: Add an out-of-band repo_root attribute on CommandResult so Diagnostic.to_dict, Change.to_dict, Evidence.to_dict, and HumanRenderer resolve repo_root without requiring data["repo_root"]; remove "repo_root" and non-human "human_rendered" from emit_index_check_result data while normalizing drift diagnostic locations against repo_root; pass repo_root out of band on emit_index_write_result without changing its data keys.
 - Scope-Paths: agent_workflows/result_types.py, agent_workflows/renderers.py, agent_workflows/artifact_core.py, tests/test_index_check_agent_records.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: aavf6a
 - Blocks-Release: next
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: Antigravity Agent
 - Id: 7dcpe1
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7dcpe1 verified (set idxjsonroot, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
@@ -37,27 +37,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Out-of-band repo_root on CommandResult and index check/write emission cleanup
 
-- [ ] E-01 Add an optional out-of-band `repo_root: Optional[Union[str, Path]] = None` field as the LAST field of `result_types.CommandResult` (after `schema_version`, so no existing positional order shifts) and resolve `repo_root = self.repo_root if self.repo_root is not None else self.data.get("repo_root")` in `result_types.CommandResult.to_dict`, `result_types.CommandResult.to_agent_record`, and `renderers.HumanRenderer.render`, without serializing `repo_root` as a top-level or `data` key in `CommandResult.to_dict`.
+- [x] E-01 Add an optional out-of-band `repo_root: Optional[Union[str, Path]] = None` field as the LAST field of `result_types.CommandResult` (after `schema_version`, so no existing positional order shifts) and resolve `repo_root = self.repo_root if self.repo_root is not None else self.data.get("repo_root")` in `result_types.CommandResult.to_dict`, `result_types.CommandResult.to_agent_record`, and `renderers.HumanRenderer.render`, without serializing `repo_root` as a top-level or `data` key in `CommandResult.to_dict`.
   - Depends on: none
   - Expected outcome: `CommandResult(command="index", repo_root=root, diagnostics=[...], data={"target": "plans"})` relativizes `Diagnostic`, `Change`, and `Evidence` paths against `root` in both `to_dict()` and `to_agent_record()`, while `to_dict()["data"]` contains only `{"target": "plans"}` and no top-level `repo_root` key exists; callers that still pass `data["repo_root"]` (for example `cli.py` and `artifact_adopt.py` producers) remain backward-compatible.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update `artifact_core.emit_index_check_result` to pass `target=target` and `repo_root=repo_root` on `CommandResult`, normalize each drift `Diagnostic.location` via `agent_schema.normalize_repo_path(d.location, repo_root)` (local import, as the module already imports lazily), remove `"repo_root"` from `data`, and include `"human_rendered"` in `data` only when `ctx.is_human`; update `artifact_core.emit_index_write_result` ONLY to pass `repo_root=repo_root` on `CommandResult` and normalize its `Diagnostic.location` the same way, leaving its existing `data` dict (`target`, `count`, `noun`, `json_changed`, `md_changed`, `index_dir`) unchanged.
+- [x] E-02 Update `artifact_core.emit_index_check_result` to pass `target=target` and `repo_root=repo_root` on `CommandResult`, normalize each drift `Diagnostic.location` via `agent_schema.normalize_repo_path(d.location, repo_root)` (local import, as the module already imports lazily), remove `"repo_root"` from `data`, and include `"human_rendered"` in `data` only when `ctx.is_human`; update `artifact_core.emit_index_write_result` ONLY to pass `repo_root=repo_root` on `CommandResult` and normalize its `Diagnostic.location` the same way, leaving its existing `data` dict (`target`, `count`, `noun`, `json_changed`, `md_changed`, `index_dir`) unchanged.
   - Depends on: E-01
   - Expected outcome: `aw index <plans|prompts|research> --check --json` emits `data == {"target": "<type>"}` with no `"repo_root"` or `"human_rendered"` key and no absolute checkout path anywhere in the JSON document; `--check --agent` and human mode keep their existing output (human stdout byte-identical, exit codes unchanged); `aw index <type> --json` (write path) keeps every existing `data` key.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression tests and changelog
 
-- [ ] E-03 Add behavior tests to `tests/test_index_check_agent_records.py` (a `unittest.TestCase` module; reuse its `IndexCheckSubprocessTests` `self.root` fixture, `_create_fixture_repo`, `VERBS`, and `tests.conformance_matrix.run_cli`, not pytest fixtures) covering (a) `CommandResult.repo_root` out-of-band relativization in-process, (b) `--check --json` `data` shape and leak-free stdout across `VERBS` for `clean`, `missing`, and `stale` fixtures, and (c) a `dangling-citation` finding in root-level `DECISIONS.md` (outside every `agent_schema.normalize_repo_path` known marker) under both `--json` and `--agent --verbose`.
+- [x] E-03 Add behavior tests to `tests/test_index_check_agent_records.py` (a `unittest.TestCase` module; reuse its `IndexCheckSubprocessTests` `self.root` fixture, `_create_fixture_repo`, `VERBS`, and `tests.conformance_matrix.run_cli`, not pytest fixtures) covering (a) `CommandResult.repo_root` out-of-band relativization in-process, (b) `--check --json` `data` shape and leak-free stdout across `VERBS` for `clean`, `missing`, and `stale` fixtures, and (c) a `dangling-citation` finding in root-level `DECISIONS.md` (outside every `agent_schema.normalize_repo_path` known marker) under both `--json` and `--agent --verbose`.
   - Depends on: E-02
   - Expected outcome: the new tests pass and assert `"repo_root" not in doc["data"]`, `"human_rendered" not in doc["data"]`, `doc["data"]["target"] == verb`, that a `dangling-citation` diagnostic has `location == "DECISIONS.md:1"` on both surfaces, that the process exit code is UNCHANGED by the `info`-severity dangling finding (`0` on an otherwise clean fixture), and that neither `str(self.root)` nor `Path.home().as_posix()` appears in stdout; the existing human-mode tests in the module still pass unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one `- Fixed:` bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with no em or en dashes), then run the targeted test modules, the full suite, and `aw sanitize --agent`.
+- [x] E-04 Add one `- Fixed:` bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with no em or en dashes), then run the targeted test modules, the full suite, and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: `CHANGELOG.md` documents the fix without em/en dashes; the targeted modules pass; the full suite shows no failure that is absent at the base commit (re-derive the base result at execution time); `aw sanitize --agent` reports `"outcome":"clean"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,25 +169,231 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff agent_workflows/result_types.py agent_workflows/renderers.py` showing `repo_root: Optional[Union[str, Path]] = None` as the last `CommandResult` field and the `self.repo_root if self.repo_root is not None else self.data.get("repo_root")` fallback in `CommandResult.to_dict`, `CommandResult.to_agent_record`, and `HumanRenderer.render`; PLUS pasted output of a `python3 -c` call building `CommandResult(command="index", repo_root=<tmpdir>, diagnostics=[Diagnostic(location="<tmpdir>/DECISIONS.md:1", rule="dangling-citation", detail="x", severity="info")], data={"target": "plans"})` and printing `sorted(r.to_dict())`, `r.to_dict()["data"]`, and the diagnostic `location` from both `to_dict()` and `to_agent_record()` (path: `CommandResult.to_dict` / `CommandResult.to_agent_record`, created by E-01), showing no `repo_root` key and `DECISIONS.md:1` twice.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/result_types.py agent_workflows/renderers.py
+diff --git a/agent_workflows/renderers.py b/agent_workflows/renderers.py
+index 03cdc370e..8f2360517 100644
+--- a/agent_workflows/renderers.py
++++ b/agent_workflows/renderers.py
+@@ -97,7 +97,11 @@ class HumanRenderer(BaseRenderer):
+             from agent_workflows import doctor as _doctor
+             from pathlib import Path
 
-- [ ] V-02 validates E-02
+-            repo_root = Path(result.data.get("repo_root") or ".")
++            repo_root = Path(
++                result.repo_root
++                if result.repo_root is not None
++                else (result.data.get("repo_root") or ".")
++            )
+             groups: dict = {}
+             for d in result.diagnostics:
+                 drift_obj = d.to_drift() if hasattr(d, "to_drift") else d
+diff --git a/agent_workflows/result_types.py b/agent_workflows/result_types.py
+index 0e1c5f391..3f13b298b 100644
+--- a/agent_workflows/result_types.py
++++ b/agent_workflows/result_types.py
+@@ -324,6 +324,7 @@ class CommandResult:
+     applied: Optional[bool] = None
+     target: Optional[str] = None
+     schema_version: str = _schema.SCHEMA_VERSION
++    repo_root: Optional[Union[str, Path]] = None
+
+     @property
+     def has_findings(self) -> bool:
+@@ -334,7 +335,11 @@ class CommandResult:
+         return self.exit_code == 2
+
+     def to_dict(self) -> Dict[str, Any]:
+-        repo_root = self.data.get("repo_root")
++        repo_root = (
++            self.repo_root
++            if self.repo_root is not None
++            else self.data.get("repo_root")
++        )
+         return {
+             "schema": self.schema_version,
+             "command": self.command,
+@@ -354,7 +359,11 @@ class CommandResult:
+         self, context: Optional[OutputContext] = None
+     ) -> Dict[str, Any]:
+         """Convert into canonical aw.agent/v1 compact record structure (Order 03)."""
+-        repo_root = self.data.get("repo_root")
++        repo_root = (
++            self.repo_root
++            if self.repo_root is not None
++            else self.data.get("repo_root")
++        )
+         is_verbose = context.verbose if context is not None else False
+
+         # Resolve outcome & enforce anti-greenwashing invariants
+
+$ python3 -c 'import tempfile; from pathlib import Path; from agent_workflows.result_types import CommandResult, Diagnostic; td = tempfile.TemporaryDirectory(prefix="norootmarker_"); root = Path(td.name); dec = root / "DECISIONS.md"; r = CommandResult(command="index", repo_root=root, diagnostics=[Diagnostic(location=f"{dec}:1", rule="dangling-citation", detail="x", severity="info")], data={"target": "plans"}); print(sorted(r.to_dict().keys())); print(r.to_dict()["data"]); print(r.to_dict()["diagnostics"][0]["location"]); print(r.to_agent_record()["diagnostics"][0]["location"]); td.cleanup()'
+['changes', 'command', 'complete', 'data', 'diagnostics', 'evidence', 'exit_code', 'next_actions', 'schema', 'status', 'summary', 'verified']
+{'target': 'plans'}
+DECISIONS.md:1
+DECISIONS.md:1
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/artifact_core.py` showing the check helper's `data` reduced to `target` (plus `human_rendered` under `ctx.is_human`), `target=target` and `repo_root=repo_root` on both helpers' `CommandResult`, normalized `Diagnostic.location`, and the write helper's `data` dict unchanged; PLUS pasted output, from the live tree, of `python3 -c 'import json, os, subprocess; root = os.getcwd(); [print(v, (lambda p: (p.returncode, sorted(json.loads(p.stdout)["data"]), root in p.stdout))(subprocess.run(["python3", "-m", "agent_workflows", "index", v, "--check", "--json"], capture_output=True, text=True))) for v in ("plans", "prompts", "research")]'` (path: `artifact_core.emit_index_check_result` via `JsonRenderer.render`, created by E-02) showing `['target']` and `False` for every verb.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/artifact_core.py
+diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+index 53d16f6dd..e15d2dce0 100644
+--- a/agent_workflows/artifact_core.py
++++ b/agent_workflows/artifact_core.py
+@@ -29,7 +29,7 @@ import stat
+ import subprocess
+ import tempfile
+ from pathlib import Path
+-from typing import Any, Callable, List, NamedTuple, Optional, Tuple
++from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
-- [ ] V-03 validates E-03
+ # --------------------------------------------------------------------------------------
+ # Identity: the stable, greppable ``<id6>``
+@@ -909,6 +909,7 @@ def emit_index_check_result(
+     target: str = "",
+ ) -> int:
+     """Emit the typed CommandResult for an index --check invocation across agent, json, and human audiences."""
++    from agent_workflows import agent_schema as _schema
+     from agent_workflows import check_engine as _ce
+     from agent_workflows.renderers import get_renderer
+     from agent_workflows.result_types import (
+@@ -922,7 +923,7 @@ def emit_index_check_result(
+     status = "conforms" if exit_code == 0 else "findings"
+     diagnostics = [
+         Diagnostic(
+-            location=d.location,
++            location=_schema.normalize_repo_path(d.location, repo_root),
+             rule=d.rule,
+             detail=d.detail,
+             severity=(_ce.enrich_drift(d).severity or "error"),
+@@ -943,19 +944,19 @@ def emit_index_check_result(
+         else f"{len(drift)} finding(s) detected across {target or 'index'}"
+     )
+
++    data: Dict[str, Any] = {"target": target}
++    if ctx.is_human:
++        data["human_rendered"] = human_rendered
+
+     result = CommandResult(
+         command=command,
++        target=target,
+         status=status,
+         exit_code=exit_code,
+         summary=summary,
+         diagnostics=diagnostics,
+-        data={
+-            "target": target,
+-            # repo_root must be a str, never a Path, so the --json serializer does not raise TypeError (PR-003, F-11)
+-            "repo_root": str(repo_root),
+-            # Preserves legacy human lines byte-exact through data["human_rendered"] (PR-002, F-10)
+-            "human_rendered": human_rendered,
+-        },
++        data=data,
++        repo_root=repo_root,
+         verified=True,
+         complete=True,
+     )
+@@ -979,6 +980,7 @@ def emit_index_write_result(
+     refused: bool = False,
+ ) -> int:
+     """Emit the typed CommandResult for an index write invocation under --agent or --json."""
++    from agent_workflows import agent_schema as _schema
+     from agent_workflows import check_engine as _ce
+     from agent_workflows.renderers import get_renderer
+     from agent_workflows.result_types import (
+@@ -1018,7 +1020,7 @@ def emit_index_write_result(
+
+     diagnostics = [
+         Diagnostic(
+-            location=d.location,
++            location=_schema.normalize_repo_path(d.location, repo_root),
+             rule=d.rule,
+             detail=d.detail,
+             severity=(_ce.enrich_drift(d).severity or "error"),
+@@ -1061,6 +1063,7 @@ def emit_index_write_result(
+         changes=changes,
+         diagnostics=diagnostics,
+         data=data,
++        repo_root=repo_root,
+         verified=True,
+         complete=not refused,
+     )
+
+$ python3 -c 'import json, os, subprocess; root = os.getcwd(); [print(v, (lambda p: (p.returncode, sorted(json.loads(p.stdout)["data"]), root in p.stdout))(subprocess.run(["python3", "-m", "agent_workflows", "index", v, "--check", "--json"], capture_output=True, text=True))) for v in ("plans", "prompts", "research")]'
+plans (0, ['target'], False)
+prompts (0, ['target'], False)
+research (1, ['target'], False)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted runner output of `python3 -m pytest -o addopts="" -v tests/test_index_check_agent_records.py` showing every test passing, with the new tests visibly covering the in-process out-of-band relativization, the `data`-shape and no-leak assertions across all verbs and modes, and the `DECISIONS.md:1` `dangling-citation` location on both `--json` and `--agent --verbose` with exit 0. Test names are non-binding pointers.
   - Observed evidence:
-  - Result: pending
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=567025868
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 12 items
 
-- [ ] V-04 validates E-04
+tests/test_index_check_agent_records.py::CommandResultOutOfBandRelativizationTests::test_command_result_out_of_band_repo_root_relativization PASSED [  8%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_stale_fixture_emits_valid_record PASSED [ 16%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_clean_output_per_verb PASSED [ 25%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_clean_fixture_emits_json_document PASSED [ 33%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_missing_fixture_emits_valid_record PASSED [ 41%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_stale_fixture_emits_json_document PASSED [ 50%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_missing_fixture_emits_json_document PASSED [ 58%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_clean_fixture_emits_valid_record PASSED [ 66%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_stale_output_per_verb PASSED [ 75%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_check_data_shape_and_no_leak_across_modes PASSED [ 83%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_and_agent_dangling_citation_in_root_decisions PASSED [ 91%]
+tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_drifting_output_per_verb PASSED [100%]
+
+============================= 12 passed in 16.20s ==============================
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `git diff CHANGELOG.md` showing the new `- Fixed:` bullet, plus pasted output of `grep -nP '[\x{2013}\x{2014}]' CHANGELOG.md` restricted to the added line showing no match; pasted runner output of `python3 -m pytest tests/test_index_check_agent_records.py tests/test_index_write_agent_records.py tests/test_json_surface_leak_posture.py` (all passing) and of the bare full suite `python3 -m pytest` with its summary line, any failure shown to also fail at the base commit; and pasted `python3 -m agent_workflows sanitize --agent` output with `"outcome":"clean"` and exit 0.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff CHANGELOG.md
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index be5b3fbac..28f1bdacb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: aw index <type> --check --json no longer puts the absolute repository path (repo_root) or the human report text (human_rendered) in data; diagnostic locations stay repo-relative.
+ - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
+ - Fixed: aw pwatch, aw runners, and runner stream headers, statuslines, event prefixes, and run summaries now honor the color_depth pin and 16-color terminal detection, so none removes all ANSI color escapes from those surfaces and 16 uses basic 16-color ANSI codes instead of 256-color sequences.
+ - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.
+
+$ sed -n '27p' CHANGELOG.md | grep -nP '[\x{2013}\x{2014}]'
+(exit 1, no match)
+
+$ python3 -m pytest tests/test_index_check_agent_records.py tests/test_index_write_agent_records.py tests/test_json_surface_leak_posture.py
+40 passed in 7.60s
+
+$ python3 -m pytest
+702 passed in 25.33s
+
+$ python3 -m agent_workflows sanitize --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5218,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 
