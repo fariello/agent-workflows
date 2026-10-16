@@ -488,7 +488,14 @@ def validate_companion_preflight(
     if os.path.exists(os.path.join(companion_canon, ".git")):
         try:
             res = subprocess.run(
-                ["git", "-C", companion_canon, "status", "--porcelain"],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "-C",
+                    companion_canon,
+                    "status",
+                    "--porcelain",
+                ],
                 capture_output=True,
                 text=True,
                 check=False,

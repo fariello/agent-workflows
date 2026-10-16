@@ -28,7 +28,7 @@ from agent_workflows.term import pad_visible, visible_width
 def _run_git(cwd: Path, args: Sequence[str]) -> tuple[int, str, str]:
     """Run a git command and return (rc, stdout, stderr)."""
     proc = subprocess.run(
-        ["git", *args],
+        _gch_lockfree(args),
         cwd=cwd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -754,3 +754,10 @@ def run_prune(args: argparse.Namespace, term: term_mod.Term | None = None) -> in
         return exit_code
 
     return exit_code
+
+
+def _gch_lockfree(args):
+    """Lazy wrapper for `git_commit_helper.lockfree_git_argv` (avoids an import cycle at load)."""
+    from agent_workflows.git_commit_helper import lockfree_git_argv
+
+    return lockfree_git_argv(args)

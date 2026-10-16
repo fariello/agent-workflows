@@ -409,7 +409,7 @@ def observe_tree(repo: Path) -> tuple[bool, list[str], str]:
 
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "--no-optional-locks", "status", "--porcelain"],
             cwd=str(repo),
             text=True,
             stdout=subprocess.PIPE,

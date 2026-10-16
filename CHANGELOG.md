@@ -22,6 +22,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 - More tools for agents and users. A growing set of dependable, dependency-free tools
   (and CLI verbs) that both agents and humans can rely on.
 
+- Fixed: importing agent-workflows and its read-only git checks no longer take the git index lock, so a killed or timed-out command can no longer leave a stale index.lock that blocks your next commit.
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
 - Added: aw run verify records verifier decisions on frozen requirements for an active run ledger, returning exit 0 on satisfied results, exit 3 on non-satisfied results, exit 2 on unknown requirements or invalid arguments, and exit 6 on unauthorized actors or terminal runs.

@@ -253,7 +253,7 @@ def probe_git(repo_root: Path) -> GitProbeResult:
         res.available = True
 
         proc = subprocess.run(
-            ["git", "status", "--porcelain=v1", "-b", "-uall"],
+            ["git", "--no-optional-locks", "status", "--porcelain=v1", "-b", "-uall"],
             cwd=str(repo_root),
             capture_output=True,
             text=True,

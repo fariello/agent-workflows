@@ -180,7 +180,7 @@ def _apply_grammar_facet(dst_p: Path, facet: Optional[str]) -> Path:
 
 def _run_git(repo_path: Path, args: List[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", "-C", str(repo_path), *args],
+        _gch_lockfree(["-C", str(repo_path), *args]),
         check=False,
         capture_output=True,
         text=True,
@@ -1515,3 +1515,10 @@ class MigrationManager:
             "removed": removed_paths,
             "preserved": preserved_paths,
         }
+
+
+def _gch_lockfree(args):
+    """Lazy wrapper for `git_commit_helper.lockfree_git_argv` (avoids an import cycle at load)."""
+    from agent_workflows.git_commit_helper import lockfree_git_argv
+
+    return lockfree_git_argv(args)

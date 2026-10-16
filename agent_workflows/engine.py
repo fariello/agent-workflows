@@ -2759,7 +2759,16 @@ def stage_tracked_policy_files(
         # Check git status --porcelain -- <path>
         try:
             status_res = subprocess.run(
-                ["git", "-C", str(repo_root), "status", "--porcelain", "--", rel_path],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "-C",
+                    str(repo_root),
+                    "status",
+                    "--porcelain",
+                    "--",
+                    rel_path,
+                ],
                 capture_output=True,
                 text=True,
             )
@@ -4143,7 +4152,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
 
     # 1. Run git status --porcelain
     status_proc = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "--no-optional-locks", "status", "--porcelain"],
         cwd=str(plan.repo_root),
         capture_output=True,
         text=True,
@@ -4853,7 +4862,14 @@ def prompt_and_run_commit(
         _aw_gi = Path(plan.repo_root) / AW_GITIGNORE_PATH
         if _aw_gi.is_file():
             _dirty = subprocess.run(
-                ["git", "status", "--porcelain", "--", AW_GITIGNORE_PATH],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "status",
+                    "--porcelain",
+                    "--",
+                    AW_GITIGNORE_PATH,
+                ],
                 cwd=str(plan.repo_root),
                 capture_output=True,
                 text=True,
@@ -4872,7 +4888,8 @@ def prompt_and_run_commit(
     # producer claims, only paths with a real change are offered.
     if use_git and files_to_commit:
         _probe = subprocess.run(
-            ["git", "status", "--porcelain", "--"] + sorted(files_to_commit),
+            ["git", "--no-optional-locks", "status", "--porcelain", "--"]
+            + sorted(files_to_commit),
             cwd=str(plan.repo_root),
             capture_output=True,
             text=True,
@@ -5234,7 +5251,7 @@ def _git_file_state(repo_root: Path, rel: str) -> str:
         return "at_risk"
     try:
         proc = subprocess.run(
-            ["git", "status", "--porcelain", "--", rel],
+            ["git", "--no-optional-locks", "status", "--porcelain", "--", rel],
             cwd=str(repo_root),
             capture_output=True,
             text=True,

@@ -581,7 +581,7 @@ def _run_git(
         run_env = os.environ.copy()
         run_env.update(env)
     proc = subprocess.run(
-        ["git", *args],
+        _gch_lockfree(args),
         cwd=str(repo),
         text=True,
         stdout=subprocess.PIPE,
@@ -903,7 +903,7 @@ def git_branch(repo: Path) -> str:
 
 
 def git_status(repo: Path, *, run_checked: Callable[..., str]) -> str:
-    return run_checked(["git", "status", "--short"], cwd=repo)
+    return run_checked(["git", "--no-optional-locks", "status", "--short"], cwd=repo)
 
 
 def git_common_dir(repo: Path, *, run_checked: Callable[..., str]) -> Path:
@@ -44224,7 +44224,15 @@ def commit_backlog_close(
         # move committed as a bare deletion, or not at all. Measured live before this flag was added.
         # `-uall` lists the individual untracked FILE instead.
         porcelain = run_checked(
-            ["git", "status", "--porcelain", "-uall", "--", *roots],
+            [
+                "git",
+                "--no-optional-locks",
+                "status",
+                "--porcelain",
+                "-uall",
+                "--",
+                *roots,
+            ],
             cwd=repo,
         )
     except (DriverError, OSError):
@@ -48528,3 +48536,10 @@ def report_discarded_aw_home(
     for line in lines:
         print(line, file=out)
     return lines
+
+
+def _gch_lockfree(args):
+    """Lazy wrapper for `git_commit_helper.lockfree_git_argv` (avoids an import cycle at load)."""
+    from agent_workflows.git_commit_helper import lockfree_git_argv
+
+    return lockfree_git_argv(args)

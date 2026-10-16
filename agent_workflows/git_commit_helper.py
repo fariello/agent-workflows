@@ -732,6 +732,25 @@ class CommitOutcome(NamedTuple):
     abandoned: Tuple[str, ...] = ()
 
 
+def lockfree_git_argv(args: Sequence[str]) -> List[str]:
+    """``["git", *args]``, with ``--no-optional-locks`` inserted for a read-only ``status``.
+
+    ``git status`` opportunistically refreshes the index and so takes ``<git-dir>/index.lock``; a
+    process killed in that window (a timeout, a test hang guard, a cancelled agent) strands a 0-byte
+    lock that refuses the NEXT commit in that checkout. ``--no-optional-locks`` makes status
+    read-only. Only the first non-option word is inspected, so every mutating command is untouched.
+    Single shared definition so each git wrapper in the package applies the same rule.
+    """
+
+    argv = list(args)
+    i = 0
+    while i < len(argv) and argv[i].startswith("-"):
+        i += 2 if argv[i] in ("-C", "-c") else 1
+    if i < len(argv) and argv[i] == "status" and "--no-optional-locks" not in argv[:i]:
+        return ["git", "--no-optional-locks", *argv]
+    return ["git", *argv]
+
+
 def _git(
     repo_root: Path,
     args: List[str],
@@ -747,7 +766,7 @@ def _git(
 
     effective_env = env if env is not None else _SCOPED_GIT_ENV
     proc = subprocess.run(
-        ["git", *args],
+        lockfree_git_argv(args),
         cwd=str(repo_root),
         env=dict(effective_env) if effective_env is not None else None,
         capture_output=True,

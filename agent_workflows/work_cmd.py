@@ -74,7 +74,7 @@ _RUN_ID_RE = re.compile(r"^run-\d{8}T\d{6}Z-\d+(-\d+)?$")
 
 def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
     proc = subprocess.run(
-        ["git", *args],
+        _gch.lockfree_git_argv(args),
         cwd=str(repo_root),
         capture_output=True,
         text=True,

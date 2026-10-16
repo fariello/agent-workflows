@@ -3866,7 +3866,14 @@ def run_set_command(
         # Check skip condition: orchestrator file has uncommitted changes in worktree or index
         if orch.path.resolve() not in command_modified_orch_paths:
             proc = subprocess.run(
-                ["git", "status", "--porcelain", "--", str(orch.path)],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "status",
+                    "--porcelain",
+                    "--",
+                    str(orch.path),
+                ],
                 cwd=repo_root,
                 capture_output=True,
                 text=True,

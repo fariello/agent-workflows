@@ -98,7 +98,7 @@ def _git(
         run_env = os.environ.copy()
         run_env.update(env)
     proc = subprocess.run(
-        ["git", *args],
+        _gch_lockfree(args),
         cwd=str(repo_root),
         capture_output=True,
         text=True,
@@ -1357,3 +1357,10 @@ def assert_worker_scope(lane_id: str, paths: Sequence[str]) -> None:
                 lane_id, bad
             )
         )
+
+
+def _gch_lockfree(args):
+    """Lazy wrapper for `git_commit_helper.lockfree_git_argv` (avoids an import cycle at load)."""
+    from agent_workflows.git_commit_helper import lockfree_git_argv
+
+    return lockfree_git_argv(args)

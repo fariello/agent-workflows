@@ -367,11 +367,12 @@ class NonReleaseTagGuardTests(unittest.TestCase):
         captured = {}
 
         def fake_run(argv, **kwargs):
-            captured["argv"] = argv
+            if "describe" in argv:
+                captured["argv"] = argv
 
             class R:
                 returncode = 0
-                stdout = "v1.1.0-230-g2734544\n"
+                stdout = "v1.1.0-230-g2734544\n" if "describe" in argv else ""
 
             return R()
 
@@ -384,6 +385,71 @@ class NonReleaseTagGuardTests(unittest.TestCase):
         self.assertIn("v[0-9]*", argv)
         self.assertIn("--exclude", argv)
         self.assertIn("*-recreated", argv)
+
+
+class DescribeTakesNoIndexLockTests(unittest.TestCase):
+    """`_git_describe` runs on every package import, so it must never take `index.lock`.
+
+    Measured: `git describe --dirty` refreshes the index under `<git-dir>/index.lock` whenever a
+    tracked file's stat is stale, and a process killed in that window strands a 0-byte lock that
+    blocks the next commit. These tests drive real repos and assert outcomes: the version string is
+    correct (clean, stat-only change, real modification) and the index FILE is never rewritten,
+    which is the observable effect of git taking and committing `index.lock` (a refresh replaces
+    `.git/index` by renaming the lock over it, changing its inode). git silently skips a refresh
+    when the lock is already held, so holding the lock would not detect the defect.
+    """
+
+    def _repo(self, d: str) -> Path:
+        import subprocess
+
+        from tests.support import clean_git_env
+
+        env = clean_git_env()
+        root = Path(d)
+        run = lambda *a: subprocess.run(  # noqa: E731
+            ["git", *a], cwd=root, env=env, check=True, capture_output=True
+        )
+        run("init", "-q")
+        (root / "f.txt").write_text("a\n", encoding="utf-8")
+        run("add", "f.txt")
+        run("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-qm", "x")
+        run("tag", "v1.0.0")
+        return root
+
+    def _stale_stat(self, root: Path) -> None:
+        import os
+
+        os.utime(root / "f.txt", (1_000_000_000, 1_000_000_000))
+
+    def test_version_is_correct_and_no_lock_is_needed_in_every_tree_state(self):
+        for state, expect_dirty in (
+            ("clean", False),
+            ("stat-only", False),
+            ("modified", True),
+        ):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as d:
+                root = self._repo(d)
+                if state != "clean":
+                    self._stale_stat(root)
+                if state == "modified":
+                    (root / "f.txt").write_text("b\n", encoding="utf-8")
+                index = root / ".git" / "index"
+                before = index.stat().st_ino
+                out = VER._git_describe(root)
+                self.assertIsNotNone(out, state)
+                self.assertTrue(out.startswith("v1.0.0-0-g"), out)
+                self.assertEqual(out.endswith("-dirty"), expect_dirty, (state, out))
+                self.assertEqual(
+                    index.stat().st_ino, before, f"{state}: index was rewritten"
+                )
+                self.assertFalse((root / ".git" / "index.lock").exists())
+
+    def test_resolve_version_reports_dev_build_for_a_modified_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self._repo(d)
+            self.assertEqual(VER.resolve_version(root), "1.0.0")
+            (root / "f.txt").write_text("b\n", encoding="utf-8")
+            self.assertTrue(VER.resolve_version(root).startswith("1.0.1.dev0+g"))
 
 
 if __name__ == "__main__":

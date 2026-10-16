@@ -8095,7 +8095,14 @@ def _has_uncommitted_changes(repo_root: Path) -> bool:
 
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            [
+                "git",
+                "--no-optional-locks",
+                "-C",
+                str(repo_root),
+                "status",
+                "--porcelain",
+            ],
             capture_output=True,
             text=True,
         )
@@ -9968,7 +9975,14 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
             # Status (dirty / changes count)
             r_st = subprocess.run(
-                ["git", "-C", str(repo), "status", "--porcelain"],
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "-C",
+                    str(repo),
+                    "status",
+                    "--porcelain",
+                ],
                 capture_output=True,
                 text=True,
                 check=False,

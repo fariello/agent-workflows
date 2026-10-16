@@ -131,9 +131,9 @@ No spec governs which tests exist. Tests deleted here are cited by no spec by no
 ### OQ-01: Are "module is stdlib-only" import tests a contract or a freeze?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: `DECISIONS.md` D138 says "stdlib-only" statements "are descriptions of that tool, not a repo-wide ban", which reads as a freeze; but `ipd_lint` documents itself as "stdlib-only and Python 3.9" and the IPD tooling may be copied into target repos. Default if unanswered by execution: KEEP the three tests (they observe behavior in a fresh interpreter, so they are not P16 pins) and record the reason "kept pending maintainer ruling OQ-01". Not blocking because either answer leaves the suite correct.
+- Resolution or deferral rationale: RESOLVED by the maintainer 2026-10-16: "That's a very old misinterpretation. We're keeping dependencies small, not zero." So "module is stdlib-only" import tests are a refactoring freeze, not a contract: DELETE them (category: architecture freeze), unless one guards a documented packaging promise such as a module that must import before dependencies are installed, in which case convert it to a behavior test that runs that promise. Previous text: `DECISIONS.md` D138 says "stdlib-only" statements "are descriptions of that tool, not a repo-wide ban", which reads as a freeze; but `ipd_lint` documents itself as "stdlib-only and Python 3.9" and the IPD tooling may be copied into target repos. Default if unanswered by execution: KEEP the three tests (they observe behavior in a fresh interpreter, so they are not P16 pins) and record the reason "kept pending maintainer ruling OQ-01". Not blocking because either answer leaves the suite correct.
 
 ### OQ-02: Is the run ledger import fence in `tests/test_runwire_verifier_authority.py` (d)/(e) a boundary?
 

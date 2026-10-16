@@ -186,7 +186,7 @@ def write(
     dirty_reason = ""
     if commit:
         st_proc = subprocess.run(
-            ["git", "status", "--porcelain", "--", rel_path],
+            ["git", "--no-optional-locks", "status", "--porcelain", "--", rel_path],
             cwd=str(resolved_repo),
             capture_output=True,
             text=True,

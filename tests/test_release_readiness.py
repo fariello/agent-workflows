@@ -505,7 +505,11 @@ def test_allowlist_recorder_decision_path(
     assert rep.verdict == rr.VERDICT_GO
     assert len(recorded_calls) > 0
     for argv in recorded_calls:
-        assert argv[:2] in (
-            ["git", "describe"],
-            ["git", "ls-files"],
+        # The SUBCOMMAND is what must be read-only; git global options such as
+        # `--no-optional-locks` (which only make a read stricter) may precede it.
+        sub = [a for a in argv[1:] if not a.startswith("-")][:1]
+        assert argv[0] == "git" and sub in (
+            ["describe"],
+            ["ls-files"],
+            ["status"],
         ), f"unexpected command spawned: {argv}"

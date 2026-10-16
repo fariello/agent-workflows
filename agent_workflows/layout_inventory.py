@@ -61,7 +61,7 @@ def _run_git(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str
     """
 
     return subprocess.run(
-        ["git", "-C", str(repo), *args],
+        _gch_lockfree(["-C", str(repo), *args]),
         check=False,
         capture_output=True,
         text=True,
@@ -72,7 +72,7 @@ def _nul_paths(repo: Path, args: Sequence[str]) -> Set[str]:
     """Return normalized repo-relative paths from a NUL-delimited Git command."""
 
     proc = subprocess.run(
-        ["git", "-C", str(repo), *args],
+        _gch_lockfree(["-C", str(repo), *args]),
         check=False,
         capture_output=True,
     )
@@ -1034,3 +1034,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def _gch_lockfree(args):
+    """Lazy wrapper for `git_commit_helper.lockfree_git_argv` (avoids an import cycle at load)."""
+    from agent_workflows.git_commit_helper import lockfree_git_argv
+
+    return lockfree_git_argv(args)

@@ -194,14 +194,21 @@ def _git_describe(repo_root: Path) -> Optional[str]:
     the caller falls back to the baked VERSION file.
     """
 
+    # NO `--dirty`, and every probe runs with `--no-optional-locks`. `git describe --dirty`
+    # refreshes the index, taking `<git-dir>/index.lock` (measured with strace on git 2.43, and
+    # `--no-optional-locks` does NOT suppress it for describe). This function runs on EVERY import
+    # of the package (`agent_workflows.__version__`), so a process killed mid-describe (a test
+    # timeout, the hang guard, a runner turn) stranded a 0-byte index.lock that then blocked the
+    # next commit in that checkout. Dirtiness is computed separately below from probes that never
+    # write the index.
+    lockless = ["git", "--no-optional-locks"]
     try:
         proc = subprocess.run(
             [
-                "git",
+                *lockless,
                 "describe",
                 "--tags",
                 "--always",
-                "--dirty",
                 "--long",
                 # Only real semver RELEASE tags drive the version (D44). A broad `v[0-9]*`
                 # match admits `vX.Y.Z`, multi-digit `vX.Y.ZZ`, and `vX.Y.Z-rc.N`; the
@@ -225,7 +232,35 @@ def _git_describe(repo_root: Path) -> Optional[str]:
         # Not a git repository, or describe otherwise failed.
         return None
     out = proc.stdout.strip()
-    return out or None
+    if not out:
+        return None
+    if _worktree_is_dirty(repo_root, lockless):
+        out += "-dirty"
+    return out
+
+
+def _worktree_is_dirty(repo_root: Path, lockless: list) -> bool:
+    """Lock-free equivalent of ``git describe --dirty``: tracked changes vs HEAD.
+
+    ``describe --dirty`` ignores untracked files, so this does too. Measured with strace on git 2.43
+    against a tracked file whose stat changed but content did not: ``git describe --dirty`` and
+    ``git diff`` both take ``index.lock`` to refresh the index even with ``--no-optional-locks``,
+    ``diff-index``/``diff-files`` take no lock but report the stat-only change as modified, and
+    ``git --no-optional-locks status --porcelain --untracked-files=no`` takes no lock AND reports it
+    clean. So this uses status.
+    """
+
+    try:
+        proc = subprocess.run(
+            [*lockless, "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return False
+    return proc.returncode == 0 and bool(proc.stdout.strip())
 
 
 def read_version_file(version_path: Path) -> str:
