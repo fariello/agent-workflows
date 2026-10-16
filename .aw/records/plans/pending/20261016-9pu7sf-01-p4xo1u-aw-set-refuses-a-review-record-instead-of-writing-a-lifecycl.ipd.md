@@ -6,7 +6,8 @@
 - Scope: Make the status setter (`status_set.run_set_command`) refuse, at exit 2 and before any write, every selector that resolves to a record inside a non-lifecycle record tree (today only `reviews`), naming `reviews` as a type with no status lifecycle, on the untyped verb and on every type-scoped spelling, dry-run or not. Add behavioral tests, correct the `artifact_types` module docstring that names this bug as outstanding, and add a CHANGELOG `Fixed:` line.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_types.py, tests/test_set_refuses_review_record.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 9pu7sf
@@ -18,9 +19,9 @@
 - Id: p4xo1u
 
 ## Workflow history
-
-- 2026-10-16 draft (opencode): created.
+- 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-16 to-review (opencode): authored review-ready plan graduating backlog 9pu7sf.
+- 2026-10-16 draft (opencode): created.
 
 ## Goal
 
@@ -32,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Failing behavioral tests first
 
-- [ ] E-01 Create `tests/test_set_refuses_review_record.py`. Fixture: a temp git repo (`git init -q`, local `user.email`/`user.name`, `commit.gpgsign false`) holding only `.aw/records/reviews/20260929-demo-01-ab12cd-x.review.md` with content `"# Review: x\n\n- Subject-Id: ab12cd\n"`, committed. Drive `cli.main([...])` with `--dir <repo>` (capture stdout+stderr, catch `SystemExit`, same harness shape as `_run_cli` in `tests/test_reviews_type_noun_surface.py`). Parametrize over argv forms: (a) `["--no-interactive", "set", "approved", <path>, "--yes", "--no-commit"]`; (b) the same with `--dry-run`; (c) `["--no-interactive", "set", "other", "approved", <path>, "--yes", "--no-commit"]` (the `other`-scoped spelling, whose type check would otherwise PASS because the review is typed `other`); (d) `["--no-interactive", "set", "to-review", <path relative to repo>, "--yes", "--no-commit"]` run with the repo as cwd. For each assert: exit code is 2; output contains `reviews` and `no status lifecycle`; the review file bytes are unchanged; `git status --porcelain` in the repo is empty. Add a positive control in the same module: a backlog item `.aw/records/backlog/open/20260929-zz12cd-01-zz12cd-y.backlog.md` (`- Id: zz12cd`, `- Status: open`, `- Set: zz12cd`, `- Priority: low`, `- Work-Kind: chore`, `- Summary: y`) set to `parked` via `aw set parked <path> --yes --no-commit` exits 0 and the item now lives at `.aw/records/backlog/parked/20260929-zz12cd-01-zz12cd-y.backlog.md` reading `- Status: parked` (measured 2026-10-16: the setter moves it into the `parked/` bucket), proving the refusal is specific to reviews and not a blanket direct-path refusal. Run the module against the UNCHANGED code and record that the four review cases fail (exit 0 and/or file changed) while the positive control passes.
+- [ ] E-01 Create `tests/test_set_refuses_review_record.py`. Fixture: a temp git repo made with `tests.support.init_repo` (scrubs inherited `GIT_DIR`/`GIT_INDEX_FILE` via `clean_git_env` and sets local `user.email`/`user.name`/`commit.gpgsign false`; run the seed `git add`/`git commit` with `env=tests.support.clean_git_env()`) holding only `.aw/records/reviews/20260929-demo-01-ab12cd-x.review.md` with content `"# Review: x\n\n- Subject-Id: ab12cd\n"`, committed. Drive `cli.main([...])` with `--dir <repo>` (capture stdout+stderr, catch `SystemExit`, same harness shape as `_run_cli` in `tests/test_reviews_type_noun_surface.py`). Parametrize over argv forms: (a) `["--no-interactive", "set", "approved", <path>, "--yes", "--no-commit"]`; (b) the same with `--dry-run`; (c) `["--no-interactive", "set", "other", "approved", <path>, "--yes", "--no-commit"]` (the `other`-scoped spelling, whose type check would otherwise PASS because the review is typed `other`); (d) `["--no-interactive", "set", "to-review", <path relative to repo>, "--yes", "--no-commit"]` run with the repo as cwd (restore the previous cwd in a `finally`). For each assert: exit code is 2; output contains `reviews` and `no status lifecycle`; the review file bytes are unchanged; `git status --porcelain` in the repo is empty. Add a positive control in the same module: a backlog item `.aw/records/backlog/open/20260929-zz12cd-01-zz12cd-y.backlog.md` (`- Id: zz12cd`, `- Status: open`, `- Set: zz12cd`, `- Priority: low`, `- Work-Kind: chore`, `- Summary: y`) set to `parked` via `aw set parked <path> --yes --no-commit` exits 0 and the item now lives at `.aw/records/backlog/parked/20260929-zz12cd-01-zz12cd-y.backlog.md` reading `- Status: parked` (measured 2026-10-16: the setter moves it into the `parked/` bucket), proving the refusal is specific to reviews and not a blanket direct-path refusal. The module carries no `slow`/`livecorpus` mark, so CI's full `tests/` step collects it. Run the module against the UNCHANGED code and record that the four review cases fail (measured at review: (a), (c), (d) exit 0 and rewrite the file; (b) exits 0 with the file unchanged, so it fails on the exit-code and message assertions) while the positive control passes.
   - Depends on: none
   - Expected outcome: New module exists; against current code the review cases fail, the control passes.
   - Execution state: pending
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 In `agent_workflows/status_set.py` add a helper `_non_lifecycle_record_type(path: Path, repo_root: Path) -> str | None` that returns the owning type name when `path` resolves inside any directory returned by `selectors.record_dirs(repo_root, t)` for `t` in `selectors.NON_PRIMARY_RECORD_DIRS` (derived, never a hardcoded `"reviews"` literal), else `None`. In `run_set_command`, inside the `for tok in selector_tokens:` loop immediately after the `if not matches:` refusal and BEFORE the ambiguity block, refuse when any match's path is in such a tree: `term.status("fail", f"Selector '{tok}' resolved to a {t} record ({path}); {t} records have no status lifecycle, so aw set cannot change them. Refusing before making changes.")` and `return 2`. Do NOT change `detect_artifact_type` (it has seven callers across `runner_shared`, `check_engine`, `artifact_audit` and `run_selection_policy`; retyping reviews there is a wider behavior change this bug does not need, see Findings F-03).
   - Depends on: E-01
-  - Expected outcome: All E-01 cases pass; no other behavior changes.
+  - Expected outcome: All E-01 cases pass; no other behavior changes. (Mechanism demonstrated at review: a monkeypatched equivalent of this helper and placement, deriving from `selectors.NON_PRIMARY_RECORD_DIRS` == `{'reviews'}` and `selectors.record_dirs`, refused all four spellings at rc 2 with the file byte-identical and `git status --porcelain` empty.)
   - Execution state: pending
 
 ### Task group 3: Docs and changelog
@@ -58,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Regression and commit
 
-- [ ] E-05 Run `python3 -m pytest -o addopts="" -v tests/test_set_refuses_review_record.py tests/test_reviews_type_noun_surface.py tests/test_status_set.py tests/test_review_record_classifier.py`, then the routine suite bare (`python3 -m pytest`), then commit via `aw commit <plan> -- agent_workflows/status_set.py agent_workflows/artifact_types.py tests/test_set_refuses_review_record.py CHANGELOG.md`.
+- [ ] E-05 Run `python3 -m pytest -o addopts="" -v tests/test_set_refuses_review_record.py tests/test_reviews_type_noun_surface.py tests/test_status_set.py tests/test_review_record_classifier.py`, then the routine suite bare (`python3 -m pytest`), then commit via `aw commit p4xo1u -- agent_workflows/status_set.py agent_workflows/artifact_types.py tests/test_set_refuses_review_record.py CHANGELOG.md`.
   - Depends on: E-03, E-04
   - Expected outcome: All pass; one path-scoped commit.
   - Execution state: pending
@@ -70,13 +71,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - The non-lifecycle record trees are owned by `layout.py` (`RecordClassDefinition(name="reviews", ..., is_primary=False)`) and exported as `selectors.NON_PRIMARY_RECORD_DIRS`; consumers derive from that set rather than re-listing (P8 single source).
 - `status_set.run_set_command` already refuses before writing for collisions and type mismatches with `term.status("fail", ...)` then `return 2`; the new refusal follows that shape.
 - Commits go through `aw commit <plan> -- <paths>`.
+- Every other mutating spelling funnels into the same `status_set.run_set_command` (`backlog.py`, `specs.py`, `work_cmd.py`, the three `cli.py` call sites), so one refusal there covers them. Measured at review: `aw ipd set`, `aw specs set` and `aw backlog set` on the review path already refuse with `Type mismatch` (rc 2, file unchanged), and a bare id6 refuses with `No artifact matched` (rc 2).
 
 ## Findings
 
 - F-01 (re-measured 2026-10-16 in this lane, temp repo holding only the review file): `python3 -m agent_workflows set approved .aw/records/reviews/20260929-demo-01-ab12cd-x.review.md --dry-run` printed `other  20260929-demo-01-ab12cd  draft -> ?  approved  (dry-run)` and exited `rc=0`.
 - F-02 Root: `status_set.detect_artifact_type` has no facet match for `.review.md` (`artifact_naming.TYPE_FACET` deliberately omits reviews) and `TYPE_ALIASES` has no `reviews` key, so it reaches the final "Fallback for any other record in records or .agents" branch and returns `"other"`. `selectors.resolve`'s direct-path precedence then hands the file back regardless of the `other` sweep exclusion (`selectors._OTHER_SWEEP_SKIP_DIRS`), so only a direct path reaches it; a bare id6 does not (`aw set approved ab12cd --dry-run` printed `No artifact matched 'ab12cd'.` rc=2).
 - F-03 `detect_artifact_type` callers outside the setter: `runner_shared` (plan-path refusal), `check_engine` (dangling index entry lookup, which skips `other`), `artifact_audit` (two sites, one defaulting an unknown canonical type to `plans`), `run_selection_policy.classify_paths`. Returning a new `reviews` type there would change `artifact_audit`'s fallback from `other` to `plans`. Hence the refusal is placed in `run_set_command`, the one mutating surface the bug names.
-- F-04 The type-scoped spelling `aw ipd set approved <review path>` already refuses (`Type mismatch ... type ['other'] ... scoped to 'plans'`, rc=2), but `aw set other approved <review path>` would pass that check because the record IS typed `other`; E-01(c) covers it.
+- F-04 The type-scoped spellings `aw ipd set approved <review path>`, `aw specs set <review path> --status approved` and `aw backlog set <review path> --status done` already refuse (re-measured at review) (`Type mismatch ... type ['other'] ... scoped to 'plans'`, rc=2), but `aw set other approved <review path>` would pass that check because the record IS typed `other`; E-01(c) covers it.
 - F-05 `tests/test_reviews_type_noun_surface.py` (from plan `ybf6za`) guards only the `TYPE_BACKENDS` and `KNOWN_PRIMARY_TYPES` halves; nothing covers the `aw set` half.
 
 ## Proposed changes (ordered, validatable)
@@ -110,7 +112,7 @@ None. Retyping reviews in `detect_artifact_type` was considered and decided agai
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Refuse in `run_set_command` (F-03): it is the only mutating surface named by the backlog item, and retyping would alter `artifact_audit`'s `plans` fallback and other callers' behavior. The backlog's "Likely root" is a diagnosis, not a requirement; the required outcome (exit 2 naming reviews, file byte-identical) is met.
 
 ## Validation and cross-check (verify before reporting done)
@@ -147,4 +149,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Follow the agent execution contract: path-scoped `aw commit`, no push, paste actual test output. On completion, run `aw ipd lint --phase pre-transition` and move the plan to `executed/` via the tooled lifecycle.
+Execute only after human approval (`Status: approved`). Execution contract:
+
+- Open questions: OQ-01 is resolved; nothing blocks execution.
+- Scope fence: `- Scope-Paths:` declares what this plan edits. An edit outside it is allowed when needed and must be justified at finalize (`--scope-reason`); do not stop over it. `detect_artifact_type` is deliberately left unchanged (F-03).
+- Honesty: you MUST paste the ACTUAL runner output in each `V-*`; never claim a pass you did not run.
+- Commits: path-scoped via `aw commit p4xo1u -- <paths>`; verify `git diff --cached --name-only` first; never `git add -A`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize, so leave the plan in `pending/`. Executed by hand (`aw work begin p4xo1u`), finish with `aw ipd finalize p4xo1u --actor <agent/model> --message <summary> --apply` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms; never `git mv` the plan to `executed/`.
