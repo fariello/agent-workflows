@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: discovery-failure tests
 
-- [ ] E-01 Create `tests/test_runner_profile_wizard_discovery.py` with local helpers re-implemented from `19313eed7^:tests/test_runner_profile_wizard.py` `_Script` (scripted `ask` popping answers and raising `EOFError` when exhausted; `emit` recording lines) and `_Store` (injected `load`/`save` counting writes), and a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)`. Add `test_every_failure_reason_is_named_on_screen`: for each of `oc_models.CATALOG_MISSING_BINARY`, `CATALOG_TIMED_OUT`, `CATALOG_NONZERO_EXIT`, `CATALOG_UNPARSEABLE`, `CATALOG_NO_MODELS` (as `subTest`), build `oc_models.ModelCatalog(source=CATALOG_SOURCE_NONE, reason=R, detail=f"detail-{i}")` (the detail MUST NOT contain the reason string, or a mutation dropping `catalog.reason` would still pass via the detail), call `runner_profile_wizard._report_catalog`, and assert the emitted text contains `R` and `detail-{i}` and an instruction to enter an exact provider/model id (`"exact provider/model"`), and does NOT contain `"Found "` (no green-wash). Add `test_config_fallback_still_names_the_cli_failure`: a `CATALOG_SOURCE_CONFIG` catalog with two models and `reason=CATALOG_TIMED_OUT` emits that reason AND the model count. Add `test_dead_catalog_falls_through_to_manual_entry_and_saves`: drive `run_wizard(io)` with a `CATALOG_SOURCE_NONE` catalog and the script `["gem", "example/private-model", "", "", "", "", ""]` (name, manual model, variant default, no agent, save default yes, default-profile and default-runner answers: with an empty store both default questions are asked, so all seven answers are consumed), and assert the script is exhausted, `result.saved is True`, `result.profile.model == "example/private-model"`, the store recorded exactly one write, the emitted text names the failure reason, and no numbered model line (`"  [1] "`) was emitted before the manual-entry prompt (record `ask` and `emit` calls in one ordered event list so "before" is checkable; the variant menu legitimately emits `"  [1] "` afterwards).
+- [x] E-01 Create `tests/test_runner_profile_wizard_discovery.py` with local helpers re-implemented from `19313eed7^:tests/test_runner_profile_wizard.py` `_Script` (scripted `ask` popping answers and raising `EOFError` when exhausted; `emit` recording lines) and `_Store` (injected `load`/`save` counting writes), and a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)`. Add `test_every_failure_reason_is_named_on_screen`: for each of `oc_models.CATALOG_MISSING_BINARY`, `CATALOG_TIMED_OUT`, `CATALOG_NONZERO_EXIT`, `CATALOG_UNPARSEABLE`, `CATALOG_NO_MODELS` (as `subTest`), build `oc_models.ModelCatalog(source=CATALOG_SOURCE_NONE, reason=R, detail=f"detail-{i}")` (the detail MUST NOT contain the reason string, or a mutation dropping `catalog.reason` would still pass via the detail), call `runner_profile_wizard._report_catalog`, and assert the emitted text contains `R` and `detail-{i}` and an instruction to enter an exact provider/model id (`"exact provider/model"`), and does NOT contain `"Found "` (no green-wash). Add `test_config_fallback_still_names_the_cli_failure`: a `CATALOG_SOURCE_CONFIG` catalog with two models and `reason=CATALOG_TIMED_OUT` emits that reason AND the model count. Add `test_dead_catalog_falls_through_to_manual_entry_and_saves`: drive `run_wizard(io)` with a `CATALOG_SOURCE_NONE` catalog and the script `["gem", "example/private-model", "", "", "", "", ""]` (name, manual model, variant default, no agent, save default yes, default-profile and default-runner answers: with an empty store both default questions are asked, so all seven answers are consumed), and assert the script is exhausted, `result.saved is True`, `result.profile.model == "example/private-model"`, the store recorded exactly one write, the emitted text names the failure reason, and no numbered model line (`"  [1] "`) was emitted before the manual-entry prompt (record `ask` and `emit` calls in one ordered event list so "before" is checkable; the variant menu legitimately emits `"  [1] "` afterwards).
   - Depends on: none
   - Expected outcome: the module exists and all three tests pass against current code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: manual-entry tests
 
-- [ ] E-02 In the same module add a `ManualEntryTests` class: `test_m_reaches_manual_entry_from_a_live_catalog` (a `CATALOG_SOURCE_CLI` catalog with one model; script `["m", "example/unlisted"]`; `select_model` returns `"example/unlisted"`, proving a private model absent from the catalog is reachable); `test_invalid_ids_are_refused_then_a_valid_one_accepted` (dead catalog; script `["", "not a model", "example/ok"]`; `select_model` returns `"example/ok"` and the emitted text contains the "required" message and a schema refusal line for `not a model`); `test_manual_entry_is_bounded` (dead catalog; script `["bad"] * (MAX_ATTEMPTS + 2)`; `select_model` raises `WizardCancelled`, and the number of recorded prompts equals `MAX_ATTEMPTS`); and `test_exhausted_manual_entry_writes_nothing` (`run_wizard` with a dead catalog and a name followed by `MAX_ATTEMPTS` invalid ids returns `saved is False`, `cancelled is True`, `reason == "cancelled"`, and the store recorded zero writes).
+- [x] E-02 In the same module add a `ManualEntryTests` class: `test_m_reaches_manual_entry_from_a_live_catalog` (a `CATALOG_SOURCE_CLI` catalog with one model; script `["m", "example/unlisted"]`; `select_model` returns `"example/unlisted"`, proving a private model absent from the catalog is reachable); `test_invalid_ids_are_refused_then_a_valid_one_accepted` (dead catalog; script `["", "not a model", "example/ok"]`; `select_model` returns `"example/ok"` and the emitted text contains the "required" message and a schema refusal line for `not a model`); `test_manual_entry_is_bounded` (dead catalog; script `["bad"] * (MAX_ATTEMPTS + 2)`; `select_model` raises `WizardCancelled`, and the number of recorded prompts equals `MAX_ATTEMPTS`); and `test_exhausted_manual_entry_writes_nothing` (`run_wizard` with a dead catalog and a name followed by `MAX_ATTEMPTS` invalid ids returns `saved is False`, `cancelled is True`, `reason == "cancelled"`, and the store recorded zero writes).
   - Depends on: E-01
   - Expected outcome: the four manual-entry tests pass against current code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stale remark
 
-- [ ] E-03 In `agent_workflows/runner_profile_wizard.py`, edit the module-docstring sentence "each had a named falsifier in `tests/test_runner_profile_wizard.py` (deleted in `19313eed`; no live guard currently asserts these five behaviors)" so it states that behavior 1 and the manual-entry path are asserted by `tests/test_runner_profile_wizard_discovery.py` while behaviors 2-5 remain without a live guard. Docstring-only change; no behavior change.
+- [x] E-03 In `agent_workflows/runner_profile_wizard.py`, edit the module-docstring sentence "each had a named falsifier in `tests/test_runner_profile_wizard.py` (deleted in `19313eed`; no live guard currently asserts these five behaviors)" so it states that behavior 1 and the manual-entry path are asserted by `tests/test_runner_profile_wizard_discovery.py` while behaviors 2-5 remain without a live guard. Docstring-only change; no behavior change.
   - Depends on: E-02
   - Expected outcome: the docstring names the new live module and no longer claims all five behaviors are unguarded.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,18 +114,102 @@ N/A: no spec or user-facing documentation describes these tests; the only text c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py` showing the three E-01 tests PASSED; pasted output of the temporary `_report_catalog` mutation run showing `test_every_failure_reason_is_named_on_screen` FAILED (with all five subTests reporting the missing reason), followed by an empty `git diff --stat agent_workflows/runner_profile_wizard.py` proving the mutation was reverted; plus `grep -nE "inspect|import ast|read_text" tests/test_runner_profile_wizard_discovery.py` returning no match.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    `python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py` output:
+    ```
+    tests/test_runner_profile_wizard_discovery.py::RunnerProfileWizardDiscoveryTests::test_every_failure_reason_is_named_on_screen PASSED [ 71%]
+    tests/test_runner_profile_wizard_discovery.py::RunnerProfileWizardDiscoveryTests::test_dead_catalog_falls_through_to_manual_entry_and_saves PASSED [ 85%]
+    tests/test_runner_profile_wizard_discovery.py::RunnerProfileWizardDiscoveryTests::test_config_fallback_still_names_the_cli_failure PASSED [100%]
+    ============================== 7 passed in 0.34s ===============================
+    ```
+    Temporary `_report_catalog` mutation (omitting catalog.reason in final branch) run:
+    ```
+    $ python3 -m unittest -v tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen
+    test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) ...
+      test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='executable-not-found') ... FAIL
+      test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='timeout') ... FAIL
+      test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='nonzero-exit') ... FAIL
+      test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='unparseable-output') ... FAIL
+      test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='no-models-listed') ... FAIL
+
+    ======================================================================
+    FAIL: test_every_failure_reason_is_named_on_screen (tests.test_runner_profile_wizard_discovery.RunnerProfileWizardDiscoveryTests.test_every_failure_reason_is_named_on_screen) (reason='executable-not-found')
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "/mnt/md1/VC/agent-workflows/.aw/worktrees/4xqhsq/tests/test_runner_profile_wizard_discovery.py", line 118, in test_every_failure_reason_is_named_on_screen
+        self.assertIn(reason, script.text)
+        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 'executable-not-found' not found in 'Model discovery is unavailable (detail-0).\nEnter the exact provider/model identifier you want to use.'
+    ...
+    FAILED (failures=5)
+    ```
+    Reverted and verified clean:
+    ```
+    $ git diff --stat agent_workflows/runner_profile_wizard.py
+    (empty)
+    ```
+    No inspection/AST scan in test module:
+    ```
+    $ grep -nE "inspect|import ast|read_text" tests/test_runner_profile_wizard_discovery.py
+    (exit code 1, 0 matches)
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `-v` pytest output showing the four `ManualEntryTests` PASSED; pasted output of the temporary `ask_model_manual` bound mutation showing `test_manual_entry_is_bounded` FAILED, followed by an empty `git diff --stat agent_workflows/runner_profile_wizard.py` proving it was reverted.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py` output:
+    ```
+    tests/test_runner_profile_wizard_discovery.py::ManualEntryTests::test_manual_entry_is_bounded PASSED [ 14%]
+    tests/test_runner_profile_wizard_discovery.py::ManualEntryTests::test_invalid_ids_are_refused_then_a_valid_one_accepted PASSED [ 28%]
+    tests/test_runner_profile_wizard_discovery.py::ManualEntryTests::test_m_reaches_manual_entry_from_a_live_catalog PASSED [ 42%]
+    tests/test_runner_profile_wizard_discovery.py::ManualEntryTests::test_exhausted_manual_entry_writes_nothing PASSED [ 57%]
+    ```
+    Temporary `ask_model_manual` bound mutation (`range(MAX_ATTEMPTS + 1)`) run:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_runner_profile_wizard_discovery.py -k test_manual_entry_is_bounded
+    tests/test_runner_profile_wizard_discovery.py::ManualEntryTests::test_manual_entry_is_bounded FAILED [100%]
+    =================================== FAILURES ===================================
+    ________________ ManualEntryTests.test_manual_entry_is_bounded _________________
+    ...
+    >       self.assertEqual(len(script.prompts), runner_profile_wizard.MAX_ATTEMPTS)
+    E       AssertionError: 6 != 5
+
+    tests/test_runner_profile_wizard_discovery.py:208: AssertionError
+    ======================= 1 failed, 6 deselected in 0.27s ========================
+    ```
+    Reverted and verified clean:
+    ```
+    $ git diff --stat agent_workflows/runner_profile_wizard.py
+    (empty)
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff agent_workflows/runner_profile_wizard.py` showing only docstring lines changed and naming `tests/test_runner_profile_wizard_discovery.py`; AND the pasted summary line of a bare `python3 -m pytest` run with no new failures.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/runner_profile_wizard.py` output:
+    ```diff
+    diff --git a/agent_workflows/runner_profile_wizard.py b/agent_workflows/runner_profile_wizard.py
+    index 328cc8b19..1acc348b2 100644
+    --- a/agent_workflows/runner_profile_wizard.py
+    +++ b/agent_workflows/runner_profile_wizard.py
+    @@ -17,7 +17,8 @@ cancel path is never tested, and the cancel path is exactly where a wizard corru
+
+     FIVE BEHAVIORS THIS FILE EXISTS TO GUARANTEE. Each one is a way a plausible implementation would
+     have been wrong, and each had a named falsifier in `tests/test_runner_profile_wizard.py` (deleted
+    -in `19313eed`; no live guard currently asserts these five behaviors):
+    +in `19313eed`; behavior 1 and the manual-entry path are asserted by
+    +`tests/test_runner_profile_wizard_discovery.py` while behaviors 2-5 remain without a live guard):
+
+     1. DISCOVERY FAILURE IS NEVER GREEN-WASHED, AND NEVER FATAL. `oc_models.discover_models` reports
+        an unavailable catalog with a NAMED reason (missing binary, timeout, nonzero exit, unparseable,
+    ```
+    Pasted summary line of bare `python3 -m pytest`:
+    ```
+    702 passed in 40.72s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
