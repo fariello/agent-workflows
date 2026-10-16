@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives the real `oc_runipd.main` into its `KeyboardInterrupt` handler and asserts on captured stderr and the exit code; repoint the now-stale "no live guard currently asserts this" comment in `oc_runipd.main` at the new test.
 - Scope-Paths: tests/test_oc_runipd_main_interrupt.py, agent_workflows/oc_runipd.py, .aw/records/plans/pending/20261014-zgqs4e-01-5ne0fo-restore-behavioral-coverage-of-oc-runipd-main-interrupt-stde.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: 5ne0fo
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5ne0fo verified (set zgqs4e, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record 20261014-zgqs4e-01-5ne0fo)
