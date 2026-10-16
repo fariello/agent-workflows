@@ -58,10 +58,11 @@ KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
     ("upgrade-test env", "--json"): "jfdk7p",
     ("upgrade-test probe", "--json"): "jfdk7p",
     ("upgrade-test clean", "--json"): "jfdk7p",
-    # --fields unhonored on parser usage refusal on four leaves (4y614a):
+    # --fields unhonored on parser usage refusal on five leaves (4y614a):
     ("ipd scaffold", "--fields"): "4y614a",
     ("research new", "--fields"): "4y614a",
     ("research new-comparison", "--fields"): "4y614a",
+    ("run init", "--fields"): "4y614a",
     ("storage move", "--fields"): "4y614a",
 }
 

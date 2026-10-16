@@ -2620,17 +2620,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser(
         "run",
         parents=[common],
-        help="Run ledger WRITE verbs (start/record/cancel/finalize). Read with `aw runs`.",
+        help="Run ledger WRITE verbs (init/start/record/cancel/finalize). Read with `aw runs`.",
         description=(
-            "Run ledger transaction verbs: the WRITING half of the run surface. 'start' (take the "
-            "single-writer lease and move a runnable step to running), 'record' (append a step "
-            "attempt outcome), 'cancel' (record a terminal cancellation), 'finalize' (evaluate the "
-            "completion predicate and record terminal completion). To INSPECT a run, use `aw runs` "
+            "Run ledger transaction verbs: the WRITING half of the run surface. 'init' (create a "
+            "run ledger and write its header), 'start' (take the single-writer lease and move a "
+            "runnable step to running), 'record' (append a step attempt outcome), 'cancel' (record "
+            "a terminal cancellation), 'finalize' (evaluate the completion predicate and record "
+            "terminal completion). To INSPECT a run, use `aw runs` "
             "(show/status/next/resume/evidence/verify-ledger/decisions/questions)."
         ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
+            "  aw run init --workflow <path>          # initialize a new run ledger with a header\n"
             "  aw run start <target> --step S-01      # take the lease and start a runnable step\n"
             "  aw run record <target> --step S-01 --state performed\n"
             "  aw run cancel <target> --reason ...    # record a terminal cancellation\n"
@@ -3060,6 +3062,38 @@ def _build_parser() -> argparse.ArgumentParser:
             _register_run_leaf(runs_sub, _leaf_name, _leaf_help, _leaf_desc)
         else:
             _register_run_leaf(run_sub, _leaf_name, _leaf_help, _leaf_desc)
+
+    # runledger Order 03 (v47z9u) E-02: `aw run init` creates a run ledger and writes its header.
+    # It does not take a `target` positional argument (the target is created by init), so it is
+    # registered directly on `run_sub` rather than via `_register_run_leaf`.
+    _p_run_init = run_sub.add_parser(
+        "init",
+        parents=[common],
+        help="Initialize a new run ledger and write its header record.",
+        description=(
+            "Create a new run ledger at <runs-root>/<run-id>/ledger.jsonl and write exactly one "
+            "conformant header record through RunLedgerStore.append. Exit 0 success, 2 bad "
+            "invocation, 6 operational (already exists)."
+        ),
+    )
+    _p_run_init.add_argument(
+        "--workflow",
+        required=True,
+        metavar="PATH",
+        help="Workflow definition JSON path (required).",
+    )
+    _p_run_init.add_argument(
+        "--run-id",
+        default=None,
+        help="Run ID (default: run-<16hex>). Must match ^run-[0-9a-f]{8,}$",
+    )
+    _p_run_init.add_argument(
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=None,
+        help="Repo root directory (default: current directory).",
+    )
 
     # runprofile Order 04 (ygzq71) E-01: the two HOST-NEUTRAL DISPATCH routes, registered as FIXED
     # grammar on the WRITING noun (`aw run` is the dispatch noun; 0soncw E-03 deliberately kept it

@@ -28,6 +28,9 @@ OUT_OF_RANGE_DECLARATION_ALLOWLIST: Dict[str, str] = {
     "ipd execute-set": (
         "Execution orchestrator emitting execution manifest with exit 3 for unexecutable steps."
     ),
+    "run init": (
+        "Run initialization lifecycle command using run-execution vocabulary (codes 0, 2, 6)."
+    ),
     "run start": (
         "Step execution lifecycle command using run-execution exit vocabulary (codes 0, 2, 3, 5, 6)."
     ),

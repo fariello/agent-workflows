@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
 - Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
 - Fixed: project_context.resolve_project_context and project_context.project_config_dir now read user configuration through config.config_dir() (honoring AW_CONFIG_DIR and XDG_CONFIG_HOME) instead of a hard-coded ~/.config/agent-workflows path when user_config_dir is omitted.
 - Fixed: project_context.find_project_root, is_project_dir, and _find_git_root now treat shared system temp roots (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP) and any paths listed in the new AW_PROJECT_CEILING environment variable (an os.pathsep-separated list) as climb ceilings: a listed directory is never itself a project or git root and upward climbs never pass above it into parent directories, while subdirectories continue to resolve normally, eliminating test fixture pollution from stray markers.

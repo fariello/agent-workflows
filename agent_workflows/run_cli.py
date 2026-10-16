@@ -34,11 +34,20 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
+import re
+import secrets
+import shutil
+import sys
 from typing import Any, Dict, List, Optional, Union
 
-from agent_workflows import run_engine, run_recovery, run_state
+from agent_workflows import (
+    agent_schema,
+    run_engine,
+    run_ledger_schema,
+    run_recovery,
+    run_state,
+)
 from agent_workflows import run_evidence as evidence
 from agent_workflows import run_ledger_store as store
 from agent_workflows.project_context import resolve_verb_repo_root
@@ -78,6 +87,8 @@ def run_cli(args: argparse.Namespace) -> int:
     so exactly one code path renders that table.
     """
     sub = getattr(args, "runs_command", None) or getattr(args, "run_command", None)
+    if sub == "init":
+        return _run_init(args)
     if sub == "show":
         return _run_show(args)
     if sub == "evidence":
@@ -103,7 +114,7 @@ def run_cli(args: argparse.Namespace) -> int:
     if sub == "questions":
         return _run_questions(args)
     _print_human(
-        "usage: aw run {start|record|cancel|finalize} <run-id-or-path> "
+        "usage: aw run {init|start|record|cancel|finalize} <run-id-or-path> "
         "[--agent|--json] [--dir <dir>]\n"
         "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
         "<run-id-or-path> [--agent|--json] [--dir <dir>]"
@@ -1060,6 +1071,126 @@ def _snapshot_payload(snapshot: run_engine.RunStateSnapshot) -> Dict[str, Any]:
         "verifier_decisions": dict(snapshot.verifier_decisions),
         "cancellation_reason": snapshot.cancellation_reason,
     }
+
+
+# ---- init ----------------------------------------------------------------------------------------
+
+
+def _run_init(args: argparse.Namespace) -> int:
+    """Initialize a new run ledger and write its header record.
+
+    Writes exactly one conformant kind: "run" record at state_root(repo) / <run-id> / ledger.jsonl.
+    """
+    repo = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    # Validate --run-id before writing
+    raw_run_id = getattr(args, "run_id", None)
+    if raw_run_id is not None:
+        if not run_ledger_schema.is_run_id(raw_run_id):
+            return _emit_error(
+                args,
+                f"invalid run id '{raw_run_id}': must match {run_ledger_schema._RUN_ID_RE.pattern}",
+                EXIT_INVALID_INVOCATION,
+            )
+        run_id = raw_run_id
+    else:
+        run_id = "run-" + secrets.token_hex(8)
+
+    # Validate workflow before writing
+    try:
+        workflow = _load_workflow_arg(args)
+    except (OSError, ValueError) as exc:
+        return _emit_error(
+            args, f"failed to load workflow: {exc}", EXIT_INVALID_INVOCATION
+        )
+    if workflow is None:
+        return _emit_error(
+            args,
+            "workflow file must contain a JSON object",
+            EXIT_INVALID_INVOCATION,
+        )
+
+    # Reserve the directory race-safely
+    run_dir = state_root(repo) / run_id
+    run_dir_created = False
+    try:
+        run_dir.mkdir(parents=True, exist_ok=False)
+        run_dir_created = True
+    except FileExistsError:
+        return _emit_error(
+            args, f"run directory already exists: {run_dir}", EXIT_OPERATIONAL
+        )
+    except OSError as exc:
+        return _emit_error(
+            args, f"failed to create run directory: {exc}", EXIT_OPERATIONAL
+        )
+
+    ledger_path = run_dir / store.LEDGER_FILENAME
+    try:
+        workflow_digest = store.compute_record_hash(workflow)
+        reqs = workflow.get("requirements")
+        if not isinstance(reqs, list):
+            reqs = []
+        requirement_digest = store.compute_record_hash(reqs)
+        head = evidence.get_git_head(repo)
+        repo_name = repo.name
+
+        header = {
+            "schema_version": run_ledger_schema.LEDGER_SCHEMA_VERSION,
+            "kind": "run",
+            "run_id": run_id,
+            "actor": "runtime",
+            "parent": "",
+            "workflow_digest": workflow_digest,
+            "requirement_digest": requirement_digest,
+            "repo": repo_name,
+            "head": head,
+        }
+
+        ledger_store = store.RunLedgerStore(ledger_path)
+        ledger_store.append(header)
+    except Exception as exc:
+        if run_dir_created:
+            shutil.rmtree(run_dir, ignore_errors=True)
+        return _emit_error(
+            args, f"failed to initialize run ledger: {exc}", EXIT_OPERATIONAL
+        )
+
+    # Emit output
+    if getattr(args, "agent", False) or getattr(args, "as_agent", False):
+        rel_ledger = agent_schema.normalize_repo_path(ledger_path, repo)
+        rec = {
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "result",
+            "cmd": "run init",
+            "exit": EXIT_OK,
+            "outcome": "ok",
+            "verified": True,
+            "complete": True,
+            "run_id": run_id,
+            "ledger": rel_ledger,
+        }
+        sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+        return EXIT_OK
+    elif getattr(args, "json", False) or getattr(args, "as_json", False):
+        rel_ledger = agent_schema.normalize_repo_path(ledger_path, repo)
+        rec = {
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "result",
+            "cmd": "run init",
+            "exit": EXIT_OK,
+            "outcome": "ok",
+            "verified": True,
+            "complete": True,
+            "run_id": run_id,
+            "ledger": rel_ledger,
+        }
+        print(json.dumps(rec, sort_keys=True, indent=2, ensure_ascii=False))
+        return EXIT_OK
+    else:
+        _print_human(f"Initialized run {run_id}")
+        _print_human(f"Ledger: {ledger_path}")
+        return EXIT_OK
 
 
 # ---- start ---------------------------------------------------------------------------------------
