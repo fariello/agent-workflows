@@ -23,6 +23,10 @@ from typing import Any
 from agent_workflows import platform_lock, pwatch, term
 from agent_workflows.run_viewer import HOLDER_LIVE, driver_holder_state
 
+# Exit status returned on SIGTERM (aligned with pwatch.EXIT_SIGTERM,
+# render_stream.install_exit_signal_handler, and oc_runipd.main's 'return 143 if is_sigterm else 130').
+EXIT_SIGTERM = 143
+
 
 @dataclass
 class RunnerInfo:
@@ -567,7 +571,12 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
     raw_cpu = getattr(args, "raw_cpu", False)
     total_cpus = os.cpu_count() or 1
 
-    def stop_cleanly(_sig: int, _frame: object) -> None:
+    prev_sigint = signal.getsignal(signal.SIGINT)
+    prev_sigterm = signal.getsignal(signal.SIGTERM)
+
+    def stop_cleanly(signum: int, _frame: object) -> None:
+        if signum == signal.SIGTERM:
+            raise SystemExit(EXIT_SIGTERM)
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, stop_cleanly)
@@ -642,9 +651,15 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
 
             time.sleep(interval)
 
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt:
         return 0
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 0
     finally:
+        if prev_sigint is not None:
+            signal.signal(signal.SIGINT, prev_sigint)
+        if prev_sigterm is not None:
+            signal.signal(signal.SIGTERM, prev_sigterm)
         if is_interactive:
             sys.stdout.write(pwatch.LEAVE_ALT_SCREEN)
             sys.stdout.flush()

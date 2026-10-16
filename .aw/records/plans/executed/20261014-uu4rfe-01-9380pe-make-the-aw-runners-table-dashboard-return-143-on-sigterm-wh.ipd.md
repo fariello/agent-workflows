@@ -9,7 +9,7 @@
 - Scope: IN: (1) re-measure the subprocess signal exits on both `aw runners` and `aw pwatch --runners --table` and re-run the caller survey at the executing HEAD as a gate (E-01); (2) make `SIGTERM` return `143` (`EXIT_SIGTERM = 143`) and keep `SIGINT` and `KeyboardInterrupt` at `0` in `runners_monitor.run_table_dashboard`, with the `finally` terminal restore (`pwatch.LEAVE_ALT_SCREEN`) running on both paths (E-02); (3) save and restore the previous `SIGINT` and `SIGTERM` handlers in `runners_monitor.run_table_dashboard`'s `finally` block so every in-process caller gets its handlers back on every exit path (E-03); (4) add behavioral subprocess signal tests (`aw runners` `SIGTERM -> 143`, `aw runners` `SIGINT -> 0`, `aw pwatch --runners --table` `SIGTERM -> 143`) and in-process handler-restoration tests (`--once` and bounded patched-`sleep` `SIGTERM -> 143`) to `tests/test_runners_monitor.py` (E-04); (5) update `tools/README.md` to remove the `--runners --table` exception added by `ww744p` E-06 and document `aw runners` (`tools/watch-runners.py`) exit statuses and shim compatibility (E-05); (6) record the decision as the next free `DECISIONS.md` entry and add one `CHANGELOG.md` line (E-06). OUT: `agent_workflows/pwatch.py` (owned by `ww744p`), any `exit_contract` tuple change in `agent_workflows/command_surface.py` (forbidden by D162 because `143` is signal-derived), and any spec edit.
 - Scope-Paths: agent_workflows/runners_monitor.py, tests/test_runners_monitor.py, tools/README.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: executed:ww744p
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -19,9 +19,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: 9380pe
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9380pe verified (set uu4rfe, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-14 to-review (antigravity): authored from backlog item uu4rfe; measured signal exits and handler leak at HEAD cb0f36161; ran caller survey; resolved OQ-01 from repository evidence
@@ -38,42 +38,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-drive the signal probe on `aw runners` and `aw pwatch --runners --table` and the caller survey at the executing HEAD and record both verbatim, without editing any file.
+- [x] E-01 Re-drive the signal probe on `aw runners` and `aw pwatch --runners --table` and the caller survey at the executing HEAD and record both verbatim, without editing any file.
   - Depends on: none
   - Expected outcome: two pasted transcripts. (a) THE PROBE: using an isolated temporary `--repo` directory (so `runners_monitor.find_active_runners` does not follow `.git` into a parent checkout's live runs), launch `python3 -m agent_workflows runners --repo <tmp_dir> --interval 0.3 --no-color` and `python3 -m agent_workflows pwatch --runners --table --repo <tmp_dir> --interval 0.3 --no-color` for each of `signal.SIGINT` and `signal.SIGTERM` with `start_new_session=True` and `stdout=PIPE`, block on `stdout.readline()` until the first frame header arrives (no fixed sleep), send `os.killpg(p.pid, sig)`, `wait(timeout=10)`, and print `returncode`. Expected at authoring before E-02: `0` for `SIGINT` and `0` for `SIGTERM` on both commands. (b) THE SURVEY: `git grep -n "runners_monitor\|run_table_dashboard\|watch-runners\|aw runners" -- ":!.aw/records"`, with every call site classified as in-process caller, CLI wrapper, test caller, or signal supervisor. Expected at authoring: in-process callers `cli._dispatch` (both `argv_list[0] == "runners"` and `args.command == "runners"`), `pwatch.main` (`--runners --table` branch and data-helper calls), and `tests/test_runners_monitor.py`; wrapper `tools/watch-runners.py`; no signal supervisor. (c) THE D162 COMMENT CHECK (review PR-004): after `ww744p` has executed, run `git grep -n "runners" -- agent_workflows/command_surface.py tests/test_exit_contract_conformance.py` and paste it. `ww744p` E-05 rewrites the `exit_contract` comment and the conformance-test docstring that list which verbs return which signal-derived code; if the rewritten text now cites the `aw runners` table dashboard returning `0` on SIGTERM, that sentence becomes false after E-02, so update it in place (one sentence, no tuple change) as a justified out-of-scope edit (`--scope-reason`). If there are no hits, record that and change nothing.
     GATE: if (a) already returns `143` for `SIGTERM`, another lane has made this change, so STOP and reconcile. If (b) finds a caller that sends `SIGTERM` to `aw runners` or `run_table_dashboard` and treats `0` as success, STOP: the decision in OQ-01 rests on there being no such caller, so record the caller and re-decide before changing anything.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the behavior change and handler restoration
 
-- [ ] E-02 Make `SIGTERM` return `143` and `SIGINT` (or `KeyboardInterrupt`) return `0` from `runners_monitor.run_table_dashboard`, with the `finally` terminal restore (`pwatch.LEAVE_ALT_SCREEN`) still running on both paths.
+- [x] E-02 Make `SIGTERM` return `143` and `SIGINT` (or `KeyboardInterrupt`) return `0` from `runners_monitor.run_table_dashboard`, with the `finally` terminal restore (`pwatch.LEAVE_ALT_SCREEN`) still running on both paths.
   - Depends on: E-01
   - Expected outcome: define a named module constant `EXIT_SIGTERM = 143` in `agent_workflows/runners_monitor.py` with a brief comment citing `pwatch.EXIT_SIGTERM` (`ww744p`), `render_stream.install_exit_signal_handler`, and `oc_runipd.main`'s `return 143 if is_sigterm else 130` as the repository precedent. In `runners_monitor.run_table_dashboard`, `stop_cleanly(signum: int, _frame: object) -> None` distinguishes the signal (`raise SystemExit(EXIT_SIGTERM if signum == signal.SIGTERM else 0)`), and the loop's exception arms return `0` on `KeyboardInterrupt` and `exc.code if isinstance(exc.code, int) else 0` on `SystemExit`. The `--once`, `--json`, and `--agent` paths still return `0`, and `runners_monitor.main` still exits `2` on invalid arguments via `build_parser().parse_args`. Do NOT kill the process with `SIG_DFL` plus `os.kill`, because `run_table_dashboard` and `runners_monitor.main` are called in-process (OQ-01).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Save the `signal.SIGINT` and `signal.SIGTERM` handlers in place before `runners_monitor.run_table_dashboard` installs `stop_cleanly`, and restore them in the `finally` block so every in-process caller gets its handlers back on every exit path.
+- [x] E-03 Save the `signal.SIGINT` and `signal.SIGTERM` handlers in place before `runners_monitor.run_table_dashboard` installs `stop_cleanly`, and restore them in the `finally` block so every in-process caller gets its handlers back on every exit path.
   - Depends on: E-02
   - Expected outcome: in `runners_monitor.run_table_dashboard`, save `prev_sigint = signal.getsignal(signal.SIGINT)` and `prev_sigterm = signal.getsignal(signal.SIGTERM)` immediately before calling `signal.signal(signal.SIGINT, stop_cleanly)` and `signal.signal(signal.SIGTERM, stop_cleanly)`, and restore both handlers in `finally` (alongside the existing `if is_interactive:` `pwatch.LEAVE_ALT_SCREEN` write) so that after `run_table_dashboard` or `runners_monitor.main` returns (via `--once`, `--json`, `--agent`, `SIGINT`, `SIGTERM`, or an uncaught exception), `signal.getsignal(signal.SIGINT)` and `signal.getsignal(signal.SIGTERM)` equal what they were before the call. `signal.getsignal` returns `None` when the previous handler was not installed from Python, and `signal.signal(sig, None)` raises `TypeError`, so restore a saved handler only when it is not `None` (review PR-002).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin both behaviors with outcome-based tests
 
-- [ ] E-04 Add behavioral tests for subprocess signal exits and in-process signal handler restoration to `tests/test_runners_monitor.py`.
+- [x] E-04 Add behavioral tests for subprocess signal exits and in-process signal handler restoration to `tests/test_runners_monitor.py`.
   - Depends on: E-02, E-03
   - Expected outcome: five new tests in `tests/test_runners_monitor.py`, each driving the code with an isolated `tmp_path` (`--repo str(tmp_path)`) and asserting on real outputs and state. (1) Subprocess `SIGTERM` test on `python3 -m agent_workflows runners --repo <tmp_path> --interval 0.3 --no-color` (`start_new_session=True`, `stdout=PIPE`), reading the first line from stdout (bounded, see below) before sending `os.killpg(p.pid, signal.SIGTERM)` (no fixed sleep), waiting with `timeout=10`, and asserting `returncode == 143`. (2) Subprocess `SIGINT` test with the same shape sending `signal.SIGINT` and asserting `returncode == 0`. (3) Subprocess `SIGTERM` test on `python3 -m agent_workflows pwatch --runners --table --repo <tmp_path> --interval 0.3 --no-color` sending `signal.SIGTERM` after the first line arrives and asserting `returncode == 143` (verifying the `pwatch --runners --table` delegation path from `ww744p` F-07). (4) In-process handler-restoration test on `--once`: install sentinel functions for `SIGINT` and `SIGTERM`, call `runners_monitor.main(["--once", "--no-color", "--repo", str(tmp_path)])` with stdout redirected, and assert `rc == 0` and `signal.getsignal` returns both sentinels afterward (restoring original handlers in `try/finally`). (5) REQUIRED bounded in-process `SIGTERM` test (matching `ww744p` F-08): install sentinel handlers, patch `runners_monitor.time.sleep` to a function that increments a call counter, raises `AssertionError` if called a second time, and calls `os.kill(os.getpid(), signal.SIGTERM)` on the first call; call `runners_monitor.main(["--no-color", "--repo", str(tmp_path)])` with stdout redirected; and assert `rc == 143`, the sleep helper ran once, and both sentinel handlers are restored afterward. Every subprocess test launches `[sys.executable, "-m", "agent_workflows", ...]` with `cwd` at the repository root, and its first-line read MUST be bounded (for example `selectors`/`select.select` on `p.stdout` with a 10s timeout, killing the process group and failing if no line arrives), because a bare `stdout.readline()` blocks forever if the dashboard never prints, which would hang the xdist worker instead of failing (review PR-001). The subprocess tests use `os.killpg`, so skip them on non-POSIX platforms with a stated reason. No test may read `runners_monitor.py` source or assert on comments/docstrings (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE").
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep documentation and decision records true
 
-- [ ] E-05 Update `tools/README.md` to remove the `--runners --table` exception from the `aw pwatch` exit-status note and document `aw runners` (`tools/watch-runners.py`).
+- [x] E-05 Update `tools/README.md` to remove the `--runners --table` exception from the `aw pwatch` exit-status note and document `aw runners` (`tools/watch-runners.py`).
   - Depends on: E-02
   - Expected outcome: in the `## aw pwatch (was pwatch.py)` section of `tools/README.md` (which `ww744p` E-06 updated with an exit-status note naming `--runners --table` as the exception that still exited `0` on `SIGTERM`), remove the `--runners --table` exception so the note states that `aw pwatch` (including `--runners --table`) and `aw runners` exit `0` after `--once` or Ctrl-C (`SIGINT`) and `143` when sent `SIGTERM`, restoring the terminal in every case; and under `### Backwards Compatibility` (or an adjacent note), mention `tools/watch-runners.py` alongside `tools/watch-agy.py` as the compatibility shim forwarding to `agent_workflows.runners_monitor` (`aw runners`). This is user-facing prose, so it must contain no em or en dashes (`AGENTS.md`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Record the decision as the next free `DECISIONS.md` entry number at execution (re-read the last `### D<n>` heading immediately before writing: at review the last entry was already `D168`, and `ww744p` allocates the next one first, so the authoring hint `D168` is stale) and add one `CHANGELOG.md` `Changed:` line under the pending release.
+- [x] E-06 Record the decision as the next free `DECISIONS.md` entry number at execution (re-read the last `### D<n>` heading immediately before writing: at review the last entry was already `D168`, and `ww744p` allocates the next one first, so the authoring hint `D168` is stale) and add one `CHANGELOG.md` `Changed:` line under the pending release.
   - Depends on: E-02
   - Expected outcome: the `DECISIONS.md` entry uses the standard `Context` / `Decision` / rejected alternatives / `Applied` structure. It answers backlog `uu4rfe`, records the `runners_monitor` supervision survey result (F-02), names both rejected alternatives (keep `0` on `SIGTERM`; restore `SIG_DFL` and re-send `SIGTERM` to die `WIFSIGNALED`) with the reason for each, notes that `aw runners` (both default table dashboard and `--tree`) and `aw pwatch` (including `--runners --table`, closing `ww744p` F-07) now uniformly return `0` on `SIGINT` and `143` on `SIGTERM` while restoring caller signal handlers, and confirms `runners` keeps `exit_contract=(0, 1, 2)` under D162. Existing `DECISIONS.md` entries (including D162 and `ww744p`'s entry) are NOT edited in place. The `CHANGELOG.md` line is user-facing and contains no em or en dashes (`AGENTS.md`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,34 +149,267 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste both transcripts from the executing HEAD before any file is edited: (a) the subprocess signal probe output for `SIGINT` and `SIGTERM` against `python3 -m agent_workflows runners --repo <tmp_dir> --interval 0.3 --no-color` and `python3 -m agent_workflows pwatch --runners --table --repo <tmp_dir> --interval 0.3 --no-color`, each sent after `stdout.readline()` returned the first line, showing `rc=0` and `rc=0`; (b) the `git grep` caller survey with each hit classified, showing no signal supervisor; (c) the E-01 (c) `git grep -n "runners"` output over `command_surface.py` and `test_exit_contract_conformance.py` with the decision taken; and `git status --short` showing no modified files. The observation is produced by `runners_monitor.main` and `pwatch.main` delegating to `runners_monitor.run_table_dashboard`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    (a) Subprocess signal probe output at HEAD c7be05330 before edits:
+    ```
+    runners --interval 0.3 --no-color SIGINT rc=0 first_line_seen=True
+    runners --interval 0.3 --no-color SIGTERM rc=0 first_line_seen=True
+    pwatch --runners --table --interval 0.3 --no-color SIGINT rc=0 first_line_seen=True
+    pwatch --runners --table --interval 0.3 --no-color SIGTERM rc=0 first_line_seen=True
+    ```
+    (b) Caller survey `git grep -n "runners_monitor\|run_table_dashboard\|watch-runners\|aw runners" -- ":!.aw/records"`:
+    - In-process callers:
+      `agent_workflows/cli.py:17894`: `return runners_monitor.main(list(argv_list[1:]))`
+      `agent_workflows/cli.py:18552`: `return runners_monitor.main(list(getattr(args, "runners_args", []) or []))`
+      `agent_workflows/pwatch.py:1057`: `return runners_monitor.run_table_dashboard(args)`
+      `agent_workflows/pwatch.py:1167-1206`: helper calls `find_active_runners`, `extract_journey_info`, `classify_activity`, `format_bytes`
+      `tests/test_generic_color_depth.py`: tests for color depth
+      `tests/test_runners_monitor.py`: unit tests for runners_monitor
+      `tests/test_term.py`: doc references
+    - Standalone wrapper:
+      `tools/watch-runners.py:17`: `return runners_monitor.main(sys.argv[1:])`
+    - CLI help / descriptions / DECISIONS:
+      `agent_workflows/cli.py:6019, 6066`, `DECISIONS.md:2728`, `tests/test_completion.py:126`
+    - Signal supervisors: None. No in-repository caller supervises by signal or expects exit 0 after SIGTERM.
+    (c) D162 comment check:
+    ```
+    $ git grep -n "runners" -- agent_workflows/command_surface.py tests/test_exit_contract_conformance.py
+    agent_workflows/command_surface.py:2306:        command="runners",
+    ```
+    Neither file mentions `runners` in comments or docstrings regarding signal return codes. No out-of-scope comment edit needed.
+    `git status --short` before edits was empty.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the same E-01 subprocess signal probe run again after the change, pasted, showing `SIGINT rc=0` and `SIGTERM rc=143` for both `python3 -m agent_workflows runners --repo <tmp_dir> --interval 0.3 --no-color` and `python3 -m agent_workflows pwatch --runners --table --repo <tmp_dir> --interval 0.3 --no-color`. Also paste `python3 -m agent_workflows runners --once --no-color >/dev/null; echo rc=$?` showing `rc=0`, and `python3 -m agent_workflows runners --bad-flag; echo rc=$?` showing `rc=2`. The observation is produced by `runners_monitor.run_table_dashboard` and `runners_monitor.main`.
   - Observed evidence:
-  - Result: pending
+    Subprocess signal probe after change:
+    ```
+    runners --interval 0.3 --no-color SIGINT rc=0 first_line_seen=True
+    runners --interval 0.3 --no-color SIGTERM rc=143 first_line_seen=True
+    pwatch --runners --table --interval 0.3 --no-color SIGINT rc=0 first_line_seen=True
+    pwatch --runners --table --interval 0.3 --no-color SIGTERM rc=143 first_line_seen=True
+    ```
+    Snapshot and argument error checks:
+    ```
+    $ python3 -m agent_workflows runners --once --no-color >/dev/null; echo rc=$?
+    rc=0
+    $ python3 -m agent_workflows runners --bad-flag; echo rc=$?
+    usage: aw runners [-h] [--interval INTERVAL] [--once] [--tree] [--width WIDTH]
+                      [--no-color] [--raw-cpu] [--json] [--agent] [--repo REPO]
+    aw runners: error: unrecognized arguments: --bad-flag
+    rc=2
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted passing output of E-04's in-process handler-restoration tests (sentinel handlers equal before and after `--once` and after the bounded in-process `SIGTERM`, which also returns `143`). Also paste the `git diff` hunk of `agent_workflows/runners_monitor.py` showing `prev_sigint` and `prev_sigterm` saved before `signal.signal(...)` and restored in `finally`.
   - Observed evidence:
-  - Result: pending
+    In-process handler restoration tests pass:
+    ```
+    tests/test_runners_monitor.py::test_runners_inprocess_handler_restoration_after_clean_exit PASSED
+    tests/test_runners_monitor.py::test_runners_inprocess_handler_restoration_after_sigterm PASSED
+    ```
+    Diff hunk of `agent_workflows/runners_monitor.py`:
+    ```diff
+    @@ -571,7 +571,12 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
+         raw_cpu = getattr(args, "raw_cpu", False)
+         total_cpus = os.cpu_count() or 1
 
-- [ ] V-04 validates E-04
+    -    def stop_cleanly(_sig: int, _frame: object) -> None:
+    +    prev_sigint = signal.getsignal(signal.SIGINT)
+    +    prev_sigterm = signal.getsignal(signal.SIGTERM)
+    +
+    +    def stop_cleanly(signum: int, _frame: object) -> None:
+    +        if signum == signal.SIGTERM:
+    +            raise SystemExit(EXIT_SIGTERM)
+             raise SystemExit(0)
+
+         signal.signal(signal.SIGINT, stop_cleanly)
+    @@ -645,9 +645,15 @@ def run_table_dashboard(args: argparse.Namespace) -> int:
+
+                 time.sleep(interval)
+
+    -    except (KeyboardInterrupt, SystemExit):
+    +    except KeyboardInterrupt:
+             return 0
+    +    except SystemExit as exc:
+    +        return exc.code if isinstance(exc.code, int) else 0
+         finally:
+    +        if prev_sigint is not None:
+    +            signal.signal(signal.SIGINT, prev_sigint)
+    +        if prev_sigterm is not None:
+    +            signal.signal(signal.SIGTERM, prev_sigterm)
+             if is_interactive:
+                 sys.stdout.write(pwatch.LEAVE_ALT_SCREEN)
+                 sys.stdout.flush()
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output of `python3 -m pytest tests/test_runners_monitor.py -o addopts="" -v` showing every test passed with test names visible. Then prove falsifiability: temporarily change `EXIT_SIGTERM = 143` to `0` in `agent_workflows/runners_monitor.py`, re-run `python3 -m pytest tests/test_runners_monitor.py -o addopts=""`, paste the failing `SIGTERM` assertions, revert `EXIT_SIGTERM = 143`, and paste `git diff --stat` showing only the intended changes remain. Also paste the test source hunk showing each subprocess first-line read is bounded by a timeout. Also paste `grep -nE "\binspect\b|\bast\.|read_text|open\(.*runners_monitor\.py" tests/test_runners_monitor.py` showing no hits (confirming no code-pinning), and an interpreter print of `command_surface.get_declaration("runners").exit_contract` showing `(0, 1, 2)`.
   - Observed evidence:
-  - Result: pending
+    Output of `python3 -m pytest tests/test_runners_monitor.py -o addopts="" -v`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=1647286953
+    rootdir: <repo_root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 18 items
 
-- [ ] V-05 validates E-05
+    tests/test_runners_monitor.py::test_aw_cli_dispatch_runners PASSED       [  5%]
+    tests/test_runners_monitor.py::test_format_time_mmss PASSED              [ 11%]
+    tests/test_runners_monitor.py::test_extract_journey_info PASSED          [ 16%]
+    tests/test_runners_monitor.py::test_pwatch_runners_table_subprocess_sigterm_exit_143 PASSED [ 22%]
+    tests/test_runners_monitor.py::test_classify_activity PASSED             [ 27%]
+    tests/test_runners_monitor.py::test_runners_subprocess_sigterm_exit_143 PASSED [ 33%]
+    tests/test_runners_monitor.py::test_render_runner_table_with_data PASSED [ 38%]
+    tests/test_runners_monitor.py::test_render_runner_table_empty PASSED     [ 44%]
+    tests/test_runners_monitor.py::test_runner_info_to_dict PASSED           [ 50%]
+    tests/test_runners_monitor.py::test_main_once_agent PASSED               [ 55%]
+    tests/test_runners_monitor.py::test_main_once_json PASSED                [ 61%]
+    tests/test_runners_monitor.py::test_runners_tab_completion PASSED        [ 66%]
+    tests/test_runners_monitor.py::test_find_active_runners PASSED           [ 72%]
+    tests/test_runners_monitor.py::test_runners_inprocess_handler_restoration_after_clean_exit PASSED [ 77%]
+    tests/test_runners_monitor.py::test_format_bytes PASSED                  [ 83%]
+    tests/test_runners_monitor.py::test_render_runner_table_multiline_activity_sanitized PASSED [ 88%]
+    tests/test_runners_monitor.py::test_runners_inprocess_handler_restoration_after_sigterm PASSED [ 94%]
+    tests/test_runners_monitor.py::test_runners_subprocess_sigint_exit_0 PASSED [100%]
+
+    ============================== 18 passed in 1.85s ==============================
+    ```
+    Falsifiability output with `EXIT_SIGTERM = 0`:
+    ```
+    FAILED tests/test_runners_monitor.py::test_runners_inprocess_handler_restoration_after_sigterm
+    FAILED tests/test_runners_monitor.py::test_pwatch_runners_table_subprocess_sigterm_exit_143
+    FAILED tests/test_runners_monitor.py::test_runners_subprocess_sigterm_exit_143
+    ========================= 3 failed, 15 passed in 1.91s =========================
+    ```
+    `git diff --stat` after reverting `EXIT_SIGTERM = 143`:
+    ```
+     agent_workflows/runners_monitor.py |  19 ++++-
+     tests/test_runners_monitor.py      | 139 ++++++++++++++++++++++++++++++++++++-
+     2 files changed, 155 insertions(+), 3 deletions(-)
+    ```
+    Test source hunk showing bounded first-line read with 10.0s select timeout:
+    ```python
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        try:
+            assert p.stdout is not None
+            rlist, _, _ = select.select([p.stdout], [], [], 10.0)
+            assert rlist, f"Timed out waiting for first stdout line from {cmd_args}"
+            first_line = p.stdout.readline()
+            assert first_line, f"Empty stdout from {cmd_args}"
+            os.killpg(p.pid, sig)
+            p.wait(timeout=10)
+            return p.returncode
+    ```
+    Code-pinning check:
+    ```
+    $ grep -nE "\binspect\b|\bast\.|read_text|open\(.*runners_monitor\.py" tests/test_runners_monitor.py
+    (0 hits)
+    ```
+    Exit contract check:
+    ```
+    $ python3 -c "from agent_workflows import command_surface; print(command_surface.get_declaration('runners').exit_contract)"
+    (0, 1, 2)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff tools/README.md` showing the `--runners --table` exception removed from the `aw pwatch` exit-status note and `aw runners` / `tools/watch-runners.py` documented. Pasted output of `grep -nP "\x{2013}|\x{2014}" tools/README.md` limited to the modified/added lines showing zero em or en dashes.
   - Observed evidence:
-  - Result: pending
+    `git diff tools/README.md`:
+    ```diff
+    diff --git a/tools/README.md b/tools/README.md
+    index 2d4037df3..748237858 100644
+    --- a/tools/README.md
+    +++ b/tools/README.md
+    @@ -235,17 +235,17 @@ aw pwatch python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
-- [ ] V-06 validates E-06
+     ### Backwards Compatibility
+
+    -`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments.
+    +`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments. `tools/watch-runners.py` is the compatibility shim forwarding to `agent_workflows.runners_monitor` (`aw runners`).
+
+     ### Exit Status
+
+    -`aw pwatch` returns:
+    +`aw pwatch` (including `--runners --table`) and `aw runners` return:
+     - `0`: clean exit after `--once` or interrupt via Ctrl-C (SIGINT).
+     - `143`: terminated by SIGTERM.
+     - `1`: runtime error (e.g. fatal failure reading `/proc`).
+     - `2`: command-line argument validation or usage error.
+
+    -In all cases, the alternate screen is exited and the terminal state is restored cleanly. Note that the `--runners --table` dashboard is an exception and still exits 0 on SIGTERM.
+    +In all cases, the alternate screen is exited and the terminal state is restored cleanly.
+
+     ## `aw oc runipd` (the OpenCode IPD runner)
+    ```
+    Dash check on modified lines:
+    ```
+    $ git diff tools/README.md | grep -nP "\x{2013}|\x{2014}"
+    (0 hits, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the pasted new `DECISIONS.md` entry with its number, the supervision survey summary, the two rejected alternatives (`0` on `SIGTERM`; `SIG_DFL` re-raise), and the D162 `exit_contract=(0, 1, 2)` confirmation, plus `git diff DECISIONS.md` showing no earlier entry was edited. The pasted `CHANGELOG.md` line and `grep -nP "\x{2013}|\x{2014}" CHANGELOG.md` over the added line showing no em or en dashes. Pasted `aw check` output and `aw sanitize --agent` output over all changed files with no `fail`. Pasted bare `python3 -m pytest` summary and targeted regression suite (`python3 -m pytest tests/test_pwatch_signal_exit.py tests/test_exit_contract_conformance.py tests/test_completion.py tests/test_cli_parser_conflict_policy.py tests/test_cli_dest_shadowing.py -o addopts=""`).
   - Observed evidence:
-  - Result: pending
+    Pasted new `DECISIONS.md` entry:
+    ```markdown
+    ### D172. aw runners table dashboard returns 143 on SIGTERM while keeping exit 0 on SIGINT
+
+    - **Context:** Backlog item `uu4rfe` (surfaced during sibling plan `ww744p`, backlog `x31lcm`): `aw runners` (the default table dashboard in `runners_monitor.run_table_dashboard`) previously reported exit `0` when terminated by either SIGINT or SIGTERM via a shared `stop_cleanly` handler that raised `SystemExit(0)`. A survey across the codebase confirmed that no in-repository caller or supervisor relies on `aw runners` or `runners_monitor.run_table_dashboard` returning `0` after receiving SIGTERM, while external supervisors cannot distinguish a clean shutdown from an external termination when both exit `0`. Furthermore, `runners_monitor.run_table_dashboard` leaked its `stop_cleanly` signal handlers into in-process callers (such as `cli._dispatch`, `pwatch.main` with `--runners --table`, and tests).
+    - **Decision:** Make `runners_monitor.run_table_dashboard` return `143` on SIGTERM while preserving exit `0` on SIGINT (Ctrl-C) and on clean `--once`, `--json`, and `--agent` completions. Restore previous signal handlers upon exit in all cases. Sibling plan `ww744p` previously updated `pwatch.main` to return `143` on SIGTERM but left `--runners --table` as an exception; with this change, `aw runners` (both the default table dashboard and `--tree`) and `aw pwatch` (including `--runners --table`) uniformly return `0` on SIGINT and `143` on SIGTERM while restoring caller signal handlers. Under D162, `command_surface.CommandDeclaration.exit_contract` excludes signal-derived exit codes and `runners` keeps `exit_contract = (0, 1, 2)`.
+      The rejected alternatives are rejected on the following grounds:
+      1. *Keeping exit 0 on SIGTERM:* rejected because it leaves an inconsistency between `aw runners --tree` (which returned 143 via `pwatch.main`) and bare `aw runners` (which returned 0), and within `aw pwatch` where `--runners --table` returned 0 while other modes returned 143. External supervisors cannot distinguish clean completion from termination.
+      2. *Dying WIFSIGNALED via SIG_DFL and re-sending SIGTERM:* rejected because `runners_monitor.run_table_dashboard` and `runners_monitor.main` are library entry points invoked in-process by `cli._dispatch`, `pwatch.main` (`--runners --table`), and tests, so killing the host process would abruptly terminate embedding callers expecting a return code.
+    - **Applied:** `agent_workflows/runners_monitor.py` (`EXIT_SIGTERM = 143`, handler save and restore); `tests/test_runners_monitor.py` (subprocess and in-process behavioral tests); `tools/README.md` (exit status docs and compatibility shim); `DECISIONS.md` (this entry); `CHANGELOG.md`. Executed per IPD `9380pe` (Set `uu4rfe`, Order 1, backlog `uu4rfe`).
+    ```
+    `git diff DECISIONS.md` shows only the appended D172 heading and body; no earlier entry modified.
+    `CHANGELOG.md` line:
+    `- Changed: aw runners (table dashboard) now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.`
+    Dash check:
+    ```
+    $ git diff CHANGELOG.md | grep -nP "\x{2013}|\x{2014}"
+    (0 hits, exit 1)
+    ```
+    `aw check other` output:
+    ```
+    ✓ CONFORMS  1405 other checked
+    Evidence
+      checked  1405
+      errors  0   warnings  0   info  0
+    ```
+    `aw sanitize --agent` output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5220,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Targeted regression suite:
+    ```
+    tests/test_cli_parser_conflict_policy.py ..................              [ 23%]
+    tests/test_completion.py ...............................                 [ 64%]
+    tests/test_exit_contract_conformance.py ....................             [ 90%]
+    tests/test_pwatch_signal_exit.py ....                                    [ 96%]
+    tests/test_cli_dest_shadowing.py ...                                     [100%]
+    ======================== 76 passed in 150.10s (0:02:30) ========================
+    ```
+    Full suite (`aw suite`):
+    ```
+    702 passed in 23.80s
+    ```
+  - Result: pass
 
 
 ## Approval and execution gate
