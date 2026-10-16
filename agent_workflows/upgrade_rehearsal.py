@@ -1514,6 +1514,14 @@ def cmd_env(args: argparse.Namespace) -> int:
             summary=f"Environment exports for {sandbox}",
             args=args,
         )
+    if getattr(args, "json", False):
+        keys = ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT")
+        print(
+            json.dumps(
+                {"sandbox": str(sandbox), "env": {k: env[k] for k in keys}}, indent=2
+            )
+        )
+        return 0
     for key in ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT"):
         print(f"export {key}={shlex.quote(env[key])}")
     print(f"cd {shlex.quote(str(sandbox))}")
@@ -1533,6 +1541,9 @@ def cmd_clean(args: argparse.Namespace) -> int:
                 summary="Nothing to clean.",
                 args=args,
             )
+        if getattr(args, "json", False):
+            print(json.dumps([], indent=2))
+            return 0
         print("Nothing to clean.")
         return 0
     if not args.yes:
@@ -1544,6 +1555,9 @@ def cmd_clean(args: argparse.Namespace) -> int:
                 status="preview",
                 args=args,
             )
+        if getattr(args, "json", False):
+            print(json.dumps({"would_remove": [str(t) for t in targets]}, indent=2))
+            return 0
         print("Would remove:")
         for t in targets:
             print(f"  {t}")
@@ -1752,6 +1766,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 status="cannot-run",
                 summary=str(exc),
                 args=args,
+            )
+        if getattr(args, "json", False):
+            from agent_workflows import renderers
+            from agent_workflows.result_types import select_output
+
+            return renderers.emit_usage_refusal(
+                f"upgrade-test {getattr(args, 'command', '')}".strip(),
+                str(exc),
+                "aw upgrade-test --help",
+                select_output(args),
             )
         print(f"error: {exc}", file=sys.stderr)
         return 2
