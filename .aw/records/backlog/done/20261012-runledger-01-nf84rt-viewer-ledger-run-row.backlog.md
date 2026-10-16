@@ -1,5 +1,5 @@
 - Id: nf84rt
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw runs viewer lists a ledger-only run directory as a driver run with '0 steps', once aw run init (plan v47z9u) creates one under the runs root
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 3a3hh9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-runledger-06-3a3hh9-classify-and-render-ledger-only-run-directories-in-aw-runs-v.ipd.md); evidence .aw/records/plans/executed/20261014-runledger-06-3a3hh9-classify-and-render-ledger-only-run-directories-in-aw-runs-v.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 3a3hh9
 - 2026-10-12 created (aw backlog): Filed while authoring plan v47z9u from backlog hegwri: measured the viewer row for a ledger-only run dir.
 
