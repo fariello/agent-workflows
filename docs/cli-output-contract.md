@@ -190,12 +190,14 @@ Two distinct live exit tables govern these verbs and disagree on the meaning of 
 1. **The `aw runs` inspection and step lifecycle table** (defined by constants `run_cli.EXIT_OK` through `run_cli.EXIT_NOT_A_LEDGER` in `agent_workflows/run_cli.py`):
    - `0`: Clean / success. Run completed cleanly or inspection succeeded.
    - `1`: Incomplete run. Run finished with unsatisfied predicates or pending steps (`runs status`, `run finalize`).
-   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, or command syntax error (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
+   - `2`: Invalid invocation or usage error. Missing ledger, invalid flags, or command syntax error (`run init`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`).
    - `3`: Blocked. Run execution cannot proceed due to an unknown outcome, exhausted retry budget, or non-runnable state (`run start`, `runs next`, `run record`, `runs resume`, `runs status`).
    - `4`: Invalid evidence. Captured step evidence is invalid or rejected by completion checks (`run finalize`).
    - `5`: Ledger corruption. Hash chain break, schema mismatch, or torn record in ledger (`run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`).
-   - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run start`, `run record`, `run cancel`, `run finalize`).
+   - `6`: Operational failure. Process lock contention, illegal lifecycle transition, or unauthorized state mutation (`run init`, `run start`, `run record`, `run cancel`, `run finalize`).
    - `7`: Not a ledger. Target path exists and contains valid JSONL, but lacks mandatory ledger envelope fields (`runs next`, `runs resume`, `runs status`).
+
+   `aw run init` is the one `run`-family leaf whose SUCCESS `--agent` output is an `aw.agent/v1` record while its refusals keep the family's bare-JSON shape.
 
 2. **The host driver and queue aggregate table** (defined by spec `25kzda` Section 5.6 and implemented by `run_evidence.aggregate_run_exit` and `runner_shared.run_exit_code` for `oc runipd`, `agy runipd`, and `ipd execute-set`):
    - `0`: Clean. Every actionable item in the queue verified cleanly; remaining items were benign skips.

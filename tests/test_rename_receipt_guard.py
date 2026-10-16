@@ -233,15 +233,172 @@ class TestRenameReceiptGuard(_GuardCase):
         data = json.loads(out)
         self.assertTrue(any(SKIP_MARK in n for n in data["data"]["notes"]), data)
 
-    def test_i_renaming_the_in_flight_plan_itself_still_succeeds(self):
-        # Baseline for F-07 (out of scope): the executing plan's own file move is not guarded.
+    def test_i_rename_plans_refuses_in_flight_target(self):
         self._cite(SPEC)
         rc, out = self._run(
             ["rename", "plans", "p22222", "--slug", "renamed", "--apply", "--no-commit"]
         )
+        self.assertEqual(rc, 2, out)
+        self.assertIn("cannot rename or regroup in-flight plan p22222", out)
+        self.assertIn("live begin receipt present", out)
+        self.assertTrue(self.in_flight.exists())
+        self.assertFalse(self._changed(self.in_flight))
+        self.assertFalse((self.plans / "20260701-x-01-p22222-renamed.ipd.md").exists())
+
+    def test_j_preview_rename_plans_refuses_in_flight_target(self):
+        self._cite(SPEC)
+        rc, out = self._run(["rename", "plans", "p22222", "--slug", "renamed"])
+        self.assertEqual(rc, 2, out)
+        self.assertIn("cannot rename or regroup in-flight plan p22222", out)
+        self.assertIn("live begin receipt present", out)
+        self.assertNotIn("--- would rename", out)
+        self.assertTrue(self.in_flight.exists())
+        self.assertFalse(self._changed(self.in_flight))
+
+    def test_k_group_plans_refuses_in_flight_target(self):
+        self._cite(SPEC)
+        # With --rename
+        rc, out = self._run(
+            [
+                "group",
+                "plans",
+                "p22222",
+                "--set",
+                "newset",
+                "--rename",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 2, out)
+        self.assertIn("cannot rename or regroup in-flight plan p22222", out)
+        self.assertIn("live begin receipt present", out)
+        self.assertTrue(self.in_flight.exists())
+        self.assertFalse(self._changed(self.in_flight))
+
+        # Metadata-only (without --rename)
+        rc, out = self._run(
+            [
+                "group",
+                "plans",
+                "p22222",
+                "--set",
+                "newset",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 2, out)
+        self.assertIn("cannot rename or regroup in-flight plan p22222", out)
+        self.assertIn("live begin receipt present", out)
+        self.assertTrue(self.in_flight.exists())
+        self.assertFalse(self._changed(self.in_flight))
+
+    def test_l_batch_group_atomicity_refuses_when_one_target_is_in_flight(self):
+        self._cite(SPEC)
+        # Sibling (p55555) is not in flight; p22222 is in flight. Neither should be modified.
+        rc, out = self._run(
+            [
+                "group",
+                "plans",
+                "p55555",
+                "p22222",
+                "--set",
+                "newset",
+                "--rename",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 2, out)
+        self.assertIn("cannot rename or regroup in-flight plan p22222", out)
+        self.assertTrue(self.sibling.exists())
+        self.assertFalse(self._changed(self.sibling))
+        self.assertTrue(self.in_flight.exists())
+        self.assertFalse(self._changed(self.in_flight))
+
+    def test_m_machine_output_refuses_in_flight_target(self):
+        self._cite(SPEC)
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p22222",
+                "--slug",
+                "renamed",
+                "--apply",
+                "--no-commit",
+                "--agent",
+            ]
+        )
+        self.assertEqual(rc, 2, out)
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1, out)
+        rec = json.loads(lines[0])
+        agent_schema.assert_valid_agent_record(rec)
+        self.assertEqual(rec["kind"], "error")
+        self.assertEqual(rec["outcome"], "cannot-run")
+        self.assertEqual(rec["exit"], 2)
+        self.assertIs(rec["applied"], False)
+        self.assertTrue(
+            any(d.get("rule") == "in-flight-plan" for d in rec.get("diagnostics", [])),
+            rec,
+        )
+
+        rc, out = self._run(
+            [
+                "rename",
+                "plans",
+                "p22222",
+                "--slug",
+                "renamed",
+                "--apply",
+                "--no-commit",
+                "--json",
+            ]
+        )
+        self.assertEqual(rc, 2, out)
+        doc = json.loads(out)
+        self.assertEqual(doc["status"], "cannot-run")
+        self.assertEqual(doc["exit_code"], 2)
+        self.assertTrue(
+            any(
+                d.get("rule") == "in-flight-plan" and d.get("severity") == "error"
+                for d in doc.get("diagnostics", [])
+            ),
+            doc,
+        )
+
+    def test_n_recovery_after_receipt_removal(self):
+        self._cite(SPEC)
+        rp = ipd_lifecycle.receipt_path_for(self.tmp, "p22222")
+        self.assertTrue(rp.exists())
+        rp.unlink()
+
+        rc, out = self._run(
+            ["rename", "plans", "p22222", "--slug", "renamed", "--apply", "--no-commit"]
+        )
         self.assertEqual(rc, 0, out)
+        renamed_file = self.plans / "20260701-x-01-p22222-renamed.ipd.md"
+        self.assertTrue(renamed_file.exists())
         self.assertFalse(self.in_flight.exists())
-        self.assertTrue((self.plans / "20260701-x-01-p22222-renamed.ipd.md").exists())
+
+        rc, out = self._run(
+            [
+                "group",
+                "plans",
+                "p22222",
+                "--set",
+                "newset",
+                "--rename",
+                "--apply",
+                "--no-commit",
+            ]
+        )
+        self.assertEqual(rc, 0, out)
+        regrouped_file = self.plans / "20260701-newset-01-p22222-renamed.ipd.md"
+        self.assertTrue(regrouped_file.exists())
+        self.assertFalse(renamed_file.exists())
 
 
 if __name__ == "__main__":

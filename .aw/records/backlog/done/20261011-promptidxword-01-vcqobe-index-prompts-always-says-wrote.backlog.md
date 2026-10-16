@@ -1,5 +1,5 @@
 - Id: vcqobe
-- Status: graduated
+- Status: done
 - Graduated-To: promptidxword
 - Blocks-Release: next
 - Set: promptidxword
@@ -8,6 +8,7 @@
 - Summary: aw index prompts prints 'wrote INDEX.json' and 'wrote INDEX.md' on every run, including when neither file changed, unlike plans and research which say 'up to date'
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD whri6h executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-promptidxword-01-whri6h-report-up-to-date-and-partial-update-outcomes-in-aw-index-pr.ipd.md); evidence .aw/records/plans/executed/20261014-promptidxword-01-whri6h-report-up-to-date-and-partial-update-outcomes-in-aw-index-pr.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: whri6h
 - 2026-10-12 created (aw backlog): filed while authoring sn2svz from 4izduy
 

@@ -1,5 +1,5 @@
 - Id: t8icgt
-- Status: graduated
+- Status: done
 - Graduated-To: t8icgt
 - Blocks-Release: next
 - Set: t8icgt
@@ -8,6 +8,7 @@
 - Summary: renaming an in-flight plan's own file while its begin receipt is live is unguarded
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD of6kpx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-t8icgt-01-of6kpx-refuse-renaming-or-regrouping-an-in-flight-plan-holding-a-be.ipd.md); evidence .aw/records/plans/executed/20261014-t8icgt-01-of6kpx-refuse-renaming-or-regrouping-an-in-flight-plan-holding-a-be.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: of6kpx
 - 2026-10-12 created (aw backlog): renaming an in-flight plan's own file while its begin receipt is live is unguarded
 

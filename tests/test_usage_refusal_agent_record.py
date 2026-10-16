@@ -71,7 +71,7 @@ def _discover_required_arg_leaves() -> list[str]:
 
 
 # Named, reasoned exclusion set for leaves whose handler-free refusal is impossible.
-# Measured at 0 leaves for this surface: all 67 required-argument leaves refuse cleanly.
+# Measured at 0 leaves for this surface: all 68 required-argument leaves refuse cleanly.
 EXCLUDED_LEAVES: set[str] = set()
 
 REQUIRED_LEAVES: list[str] = [
@@ -82,7 +82,7 @@ REQUIRED_LEAVES: list[str] = [
 def test_exclusion_set_size_and_members() -> None:
     """Explicit visibility of the exclusion set size and members."""
     assert len(EXCLUDED_LEAVES) == 0
-    assert len(REQUIRED_LEAVES) == 67
+    assert len(REQUIRED_LEAVES) == 68
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

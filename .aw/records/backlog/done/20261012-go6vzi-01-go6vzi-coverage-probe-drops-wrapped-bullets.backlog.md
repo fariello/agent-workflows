@@ -1,5 +1,5 @@
 - Id: go6vzi
-- Status: graduated
+- Status: done
 - Graduated-To: go6vzi
 - Blocks-Release: next
 - Set: go6vzi
@@ -8,6 +8,7 @@
 - Summary: Orchestrator coverage probe drops wrapped bullet continuation lines, so an OWNER on the second line is invisible and the run falsely refuses
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD u1l9rx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-go6vzi-01-u1l9rx-keep-wrapped-prose-bullet-and-paragraph-continuations-in-una.ipd.md); evidence .aw/records/plans/executed/20261014-go6vzi-01-u1l9rx-keep-wrapped-prose-bullet-and-paragraph-continuations-in-una.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: u1l9rx
 - 2026-10-12 created (aw backlog): found unblocking aw oc run on m0kl28
 

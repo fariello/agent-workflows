@@ -614,19 +614,22 @@ def unattached_section_prose(text: str) -> dict[str, str]:
     """Return each `## ` section's unattached prose (belonging to no checklist item).
 
     Walks the fence-aware structural view (:func:`_structural_lines`), keys on :data:`_H2_RE`,
-    and excludes four line classes:
+    and excludes:
       - any line matching :data:`_H3_RE`
       - any line matching :data:`_LEAF_RE` (a leaf's own opening line)
       - any line matching :data:`_SUBFIELD_RE`
-      - any indented line (leading space or tab)
+      - any indented line following a checklist leaf, a subfield, a heading, or a blank line
 
-    The exclusion of all indented lines makes this extractor disjoint by construction
+    Indented continuation lines that immediately continue an unattached prose bullet or paragraph
+    are joined with a space onto the preceding kept line in the section. This keeps hard-wrapped
+    prose bullets intact (including child owner attributions) while remaining structurally disjoint
     from :func:`agent_workflows.runner_shared.e_item_action_blocks`, which captures only
-    the leaf's opening line plus its indented continuation lines.
+    checklist leaves and their continuation lines.
     """
     struct = _structural_lines(text or "")
     sections: dict[str, list[str]] = {}
     current_h2: str | None = None
+    in_prose = False
 
     for _lineno, raw in struct:
         mh = _H2_RE.match(raw)
@@ -634,23 +637,34 @@ def unattached_section_prose(text: str) -> dict[str, str]:
             current_h2 = mh.group(1).strip()
             if current_h2 not in sections:
                 sections[current_h2] = []
+            in_prose = False
             continue
 
         if current_h2 is None:
             continue
 
+        if not raw.strip():
+            in_prose = False
+            continue
         if _H3_RE.match(raw):
+            in_prose = False
             continue
         if _LEAF_RE.match(raw):
+            in_prose = False
             continue
         if _SUBFIELD_RE.match(raw):
+            in_prose = False
             continue
+
         if raw[:1].isspace():
-            continue
-        if not raw.strip():
+            if in_prose and sections[current_h2]:
+                sections[current_h2][-1] = (
+                    f"{sections[current_h2][-1].rstrip()} {raw.strip()}"
+                )
             continue
 
         sections[current_h2].append(raw)
+        in_prose = True
 
     return {title: "\n".join(lines) for title, lines in sections.items()}
 

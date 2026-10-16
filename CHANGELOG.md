@@ -24,8 +24,8 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
 - Fixed: aw install and install_wizard.persist_project_policy now preserve existing project.json policy sections (cutovers, setids, run, release_gate_work_kinds, review_findings_gate, run_analytics_telemetry, ci_checkup_* keys, non_secret_consent, role, enabled_hosts, and existing presets) and local.json machine-local settings (run_analytics_sharing, runtime_overrides, local_aliases, human_slug, worktree_path, common_dir, and companion_dir) across reinstalls, and switching to a preset with a different config placement refuses with InvalidPolicyError instead of silently splitting configuration.
-
 - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
 - Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
 - Fixed: project_context.resolve_project_context and project_context.project_config_dir now read user configuration through config.config_dir() (honoring AW_CONFIG_DIR and XDG_CONFIG_HOME) instead of a hard-coded ~/.config/agent-workflows path when user_config_dir is omitted.
@@ -34,9 +34,11 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
 - Fixed: aw index plans, prompts, research, and all now refuse with exit code 2 (cannot-run) and a structured record when the records directory does not exist, instead of crashing with a FileNotFoundError traceback.
 - Fixed: aw index <type> --check --json no longer puts the absolute repository path (repo_root) or the human report text (human_rendered) in data; diagnostic locations stay repo-relative.
+- Fixed: aw index prompts now reports wrote, up to date, or updated with the repo-relative prompts directory path on its human output instead of printing wrote on every run.
 - Fixed: aw ipd scaffold now accepts --dir and no longer writes a plan into an enclosing project, and project discovery stops at an enclosing git repository that has no agent-workflows install.
 - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
 - Fixed: aw pwatch, aw runners, and runner stream headers, statuslines, event prefixes, and run summaries now honor the color_depth pin and 16-color terminal detection, so none removes all ANSI color escapes from those surfaces and 16 uses basic 16-color ANSI codes instead of 256-color sequences.
+- Fixed: aw rename plans and aw group plans now refuse to rename or regroup a plan that is mid-execution (one holding a live begin receipt), preventing isolated-lane merge conflicts and finalize failures while the plan is in flight.
 - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.
 - Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
 - Changed: aw runners (table dashboard) now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.

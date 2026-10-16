@@ -116,6 +116,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Creating `aw run init` itself and recording the run-ledger storage location in spec `25kzda` Section 6.2.
   - Carrier: v47z9u
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-runledger-03-v47z9u-add-aw-run-init-the-one-writer-of-a-conformant-ledger-header.ipd.md
 - Amending spec `25kzda` Section 1.2 step 8 and Section 5.1 to scope `ledger.jsonl` to `aw run`.
   - Carrier: 9epp40
   - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md

@@ -18,7 +18,7 @@ against isolated fixture repositories (never the live tree), asserting:
   - research fixture with one frontmatter-invalid doc (exit 1, outcome findings,
     findings >= 1, a diagnostic naming that doc's repo-relative location and rule
     frontmatter-invalid, and the index files NOT written).
-- Human invariance: unflagged stdout on fixture matches legacy expected strings byte-exact.
+- Human invariance: unflagged stdout on fixture matches legacy expected strings byte-exact (prompts matches shared four-state format, vcqobe).
 - Unsupported type: index specs --agent emits a kind:error record at exit 2.
 
 In accordance with GUIDING_PRINCIPLES P16, this module performs zero static analysis:
@@ -48,14 +48,26 @@ VERBS = ("plans", "prompts", "research")
 
 HUMAN_FIRST_RUN = {
     "plans": "wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)\n",
-    "prompts": "wrote INDEX.json (1 prompts)\nwrote INDEX.md\n",
+    "prompts": "wrote        .aw/records/prompts/INDEX.json, INDEX.md (1 prompts)\n",
     "research": "wrote        .agents/docs/research/INDEX.json, INDEX.md (1 docs)\n",
 }
 
 HUMAN_SECOND_RUN = {
     "plans": "up to date   .aw/records/plans/INDEX.json, INDEX.md (1 plans)\n",
-    "prompts": "wrote INDEX.json (1 prompts)\nwrote INDEX.md\n",
+    "prompts": "up to date   .aw/records/prompts/INDEX.json, INDEX.md (1 prompts)\n",
     "research": "up to date   .agents/docs/research/INDEX.json, INDEX.md (1 docs)\n",
+}
+
+HUMAN_MD_ONLY_RUN = {
+    "plans": "updated      .aw/records/plans/INDEX.md (INDEX.json up to date; 1 plans)\n",
+    "prompts": "updated      .aw/records/prompts/INDEX.md (INDEX.json up to date; 1 prompts)\n",
+    "research": "updated      .agents/docs/research/INDEX.md (INDEX.json up to date; 1 docs)\n",
+}
+
+HUMAN_JSON_ONLY_RUN = {
+    "plans": "updated      .aw/records/plans/INDEX.json (INDEX.md up to date; 1 plans)\n",
+    "prompts": "updated      .aw/records/prompts/INDEX.json (INDEX.md up to date; 1 prompts)\n",
+    "research": "updated      .agents/docs/research/INDEX.json (INDEX.md up to date; 1 docs)\n",
 }
 
 
@@ -314,7 +326,7 @@ class IndexWriteSubprocessTests(unittest.TestCase):
             with self.subTest(verb=verb):
                 verb_dir = self.root / f"human_{verb}"
                 verb_dir.mkdir(parents=True, exist_ok=True)
-                _setup_fixture_for_verb(verb_dir, verb)
+                index_dir, _rel_dir = _setup_fixture_for_verb(verb_dir, verb)
 
                 res1 = run_cli(["index", verb], cwd=verb_dir)
                 self.assertEqual(res1.returncode, 0)
@@ -323,6 +335,19 @@ class IndexWriteSubprocessTests(unittest.TestCase):
                 res2 = run_cli(["index", verb], cwd=verb_dir)
                 self.assertEqual(res2.returncode, 0)
                 self.assertEqual(res2.stdout, HUMAN_SECOND_RUN[verb])
+
+                # Third run: append comment to INDEX.md
+                with open(index_dir / "INDEX.md", "a", encoding="utf-8") as f:
+                    f.write("\n<!-- comment -->\n")
+                res3 = run_cli(["index", verb], cwd=verb_dir)
+                self.assertEqual(res3.returncode, 0)
+                self.assertEqual(res3.stdout, HUMAN_MD_ONLY_RUN[verb])
+
+                # Fourth run: overwrite INDEX.json with "{}\n"
+                (index_dir / "INDEX.json").write_text("{}\n", encoding="utf-8")
+                res4 = run_cli(["index", verb], cwd=verb_dir)
+                self.assertEqual(res4.returncode, 0)
+                self.assertEqual(res4.stdout, HUMAN_JSON_ONLY_RUN[verb])
 
     # ----------------------------------------------------------------------------------
     # Unsupported-type regression assertion

@@ -349,6 +349,7 @@ One line under the top pending release section of `CHANGELOG.md`, then `python3 
 
 - **`aw run init` CLI leaf**: Owned by sibling plan `v47z9u` (Order 03 in Set `runledger`, from backlog `hegwri`), which this plan declares in `- Item-Dependencies: executed:v47z9u`.
   - Carrier: v47z9u
+  - Carrier-Evidence: .aw/records/plans/executed/20261012-runledger-03-v47z9u-add-aw-run-init-the-one-writer-of-a-conformant-ledger-header.ipd.md
 - **Amending spec `25kzda` Section 1.2 Step 8 and Section 5.1**: Owned by sibling plan `9epp40` (Order 04 in Set `runledger`, from backlog `66ls4r`).
   - Carrier: 9epp40
   - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
