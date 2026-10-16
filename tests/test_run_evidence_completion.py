@@ -1380,7 +1380,7 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
 #   1. LABEL INVARIANCE. Spec 4.10's `PROMPT-UNVERIFIABLE` row fixes the item at `ran`/`unavailable`
 #      regardless of the flag, so an implementation that RELABELED the item under the flag would
 #      pass every aggregate-only assertion while breaking the actual contract.
-#   2. NEUTRAL IS NOT SUCCESS. Spec 5.6 (`:944`) grants exit 0 only when every OTHER actionable item
+#   2. NEUTRAL IS NOT SUCCESS. Spec 5.6 ("Run exit codes") grants exit 0 only when every OTHER actionable item
 #      is verified, so an integer-sum implementation (neutral contributing the same 0 a verified item
 #      contributes) is invisible to every other case in this class and visible only to the
 #      not-all-verified case.
@@ -1463,7 +1463,7 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         self.assertNotEqual(neutral.contribution, success.contribution)
 
     def test_neutral_plus_a_non_verified_skip_is_not_exit_zero(self) -> None:
-        """THE CASE AN INTEGER-SUM DESIGN FAILS (spec `:944`, PR-003).
+        """THE CASE AN INTEGER-SUM DESIGN FAILS (spec Section 5.6 "Run exit codes", PR-003).
 
         Spec 5.6 grants exit 0 only when every OTHER actionable item is verified and every other
         skip is BENIGN. A non-benign skip is neither, so the run must not exit 0 even though the
@@ -1551,7 +1551,7 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         )
         self.assertEqual(evidence._CLASSIFICATION_EXITS[evidence.AGGREGATE_RUN_WIDE], 4)
 
-    # ---- the six non-maskable classes (spec `:938`) and higher-priority exits (`:936`) ------------
+    # ---- the six non-maskable classes (spec Section 5.6) and higher-priority exits ------------
 
     def test_non_maskable_class_table_is_self_consistent_and_six_long(self) -> None:
         result = evidence.validate_non_maskable_table()
@@ -1559,7 +1559,7 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
         self.assertEqual(len(evidence.NON_MASKABLE_CLASSES), 6)
 
     def test_non_maskable_classes_match_the_spec_text(self) -> None:
-        """Parse spec `:938`'s own bytes, so a reworded spec or a dropped class fails here."""
+        """Parse spec Section 5.6 non-maskable text bytes, so a reworded spec or a dropped class fails here."""
         if not _SPEC_PATH.exists():  # pragma: no cover - installed-package layout
             self.skipTest("spec 25kzda not present")
         text = _SPEC_PATH.read_text(encoding="utf-8")
@@ -1598,7 +1598,7 @@ class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
     def test_flag_does_not_neutralize_a_human_gate_and_exit_3_outranks_exit_1(
         self,
     ) -> None:
-        """Spec `:936`: a higher-priority exit still wins over a neutralized item."""
+        """Spec Section 5.6: a higher-priority exit still wins over a neutralized item."""
         from agent_workflows import run_gates
 
         gated = evidence.AggregatedItem(
