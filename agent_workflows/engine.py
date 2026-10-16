@@ -110,11 +110,13 @@ def resolve_target_layout(repo_root: Path) -> str:
     """Return the target layout ('aw' or 'legacy') for an install/update into repo_root.
 
     Deterministic rule:
-    - `.aw/system` present -> 'aw' (authoritative, never prompt, even if a legacy tree exists)
-    - `.agents/workflows` present and no `.aw/system` -> 'legacy'
+    - system dir present -> 'aw' (authoritative, never prompt, even if a legacy tree exists)
+    - `.agents/workflows` present and no system dir -> 'legacy'
     - neither present (fresh repo) -> 'aw'
     """
-    if (repo_root / AW_SYSTEM_DIR).exists():
+    from agent_workflows.project_context import project_system_dir
+
+    if project_system_dir(repo_root).exists():
         return "aw"
     if (repo_root / WORKFLOWS_DIR).exists():
         return "legacy"
@@ -122,14 +124,16 @@ def resolve_target_layout(repo_root: Path) -> str:
 
 
 def detect_split_brain_layout(repo_root: Path) -> bool:
-    """Return True iff both .aw/system exists and .agents/workflows holds real content.
+    """Return True iff both system dir exists and .agents/workflows holds real content.
 
-    A repo is in a split-brain state when both the authoritative `.aw/system` directory
+    A repo is in a split-brain state when both the authoritative system directory
     and live legacy `.agents/workflows` content exist simultaneously. Cruft files
     (like `__pycache__`, `.pyc`, `:Zone.Identifier`) and empty files/directories do not
     count as live content.
     """
-    if not (repo_root / AW_SYSTEM_DIR).exists():
+    from agent_workflows.project_context import project_system_dir
+
+    if not project_system_dir(repo_root).exists():
         return False
     legacy_dir = repo_root / WORKFLOWS_DIR
     if not legacy_dir.is_dir():
@@ -2215,6 +2219,29 @@ def _shim_is_user_modified(
     return is_stale_shim_customized(current_text)
 
 
+def _system_member_destination(
+    repo_root: Path, relative_posix: str
+) -> tuple[Path, bool]:
+    """Map a member path onto its physical destination and report whether it is inside repo_root."""
+    from agent_workflows.project_context import (
+        project_system_dir,
+        _canonical_path,
+        _is_safe_subpath,
+    )
+
+    prefix = f"{AW_SYSTEM_DIR}/"
+    if relative_posix.startswith(prefix):
+        tail = relative_posix[len(prefix) :]
+        dest = project_system_dir(repo_root) / tail
+    elif relative_posix == AW_SYSTEM_DIR:
+        dest = project_system_dir(repo_root)
+    else:
+        dest = repo_root / relative_posix
+
+    is_in_tree = _is_safe_subpath(_canonical_path(dest), _canonical_path(repo_root))
+    return dest, is_in_tree
+
+
 def write_file(
     plan: InstallPlan,
     relative_posix: str,
@@ -2240,7 +2267,7 @@ def write_file(
     fixed and re-staged, so a mode-only change is not silently left unstaged.
     """
 
-    destination = plan.repo_root / relative_posix
+    destination, is_in_tree = _system_member_destination(plan.repo_root, relative_posix)
 
     # Honor a decline tombstone (IPD 20260723-1100-01): a file the user previously declined
     # is not re-added on future installs. The interactive per-directive consent prompt that
@@ -2340,7 +2367,7 @@ def write_file(
     if not content_current:
         destination.write_bytes(data)
     _apply_executable_bit(destination, executable)
-    if use_git:
+    if use_git and is_in_tree:
         _stage_installed_file(plan.repo_root, relative_posix)
     _record_written(plan, relative_posix, data)
     installed.append(f"{relative_posix} [{action}]")
@@ -2546,20 +2573,33 @@ def collect_target_framework_files(
 
     present: set[str] = set()
 
-    workflows_dir = repo_root / resolve_workflows_dir(target_layout)
-    if workflows_dir.is_dir():
-        for path in workflows_dir.rglob("*"):
-            if not path.is_file():
-                continue
-            if is_ignored_source_path(path):
-                continue
-            present.add(path.relative_to(repo_root).as_posix())
-
     if target_layout == "aw":
-        version_path = repo_root / AW_SYSTEM_DIR / VERSION_FILE
+        from agent_workflows.project_context import project_system_dir
+
+        sys_dir = project_system_dir(repo_root)
+        workflows_dir = sys_dir / "workflows"
+        if workflows_dir.is_dir():
+            for path in workflows_dir.rglob("*"):
+                if not path.is_file():
+                    continue
+                if is_ignored_source_path(path):
+                    continue
+                rel_posix = path.relative_to(workflows_dir).as_posix()
+                present.add(f"{AW_SYSTEM_DIR}/workflows/{rel_posix}")
+
+        version_path = sys_dir / VERSION_FILE
         if version_path.is_file():
             present.add(f"{AW_SYSTEM_DIR}/{VERSION_FILE}")
     else:
+        workflows_dir = repo_root / resolve_workflows_dir(target_layout)
+        if workflows_dir.is_dir():
+            for path in workflows_dir.rglob("*"):
+                if not path.is_file():
+                    continue
+                if is_ignored_source_path(path):
+                    continue
+                present.add(path.relative_to(repo_root).as_posix())
+
         version_path = repo_root / WORKFLOWS_DIR / VERSION_FILE
         if version_path.is_file():
             present.add(f"{WORKFLOWS_DIR}/{VERSION_FILE}")
@@ -2612,7 +2652,7 @@ def prune_stale(
     for rel in orphans:
         if not in_framework_namespace(rel):  # defense in depth
             continue
-        destination = plan.repo_root / rel
+        destination, is_in_tree = _system_member_destination(plan.repo_root, rel)
 
         is_shim = any(
             rel.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS
@@ -2659,7 +2699,7 @@ def prune_stale(
             except OSError:
                 pass
 
-        tracked = use_git and git_is_tracked(plan.repo_root, rel)
+        tracked = use_git and is_in_tree and git_is_tracked(plan.repo_root, rel)
         how = "git rm" if tracked else "rm"
 
         if plan.dry_run:
@@ -6998,7 +7038,7 @@ def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str
 
     written: list[str] = []
     for rel, content in payloads:
-        target = root / rel
+        target, _ = _system_member_destination(root, rel)
         try:
             if target.is_file() and target.read_text(encoding="utf-8") == content:
                 continue  # byte-identical: a re-install at the same version is a no-op
@@ -7137,10 +7177,12 @@ def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
 
 def read_installed_version(repo_root: Path) -> Optional[str]:
     """Return the framework VERSION installed in ``repo_root``, or None if not installed."""
+    from agent_workflows.project_context import project_system_dir
 
+    sys_dir = project_system_dir(repo_root)
     for candidate in (
-        repo_root / AW_SYSTEM_DIR / VERSION_FILE,
-        repo_root / AW_SYSTEM_WORKFLOWS_DIR / VERSION_FILE,
+        sys_dir / VERSION_FILE,
+        sys_dir / "workflows" / VERSION_FILE,
         repo_root / WORKFLOWS_DIR / VERSION_FILE,
     ):
         try:
@@ -7314,7 +7356,7 @@ def install_into_repo(
     # only a genuinely NEW file enters the `--undo` record below (a rolled-back repo must not be left
     # holding generated output whose ignore rule the same rollback just removed).
     _layout_pre_existing = {
-        rel: (repo_root / rel).exists()
+        rel: _system_member_destination(repo_root, rel)[0].exists()
         for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH)
     }
     layout_artifacts = emit_layout_artifacts(repo_root, dry_run=dry_run)
@@ -7345,19 +7387,28 @@ def install_into_repo(
     # created-files record so a newly-created manifest is captured for `--undo` too.
     if not dry_run:
         manifest.installed_version = read_installed_version(repo_root) or ""
-        manifest_rel = manifest_path.relative_to(plan.repo_root).as_posix()
         manifest_existed = manifest_path.exists()
+        from agent_workflows.project_context import _canonical_path, _is_safe_subpath
+
+        is_manifest_in_tree = _is_safe_subpath(
+            _canonical_path(manifest_path), _canonical_path(plan.repo_root)
+        )
+        manifest_logical = (
+            manifest_path.relative_to(plan.repo_root).as_posix()
+            if is_manifest_in_tree
+            else manifest_mod.DEFAULT_MANIFEST_RELPATH
+        )
         try:
             manifest_mod.save(manifest, manifest_path)
-            if use_git:
-                _stage_installed_file(plan.repo_root, manifest_rel)
+            if use_git and is_manifest_in_tree:
+                _stage_installed_file(plan.repo_root, manifest_logical)
             # Add the manifest to the installed set so the commit step includes it and the
             # repo is not left with a staged-but-uncommitted manifest (D85 no-silent-dirty).
             installed.append(
-                f"{manifest_rel} [{'overwrite' if manifest_existed else 'install'}]"
+                f"{manifest_logical} [{'overwrite' if manifest_existed else 'install'}]"
             )
-            if not manifest_existed:
-                newly_created.append(manifest_rel)
+            if not manifest_existed and is_manifest_in_tree:
+                newly_created.append(manifest_logical)
         except OSError as exc:
             print(
                 f"Warning: could not write install manifest {manifest_path} ({exc}); "

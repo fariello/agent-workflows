@@ -117,6 +117,7 @@ Measured at HEAD `62803305b` with a scratch `aw install <tmp>/r --preset complet
   - Carrier: qk0ew6
 - Changing `engine.read_installed_version` to find a home `system/VERSION`: the system-root accessor child owns it; E-05 reuses whatever it returns.
   - Carrier: 4gn1ka
+  - Carrier-Evidence: .aw/records/plans/executed/20261015-cleantgt-02-4gn1ka-route-every-system-bundle-reader-through-one-system-root-acc.ipd.md
 - Removing `doctor.run`'s local git-root bound (`climbed in Path(git_root).resolve().parents`): redundant once `ivq0nr` lands, behaviour-neutral, and `ivq0nr` already declined it.
   - Carrier-Declined: redundant-but-correct code with no defect; `ivq0nr` Deferred row records the same decision.
 

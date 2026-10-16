@@ -614,7 +614,9 @@ class CompatMigrator:
         ):
             return STATE_PARTIAL
 
-        has_aw_system = (self.target_repo / engine.AW_SYSTEM_DIR).exists()
+        from agent_workflows.project_context import project_system_dir
+
+        has_aw_system = project_system_dir(self.target_repo).exists()
         has_legacy = (self.target_repo / engine.WORKFLOWS_DIR).exists()
         if not has_aw_system and has_legacy:
             return STATE_LEGACY

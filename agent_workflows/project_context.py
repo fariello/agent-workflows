@@ -963,34 +963,28 @@ def _resolve_stored_physical_classes_cached(
     repo_abs: str,
     eff_aw_home: str,
     _stamp: tuple,
-) -> Optional[Mapping[str, str]]:
-    """Cached resolution of physical classes for stored records placement."""
+) -> tuple[Mapping[str, str], Mapping[str, Any], str]:
+    """Cached resolution of physical classes, provenance, and delivery mode."""
     ctx = resolve_project_context(target_repo=repo_abs, aw_home=eff_aw_home)
-    rec_prov = ctx.provenance.get("records_backend", {})
-    src = (
-        rec_prov.get("source")
-        if isinstance(rec_prov, dict)
-        else getattr(rec_prov, "source", None)
-    )
     delivery_mode_val = (
         ctx.delivery_mode.value
         if hasattr(ctx.delivery_mode, "value")
         else str(ctx.delivery_mode)
     )
-    is_stored = (
-        src in ("project_durable_config", "machine_local_binding")
-        or delivery_mode_val == "clean-delta"
+    return (
+        types.MappingProxyType(dict(ctx.physical_classes)),
+        types.MappingProxyType(dict(ctx.provenance)),
+        delivery_mode_val,
     )
-    if not is_stored:
-        return None
-    return types.MappingProxyType(dict(ctx.physical_classes))
 
 
 def _stored_physical_classes(
     repo_root: str | Path,
     aw_home: Optional[str | Path] = None,
+    *,
+    root_class: str = RootClass.RECORDS.value,
 ) -> Optional[Mapping[str, str]]:
-    """Return physical classes mapping if repository has stored records placement, else None."""
+    """Return physical classes mapping if repository has stored placement for root_class, else None."""
     repo = Path(repo_root)
     eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
     cfg = project_config_dir(repo, aw_home=eff_aw_home)
@@ -1009,7 +1003,45 @@ def _stored_physical_classes(
     )
     stamp = _config_stat_stamp(cfg, home_cfg_file, user_cfg_file)
 
-    return _resolve_stored_physical_classes_cached(repo_abs, eff_aw_home, stamp)
+    physical_classes, provenance, delivery_mode_val = (
+        _resolve_stored_physical_classes_cached(repo_abs, eff_aw_home, stamp)
+    )
+
+    if root_class in (RootClass.SYSTEM.value, "system"):
+        del_prov = provenance.get("delivery_mode", {})
+        del_src = (
+            del_prov.get("source")
+            if isinstance(del_prov, dict)
+            else getattr(del_prov, "source", None)
+        )
+        sys_prov = provenance.get("system_root", {})
+        sys_src = (
+            sys_prov.get("source")
+            if isinstance(sys_prov, dict)
+            else getattr(sys_prov, "source", None)
+        )
+        is_stored = (
+            del_src in ("project_durable_config", "machine_local_binding")
+            or sys_src == "machine_local_binding"
+        )
+        if not is_stored:
+            return None
+        return physical_classes
+
+    # Default: records_backend
+    rec_prov = provenance.get("records_backend", {})
+    src = (
+        rec_prov.get("source")
+        if isinstance(rec_prov, dict)
+        else getattr(rec_prov, "source", None)
+    )
+    is_stored = (
+        src in ("project_durable_config", "machine_local_binding")
+        or delivery_mode_val == "clean-delta"
+    )
+    if not is_stored:
+        return None
+    return physical_classes
 
 
 def has_stored_records_placement(
@@ -1017,7 +1049,12 @@ def has_stored_records_placement(
     aw_home: Optional[str | Path] = None,
 ) -> bool:
     """Return True if repository has a stored records placement policy."""
-    return _stored_physical_classes(repo_root, aw_home=aw_home) is not None
+    return (
+        _stored_physical_classes(
+            repo_root, aw_home=aw_home, root_class=RootClass.RECORDS.value
+        )
+        is not None
+    )
 
 
 def project_records_dir(
@@ -1029,7 +1066,9 @@ def project_records_dir(
     Pure and side-effect free (spec 20260810-1447-01 Section 4 & 7).
     """
     repo = Path(repo_root)
-    stored = _stored_physical_classes(repo, aw_home=aw_home)
+    stored = _stored_physical_classes(
+        repo, aw_home=aw_home, root_class=RootClass.RECORDS.value
+    )
     if stored is None:
         return repo / ".aw" / "records"
     records_path = stored.get(RootClass.RECORDS.value, stored.get("records"))
@@ -1038,6 +1077,41 @@ def project_records_dir(
     if _canonical_path(records_path) == _canonical_path(repo / ".aw" / "records"):
         return repo / ".aw" / "records"
     return Path(records_path)
+
+
+def has_stored_system_placement(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> bool:
+    """Return True if repository has a stored system placement policy."""
+    return (
+        _stored_physical_classes(
+            repo_root, aw_home=aw_home, root_class=RootClass.SYSTEM.value
+        )
+        is not None
+    )
+
+
+def project_system_dir(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Path:
+    """Return the system directory for a repository.
+
+    Pure and side-effect free (spec 20260810-1447-01 Section 4 & 7).
+    """
+    repo = Path(repo_root)
+    stored = _stored_physical_classes(
+        repo, aw_home=aw_home, root_class=RootClass.SYSTEM.value
+    )
+    if stored is None:
+        return repo / ".aw" / "system"
+    system_path = stored.get(RootClass.SYSTEM.value, stored.get("system"))
+    if not system_path:
+        return repo / ".aw" / "system"
+    if _canonical_path(system_path) == _canonical_path(repo / ".aw" / "system"):
+        return repo / ".aw" / "system"
+    return Path(system_path)
 
 
 def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:
@@ -1468,6 +1542,10 @@ def resolve_project_context(
     # system root
     if merged_local_binding.get("system_root"):
         system_root = _canonical_path(merged_local_binding["system_root"])
+        provenance_map["system_root"] = Provenance(
+            source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
+            detail=f"user local binding system_root ({system_root})",
+        )
     elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
         system_root = _canonical_path(os.path.join(repo_abs, ".aw", "system"))
     else:
