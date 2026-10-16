@@ -6,7 +6,7 @@
 - Scope: Add ONE pure accessor `project_context.project_records_dir(repo_root, aw_home=None) -> Path` that returns the in-tree `<repo>/.aw/records` for a repository-backed (or unconfigured) project and the resolver's `physical_classes["records"]` when a STORED policy places records elsewhere; then convert every records path construction in `agent_workflows/` that DECIDES A LOCATION (writers, directory readers, scan roots, iterators) to use it, grouped by subsystem, and leave the remaining literals that are only PATH CLASSIFIERS on repo-relative strings (prefix tests, glob vocabularies, docstrings, comments, messages) unchanged with a recorded reason. Repository-backed installs (including this repository) keep byte-identical behavior. Out of scope: `system` bundle routing (`4gn1ka`), project-root recognition with no in-repo `.aw` (`fnnwj3`), run state, receipts, locks and worktrees (`qk0ew6`), the installer's records scaffolding (`3m8aix`), and uninstall (`xoy5yg`).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/prompts.py, agent_workflows/prompts_index.py, agent_workflows/backlog.py, agent_workflows/record_history.py, agent_workflows/specs.py, agent_workflows/releases.py, agent_workflows/review_findings.py, agent_workflows/research_contract.py, agent_workflows/research_index.py, agent_workflows/plans_index.py, agent_workflows/plans_refs.py, agent_workflows/plans_archive.py, agent_workflows/plans.py, agent_workflows/record_placement.py, agent_workflows/set_records.py, agent_workflows/ipd_authoring.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_set_plan.py, agent_workflows/selectors.py, agent_workflows/status_set.py, agent_workflows/artifact_core.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_audit.py, agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/completion.py, agent_workflows/readiness_recheck.py, agent_workflows/orchestrator_readiness.py, agent_workflows/production_checks.py, agent_workflows/comms_acks.py, agent_workflows/comms_broker.py, agent_workflows/doctor.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, agent_workflows/agy_run.py, tests/test_records_root_accessor.py, .aw/records/plans/pending/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kfnfji
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kfnfji verified (set cleantgt, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-007)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
