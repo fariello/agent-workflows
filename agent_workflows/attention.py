@@ -56,7 +56,9 @@ from agent_workflows import term as T
 # whether `stranded_lanes` is ABSENT because this repository has no stranded lane or because the
 # producer predates the key, and only the version distinguishes those. Every pre-existing key keeps its
 # name, its position and its value.
-SCHEMA_VERSION = 4
+# 5 (rereview `ygngc2` E-04): items gained the `review_stale` field (list of reasons). BUMPED on the
+# same additive precedent so consumers can distinguish absence from pre-dating the field.
+SCHEMA_VERSION = 5
 # MAPPING_VERSION is deliberately UNCHANGED at 1. It versions the native-status -> attention-class
 # mapping, and no existing `(tree, native_status)` pair maps anywhere new: `attention_contract`'s new
 # `lanes` fragment adds a SYNTHETIC tree whose states never previously had a class at all, and no
@@ -135,6 +137,7 @@ class Item(NamedTuple):
     item_dependencies: Optional[Tuple[str, ...]] = None
     exec_progress: Optional[Tuple[int, int]] = None
     valid_progress: Optional[Tuple[int, int]] = None
+    review_stale: Tuple[str, ...] = ()
 
 
 _OQ_SECTION_RE = re.compile(
@@ -688,6 +691,27 @@ def scan(
     # (rstodo p3o9je: the hot state was renamed `intake` -> `todo`; native_status is normalized to the
     # canonical `todo` at the scanner, so a legacy `intake` doc is handled identically here.)
     items = _reclassify_stale_research(repo_root, items)
+
+    # rereview ygngc2 E-04: bulk-resolve review staleness for all collected plan items in one call.
+    plan_items = [it for it in items if it.tree == "plans"]
+    if plan_items:
+        try:
+            from agent_workflows.plan_readiness import review_staleness_index
+
+            stale_map = review_staleness_index(
+                repo_root, [repo_root / it.path for it in plan_items]
+            )
+            if stale_map:
+                items = [
+                    (
+                        it._replace(review_stale=stale_map[it.path].reasons)
+                        if it.tree == "plans" and it.path in stale_map
+                        else it
+                    )
+                    for it in items
+                ]
+        except Exception:
+            pass
 
     # worksequence i6015i E-04: the default order is unchanged. `sort_items` with the default key
     # reproduces exactly the `(class order, path, id)` tuple this line always used, which is what makes
@@ -1897,6 +1921,7 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
                 "rqs": it.rqs,
                 "detail_kind": it.detail_kind,
                 "detail_text": it.detail_text,
+                "review_stale": list(it.review_stale),
             }
             for it in items
         ],
@@ -2598,11 +2623,14 @@ def _render_item_row(
         blocking = ""
         if it.blocks_release:
             blocking = "  " + term.color256("[blocking]", 196, bold=True)
+        stale_review = ""
+        if it.review_stale:
+            stale_review = "  " + term.color256("[stale-review]", 214, bold=True)
         # The GLYPH IMMEDIATELY PRECEDES THE STATUS WORD (Section 9.1: "glyph MUST immediately
         # precede either id6 or status so its referent is obvious"), and it is padded by RENDERED
         # width by `format_lifecycle_marker`, so the two glyphs carrying U+FE0E (`⚠︎`, `↩︎`) occupy
         # the same column count as the single-codepoint ones.
-        line = f"- {lead}{marker} {status_padded}  {type_prefix}{path_txt}{run_txt}{prio}{blocking}{inline_gate}"
+        line = f"- {lead}{marker} {status_padded}  {type_prefix}{path_txt}{run_txt}{prio}{blocking}{stale_review}{inline_gate}"
         if details and it.detail_text:
             tag = it.detail_kind or "summary"
             tag_txt = term.color256(f"{tag}:", 244)
@@ -2617,7 +2645,10 @@ def _render_item_row(
     run_sfx = ""
     if runs_mode and run_state and run_state != "-":
         run_sfx = f"  [run: {run_state}]"
-    line = f"- [{it.tree}] {it.path} ({status_word}){run_sfx}{suffix}"
+    stale_sfx = ""
+    if it.review_stale:
+        stale_sfx = "  [stale-review]"
+    line = f"- [{it.tree}] {it.path} ({status_word}){run_sfx}{stale_sfx}{suffix}"
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         line += f"\n      {tag}: {_safe_detail(it.detail_text)}"
@@ -3153,15 +3184,23 @@ def _render_table_row(
         )
         inline_gate = f"  [gate {it.gate.get('kind')}: {ref_txt}]"
 
+    stale_marker = ""
+    if it.review_stale:
+        stale_marker = (
+            "  " + term.color256("[stale-review]", 214, bold=True)
+            if colored
+            else "  [stale-review]"
+        )
+
     if runs_mode:
         row_line = (
             f"{st_col} {run_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
-            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}"
+            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}{stale_marker}"
         )
     else:
         row_line = (
             f"{st_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
-            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}"
+            f"{exec_col} {valid_col} {date_col} {set_col} {num_col} {id6_col} {deps_col}{inline_gate}{stale_marker}"
         )
     if details and it.detail_text:
         tag = it.detail_kind or "summary"

@@ -2240,6 +2240,7 @@ def lint_text(
     legacy: bool = False,
     doc: Optional[ParsedDoc] = None,
     citation_anchors: bool = False,
+    path: Optional[Path] = None,
 ) -> LintResult:
     """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics).
 
@@ -2295,6 +2296,7 @@ def lint_text(
         check_density(doc) + scope_advisory + prio_advisory + wk_advisory + dep_advisory
     )
     advisories += _draft_ready_advisory(doc, text, checkpoint)
+    advisories += _review_stale_advisory(doc, path, checkpoint)
     # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
     # and NEVER to `diags`, so `disposition` (computed above) cannot see it and the exit status cannot
     # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing unless
@@ -2309,6 +2311,7 @@ def lint_text(
 # check engine emits, surfaced as a PASSING advisory from `aw ipd lint --phase author` on a
 # placeholder-free draft. Detect-and-nudge only (never flips status).
 C_DRAFT_READY = "check.ipd-draft-ready-to-review"
+C_REVIEW_STALE = "check.ipd-review-may-be-stale"
 
 
 def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
@@ -2336,6 +2339,56 @@ def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
     ]
 
 
+def _review_stale_advisory(
+    doc: ParsedDoc, path: Optional[Path], checkpoint: str
+) -> List[Diagnostic]:
+    """Passing advisory when a reviewed/approved plan's review may be stale (rereview ygngc2)."""
+    if checkpoint not in ("author", "review-finalize"):
+        return []
+    if path is None:
+        return []
+    try:
+        resolved_path = path.resolve()
+    except Exception:
+        return []
+
+    repo_root: Optional[Path] = None
+    for anc in [resolved_path] + list(resolved_path.parents):
+        if (anc / ".git").exists():
+            repo_root = anc
+            break
+
+    if repo_root is None:
+        return []
+
+    try:
+        from agent_workflows.plan_readiness import review_staleness_index
+
+        stale_map = review_staleness_index(repo_root, [path])
+        try:
+            rel_posix = resolved_path.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel_posix = path.as_posix()
+        stale = stale_map.get(rel_posix)
+        if not stale:
+            return []
+        id6 = (doc.meta_fields.get("Id") or "").strip() or "<id6>"
+        reasons_text = ", ".join(stale.reasons)
+        oq_text = f" ({', '.join(stale.question_ids)})" if stale.question_ids else ""
+        short_hash = stale.reviewed_commit[:8]
+        return [
+            Diagnostic(
+                0,
+                0,
+                C_REVIEW_STALE,
+                f"review may be stale: {reasons_text}{oq_text} since {short_hash}; "
+                f"to re-review: aw oc review {id6} --yes",
+            )
+        ]
+    except Exception:
+        return []
+
+
 def lint_file(
     path: Path,
     *,
@@ -2357,6 +2410,7 @@ def lint_file(
         legacy=legacy,
         doc=doc,
         citation_anchors=citation_anchors,
+        path=path,
     )
     # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
     # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
