@@ -235,17 +235,17 @@ aw pwatch python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
 ### Backwards Compatibility
 
-`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments.
+`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments. `tools/watch-runners.py` is the compatibility shim forwarding to `agent_workflows.runners_monitor` (`aw runners`).
 
 ### Exit Status
 
-`aw pwatch` returns:
+`aw pwatch` (including `--runners --table`) and `aw runners` return:
 - `0`: clean exit after `--once` or interrupt via Ctrl-C (SIGINT).
 - `143`: terminated by SIGTERM.
 - `1`: runtime error (e.g. fatal failure reading `/proc`).
 - `2`: command-line argument validation or usage error.
 
-In all cases, the alternate screen is exited and the terminal state is restored cleanly. Note that the `--runners --table` dashboard is an exception and still exits 0 on SIGTERM.
+In all cases, the alternate screen is exited and the terminal state is restored cleanly.
 
 ## `aw oc runipd` (the OpenCode IPD runner)
 

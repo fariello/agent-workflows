@@ -13,9 +13,16 @@ from __future__ import annotations
 
 import io
 import json
-from contextlib import redirect_stdout
+import os
 from pathlib import Path
+import select
+import signal
+import subprocess
+import sys
+from contextlib import redirect_stdout
 from unittest.mock import patch
+
+import pytest
 
 from agent_workflows import cli, pwatch, runners_monitor
 from agent_workflows.run_viewer import HOLDER_LIVE, HOLDER_NONE
@@ -420,3 +427,132 @@ def test_runners_tab_completion() -> None:
     assert "--raw-cpu" in dyn
     assert "--tree" in dyn
     assert "--width" in dyn
+
+
+def _run_bounded_subprocess_signal(
+    cmd_args: list[str],
+    sig: signal.Signals,
+    tmp_path: Path,
+) -> int:
+    cmd = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        *cmd_args,
+        "--repo",
+        str(tmp_path),
+        "--interval",
+        "0.3",
+        "--no-color",
+    ]
+    p = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        assert p.stdout is not None
+        rlist, _, _ = select.select([p.stdout], [], [], 10.0)
+        assert rlist, f"Timed out waiting for first stdout line from {cmd_args}"
+        first_line = p.stdout.readline()
+        assert first_line, f"Empty stdout from {cmd_args}"
+        os.killpg(p.pid, sig)
+        p.wait(timeout=10)
+        return p.returncode
+    finally:
+        if p.poll() is None:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            p.wait(timeout=5)
+
+
+@pytest.mark.skipif(
+    os.name != "posix",
+    reason="Subprocess signal tests require POSIX process groups",
+)
+def test_runners_subprocess_sigterm_exit_143(tmp_path: Path) -> None:
+    rc = _run_bounded_subprocess_signal(["runners"], signal.SIGTERM, tmp_path)
+    assert rc == 143
+
+
+@pytest.mark.skipif(
+    os.name != "posix",
+    reason="Subprocess signal tests require POSIX process groups",
+)
+def test_runners_subprocess_sigint_exit_0(tmp_path: Path) -> None:
+    rc = _run_bounded_subprocess_signal(["runners"], signal.SIGINT, tmp_path)
+    assert rc == 0
+
+
+@pytest.mark.skipif(
+    os.name != "posix",
+    reason="Subprocess signal tests require POSIX process groups",
+)
+def test_pwatch_runners_table_subprocess_sigterm_exit_143(tmp_path: Path) -> None:
+    rc = _run_bounded_subprocess_signal(
+        ["pwatch", "--runners", "--table"], signal.SIGTERM, tmp_path
+    )
+    assert rc == 143
+
+
+def test_runners_inprocess_handler_restoration_after_clean_exit(
+    tmp_path: Path,
+) -> None:
+    def sentinel_int(_signum: int, _frame: object) -> None:
+        pass
+
+    def sentinel_term(_signum: int, _frame: object) -> None:
+        pass
+
+    old_int = signal.signal(signal.SIGINT, sentinel_int)
+    old_term = signal.signal(signal.SIGTERM, sentinel_term)
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = runners_monitor.main(["--once", "--no-color", "--repo", str(tmp_path)])
+        assert rc == 0
+        assert signal.getsignal(signal.SIGINT) is sentinel_int
+        assert signal.getsignal(signal.SIGTERM) is sentinel_term
+    finally:
+        signal.signal(signal.SIGINT, old_int)
+        signal.signal(signal.SIGTERM, old_term)
+
+
+def test_runners_inprocess_handler_restoration_after_sigterm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def sentinel_int(_signum: int, _frame: object) -> None:
+        pass
+
+    def sentinel_term(_signum: int, _frame: object) -> None:
+        pass
+
+    old_int = signal.signal(signal.SIGINT, sentinel_int)
+    old_term = signal.signal(signal.SIGTERM, sentinel_term)
+
+    call_count = 0
+
+    def bounded_sleep(_interval: float) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise AssertionError(
+                "runners_monitor loop iterated more than once without exiting on SIGTERM"
+            )
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    monkeypatch.setattr(runners_monitor.time, "sleep", bounded_sleep)
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = runners_monitor.main(["--no-color", "--repo", str(tmp_path)])
+        assert rc == 143
+        assert call_count == 1
+        assert signal.getsignal(signal.SIGINT) is sentinel_int
+        assert signal.getsignal(signal.SIGTERM) is sentinel_term
+    finally:
+        signal.signal(signal.SIGINT, old_int)
+        signal.signal(signal.SIGTERM, old_term)
