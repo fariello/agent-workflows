@@ -6,7 +6,7 @@
 - Scope: IN: (1) classify each unclosed item into a small fixed set of causes from facts the run already records, and render the report grouped by cause, with whether action is needed and one next command per group, item before plan; (2) record the same classification in the `backlog-items-left-open` ledger event (additive fields, existing `reason` kept); (3) call the backlog close for an orchestrator item when the runner retires it, on both hosts through the shared seam; (4) close, through the normal setter and citing this plan, every item re-derived at execution time as complete with an executed orchestrator carrier (the seven measured at authoring were already closed by `0owirm` on 2026-10-13); tests; CHANGELOG. OUT: changing the close predicate itself (`evaluate_backlog_close`, `check_engine.evaluate_blocking_close`); `aw attention`'s cross-tree view; the per-item `reason` strings `process_backlog_close` already writes on a refused close (rendered verbatim under the "close refused" group).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_unclosed_report_grouping.py, tests/test_orchestrator_retire_closes_backlog.py, CHANGELOG.md, .aw/records/backlog/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lr6lnm
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lr6lnm verified (set closemsg, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 
