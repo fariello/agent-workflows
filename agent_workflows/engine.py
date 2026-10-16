@@ -4943,6 +4943,8 @@ _DEEP_CLEANUP_ROOTS = (
     # framework's own scaffolding, and a user's pre-Order-07 run records at the old path are theirs to
     # keep (Order 05 relocates them; nothing here deletes them).
     ".aw/workflow-artifacts",
+    # The raw-drop inbox lane (instbugs xzlu9b): must be pruned by deep cleanup so no .aw/ remains.
+    ".aw/inbox",
     # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
     # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
     ".agents/plans",
@@ -6866,7 +6868,7 @@ def _ensure_aw_gitignore(repo_root: Path) -> bool:
     # test matches the pattern LINES only, never the substring `inbox/` that the explanatory comment
     # above it also contains.
     wrote = False
-    bare_inbox = re.compile(r"(?m)^inbox/[ \t]*$")
+    bare_inbox = re.compile(r"(?m)^inbox/(?:\*[ \t]*)?$")
     exact_inbox = re.compile(r"(?m)^/inbox/[ \t]*$")
     if bare_inbox.search(text):
         text = bare_inbox.sub("/inbox/*\n!/inbox/README.md", text)

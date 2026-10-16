@@ -41,6 +41,7 @@ _ORCHESTRATOR_TEMPLATE = """# IPD: Test Orchestrator {orch_id6}
 - Order: 0
 - Status: approved
 - Approval: 2026-10-06, recorded via aw ipd set: status set to approved
+- Readiness: go
 - Priority: high
 - Work-Kind: bug
 - Author: test
@@ -52,6 +53,7 @@ _ORCHESTRATOR_TEMPLATE = """# IPD: Test Orchestrator {orch_id6}
 
 ## Workflow history
 - 2026-10-06 approved (test): status set to approved
+- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE
 - 2026-10-06 created (test): created
 
 ## Goal
@@ -112,6 +114,7 @@ _CHILD_TEMPLATE = """# IPD: Test Child Plan {child_id6}
 - Scope-Paths: agent_workflows/ipd_schema.py
 - Status: approved
 - Approval: 2026-10-06, recorded via aw ipd set: status set to approved
+- Readiness: go
 - Set: {setid}
 - Order: 1
 - Highest E allocated: 01
@@ -123,6 +126,7 @@ _CHILD_TEMPLATE = """# IPD: Test Child Plan {child_id6}
 
 ## Workflow history
 - 2026-10-06 approved (test): status set to approved
+- 2026-10-06 reviewed (test): plan-review passed with verdict APPROVE
 - 2026-10-06 created (test): created
 
 ## Goal
@@ -255,7 +259,8 @@ if plan_rel:
 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 st = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True)
 if st.stdout.strip():
-    subprocess.run(["git", "commit", "-qm", "child turn executed"], cwd=repo, check=True)
+    commit_msg = f"lifecycle({id6}): finalize {id6} -> executed" if id6 else "child turn executed"
+    subprocess.run(["git", "commit", "-qm", commit_msg], cwd=repo, check=True)
 
 
 # (e) write the Required JSON outcome: file with disposition: executed

@@ -102,10 +102,10 @@ Beware the exact-status trap: `state:backlog:<status>:<carrier>` requires the ca
 When declaring a `.aw/records/` artifact in `- Scope-Paths:`, use the status-agnostic glob form:
 
 ```text
-.aw/records/backlog/**/20261002-scoperewrite-01-ho7qjb-x.backlog.md
+.aw/records/backlog/**/<id6>-<slug>.backlog.md
 ```
 
-instead of a literal status path like `.aw/records/backlog/open/20261002-scoperewrite-01-ho7qjb-x.backlog.md`. The glob form survives status moves between disposition directories and is recommended but optional. Adding a glob entry mid-execution is not widening-eligible under an active receipt, so declare globs at authoring. A mistyped glob is not caught by `aw check` or the runner's dispatch refusal, surfacing only at finalize reconciliation. This spelling applies only to `.aw/records/` artifacts, never to source paths, where literal entries keep the scope fence tight. See Section 4.5 of the IPD structure spec (`20260802-1904-01-ipd-structure-and-linting.spec.md`).
+instead of a literal status path like `.aw/records/backlog/open/<id6>-<slug>.backlog.md`. The glob form survives status moves between disposition directories and is recommended but optional. Adding a glob entry mid-execution is not widening-eligible under an active receipt, so declare globs at authoring. A mistyped glob is not caught by `aw check` or the runner's dispatch refusal, surfacing only at finalize reconciliation. This spelling applies only to `.aw/records/` artifacts, never to source paths, where literal entries keep the scope fence tight. See Section 4.5 of the IPD structure spec.
 
 ## Execution contract in every plan's gate
 

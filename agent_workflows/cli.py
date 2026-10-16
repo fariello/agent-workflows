@@ -1688,6 +1688,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "checkup",
         parents=[common],
         help="Run health checkup (CI status and slow checks) on demand and save record.",
+        description="Run a repository health checkup on demand, verifying CI status, slow checks, and system integrity, and recording structured diagnostics.",
     )
     p_checkup.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -6737,20 +6738,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Exit codes: 0 clean, 1 gate refusal, 2 cannot-run/usage error.\n"
             "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
-        description="Inspect and prune worker and review sweep lanes.",
+        description="Inspect and manage worker and review sweep lanes across the repository, tracking ownership, worktree state, and cleanup eligibility.",
     )
     lanes_sub = p_lanes.add_subparsers(dest="lanes_command")
     lanes_sub.add_parser(
         "list",
         parents=[common],
         help="List all worker and review sweep lanes with owner, live status, and verdict.",
-        description="List all worker and review sweep lanes with owner, live status, and verdict.",
+        description="List all worker and review sweep lanes with details including owning agent or process, live lease status, worktree paths, and cleanup verdicts.",
     )
     p_lanes_prune = lanes_sub.add_parser(
         "prune",
         parents=[common],
         help="Prune lanes that have landed on main (dry-run by default; --apply to remove).",
-        description="Prune lanes that have landed on main (dry-run by default; --apply to remove).",
+        description="Safely prune worker and review sweep lanes that have cleanly merged onto main (runs in dry-run mode by default; pass --apply to execute removals).",
     )
     p_lanes_prune.add_argument(
         "--apply",

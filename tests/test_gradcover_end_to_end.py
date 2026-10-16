@@ -619,6 +619,16 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         w_dir = Path(kwargs.get("work_dir") or state["repo"])
                         t_id6 = item["id6"]
                         reviewed_order.append(t_id6)
+                        p_files = list(
+                            w_dir.glob(f".aw/records/plans/pending/*-{t_id6}-*.ipd.md")
+                        )
+                        if p_files:
+                            txt = p_files[0].read_text(encoding="utf-8")
+                            if "- Readiness:" not in txt:
+                                txt = txt.replace(
+                                    "- Status:", "- Readiness: go\n- Status:"
+                                )
+                                p_files[0].write_text(txt, encoding="utf-8")
                         buf_cli = io.StringIO()
                         with contextlib.redirect_stdout(
                             buf_cli
@@ -633,7 +643,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                                     str(w_dir),
                                     "--yes",
                                     "--message",
-                                    f"reviewed {t_id6} successfully",
+                                    f"plan-review approved {t_id6} with verdict APPROVE",
                                 ]
                             )
                         self.assertEqual(

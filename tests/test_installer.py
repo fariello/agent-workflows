@@ -5140,7 +5140,7 @@ class AwGitignoreLaneTests(unittest.TestCase):
         ),
         (
             "the raw-drop inbox",
-            "/inbox/",
+            "/inbox/*",
             True,
             "records/*/untracked/\nsetup-repo-needed.md\n"
             "records/history.jsonl\nrecords/runs/\n",
