@@ -4162,6 +4162,16 @@ def commit_backlog_transition_output(
 
     from agent_workflows import git_commit_helper as _gch
 
+    # Filter out an already-staged `git mv` rename source: when status_set._offer_self_commit
+    # preserves the staged rename under --no-commit (backlog mlm0b5), `old` is already gone
+    # from disk ((wt / p).exists() == False) and already gone from HEAD's index working set
+    # (_gch._in_index(wt, p) == False). Passing such a path to `git add --` fails with rc 128
+    # ("fatal: pathspec did not match any files") and aborts the transition commit.
+    # Conversely, for an unstaged tracked deletion (_gch._in_index(wt, p) == True), staging it
+    # here matches git_commit_helper.offer_commit (line 1192) and maintains index consistency
+    # between `git add` and `git commit`. Note that the `_in_index` branch is for index consistency
+    # and offer_commit parity rather than commit correctness (F-05), because the trailing
+    # `git commit -- *allowed` pathspec stages tracked deletions itself.
     add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]
     if add_paths:
         rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
