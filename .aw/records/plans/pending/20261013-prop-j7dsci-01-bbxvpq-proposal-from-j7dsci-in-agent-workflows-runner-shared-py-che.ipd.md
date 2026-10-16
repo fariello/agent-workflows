@@ -97,6 +97,7 @@ N/A: no spec describes the disposable-worktree deletion probe; CHANGELOG line on
 - Blocking: no
 - Status: open
 - Owner: maintainer
+- Carrier-Declined: maintainer decision on machine-local configuration outside repository content
 - Resolution or deferral rationale: Not needed for execution. After E-02 the setting is redundant for this check; it still changes `git diff`/`git log` output for humans in this checkout (renames shown as delete+add). Remove with `git config --unset diff.renames` if unwanted.
 
 ## Validation and cross-check (verify before reporting done)
