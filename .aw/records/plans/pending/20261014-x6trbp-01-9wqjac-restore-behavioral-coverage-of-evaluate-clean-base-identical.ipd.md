@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Pure-rule coverage
 
-- [ ] E-01 Create `tests/test_clean_base_tracked_scope.py` with a test that, for each porcelain input in `("", " M a.py\n", "M  b.py\nR  c -> d\n", "MM x.py\n D gone.py\n")`, calls `lane_containment.evaluate_clean_base(porcelain)` and `lane_containment.evaluate_clean_base(porcelain, shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two, that `clean` is True exactly when the input is empty, and that for a dirty input the shared result has `refuses is True` while the isolated result has `refuses is False` (the consequence differs, the classification does not).
+- [x] E-01 Create `tests/test_clean_base_tracked_scope.py` with a test that, for each porcelain input in `("", " M a.py\n", "M  b.py\nR  c -> d\n", "MM x.py\n D gone.py\n")`, calls `lane_containment.evaluate_clean_base(porcelain)` and `lane_containment.evaluate_clean_base(porcelain, shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two, that `clean` is True exactly when the input is empty, and that for a dirty input the shared result has `refuses is True` while the isolated result has `refuses is False` (the consequence differs, the classification does not).
   - Depends on: none
   - Expected outcome: The new test module exists, imports only the public `lane_containment` API, reads no source text, and the test passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Real-repository coverage through the launch wrapper
 
-- [ ] E-02 In the same module, add a test that builds a throwaway git repository in a `tempfile.TemporaryDirectory` (git init, configure a local user, commit one tracked file), (prefer `tests.support.init_repo`, which already pins a deterministic identity and verifies the repository's git dir is its own), and for three tree shapes (clean; tracked file modified; untracked file only) calls `runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False)` and `(..., shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two paths; the modified shape yields `clean is False` with the tracked path in `dirty_paths` on both paths; the untracked-only shape yields `clean is True` on both paths. The test must never operate on this checkout: `runner_shared._run_git` inherits `os.environ` and ignores git's return code (a failing `git status` yields empty output, which reads as `clean=True`), so the test MUST remove the local git environment variables (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the rest of `git rev-parse --local-env-vars`; e.g. `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, tests.support.clean_git_env(), clear=True)`) for the duration of the calls, so a run under a git hook cannot silently query another repository. The tracked-modified shape's `clean is False` assertion is what proves the call reached the fixture repository rather than an empty or failed status (review PR-001).
+- [x] E-02 In the same module, add a test that builds a throwaway git repository in a `tempfile.TemporaryDirectory` (git init, configure a local user, commit one tracked file), (prefer `tests.support.init_repo`, which already pins a deterministic identity and verifies the repository's git dir is its own), and for three tree shapes (clean; tracked file modified; untracked file only) calls `runner_shared.evaluate_clean_base_for_launch(repo, shared_tree=False)` and `(..., shared_tree=True)` and asserts `clean` and `dirty_paths` are equal across the two paths; the modified shape yields `clean is False` with the tracked path in `dirty_paths` on both paths; the untracked-only shape yields `clean is True` on both paths. The test must never operate on this checkout: `runner_shared._run_git` inherits `os.environ` and ignores git's return code (a failing `git status` yields empty output, which reads as `clean=True`), so the test MUST remove the local git environment variables (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and the rest of `git rev-parse --local-env-vars`; e.g. `monkeypatch.delenv(..., raising=False)` or `mock.patch.dict(os.environ, tests.support.clean_git_env(), clear=True)`) for the duration of the calls, so a run under a git hook cannot silently query another repository. The tracked-modified shape's `clean is False` assertion is what proves the call reached the fixture repository rather than an empty or failed status (review PR-001).
   - Depends on: E-01
   - Expected outcome: The second test passes and exercises the real `git status --porcelain --untracked-files=no` call path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Repoint the stale citation
 
-- [ ] E-03 In the `lane_containment.evaluate_clean_base` docstring, replace the clause citing `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` "(deleted in `19313eed`; no live guard currently asserts this)" with a citation of the new test in `tests/test_clean_base_tracked_scope.py`. Docstring text only; no behavior change.
+- [x] E-03 In the `lane_containment.evaluate_clean_base` docstring, replace the clause citing `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` "(deleted in `19313eed`; no live guard currently asserts this)" with a citation of the new test in `tests/test_clean_base_tracked_scope.py`. Docstring text only; no behavior change.
   - Depends on: E-01, E-02
   - Expected outcome: `rg -n "no live guard currently asserts this" agent_workflows/lane_containment.py` no longer matches inside `evaluate_clean_base`'s docstring and the docstring names the new test. The same phrase also appears in an unrelated comment above `MISSING_INPUT_VERDICT_REFUSED` (about `tests/test_missing_input_repair.py`); that one is out of scope and stays, so exactly one `rg` hit remains (review PR-003).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -112,20 +112,198 @@ None. The tested property, inputs, and call path are fully determined by the del
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts="" -v` output showing the pure-rule test PASSED, plus pasted failing output from the mutation check (shared path forced `clean=True`) proving the test detects divergence, with before/after `sha256sum agent_workflows/lane_containment.py` matching after revert, plus `rg -n "inspect|ast\.|read_text" tests/test_clean_base_tracked_scope.py` output showing no source-reading of production modules.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts="" -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=1425269722
+rootdir: <repo>/.aw/worktrees/9wqjac
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items
 
-- [ ] V-02 validates E-02
+tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_evaluate_clean_base_for_launch_tracked_scope PASSED [ 50%]
+tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_clean_base_tracked_scope_identical_on_both_paths PASSED [100%]
+
+============================== 2 passed in 0.29s ===============================
+
+Mutation check:
+$ sha256sum agent_workflows/lane_containment.py
+601a3f8c34f86068b37dad8008fa844fa10d32d0f4548a1dcbc0296f655e30af  agent_workflows/lane_containment.py
+
+Temporarily set evaluate_clean_base to return clean=True if shared_tree else not dirty:
+$ python3 -m pytest tests/test_clean_base_tracked_scope.py -o addopts="" -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=101520275
+rootdir: <repo>/.aw/worktrees/9wqjac
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items
+
+tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_evaluate_clean_base_for_launch_tracked_scope FAILED [ 50%]
+tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_clean_base_tracked_scope_identical_on_both_paths FAILED [100%]
+
+=================================== FAILURES ===================================
+_ CleanBaseTrackedScopeTests.test_clean_base_tracked_scope_identical_on_both_paths _
+
+self = <tests.test_clean_base_tracked_scope.CleanBaseTrackedScopeTests testMethod=test_clean_base_tracked_scope_identical_on_both_paths>
+
+    def test_clean_base_tracked_scope_identical_on_both_paths(self):
+        """E-01: pure-rule coverage across clean and dirty porcelain inputs."""
+        inputs = (
+            "",
+            " M a.py\n",
+            "M  b.py\nR  c -> d\n",
+            "MM x.py\n D gone.py\n",
+        )
+        for porcelain in inputs:
+            with self.subTest(porcelain=porcelain):
+                isolated = lane_containment.evaluate_clean_base(porcelain)
+                shared = lane_containment.evaluate_clean_base(
+                    porcelain, shared_tree=True
+                )
+>               self.assertEqual(isolated.clean, shared.clean)
+E               AssertionError: False != True
+
+tests/test_clean_base_tracked_scope.py:38: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_evaluate_clean_base_for_launch_tracked_scope
+FAILED tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_clean_base_tracked_scope_identical_on_both_paths
+============================== 2 failed in 0.33s ===============================
+
+After revert:
+$ sha256sum agent_workflows/lane_containment.py
+601a3f8c34f86068b37dad8008fa844fa10d32d0f4548a1dcbc0296f655e30af  agent_workflows/lane_containment.py
+
+$ rg -n "inspect|ast\.|read_text" tests/test_clean_base_tracked_scope.py
+(no matches, exit 1)
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Pasted pytest `-v` output showing the real-repository test PASSED, and a pasted excerpt of the test showing it builds its repository under `TemporaryDirectory` and calls `runner_shared.evaluate_clean_base_for_launch` with both `shared_tree=False` and `shared_tree=True`, covering clean, tracked-modified, and untracked-only shapes, and the excerpt that strips the local git environment variables around those calls.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_clean_base_tracked_scope.py -k test_evaluate_clean_base_for_launch_tracked_scope -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=637698530
+rootdir: <repo>/.aw/worktrees/9wqjac
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items / 1 deselected / 1 selected
 
-- [ ] V-03 validates E-03
+tests/test_clean_base_tracked_scope.py::CleanBaseTrackedScopeTests::test_evaluate_clean_base_for_launch_tracked_scope PASSED [100%]
+
+======================= 1 passed, 1 deselected in 0.28s ========================
+
+Excerpt of tests/test_clean_base_tracked_scope.py:
+    def test_evaluate_clean_base_for_launch_tracked_scope(self):
+        """E-02: real-repository coverage through runner_shared.evaluate_clean_base_for_launch."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo = init_repo(Path(tmp_dir) / "repo")
+            tracked_file = repo / "tracked.txt"
+            with open(tracked_file, "w", encoding="utf-8") as f:
+                f.write("committed content\n")
+            c_env = clean_git_env()
+            git(repo, "add", "tracked.txt", env=c_env)
+            git(repo, "commit", "-q", "-m", "add tracked file", env=c_env)
+
+            with mock.patch.dict(os.environ, clean_git_env(), clear=True):
+                # Shape 1: clean
+                iso_clean = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=False
+                )
+                shared_clean = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=True
+                )
+                self.assertEqual(iso_clean.clean, shared_clean.clean)
+                self.assertEqual(iso_clean.dirty_paths, shared_clean.dirty_paths)
+                self.assertTrue(iso_clean.clean)
+                self.assertTrue(shared_clean.clean)
+                self.assertEqual(iso_clean.dirty_paths, ())
+                self.assertEqual(shared_clean.dirty_paths, ())
+                self.assertFalse(iso_clean.refuses)
+                self.assertFalse(shared_clean.refuses)
+
+                # Shape 2: tracked file modified
+                with open(tracked_file, "w", encoding="utf-8") as f:
+                    f.write("modified content\n")
+                iso_mod = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=False
+                )
+                shared_mod = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=True
+                )
+                self.assertEqual(iso_mod.clean, shared_mod.clean)
+                self.assertEqual(iso_mod.dirty_paths, shared_mod.dirty_paths)
+                self.assertFalse(iso_mod.clean)
+                self.assertFalse(shared_mod.clean)
+                self.assertIn("tracked.txt", iso_mod.dirty_paths)
+                self.assertIn("tracked.txt", shared_mod.dirty_paths)
+                self.assertFalse(iso_mod.refuses)
+                self.assertTrue(shared_mod.refuses)
+
+                # Shape 3: untracked file only
+                with open(tracked_file, "w", encoding="utf-8") as f:
+                    f.write("committed content\n")
+                git(repo, "checkout", "--", "tracked.txt", env=clean_git_env())
+                untracked_file = repo / "untracked.txt"
+                with open(untracked_file, "w", encoding="utf-8") as f:
+                    f.write("untracked file\n")
+                iso_untracked = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=False
+                )
+                shared_untracked = runner_shared.evaluate_clean_base_for_launch(
+                    repo, shared_tree=True
+                )
+                self.assertEqual(iso_untracked.clean, shared_untracked.clean)
+                self.assertEqual(
+                    iso_untracked.dirty_paths, shared_untracked.dirty_paths
+                )
+                self.assertTrue(iso_untracked.clean)
+                self.assertTrue(shared_untracked.clean)
+                self.assertEqual(iso_untracked.dirty_paths, ())
+                self.assertEqual(shared_untracked.dirty_paths, ())
+                self.assertFalse(iso_untracked.refuses)
+                self.assertFalse(shared_untracked.refuses)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff agent_workflows/lane_containment.py` showing only the docstring citation changed inside `evaluate_clean_base`, and the pasted summary line of a bare `python3 -m pytest` run with zero failures.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/lane_containment.py
+diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
+index 3c8a22918..1a2b6fd31 100644
+--- a/agent_workflows/lane_containment.py
++++ b/agent_workflows/lane_containment.py
+@@ -3068,9 +3068,9 @@ def evaluate_clean_base(
+     `3i0aaz` E-03, amended by dirtygates `d7qoxv` E-03). The tracked/untracked SCOPE is identical on
+     both paths - untracked content is reported once per run by
+     `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - and `clean` /
+-    `dirty_paths` are computed identically for both, which was asserted in
+-    `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` (deleted in
+-    `19313eed`; no live guard currently asserts this). What DOES differ is what the caller then
++    `dirty_paths` are computed identically for both, which is asserted in
++    `tests/test_clean_base_tracked_scope.py::test_clean_base_tracked_scope_identical_on_both_paths`.
++    What DOES differ is what the caller then
+     does, and `CleanBaseResult.refuses` is where that lives: a dirty
+     SHARED tree REFUSES, a dirty ISOLATED base is REPORTED and proceeds.
+
+$ python3 -m pytest
+NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+702 passed in 32.53s
+```
+  - Result: pass
 
 ## Approval and execution gate
 
