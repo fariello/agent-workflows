@@ -6,7 +6,8 @@
 - Scope: Teach `engine.plan_uninstall`, `engine.uninstall_repo`, `engine.plan_deep_cleanup`, `engine.run_deep_cleanup`, `cli._run_uninstall`, `cli._uninstall_dry_run_report` and `cli._offer_deep_cleanup` the clean-delta home layout: remove home `system/`, `config/`, `state/` and `worktrees/` on a normal uninstall, keep home `records/` unless `--deep` (or the interactive records prompt says remove), tear lanes down through `worktree_lease.teardown_worktree` so git's `.git/worktrees/<name>` admin entries and lane branches go too, and REFUSE (exit 1, nothing removed) while any lane under home `worktrees/` is owned by another live process or holds unlanded work, with `--force` overriding only the holds-work case. Tests in `tests/test_clean_target_config_home.py`.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/cli.py, tests/test_clean_target_config_home.py
 - Item-Dependencies: executed:3m8aix
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: kvwwt0
@@ -18,6 +19,8 @@
 - Id: xoy5yg
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-009)
+- 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-15 to-review (aw set): authored review-ready child of Set cleantgt (orchestrator ucr3h8) from backlog kvwwt0
 
 - 2026-10-15 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -32,48 +35,123 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline and the home-tree inventory
 
-- [ ] E-01 Re-measure at execution HEAD `engine.plan_uninstall`, `engine.uninstall_repo`, `engine.plan_deep_cleanup`, `engine.run_deep_cleanup`, `engine._DEEP_CLEANUP_ROOTS`, `cli._run_uninstall`, `cli._uninstall_dry_run_report`, `cli._offer_deep_cleanup`, `worktree_lease.teardown_worktree`, `worktree_lease.inspect_lane`, `worktree_lease.lane_owned_by_other_live_process`, `lanes_cli.collect_lane_rows`, and the accessors Set children 01, 02 and 04 delivered (records root, system root, home state root, home worktrees root, all in `agent_workflows/project_context.py` or `worktree_lease`). Reproduce the baseline: temp repo, temp `HOME`/`AW_HOME`, clean-target install, `aw work begin <plan>` to create one lane, then `aw uninstall <t> --yes`, and list what remains under `<AW_HOME>/projects/<id>/`, `git worktree list`, and `git branch --list 'aw/lane/*'`.
+- [ ] E-01 Re-measure at execution HEAD `engine.plan_uninstall`, `engine.uninstall_repo`, `engine.plan_deep_cleanup`, `engine.run_deep_cleanup`, `engine._DEEP_CLEANUP_ROOTS`, `cli._run_uninstall`, `cli._uninstall_dry_run_report`, `cli._offer_deep_cleanup`, `worktree_lease.teardown_worktree`, `worktree_lease.inspect_lane`, `worktree_lease.lane_owned_by_other_live_process`, `lanes_cli.collect_lane_rows`, and the accessors Set children 01, 02 and 04 delivered (records root, system root, home state root, home worktrees root, all in `agent_workflows/project_context.py` or `worktree_lease`). Also measure `runner_shared.peer_drivers`, `runner_shared.remove_suite_baseline_checkout`, `engine._system_member_destination`, `engine._is_clean_delta_install`, `worktree_lease.worktrees_root`, `ipd_lifecycle.clean_delta_control_root`, and `engine.uninstall_repo`'s manifest-last `relative_to` line. Reproduce the baseline:
+  1. Create a temp repo with temp `HOME`/`AW_HOME`.
+  2. Run a clean-target install.
+  3. Create one lane with `worktree_lease.allocate_worktree(<t>, "abc123")`.
+  4. Run `aw uninstall <t> --yes`.
+  5. Record the exit code and any traceback, what remains under `<AW_HOME>/projects/<id>/`, `git worktree list`, and `git branch --list 'aw/lane/*'`.
+
+  If an accessor named above is absent at execution HEAD, record this item as `blocked` with the missing symbol rather than re-implementing it here.
   - Depends on: none
-  - Expected outcome: Accessor names and the baseline residue recorded in V-01 (expected: `system/`, `records/`, `worktrees/<id6>/` remain; the lane is still registered).
+  - Expected outcome: Accessor names and the baseline residue are recorded in V-01. Expected residue: `system/`, `records/` and `worktrees/<id6>/` remain, and the lane is still registered. Also expected: a `ValueError` traceback from the manifest-last step once `4gn1ka` moved the manifest home (PR-001). Record the actual behavior.
   - Execution state: pending
 
-- [ ] E-02 Add `engine._clean_delta_home_trees(repo_root) -> Optional[dict]` returning, only when the stored policy is clean-delta (`engine._is_clean_delta_install` from `3m8aix`), the resolved home paths `{"project_dir", "system", "config", "state", "worktrees", "records"}` taken from `resolve_project_context(target_repo=...).physical_classes` plus the child-04 worktrees accessor (never composed from a preset name), and `None` otherwise. `records` is included only when it resolves under `project_dir` (`records_backend == "home"`); a companion records root is never touched by uninstall.
+- [ ] E-02 Add `engine._clean_delta_home_trees(repo_root) -> Optional[dict]` returning the home paths `{"project_dir", "system", "config", "state", "worktrees", "records"}`. Resolve them in two ways. (a) When the stored policy is clean-delta (`engine._is_clean_delta_install` from `3m8aix`), take them from `resolve_project_context(target_repo=...).physical_classes` plus `worktree_lease.worktrees_root` (`qk0ew6` E-04), never from a preset name. (b) PARTIAL-UNINSTALL RECOVERY (PR-002): when no stored policy resolves but `<AW_HOME>/projects/<project_context._derive_project_id(<canonical repo>)>/` exists and holds a `system/`, `state/`, `worktrees/` or `records/` child, return that directory's children, with `"recovered": True`. This is the id `persist_project_policy` writes into `local.json` when nothing overrides it. Without (b), a run that already deleted `config/` makes the predicate False forever, and F-05's leftover `system/`/`worktrees/` can never be cleaned. Return `None` otherwise. `records` is included only when it resolves under `project_dir` (`records_backend == "home"`); a companion records root is never touched by uninstall. CALL ORDER IS LOAD-BEARING: `cli._run_uninstall` computes this ONCE, before any removal, and passes the dict into `engine.uninstall_repo` (new keyword `home_trees=`). Every removal step then uses that snapshot, because the predicate reads the home `config/` that the uninstall itself deletes.
   - Depends on: E-01
-  - Expected outcome: Returns the six paths for both clean presets, `None` for private-target and companion presets and for a repo with no stored config.
+  - Expected outcome: Returns the six paths for both clean presets; returns the recovered paths for a clean-delta project whose `config/` was deleted but whose `system/` remains; returns `None` for private-target and companion presets, a repo with no stored config and no home project dir, and a repo whose derived home dir is absent.
   - Execution state: pending
 
 ### Task group 2: Lanes first, refusing while a lane is live
 
-- [ ] E-03 Add `engine._home_lane_preflight(repo_root, worktrees_root) -> tuple[list, list, list]` that enumerates registered worktrees from `git worktree list --porcelain` (the discovery surface `worktree_lease._registered_worktrees` and `lanes_cli.collect_lane_rows` use) whose path is under `worktrees_root`, plus any directory under `worktrees_root` git does not register, and classifies each into `live` (`worktree_lease.lane_owned_by_other_live_process` is True), `holds_work` (`worktree_lease.inspect_lane(...).state == LANE_HOLDS_WORK`), or `removable`. In `cli._run_uninstall`, before `_confirm`, call it for a clean-delta target: any `live` lane REFUSES with exit 1 and a message naming each lane id and path and telling the user to stop the run or run `aw lanes prune`; any `holds_work` lane refuses unless `--force`, and with `--force` prints a warning naming the work being discarded. `--dry-run` reports the same classification without refusing.
+- [ ] E-03 Add `engine._home_lane_preflight(repo_root, project_dir, worktrees_root) -> tuple[list, list, list, list]`. It enumerates every registered worktree from `git worktree list --porcelain` whose path lies under `project_dir`, not only under `worktrees_root`. That covers the detached suite-baseline checkouts `qk0ew6` E-06 moves under `<project_dir>/state/suite-baselines/`, which the `state/` removal would otherwise delete out from under git's registry (PR-004). Parse the porcelain directly, because `worktree_lease._registered_worktrees` keys by branch and drops detached entries. It also enumerates any directory under `worktrees_root` that git does not register, excluding `.owners/`. Classify each entry:
+  - `live`: a branch lane where `worktree_lease.lane_owned_by_other_live_process` is True.
+  - `holds_work`: a branch lane where `worktree_lease.inspect_lane(...)` is NOT `.reclaimable`. Use `reclaimable`, NOT `state == LANE_HOLDS_WORK`. A lane already merged into the integration target keeps `commits_ahead > 0` against its own base forever, so `state` reads HOLDS-WORK for it while `reclaimable` correctly says it holds nothing (the `LaneState.reclaimable` docstring "PROVABLY RECOVERED"; PR-003).
+  - `detached`: a registered detached checkout, such as a suite baseline. It has no branch, so it is removable with no branch delete.
+  - `removable`: everything else.
+
+  Separately, ask `runner_shared.peer_drivers(repo_root)` for any run whose `driver.lock` is held (`PEER_LIVE`) or unprobeable (`PEER_UNKNOWN`). A live driver between items holds no lane yet but can allocate one, or write home `state/`, while the uninstall runs, so it refuses exactly like a live lane (PR-005).
+
+  In `cli._run_uninstall`, before `_confirm`, call both for a clean-delta target:
+  - Any `live` lane or live/unknown peer driver REFUSES with exit 1. The message names each lane id and path or run id, and tells the user to stop the run (`aw oc run stop`) or run `aw lanes prune --apply`.
+  - Any `holds_work` lane refuses unless `--force`. With `--force`, print a warning naming the lane, its branch and its `commits_ahead`/dirty state.
+  - `--dry-run` reports the same classification without refusing.
+  - Undeterminable liveness counts as live, inherited from `lane_owned_by_other_live_process`.
   - Depends on: E-02
-  - Expected outcome: With a lane whose owner record names a different live pid, `aw uninstall <t> --yes` and `--yes --force` both exit 1 and nothing under `<AW_HOME>/projects/<id>/` is removed; with a dirty non-live lane, `--yes` exits 1 and `--yes --force` proceeds with a warning.
+  - Expected outcome:
+    - A lane whose owner record names a different live pid makes both `aw uninstall <t> --yes` and `--yes --force` exit 1, and nothing under `<AW_HOME>/projects/<id>/` is removed.
+    - With a dirty non-live lane, `--yes` exits 1 and `--yes --force` proceeds with a warning.
+    - A non-live lane with commits already merged into the target is classified `removable`, not `holds_work`.
+    - A registered detached checkout under `<project_dir>/state/` is classified `detached`.
   - Execution state: pending
 
-- [ ] E-04 In `engine.uninstall_repo`, for a clean-delta target, tear down every `removable` (and, under `force`, `holds_work`) lane through `worktree_lease.teardown_worktree` so the worktree directory, the git admin entry under `.git/worktrees/` and the `aw/lane/<id>` branch are removed, run `git worktree prune` in the target, clear owner records, then remove the remaining contents of the home `worktrees/` tree (including `.owners/`) and the directory itself. Record each action in the returned list. Never call `git rm`/`git add` in the target for these paths.
+- [ ] E-04 In `engine.uninstall_repo`, for a clean-delta target, do the following FIRST, before any file under home `system/`, `state/` or `config/` is touched:
+  1. Tear down every `removable` lane, and every `holds_work` lane under `force`, through `worktree_lease.teardown_worktree`. That removes the worktree directory, the git admin entry under `.git/worktrees/` and the `aw/lane/<id>` branch.
+  2. Remove every `detached` checkout through `runner_shared.remove_suite_baseline_checkout`, which deletes no branch.
+  3. Run `git worktree prune` in the target and clear the owner records.
+  4. Remove the remaining contents of the home `worktrees/` tree (including `.owners/`) and the directory itself.
+
+  Record each action in the returned list. Never call `git rm`/`git add` in the target for these paths. Never append these absolute home paths to `changed_out` (PR-007): `changed_out` is the commit offer's path list, so an entry there makes `_offer_commit_uninstall` print "Deletions are STAGED" for a target where nothing was staged. A teardown that fails raises the existing `WorktreeError`. The uninstall then STOPS with the error reported and exit 1, and removes no further home tree, so a retry still finds `config/` (E-05 ordering).
   - Depends on: E-03
-  - Expected outcome: After uninstall, `git -C <t> worktree list` shows only the main worktree, `git -C <t> branch --list 'aw/lane/*'` is empty, and `<AW_HOME>/projects/<id>/worktrees` does not exist.
+  - Expected outcome:
+    - After uninstall, `git -C <t> worktree list` shows only the main worktree.
+    - `git -C <t> branch --list 'aw/lane/*'` is empty.
+    - `ls <t>/.git/worktrees` is absent or empty.
+    - `<AW_HOME>/projects/<id>/worktrees` does not exist.
+    - The uninstall stdout contains no "Deletions are STAGED" line.
   - Execution state: pending
 
 ### Task group 3: Home system, config, state, and records
 
-- [ ] E-05 In `engine.plan_uninstall` and `engine.uninstall_repo`, resolve each manifest `file`/`shim` entry's on-disk path through the child-02 system-root accessor (so a `.aw/system/...` entry is checked and removed at `<home>/system/...` with plain unlink, not `_uninstall_remove`'s `git rm`), then remove the whole home `system/` tree (workflows, `VERSION`, `managed-sections.json`, `layout.json`, `layout.schema.json`) and prune empty directories, preserving the drift rule (an edited owned file is kept unless `force` or the drift decider says remove). Extend the existing home `config/` + `state/` branch so `state/` removal covers `state/runtime/backups/` and `state/runtime/setup-repo-needed.md` from `3m8aix`, and prune `project_dir` only when empty.
+- [ ] E-05 Remove the home system, state and config trees.
+
+  In `engine.plan_uninstall` and `engine.uninstall_repo`, resolve each manifest `file`/`shim` entry's on-disk path through `4gn1ka`'s `engine._system_member_destination(repo_root, rel)`, which returns `(path, in_tree)`. When `in_tree` is False, the entry is checked and removed at `<home>/system/...` with a plain unlink, not through `_uninstall_remove`'s `git rm` and `repo_root / rel`. Manifest keys stay LOGICAL.
+
+  FIX THE MANIFEST-LAST STEP (PR-001). `uninstall_repo` step 6 computes `manifest_path.relative_to(repo_root)` on the path `manifest_mod.resolve_manifest_path` returns, and `4gn1ka` E-03 moves that path to `<home>/system/managed-sections.json`. So step 6 raises an uncaught `ValueError` on every clean-delta uninstall, after the owned files are already gone. Branch it: an out-of-tree manifest is unlinked directly, and is NOT appended to `changed_out`. Keep it LAST among the system removals (U3).
+
+  Then remove the whole home `system/` tree (workflows, `VERSION`, `layout.json`, `layout.schema.json`) and prune empty directories. Preserve the drift rule: an edited owned file is kept unless `force` is set or the drift decider says remove. A kept file leaves its directory, and so `project_dir`, in place. The dry run and the action list name it.
+
+  Extend the existing home `config/` + `state/` branch:
+  - Drive it from the E-02 snapshot, not from a fresh `project_config_dir(repo_root)` call.
+  - `state/` removal covers `state/runtime/backups/` and `state/runtime/setup-repo-needed.md` from `3m8aix`, plus the `qk0ew6` state (receipts, locks, journals, `work/`, `checkup/`, `suite-baselines/`).
+  - Remove home `config/` LAST of all home trees. That mirrors the manifest-last rule (U3): a mid-uninstall failure leaves the stored policy for a retry, and E-02 (b) covers a failure after it.
+  - Prune `project_dir` only when it is empty.
   - Depends on: E-04
-  - Expected outcome: `aw uninstall <t> --yes` removes home `system/`, `config/`, `state/` and leaves home `records/` byte-identical (same file list and hashes before and after).
+  - Expected outcome:
+    - `aw uninstall <t> --yes` exits 0, raises no traceback, and removes home `system/`, `config/` and `state/`.
+    - Home `records/` is left byte-identical (same file list and hashes before and after).
+    - A second `aw uninstall <t> --yes` reports the project as not installed (or a no-op), not a crash.
+    - A drifted home system file is preserved and named under a plain `--yes`, and removed under `--force`.
   - Execution state: pending
 
-- [ ] E-06 In `engine.plan_deep_cleanup` and `engine.run_deep_cleanup`, add the home `records/` tree for a clean-delta target as records files (absolute paths reported, `is_records` classification, at-risk because home records are never in git), and in `cli._offer_deep_cleanup` and `cli._uninstall_dry_run_report` show it under the existing records prompt and dry-run listing; `--deep` removes it and prunes `project_dir`. Make `cli._run_uninstall`'s `has_footprint` also true when any home tree from E-02 exists, and make `cli._uninstall_dry_run_report` list home `system/`, `config/`, `state/`, `worktrees/` (with the E-03 lane classification) and `records/` counts. For a clean-delta target pass `use_git=False` so `_offer_commit_uninstall` has nothing to stage or commit.
+- [ ] E-06 In `engine.plan_deep_cleanup` and `engine.run_deep_cleanup`, add the home `records/` tree for a clean-delta target as records files (absolute paths reported, `is_records` classification, at-risk because home records are never in git), and in `cli._offer_deep_cleanup` and `cli._uninstall_dry_run_report` show it under the existing records prompt and dry-run listing; `--deep` removes it and prunes `project_dir`. Make the following changes:
+- `cli._run_uninstall`'s `has_footprint` is also true when E-02 returns a non-`None` dict, including the recovered case.
+- `cli._uninstall_dry_run_report` lists the counts for home `system/`, `config/`, `state/`, `worktrees/` (with the E-03 lane and peer classification) and `records/`.
+- For a clean-delta target, pass `use_git=False` so `_offer_commit_uninstall` has nothing to stage or commit.
+- `DeepCleanupPlan.filtered` and `cli._offer_deep_cleanup` classify records by the `is_records` flag recorded at plan time, not by re-testing `root.startswith((".aw/records", ".agents"))`. Re-testing would misfile an absolute home records root as "other scaffolding".
+- `cli._format_cleanup_root` renders a home root `~`-relative (the `install_wizard.render_pre_write_plan` `_format_path` rule), so no absolute machine path is printed (PR-006).
   - Depends on: E-05
   - Expected outcome: `--dry-run` lists every home tree and changes nothing; `--deep --yes` removes home `records/` and `<AW_HOME>/projects/<id>/`; a normal `--yes` non-interactive run prints the existing "pass --deep" notice and keeps records.
   - Execution state: pending
 
 ### Task group 4: Tests
 
-- [ ] E-07 Add subprocess tests to `tests/test_clean_target_config_home.py` (P16, outcomes only): `test_case_m_uninstall_keeps_home_records` (both presets: install, create a backlog item so records hold user content, uninstall `--yes`; assert home `system/`, `config/`, `state/`, `worktrees/` absent, `records/` present with the item, target porcelain-ignored empty and HEAD unchanged), `test_case_n_uninstall_deep_removes_project_dir`, `test_case_o_uninstall_tears_down_idle_lane` (lane created with `aw work begin`; after uninstall no `.git/worktrees` entry and no `aw/lane/*` branch), `test_case_p_uninstall_refuses_live_lane` (owner record written by the test process via `worktree_lease.write_lane_owner`, so the owner is a live process other than the `aw uninstall` subprocess; assert exit 1, and every home tree still present, with and without `--force`), and `test_case_q_uninstall_dry_run_lists_home_trees`.
+- [ ] E-07 Add subprocess tests to `tests/test_clean_target_config_home.py` (P16, outcomes only). Use the letters `o` through `u`. `3m8aix` E-08 already adds `test_case_k`..`test_case_n` to this file, and the original names here (`m`, `n`) collide with it (PR-008). Every case calls `ipd_lifecycle.clear_checkout_control_root_cache()` in `setUp`.
+
+  Create lanes with `worktree_lease.allocate_worktree(<t>, "abc123")` in-process rather than `aw work begin`. That routes through `qk0ew6`'s `worktrees_root`, and it avoids needing a valid approved plan in home records just to get a lane.
+
+  The cases:
+  - `test_case_o_uninstall_keeps_home_records` (both presets): install, create a backlog item with `aw backlog new --apply` so records hold user content, then uninstall `--yes`. Assert:
+    - home `system/`, `config/`, `state/` and `worktrees/` are absent;
+    - `records/` is present with the item, byte-identical;
+    - the target is porcelain-ignored empty and HEAD is unchanged;
+    - no "Deletions are STAGED" line and no traceback appear.
+  - `test_case_p_uninstall_deep_removes_project_dir`: `--deep --yes` removes `<AW_HOME>/projects/<id>/`.
+  - `test_case_q_uninstall_tears_down_idle_lane`:
+    - one idle branch lane plus one already-merged lane (commit, merge into main), both removed;
+    - one detached checkout registered under `<project_dir>/state/suite-baselines/`, removed;
+    - afterwards no `.git/worktrees` entry, no `aw/lane/*` branch, and `git worktree list` lists only the main tree.
+  - `test_case_r_uninstall_refuses_live_lane`: the owner record is written by the test process through `worktree_lease.write_lane_owner`, so the owner is a live process other than the `aw uninstall` subprocess. Assert exit 1 and every home tree still present, with and without `--force`. Then cover a dirty non-live lane: `--yes` gives exit 1, and `--yes --force` gives exit 0 with the warning.
+  - `test_case_s_uninstall_refuses_live_driver`: a run directory under the home `records/runs/` whose `driver.lock` the test process holds through `platform_lock`. Assert exit 1, nothing removed, and the run named.
+  - `test_case_t_uninstall_dry_run_lists_home_trees`: the dry run lists every home tree with counts, no line contains the temp `HOME` absolute prefix, and nothing changes.
+  - `test_case_u_uninstall_recovers_partial`: delete home `config/` by hand after install. `aw uninstall <t> --yes` still removes the leftover `system/` and `worktrees/` (E-02 (b)), and a second run reports not installed.
+
+  The existing `test_case_i_uninstall_cleans_home_and_allows_reinstall` must still pass unmodified.
   - Depends on: E-06
-  - Expected outcome: All new cases pass in a narrowed run.
+  - Expected outcome: All new cases and the unmodified `test_case_i` pass in a narrowed run.
   - Execution state: pending
 
-- [ ] E-08 Perform the mutation proofs and the bare suite: (a) make `_home_lane_preflight` return no live lanes and observe `test_case_p_uninstall_refuses_live_lane` fail; (b) skip the home `system/` removal and observe `test_case_m_uninstall_keeps_home_records` fail; restore both and re-run; then run bare `python3 -m pytest`.
+- [ ] E-08 Perform the mutation proofs and the bare suite: (a) make `_home_lane_preflight` return no live lanes and observe `test_case_r_uninstall_refuses_live_lane` fail; (b) skip the home `system/` removal and observe `test_case_o_uninstall_keeps_home_records` fail; (c) classify by `state == LANE_HOLDS_WORK` instead of `reclaimable` and observe the merged-lane half of `test_case_q` fail; restore all and re-run; then run bare `python3 -m pytest`.
   - Depends on: E-07
   - Expected outcome: Each mutation turns its test red and restoring turns it green; bare suite shows no failure that does not also fail on the base commit.
   - Execution state: pending
@@ -96,22 +174,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | High | `engine.plan_uninstall` | `dest = repo_root / rel` for every manifest entry; with system under home every `.aw/system/...` entry is classified `missing` ("manifest entry stale") and nothing is removed. |
 | F-03 | High | uninstall has no lane awareness | No uninstall symbol consults `worktree_lease` or `git worktree list`; removing `<home>/worktrees/<id6>/` by directory deletion would leave a registered-but-missing worktree and an `aw/lane/*` branch in the target `.git`, and would destroy a live run's working tree. |
 | F-04 | Medium | `engine.plan_deep_cleanup` / `engine.run_deep_cleanup` | Iterate `repo_root / root` for `_DEEP_CLEANUP_ROOTS` only; home `records/` is never offered or removed by `--deep`. |
+| F-06 | High | plan-review (HEAD `82e484b00`) | Read-through of `engine.uninstall_repo`, `worktree_lease` and the sibling plans. (1) Step 6 "remove the manifest itself" computes `manifest_path.relative_to(repo_root)`; `4gn1ka` E-03 moves `resolve_manifest_path` to `<home>/system/managed-sections.json`, so that line raises `ValueError` on every clean-delta uninstall (PR-001). (2) `_is_clean_delta_install` reads the stored home `config/`, which the uninstall deletes, so the predicate cannot be re-evaluated mid-run or on a retry (PR-002). (3) `LaneState.reclaimable` docstring: a merged lane keeps `commits_ahead > 0` against its own base forever, so `state == LANE_HOLDS_WORK` misclassifies it (PR-003). (4) `qk0ew6` E-06 puts suite-baseline DETACHED worktrees under `<project_dir>/state/suite-baselines/`, which `_registered_worktrees` (keyed by branch) cannot see (PR-004). (5) `runner_shared.peer_drivers` already answers whether a live driver holds this repo (PR-005). (6) `_offer_commit_uninstall` prints "Deletions are STAGED" whenever `changed` is non-empty even with `use_git=False` (PR-007). (7) `3m8aix` E-08 already uses `test_case_k`..`n` in the same file (PR-008). No cleantgt child is executed at this HEAD, so none of this is observable by a scratch run yet; E-01 re-measures it. |
 | F-05 | Medium | `cli._uninstall_dry_run_report` and `cli._run_uninstall` | Dry run lists only home `config`/`state` files; `has_footprint` keys on `has_home_cfg` and in-repo dirs, so after a partial uninstall (config gone, system left) `aw uninstall` reports "framework not installed" and cannot clean the rest. |
 
 ## Proposed changes (ordered, validatable)
 
 1. E-01 baseline (no code).
-2. E-02 `engine._clean_delta_home_trees`.
-3. E-03 `engine._home_lane_preflight` and the refusal in `cli._run_uninstall`.
+2. E-02 `engine._clean_delta_home_trees`, snapshot once before removal, with partial-uninstall recovery.
+3. E-03 `engine._home_lane_preflight` (branch lanes by `reclaimable`, detached checkouts, live peer drivers) and the refusal in `cli._run_uninstall`.
 4. E-04 lane teardown and home `worktrees/` removal in `engine.uninstall_repo`.
-5. E-05 home `system/` via the system-root accessor; extend `config/` + `state/` removal.
+5. E-05 home `system/` via `_system_member_destination`, out-of-tree manifest-last, `config/` last.
 6. E-06 home `records/` in deep cleanup; dry run, footprint, no-commit for clean-delta.
-7. E-07 tests; E-08 mutation proofs and bare suite.
+7. E-07 tests (`o`..`u`); E-08 three mutation proofs and bare suite.
 
 ## Deferred / out of scope (with reason)
 
-- Removing user-scope host adapters for clean-delta (`~/.config/opencode/`, `~/.claude/`), since this Set never installs them; that delivery is a separate feature in deferred spec `or061f`.
-  - Carrier: or061f
+- Removing user-scope host adapters for clean-delta (`~/.config/opencode/`, `~/.claude/`), since this Set never installs them; that delivery is a separate feature in deferred spec `or061f`, whose build phases are tracked by PARKED backlog `m15n3k`; neither a spec id nor a parked item is an accepted `Carrier:` (`check.ipd-uncarried-obligation`, the same defect `3m8aix` PR-009 fixed), so the obligation stays with source item `kvwwt0` (PR-009).
+  - Carrier: kvwwt0
 - Uninstalling a companion records root (`public-target-private-companion`): companion records are a separate repository the user owns and are not a clean-delta home tree; unchanged behavior, no new obligation.
   - Carrier-Declined: not a clean-delta tree and not part of backlog kvwwt0's defect; E-02 deliberately excludes a records root outside `project_dir`.
 - Spec amendment and CHANGELOG line describing uninstall behavior: owned once for the whole Set by the final child.
@@ -149,6 +228,13 @@ N/A here: the spec `20260810-1447-01` amendment, `aw specs note` and the CHANGEL
 - Owner: plan author
 - Resolution or deferral rationale: Yes for lanes it tears down. The maintainer's 2026-10-15 accepted residual is git's `.git/worktrees/<name>` entry "while a lane exists"; after uninstall no lane exists, so neither that entry nor the lane branch should remain. `worktree_lease.teardown_worktree` removes both, so reusing it is the single path.
 
+### OQ-03: Should uninstall refuse while a driver run is live even if it holds no lane yet?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: Yes. A driver between items holds no lane but may allocate one, or write receipts and run state under home `state/`, while the uninstall is deleting that tree. `runner_shared.peer_drivers` answers exactly this question read-only, and its three-valued answer (`PEER_LIVE`/`PEER_UNKNOWN` versus proven free) lets uninstall fail safe on an unprobeable lock the same way `lane_owned_by_other_live_process` fails safe on undeterminable liveness (OQ-01). The run records themselves live under home `records/runs/`, which a normal uninstall keeps.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
@@ -159,46 +245,46 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted `git diff` hunk adding `engine._clean_delta_home_trees` and pasted probe output showing the six paths for both clean presets and `None` for private-target, companion and unconfigured repos.
+  - Required evidence: Pasted `git diff` hunk adding `engine._clean_delta_home_trees` and pasted probe output showing the six paths for both clean presets, the recovered paths for a config-deleted project, and `None` for private-target, companion and unconfigured repos.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Pasted subprocess output (path: `cli._run_uninstall` -> `engine._home_lane_preflight`) of `aw uninstall <t> --yes` and `--yes --force` with a live-owned lane, each exiting 1 and naming the lane, plus pasted `find <AW_HOME>/projects/<id> -maxdepth 1` before and after showing nothing removed.
+  - Required evidence: Pasted subprocess output (path: `cli._run_uninstall` -> `engine._home_lane_preflight`) of `aw uninstall <t> --yes` and `--yes --force` with a live-owned lane, each exiting 1 and naming the lane, the same with a held `driver.lock` (path: `cli._run_uninstall` -> `runner_shared.peer_drivers`) naming the run, plus pasted `find <AW_HOME>/projects/<id> -maxdepth 1` before and after showing nothing removed; and the pytest lines for E-08's mutation (c) and `test_case_q`'s merged lane classified removable.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted subprocess output (path: `engine.uninstall_repo` -> `worktree_lease.teardown_worktree`) of uninstall on a target with one idle lane, followed by pasted `git -C <t> worktree list`, `git -C <t> branch --list 'aw/lane/*'`, `ls <t>/.git/worktrees` and `ls <AW_HOME>/projects/<id>/worktrees` showing no lane residue.
+  - Required evidence: Pasted subprocess output (path: `engine.uninstall_repo` -> `worktree_lease.teardown_worktree`) and `runner_shared.remove_suite_baseline_checkout` of uninstall on a target with one idle lane, one merged lane and one detached suite-baseline checkout, followed by pasted `git -C <t> worktree list`, `git -C <t> branch --list 'aw/lane/*'`, `ls <t>/.git/worktrees` and `ls <AW_HOME>/projects/<id>/worktrees` showing no lane residue, and the uninstall stdout showing no "Deletions are STAGED" line.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted `git diff -- agent_workflows/engine.py` for `plan_uninstall`/`uninstall_repo` and pasted output showing home `system/`, `config/`, `state/` absent after `--yes` and a pasted sorted `sha256sum` listing of home `records/` identical before and after.
+  - Required evidence: Pasted `git diff -- agent_workflows/engine.py` for `plan_uninstall`/`uninstall_repo` (including the out-of-tree manifest-last branch), pasted `aw uninstall <t> --yes` output with exit code 0 and no traceback, pasted output showing home `system/`, `config/`, `state/` absent, a pasted sorted `sha256sum` listing of home `records/` identical before and after, and the drifted-system-file preserve/`--force` result.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: Pasted `aw uninstall <t> --dry-run` output listing every home tree with counts, and pasted `aw uninstall <t> --deep --yes` output followed by `ls <AW_HOME>/projects/` showing the project directory gone, and target `git status --porcelain --ignored` empty with HEAD unchanged.
+  - Required evidence: Pasted `aw uninstall <t> --dry-run` output listing every home tree with counts and `~`-relative paths (no absolute temp `HOME` prefix), and pasted `aw uninstall <t> --deep --yes` output followed by `ls <AW_HOME>/projects/` showing the project directory gone, and target `git status --porcelain --ignored` empty with HEAD unchanged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: Pasted `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -v` output showing `test_case_m` through `test_case_q` PASSED.
+  - Required evidence: Pasted `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -v` output showing `test_case_o` through `test_case_u` and the unmodified `test_case_i` PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: Pasted failing output for each of the two mutations, pasted passing output after restore, and the pasted bare `python3 -m pytest` summary line, with any failure shown to fail identically on the base commit.
+  - Required evidence: Pasted failing output for each of the three mutations (naming the failing test), pasted passing output after restore, and the pasted bare `python3 -m pytest` summary line, with any failure shown to fail identically on the base commit.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: one concern, removing every clean-delta home tree without destroying live or unlanded work. Lanes must go before `state/`/`config/` (git's registry and the retry snapshot depend on that order), so the preflight, teardown and tree removal cannot land separately.
 
-EXECUTION CONTRACT. Do not execute until `- Status: approved` and `3m8aix` is executed (Item-Dependencies). Execute in an isolated worktree via `aw work begin xoy5yg` (or under `aw oc run`, which isolates by default), in order E-01..E-08. Mark an `E-*` performed only after doing it and a `V-*` pass only with concrete pasted evidence; paste the ACTUAL runner output and never claim a pass you did not run. Every probe and test uses a temp git repo with temp `HOME`/`AW_HOME`; never uninstall from this repository or touch the real home. Mutation proofs are temporary and MUST NOT be committed. Commit only the paths you changed plus this IPD through `aw commit xoy5yg -- <paths>`; never `git add -A`, never push, never `--no-verify`.
+EXECUTION CONTRACT. Do not execute until `- Status: approved` and `3m8aix` is executed (Item-Dependencies; the runner re-checks at dispatch). OQ-01..OQ-03 are resolved. Execute in an isolated worktree via `aw work begin xoy5yg` (or under `aw oc run`, which isolates by default), in order E-01..E-08; if E-01 finds a named sibling accessor absent, record the item `blocked` rather than re-implementing it. Mark an `E-*` performed only after doing it and a `V-*` pass only with concrete pasted evidence; paste the ACTUAL runner output and never claim a pass you did not run. Every probe and test uses a temp git repo with temp `HOME`/`AW_HOME`; never uninstall from this repository or touch the real home. Mutation proofs are temporary and MUST NOT be committed. Commit only the paths you changed plus this IPD through `aw commit xoy5yg -- <paths>`; never `git add -A`, never push, never `--no-verify`.
 
 SCOPE FENCE. `- Scope-Paths:` is the expected edit set. An out-of-scope edit is permitted only when justified at finalize with `--scope-reason <path>=<why>`; acknowledge a declared path left unmodified with `--scope-ack`.
 
