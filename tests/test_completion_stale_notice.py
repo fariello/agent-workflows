@@ -11,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import inspect
 import io
 import json
 import os
@@ -403,11 +402,6 @@ class StaleCompletionNoticeHookTests(_NoticeBaseFixture):
         tip_buf = io.StringIO()
         cli._completion_tip(Term(stream=tip_buf, color=False))
         self.assertIn(cli.STALE_COMPLETION_NOTICE, tip_buf.getvalue())
-
-    def test_hook_signature_takes_rc_only(self) -> None:
-        sig = inspect.signature(cli._maybe_notify_stale_completion)
-        params = list(sig.parameters.keys())
-        self.assertEqual(params, ["rc"], f"expected signature (rc), got {params}")
 
 
 class CompletionStatusVerbTests(_NoticeBaseFixture):

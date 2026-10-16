@@ -5097,7 +5097,7 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
 
     SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the plans tree, so it is correct for a
     SINGLE known item and quadratic in a per-item loop. Callers needing many items must use
-    `_from_backlog_carrier_index` instead. Enforced by `tests/test_carrier_scan_single_item_contract.py`.
+    `_from_backlog_carrier_index` instead.
     See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
     """
     out: List[Tuple[Path, str]] = []
@@ -5115,7 +5115,7 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
 
     SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the specs tree, so it is correct for a
     SINGLE known item and quadratic in a per-item loop. Callers needing many items must use
-    `_from_backlog_carrier_index` instead. Enforced by `tests/test_carrier_scan_single_item_contract.py`.
+    `_from_backlog_carrier_index` instead.
     See `find_from_backlog_artifacts` below for the full cost analysis and measurement.
     """
     out: List[Tuple[Path, str]] = []
@@ -5136,9 +5136,7 @@ def find_from_backlog_artifacts(
     SINGLE-ITEM ONLY (IPD jpn6hy): This call costs one full walk of the plans tree PLUS the specs
     tree per call, so it is correct for a SINGLE known item and quadratic in a per-item loop.
     Callers needing many items must use `_from_backlog_carrier_index` instead, which builds the
-    complete mapping in one shared pass. This contract is machine-checked by
-    `tests/test_carrier_scan_single_item_contract.py`, which fails if any call site passes a
-    loop-derived variable.
+    complete mapping in one shared pass.
 
     COST SHAPE (O(items x corpus) vs O(corpus)):
     The durable property is the shape, not any single timing number. Because each call re-walks

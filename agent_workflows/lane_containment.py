@@ -1245,7 +1245,7 @@ class _ReapCallable(Protocol):
     The first parameter `process` is positional-only (`/`) so an injected test double may name
     it freely without raising a parameter name mismatch, per the test-only injection seam.
 
-    Enforced by `tests/test_reap_contract.py`.
+    The keyword call is exercised by `tests/test_lane_reaper_callshape.py`.
     """
 
     def __call__(self, process: Any, /, *, run_dir: Path) -> Any: ...

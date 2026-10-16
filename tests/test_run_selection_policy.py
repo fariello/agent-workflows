@@ -25,13 +25,8 @@ N independently-reported failures actively hide that.
 MODES ARE COLUMNS in the accumulating tables: `spec_type`, the three-valued `authoring_complete`, the
 file's DIRECTORY, and the queue entry's shape all vary within one table rather than across several.
 
-WHAT IS DELIBERATELY NOT TABULATED, so the next reader does not redo the analysis. Tests that read
-the SPEC FILE and compare character-for-character stay apart (their subject is a document, not an
-input). So do the purity/no-mutation proofs, the AST import guard, the `inspect.signature` guards on
-what the predicates deliberately do NOT accept, and `test_membership_derives_from_the_action_table...`
-plus `test_every_legal_edge_in_table_is_accepted`, which already iterate the product's own tables and
-so extend themselves when a row is added - restating those as literal rows would freeze a copy that a
-newly added status could not fail.
+The purity and no-mutation tests stay separate. Tests that iterate the product's
+own tables also stay separate, so a new status is exercised automatically.
 """
 
 from __future__ import annotations
@@ -557,26 +552,6 @@ def test_allow_mixed_waives_only_type_mixing():
     """spec 2.5 third bullet: the flag acknowledges type mixing ONLY. This predicate must never be a
     place another gate can be waived, so its waiver set is exhaustive and singular."""
     assert pol.Verdict.WAIVES == ("type-mixing",)
-    # The predicate's ONLY override parameter is allow_mixed; there is no approval/scope/safety knob.
-    import inspect
-
-    params = set(inspect.signature(pol.decide).parameters)
-    assert params == {
-        "classification",
-        "interactive",
-        "allow_mixed",
-        "response",
-        "host",
-        "selector",
-    }
-    for forbidden in (
-        "allow_unapproved",
-        "skip_gates",
-        "force",
-        "allow_unverifiable",
-        "no_verify",
-    ):
-        assert forbidden not in params
     # The flag does not alter the previewed actions: what dispatch would do is unchanged.
     c = _spec_example()
     assert pol.decide(

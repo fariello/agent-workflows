@@ -2,8 +2,8 @@
 run the suite in the COORDINATOR role so a runner-launched turn measures the same
 tree a human does (backlog `1uq1cu`).
 
-The suite is large and IO/subprocess bound; running it serially costs multiples of
-the wall time, so `-n auto` (pytest-xdist, one worker per CPU) is the default in
+The release suite is large and IO/subprocess bound; running it serially costs multiples of
+the wall time, so `-n auto` (pytest-xdist, capped at six workers) is the default in
 `[tool.pytest.ini_options] addopts` in pyproject.toml. That default hard-requires the
 xdist plugin: without it, pytest aborts with `unrecognized arguments: -n` before any
 test runs.
@@ -55,7 +55,6 @@ pytest_plugins = [
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
 os.environ.setdefault("PYTHONUTF8", "1")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-_IS_CI = bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
 
 # --------------------------------------------------------------------------------------
 # Pytest traceback formatting guard: prevent worker crash when tb_lineno is None.
@@ -90,25 +89,19 @@ def _available_cpus() -> int:
 def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
     """Resolve -n auto worker count.
 
-    In CI, use all available CPUs on the dedicated runner.
-    Locally: use all CPUs if fewer than 4 cores; otherwise at least 4 or half CPUs.
-    Respects PYTEST_XDIST_AUTO_NUM_WORKERS if explicitly set in the environment.
+    Use at most half the available CPUs and never more than six workers.
+    An explicit PYTEST_XDIST_AUTO_NUM_WORKERS can lower the count, but cannot
+    exceed the same limit.
     """
+    cpus = _available_cpus()
+    limit = min(6, max(1, cpus // 2))
     env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
     if env_var:
         try:
-            return max(1, int(env_var))
+            return min(limit, max(1, int(env_var)))
         except ValueError:
             pass
-
-    cpus = _available_cpus()
-
-    if _IS_CI or os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
-        return max(1, cpus)
-
-    if cpus < 4:
-        return max(1, cpus)
-    return max(4, cpus // 2)
+    return limit
 
 
 # --------------------------------------------------------------------------------------

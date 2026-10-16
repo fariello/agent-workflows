@@ -8,14 +8,13 @@ stopping agy runs from falsely attributing backlog closes to aw oc run.
 from __future__ import annotations
 
 import contextlib
-import inspect
 import io
 from pathlib import Path
 from typing import Any
 from unittest import mock
 
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, oc_runipd
 
 
 def _setup_backlog_and_plan_fixture(
@@ -63,21 +62,6 @@ def _setup_backlog_and_plan_fixture(
         "queue": [item],
     }
     return run_dir, state, item
-
-
-def test_shared_process_backlog_close_host_label_has_no_default() -> None:
-    """The shared function host_label parameter must be KEYWORD_ONLY with NO DEFAULT."""
-    sig = inspect.signature(runner_shared.process_backlog_close)
-    assert (
-        "host_label" in sig.parameters
-    ), "host_label parameter must exist in runner_shared.process_backlog_close"
-    param = sig.parameters["host_label"]
-    assert (
-        param.kind == inspect.Parameter.KEYWORD_ONLY
-    ), f"host_label parameter kind must be KEYWORD_ONLY, got {param.kind}"
-    assert (
-        param.default is inspect.Parameter.empty
-    ), f"host_label parameter must have NO DEFAULT, got {param.default!r}"
 
 
 def test_oc_host_binds_oc_label_and_preserves_message_format(tmp_path: Path) -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import inspect
 import io
 import os
 from pathlib import Path
@@ -1137,18 +1136,6 @@ class FullRowStylingTests(unittest.TestCase):
         for neutral in ("BACKLOG", "Short title", "a/b.md"):
             idx = row.index(neutral)
             self.assertNotIn("\033", row[idx : idx + len(neutral)])
-
-        # No whole row coloring parameter in signature
-        params = set(inspect.signature(T.Term.format_lifecycle_row).parameters)
-        for forbidden in (
-            "style_title",
-            "style_type",
-            "style_path",
-            "style_row",
-            "whole_row",
-            "color_row",
-        ):
-            self.assertNotIn(forbidden, params)
 
         # Unbolded stage
         res_draft = T.resolve_lifecycle("plans", "draft")

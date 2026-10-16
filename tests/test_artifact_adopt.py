@@ -665,21 +665,6 @@ class ConformanceOfTheAdoptedArtifactTests(_AdoptRepo):
         self.assertIn("provenance-research-report.md", adopted)
 
 
-class NoTestReadsTheRealInboxTests(unittest.TestCase):
-    """A test pinned to the real `.aw/inbox/` passes today and fails tomorrow; prove none is."""
-
-    def test_this_module_never_references_the_repository_inbox_path(self):
-        text = Path(__file__).read_text(encoding="utf-8")
-        for line in text.splitlines():
-            if ".aw/inbox" in line and "self.inbox" not in line:
-                # Only prose/docstrings and the module constant reference may mention it.
-                stripped = line.strip()
-                self.assertFalse(
-                    stripped.startswith(("Path(", "src =", "p =")),
-                    f"a test must not read the real inbox: {stripped}",
-                )
-
-
 class ModuleContractTests(unittest.TestCase):
     """Small invariants that are cheap to assert and expensive to lose."""
 

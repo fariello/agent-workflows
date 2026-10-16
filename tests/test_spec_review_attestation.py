@@ -1788,22 +1788,6 @@ class TypeScopedSweepTests(unittest.TestCase):
                 "forked reimplementation is how the two drift into offering different plan sets",
             )
 
-    def test_type_scoping_has_no_default(self) -> None:
-        """Kept separate: a signature introspection, not a behavior probe.
-
-        A defaulted `spec_type` is exactly how a later caller silently widens the default sweep: it
-        would omit the argument, get `spec` (or whatever the default became), and never notice.
-        """
-        import inspect
-
-        sig = inspect.signature(rs.sweep_review_candidates_for_type)
-        self.assertIs(
-            sig.parameters["spec_type"].default,
-            inspect.Parameter.empty,
-            "`spec_type` must stay REQUIRED. Giving it a default lets a caller sweep a type it never "
-            "asked for, which is the silent widening spec `25kzda` 2.4a property 1 forbids",
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

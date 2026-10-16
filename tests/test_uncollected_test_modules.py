@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Guard test ensuring all tracked pytest test modules are collected by bare pytest.
+"""Guard test ensuring all tracked pytest test modules are collected by the release gate.
 
 Authored under IPD 5s31xp (backlog n8adhb) to prevent test modules residing outside
-`tests/` from rotting unobserved because pyproject.toml sets testpaths = ["tests"].
+`tests/` from rotting unobserved when the routine gate selects core test modules.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def evaluate_test_module_collection(
 
 
 class UncollectedTestModulesGuardTests(unittest.TestCase):
-    """Guard against tracked pytest-discoverable test files not collected by bare pytest."""
+    """Guard against tracked pytest-discoverable test files missing from release collection."""
 
     def test_evaluate_test_module_collection_synthetic_inputs(self) -> None:
         """Verify the pure set-arithmetic helper independently of the live tree."""
@@ -201,6 +201,7 @@ class UncollectedTestModulesGuardTests(unittest.TestCase):
             line.strip()
             for line in git_ls.stdout.splitlines()
             if is_pytest_test_filename(line.strip())
+            and (repo_root / line.strip()).is_file()
         ]
 
         pytest_cmd = [
@@ -211,6 +212,7 @@ class UncollectedTestModulesGuardTests(unittest.TestCase):
             "-q",
             "-o",
             "addopts=",
+            "tests/",
             "-m",
             "",
             "-p",
@@ -251,9 +253,9 @@ class UncollectedTestModulesGuardTests(unittest.TestCase):
                     f"  - {path}" for path in result.uncollected
                 )
                 messages.append(
-                    f"Found tracked pytest-discoverable test module(s) not collected by bare `pytest`:\n"
+                    f"Found tracked pytest-discoverable test module(s) missing from release collection:\n"
                     f"{uncollected_list}\n\n"
-                    f"To fix: move each module under tests/ so bare `pytest` collects it, "
+                    f"To fix: move each module under tests/ so `make test-all` collects it, "
                     f"or add a reasoned entry to EXEMPT in tests/test_uncollected_test_modules.py "
                     f"naming an owning backlog item."
                 )

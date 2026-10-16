@@ -6,7 +6,6 @@ over real execution shapes and asserting on observable attempt records and outco
 
 from __future__ import annotations
 
-import inspect
 import io
 import json
 import sys
@@ -276,19 +275,6 @@ class TestAttemptAgyModelObservation(unittest.TestCase):
             hasattr(agy_runipd, "observe_host_model"),
             "agy_runipd must define observe_host_model",
         )
-        sig = inspect.signature(agy_runipd.observe_host_model)
-        param_names = list(sig.parameters.keys())
-        self.assertEqual(param_names, ["session_id", "options", "repo_root"])
-        # options and repo_root must be keyword-only or accept keyword arguments
-        self.assertIn(
-            sig.parameters["options"].kind,
-            (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD),
-        )
-        self.assertIn(
-            sig.parameters["repo_root"].kind,
-            (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD),
-        )
-
         with tempfile.TemporaryDirectory() as td:
             repo_root, plan_file = _setup_test_repo(Path(td))
             stdout = (

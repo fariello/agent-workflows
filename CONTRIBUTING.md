@@ -140,18 +140,17 @@ The framework's Python code has automated tests written as stdlib `unittest.Test
 (consistent with the tools themselves). If you change any of the mechanical parts, the
 `agent_workflows/` package (installer/CLI engine, config, discovery, versioning, term, comms, plans,
 layout migration, pypi_links) or the workflow tools (`scan_secrets.py`, `run_checks.py`, `bench_env.py`, `setup_tools.py`,
-`normalize_plan_names.py`), run the whole suite. The canonical command is:
+`normalize_plan_names.py`), run the routine suite. The canonical command is:
 
 ```bash
 make test
 ```
 
-`make test` runs the suite in parallel via `pytest -n auto` (the tests are subprocess/IO
-bound and independent, so this cuts wall time roughly 5-8x, e.g. ~4:20 serial to ~0:40 on a
-12-core machine) after `pip install '.[test]'`; it falls back automatically to the serial
-stdlib runner when `pytest-xdist` is not installed. pytest/pytest-xdist are TEST-ONLY
-dependencies (the `test` extra), never imported at runtime and never shipped (D138). The
-parallel run returns identical results to the serial one; prefer it as the evidence command.
+`make test` collects a representative behavioral suite and runs at most six pytest
+workers, using no more than half the available CPUs. Install the test dependencies
+with `pip install '.[test]'`. Run `make test-all` before release to collect every test,
+including slow integration and live-record checks. A focused test run for the changed
+feature should accompany the routine gate when its test file is outside the core set.
 
 If you need the guaranteed no-dependency serial runner (for a minimal environment, or to
 debug a test-ordering/isolation issue), use:
@@ -217,9 +216,8 @@ The gate has five honest limits:
   rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
   environment").
 - Tests assert behavior, never code structure: follow `GUIDING_PRINCIPLES.md` P16
-  ("Test outcomes and behavior, never code structure or text"); the mechanical guard
-  in `tests/test_no_code_structure_pins.py` refuses new production-source reads in tests.
-- Tests reading markdown sections: a test that locates a section by a marker must establish where the section ends; use `tests/support.py` (`section`, `final_section`, `section_lines`) rather than reading to end of input; the author-time guard in `tests/test_no_unbounded_section_reads.py` refuses new marker-located unbounded section reads.
+  ("Test outcomes and behavior, never code structure or text").
+- Tests reading markdown sections: a test that locates a section by a marker must establish where the section ends; use `tests/support.py` (`section`, `final_section`, `section_lines`) rather than reading to end of input.
 - Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
   P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
   shape, the mandatory `why` column, when to tabulate, and runner-dependent row
