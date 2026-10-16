@@ -43,6 +43,8 @@ from agent_workflows.project_schema import (
     ProjectRole,
     RecordsBackend,
     RootClass,
+    parse_local_binding,
+    parse_portable_policy,
 )
 from agent_workflows.term import Term
 
@@ -538,17 +540,41 @@ def resolve_existing_policy(repo_path: str) -> Optional[ProjectPolicy]:
         from agent_workflows.project_context import resolve_project_context
 
         ctx = resolve_project_context(target_repo=repo_path)
+
+        comp_dir = None
+        if local_json.exists():
+            try:
+                with open(local_json, "r", encoding="utf-8") as f:
+                    ldata = json.load(f)
+                if isinstance(ldata, dict):
+                    comp_dir = ldata.get("companion_dir")
+            except Exception:
+                pass
+
+        consent: Dict[str, bool] = {}
+        if proj_json.exists():
+            try:
+                with open(proj_json, "r", encoding="utf-8") as f:
+                    pdata = json.load(f)
+                if isinstance(pdata, dict) and isinstance(
+                    pdata.get("non_secret_consent"), dict
+                ):
+                    consent = dict(pdata["non_secret_consent"])
+            except Exception:
+                pass
+
         return ProjectPolicy(
             preset=getattr(ctx, "preset", Preset.PRIVATE_TARGET.value),
-            role=getattr(ctx, "role", ProjectRole.TARGET.value),
+            role=getattr(ctx, "project_role", ProjectRole.TARGET.value),
             delivery_mode=ctx.delivery_mode,
             records_backend=ctx.records_backend,
             durability_state=ctx.durability_state,
             aw_home=str(ctx.effective_aw_home),
-            companion_dir=getattr(ctx, "companion_dir", None),
-            enabled_hosts=getattr(
-                ctx, "enabled_hosts", ["opencode", "claude", "antigravity"]
+            companion_dir=comp_dir,
+            enabled_hosts=list(
+                getattr(ctx, "enabled_hosts", ["opencode", "claude", "antigravity"])
             ),
+            non_secret_consent=consent,
         )
     except Exception:
         return None
@@ -567,9 +593,38 @@ def resolve_policy_noninteractive(
 ) -> ProjectPolicy:
     """Resolve policy for noninteractive execution (spec Section 11.3 & E-05)."""
     if existing_policy is not None:
-        preset = explicit_preset or existing_policy.preset
-        delivery = explicit_delivery or existing_policy.delivery_mode
-        backend = explicit_backend or existing_policy.records_backend
+        normalized_explicit = (
+            normalize_preset(explicit_preset) if explicit_preset else None
+        )
+        preset = normalized_explicit or existing_policy.preset
+
+        existing_defaults = get_preset_defaults(existing_policy.preset)
+        existing_cfg_placement = existing_policy.placements.get(
+            RootClass.CONFIG_PROJECT.value
+        ) or existing_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+        new_defaults = get_preset_defaults(preset)
+        new_cfg_placement = new_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+
+        if new_cfg_placement != existing_cfg_placement:
+            raise InvalidPolicyError(
+                f"Switching config placement from {existing_policy.preset} ({existing_cfg_placement}) "
+                f"to {preset} ({new_cfg_placement}) is not supported by reinstall yet (backlog ui1aln)."
+            )
+
+        if normalized_explicit and normalized_explicit != existing_policy.preset:
+            pls, gps, dm, rb, ds = new_defaults
+            delivery = explicit_delivery or dm
+            backend = explicit_backend or rb
+            durability = ds
+            placements = pls
+            git_policies = gps
+        else:
+            delivery = explicit_delivery or existing_policy.delivery_mode
+            backend = explicit_backend or existing_policy.records_backend
+            durability = existing_policy.durability_state
+            placements = existing_policy.placements
+            git_policies = existing_policy.git_policies
+
         companion = explicit_companion or existing_policy.companion_dir
         aw_home = explicit_aw_home or existing_policy.aw_home
         hosts = (
@@ -580,12 +635,16 @@ def resolve_policy_noninteractive(
 
         pol = ProjectPolicy(
             preset=preset,
+            role=existing_policy.role,
             delivery_mode=delivery,
             records_backend=backend,
-            durability_state=existing_policy.durability_state,
+            durability_state=durability,
             aw_home=aw_home,
             companion_dir=companion,
             enabled_hosts=hosts,
+            placements=placements,
+            git_policies=git_policies,
+            non_secret_consent=dict(existing_policy.non_secret_consent or {}),
         )
         pol.validate(repo_path=repo_path)
         return pol
@@ -950,6 +1009,50 @@ def persist_project_policy(
         local_json.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Write portable project policy
+    existing_cutovers: Optional[Dict[str, str]] = None
+    existing_setids: Optional[Dict[str, Any]] = None
+    existing_unknown: Dict[str, Any] = {}
+    existing_consent: Dict[str, bool] = {}
+
+    if not replace_config and proj_json.exists():
+        try:
+            with open(proj_json, "r", encoding="utf-8") as f:
+                raw_proj = json.load(f)
+            if isinstance(raw_proj, dict):
+                try:
+                    parsed_proj = parse_portable_policy(raw_proj)
+                    existing_cutovers = parsed_proj.cutovers
+                    existing_setids = parsed_proj.setids
+                    existing_unknown = dict(parsed_proj.unknown_fields or {})
+                    existing_consent = dict(parsed_proj.non_secret_consent or {})
+                except ValueError:
+                    known_proj_keys = {
+                        "schema_version",
+                        "preset",
+                        "role",
+                        "placements",
+                        "git_policies",
+                        "enabled_hosts",
+                        "non_secret_consent",
+                        "delivery_mode",
+                        "records_backend",
+                        "cutovers",
+                        "setids",
+                    }
+                    if isinstance(raw_proj.get("cutovers"), dict):
+                        existing_cutovers = dict(raw_proj["cutovers"])
+                    if isinstance(raw_proj.get("setids"), dict):
+                        existing_setids = dict(raw_proj["setids"])
+                    if isinstance(raw_proj.get("non_secret_consent"), dict):
+                        existing_consent = dict(raw_proj["non_secret_consent"])
+                    existing_unknown = {
+                        k: v for k, v in raw_proj.items() if k not in known_proj_keys
+                    }
+        except Exception:
+            pass
+
+    merged_consent = {**existing_consent, **(policy.non_secret_consent or {})}
+
     proj_schema = ProjectPolicySchema(
         schema_version=2,
         preset=policy.preset,
@@ -957,9 +1060,12 @@ def persist_project_policy(
         placements=policy.placements,
         git_policies=policy.git_policies,
         enabled_hosts=policy.enabled_hosts,
-        non_secret_consent=policy.non_secret_consent,
+        non_secret_consent=merged_consent,
         delivery_mode=policy.delivery_mode,
         records_backend=policy.records_backend,
+        cutovers=existing_cutovers,
+        setids=existing_setids,
+        unknown_fields=existing_unknown if existing_unknown else None,
     )
     tmp_proj = config_dir / ".tmp_project.json"
     with open(tmp_proj, "w", encoding="utf-8") as f:
@@ -967,11 +1073,79 @@ def persist_project_policy(
     os.replace(tmp_proj, proj_json)
 
     # 2. Write machine-local binding
-    local_schema = LocalBindingSchema(
-        schema_version=2,
-        project_id=ctx.project_id,
-        companion_dir=policy.companion_dir,
-    )
+    existing_slug = ""
+    existing_common = None
+    existing_worktree = None
+    existing_companion = None
+    existing_overrides: Dict[str, Any] = {}
+    existing_aliases: Dict[str, str] = {}
+    existing_local_unknown: Dict[str, Any] = {}
+
+    if not replace_config and local_json.exists():
+        try:
+            with open(local_json, "r", encoding="utf-8") as f:
+                raw_local = json.load(f)
+            if isinstance(raw_local, dict):
+                try:
+                    parsed_local = parse_local_binding(raw_local)
+                    existing_slug = parsed_local.human_slug
+                    existing_common = parsed_local.common_dir
+                    existing_worktree = parsed_local.worktree_path
+                    existing_companion = parsed_local.companion_dir
+                    existing_overrides = dict(parsed_local.runtime_overrides or {})
+                    existing_aliases = dict(parsed_local.local_aliases or {})
+                    existing_local_unknown = dict(parsed_local.unknown_fields or {})
+                except ValueError:
+                    known_local_keys = {
+                        "schema_version",
+                        "project_id",
+                        "human_slug",
+                        "common_dir",
+                        "worktree_path",
+                        "companion_dir",
+                        "runtime_overrides",
+                        "local_aliases",
+                    }
+                    existing_slug = str(raw_local.get("human_slug") or "")
+                    existing_common = raw_local.get("common_dir")
+                    existing_worktree = raw_local.get("worktree_path")
+                    existing_companion = raw_local.get("companion_dir")
+                    if isinstance(raw_local.get("runtime_overrides"), dict):
+                        existing_overrides = dict(raw_local["runtime_overrides"])
+                    if isinstance(raw_local.get("local_aliases"), dict):
+                        existing_aliases = dict(raw_local["local_aliases"])
+                    existing_local_unknown = {
+                        k: v for k, v in raw_local.items() if k not in known_local_keys
+                    }
+        except Exception:
+            pass
+
+    companion_dir_to_write = policy.companion_dir
+    if (
+        companion_dir_to_write is None
+        and policy.records_backend == RecordsBackend.COMPANION.value
+        and existing_companion is not None
+    ):
+        companion_dir_to_write = existing_companion
+
+    if replace_config or not local_json.exists():
+        local_schema = LocalBindingSchema(
+            schema_version=2,
+            project_id=ctx.project_id,
+            companion_dir=policy.companion_dir,
+        )
+    else:
+        local_schema = LocalBindingSchema(
+            schema_version=2,
+            project_id=ctx.project_id,
+            human_slug=existing_slug,
+            common_dir=existing_common,
+            worktree_path=existing_worktree,
+            companion_dir=companion_dir_to_write,
+            runtime_overrides=existing_overrides if existing_overrides else None,
+            local_aliases=existing_aliases if existing_aliases else None,
+            unknown_fields=existing_local_unknown if existing_local_unknown else None,
+        )
     tmp_local = local_json.parent / ".tmp_local.json"
     with open(tmp_local, "w", encoding="utf-8") as f:
         json.dump(local_schema.to_dict(), f, indent=2)

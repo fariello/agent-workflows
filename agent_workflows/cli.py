@@ -8411,13 +8411,17 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 collect_policy_interactive,
                 persist_project_policy,
                 render_pre_write_plan,
+                resolve_existing_policy,
             )
 
+            existing_policy = resolve_existing_policy(str(repo_root))
             explicit_preset = getattr(args, "preset", None)
             if (
                 getattr(args, "yes", False)
+                and existing_policy is None
                 and not explicit_preset
                 and not getattr(args, "delivery_mode", None)
+                and not getattr(args, "records_backend", None)
             ):
                 explicit_preset = Preset.PRIVATE_TARGET.value
 
@@ -8425,6 +8429,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 policy = collect_policy_interactive(
                     term=term,
                     repo_path=str(repo_root),
+                    existing_policy=existing_policy,
                     assume_yes=getattr(args, "yes", False),
                     explicit_preset=explicit_preset,
                     explicit_delivery=getattr(args, "delivery_mode", None),
@@ -10525,6 +10530,16 @@ def _emit_config_agent_error(
             kind="error",
             extra={"error": clean_msg},
             args=args,
+        )
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        from agent_workflows import renderers
+        from agent_workflows.result_types import select_output
+
+        return renderers.emit_usage_refusal(
+            cmd,
+            _sanitize_config_agent_error_message(msg),
+            "aw config --help",
+            select_output(args),
         )
     term.status("fail", msg)
     return 2
@@ -18674,6 +18689,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     status="cannot-run",
                     summary=str(exc),
                     args=args,
+                )
+            if getattr(args, "json", False):
+                from agent_workflows import renderers
+
+                return renderers.emit_usage_refusal(
+                    f"upgrade-test {subcmd}",
+                    str(exc),
+                    "aw upgrade-test --help",
+                    select_output(args),
                 )
             print(f"error: {exc}", file=sys.stderr)
             return 2

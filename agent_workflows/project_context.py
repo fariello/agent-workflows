@@ -1629,17 +1629,34 @@ def resolve_project_context(
     )
 
     # 10. Enabled Hosts
-    resolved_hosts = (
-        enabled_hosts if enabled_hosts is not None else DEFAULT_ENABLED_HOSTS
-    )
-    provenance_map["enabled_hosts"] = Provenance(
-        source=(
-            PrecedenceLevel.EXPLICIT_FLAGS.value
-            if enabled_hosts is not None
-            else PrecedenceLevel.BUILTIN_DEFAULTS.value
-        ),
-        detail=f"enabled third-party hosts ({','.join(resolved_hosts)})",
-    )
+    if enabled_hosts is not None:
+        resolved_hosts = list(enabled_hosts)
+        provenance_map["enabled_hosts"] = Provenance(
+            source=PrecedenceLevel.EXPLICIT_FLAGS.value,
+            detail=f"enabled third-party hosts ({','.join(resolved_hosts)})",
+        )
+    elif isinstance(merged_local_binding.get("enabled_hosts"), list) and all(
+        isinstance(x, str) for x in merged_local_binding["enabled_hosts"]
+    ):
+        resolved_hosts = list(merged_local_binding["enabled_hosts"])
+        provenance_map["enabled_hosts"] = Provenance(
+            source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
+            detail=f"machine-local binding ({','.join(resolved_hosts)})",
+        )
+    elif isinstance(project_policy_data.get("enabled_hosts"), list) and all(
+        isinstance(x, str) for x in project_policy_data["enabled_hosts"]
+    ):
+        resolved_hosts = list(project_policy_data["enabled_hosts"])
+        provenance_map["enabled_hosts"] = Provenance(
+            source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
+            detail=f"portable project policy ({','.join(resolved_hosts)})",
+        )
+    else:
+        resolved_hosts = list(DEFAULT_ENABLED_HOSTS)
+        provenance_map["enabled_hosts"] = Provenance(
+            source=PrecedenceLevel.BUILTIN_DEFAULTS.value,
+            detail=f"enabled third-party hosts ({','.join(resolved_hosts)})",
+        )
 
     # 11. Permitted Commit Destinations
     product_dest = (

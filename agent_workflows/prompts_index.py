@@ -353,6 +353,41 @@ def run_index(args: argparse.Namespace) -> int:
         for d in drift:
             print(f"{d.location}: {d.rule}: {d.detail}")
     if not getattr(args, "quiet", False):
-        print(f"wrote {INDEX_JSON} ({len(entries)} prompts)")
-        print(f"wrote {INDEX_MD}")
+        # Outcome words, not lifecycle statuses: see the note in plans_index.run_index (9zvl2w E-01).
+        # select_output is already imported above (before `ctx = select_output(args)`).
+        from agent_workflows.term import Term
+
+        try:
+            _ctx = select_output(args)
+            _color = _ctx.color
+        except Exception:
+            _color = None if not getattr(args, "no_color", False) else False
+        term = Term(color=_color)
+        try:
+            rel_dir = prompts_dir.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel_dir = prompts_dir.as_posix()
+        dir_prefix = f"{rel_dir}/" if rel_dir and not rel_dir.endswith("/") else rel_dir
+        dir_styled = term.color256(dir_prefix, 33)
+
+        if not json_changed and not md_changed:
+            status_lbl = term.status_256("up to date", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}, {INDEX_MD}"
+            term.line(f"{status_lbl} {files_str} ({len(entries)} prompts)")
+        elif json_changed and md_changed:
+            status_lbl = term.status_256("wrote", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}, {INDEX_MD}"
+            term.line(f"{status_lbl} {files_str} ({len(entries)} prompts)")
+        elif md_changed:
+            status_lbl = term.status_256("updated", width=12)
+            files_str = f"{dir_styled}{INDEX_MD}"
+            term.line(
+                f"{status_lbl} {files_str} ({INDEX_JSON} up to date; {len(entries)} prompts)"
+            )
+        else:
+            status_lbl = term.status_256("updated", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}"
+            term.line(
+                f"{status_lbl} {files_str} ({INDEX_MD} up to date; {len(entries)} prompts)"
+            )
     return 0
