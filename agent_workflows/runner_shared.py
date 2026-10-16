@@ -28149,7 +28149,7 @@ evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
 #
 #   (a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS NOT "NOTHING NEW". This is the `32ij2j`
 #       inversion, guarded by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`
-#       (deleted in `19313eed`; no live guard currently asserts this), whose own docstring records
+#       (deleted in `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`), whose own docstring records
 #       that plan comparing failing sets as a subset over an ALWAYS-EMPTY
 #       string so that "every lane passed including one that broke everything" (the always-empty read
 #       was SHIPPED in `run_suite_check` until `h5pyqa`). Measured while authoring this: with a merged
@@ -28615,7 +28615,7 @@ REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
 # it is written to REFUSE TO BE THE AUTHORITY. Plan `32ij2j` compared failing SETS as a subset and
 # derived them from an always-empty string, so every lane passed INCLUDING one that broke everything;
 # `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` (deleted in `19313eed`;
-# no live guard currently asserts this) existed for that case and called it the most important in its
+# guarded live by `tests/test_suite_exit_code_authority.py`) existed for that case and called it the most important in its
 # file. Three rules below close the ways the subtraction can lie,
 # and each is a MEASURED hazard rather than a hypothetical one. A list may make a refusal SPECIFIC;
 # it may NEVER manufacture a pass.
@@ -28747,7 +28747,7 @@ def new_failures_since_baseline(
     evaluated, because "empty because green" and "empty because nothing parsed" look identical from
     the list alone - and the EXIT CODE, not the list, is this repository's authority on which one it
     is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` was deleted in
-    `19313eed`; no live guard currently asserts this). It DEFAULTS False, the conservative reading, so
+    `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`). It DEFAULTS False, the conservative reading, so
     a caller that forgets it gets `unknown` rather than a pass.
     """
 
@@ -28940,7 +28940,7 @@ def unattributed_merged_failures(
 
       1. AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS UNKNOWN. This is the `32ij2j` inversion
          (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`, deleted in
-         `19313eed`; no live guard currently asserts this): with a merged
+         `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`): with a merged
          list of `()` the predicate "every failing id was attributed away" is VACUOUSLY TRUE, so a tree
          that broke everything integrates. The EXIT CODE, never the list, is this repository's authority
          on whether an empty list means "green" or "nothing parsed", which is why ``suite_passed`` is
