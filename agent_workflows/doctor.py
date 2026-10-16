@@ -374,7 +374,8 @@ def probe_environment(
         # `detect_split_brain_layout` walks `.agents/workflows` and is True only for a non-empty,
         # non-cruft FILE, so a GENUINE split-brain is still reported. Reusing it means `aw doctor`,
         # `aw check`, and the install guard cannot report this condition differently.
-        has_aw = (repo_root / ".aw").is_dir()
+        has_home_clean = project_context.home_configured_root(repo_root)
+        has_aw = (repo_root / ".aw").is_dir() or has_home_clean
         has_agents = (repo_root / ".agents").is_dir()
         if has_aw and engine.detect_split_brain_layout(repo_root):
             res.layout = ".aw + .agents (dual layout / split-brain)"
@@ -387,7 +388,10 @@ def probe_environment(
                 )
             )
         elif has_aw:
-            res.layout = ".aw"
+            if not (repo_root / ".aw").is_dir() and has_home_clean:
+                res.layout = "home (clean-target)"
+            else:
+                res.layout = ".aw"
         elif has_agents:
             res.layout = ".agents"
         else:

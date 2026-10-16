@@ -48,7 +48,7 @@ from typing import (
     Union,
 )
 
-from . import __version__, config, discovery, engine, versioning
+from . import __version__, config, discovery, engine, project_context, versioning
 from . import lifecycle_style as _LS
 from . import run_dispatch as _run_dispatch
 from . import term as _term_mod
@@ -9690,7 +9690,8 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
     state = "source-root" if is_source else versioning.status(installed, packaged)
 
-    has_aw = (repo / ".aw").is_dir()
+    has_home_clean = project_context.home_configured_root(repo)
+    has_aw = (repo / ".aw").is_dir() or has_home_clean
     has_agents = (repo / ".agents").is_dir()
     # ovjx46 / 4eecvh E-02: mirror doctor.probe_environment (z1yefm E-06). A bare
     # existence check on `.agents/` reports split-brain forever on every migrated repo
@@ -9699,7 +9700,10 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
         layout = ".aw + .agents"
         split_brain = True
     elif has_aw:
-        layout = ".aw"
+        if not (repo / ".aw").is_dir() and has_home_clean:
+            layout = "home (clean-target)"
+        else:
+            layout = ".aw"
         split_brain = False
     elif has_agents:
         layout = ".agents"
@@ -9855,6 +9859,7 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
             (cwd / ".git").is_dir()
             or (cwd / ".aw").is_dir()
             or (cwd / ".agents").is_dir()
+            or project_context.home_configured_root(cwd)
         ):
             repos = [cwd]
 
@@ -11607,6 +11612,7 @@ def _run_context(
     from agent_workflows.result_types import (
         CommandResult,
         Diagnostic,
+        Evidence,
         select_output,
     )
 
@@ -11641,6 +11647,13 @@ def _run_context(
                 status="clean",
                 exit_code=0,
                 summary="project context (public redacted)",
+                evidence=[
+                    Evidence(
+                        key="project_id",
+                        value=redacted.get("project_id", ""),
+                        status="verified",
+                    )
+                ],
                 data=redacted,
             )
             return get_renderer(ctx_out).emit(res, ctx_out)
@@ -11653,6 +11666,9 @@ def _run_context(
             status="clean",
             exit_code=0,
             summary="project context",
+            evidence=[
+                Evidence(key="project_id", value=ctx.project_id, status="verified")
+            ],
             data=ctx.to_dict(),
         )
         return get_renderer(ctx_out).emit(res, ctx_out)

@@ -37,44 +37,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure and pure primitives
 
-- [ ] E-01 Re-measure at execution HEAD (after `4gn1ka` and `ivq0nr` landed): the bodies of `project_context.find_project_root`, `_is_project_marker`, `is_project_dir`, `classify_project_dir`, `project_config_dir`, `resolve_verb_repo_root`, `doctor.probe_environment` (the `has_aw = (repo_root / ".aw").is_dir()` line), `cli._collect_repo_status_details` (`has_aw = (repo / ".aw").is_dir()`), and `cli._run_status` (the `(cwd / ".aw").is_dir()` fallback), the git-boundary rule `ivq0nr` E-04 added (or its `blocked` record), and the scratch reproduction in this plan's Findings F-01..F-03 (install `--preset completely-clean-target` into a temp repo with temp `HOME`/`AW_HOME`/`XDG_CONFIG_HOME`, remove `<repo>/.aw` and the other in-target residue from the index and HEAD (`git rm -r --cached .`, commit, `git clean -fdx`; deleting only the working-tree copy is NOT enough, because the installer COMMITS `.aw/` (irjoga F-01) and `git worktree add` would check it out again into the lane, which then reads `is_project_dir True` / `abc123-<hash>` tracked, measured at review, PR-002) to simulate the Order 05 end state, add a linked worktree under `AW_HOME/projects/<id>/worktrees/abc123`, then print the five predicates for the root, a subdirectory and the worktree).
+- [x] E-01 Re-measure at execution HEAD (after `4gn1ka` and `ivq0nr` landed): the bodies of `project_context.find_project_root`, `_is_project_marker`, `is_project_dir`, `classify_project_dir`, `project_config_dir`, `resolve_verb_repo_root`, `doctor.probe_environment` (the `has_aw = (repo_root / ".aw").is_dir()` line), `cli._collect_repo_status_details` (`has_aw = (repo / ".aw").is_dir()`), and `cli._run_status` (the `(cwd / ".aw").is_dir()` fallback), the git-boundary rule `ivq0nr` E-04 added (or its `blocked` record), and the scratch reproduction in this plan's Findings F-01..F-03 (install `--preset completely-clean-target` into a temp repo with temp `HOME`/`AW_HOME`/`XDG_CONFIG_HOME`, remove `<repo>/.aw` and the other in-target residue from the index and HEAD (`git rm -r --cached .`, commit, `git clean -fdx`; deleting only the working-tree copy is NOT enough, because the installer COMMITS `.aw/` (irjoga F-01) and `git worktree add` would check it out again into the lane, which then reads `is_project_dir True` / `abc123-<hash>` tracked, measured at review, PR-002) to simulate the Order 05 end state, add a linked worktree under `AW_HOME/projects/<id>/worktrees/abc123`, then print the five predicates for the root, a subdirectory and the worktree).
   - Depends on: none
   - Expected outcome: the baseline table (root / subdir / external worktree x `is_project_dir`, `find_project_root`, `classify_project_dir`, `project_config_dir`, `resolve_project_context(...).project_id`) is pasted into V-01 and matches F-01..F-03, or any drift is recorded and the plan's E-items are adjusted before editing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add pure `project_context.checkout_main_root(path) -> Optional[Path]`: walk up from `path` to the first ancestor holding a `.git` entry; if that entry is a DIRECTORY return that ancestor (a main worktree is its own main root); if it is a FILE whose first line is `gitdir: <dir>`, resolve `<dir>`, read `<dir>/commondir` (relative to `<dir>`) to get the common dir, and return the common dir's parent iff the common dir is named `.git` and `<dir>` sits under `<common>/worktrees/` (a LINKED worktree); return `None` for anything else, including a submodule gitfile (`gitdir: ../.git/modules/<name>`, which has no `commondir` file, measured) and a bare or `--separate-git-dir` layout. No subprocess, no write, total (any `OSError` returns `None`). Docstring states why it is file-based (it is called from `find_project_root`, which is in the per-command hot path and must stay pure and subprocess-free) and that it intentionally agrees with `ipd_lifecycle.checkout_control_root`'s rule "common dir named `.git` -> its parent".
+- [x] E-02 Add pure `project_context.checkout_main_root(path) -> Optional[Path]`: walk up from `path` to the first ancestor holding a `.git` entry; if that entry is a DIRECTORY return that ancestor (a main worktree is its own main root); if it is a FILE whose first line is `gitdir: <dir>`, resolve `<dir>`, read `<dir>/commondir` (relative to `<dir>`) to get the common dir, and return the common dir's parent iff the common dir is named `.git` and `<dir>` sits under `<common>/worktrees/` (a LINKED worktree); return `None` for anything else, including a submodule gitfile (`gitdir: ../.git/modules/<name>`, which has no `commondir` file, measured) and a bare or `--separate-git-dir` layout. No subprocess, no write, total (any `OSError` returns `None`). Docstring states why it is file-based (it is called from `find_project_root`, which is in the per-command hot path and must stay pure and subprocess-free) and that it intentionally agrees with `ipd_lifecycle.checkout_control_root`'s rule "common dir named `.git` -> its parent".
   - Depends on: E-01
   - Expected outcome: for a main worktree, a subdirectory of it, an in-repo linked worktree, and an EXTERNAL linked worktree it returns the main worktree's path; for a submodule checkout, a bare-repo worktree, a non-git dir, and a missing path it returns `None` (asserted in E-06).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `checkout_main_root` the identity anchor and add the predicate. (1) In `project_context.project_config_dir`, keep rule 1 (in-tree `<repo>/.aw/config/{project,local,config,policy}.json` wins) byte-identical, and in rule 2 derive the home `project_id` from `checkout_main_root(repo)` instead of `repo` ONLY when `repo / ".git"` exists (that is, `repo` IS a worktree root, main or linked); for any other path keep `repo` as today. WHY (PR-001): `checkout_main_root` walks UP, so applied unconditionally it maps `<root>/sub/deep` to `<root>`, which makes `project_config_dir(<root>/sub/deep)` return the home config, `home_configured_root(<root>/sub/deep)` True, and `find_project_root(<root>/sub/deep)` stop at `sub/deep` itself instead of climbing to the root. That would make every verb run from a subdirectory treat the subdirectory as the project root, and it would change `project_config_dir` for subdirectories of every home-configured repo. Measured at review with a prototype of E-02..E-04: as written, `find_project_root(<root>/sub/deep)` = `<root>/sub/deep` and `find_project_root(<lane>/x)` = `<lane>/x`; with the `.git`-exists guard, both resolve to `<root>` and `<lane>`. (2) In `resolve_project_context`, the derived-id fallback (`project_id = _derive_project_id(repo_abs)`, reached only when neither `local.json` nor `project.json` carries a `project_id`) uses the same guarded anchor. (3) Add `project_context.home_configured_root(path, aw_home=None) -> bool`: True iff `path / ".git"` exists (a worktree root; never a subdirectory, PR-001) AND `project_config_dir(path, aw_home)` is NOT `<path>/.aw/config` AND its `project.json` is a file AND that stored file has `delivery_mode == "clean-delta"` (read via `_read_json_file`; never re-derived from a preset name, honoring irjoga PR-003/PR-004). Docstrings state that the lane keeps its own working-tree root and shares only identity, mirroring `ipd_lifecycle.checkout_control_root`.
+- [x] E-03 Make `checkout_main_root` the identity anchor and add the predicate. (1) In `project_context.project_config_dir`, keep rule 1 (in-tree `<repo>/.aw/config/{project,local,config,policy}.json` wins) byte-identical, and in rule 2 derive the home `project_id` from `checkout_main_root(repo)` instead of `repo` ONLY when `repo / ".git"` exists (that is, `repo` IS a worktree root, main or linked); for any other path keep `repo` as today. WHY (PR-001): `checkout_main_root` walks UP, so applied unconditionally it maps `<root>/sub/deep` to `<root>`, which makes `project_config_dir(<root>/sub/deep)` return the home config, `home_configured_root(<root>/sub/deep)` True, and `find_project_root(<root>/sub/deep)` stop at `sub/deep` itself instead of climbing to the root. That would make every verb run from a subdirectory treat the subdirectory as the project root, and it would change `project_config_dir` for subdirectories of every home-configured repo. Measured at review with a prototype of E-02..E-04: as written, `find_project_root(<root>/sub/deep)` = `<root>/sub/deep` and `find_project_root(<lane>/x)` = `<lane>/x`; with the `.git`-exists guard, both resolve to `<root>` and `<lane>`. (2) In `resolve_project_context`, the derived-id fallback (`project_id = _derive_project_id(repo_abs)`, reached only when neither `local.json` nor `project.json` carries a `project_id`) uses the same guarded anchor. (3) Add `project_context.home_configured_root(path, aw_home=None) -> bool`: True iff `path / ".git"` exists (a worktree root; never a subdirectory, PR-001) AND `project_config_dir(path, aw_home)` is NOT `<path>/.aw/config` AND its `project.json` is a file AND that stored file has `delivery_mode == "clean-delta"` (read via `_read_json_file`; never re-derived from a preset name, honoring irjoga PR-003/PR-004). Docstrings state that the lane keeps its own working-tree root and shares only identity, mirroring `ipd_lifecycle.checkout_control_root`.
   - Depends on: E-02
   - Expected outcome: `project_config_dir(<external lane>)` and `project_config_dir(<main root>)` return the SAME home config dir; `resolve_project_context(target_repo=<external lane>).project_id` equals the main root's (`r-5f5872` in the F-03 fixture, not `abc123-7087a4`) with `delivery_mode == "clean-delta"`; `home_configured_root` is True for the clean root and its lane, False for a `private-target` install, a home `project.json` with `delivery_mode: tracked`, an uninstalled repo, and `$HOME`; `home_configured_root(<root>/sub/deep)` and `home_configured_root(<lane>/x)` are False and `project_config_dir(<root>/sub/deep)` is unchanged from the E-01 baseline (PR-001); a tracked in-repo install's `project_config_dir` and `project_id` are unchanged (asserted in E-06).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Wire recognition into the predicates and the two status surfaces
 
-- [ ] E-04 Update `project_context.find_project_root` so each climbed directory `curr` is a project root when `_is_project_marker(curr / ".aw")`, the legacy `.agents` marker, OR `home_configured_root(curr)` holds, tested at the SAME point in the loop, and OR the same marker into `is_project_dir`. Preserve exactly the git-boundary rule `ivq0nr` landed (a registered submodule without `.aw` uses its parent's project, any other nested git repo stops at its own boundary, and records are never created in a bare cwd). Because a lane root is now itself recognized, the climb stops there before any boundary or `$HOME` question arises, and `classify_project_dir` needs no logic change since it composes the two predicates. Update the three docstrings to name the home-configured marker and the shared-identity lane rule, citing this plan.
+- [x] E-04 Update `project_context.find_project_root` so each climbed directory `curr` is a project root when `_is_project_marker(curr / ".aw")`, the legacy `.agents` marker, OR `home_configured_root(curr)` holds, tested at the SAME point in the loop, and OR the same marker into `is_project_dir`. Preserve exactly the git-boundary rule `ivq0nr` landed (a registered submodule without `.aw` uses its parent's project, any other nested git repo stops at its own boundary, and records are never created in a bare cwd). Because a lane root is now itself recognized, the climb stops there before any boundary or `$HOME` question arises, and `classify_project_dir` needs no logic change since it composes the two predicates. Update the three docstrings to name the home-configured marker and the shared-identity lane rule, citing this plan.
   - Depends on: E-03
   - Expected outcome: for the clean-target fixture: root -> `is_project_dir` True, `find_project_root` = root, classify `is-project-root`; `<root>/sub/deep` -> `find_project_root` = root, classify `inside-project`; external lane -> `is_project_dir` True, `find_project_root(<lane>/x)` = the LANE root (NOT `None`, NOT `$HOME` even when `<AW_HOME>/config/` exists); and for a tracked in-repo install, a non-git `.aw` project, an uninstalled nested git repo, and a submodule, the answers equal the E-01 baseline.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update `doctor.probe_environment` and `cli._collect_repo_status_details` so `has_aw` is `(repo / ".aw").is_dir() or project_context.home_configured_root(repo)`, and so the reported `layout` for a repo recognized ONLY by the home marker is the new literal `"home (clean-target)"` rather than `".aw"` (a clean-target repo has no `.aw` and claiming one is untrue). Update `cli._run_status`'s cwd fallback (`(cwd / ".git").is_dir() or (cwd / ".aw").is_dir() or (cwd / ".agents").is_dir()`) to also admit `project_context.home_configured_root(cwd)`, which is what lets a lane cwd (whose `.git` is a FILE) be listed. REACHABILITY (PR-003): that fallback runs ONLY when `cli._repos_for_report` returns no repositories (`if not repos:`), i.e. when the user config registers none, so the E-06 (e) lane case must run with a temp `XDG_CONFIG_HOME` whose config lists no repos (delete or empty `repos.installed` after the fixture install, which registers the target), and the root case may come from either the registered list or the fallback; the test names which. `version`, `preset` and `records_backend` keep coming from `engine.read_installed_version` and `project_context.read_project_identity` (both read through `project_config_dir`, so they inherit E-03's anchor; Order 02 `4gn1ka` owns the version read).
+- [x] E-05 Update `doctor.probe_environment` and `cli._collect_repo_status_details` so `has_aw` is `(repo / ".aw").is_dir() or project_context.home_configured_root(repo)`, and so the reported `layout` for a repo recognized ONLY by the home marker is the new literal `"home (clean-target)"` rather than `".aw"` (a clean-target repo has no `.aw` and claiming one is untrue). Update `cli._run_status`'s cwd fallback (`(cwd / ".git").is_dir() or (cwd / ".aw").is_dir() or (cwd / ".agents").is_dir()`) to also admit `project_context.home_configured_root(cwd)`, which is what lets a lane cwd (whose `.git` is a FILE) be listed. REACHABILITY (PR-003): that fallback runs ONLY when `cli._repos_for_report` returns no repositories (`if not repos:`), i.e. when the user config registers none, so the E-06 (e) lane case must run with a temp `XDG_CONFIG_HOME` whose config lists no repos (delete or empty `repos.installed` after the fixture install, which registers the target), and the root case may come from either the registered list or the fallback; the test names which. `version`, `preset` and `records_backend` keep coming from `engine.read_installed_version` and `project_context.read_project_identity` (both read through `project_config_dir`, so they inherit E-03's anchor; Order 02 `4gn1ka` owns the version read).
   - Depends on: E-04
   - Expected outcome: `aw doctor --dir <clean root> --json` reports `layout: "home (clean-target)"`, `preset: "completely-clean-target"`, `records_backend: "home"`; `aw status --json` from `<clean root>` and from the external lane lists that tree as installed (not `[not installed]`, not omitted); a tracked install still reports `layout: ".aw"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Outcome tests and suite
 
-- [ ] E-06 Create `tests/test_clean_target_recognition.py` exercising the code (P16: no source reading): a fixture that installs `--preset completely-clean-target` and `--preset local-only` into temp git repos via a subprocess (`AW_NO_REEXEC=1`, temp `HOME`/`AW_HOME`/`XDG_CONFIG_HOME`), then removes `<repo>/.aw` and every other in-target residue from the INDEX AND HEAD (`git rm -r --cached .`, commit, `git clean -fdx`), simulating Order 05's end state so this plan does not depend on it, adds a linked worktree under `<AW_HOME>/projects/<id>/worktrees/abc123` with `git worktree add --detach`, and asserts: (a) E-02's `checkout_main_root` table incl. submodule -> `None`; (b) E-03's `home_configured_root` true/false table incl. a home `project.json` with `delivery_mode: tracked` -> False; (b2) E-03's identity table: `project_config_dir` and `resolve_project_context(...).project_id` equal for root and external lane, unchanged for a tracked in-repo install and its in-repo lane; (c) E-04's predicate table for root, subdir (`find_project_root(<root>/sub/deep)` == `<root>`, NOT `sub/deep`), external lane and a subdirectory of the lane (`find_project_root(<lane>/x)` == `<lane>`), including with `<AW_HOME>/config/` present (the `$HOME`-hazard case, measured to return `$HOME` today); (d) negative controls unchanged: tracked in-repo install, non-git `.aw` project, uninstalled git repo under an AW project (per `ivq0nr`'s rule), submodule; (e) subprocess `aw doctor --dir <root> --json` and `aw status --json` (cwd = root and cwd = lane) per E-05; (f) a subprocess `aw attention --format json` with cwd = the external lane exits without the no-project refusal, and `aw context --agent` with cwd = the lane reports the main root's `project_id` (proving `resolve_verb_repo_root` and the resolver follow E-03/E-04). Each test calls `ipd_lifecycle.clear_checkout_control_root_cache()` in `setUp`.
+- [x] E-06 Create `tests/test_clean_target_recognition.py` exercising the code (P16: no source reading): a fixture that installs `--preset completely-clean-target` and `--preset local-only` into temp git repos via a subprocess (`AW_NO_REEXEC=1`, temp `HOME`/`AW_HOME`/`XDG_CONFIG_HOME`), then removes `<repo>/.aw` and every other in-target residue from the INDEX AND HEAD (`git rm -r --cached .`, commit, `git clean -fdx`), simulating Order 05's end state so this plan does not depend on it, adds a linked worktree under `<AW_HOME>/projects/<id>/worktrees/abc123` with `git worktree add --detach`, and asserts: (a) E-02's `checkout_main_root` table incl. submodule -> `None`; (b) E-03's `home_configured_root` true/false table incl. a home `project.json` with `delivery_mode: tracked` -> False; (b2) E-03's identity table: `project_config_dir` and `resolve_project_context(...).project_id` equal for root and external lane, unchanged for a tracked in-repo install and its in-repo lane; (c) E-04's predicate table for root, subdir (`find_project_root(<root>/sub/deep)` == `<root>`, NOT `sub/deep`), external lane and a subdirectory of the lane (`find_project_root(<lane>/x)` == `<lane>`), including with `<AW_HOME>/config/` present (the `$HOME`-hazard case, measured to return `$HOME` today); (d) negative controls unchanged: tracked in-repo install, non-git `.aw` project, uninstalled git repo under an AW project (per `ivq0nr`'s rule), submodule; (e) subprocess `aw doctor --dir <root> --json` and `aw status --json` (cwd = root and cwd = lane) per E-05; (f) a subprocess `aw attention --format json` with cwd = the external lane exits without the no-project refusal, and `aw context --agent` with cwd = the lane reports the main root's `project_id` (proving `resolve_verb_repo_root` and the resolver follow E-03/E-04). Each test calls `ipd_lifecycle.clear_checkout_control_root_cache()` in `setUp`.
   - Depends on: E-05
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_clean_target_recognition.py -v` passes; a one-line mutation (make `home_configured_root` return False) fails at least the (c) and (e) cases, a second (drop the `checkout_main_root` anchor from `project_config_dir`) fails the (b2) and lane cases of (c), and restoring each passes again.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the neighbouring suites and the bare full suite: `python3 -m pytest -o addopts="" tests/test_clean_target_recognition.py tests/test_clean_target_config_home.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_explicit_dir_subdir_resolution.py tests/test_project_context.py tests/test_doctor.py tests/test_validator_nonsurveyable_dir.py`, then bare `python3 -m pytest`.
+- [x] E-07 Run the neighbouring suites and the bare full suite: `python3 -m pytest -o addopts="" tests/test_clean_target_recognition.py tests/test_clean_target_config_home.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_explicit_dir_subdir_resolution.py tests/test_project_context.py tests/test_doctor.py tests/test_validator_nonsurveyable_dir.py`, then bare `python3 -m pytest`.
   - Depends on: E-06
   - Expected outcome: the narrowed run passes; the bare suite shows no failure that does not also fail on the base commit (any such failure is reproduced on the base and pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -165,40 +165,421 @@ Measured at HEAD `62803305b` with a scratch `aw install <tmp>/r --preset complet
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the execution-HEAD sha, the `ivq0nr` boundary rule as it now reads in `find_project_root` (or its `blocked` record), and the pasted baseline table from the scratch probe (root / subdir / external lane x `is_project_dir`, `find_project_root`, `classify_project_dir`, `project_config_dir`, `resolve_project_context(...).project_id`), with home paths shown relative to the temp dir.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD sha: `15193e78d07804769b9143dab7089794a36a0331`
 
-- [ ] V-02 validates E-02
+    `ivq0nr` boundary rule in `find_project_root` (`agent_workflows/project_context.py`):
+    ```python
+        dot_git = curr / ".git"
+        if dot_git.exists():
+            if _is_registered_submodule(dot_git):
+                submodule_encountered = True
+            else:
+                return None
+    ```
+
+    Scratch reproduction baseline table (pre-change):
+    | Target Path | `is_project_dir` | `find_project_root` | `classify_project_dir` | `project_config_dir` | `resolve_project_context().project_id` |
+    | --- | --- | --- | --- | --- | --- |
+    | `<repo>` (root) | `False` | `None` | `no-project` | `.aw/projects/r-5f5872/config` | `r-5f5872` (clean-delta) |
+    | `<repo>/sub/deep` (subdir) | `False` | `None` | `no-project` | `repo/sub/deep/.aw/config` | `deep-e83610` (tracked) |
+    | `<lane>` (`worktrees/abc123`) | `False` | `None` | `no-project` | `lane/.aw/config` | `abc123-7087a4` (tracked) |
+    | `<lane>` with `<AW_HOME>/config` | `False` | `<tmp>/h` | `inside-project` | `lane/.aw/config` | `abc123-7087a4` (tracked) |
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE `git diff -- agent_workflows/project_context.py` hunk adding `checkout_main_root`, and the passing pytest lines for the E-06 (a) cases (main, subdir, in-repo lane, external lane, submodule -> None, bare/non-git -> None).
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/project_context.py` adding `checkout_main_root`:
+    ```diff
++def checkout_main_root(path: str | Path) -> Optional[Path]:
++    """Find the main worktree root of a git checkout without spawning git (IPD fnnwj3).
++
++    Pure, file-based resolver: walks up from ``path`` to the first ancestor holding a ``.git``
++    entry. If that entry is a directory, returns that ancestor (a main worktree is its own
++    main root). If it is a file whose first line is ``gitdir: <dir>``, resolves ``<dir>``, reads
++    ``<dir>/commondir`` (relative to ``<dir>``) to find the common git directory, and returns
++    the common directory's parent iff the common directory is named ``.git`` and ``<dir>`` sits
++    under ``<common>/worktrees/`` (a linked worktree). Returns ``None`` for anything else,
++    including a submodule gitfile (``gitdir: ../.git/modules/<name>``, which has no ``commondir``
++    file), a bare repository worktree, a ``--separate-git-dir`` layout, or a non-git directory.
++
++    File-based and subprocess-free because it is called in per-command hot paths (such as
++    ``find_project_root`` and ``project_config_dir``) that must stay pure, fast, and side-effect
++    free. Intentionally agrees with ``ipd_lifecycle.checkout_control_root``'s rule:
++    a common dir named ``.git`` maps to its parent worktree. Total: any OSError or RuntimeError
++    returns None.
++    """
++    try:
++        curr = Path(path).resolve()
++    except (OSError, RuntimeError):
++        return None
++
++    while True:
++        try:
++            dot_git = curr / ".git"
++            if dot_git.is_dir():
++                return curr
++            if dot_git.is_file():
++                try:
++                    content = dot_git.read_text(encoding="utf-8")
++                except OSError:
++                    return None
++                gitdir_line = None
++                for line in content.splitlines():
++                    line = line.strip()
++                    if line.startswith("gitdir:"):
++                        gitdir_line = line[len("gitdir:") :].strip()
++                        break
++                if not gitdir_line:
++                    return None
++                gitdir = (curr / gitdir_line).resolve()
++                commondir_file = gitdir / "commondir"
++                if not commondir_file.is_file():
++                    return None
++                try:
++                    common_rel = commondir_file.read_text(encoding="utf-8").strip()
++                except OSError:
++                    return None
++                common_dir = (gitdir / common_rel).resolve()
++                if common_dir.name != ".git":
++                    return None
++                candidate_main = common_dir.parent.resolve()
++                try:
++                    worktrees_dir = common_dir / "worktrees"
++                    gitdir.relative_to(worktrees_dir)
++                except ValueError:
++                    return None
++                return candidate_main
++            parent = curr.parent
++            if parent == curr:
++                return None
++            curr = parent
++        except (OSError, RuntimeError):
++            return None
+    ```
 
-- [ ] V-03 validates E-03
+    Passing pytest line:
+    `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_a_checkout_main_root_table PASSED [ 71%]`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the `project_config_dir` / `resolve_project_context` anchor hunks and the `home_configured_root` hunk, and the passing pytest lines for the E-06 (b) and (b2) cases, including the home `project.json` with `delivery_mode: tracked` -> False case and the root/lane `project_id` equality.
   - Observed evidence:
-  - Result: pending
+    `project_config_dir` anchor hunk:
+    ```diff
+@@ -923,9 +1007,15 @@ def project_config_dir(
+         if candidate.exists():
+             return target_config
 
-- [ ] V-04 validates E-04
+-    repo_abs = _canonical_path(repo)
+     eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+-    project_id = _derive_project_id(repo_abs)
++    anchor = repo
++    try:
++        if (repo / ".git").exists():
++            anchor = checkout_main_root(repo) or repo
++    except (OSError, RuntimeError):
++        anchor = repo
++    anchor_abs = _canonical_path(anchor)
++    project_id = _derive_project_id(anchor_abs)
+     home_config = Path(eff_aw_home) / "projects" / project_id / "config"
+     if (home_config / "project.json").exists():
+         return home_config
+    ```
+
+    `resolve_project_context` anchor hunk:
+    ```diff
+@@ -1520,7 +1649,13 @@ def resolve_project_context(
+         project_id = policy_pid.strip()
+         pid_source = PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
+     else:
+-        project_id = _derive_project_id(repo_abs)
++        anchor_repo = Path(repo_abs)
++        try:
++            if (anchor_repo / ".git").exists():
++                anchor_repo = checkout_main_root(anchor_repo) or anchor_repo
++        except (OSError, RuntimeError):
++            pass
++        project_id = _derive_project_id(_canonical_path(anchor_repo))
+         pid_source = PrecedenceLevel.BUILTIN_DEFAULTS.value
+    ```
+
+    `home_configured_root` hunk:
+    ```diff
++def home_configured_root(
++    path: str | Path,
++    aw_home: Optional[str | Path] = None,
++) -> bool:
++    """True if ``path`` is an installed clean-target AW project root (IPD fnnwj3).
++
++    True iff:
++    1. ``path / ".git"`` exists (the path is a git worktree root, main or linked; never
++       a subdirectory, avoiding PR-001 false-positives on subdirectories).
++    2. ``project_config_dir(path, aw_home)`` is not ``<path>/.aw/config`` (its configuration
++       is home-stored rather than in-tree).
++    3. The home configuration directory's ``project.json`` is a file.
++    4. The stored ``project.json`` has ``delivery_mode == "clean-delta"`` (read directly;
++       never re-derived from preset name).
++
++    A linked lane worktree keeps its own working-tree root (so git operations within the lane
++    target the lane worktree) and shares only configuration identity with the main checkout,
++    mirroring ``ipd_lifecycle.checkout_control_root``. Total: returns False on any OSError.
++    """
++    try:
++        p = Path(path).resolve()
++        if not (p / ".git").exists():
++            return False
++        cfg = project_config_dir(p, aw_home=aw_home)
++        target_cfg = p / ".aw" / "config"
++        if _canonical_path(cfg) == _canonical_path(target_cfg):
++            return False
++        proj_json = cfg / "project.json"
++        if not proj_json.is_file():
++            return False
++        data = _read_json_file(str(proj_json))
++        if not data or not isinstance(data, dict):
++            return False
++        mode = data.get("delivery_mode")
++        return mode == DeliveryMode.CLEAN_DELTA.value or mode == "clean-delta"
++    except (OSError, RuntimeError):
++        return False
+    ```
+
+    Passing pytest lines for E-06 (b) and (b2):
+    `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b_home_configured_root_table PASSED [ 42%]`
+    `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b2_identity_table PASSED [100%]`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the `find_project_root`/`is_project_dir`/`classify_project_dir` diff (code and docstrings) and the passing pytest lines for E-06 (c) and (d), including the `<AW_HOME>/config/`-present case returning the lane root rather than `$HOME`, plus the E-01 probe re-run showing the fixed table.
   - Observed evidence:
-  - Result: pending
+    `find_project_root` / `is_project_dir` / `classify_project_dir` diff:
+    ```diff
+@@ -432,7 +502,8 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
+       to its enclosing parent project. Detect it without spawning git: its ``.git`` is a file whose
+       gitdir sits under the parent's ``.git/modules/``, and that admin dir has no ``commondir``. Prints
+       one notice line to stderr saying the parent project was used.
+-    - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``.
++    - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``
++      or are recognized via home configuration (IPD fnnwj3).
+     - Any other nested git repository without ``.aw/`` (its own ``.git`` directory, a vendored or scratch
+       clone) stops at its own boundary and never binds to an outer project.
 
-- [ ] V-05 validates E-05
+@@ -449,8 +520,10 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
+     while True:
+         if curr in ceilings:
+             return None
+-        if _is_project_marker(curr / ".aw") or _is_project_marker(
+-            curr / ".agents", legacy=True
++        if (
++            _is_project_marker(curr / ".aw")
++            or _is_project_marker(curr / ".agents", legacy=True)
++            or home_configured_root(curr)
+         ):
+             if submodule_encountered:
+                 sys.stderr.write(f"notice: parent project was used at {curr}\n")
+@@ -634,7 +707,8 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
+ def is_project_dir(repo_root: str | Path) -> bool:
+     """True if ``repo_root`` is (or contains) an AW project marker - i.e. a real project, not a bare
+     directory with nothing to survey. Used by repo-scoped verbs to decide between running and
+-    emitting ``no_project_message`` (IPD awretrofit Order 06).
++    emitting ``no_project_message`` (IPD awretrofit Order 06). Also returns True for an installed
++    home-configured clean-target root or linked worktree (IPD fnnwj3, via ``home_configured_root``).
+
+     Returns False immediately if ``repo_root`` resolves to a temporary root container or
+     configured project ceiling (see ``_project_climb_ceilings``).
+@@ -648,8 +722,10 @@ def is_project_dir(repo_root: str | Path) -> bool:
+     if p in _project_climb_ceilings():
+         return False
+
+-    return _is_project_marker(p / ".aw") or _is_project_marker(
+-        p / ".agents", legacy=True
++    return (
++        _is_project_marker(p / ".aw")
++        or _is_project_marker(p / ".agents", legacy=True)
++        or home_configured_root(p)
+     )
+
+
+@@ -703,6 +779,8 @@ def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassifica
+     re-implementing root detection or walking the filesystem independently. Pure, read-only,
+     and side-effect-free. Per IPD ivq0nr OQ-01 maintainer decision (2026-10-15), root detection in
+     ``find_project_root`` bounds upward discovery at enclosing git repository ceilings.
++    Recognizes home-configured clean-target projects and linked lane worktrees via
++    ``home_configured_root`` and ``checkout_main_root`` (IPD fnnwj3).
+    ```
+
+    Passing pytest lines for E-06 (c) and (d):
+    `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_c_predicate_table PASSED [ 14%]`
+    `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_d_negative_controls PASSED [ 57%]`
+
+    Scratch probe re-run (post-fix table):
+    | Target Path | `is_project_dir` | `find_project_root` | `classify_project_dir` | `project_config_dir` | `resolve_project_context().project_id` |
+    | --- | --- | --- | --- | --- | --- |
+    | root (`repo`) | `True` | `repo` | `is-project-root` | `.aw/projects/repo-7f87cb/config` | `repo-7f87cb` (clean-delta) |
+    | subdir (`deep`) | `False` | `repo` | `inside-project` | `repo/sub/deep/.aw/config` | `deep-a8bb49` (tracked) |
+    | external lane (`abc123`) | `True` | `abc123` | `is-project-root` | `.aw/projects/repo-7f87cb/config` | `repo-7f87cb` (clean-delta) |
+    | lane subdir (`x`) | `False` | `abc123` | `inside-project` | `.aw/projects/repo-7f87cb/worktrees/abc123/x/.aw/config` | `x-eb1b0e` (tracked) |
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the `doctor.py`/`cli.py` diff and the actual JSON fields from `aw doctor --dir <clean root> --json` (`layout`, `preset`, `records_backend`) and `aw status --json` run from the root and from the external lane with a user config registering no repos (subprocesses driven by E-06 (e) and (f), reached via `doctor.run` -> `probe_environment` and `cli._run_status` -> the `if not repos:` cwd fallback -> `_collect_repo_status_details`).
   - Observed evidence:
-  - Result: pending
+    `doctor.py` and `cli.py` diffs:
+    ```diff
+--- a/agent_workflows/doctor.py
++++ b/agent_workflows/doctor.py
+@@ -374,7 +374,8 @@ def probe_environment(
+-        has_aw = (repo_root / ".aw").is_dir()
++        has_home_clean = project_context.home_configured_root(repo_root)
++        has_aw = (repo_root / ".aw").is_dir() or has_home_clean
+         has_agents = (repo_root / ".agents").is_dir()
+         if has_aw and engine.detect_split_brain_layout(repo_root):
+             res.layout = ".aw + .agents (dual layout / split-brain)"
+@@ -387,7 +388,10 @@ def probe_environment(
+                 )
+             )
+         elif has_aw:
+-            res.layout = ".aw"
++            if not (repo_root / ".aw").is_dir() and has_home_clean:
++                res.layout = "home (clean-target)"
++            else:
++                res.layout = ".aw"
+         elif has_agents:
+             res.layout = ".agents"
+         else:
+--- a/agent_workflows/cli.py
++++ b/agent_workflows/cli.py
+@@ -9690,7 +9690,8 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
-- [ ] V-06 validates E-06
+     state = "source-root" if is_source else versioning.status(installed, packaged)
+
+-    has_aw = (repo / ".aw").is_dir()
++    has_home_clean = project_context.home_configured_root(repo)
++    has_aw = (repo / ".aw").is_dir() or has_home_clean
+         has_agents = (repo / ".agents").is_dir()
+@@ -9699,7 +9700,10 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
+         layout = ".aw + .agents"
+         split_brain = True
+     elif has_aw:
+-        layout = ".aw"
++        if not (repo / ".aw").is_dir() and has_home_clean:
++            layout = "home (clean-target)"
++        else:
++            layout = ".aw"
+         split_brain = False
+     elif has_agents:
+         layout = ".agents"
+@@ -9855,6 +9859,7 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
+             (cwd / ".git").is_dir()
+             or (cwd / ".aw").is_dir()
+             or (cwd / ".agents").is_dir()
++            or project_context.home_configured_root(cwd)
+         ):
+             repos = [cwd]
+    ```
+
+    `aw doctor --dir <clean root> --json` actual output fields:
+    ```json
+      "env": {
+        "is_source_repo": false,
+        "installed_version": "1.3.0rc2.dev10925+g15193e78d.d20261016",
+        "packaged_version": "1.3.0rc2.dev10925+g15193e78d.d20261016",
+        "version_status": "dev",
+        "layout": "home (clean-target)",
+        "preset": "completely-clean-target",
+        "backend": "home",
+        "setup_needed": false,
+        "pypi_latest": null,
+        "pypi_checked": false,
+        "drift": []
+      }
+    ```
+
+    `aw status --json` with empty config repos (cwd = clean root):
+    ```json
+    [
+      {
+        "path": "/tmp/.../repo",
+        "installed": "1.3.0rc2.dev10925+g15193e78d.d20261016",
+        "is_source": false,
+        "state": "dev",
+        "layout": "home (clean-target)",
+        "preset": "completely-clean-target",
+        "backend": "home",
+        "split_brain": false
+      }
+    ]
+    ```
+
+    `aw status --json` with empty config repos (cwd = external lane):
+    ```json
+    [
+      {
+        "path": "/tmp/.../worktrees/abc123",
+        "installed": "1.3.0rc2.dev10925+g15193e78d.d20261016",
+        "is_source": false,
+        "state": "dev",
+        "layout": "home (clean-target)",
+        "preset": "completely-clean-target",
+        "backend": "home",
+        "split_brain": false
+      }
+    ]
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE `python3 -m pytest -o addopts="" tests/test_clean_target_recognition.py -v` output passing, the same run FAILING with `home_configured_root` forced to return False (name the failing tests), the same run FAILING with the `checkout_main_root` anchor dropped from `project_config_dir` (name the failing (b2)/(c) lane tests), and passing again after each restore (`git diff -- agent_workflows/project_context.py` empty of the mutation).
   - Observed evidence:
-  - Result: pending
+    Passing test run:
+    ```
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_c_predicate_table PASSED [ 14%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_f_attention_and_context_subprocesses PASSED [ 28%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b_home_configured_root_table PASSED [ 42%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_d_negative_controls PASSED [ 57%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_a_checkout_main_root_table PASSED [ 71%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_e_doctor_and_status_subprocesses PASSED [ 85%]
+tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b2_identity_table PASSED [100%]
+============================== 7 passed in 49.76s ==============================
+    ```
 
-- [ ] V-07 validates E-07
+    Mutation 1 (force `home_configured_root` to return `False`):
+    Failed tests:
+    - `test_b_home_configured_root_table`: `AssertionError: False is not true : expected home_configured_root(clean_root) == True`
+    - `test_c_predicate_table`: `AssertionError: False is not true : expected is_project_dir(clean_root) == True`
+    - `test_e_doctor_and_status_subprocesses`: `AssertionError: 'none' != 'home (clean-target)'`
+    - `test_f_attention_and_context_subprocesses`: `AssertionError: 2 != 0 : lane aw attention failed (exit 2)`
+    Restored and verified: `git diff -- agent_workflows/project_context.py` clean of mutation.
+
+    Mutation 2 (drop `checkout_main_root` anchor from `project_config_dir`):
+    Failed tests:
+    - `test_b2_identity_table`: `AssertionError: 'abc123-...' != 'repo-...' : resolve_project_context(lane).project_id must match root`
+    - `test_c_predicate_table`: `AssertionError: .../h != .../worktrees/abc123 : find_project_root(lane_with_home_config)`
+    - `test_b_home_configured_root_table`: `AssertionError: False is not true : expected home_configured_root(lane) == True`
+    - `test_e_doctor_and_status_subprocesses`: `AssertionError: 0 != 1 : expected lane in status repos`
+    - `test_f_attention_and_context_subprocesses`: `AssertionError: 'abc123-...' != 'repo-...'`
+    Restored and verified: `git diff -- agent_workflows/project_context.py` clean of mutation.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: PASTE the narrowed neighbour run summary and the bare `python3 -m pytest` summary line; for any failure, paste the same test failing on the base commit.
   - Observed evidence:
-  - Result: pending
+    Narrowed neighbour run (`python3 -m pytest -o addopts="" tests/test_clean_target_recognition.py tests/test_clean_target_config_home.py tests/test_nonsurveyable_root_refusal.py tests/test_explicit_dir_non_project.py tests/test_explicit_dir_subdir_resolution.py tests/test_project_context.py tests/test_doctor.py tests/test_validator_nonsurveyable_dir.py`):
+    ```
+======================= 123 passed in 102.13s (0:01:42) ========================
+    ```
+
+    Bare full suite (`python3 -m pytest`):
+    ```
+NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+707 passed in 18.29s
+    ```
+    No failures observed.
+  - Result: pass
 
 ## Approval and execution gate
 

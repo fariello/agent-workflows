@@ -413,16 +413,86 @@ def _is_registered_submodule(dot_git: Path) -> bool:
     return False
 
 
+def checkout_main_root(path: str | Path) -> Optional[Path]:
+    """Find the main worktree root of a git checkout without spawning git (IPD fnnwj3).
+
+    Pure, file-based resolver: walks up from ``path`` to the first ancestor holding a ``.git``
+    entry. If that entry is a directory, returns that ancestor (a main worktree is its own
+    main root). If it is a file whose first line is ``gitdir: <dir>``, resolves ``<dir>``, reads
+    ``<dir>/commondir`` (relative to ``<dir>``) to find the common git directory, and returns
+    the common directory's parent iff the common directory is named ``.git`` and ``<dir>`` sits
+    under ``<common>/worktrees/`` (a linked worktree). Returns ``None`` for anything else,
+    including a submodule gitfile (``gitdir: ../.git/modules/<name>``, which has no ``commondir``
+    file), a bare repository worktree, a ``--separate-git-dir`` layout, or a non-git directory.
+
+    File-based and subprocess-free because it is called in per-command hot paths (such as
+    ``find_project_root`` and ``project_config_dir``) that must stay pure, fast, and side-effect
+    free. Intentionally agrees with ``ipd_lifecycle.checkout_control_root``'s rule:
+    a common dir named ``.git`` maps to its parent worktree. Total: any OSError or RuntimeError
+    returns None.
+    """
+    try:
+        curr = Path(path).resolve()
+    except (OSError, RuntimeError):
+        return None
+
+    while True:
+        try:
+            dot_git = curr / ".git"
+            if dot_git.is_dir():
+                return curr
+            if dot_git.is_file():
+                try:
+                    content = dot_git.read_text(encoding="utf-8")
+                except OSError:
+                    return None
+                gitdir_line = None
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line.startswith("gitdir:"):
+                        gitdir_line = line[len("gitdir:") :].strip()
+                        break
+                if not gitdir_line:
+                    return None
+                gitdir = (curr / gitdir_line).resolve()
+                commondir_file = gitdir / "commondir"
+                if not commondir_file.is_file():
+                    return None
+                try:
+                    common_rel = commondir_file.read_text(encoding="utf-8").strip()
+                except OSError:
+                    return None
+                common_dir = (gitdir / common_rel).resolve()
+                if common_dir.name != ".git":
+                    return None
+                worktrees_dir = (common_dir / "worktrees").resolve()
+                try:
+                    gitdir.relative_to(worktrees_dir)
+                except ValueError:
+                    return None
+                main_root = common_dir.parent.resolve()
+                if main_root.is_dir():
+                    return main_root
+                return None
+            if curr == curr.parent:
+                return None
+            curr = curr.parent
+        except (OSError, RuntimeError):
+            return None
+
+
 def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
     """Climb from ``start`` (default cwd) for the nearest ancestor that IS an AW project root.
 
     Returns the first directory (``start`` itself or an ancestor) that contains a ``.aw/`` or a
-    legacy ``.agents/`` marker directory, else ``None``. Git-style upward walk (like
+    legacy ``.agents/`` marker directory, or is an installed home-configured clean-target root
+    (IPD fnnwj3, via ``home_configured_root``), else ``None``. Git-style upward walk (like
     ``_find_git_root``), so a repo-scoped ``aw`` verb works from any subdirectory. Pure and
     side-effect-free (except for one notice line when resolving a submodule to its parent project);
-    symlink-safe (paths are resolved). git presence is NOT a marker: a ``.aw/`` tree can exist without
-    git, and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
-    OQ-01).
+    symlink-safe (paths are resolved). A linked lane worktree is recognized as its own worktree root
+    while sharing identity with its main checkout via ``checkout_main_root`` (IPD fnnwj3).
+    git presence is NOT a marker: a ``.aw/`` tree can exist without git, and a bare ``.git`` ancestor
+    with no AW marker is NOT an AW project (IPD awretrofit Order 06, OQ-01).
 
     Git boundaries and ceilings (IPD ivq0nr OQ-01 maintainer decision 2026-10-15):
     - An enclosing ``.git`` boundary that lacks an AW marker is a CEILING for project discovery:
@@ -432,7 +502,8 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
       to its enclosing parent project. Detect it without spawning git: its ``.git`` is a file whose
       gitdir sits under the parent's ``.git/modules/``, and that admin dir has no ``commondir``. Prints
       one notice line to stderr saying the parent project was used.
-    - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``.
+    - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``
+      or are recognized via home configuration (IPD fnnwj3).
     - Any other nested git repository without ``.aw/`` (its own ``.git`` directory, a vendored or scratch
       clone) stops at its own boundary and never binds to an outer project.
 
@@ -449,8 +520,10 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
     while True:
         if curr in ceilings:
             return None
-        if _is_project_marker(curr / ".aw") or _is_project_marker(
-            curr / ".agents", legacy=True
+        if (
+            _is_project_marker(curr / ".aw")
+            or _is_project_marker(curr / ".agents", legacy=True)
+            or home_configured_root(curr)
         ):
             if submodule_encountered:
                 sys.stderr.write(f"notice: parent project was used at {curr}\n")
@@ -634,7 +707,8 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
 def is_project_dir(repo_root: str | Path) -> bool:
     """True if ``repo_root`` is (or contains) an AW project marker - i.e. a real project, not a bare
     directory with nothing to survey. Used by repo-scoped verbs to decide between running and
-    emitting ``no_project_message`` (IPD awretrofit Order 06).
+    emitting ``no_project_message`` (IPD awretrofit Order 06). Also returns True for an installed
+    home-configured clean-target root or linked worktree (IPD fnnwj3, via ``home_configured_root``).
 
     Returns False immediately if ``repo_root`` resolves to a temporary root container or
     configured project ceiling (see ``_project_climb_ceilings``).
@@ -648,8 +722,10 @@ def is_project_dir(repo_root: str | Path) -> bool:
     if p in _project_climb_ceilings():
         return False
 
-    return _is_project_marker(p / ".aw") or _is_project_marker(
-        p / ".agents", legacy=True
+    return (
+        _is_project_marker(p / ".aw")
+        or _is_project_marker(p / ".agents", legacy=True)
+        or home_configured_root(p)
     )
 
 
@@ -703,6 +779,8 @@ def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassifica
     re-implementing root detection or walking the filesystem independently. Pure, read-only,
     and side-effect-free. Per IPD ivq0nr OQ-01 maintainer decision (2026-10-15), root detection in
     ``find_project_root`` bounds upward discovery at enclosing git repository ceilings.
+    Recognizes home-configured clean-target projects and linked lane worktrees via
+    ``home_configured_root`` and ``checkout_main_root`` (IPD fnnwj3).
 
     Returns a ``ProjectClassification`` with:
     - ``case=ProjectLocationCase.IS_PROJECT_ROOT`` if ``path`` is itself an AW project root.
@@ -910,6 +988,12 @@ def project_config_dir(
     2. Else compute aw_home (explicit, AW_HOME env, user config aw_home,
        or default) and, if <aw_home>/projects/<project_id>/config/project.json
        exists, return that directory.
+       When ``repo / ".git"`` exists (a worktree root, main or linked), the home
+       ``project_id`` is derived from ``checkout_main_root(repo)`` as the identity
+       anchor (IPD fnnwj3), so a linked lane worktree shares its main checkout's
+       home config. For subdirectories (where ``.git`` does not exist directly),
+       ``repo`` is retained without climb to prevent subdirectories from claiming
+       the root's home config (PR-001).
     3. Else return <repo>/.aw/config.
     """
     repo = Path(repo_root)
@@ -923,14 +1007,59 @@ def project_config_dir(
         if candidate.exists():
             return target_config
 
-    repo_abs = _canonical_path(repo)
     eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
-    project_id = _derive_project_id(repo_abs)
+    anchor = repo
+    try:
+        if (repo / ".git").exists():
+            anchor = checkout_main_root(repo) or repo
+    except (OSError, RuntimeError):
+        anchor = repo
+    anchor_abs = _canonical_path(anchor)
+    project_id = _derive_project_id(anchor_abs)
     home_config = Path(eff_aw_home) / "projects" / project_id / "config"
     if (home_config / "project.json").exists():
         return home_config
 
     return target_config
+
+
+def home_configured_root(
+    path: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> bool:
+    """True if ``path`` is an installed clean-target AW project root (IPD fnnwj3).
+
+    True iff:
+    1. ``path / ".git"`` exists (the path is a git worktree root, main or linked; never
+       a subdirectory, avoiding PR-001 false-positives on subdirectories).
+    2. ``project_config_dir(path, aw_home)`` is not ``<path>/.aw/config`` (its configuration
+       is home-stored rather than in-tree).
+    3. The home configuration directory's ``project.json`` is a file.
+    4. The stored ``project.json`` has ``delivery_mode == "clean-delta"`` (read directly;
+       never re-derived from preset name).
+
+    A linked lane worktree keeps its own working-tree root (so git operations within the lane
+    target the lane worktree) and shares only configuration identity with the main checkout,
+    mirroring ``ipd_lifecycle.checkout_control_root``. Total: returns False on any OSError.
+    """
+    try:
+        p = Path(path).resolve()
+        if not (p / ".git").exists():
+            return False
+        cfg = project_config_dir(p, aw_home=aw_home)
+        target_cfg = p / ".aw" / "config"
+        if _canonical_path(cfg) == _canonical_path(target_cfg):
+            return False
+        proj_json = cfg / "project.json"
+        if not proj_json.is_file():
+            return False
+        data = _read_json_file(str(proj_json))
+        if not data or not isinstance(data, dict):
+            return False
+        mode = data.get("delivery_mode")
+        return mode == DeliveryMode.CLEAN_DELTA.value or mode == "clean-delta"
+    except (OSError, RuntimeError):
+        return False
 
 
 def _config_stat_stamp(
@@ -1520,7 +1649,13 @@ def resolve_project_context(
         project_id = policy_pid.strip()
         pid_source = PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
     else:
-        project_id = _derive_project_id(repo_abs)
+        anchor_repo = Path(repo_abs)
+        try:
+            if (anchor_repo / ".git").exists():
+                anchor_repo = checkout_main_root(anchor_repo) or anchor_repo
+        except (OSError, RuntimeError):
+            pass
+        project_id = _derive_project_id(_canonical_path(anchor_repo))
         pid_source = PrecedenceLevel.BUILTIN_DEFAULTS.value
 
     provenance_map["project_id"] = Provenance(
