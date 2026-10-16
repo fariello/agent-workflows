@@ -26,7 +26,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from agent_workflows.project_schema import (
     DELIVERY_MODES,
@@ -70,6 +70,32 @@ class InvalidPolicyError(PolicyError):
     """Raised when policy validation rules are violated."""
 
     pass
+
+
+class PlacementSwitch(NamedTuple):
+    current_dir: Path
+    target_dir: Path
+    reason: str
+
+
+class PlacementSwitchRequired(InvalidPolicyError):
+    """Raised when an install/update would switch config placement."""
+
+    def __init__(
+        self,
+        message: str,
+        current_dir: Path,
+        target_dir: Path,
+        current_preset: Optional[str] = None,
+        target_preset: Optional[str] = None,
+        reason: str = "path",
+    ) -> None:
+        super().__init__(message)
+        self.current_dir = current_dir
+        self.target_dir = target_dir
+        self.current_preset = current_preset
+        self.target_preset = target_preset
+        self.reason = reason
 
 
 class IncompletePolicyError(PolicyError):
@@ -589,6 +615,64 @@ def resolve_existing_policy(repo_path: str) -> Optional[ProjectPolicy]:
         return None
 
 
+def config_placement_switch(
+    repo_path: str | Path,
+    policy: ProjectPolicy,
+    existing_policy: Optional[ProjectPolicy] = None,
+) -> Optional[PlacementSwitch]:
+    """Pure detector that checks if policy would switch config placement.
+
+    Returns PlacementSwitch(current_dir, target_dir, reason) if a switch is required,
+    or None if the write is to the authoritative config directory.
+    """
+    from agent_workflows.project_context import (
+        project_config_dir,
+        resolve_project_context,
+    )
+
+    current_dir = Path(project_config_dir(repo_path, aw_home=policy.aw_home))
+
+    ctx = resolve_project_context(
+        target_repo=str(repo_path),
+        aw_home=policy.aw_home,
+        delivery_mode=policy.delivery_mode,
+        records_backend=policy.records_backend,
+        preset=policy.preset,
+        role=policy.role,
+        companion_dir=policy.companion_dir,
+    )
+    target_dir = Path(ctx.physical_classes["config_project"]).parent
+
+    # (a) path-based check: any config candidate exists in current_dir and target_dir differs
+    has_existing_cfg = any(
+        (current_dir / candidate).exists()
+        for candidate in ("project.json", "local.json", "config.json", "policy.json")
+    )
+    if has_existing_cfg and current_dir.resolve() != target_dir.resolve():
+        return PlacementSwitch(
+            current_dir=current_dir,
+            target_dir=target_dir,
+            reason="path",
+        )
+
+    # (b) label-based check: when existing_policy is passed, check preset defaults
+    if existing_policy is not None:
+        existing_defaults = get_preset_defaults(existing_policy.preset)
+        existing_cfg_placement = existing_policy.placements.get(
+            RootClass.CONFIG_PROJECT.value
+        ) or existing_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+        new_defaults = get_preset_defaults(policy.preset)
+        new_cfg_placement = new_defaults[0].get(RootClass.CONFIG_PROJECT.value)
+        if new_cfg_placement != existing_cfg_placement:
+            return PlacementSwitch(
+                current_dir=current_dir,
+                target_dir=target_dir,
+                reason="label",
+            )
+
+    return None
+
+
 def resolve_policy_noninteractive(
     repo_path: str,
     existing_policy: Optional[ProjectPolicy] = None,
@@ -607,18 +691,7 @@ def resolve_policy_noninteractive(
         )
         preset = normalized_explicit or existing_policy.preset
 
-        existing_defaults = get_preset_defaults(existing_policy.preset)
-        existing_cfg_placement = existing_policy.placements.get(
-            RootClass.CONFIG_PROJECT.value
-        ) or existing_defaults[0].get(RootClass.CONFIG_PROJECT.value)
         new_defaults = get_preset_defaults(preset)
-        new_cfg_placement = new_defaults[0].get(RootClass.CONFIG_PROJECT.value)
-
-        if new_cfg_placement != existing_cfg_placement:
-            raise InvalidPolicyError(
-                f"Switching config placement from {existing_policy.preset} ({existing_cfg_placement}) "
-                f"to {preset} ({new_cfg_placement}) is not supported by reinstall yet (backlog ui1aln)."
-            )
 
         if normalized_explicit and normalized_explicit != existing_policy.preset:
             pls, gps, dm, rb, ds = new_defaults
@@ -656,6 +729,20 @@ def resolve_policy_noninteractive(
             non_secret_consent=dict(existing_policy.non_secret_consent or {}),
         )
         pol.validate(repo_path=repo_path)
+
+        switch = config_placement_switch(
+            repo_path, pol, existing_policy=existing_policy
+        )
+        if switch is not None:
+            raise PlacementSwitchRequired(
+                f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
+                f"to {pol.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+                current_dir=switch.current_dir,
+                target_dir=switch.target_dir,
+                current_preset=existing_policy.preset,
+                target_preset=pol.preset,
+                reason=switch.reason,
+            )
         return pol
 
     # First install noninteractive resolution
@@ -996,6 +1083,32 @@ def persist_project_policy(
         res = policy.to_dict()
         res["written_paths"] = []
         return res
+
+    switch = config_placement_switch(repo_path, policy)
+    if switch is not None:
+        cur_preset = None
+        cur_proj = switch.current_dir / "project.json"
+        if cur_proj.exists():
+            try:
+                cur_preset = json.loads(cur_proj.read_text(encoding="utf-8")).get(
+                    "preset"
+                )
+            except Exception:
+                pass
+        from_desc = (
+            f"{cur_preset} ({switch.current_dir})"
+            if cur_preset
+            else str(switch.current_dir)
+        )
+        raise PlacementSwitchRequired(
+            f"Switching config placement from {from_desc} "
+            f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+            current_dir=switch.current_dir,
+            target_dir=switch.target_dir,
+            current_preset=cur_preset,
+            target_preset=policy.preset,
+            reason=switch.reason,
+        )
 
     from agent_workflows.project_context import resolve_project_context
 
