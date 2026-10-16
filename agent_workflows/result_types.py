@@ -324,6 +324,7 @@ class CommandResult:
     applied: Optional[bool] = None
     target: Optional[str] = None
     schema_version: str = _schema.SCHEMA_VERSION
+    repo_root: Optional[Union[str, Path]] = None
 
     @property
     def has_findings(self) -> bool:
@@ -334,7 +335,9 @@ class CommandResult:
         return self.exit_code == 2
 
     def to_dict(self) -> Dict[str, Any]:
-        repo_root = self.data.get("repo_root")
+        repo_root = (
+            self.repo_root if self.repo_root is not None else self.data.get("repo_root")
+        )
         return {
             "schema": self.schema_version,
             "command": self.command,
@@ -354,7 +357,9 @@ class CommandResult:
         self, context: Optional[OutputContext] = None
     ) -> Dict[str, Any]:
         """Convert into canonical aw.agent/v1 compact record structure (Order 03)."""
-        repo_root = self.data.get("repo_root")
+        repo_root = (
+            self.repo_root if self.repo_root is not None else self.data.get("repo_root")
+        )
         is_verbose = context.verbose if context is not None else False
 
         # Resolve outcome & enforce anti-greenwashing invariants

@@ -97,7 +97,11 @@ class HumanRenderer(BaseRenderer):
             from agent_workflows import doctor as _doctor
             from pathlib import Path
 
-            repo_root = Path(result.data.get("repo_root") or ".")
+            repo_root = Path(
+                result.repo_root
+                if result.repo_root is not None
+                else (result.data.get("repo_root") or ".")
+            )
             groups: dict = {}
             for d in result.diagnostics:
                 drift_obj = d.to_drift() if hasattr(d, "to_drift") else d

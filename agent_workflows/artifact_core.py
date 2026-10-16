@@ -29,7 +29,7 @@ import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>``
@@ -909,6 +909,7 @@ def emit_index_check_result(
     target: str = "",
 ) -> int:
     """Emit the typed CommandResult for an index --check invocation across agent, json, and human audiences."""
+    from agent_workflows import agent_schema as _schema
     from agent_workflows import check_engine as _ce
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -922,7 +923,7 @@ def emit_index_check_result(
     status = "conforms" if exit_code == 0 else "findings"
     diagnostics = [
         Diagnostic(
-            location=d.location,
+            location=_schema.normalize_repo_path(d.location, repo_root),
             rule=d.rule,
             detail=d.detail,
             severity=(_ce.enrich_drift(d).severity or "error"),
@@ -943,19 +944,19 @@ def emit_index_check_result(
         else f"{len(drift)} finding(s) detected across {target or 'index'}"
     )
 
+    data: Dict[str, Any] = {"target": target}
+    if ctx.is_human:
+        data["human_rendered"] = human_rendered
+
     result = CommandResult(
         command=command,
+        target=target,
         status=status,
         exit_code=exit_code,
         summary=summary,
         diagnostics=diagnostics,
-        data={
-            "target": target,
-            # repo_root must be a str, never a Path, so the --json serializer does not raise TypeError (PR-003, F-11)
-            "repo_root": str(repo_root),
-            # Preserves legacy human lines byte-exact through data["human_rendered"] (PR-002, F-10)
-            "human_rendered": human_rendered,
-        },
+        data=data,
+        repo_root=repo_root,
         verified=True,
         complete=True,
     )
@@ -979,6 +980,7 @@ def emit_index_write_result(
     refused: bool = False,
 ) -> int:
     """Emit the typed CommandResult for an index write invocation under --agent or --json."""
+    from agent_workflows import agent_schema as _schema
     from agent_workflows import check_engine as _ce
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -1018,7 +1020,7 @@ def emit_index_write_result(
 
     diagnostics = [
         Diagnostic(
-            location=d.location,
+            location=_schema.normalize_repo_path(d.location, repo_root),
             rule=d.rule,
             detail=d.detail,
             severity=(_ce.enrich_drift(d).severity or "error"),
@@ -1061,6 +1063,7 @@ def emit_index_write_result(
         changes=changes,
         diagnostics=diagnostics,
         data=data,
+        repo_root=repo_root,
         verified=True,
         complete=not refused,
     )
