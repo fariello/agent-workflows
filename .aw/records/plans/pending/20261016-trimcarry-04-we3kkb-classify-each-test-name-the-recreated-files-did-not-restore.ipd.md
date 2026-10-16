@@ -6,7 +6,8 @@
 - Scope: IN: compute the exact missing-name list per file; replay each deleted file at HEAD with `tools/deleted_test_replay.py` for per-test outcomes; classify every missing name with a fixed, ordered rule; write the `## Recreated missing names` section of the Set's findings doc. OUT: restoring tests and filing items (Order 06 `z2xs98` files every `gap` and `regression`); code or test edits.
 - Scope-Paths: .aw/records/research/*-trimcarry-01-*.findings.md
 - Item-Dependencies: executed:8dyt88
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 9qvfie
@@ -17,6 +18,7 @@
 - Id: we3kkb
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set trimcarry graduating backlog 9qvfie.
@@ -31,16 +33,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Inputs
 
-- [ ] E-01 For each of the four files, compute `missing = names(19313eed^) - names(HEAD)` where `names` is every `def test_*` (module-level or method) in the file, using a scratch script under the gitignored `.aw/state/trimcarry-we3kkb/` that parses `git show 19313eed^:<path>` and the HEAD file with `ast` (this reads TEST source to enumerate names, which is the audit's input, not a test assertion). Then replay the deleted versions: `python3 tools/deleted_test_replay.py 19313eed tests/test_lane_input_manifest.py tests/test_release_readiness.py tests/test_run_analytics_cli.py tests/test_run_summary_table.py --format json > .aw/state/trimcarry-we3kkb/replay.json` and map each missing name to its per-test outcome from the result's `tests` list (`passed` / `failed` / `error` / `skipped`). Note in the doc that the backlog body's fourth lane-manifest name (`test_part_iii_lane_inputs_file_has_no_write_bit`) does not exist at `19313eed^`; the computed fourth name (authoring: `test_restored_copy_passes_again`) is authoritative.
+- [ ] E-01 For each of the four files, compute `missing = names(19313eed^) - names(HEAD)` where `names` is every `def test_*` (module-level or method) in the file, using a scratch script under the gitignored `.aw/state/trimcarry-we3kkb/` that parses `git show 19313eed^:<path>` and the HEAD file with `ast` (this reads TEST source to enumerate names, which is the audit's input, not a test assertion). Then replay the deleted versions: `python3 tools/deleted_test_replay.py 19313eed tests/test_lane_input_manifest.py tests/test_release_readiness.py tests/test_run_analytics_cli.py tests/test_run_summary_table.py --format json > .aw/state/trimcarry-we3kkb/replay.json` and map each missing name to its per-test outcome from the result's `tests` list (`passed` / `failed` / `error` / `skipped`) by matching the name against the part of each nodeid after `::` (nodeids are `tests.<module>[.<Class>]::<name>`; names are unique within each deleted file, so the match is exact). A missing name with no matching nodeid is recorded as outcome `not-run`. Record the replay's `head` and each file's `verdict`. Note in the doc that the backlog body's fourth lane-manifest name (`test_part_iii_lane_inputs_file_has_no_write_bit`) does not exist at `19313eed^`; the computed fourth name (authoring: `test_restored_copy_passes_again`) is authoritative.
   - Depends on: none
   - Expected outcome: 136 (name, file, replay outcome) tuples, or the recomputed count with the difference explained.
   - Execution state: pending
 
 ### Task group 2: Classification
 
-- [ ] E-02 Classify every missing name by the FIRST rule that applies, recording the evidence for that rule: (1) `deliberately-removed`: an executed plan or the HEAD file's docstring names the test as removed and gives a reason (for the lane-manifest four: executed plan `dmxc5h` E-01 and the HEAD module docstring "Four deletions from the original 21-test file were verified safe"); cite the path. (2) `moved`: `grep -rn "def <name>\b" tests/` finds it in another HEAD file; open both and record that the assertion is equivalent, else fall through. (3) `retired-pin`: the deleted body reads production source or structure (`inspect`, `ast`, `getsource`, regex or substring over a source file, a docstring or banner equality), which `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE" forbids restoring; quote the offending line. (4) replay `failed`/`error`: `intended-change` when `git log -S`/`-G` on the asserted symbol or string finds the commit that deliberately changed that behavior (cite hash and subject), else `regression` (record the assertion and actual value; a regression is user-visible wrong behavior until shown otherwise). (5) replay `passed`: `gap` when the file's `## Recreated re-diff` row (Order 03 `8dyt88`) lists at least one function with exclusive lines, else `covered-by-shared-reach` (every line the deleted file reaches is reached by a surviving test, the partition rule `hpjj44` used for `pass-shared`).
+- [ ] E-02 Classify every missing name by the FIRST rule that applies, recording the evidence for that rule: (1) `deliberately-removed`: an executed plan or the HEAD file's docstring names the test as removed and gives a reason (for the lane-manifest four: executed plan `dmxc5h` E-01 and the HEAD module docstring "Four deletions from the original 21-test file were verified safe"); cite the path. (2) `moved`: either `grep -rnw "def <name>" tests/` finds it in another HEAD file, or an executed plan that rebuilt the file names the HEAD test that replaces it (for `tests/test_release_readiness.py`: executed plan `dyiasf`, whose `## Deferred` accounting maps the deleted classes to restored ones, e.g. `NoReleaseActionTests` -> E-07); open both bodies and record the replacing HEAD nodeid and that the assertion is equivalent, else fall through. An executed plan that names the test as deliberately NOT restored with a reason (for example `dyiasf` F-07's three P16 arms, or its `LeakScanGateTests`/`IpdLintGateTests`) satisfies rule (1) instead. (3) `retired-pin`: the deleted body reads production source or structure (`inspect`, `ast`, `getsource`, regex or substring over a source file, a docstring or banner equality), which `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE" forbids restoring; quote the offending line. (4) replay `failed`/`error`: `intended-change` when `git log -S`/`-G` on the asserted symbol or string finds the commit that deliberately changed that behavior (cite hash and subject), else `regression` (record the assertion and actual value; a regression is user-visible wrong behavior until shown otherwise). (5) replay `passed`: `gap` when the file's `## Recreated re-diff` row (Order 03 `8dyt88`) lists at least one function with exclusive lines, OR when that row's replay verdict is not `pass`/`fail` or its `tests_count` is 0 (an unmeasured file proves no shared reach, the same fail-safe as `8dyt88`'s `replay-unverified`); else `covered-by-shared-reach` (every line the deleted file reaches is reached by a surviving test, the partition rule `hpjj44` used for `pass-shared`). (6) replay `skipped` or `not-run`: `gap` with reason `unverified at replay` (the name's behavior was not observed, so it cannot be declared covered).
   - Depends on: E-01
-  - Expected outcome: every name has exactly one class with its evidence.
+  - Expected outcome: every name has exactly one class with its evidence; no name is `covered-by-shared-reach` unless it replayed `passed` in a file whose re-diff was measured.
   - Execution state: pending
 
 ### Task group 3: Record and commit
@@ -64,7 +66,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F1 | Missing-name counts at authoring HEAD are 4 / 19 / 79 / 34. | Authoring loop over `git show 19313eed^:<path>` vs HEAD `def test_` names. |
 | F2 | Only 1 of the 79 and 1 of the 34 missing names exist anywhere else in `tests/`; none of the 19 or 4 do. | Same loop, `grep -rqw "def <name>" tests/`. |
 | F3 | Three of the four lane-manifest names were removed deliberately with recorded reasons, and the fourth (`test_restored_copy_passes_again`) too. | HEAD `tests/test_lane_input_manifest.py` docstring items 1, 3 and 4; executed plan `dmxc5h` E-01. |
-| F4 | `tests/test_release_readiness.py` was rebuilt with new names by plan `dyiasf`. | `git log` on the file: `e99f5eedb work(dyiasf): Restore behavioral test coverage for the release-readiness gates and the GO / NO-GO aggregation`. |
+| F4 | `tests/test_release_readiness.py` was rebuilt with new names by plan `dyiasf`, which accounts for every deleted class (seven restored, two not restored with reasons, three P16 arms refused). | `git log` on the file: `e99f5eedb work(dyiasf): Restore behavioral test coverage for the release-readiness gates and the GO / NO-GO aggregation`; executed `dyiasf` `## Deferred` "ACCOUNTING OF THE DELETED FILE" and F-07. |
+| F5 | Review replay at HEAD `45777dc77` (the E-01 command, output under the gitignored `.aw/state/`): lane-manifest `pass` 21/21, release-readiness `pass` 20/20, run-analytics-cli `fail` 76 passed / 3 failed (`DeclarationContractTests::test_no_new_undeclared_parser_leaf`, `ParserRegistrationTests::test_runs_description_names_every_mutating_exception`, `TheReportIsRenderedByTheSpaNotAStub::test_the_raw_table_is_not_truncated_to_the_terminal_page_size`), run-summary-table `pass` 34/34; `overwrote_head_path: true` for all four; `git status --short` empty after. Recount of missing names at the same HEAD: 4 / 19 / 79 / 34, no duplicate names in any deleted file. | Review lane. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -104,12 +107,12 @@ N/A: produces a research record only.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted per-file missing counts and the total; pasted per-file `verdict` and `counts` from `replay.json` (produced by `tools/deleted_test_replay.py` `main`); pasted `git worktree list` after the replay showing no leftover temporary worktree.
+  - Required evidence: pasted per-file missing counts and the total; pasted per-file `verdict` and `counts` from `replay.json` (produced by `tools/deleted_test_replay.py` `main`) and the count of `not-run` names; pasted `git worktree list` before and after the replay showing no leftover `deleted_test_replay_` worktree.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted output of a `python3 -c` check that every missing name has exactly one class and a non-empty evidence cell; for each class that occurs, one sample row with its evidence re-verified (for `intended-change`, the pasted `git log -1 --format='%h %s' <hash>`; for `retired-pin`, the quoted line from `git show 19313eed^:<path>`).
+  - Required evidence: pasted output of a `python3 -c` check that every missing name has exactly one class and a non-empty evidence cell; for each class that occurs, one sample row with its evidence re-verified (for `intended-change`, the pasted `git log -1 --format='%h %s' <hash>`; for `retired-pin`, the quoted line from `git show 19313eed^:<path>`; for `moved`, the replacing HEAD nodeid; for `regression`, the failure line from the replay; for `gap`/`covered-by-shared-reach`, the file's `## Recreated re-diff` verdict, `tests_count` and exclusive total).
   - Observed evidence:
   - Result: pending
 
