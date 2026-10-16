@@ -1,9 +1,9 @@
 """Scan plan/prompt lifecycle files and read their readiness ``Status:`` (DECISIONS D52/Dnn).
 
 This is the single source of truth for the plan readiness vocabulary and the legacy mapping. It is
-shared by the ``aw plans`` board (``cli.py``) and the former repo drift-guard test
-(``tests/test_plan_status.py`` was deleted in ``19313eed``; no live guard currently asserts this
-drift check directly), so the two can never diverge.
+shared by the ``aw plans`` board (``cli.py``) and the repository drift-guard test
+(``tests/test_plan_status.py``, with live-corpus tests marked ``livecorpus``), so the two can
+never diverge.
 
 Directories carry DISPOSITION (pending/executed/superseded/not-executed/reusable; ``done`` is an
 accepted alias for ``executed``). The front-matter ``- Status:`` line carries READINESS. See D52 and
