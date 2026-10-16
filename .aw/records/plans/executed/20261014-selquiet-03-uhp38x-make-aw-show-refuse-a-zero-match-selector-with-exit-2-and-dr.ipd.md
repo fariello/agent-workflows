@@ -6,7 +6,7 @@
 - Scope: Update `cli._run_show` in `agent_workflows/cli.py` so that, when `unique` is empty, it asks the SHARED predicate `cli.selector_tokens_naming_no_artifact(repo_root, [ref])` (shipped by `yxsfjc`) whether `<ref>` names no artifact anywhere. A refusable token is refused at exit 2 through the SHARED emitter `cli.emit_zero_match_selector_refusal(ctx=ctx, cmd="show", tokens=refusable, next_cmd="aw find", next_desc="list all records", searched="all artifact types", term=term)` (`outcome: "cannot-run"`, `verified=False`, `complete=False`, home-path-redacted token; human on `stderr` with `stdout` empty; `--agent` `kind: "error"` with `unresolved_selectors`/`unresolved_targets`/`error`/`next`, schema-validated; `--json` `status="cannot-run"`, `exit_code=2`). A non-refusable token (a standing-vocabulary token, an existing file path, or a token naming a real artifact in a tree `aw show` does not display, e.g. a `releases` or `reviews` record) returns exit 0 (`status="clean"`, `verified=True`, `complete=True`, `Term.empty_result(..., status="clean")` on `stdout`). Narrow `CommandDeclaration(command="show", ...)` in `agent_workflows/command_surface.py` from `exit_contract=(0, 1, 2)` to `exit_contract=(0, 2)` with an explanatory comment. Clean up stale action-ledger fallback prose in `cli._DESCRIPTIONS["show"]` and `p_show` parser help/epilog in `agent_workflows/cli.py`. Add behavioral and contract regression tests in `tests/test_cli_show.py`, and sync `docs/cli-output-contract.md` Section 11.1 and `CHANGELOG.md`. Does NOT change which record types `_run_show` searches when `<ref>` resolves, does NOT alter any other verb, and does NOT modify the shared predicate or emitter it reuses from executed sibling `yxsfjc`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_cli_show.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261014-selquiet-03-uhp38x-make-aw-show-refuse-a-zero-match-selector-with-exit-2-and-dr.ipd.md
 - Item-Dependencies: executed:zyj8io, executed:yxsfjc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: upryxf
 - From-Spec: none
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: uhp38x
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uhp38x verified (set selquiet, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Record: .aw/records/reviews/20261014-selquiet-03-uhp38x-make-aw-show-refuse-a-zero-match-selector-with-exit-2-and-dr.review.md Round 1
 - 2026-10-14 to-review (aw set): Authored from backlog item upryxf at HEAD 22e589747: aw show zero-match exits 2 (cannot-run), standing-vocabulary zero-match exits 0 (clean), and show exit_contract narrows from (0, 1, 2) to (0, 2).
