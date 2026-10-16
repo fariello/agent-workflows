@@ -1,11 +1,14 @@
-# Concise reporting contract (model-authored prose)
+# Communication and concise reporting contract (model-authored prose)
 
-terseout Order 01 (`ntf6sx`).
+terseout Order 01 (`ntf6sx`), askmeplain Order 01 (`er11a0`).
 
-Coding agents invoked directly or through agent-workflows tend to spend tokens on preambles,
-narration of routine actions, praise, recaps, and closing offers. This contract makes concise,
-essential-information-only reporting the portable default across the hosts this project
-targets, WITHOUT weakening the work, the tests, or the evidence.
+Coding agents invoked directly or through agent-workflows must communicate clearly without
+relying on unexplained jargon or internal identifiers, and tend to spend tokens on preambles,
+narration of routine actions, praise, recaps, and closing offers. This contract installs
+clear, plain-language communication as a default across all authored documents (internal
+artifacts included) and makes concise, essential-information-only reporting the portable
+default across the hosts this project targets, WITHOUT weakening the work, the tests, or
+the evidence.
 
 The contract text itself is owned by ONE module:
 
@@ -19,11 +22,17 @@ cannot drift.
 
 ## What the default asks for
 
-Lead with the outcome, answer a yes/no question with `Yes.` or `No.`, use one sentence when one
-sentence is enough, drop preambles and recaps and closing offers, report only material
-outcomes plus changed files plus verification status plus blockers, and keep a routine final
-response short. Progress chatter is at most one short sentence, and only when it tells the user
-something they cannot already see.
+Clear, concise, plain, precise, accurate, straightforward, jargon-free language across every
+response, question, recommendation, progress update, plan, specification, and research prompt.
+Explain technical terms and project names when introduced, and never use an identifier, filename,
+acronym, or link as a substitute for explaining the subject and its purpose.
+
+For routine reporting: lead with the outcome, answer a yes/no question with `Yes.` or `No.`, use
+one sentence when one sentence is enough, drop preambles and recaps and closing offers, report
+only material outcomes plus changed files plus verification status plus blockers, and keep a
+routine final response short. Progress chatter is at most one short sentence, and only when it
+tells the user something they cannot already see. The routine word cap does not limit decision
+questions, recommendations, or explanations needed to understand.
 
 ## What overrides it
 
@@ -93,6 +102,7 @@ installed `AGENTS.md` section.
   construction; concision applies to reporting only.
 - **Reshaping `aw` CLI output.** That is governed separately by
   [CLI Output Mode Contract](cli-output-contract.md). This contract governs model-authored
+  communication across all authored documents (internal artifacts included) and user-facing
   prose; neither may be read as licensing fewer JSONL fields.
 
 ## Honest limits

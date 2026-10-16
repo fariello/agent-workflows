@@ -23,10 +23,11 @@ Delivery decisions this module encodes (do not "simplify" them back):
     appended prose would be absorbed as ``$ARGUMENTS`` path arguments. The review turn
     inherits the contract from the shim pointer plus ``AGENTS.md``.
 
-Scope fence: this contract governs model-authored USER-FACING prose. It is not the `aw` CLI
-output contract (``docs/cli-output-contract.md`` governs CLI bytes and the ``aw.agent/v1``
-records), and neither may be read as licensing fewer JSONL fields, weaker work, or truncated
-evidence.
+Scope fence: this contract governs model-authored communication and prose across all
+authored documents (internal artifacts included) and concise user-facing reporting. It is
+not the `aw` CLI output contract (``docs/cli-output-contract.md`` governs CLI bytes and the
+``aw.agent/v1`` records), and neither may be read as licensing fewer JSONL fields, weaker
+work, or truncated evidence.
 
 Pure stdlib, no imports from ``engine`` (engine imports THIS module).
 """
@@ -49,7 +50,7 @@ REPORTING_SLUG = "reporting"
 
 # The heading the rendered contract carries. Kept at ``##`` so the SAME text reads correctly
 # both as a managed section in an instruction file and as a section of a driver prompt.
-REPORTING_SECTION_TITLE = "## Concise reporting (user-facing prose)"
+REPORTING_SECTION_TITLE = "## Communication and concise reporting"
 
 # What a shim pointer points AT (the managed-section manifest-key idiom used repo-wide).
 POINTER_TARGET = "AGENTS.md#aw:reporting"
@@ -61,6 +62,13 @@ ROUTINE_FINAL_WORD_CAP = 100
 # instruction file and every prompt that is asserted to be pure ASCII.
 _CONTRACT = f"""{REPORTING_SECTION_TITLE}
 
+COMMUNICATION. Write in clear, concise, plain, precise, accurate, straightforward,
+jargon-free language. These requirements apply to every response, question, recommendation,
+progress update, plan, spec, research prompt, and other authored document, internal ones
+included. Explain technical terms and project names when introduced. Never use an
+identifier, filename, acronym, or link as a substitute for explaining the subject and its
+purpose.
+
 Report to the user concisely. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or
 `No.`. Use one sentence when one sentence is enough. Omit preambles, praise, restatement of
 the request, narration of routine actions (searching, reading, thinking), recaps of what you
@@ -69,6 +77,10 @@ material outcomes, changed files, verification status, and blockers, and OMIT a 
 that is empty. Keep a routine final response at or below {ROUTINE_FINAL_WORD_CAP} words.
 While working, emit at most one short progress sentence, and only when it tells the user
 something they cannot already see.
+
+DECISIONS. The routine report word cap does not limit decision questions, recommendations,
+or explanations needed for understanding. Repeat relevant context when the reader needs
+it to answer or decide. Remove unnecessary wording, not necessary information.
 
 PRECEDENCE (this default is not the top rule). An explicit user request, or a controlling
 workflow that specifies a required report, OVERRIDES the default. When a workflow mandates a

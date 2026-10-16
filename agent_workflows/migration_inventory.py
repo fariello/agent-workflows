@@ -246,8 +246,9 @@ _COMMAND_FAMILY: Dict[str, str] = {
     # ITS OWN FAMILY, not the `whatnext/handoff/...` guided tier it otherwise resembles, for one
     # load-bearing reason: every command in that family is OPTIONALLY interactive, while this one is
     # interactive BY DEFINITION. Its entire purpose is to reach a human, and under a runner it does not
-    # degrade to a quieter version of itself, it stops asking and records a deferral instead. Filing it
-    # with the optional-interaction commands would erase the distinction that makes it worth having.
+    # degrade to a quieter version of itself; it keeps genuine human decisions open and blocking rather
+    # than deferring them. Filing it with the optional-interaction commands would erase the distinction
+    # that makes it worth having.
     "askme": "askme",
 }
 
@@ -384,8 +385,8 @@ _FAMILY_DEFAULTS: Dict[str, Dict[str, str]] = {
     #   gate.
     # * `low` risk: it edits planning artifacts and never code.
     # * `interactive`, NOT `optional`, and this is the value that earns the separate family: reaching a
-    #   human is the whole point. Under a runner it does not quietly degrade; it records the decision
-    #   as deferred and says so.
+    #   human is the whole point. Under a runner it does not quietly degrade; it keeps genuine human
+    #   decisions open and blocking rather than guessing or deferring them.
     # * `order-16`: the compact single-body guided tier, alongside `spec`, `handoff`, `incident` and
     #   `spec-review`. NOT `order-14`, whose ownership fence admits only the shared assess/advise
     #   families and the plan-review collapse.

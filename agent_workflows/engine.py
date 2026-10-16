@@ -1184,10 +1184,20 @@ def shim_body(
         else workflow.body
     )
 
+    if command == "askme":
+        alias_notice = (
+            "<!-- Supported alias: `/askme` and `/aw askme` are equivalent; "
+            "this alias is retained as a supported command. -->\n\n"
+        )
+    else:
+        alias_notice = (
+            f"<!-- Deprecation notice: `/{command}` is deprecated; prefer `/aw {command}`. "
+            "This alias continues to work for now but will eventually be pruned. -->\n\n"
+        )
+
     return (
         f"{frontmatter}\n"
-        f"<!-- Deprecation notice: `/{command}` is deprecated; prefer `/aw {command}`. "
-        "This alias continues to work for now but will eventually be pruned. -->\n\n"
+        f"{alias_notice}"
         f"Read and execute @{body_target}.{planning_note}\n"
         f"{lens_note}\n"
         f"{arguments_line}"
@@ -1444,6 +1454,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         'When requested to run one of these workflows (e.g. "run release-review", "assess <concern>", "run setup-repo", "run scaffold"):\n'
         f"1. Locate the workflow's entry file under `{workflows_dir}/` (referenced in `{index_file}`).\n"
         "2. Read and execute the instructions defined in that workflow file step-by-step.\n\n"
+        f'When the user says "use /askme", "/askme that question again", "ask that again using /askme", or invokes `/aw askme`, read and apply `{workflows_dir}/askme/askme.md`. A request to ask a question again means rewrite the indicated question with full context; it does not mean scan unrelated records or repeat the wording.\n\n'
         "### Writing prompts for another AI (research/handoff prompts)\n"
         "When asked to write a prompt to give to another AI (e.g. a research prompt for an "
         "LLM with web search), the prompt you produce MUST be upload-ready:\n"
@@ -1707,7 +1718,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "the prompt itself, so a human answering from the prompt can decide from the prompt alone; "
         "never strand the required context in surrounding chat. Extra prose may precede a prompt, "
         "but for only ONE question at a time and only as a supplement. Compose the context as a "
-        "compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the "
+        "compact, decision-ready synthesis: prefer short wording, but never omit information needed for an informed answer to meet a screen-size or word target, do NOT repeat or preview the "
         "choices the tool already renders, and omit chronology/filenames/quotes unless essential.\n\n"
         "### Authoring and executing IPDs\n"
         "When you author or execute an Implementation Plan Document (IPD), do NOT hand-number ids or "
