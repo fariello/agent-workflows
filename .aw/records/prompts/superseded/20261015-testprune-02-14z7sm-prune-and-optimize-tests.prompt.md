@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: run-once | Id: 14z7sm | Set: testprune | Status: pending | Created: 2026-10-15 | Author: Antigravity (gemini) | Targets: AI coding agent | Concerns: Optimize, consolidate, and eliminate marginally useful or non-functional tests . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: run-once | Id: 14z7sm | Set: testprune | Status: superseded | Created: 2026-10-15 | Author: Antigravity (gemini) | Targets: AI coding agent | Concerns: Optimize, consolidate, and eliminate marginally useful or non-functional tests . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a Principal Software Engineer and Test Architect specializing in test suite performance optimization, dead code elimination, and high-signal quality engineering in large Python codebases. Your task is to audit, prune, consolidate, and optimize the test suite for the `agent-workflows` repository to reduce total test execution time to under 2 minutes (on 6 CPUs with `pytest-xdist`) while strictly preserving functional regression detection.
 
 # Context and Problem Statement
@@ -65,3 +65,5 @@ You must design and execute a disciplined pruning, consolidation, and optimizati
 # Deliverable Format
 
 Return your complete analysis, audit findings, pruning decisions, code diffs, and benchmark measurements as a single **DOWNLOADABLE markdown (`.md`) file**. Include all exact terminal commands, timing outputs, and git status summaries required to verify and apply the work.
+## Workflow history
+- 2026-10-16 superseded (aw set): superseded by unified prompts wazeo5 (tiers) and 4ul37x (pruning), merged with the opencode drafts

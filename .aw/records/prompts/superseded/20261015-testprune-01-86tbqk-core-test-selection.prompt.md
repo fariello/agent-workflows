@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: run-once | Id: 86tbqk | Set: testprune | Status: pending | Created: 2026-10-15 | Author: Antigravity (gemini) | Targets: AI coding agent | Concerns: Create under 30s routine test gate and pre-push extended regression suite . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: run-once | Id: 86tbqk | Set: testprune | Status: superseded | Created: 2026-10-15 | Author: Antigravity (gemini) | Targets: AI coding agent | Concerns: Create under 30s routine test gate and pre-push extended regression suite . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a Senior Test Infrastructure and Systems Engineer specializing in Python developer tooling and high-performance test architecture. Your task is to design, implement, and verify a two-tiered testing workflow for the `agent-workflows` repository that cleanly separates fast, routine developer testing from extended pre-push/release verification.
 
 # Objective and Requirements
@@ -50,3 +50,5 @@ The test suite in this repository currently contains over 8,500 tests. Running t
 # Deliverable Format
 
 Return your complete solution, configuration diffs, hook implementations, benchmarking measurements, and instructions as a single **DOWNLOADABLE markdown (`.md`) file**. Include all code snippets, file diffs, and exact terminal commands needed to apply and verify the implementation.
+## Workflow history
+- 2026-10-16 superseded (aw set): superseded by unified prompts wazeo5 (tiers) and 4ul37x (pruning), merged with the opencode drafts
