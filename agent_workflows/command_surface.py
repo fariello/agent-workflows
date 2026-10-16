@@ -1984,9 +1984,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # required") and spec `6kwd2e` R7.3 (a parked run must exit with a distinct, non-failure status).
     #
     # Measured reachability limits:
-    # Neither `4` nor `130` is reachable through `run_queue`: `run_exit_code` passes neither
-    # `run_wide_abort_class` nor `interrupted` to `aggregate_run_exit`, so `AGGREGATE_RUN_WIDE` (4)
-    # and `AGGREGATE_INTERRUPTED` (130) cannot be produced on that path. Signal-derived codes
+    # `4` is not returned by the drivers at all, because a corrupt run state exits `2` per
+    # spec `25kzda` Section 5.6 (maintainer ruling 2026-10-15). Signal-derived codes
     # `130`/`143` arrive from a DIFFERENT `return` in `main` (the uncooperative-interrupt arm)
     # rather than through the aggregate return; per OQ-03, whether signal codes belong in
     # `exit_contract` is left deferred without declaring them here.

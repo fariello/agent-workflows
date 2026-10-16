@@ -335,6 +335,10 @@ class EmptyStatusSelection(DriverError):
     """
 
 
+class CorruptRunStateError(DriverError):
+    """Raised when a run's state.json cannot be parsed, decoded, or validated."""
+
+
 # ---- run / misc ----------------------------------------------------------------------------------
 
 
@@ -1091,8 +1095,41 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+CORRUPT_RUN_STATE_RECOVERY_GUIDANCE = (
+    "the run cannot be resumed, so start a new run (`aw oc run` / `aw agy run`); "
+    "work already merged to main is kept; "
+    "the old run's record of finished items is lost, so the new run re-checks them."
+)
+
+
 def load_state(run_dir: Path) -> dict[str, Any]:
-    return load_json(run_dir / "state.json")
+    path = run_dir / "state.json"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise DriverError(f"Required file not found: {path}") from exc
+    except UnicodeDecodeError as exc:
+        raise CorruptRunStateError(
+            f"Corrupt run state in {path}: {exc}: {CORRUPT_RUN_STATE_RECOVERY_GUIDANCE}"
+        ) from exc
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise CorruptRunStateError(
+            f"Corrupt run state in {path}: {exc}: {CORRUPT_RUN_STATE_RECOVERY_GUIDANCE}"
+        ) from exc
+
+    if (
+        not isinstance(data, dict)
+        or "queue" not in data
+        or not isinstance(data["queue"], list)
+        or any(not isinstance(entry, dict) for entry in data["queue"])
+    ):
+        raise CorruptRunStateError(
+            f"Corrupt run state in {path}: expected a JSON object with a list 'queue' of objects: {CORRUPT_RUN_STATE_RECOVERY_GUIDANCE}"
+        )
+    return data
 
 
 def save_state(

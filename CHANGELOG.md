@@ -219,6 +219,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: a run no longer fails a finished item just because another command was briefly committing in the same checkout. Finalize now waits for a briefly held writer lock before refusing, and the runner re-attempts a lock contention refusal instead of failing the item.
 - Fixed: on Windows, running `aw` with input redirected from `NUL` was treated as an interactive session, so `aw specs set ... --status approved` could record a human approval that nobody gave (writing an attributed `--by-human` provenance line into the spec's history and licensing execution), and a commit prompt could be printed; a real console is now required.
 - Fixed: `--help` on the upgrade rehearsal subcommands and on `aw config unset` now explains what the command does, including that cleaning sandboxes only previews until you confirm; previously those screens showed a usage line and a flag list with no explanation.
+- Fixed: a corrupt or unreadable run state file now makes `aw oc run` / `aw agy run` stop with a clear message naming the file and how to recover (start a new run; merged work is kept), instead of a crash traceback.
 - Removed the `--follow-generated` run flag. It was never implemented and always refused. Plans created during a run are reported as next actions, as before.
 
 ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes

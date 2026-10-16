@@ -444,6 +444,9 @@ from agent_workflows.runner_shared import (
 # empty status selection raised through EITHER driver's code path is caught by `except StallTimeout` /
 # `except EmptyStatusSelection` in either driver rather than only by the broader `except DriverError`.
 from agent_workflows.runner_shared import (
+    CorruptRunStateError as CorruptRunStateError,
+)
+from agent_workflows.runner_shared import (
     EmptyStatusSelection as EmptyStatusSelection,
 )
 from agent_workflows.runner_shared import (
@@ -4499,6 +4502,13 @@ def main(argv: list[str] | None = None) -> int:
         # `expand_selectors`, which runs before the run directory is made.
         print("Nothing awaiting review; no run started.")
         return 0
+    except CorruptRunStateError as exc:
+        if runner_shared.is_agent_mode(args):
+            runner_shared.emit_agent_run_refusal_record(
+                exc, cmd="agy run", run_dir=run_dir
+            )
+        print(f"runagy: {exc}", file=sys.stderr)
+        return 2
     except DriverError as exc:
         if runner_shared.is_agent_mode(args):
             runner_shared.emit_agent_run_refusal_record(exc, cmd="agy run")
