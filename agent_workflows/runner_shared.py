@@ -30284,9 +30284,9 @@ def extract_session_id(log_path: Path) -> str | None:
     whereas nothing anywhere pinned agy's ordering; the standing maintainer ruling prefers oc absent a
     significant behavioral difference; and the affected shape needs an unprefixed id EARLY plus a
     `ses_` id LATER in the SAME log, which is an OpenCode id appearing in an Antigravity log and
-    occurred in 0 of the 627 logs censused. `tests/test_rununify_conflicts.py` (deleted in `19313eed`;
-    no live guard currently asserts this conflict case) pinned this answer so a future change to it is
-    a visible edit rather than a silent drift.
+    occurred in 0 of the 627 logs censused. `tests/test_runner_shared.py::SessionIdPrecedenceTests`
+    (replacing `tests/test_rununify_conflicts.py`, deleted in `19313eed`) pins this answer so a
+    future change to it is a visible edit rather than a silent drift.
 
     A NOTE ON WHAT WAS DELETED: agy's body carried a dead `fallback` local, initialized to `None` and
     returned at the end while every branch that could assign it returned immediately instead. It could
