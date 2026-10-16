@@ -19,7 +19,7 @@ Re-verified: the three children exist in `pending/` with matching Order, id6 and
 | PR-001 | MEDIUM | IN-SCOPE | D. Cross-plan consistency | `xc8nae` OQ-03, E-02 (kept `companion-unsupported`, review `7562cf9de`) | Completion criterion 1 required the planner to emit "not `companion-unsupported`" with owner `xc8nae`, contradicting `xc8nae`'s revised design, in which the blocker stays as an interim gate until `fo08zx` lifts it. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Criterion 1 now says populated plan plus interim blocker (owner `xc8nae`); criterion 2 and the Order 02 row assign lifting it to `fo08zx`. |
 | PR-002 | LOW | IN-SCOPE | D. Cross-IPD contract | `xc8nae` Scope field list | The cross-IPD field list omitted `companion_dir` and `direction="in-place"`, which Order 02 consumes. | Overall:Low | FIXED | Both added. |
 | PR-003 | LOW | IN-SCOPE | G. Execution contract | `## Approval and execution gate` | The gate lacked the resolved-questions statement, the paste-actual-output rule, the scope fence, the path-scoped `aw commit` and the conditional runner/by-hand finalize ownership. | Overall:Low | FIXED | Gate rewritten with every element. |
-| PR-004 | LOW | IN-SCOPE | E. Evidence consistency | V-01 vs V-02/V-03 | V-01 offered an alternative command the siblings did not. | Overall:Low | FIXED | Uniform `ls ... | grep <id6>` plus the `- Status: executed` line. |
+| PR-004 | LOW | IN-SCOPE | E. Evidence consistency | V-01 vs V-02/V-03 | V-01 offered an alternative command the siblings did not. | Overall:Low | FIXED | Uniform `ls .aw/records/plans/executed/` filtered by id6 plus the `- Status: executed` line. |
 
 ### Decisions
 
