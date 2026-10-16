@@ -1,5 +1,5 @@
 - Id: sflov4
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: After aw run init (plan v47z9u), every later aw run/runs leaf still needs --workflow repeated, because the ledger stores only the workflow digest
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD o34rb3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-runledger-07-o34rb3-persist-workflow-beside-ledger-on-aw-run-init-and-verify-wor.ipd.md); evidence .aw/records/plans/executed/20261014-runledger-07-o34rb3-persist-workflow-beside-ledger-on-aw-run-init-and-verify-wor.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: o34rb3
 - 2026-10-12 created (aw backlog): Filed while authoring plan v47z9u from backlog hegwri: measured that start without --workflow reports unknown step.
 
