@@ -462,6 +462,10 @@ def run_index(args: argparse.Namespace) -> int:
             command="index",
             target="plans",
         )
+    if not plans_dir.is_dir():
+        return _core.emit_index_missing_dir_refusal(
+            args, repo_root, plans_dir, target="plans"
+        )
     entries, drift = scan_plans(plans_dir)
     json_path = plans_dir / INDEX_JSON
     md_path = plans_dir / INDEX_MD

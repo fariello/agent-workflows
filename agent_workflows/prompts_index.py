@@ -307,6 +307,10 @@ def run_index(args: argparse.Namespace) -> int:
             command="index",
             target="prompts",
         )
+    if not prompts_dir.is_dir():
+        return _core.emit_index_missing_dir_refusal(
+            args, repo_root, prompts_dir, target="prompts"
+        )
     entries, drift = scan_prompts(prompts_dir)
     json_path = prompts_dir / INDEX_JSON
     md_path = prompts_dir / INDEX_MD

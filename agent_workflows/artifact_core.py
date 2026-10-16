@@ -1094,6 +1094,94 @@ def emit_index_write_result(
     return get_renderer(ctx).emit(result, ctx)
 
 
+def emit_index_missing_dir_refusal(
+    args: Any,
+    repo_root: Path,
+    index_dir: Path,
+    *,
+    target: str,
+) -> int:
+    """Refuse an index WRITE with exit 2 (cannot-run) when the resolved records dir is absent.
+
+    Creates nothing: a mkdir here would write under $HOME/.aw/projects/ for a home-backend
+    resolution and permanently shadow a later in-repo tree (plan fbdxmh). Recovery advice
+    comes from project_context.nonsurveyable_root_refusal, so an explicit --dir inside a
+    project is never told to run 'aw install .' (which would nest a new project there).
+    """
+    if getattr(args, "quiet", False):
+        return 2
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows.project_context import nonsurveyable_root_refusal
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        NextAction,
+        select_output,
+    )
+
+    ctx = select_output(args)
+    try:
+        rel_dir = index_dir.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel_dir = _schema.normalize_repo_path(index_dir)
+
+    refusal = nonsurveyable_root_refusal(
+        f"index {target}", repo_root, explicit_dir=bool(getattr(args, "dir", None))
+    )
+    if refusal.may_proceed:
+        reason = "the project's records tree is incomplete"
+        next_actions = [
+            NextAction(
+                command="aw install .",
+                description="restore the missing records directories",
+            )
+        ]
+        human_tail = "Run 'aw install .' at the project root to restore it.\n"
+    else:
+        reason = refusal.summary or "no AW project root at this directory"
+        next_actions = [
+            NextAction(command=n.command, description=n.description)
+            for n in refusal.next_actions
+        ]
+        human_tail = (refusal.human_message or "") + "\n"
+
+    if ctx.is_human:
+        ctx.stderr.write(
+            f"error: aw index {target}: records directory {rel_dir} does not exist; "
+            "nothing was written.\n"
+        )
+        ctx.stderr.write(human_tail)
+        return 2
+
+    result = CommandResult(
+        command="index",
+        target=target,
+        status="cannot-run",
+        exit_code=2,
+        summary=f"refusing to write {target} index: records directory {rel_dir} does not exist ({reason})",
+        applied=False,
+        diagnostics=[
+            Diagnostic(
+                location=rel_dir,
+                rule="records-dir-missing",
+                detail=f"records directory {rel_dir} does not exist; nothing was written",
+                severity="error",
+                fix=next_actions[0].command if next_actions else None,
+            )
+        ],
+        next_actions=next_actions,
+        data={"target": target, "index_dir": rel_dir},
+        verified=False,
+        complete=False,
+    )
+    sink = getattr(args, "_index_result_sink", None)
+    if isinstance(sink, list):
+        sink.append(result)
+        return result.exit_code
+    return get_renderer(ctx).emit(result, ctx)
+
+
 def aggregate_index_results(
     results: Sequence[CommandResult],
     *,
