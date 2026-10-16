@@ -1,5 +1,5 @@
 - Id: hu2wka
-- Status: graduated
+- Status: done
 - Graduated-To: indexallexit
 - Blocks-Release: next
 - Set: indexallexit
@@ -8,6 +8,7 @@
 - Summary: aw index all --agent and aw index all --check --agent emit one record per type whose exit fields disagree with the process exit code
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 7i4zba executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-indexallexit-01-7i4zba-emit-one-aggregate-aw-agent-v1-record-for-aw-index-all-acros.ipd.md); evidence .aw/records/plans/executed/20261014-indexallexit-01-7i4zba-emit-one-aggregate-aw-agent-v1-record-for-aw-index-all-acros.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 7i4zba
 - 2026-10-12 created (aw backlog): filed while authoring sn2svz from 4izduy
 
