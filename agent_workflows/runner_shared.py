@@ -47387,3 +47387,436 @@ def report_discarded_user_config(
     for line in lines:
         print(line, file=out)
     return lines
+
+
+# --- agent AW_HOME containment (1vwjdl) ------------------------------------------------------------
+
+
+AW_HOME_ENV = "AW_HOME"
+
+
+@dataclass(frozen=True)
+class AgentAwHome:
+    """Per-turn sandbox handle for operator AW_HOME (E-02)."""
+
+    path: Path
+    real_aw_home: Path
+    seed_hashes: dict[str, str]
+    seed_json: dict[str, dict[str, Any]]
+    linked_projects: tuple[str, ...]
+    attempt: int
+    id6: str
+    suffix: str = ""
+
+
+def prepare_agent_aw_home(
+    run_dir: Path | str,
+    item: dict[str, Any],
+    attempt_no: int,
+    suffix: str = "",
+    source_dir: Path | str | None = None,
+    repo: Path | str | None = None,
+    agent_dir: Path | str | None = None,
+) -> Optional[AgentAwHome]:
+    """Prepare a per-turn selective sandbox of the operator's AW_HOME (E-02).
+
+    Resolves the operator's real directory via project_context._resolve_effective_aw_home()
+    (or source_dir). Seeds config/registry.json preserving mode, sha256, and parsed JSON.
+    Symlinks each pass-through project directory for repo and agent_dir to its own real directory.
+    Fails open: returns None and prints a warning on failure (never aborts a run).
+    """
+    try:
+        from agent_workflows import project_context as _project_context
+
+        if source_dir is not None:
+            real_dir = Path(source_dir)
+        else:
+            real_dir = Path(_project_context._resolve_effective_aw_home()[0])
+
+        pos = int(item.get("position", 1))
+        id6 = str(item.get("id6", "unknown"))
+        tag = f"-{suffix}" if suffix else ""
+        turn_key = f"{pos:02d}-{id6}-attempt-{attempt_no}{tag}"
+        sandbox_dir = Path(run_dir) / "agent-aw-home" / turn_key
+
+        if sandbox_dir.exists():
+            shutil.rmtree(sandbox_dir, ignore_errors=True)
+        sandbox_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with contextlib.suppress(OSError):
+            os.chmod(sandbox_dir, 0o700)
+        (sandbox_dir / "config").mkdir(parents=True, exist_ok=True, mode=0o700)
+        (sandbox_dir / "projects").mkdir(parents=True, exist_ok=True, mode=0o700)
+
+        seed_hashes: dict[str, str] = {}
+        seed_json: dict[str, dict[str, Any]] = {}
+        real_reg = real_dir / "config" / "registry.json"
+        if real_reg.is_file():
+            dest = sandbox_dir / "config" / "registry.json"
+            shutil.copy2(real_reg, dest)
+            seed_hashes["config/registry.json"] = sha256_file(dest)
+            try:
+                with dest.open("r", encoding="utf-8") as f:
+                    parsed = json.load(f)
+                    if isinstance(parsed, dict):
+                        seed_json["config/registry.json"] = parsed
+            except Exception:
+                pass
+
+        linked_projects: list[str] = []
+        created_real_dirs: list[Path] = []
+        seen_targets: set[str] = set()
+        targets: list[Path | str] = []
+        for t in (repo, agent_dir):
+            if t is not None:
+                try:
+                    c = str(Path(t).resolve())
+                except Exception:
+                    c = str(t)
+                if c not in seen_targets:
+                    seen_targets.add(c)
+                    targets.append(t)
+
+        for target in targets:
+            try:
+                ctx = _project_context.resolve_project_context(
+                    target_repo=str(target), aw_home=str(real_dir)
+                )
+            except Exception:
+                continue
+
+            pid = ctx.project_id
+            proj = real_dir / "projects" / pid
+            needs_link = False
+            if hasattr(ctx, "logical_roots") and isinstance(ctx.logical_roots, dict):
+                for root_path in ctx.logical_roots.values():
+                    if root_path and _project_context._is_safe_subpath(
+                        str(root_path), str(proj)
+                    ):
+                        needs_link = True
+                        break
+
+            if needs_link and (getattr(ctx, "is_configured", False) or proj.is_dir()):
+                dest_link = sandbox_dir / "projects" / pid
+                if (
+                    pid not in linked_projects
+                    and not dest_link.exists()
+                    and not os.path.islink(dest_link)
+                ):
+                    try:
+                        if not proj.exists():
+                            created_real_dirs.append(proj)
+                        proj.mkdir(parents=True, exist_ok=True)
+                        os.symlink(proj, dest_link, target_is_directory=True)
+                        linked_projects.append(pid)
+                    except Exception as exc:
+                        for p in linked_projects:
+                            l_path = sandbox_dir / "projects" / p
+                            if os.path.islink(l_path):
+                                with contextlib.suppress(OSError):
+                                    os.unlink(l_path)
+                        for cr in created_real_dirs:
+                            if cr.is_dir():
+                                with contextlib.suppress(OSError):
+                                    shutil.rmtree(cr, ignore_errors=True)
+                        real_projects = real_dir / "projects"
+                        if real_projects.is_dir():
+                            with contextlib.suppress(OSError):
+                                if not any(real_projects.iterdir()):
+                                    real_projects.rmdir()
+                        shutil.rmtree(sandbox_dir, ignore_errors=True)
+                        sys.stderr.write(
+                            f"  ! Warning: failed to seed agent AW_HOME sandbox: {exc}\n"
+                        )
+                        return None
+
+        return AgentAwHome(
+            path=sandbox_dir,
+            real_aw_home=real_dir,
+            seed_hashes=seed_hashes,
+            seed_json=seed_json,
+            linked_projects=tuple(linked_projects),
+            attempt=attempt_no,
+            id6=id6,
+            suffix=suffix,
+        )
+    except Exception as exc:
+        sys.stderr.write(f"  ! Warning: failed to seed agent AW_HOME sandbox: {exc}\n")
+        return None
+
+
+def reconcile_agent_aw_home(
+    handle: Optional[AgentAwHome],
+    run_dir: Path | str,
+    item: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Reconcile the agent's AW_HOME sandbox against its seed (E-03).
+
+    Unlinks every symlink under projects/ BEFORE walking or deleting.
+    Walks sandbox with followlinks=False, skipping .lock/.tmp files.
+    Compares config/registry.json against seed: added, removed, or modified.
+    Reports any non-projects files outside config/registry.json as added.
+    Reports each remaining non-empty projects/<pid> directory as added.
+    Appends agent-aw-home-discarded events to <run_dir>/events.jsonl.
+    Cleans up sandbox directory in finally.
+    Fails open with a printed warning and records agent-aw-home-reconcile-failed.
+    """
+    if handle is None:
+        return []
+
+    records: list[dict[str, Any]] = []
+    sandbox_dir = handle.path
+    attempt_no = handle.attempt
+    id6 = str(item.get("id6", handle.id6))
+    run_dir_path = Path(run_dir)
+    projects_dir = sandbox_dir / "projects"
+
+    try:
+        # 1. Unlink every entry under handle.path / "projects" for which os.path.islink is true BEFORE any walk.
+        if projects_dir.is_dir():
+            for entry in projects_dir.iterdir():
+                if os.path.islink(entry):
+                    with contextlib.suppress(OSError):
+                        os.unlink(entry)
+
+        if sandbox_dir.is_dir():
+            # 2. Walk handle.path with os.walk(handle.path, followlinks=False), skipping any entry still a symlink and skipping *.lock / *.tmp.
+            reg_rel = "config/registry.json"
+            reg_path = sandbox_dir / reg_rel
+            was_seeded = reg_rel in handle.seed_hashes
+
+            if reg_path.is_file():
+                if not was_seeded:
+                    records.append(
+                        {
+                            "at": utc_now(),
+                            "event": "agent-aw-home-discarded",
+                            "id6": id6,
+                            "attempt": attempt_no,
+                            "file": reg_rel,
+                            "change": "added",
+                        }
+                    )
+                else:
+                    curr_sha = sha256_file(reg_path)
+                    if curr_sha != handle.seed_hashes[reg_rel]:
+                        rec: dict[str, Any] = {
+                            "at": utc_now(),
+                            "event": "agent-aw-home-discarded",
+                            "id6": id6,
+                            "attempt": attempt_no,
+                            "file": reg_rel,
+                            "change": "modified",
+                        }
+                        orig_obj = handle.seed_json.get(reg_rel, {})
+                        try:
+                            with reg_path.open("r", encoding="utf-8") as f:
+                                curr_obj = json.load(f)
+                            if isinstance(curr_obj, dict):
+                                all_keys = sorted(
+                                    set(orig_obj.keys()) | set(curr_obj.keys())
+                                )
+                                diff_keys: list[str] = []
+                                for k in all_keys:
+                                    if orig_obj.get(k) != curr_obj.get(k):
+                                        if k == "projects":
+                                            orig_p = (
+                                                orig_obj.get("projects")
+                                                if isinstance(
+                                                    orig_obj.get("projects"), dict
+                                                )
+                                                else {}
+                                            )
+                                            curr_p = (
+                                                curr_obj.get("projects")
+                                                if isinstance(
+                                                    curr_obj.get("projects"), dict
+                                                )
+                                                else {}
+                                            )
+                                            p_all = sorted(
+                                                set(orig_p.keys()) | set(curr_p.keys())
+                                            )
+                                            p_diff = [
+                                                f"projects.{p}"
+                                                for p in p_all
+                                                if orig_p.get(p) != curr_p.get(p)
+                                            ]
+                                            if p_diff:
+                                                diff_keys.extend(p_diff)
+                                            else:
+                                                diff_keys.append("projects")
+                                        else:
+                                            diff_keys.append(k)
+                                diff_keys.sort()
+                                rec["keys"] = diff_keys
+                        except Exception:
+                            pass
+                        records.append(rec)
+            elif was_seeded:
+                records.append(
+                    {
+                        "at": utc_now(),
+                        "event": "agent-aw-home-discarded",
+                        "id6": id6,
+                        "attempt": attempt_no,
+                        "file": reg_rel,
+                        "change": "removed",
+                    }
+                )
+
+            # 4. Any other file outside projects/ is reported as added with no keys.
+            for root, dirs, files in os.walk(sandbox_dir, followlinks=False):
+                rpath = Path(root)
+                try:
+                    rel_root = rpath.relative_to(sandbox_dir)
+                except ValueError:
+                    continue
+                if rel_root.parts and rel_root.parts[0] == "projects":
+                    continue
+
+                for fn in sorted(files):
+                    if fn.endswith(".lock") or fn.endswith(".tmp"):
+                        continue
+                    file_path = rpath / fn
+                    if os.path.islink(file_path):
+                        continue
+                    rel_file = str(file_path.relative_to(sandbox_dir))
+                    if rel_file == reg_rel:
+                        continue
+                    records.append(
+                        {
+                            "at": utc_now(),
+                            "event": "agent-aw-home-discarded",
+                            "id6": id6,
+                            "attempt": attempt_no,
+                            "file": rel_file,
+                            "change": "added",
+                        }
+                    )
+
+            # 5. For each remaining non-empty directory projects/<pid>, emit one record {"file": f"projects/{pid}", "change": "added", "keys": sorted(top-level entry names)}.
+            if projects_dir.is_dir():
+                for p_entry in sorted(projects_dir.iterdir(), key=lambda p: p.name):
+                    if os.path.islink(p_entry):
+                        continue
+                    if p_entry.is_dir():
+                        pid = p_entry.name
+                        top_level = sorted(
+                            [
+                                c.name
+                                for c in p_entry.iterdir()
+                                if not (
+                                    c.name.endswith(".lock") or c.name.endswith(".tmp")
+                                )
+                            ]
+                        )
+                        if top_level:
+                            records.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "agent-aw-home-discarded",
+                                    "id6": id6,
+                                    "attempt": attempt_no,
+                                    "file": f"projects/{pid}",
+                                    "change": "added",
+                                    "keys": top_level,
+                                }
+                            )
+                    elif p_entry.is_file():
+                        if not (
+                            p_entry.name.endswith(".lock")
+                            or p_entry.name.endswith(".tmp")
+                        ):
+                            records.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "agent-aw-home-discarded",
+                                    "id6": id6,
+                                    "attempt": attempt_no,
+                                    "file": f"projects/{p_entry.name}",
+                                    "change": "added",
+                                }
+                            )
+
+        events_file = run_dir_path / "events.jsonl"
+        for rec in records:
+            append_jsonl(events_file, rec)
+
+        return records
+    except Exception as exc:
+        sys.stderr.write(f"  ! Warning: failed to reconcile agent AW_HOME: {exc}\n")
+        fail_event = {
+            "at": utc_now(),
+            "event": "agent-aw-home-reconcile-failed",
+            "id6": id6,
+            "attempt": attempt_no,
+            "error": str(exc),
+        }
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir_path / "events.jsonl", fail_event)
+        return []
+    finally:
+        if projects_dir.is_dir():
+            with contextlib.suppress(Exception):
+                for entry in projects_dir.iterdir():
+                    if os.path.islink(entry):
+                        with contextlib.suppress(OSError):
+                            os.unlink(entry)
+        with contextlib.suppress(Exception):
+            if sandbox_dir.exists():
+                shutil.rmtree(sandbox_dir, ignore_errors=True)
+
+
+def report_discarded_aw_home(
+    run_dir: Any,
+    *,
+    stream: Any = None,
+) -> list[str]:
+    """Print summary of discarded AW_HOME changes at run end (E-03).
+
+    Reads `agent-aw-home-discarded` events from `<run_dir>/events.jsonl` and prints:
+      Agent AW_HOME changes discarded: <n> (<id6>: <file> <keys>; ...)
+    or nothing when there are none. Advisory posture: never raises.
+    """
+    out = stream if stream is not None else sys.stdout
+    lines: list[str] = []
+    try:
+        if isinstance(run_dir, dict):
+            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
+        else:
+            run_dir_path = Path(run_dir)
+        events_path = run_dir_path / "events.jsonl"
+        events: list[dict[str, Any]] = []
+        if events_path.is_file():
+            with events_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        if (
+                            isinstance(data, dict)
+                            and data.get("event") == "agent-aw-home-discarded"
+                        ):
+                            events.append(data)
+                    except Exception:
+                        continue
+        if events:
+            count = len(events)
+            details = []
+            for ev in events:
+                id6 = ev.get("id6", "unknown")
+                f = ev.get("file", "unknown")
+                keys = ev.get("keys")
+                if keys:
+                    details.append(f"{id6}: {f} {keys}")
+                else:
+                    details.append(f"{id6}: {f}")
+            details_str = "; ".join(details)
+            lines.append(f"Agent AW_HOME changes discarded: {count} ({details_str})")
+    except Exception as exc:
+        lines.append(f"error: failed to summarize discarded AW_HOME changes: {exc}")
+    for line in lines:
+        print(line, file=out)
+    return lines

@@ -309,7 +309,9 @@ def find_project(
       4. Origin match -> candidate hint ONLY (never auto-attach!)
     """
     if registry_data is None:
-        reg_path = get_registry_path(aw_home or os.path.expanduser("~/.aw"))
+        reg_path = get_registry_path(
+            aw_home or os.environ.get("AW_HOME") or os.path.expanduser("~/.aw")
+        )
         registry_data = load_registry(reg_path)
 
     projects_dict = registry_data.get("projects", {})

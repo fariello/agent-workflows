@@ -771,6 +771,7 @@ from agent_workflows.runner_shared import (
     record_item_spec_edits as record_item_spec_edits,
     report_driver_committed_reviews as report_driver_committed_reviews,
     report_discarded_user_config as report_discarded_user_config,
+    report_discarded_aw_home as report_discarded_aw_home,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
@@ -2519,6 +2520,17 @@ def run_agy_turn(
         child_env[_config.CONFIG_DIR_ENV] = str(user_config_handle.path)
     else:
         child_env.pop(_config.CONFIG_DIR_ENV, None)
+
+    aw_home_handle = runner_shared.prepare_agent_aw_home(
+        run_dir,
+        item,
+        attempt_no,
+        suffix=log_suffix,
+        repo=Path(state["repo"]),
+        agent_dir=Path(agent_dir),
+    )
+    if aw_home_handle is not None:
+        child_env[runner_shared.AW_HOME_ENV] = str(aw_home_handle.path)
     popen_kwargs["env"] = child_env
 
     # lanectn Order 03 (`lhmrhx`) E-06, spec R4.1a/R4.1b/R4.1c: the SANCTIONED ASYMMETRY with the oc
@@ -2990,6 +3002,23 @@ def run_agy_turn(
                 warning_line = (
                     f"  ! IPD {rec_id6}: agent changed user config {rec_file} "
                     f"({rec_keys_str}); change DISCARDED, your config is unchanged"
+                )
+                print(err_pal(warning_line, "yellow"), file=sys.stderr)
+        if aw_home_handle is not None:
+            discarded_records = runner_shared.reconcile_agent_aw_home(
+                aw_home_handle, run_dir, item
+            )
+            err_pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))
+            for rec in discarded_records:
+                rec_id6 = rec.get("id6", item.get("id6", "unknown"))
+                rec_file = rec.get("file", "unknown")
+                rec_keys = rec.get("keys")
+                rec_keys_str = (
+                    ", ".join(rec_keys) if rec_keys else rec.get("change", "modified")
+                )
+                warning_line = (
+                    f"  ! IPD {rec_id6}: agent changed AW_HOME {rec_file} "
+                    f"({rec_keys_str}); change DISCARDED, your AW_HOME is unchanged"
                 )
                 print(err_pal(warning_line, "yellow"), file=sys.stderr)
 
@@ -3718,6 +3747,7 @@ def run_queue(
     report_run_spec_edits(state)
     report_driver_committed_reviews(state)
     report_discarded_user_config(run_dir)
+    report_discarded_aw_home(run_dir)
     # runnoop Order 03 (`bsc457`) E-03: THE CLOSING DISPOSITION SUMMARY, the exact mirror of the oc
     # twin and printed UNCONDITIONALLY, including for a run that acted on nothing - the case that
     # previously closed with a sentence reading as a failed launch beneath a table saying COMPLETED.
