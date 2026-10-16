@@ -22,13 +22,13 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 - More tools for agents and users. A growing set of dependable, dependency-free tools
   (and CLI verbs) that both agents and humans can rely on.
 
-- Fixed: importing agent-workflows and its read-only git checks no longer take the git index lock, so a killed or timed-out command can no longer leave a stale index.lock that blocks your next commit.
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
 - Added: aw run verify records verifier decisions on frozen requirements for an active run ledger, returning exit 0 on satisfied results, exit 3 on non-satisfied results, exit 2 on unknown requirements or invalid arguments, and exit 6 on unauthorized actors or terminal runs.
 - Added: aw run init now freezes workflow requirements preserving R-NN ids and appends a requirement_set record at seq=1 with matching requirement digest, and refuses workflows with empty or missing requirement ids with exit 2.
 - Added: aw run init persists workflow.json beside the ledger and later aw run/runs leaves resolve it automatically when --workflow is omitted, verifying the workflow digest against the run header (refusing mismatches with exit 2).
 - Added: aw runs now surfaces the count, keys, and event details of discarded agent user-config changes per run in human, --json, and --agent output from the run's durable events.jsonl log.
+- Fixed: importing agent-workflows and its read-only git checks no longer take the git index lock, so a killed or timed-out command can no longer leave a stale index.lock that blocks your next commit.
 - Fixed: the run summary Outcome word again reads FAILED for a turn that crashed or exited nonzero and COMPLETED or STRANDED for a turn that finished its work, instead of BLOCKED, which is now reserved for items waiting on a gate or a human.
 - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
 - Fixed: aw runs now displays a ledger-only run (from aw run init) with its ledger state and a pointer to aw runs status rather than an empty 0-step driver run, and ledger commands run without --workflow now recover started-but-unrecorded steps.
