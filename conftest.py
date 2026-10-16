@@ -3,7 +3,8 @@ run the suite in the COORDINATOR role so a runner-launched turn measures the sam
 tree a human does (backlog `1uq1cu`).
 
 The release suite is large and IO/subprocess bound; running it serially costs multiples of
-the wall time, so `-n auto` (pytest-xdist, capped at six workers) is the default in
+the wall time, so `-n auto` (pytest-xdist, capped at half of available CPUs up to six workers,
+minimum 1) is the default in
 `[tool.pytest.ini_options] addopts` in pyproject.toml. That default hard-requires the
 xdist plugin: without it, pytest aborts with `unrecognized arguments: -n` before any
 test runs.
@@ -85,13 +86,29 @@ def _available_cpus() -> int:
     return os.cpu_count() or 2
 
 
+# --------------------------------------------------------------------------------------
+# xdist auto-num-workers hook: cap -n auto worker count and stay optional under -p no:xdist
+# (backlog `6ljil4`).
+#
+# WHY optionalhook=True IS LOAD-BEARING. `pytest_xdist_auto_num_workers` is an
+# `xdist.newhooks` hookspec registered only when `xdist.plugin` loads. When pytest is
+# invoked with `-p no:xdist` (such as in `tools/replay_coverage_diff.py` serial runs or
+# `python3 -m pytest -o addopts="" -p no:xdist`), pluggy's `PytestPluginManager.check_pending()`
+# fails with `pluggy.PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers'`
+# unless this hook implementation is declared with `optionalhook=True`.
+# --------------------------------------------------------------------------------------
 @pytest.hookimpl(optionalhook=True)
 def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
     """Resolve -n auto worker count.
 
-    Use at most half the available CPUs and never more than six workers.
+    Use at most half the available CPUs and never more than six workers (minimum 1).
     An explicit PYTEST_XDIST_AUTO_NUM_WORKERS can lower the count, but cannot
     exceed the same limit.
+
+    Declared with optionalhook=True because pytest_xdist_auto_num_workers is an
+    xdist.newhooks hookspec loaded only when xdist.plugin is active; without
+    optionalhook=True, running pytest under -p no:xdist raises PluginValidationError
+    during PytestPluginManager.check_pending() (backlog `6ljil4`).
     """
     cpus = _available_cpus()
     limit = min(6, max(1, cpus // 2))
@@ -148,10 +165,11 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
 # role with `support.declare_execution_role`, and a test that needs the worker marking sets
 # it on an explicit env dict passed to the code under test; re-asserting the marker with a
 # throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). The scrub
-# is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is
-# protected only by the per-class declarations. (2) This scrubs the CURRENT process only;
-# a subprocess a test spawns inherits this already-cleaned environment, which is the
-# intended propagation.
+# is pytest-only; `make test-serial` (`python3 -m unittest`) loads this file only through an
+# explicit import, and `tests/test_xdist_auto_workers.py` restores `os.environ` around that
+# import; serial unittest suites are otherwise protected only by the per-class declarations.
+# (2) This scrubs the CURRENT process only; a subprocess a test spawns inherits this
+# already-cleaned environment, which is the intended propagation.
 #
 # Done at import time, before any test module is collected, so no test can observe the
 # marked value. `pop` is unconditional and side-effect-free when the variable is absent,
