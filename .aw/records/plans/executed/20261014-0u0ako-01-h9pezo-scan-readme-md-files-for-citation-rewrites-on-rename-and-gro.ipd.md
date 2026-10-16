@@ -6,7 +6,7 @@
 - Scope: IN: split the generated-manifest skip set (`_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}`) from the non-record filename filter (`_SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}`) in `agent_workflows/artifact_refs.py` so `artifact_refs.plan_reference_rewrites_with_warnings` scans `README.md` files while still skipping `INDEX.md` and `STATUS.md` and while `artifact_refs.dead_filename_citations` continues skipping `_SKIP_NAMES` when collecting target record filenames; add CLI-driven outcome tests in `tests/test_artifact_refs_rewrite.py` pinning `README.md` rewrites (research-bundle `README.md` facet-less and full-name/stem citations, repo-root `README.md` citation, and legacy-prefix short-handle citation in `.aw/records/backlog/README.md`) alongside the `INDEX.md`/`STATUS.md` skip invariant; and add one `- Fixed:` entry to `CHANGELOG.md`. OUT: modifying `engine.classify_records_root_readme` or `engine.RETIRED_*_README_HASHES` (measured unnecessary, F-03/OQ-01); modifying `selectors._SKIP_NAMES`, `check_engine._SKIP_NAMES`, or `specs.list_specs` (those filter non-record filenames during record enumeration, where `README.md` must stay excluded, F-01); and editing any existing `README.md` on disk (`j7dsci` already repaired the `qrokie` citation in `.aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md`, F-06).
 - Scope-Paths: agent_workflows/artifact_refs.py, tests/test_artifact_refs_rewrite.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: h9pezo
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: h9pezo verified (set 0u0ako, attempt 2). [Scope attribution - 28 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: .aw/records/backlog/README.md, .aw/records/backlog/done/20261011-byz9pj-01-byz9pj-triage-uncollected-awphysical-test-failure.backlog.md, .aw/records/backlog/done/20261011-evidpend-01-bkprhk-carrier-evidence-terminal-parity.backlog.md, .aw/records/backlog/done/20261012-y11p5u-01-y11p5u-raw-256-escapes-bypass-depth-pin.backlog.md, .aw/records/backlog/done/20261014-8ww1zo-01-8ww1zo-restore-behavioral-coverage-of-approved-orchestrat.backlog.md (... and 23 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-14 to-review (antigravity): authored from backlog item 0u0ako; resolved OQ-01 (README template drift vs citation scanning) from repository evidence and whole-corpus README citation census
