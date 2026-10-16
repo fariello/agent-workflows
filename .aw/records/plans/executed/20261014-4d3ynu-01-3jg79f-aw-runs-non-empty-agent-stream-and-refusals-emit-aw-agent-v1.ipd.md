@@ -6,7 +6,7 @@
 - Scope: Wrap all `run_viewer.run_viewer_cli` `--agent` stream branches (`default`, `--latest-only`, `--summary-only`, `--issues`) in validated `aw.agent/v1` `kind: "item"` records followed by a validated terminal `kind: "summary"` record carrying `excluded_runs`, `findings`, and `filters`, and convert the four usage/flag-conflict/`--since` refusal branches to emit validated `aw.agent/v1` `kind: "error"` records (`outcome: "cannot-run"`, `exit: 2`) under `--agent` and `--json`, and make the shared `_issue_records` builder emit repo-relative `actual_path` / `collisions` strings (a declared `--json` change, E-06).
 - Scope-Paths: agent_workflows/run_viewer.py, tests/test_run_viewer.py, docs/cli-output-contract.md, CHANGELOG.md, .aw/records/plans/pending/20261014-4d3ynu-01-3jg79f-aw-runs-non-empty-agent-stream-and-refusals-emit-aw-agent-v1.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: 3jg79f
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3jg79f verified (set 4d3ynu, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
