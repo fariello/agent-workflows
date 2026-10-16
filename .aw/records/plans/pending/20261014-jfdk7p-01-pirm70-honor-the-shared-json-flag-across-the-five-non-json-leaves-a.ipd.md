@@ -153,6 +153,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261014-aws1tg-01-83ns86-honor-the-shared-fields-projection-under-agent-across-the-ni.ipd.md
 - Retiring the four `(leaf, "--fields"): "4y614a"` entries (`ipd scaffold`, `research new`, `research new-comparison`, `storage move`) in `tests/test_shared_flag_honored.KNOWN_BROKEN` — owned by backlog item `4y614a` and its pending IPD `ksmdcd`.
   - Carrier: ksmdcd
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-4y614a-01-ksmdcd-honor-the-shared-fields-flag-in-parser-usage-refusals-under.ipd.md
 
 ## Scope check
 
