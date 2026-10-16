@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives the real `parse_plan_file` on both hosts against real temporary plan files, and the public and internal `selectors` readers on text, then repoint the one `runner_shared.parse_plan_file` docstring sentence that says "no live guard currently asserts this loose-whitespace tolerance". No production behavior change.
 - Scope-Paths: tests/test_front_matter_loose_whitespace.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: lcjlc3
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lcjlc3 verified (set qmpvcy, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 
