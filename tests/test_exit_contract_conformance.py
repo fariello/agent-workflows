@@ -25,6 +25,7 @@ from agent_workflows import cli, command_surface
 from tests import conformance_matrix
 
 
+@pytest.mark.core
 def test_usage_error_floor_gate_tree_wide() -> None:
     """Every declared leaf that exits 2 on usage error must declare 2 in exit_contract.
 
