@@ -161,6 +161,24 @@ make test-serial   # i.e. python3 -m unittest discover -s tests -t .
 
 Because `unittest` does not load `conftest.py`, it loses that runner's role scrub and `PYTHONPATH` pin, which is why the serial runner is for the isolation-debugging purpose already stated here and tests spawn the CLI only through `tests/support.run_cli`.
 
+### Test tier measurement tooling
+
+To audit test tier coverage across `agent_workflows/` modules:
+
+```bash
+python3 -m tests.tools.core_measure --out .aw/state/coverage
+```
+
+This runs core (bare) and thorough (`tests/ -m ''`) under `coverage run` with branch coverage and reports statement and branch coverage per module.
+
+To measure which declared `aw` command leaves are driven by tests:
+
+```bash
+python3 -m pytest -p tests.tools.leaf_probe
+```
+
+This plugin instruments in-process and subprocess command dispatches and reports total driven leaves against `command_surface.get_declared_leaves()`.
+
 The suite covers the installer/CLI (fresh install, idempotent re-run, prune of
 stale/legacy shims, legacy-layout migration, dry-run, the catalog-row collapse and the
 `assess-all` prefix exception, `install`/`setup`/`uninstall`/`list`/`status`, `--version`),
