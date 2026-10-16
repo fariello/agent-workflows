@@ -36,41 +36,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: adopt the shared renderer at the three string-returning sites
 
-- [ ] E-01 In `agent_workflows/ipd_lifecycle.py`, import `repo_relative_posix` from `agent_workflows.artifact_core` (alongside `replacement_mode`) and make `ipd_lifecycle._repo_relative(repo_root: Path, path: Path) -> str` return `repo_relative_posix(path, repo_root)`, keeping its `(repo_root, path)` parameter order and updating its docstring from `"or the resolved absolute path if outside"` to state that it delegates to `artifact_core.repo_relative_posix` (IPD `61lsze`) and that its result is an IDENTITY key (`plan_rel` feeds `repo_root / plan_rel`, `coord.path / plan_rel`, `git checkout HEAD -- plan_rel`, and the owned commit paths) which is only sound for an in-root path, which E-06 guarantees. In `ipd_lifecycle.run_begin`, render `data["receipt_path"]` relative to the CHECKOUT that owns the receipt, i.e. `repo_relative_posix(rcpt_path, checkout_control_root(repo_root).parent)`, not relative to `repo_root`: `receipt_dir` anchors receipts on `checkout_control_root`, so in every managed lane worktree the receipt is OUTSIDE `repo_root` (measured at review HEAD `6515a6d95` in this lane: `receipt_path_for(lane_root, ...)` is under the main checkout's `.aw/state/ipd-lifecycle/`, today's `_repo_relative` returns an absolute path, and plain delegation would return only the bare `<id6>.receipt.json`), whereas the control-root anchor yields `.aw/state/ipd-lifecycle/<id6>.receipt.json`.
+- [x] E-01 In `agent_workflows/ipd_lifecycle.py`, import `repo_relative_posix` from `agent_workflows.artifact_core` (alongside `replacement_mode`) and make `ipd_lifecycle._repo_relative(repo_root: Path, path: Path) -> str` return `repo_relative_posix(path, repo_root)`, keeping its `(repo_root, path)` parameter order and updating its docstring from `"or the resolved absolute path if outside"` to state that it delegates to `artifact_core.repo_relative_posix` (IPD `61lsze`) and that its result is an IDENTITY key (`plan_rel` feeds `repo_root / plan_rel`, `coord.path / plan_rel`, `git checkout HEAD -- plan_rel`, and the owned commit paths) which is only sound for an in-root path, which E-06 guarantees. In `ipd_lifecycle.run_begin`, render `data["receipt_path"]` relative to the CHECKOUT that owns the receipt, i.e. `repo_relative_posix(rcpt_path, checkout_control_root(repo_root).parent)`, not relative to `repo_root`: `receipt_dir` anchors receipts on `checkout_control_root`, so in every managed lane worktree the receipt is OUTSIDE `repo_root` (measured at review HEAD `6515a6d95` in this lane: `receipt_path_for(lane_root, ...)` is under the main checkout's `.aw/state/ipd-lifecycle/`, today's `_repo_relative` returns an absolute path, and plain delegation would return only the bare `<id6>.receipt.json`), whereas the control-root anchor yields `.aw/state/ipd-lifecycle/<id6>.receipt.json`.
   - Depends on: none
   - Expected outcome: in-root non-symlinked paths render identically to today (`tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py` stay green); an out-of-root path returns the records-segment-truncated path or bare file name instead of a resolved absolute path (F-01); an in-root symlinked file preserves its link spelling instead of resolving to its target or leaking an external target's absolute path (F-02); and `aw ipd begin --json` run in a linked worktree reports `receipt_path` as `.aw/state/ipd-lifecycle/<id6>.receipt.json` (F-09).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/attention.py`, make `attention._rel_posix(repo_root: Path, p: Path) -> str` return `core.repo_relative_posix(p, repo_root)` (`core` is already imported at module top level), keeping its `(repo_root, p)` parameter order and adding a docstring stating that it delegates to `artifact_core.repo_relative_posix` so out-of-root inputs, relative inputs when `os.getcwd() != repo_root`, and in-root symlinked files under a symlinked root return a leak-free string instead of raising `ValueError` (allowing `attention.item_for_path` to return `None` via `_classify_tree` on out-of-root inputs).
+- [x] E-02 In `agent_workflows/attention.py`, make `attention._rel_posix(repo_root: Path, p: Path) -> str` return `core.repo_relative_posix(p, repo_root)` (`core` is already imported at module top level), keeping its `(repo_root, p)` parameter order and adding a docstring stating that it delegates to `artifact_core.repo_relative_posix` so out-of-root inputs, relative inputs when `os.getcwd() != repo_root`, and in-root symlinked files under a symlinked root return a leak-free string instead of raising `ValueError` (allowing `attention.item_for_path` to return `None` via `_classify_tree` on out-of-root inputs).
   - Depends on: none
   - Expected outcome: `attention._rel_posix` no longer raises `ValueError` on out-of-root paths, relative paths when `cwd != repo_root`, or in-root symlinks pointing outside under a symlinked root (F-03, F-04); `attention.item_for_path(out_of_root_path, repo_root=root)` returns `None` instead of crashing with `ValueError`; and `tests/test_attention.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/doctor.py`, replace both inline `Drift.location` relativization blocks in `doctor.probe_artifacts` (the per-type `tdrift` loop and the `collisions` loop, each currently running `if p.is_absolute() and p.is_relative_to(repo_root): loc = str(p.relative_to(repo_root))`) with `loc = _normalize_rel_path(d.location, repo_root)`, and change all four `loc.split(os.sep)` segment checks in `doctor.probe_artifacts` (`"untracked" in loc.split(os.sep)` and `"executed" in loc.split(os.sep)` in both loops) to `loc.split("/")` so segment filtering matches the POSIX `/` separator `_normalize_rel_path` always produces. Out of scope here: the separate `is_relative_to` block in `doctor._categorize_drift` (conflict-target text), which `rd6ei9` does not name.
+- [x] E-03 In `agent_workflows/doctor.py`, replace both inline `Drift.location` relativization blocks in `doctor.probe_artifacts` (the per-type `tdrift` loop and the `collisions` loop, each currently running `if p.is_absolute() and p.is_relative_to(repo_root): loc = str(p.relative_to(repo_root))`) with `loc = _normalize_rel_path(d.location, repo_root)`, and change all four `loc.split(os.sep)` segment checks in `doctor.probe_artifacts` (`"untracked" in loc.split(os.sep)` and `"executed" in loc.split(os.sep)` in both loops) to `loc.split("/")` so segment filtering matches the POSIX `/` separator `_normalize_rel_path` always produces. Out of scope here: the separate `is_relative_to` block in `doctor._categorize_drift` (conflict-target text), which `rd6ei9` does not name.
   - Depends on: none
   - Expected outcome: `doctor.probe_artifacts` delegates both loops' location normalization to `doctor._normalize_rel_path` (`core.repo_relative_posix`); `Drift.location` on `ArtifactsProbeResult.all_drift`, `type_drift`, and `executed_warnings` (and `Diagnostic.location` in `doctor.inspect_repo`) is repo-relative POSIX even when `repo_root` is a symlink and a check rule emits a resolved path or out-of-root path (F-05) and uses `/` on every OS (F-06); `tests/test_doctor.py` and `tests/test_collision_population_parity.py` stay green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: document and preserve layout_inventory's distinct contract
 
-- [ ] E-04 In `agent_workflows/layout_inventory.py`, keep `layout_inventory._repo_relative(path: Path, repo: Path) -> Optional[str]` separate (`path.absolute().relative_to(repo.absolute()).as_posix()` returning `None` on `ValueError`) and expand its docstring to state explicitly why it does NOT delegate to `artifact_core.repo_relative_posix` (IPD `61lsze`, backlog `rd6ei9`): (1) `None` is a load-bearing signal consumed by `layout_inventory.inventory` (`"within_repo": _repo_relative(root, repo) is not None` and `"repo_relpath": repo_rel`) and `layout_inventory._git_state` (`if rel is None: return "external"`), whereas `repo_relative_posix` always returns a `str`; and (2) `path.absolute()` without `resolve()` is deliberate so `os.walk(..., followlinks=False)` inventories symlinks at their lexical in-repo location (`kind = "symlink"`) rather than resolving their targets (F-07).
+- [x] E-04 In `agent_workflows/layout_inventory.py`, keep `layout_inventory._repo_relative(path: Path, repo: Path) -> Optional[str]` separate (`path.absolute().relative_to(repo.absolute()).as_posix()` returning `None` on `ValueError`) and expand its docstring to state explicitly why it does NOT delegate to `artifact_core.repo_relative_posix` (IPD `61lsze`, backlog `rd6ei9`): (1) `None` is a load-bearing signal consumed by `layout_inventory.inventory` (`"within_repo": _repo_relative(root, repo) is not None` and `"repo_relpath": repo_rel`) and `layout_inventory._git_state` (`if rel is None: return "external"`), whereas `repo_relative_posix` always returns a `str`; and (2) `path.absolute()` without `resolve()` is deliberate so `os.walk(..., followlinks=False)` inventories symlinks at their lexical in-repo location (`kind = "symlink"`) rather than resolving their targets (F-07).
   - Depends on: none
   - Expected outcome: `layout_inventory._repo_relative` behavior is unchanged, its docstring documents the non-adoption decision and both load-bearing callers in `layout_inventory.py`, and `tests/test_layout_inventory.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin parity for the three adopters and the non-adoption contract for layout_inventory
 
-- [ ] E-05 Extend `tests/test_repo_relative_posix.py` (behavioral only; no `inspect`, `ast`, or source reading): (1) in `RepoRelativePosixParityTests`, add `ipd_lifecycle._repo_relative(root, path)`, `attention._rel_posix(root, path)`, and `doctor.probe_artifacts(root)` to `test_parity_in_root_path`, `test_parity_out_of_root_path`, `test_parity_symlink_root_input`, `test_parity_in_root_symlinked_file`, and `test_parity_in_root_symlinked_file_pointing_outside`, plus a test `test_attention_item_for_path_and_relative_input_outside_cwd` verifying that `attention.item_for_path(out_of_root_path, repo_root=self.repo_root)` returns `None` without raising `ValueError` and `attention._rel_posix(self.repo_root, Path(".aw/records/plans/pending/..."))` returns the repo-relative POSIX path when `os.getcwd() != self.repo_root`; For `doctor.probe_artifacts`, inject each case's path as a `Drift.location` with `unittest.mock.patch.object(check_engine, "check_collisions", lambda *a, **k: [core.Drift(str(path), "check.x", "d")])` and read the location back from `ArtifactsProbeResult.all_drift` (or `executed_warnings`); do NOT rely on a real collision rule, because real rules emit the root-spelled path that the HEAD inline block already relativizes, so such a test cannot fail at HEAD (measured at review HEAD `6515a6d95`: a real `check.id6-collision` under both `real` and `sym` roots already renders repo-relative, while an injected real-spelled path under a symlinked root and an injected out-of-root path both stay ABSOLUTE at HEAD). (2) add a `LayoutInventoryRepoRelativeContractTests` class verifying that `layout_inventory._repo_relative(outside_path, self.repo_root)` returns `None`, that `layout_inventory.inventory(self.repo_root, [("ext", self.outside_dir)], include_paths=False)` sets `within_repo=False` on the root doc and `git_state="external"` / `repo_relpath=None` on its items, and that an in-repo symlink pointing to `self.outside_dir` is inventoried with `kind="symlink"` and its lexical in-repo `repo_relpath`.
+- [x] E-05 Extend `tests/test_repo_relative_posix.py` (behavioral only; no `inspect`, `ast`, or source reading): (1) in `RepoRelativePosixParityTests`, add `ipd_lifecycle._repo_relative(root, path)`, `attention._rel_posix(root, path)`, and `doctor.probe_artifacts(root)` to `test_parity_in_root_path`, `test_parity_out_of_root_path`, `test_parity_symlink_root_input`, `test_parity_in_root_symlinked_file`, and `test_parity_in_root_symlinked_file_pointing_outside`, plus a test `test_attention_item_for_path_and_relative_input_outside_cwd` verifying that `attention.item_for_path(out_of_root_path, repo_root=self.repo_root)` returns `None` without raising `ValueError` and `attention._rel_posix(self.repo_root, Path(".aw/records/plans/pending/..."))` returns the repo-relative POSIX path when `os.getcwd() != self.repo_root`; For `doctor.probe_artifacts`, inject each case's path as a `Drift.location` with `unittest.mock.patch.object(check_engine, "check_collisions", lambda *a, **k: [core.Drift(str(path), "check.x", "d")])` and read the location back from `ArtifactsProbeResult.all_drift` (or `executed_warnings`); do NOT rely on a real collision rule, because real rules emit the root-spelled path that the HEAD inline block already relativizes, so such a test cannot fail at HEAD (measured at review HEAD `6515a6d95`: a real `check.id6-collision` under both `real` and `sym` roots already renders repo-relative, while an injected real-spelled path under a symlinked root and an injected out-of-root path both stay ABSOLUTE at HEAD). (2) add a `LayoutInventoryRepoRelativeContractTests` class verifying that `layout_inventory._repo_relative(outside_path, self.repo_root)` returns `None`, that `layout_inventory.inventory(self.repo_root, [("ext", self.outside_dir)], include_paths=False)` sets `within_repo=False` on the root doc and `git_state="external"` / `repo_relpath=None` on its items, and that an in-repo symlink pointing to `self.outside_dir` is inventoried with `kind="symlink"` and its lexical in-repo `repo_relpath`.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: `tests/test_repo_relative_posix.py` passes; reverting `agent_workflows/ipd_lifecycle.py`, `agent_workflows/attention.py`, and `agent_workflows/doctor.py` to HEAD causes the new parity, `item_for_path`, and injected-doctor-location tests to fail (witnessing F-01..F-05).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep plan_rel an in-root identity
 
-- [ ] E-06 In `agent_workflows/ipd_lifecycle.py`, make `run_begin` and `run_finalize` refuse with `EXIT_CANNOT_RUN` (status `cannot-run`, before any gate, receipt write, lock, or transaction) when the selector-resolved `plan_path` is not inside `repo_root`, judged by round-trip: `(repo_root / _repo_relative(repo_root, plan_path)).resolve() != plan_path.resolve()` (true for an out-of-root path, false for an in-root path, an in-root symlinked file, and a symlinked `repo_root`; demonstrated at review HEAD `6515a6d95` with a one-off probe). The refusal message names the plan by its rendered (leak-free) path and says to run the verb from the checkout that owns the plan. WHY: after E-01, an out-of-root plan under a `.aw/records/...` segment renders to the SAME relative text as an unrelated in-root path (probe: an external `.../b/.aw/records/plans/pending/<name>` rendered against root `a` gives `.aw/records/plans/pending/<name>`), so `plan_rel` would silently alias a different file for `repo_root / plan_rel`, `coord.path / plan_rel`, `git checkout HEAD -- plan_rel`, and the finalize commit. `selectors.resolve` does accept an absolute out-of-root path (probe: it returned it), so the alias is reachable from the CLI. Add a behavioral test to `tests/test_repo_relative_posix.py` (class `IpdLifecycleOutOfRootPlanRefusalTests`) driving `run_begin` and `run_finalize` with an `argparse.Namespace` whose `plan` is an absolute path to a plan in a SECOND temp git repo whose name matches a plan in the first, under `support.declare_execution_role(self)` (coordinator), and asserting exit code `2` (`EXIT_CANNOT_RUN`), that the in-root same-name plan file is byte-identical afterwards, and that no receipt file exists for its id6.
+- [x] E-06 In `agent_workflows/ipd_lifecycle.py`, make `run_begin` and `run_finalize` refuse with `EXIT_CANNOT_RUN` (status `cannot-run`, before any gate, receipt write, lock, or transaction) when the selector-resolved `plan_path` is not inside `repo_root`, judged by round-trip: `(repo_root / _repo_relative(repo_root, plan_path)).resolve() != plan_path.resolve()` (true for an out-of-root path, false for an in-root path, an in-root symlinked file, and a symlinked `repo_root`; demonstrated at review HEAD `6515a6d95` with a one-off probe). The refusal message names the plan by its rendered (leak-free) path and says to run the verb from the checkout that owns the plan. WHY: after E-01, an out-of-root plan under a `.aw/records/...` segment renders to the SAME relative text as an unrelated in-root path (probe: an external `.../b/.aw/records/plans/pending/<name>` rendered against root `a` gives `.aw/records/plans/pending/<name>`), so `plan_rel` would silently alias a different file for `repo_root / plan_rel`, `coord.path / plan_rel`, `git checkout HEAD -- plan_rel`, and the finalize commit. `selectors.resolve` does accept an absolute out-of-root path (probe: it returned it), so the alias is reachable from the CLI. Add a behavioral test to `tests/test_repo_relative_posix.py` (class `IpdLifecycleOutOfRootPlanRefusalTests`) driving `run_begin` and `run_finalize` with an `argparse.Namespace` whose `plan` is an absolute path to a plan in a SECOND temp git repo whose name matches a plan in the first, under `support.declare_execution_role(self)` (coordinator), and asserting exit code `2` (`EXIT_CANNOT_RUN`), that the in-root same-name plan file is byte-identical afterwards, and that no receipt file exists for its id6.
   - Depends on: E-01
   - Expected outcome: both verbs refuse an out-of-root plan path without touching either tree; in-root invocations are unchanged (`tests/test_ipd_lifecycle_cli.py` stays green).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,35 +151,271 @@ N/A: no spec governs these private helpers' fallback behavior, and `docs/cli-out
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pasted diff of `agent_workflows/ipd_lifecycle.py` showing `_repo_relative` delegating to `repo_relative_posix` with its docstring updated, the pasted `python3 -c` observation output (produced by calling `ipd_lifecycle._repo_relative` from E-01) showing an out-of-root path returns the bare name (F-01) and an in-root symlinked file returns the link's relative path rather than the target's or an outside target's absolute path (F-02), the pasted `aw ipd begin --json` (or a direct `run_begin` call) output from a linked-worktree fixture showing `data.receipt_path` equal to `.aw/state/ipd-lifecycle/<id6>.receipt.json` (F-09), and the pasted runner output of `python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py -o addopts=""` passing with both files unmodified (`git diff --stat tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py` empty).
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/ipd_lifecycle.py`:
+    ```diff
+    @@ -54,2 +54,5 @@ from agent_workflows import contention_wait
+    -from agent_workflows.artifact_core import replacement_mode
+    +from agent_workflows.artifact_core import (
+    +    repo_relative_posix,
+    +    replacement_mode,
+    +)
+    @@ -2386,6 +2389,9 @@ def _repo_relative(repo_root: Path, path: Path) -> str:
+    -    """Return ``path`` relative to ``repo_root`` (POSIX), or the resolved absolute path if outside."""
+    -    try:
+    -        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    -    except ValueError:
+    -        return path.resolve().as_posix()
+    +    """Return ``path`` relative to ``repo_root`` (POSIX).
+    +
+    +    Delegates to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``).
+    +    The returned path is an IDENTITY key (``plan_rel`` feeds ``repo_root / plan_rel``,
+    +    ``coord.path / plan_rel``, ``git checkout HEAD -- plan_rel``, and the owned commit paths)
+    +    which is only sound for an in-root path, guaranteed by E-06's containment check.
+    +    """
+    +    return repo_relative_posix(path, repo_root)
+    ```
+    Pasted `python3 -c` observation output:
+    ```
+    F-01 out-of-root: ext.ipd.md
+    F-02 in-root symlink to in-root target: link_in.ipd.md
+    F-02 in-root symlink to outside target: link_out.ipd.md
+    ```
+    Pasted linked-worktree direct `run_begin` with json output:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "ipd begin",
+      "status": "clean",
+      "exit_code": 0,
+      "summary": "begin receipt written for f09abc at base f5d021f73b9e (actor tester).",
+      "verified": true,
+      "complete": true,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [],
+      "data": {
+        "receipt_path": ".aw/state/ipd-lifecycle/f09abc.receipt.json",
+        "plan_id": "f09abc",
+        "base_head": "f5d021f73b9ebf3626ce934cc3480edfd77ac19b",
+        "requirement_digest": "e78c46f968621238fc3fa9d6a392aad77f860ee574505e8bbd5c5408d5a2079a"
+      }
+    }
+    ```
+    Pasted runner output of `python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py -o addopts=""`:
+    ```
+    ============================= 117 passed in 30.36s =============================
+    ```
+    `git diff --stat tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py` is empty.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: The pasted diff of `agent_workflows/attention.py` showing `_rel_posix` delegating to `core.repo_relative_posix` with its docstring added, the pasted `python3 -c` observation output (produced by calling `attention._rel_posix` and `attention.item_for_path` from E-02) showing `attention.item_for_path(out_of_root_path, repo_root=root)` returns `None` without raising `ValueError` (F-03), `attention._rel_posix(root, Path(".aw/records/plans/pending/a.ipd.md"))` returns `.aw/records/plans/pending/a.ipd.md` when `os.getcwd() != root` (F-04a), and `attention._rel_posix(sym_root, link_plan)` returns the link's relative path (F-04b), plus the pasted runner output of `python3 -m pytest "tests/test_attention.py::SpecDriftLocationIsRepoRelativeTests" -o addopts=""` passing with `tests/test_attention.py` unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/attention.py`:
+    ```diff
+    @@ -382,5 +382,12 @@ def escape_markdown(text: str) -> str:
+     def _rel_posix(repo_root: Path, p: Path) -> str:
+    -    try:
+    -        return p.relative_to(repo_root).as_posix()
+    -    except ValueError:
+    -        return p.resolve().relative_to(repo_root.resolve()).as_posix()
+    +    """Return ``p`` relative to ``repo_root`` (POSIX).
+    +
+    +    Delegates to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``) so out-of-root
+    +    inputs, relative inputs when ``os.getcwd() != repo_root``, and in-root symlinked files
+    +    under a symlinked root return a leak-free string instead of raising ``ValueError``,
+    +    allowing ``attention.item_for_path`` to return ``None`` via ``_classify_tree`` on
+    +    out-of-root inputs.
+    +    """
+    +    return core.repo_relative_posix(p, repo_root)
+    ```
+    Pasted `python3 -c` observation output:
+    ```
+    F-03 item_for_path out-of-root: None
+    F-04a relative input when cwd != root: .aw/records/plans/pending/a.ipd.md
+    F-04b in-root symlink under sym_root: .aw/records/plans/pending/link.ipd.md
+    ```
+    Pasted runner output of `python3 -m pytest "tests/test_attention.py::SpecDriftLocationIsRepoRelativeTests" -o addopts=""`:
+    ```
+    ============================== 1 passed in 0.29s ===============================
+    ```
+    `git diff --stat tests/test_attention.py` is empty.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: The pasted diff of `agent_workflows/doctor.py` showing both loops in `probe_artifacts` delegating to `_normalize_rel_path` and splitting on `"/"`, the pasted `python3 -c` observation output (produced by calling `doctor.probe_artifacts` from E-03) showing that under a symlinked root (`sym_root -> real_root`) a `Drift` carrying a resolved path under `real_root`, injected with `mock.patch.object(check_engine, "check_collisions", ...)` (no shipped rule emits that spelling, so injection is the reachable route), is normalized to the repo-relative POSIX path and an injected out-of-root `Drift` location is normalized to the bare file name (F-05), and the pasted runner output of `python3 -m pytest tests/test_doctor.py tests/test_collision_population_parity.py -o addopts=""` passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/doctor.py`:
+    ```diff
+    @@ -554,9 +554,3 @@ def probe_artifacts(
+                         for d in tdrift:
+    -                        loc = d.location
+    -                        try:
+    -                            p = Path(loc)
+    -                            if p.is_absolute() and p.is_relative_to(repo_root):
+    -                                loc = str(p.relative_to(repo_root))
+    -                        except Exception:
+    -                            pass
+    +                        loc = _normalize_rel_path(d.location, repo_root)
 
-- [ ] V-04 validates E-04
+                             # Exclude untracked/ items if requested
+    -                        if not include_untracked and "untracked" in loc.split(os.sep):
+    +                        if not include_untracked and "untracked" in loc.split("/"):
+                                 continue
+
+    @@ -569,3 +563,3 @@ def probe_artifacts(
+                             # Categorize executed/ artifacts as warnings unless strict
+    -                        if not include_executed and "executed" in loc.split(os.sep):
+    +                        if not include_executed and "executed" in loc.split("/"):
+                                 res.executed_warnings.append(drift_item)
+    @@ -609,9 +603,3 @@ def probe_artifacts(
+                 for d in collisions:
+    -                loc = d.location
+    -                try:
+    -                    p = Path(loc)
+    -                    if p.is_absolute() and p.is_relative_to(repo_root):
+    -                        loc = str(p.relative_to(repo_root))
+    -                except Exception:
+    -                    pass
+    +                loc = _normalize_rel_path(d.location, repo_root)
+
+    -                if not include_untracked and "untracked" in loc.split(os.sep):
+    +                if not include_untracked and "untracked" in loc.split("/"):
+                         continue
+    @@ -625,3 +613,3 @@ def probe_artifacts(
+                         not include_executed
+    -                    and "executed" in loc.split(os.sep)
+    +                    and "executed" in loc.split("/")
+                         and d.rule not in ("check.id6-collision", "check.id6-identity-slot")
+    ```
+    Pasted `python3 -c` observation output:
+    ```
+    Injected in-root via real_root resolved path under sym_root: .aw/records/walkthroughs/bad_name.md
+    Injected out-of-root drift location: leaked.md
+    ```
+    Pasted runner output of `python3 -m pytest tests/test_doctor.py tests/test_collision_population_parity.py -o addopts=""`:
+    ```
+    ============================== 39 passed in 4.61s ==============================
+    ```
+    `git diff --stat tests/test_doctor.py tests/test_collision_population_parity.py` is empty.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The pasted diff of `agent_workflows/layout_inventory.py` showing `_repo_relative`'s updated docstring and unchanged body, the pasted `python3 -c` observation output (produced by calling `layout_inventory._repo_relative` from E-04) confirming an out-of-root path still returns `None` and an in-root path returns the repo-relative POSIX string (F-07), and the pasted runner output of `python3 -m pytest tests/test_layout_inventory.py -o addopts=""` passing unmodified.
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `agent_workflows/layout_inventory.py`:
+    ```diff
+    @@ -443,3 +443,13 @@ def _legacy_class(label: str, relpath: str) -> str:
+     def _repo_relative(path: Path, repo: Path) -> Optional[str]:
+    -    """Return a repo-relative POSIX path without resolving symlinks, or ``None``."""
+    +    """Return a repo-relative POSIX path without resolving symlinks, or ``None``.
+    +
+    +    Does NOT delegate to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``, backlog ``rd6ei9``):
+    +    (1) ``None`` is a load-bearing signal consumed by :func:`layout_inventory.inventory`
+    +    (``"within_repo": _repo_relative(root, repo) is not None`` and ``"repo_relpath": repo_rel``)
+    +    and :func:`layout_inventory._git_state` (``if rel is None: return "external"``),
+    +    whereas ``repo_relative_posix`` always returns a ``str``; and
+    +    (2) ``path.absolute()`` without ``resolve()`` is deliberate so ``os.walk(..., followlinks=False)``
+    +    inventories symlinks at their lexical in-repo location (``kind = "symlink"``) rather than
+    +    resolving their targets (F-07).
+    +    """
+    ```
+    Pasted `python3 -c` observation output:
+    ```
+    layout_inventory in-root: docs/guide.md
+    layout_inventory out-of-root: None
+    ```
+    Pasted runner output of `python3 -m pytest tests/test_layout_inventory.py -o addopts=""`:
+    ```
+    ============================== 6 passed in 0.63s ===============================
+    ```
+    `git diff --stat tests/test_layout_inventory.py` is empty.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: The pasted runner output of `python3 -m pytest tests/test_repo_relative_posix.py -o addopts=""` passing; then, with ONLY `agent_workflows/ipd_lifecycle.py`, `agent_workflows/attention.py`, and `agent_workflows/doctor.py` temporarily reverted to HEAD by copying the working files to an untracked scratch location, writing `git show HEAD:<path> > <path>` for each, running `python3 -m pytest tests/test_repo_relative_posix.py -o addopts=""`, and copying the saved files back (NOT `git stash`, because `refs/stash` is shared across worktrees), the pasted output showing the parity and `item_for_path` cases failing (proving the tests witness F-01..F-05), plus `git diff --stat` before and after the revert showing the working tree restored identically; then the pasted tail of the BARE `python3 -m pytest` run showing the `N passed` summary line with zero failures, and the `aw check all` exit status and finding count before and after the change (equal), both measured in the same execution session on the same tree.
   - Observed evidence:
-  - Result: pending
+    Pasted runner output of `python3 -m pytest tests/test_repo_relative_posix.py -o addopts=""`:
+    ```
+    ============================== 21 passed in 1.32s ==============================
+    ```
+    Pasted output of temporary revert showing 7 failures witnessing F-01..F-05:
+    ```
+    FAILED tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_begin_out_of_root_plan_refused
+    FAILED tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_finalize_out_of_root_plan_refused
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_symlink_root_input
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_in_root_symlinked_file
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_in_root_symlinked_file_pointing_outside
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_attention_item_for_path_and_relative_input_outside_cwd
+    FAILED tests/test_repo_relative_posix.py::RepoRelativePosixParityTests::test_parity_out_of_root_path
+    ========================= 7 failed, 14 passed in 1.39s =========================
+    ```
+    `git diff --stat` before and after revert restored identically:
+    ```
+     agent_workflows/attention.py        |  13 +-
+     agent_workflows/doctor.py           |  26 +---
+     agent_workflows/ipd_lifecycle.py    |  36 ++++-
+     agent_workflows/layout_inventory.py |  12 +-
+     tests/test_repo_relative_posix.py   | 256 ++++++++++++++++++++++++++++++++++++
+     5 files changed, 312 insertions(+), 31 deletions(-)
+    ```
+    Pasted tail of BARE `python3 -m pytest` run:
+    ```
+    702 passed in 25.64s
+    ```
+    `aw check all` exit status and finding count before and after the change:
+    Baseline before: exit code 1, findings 92 (errors 2, warnings 1, info 89).
+    Post-change after: exit code 1, findings 91 (errors 2, warnings 1, info 88).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: The pasted diff of `run_begin`/`run_finalize` showing the containment refusal placed before any gate, receipt, lock or transaction; the pasted `python3 -m pytest tests/test_repo_relative_posix.py -k OutOfRootPlanRefusal -o addopts="" -v` output showing the refusal test PASSED (exit 2, in-root same-name plan byte-identical, no receipt); and the pasted output of the same test FAILING with the guard temporarily removed (scratch edit, reverted, with `git diff --stat agent_workflows/ipd_lifecycle.py` before and after showing the restore).
   - Observed evidence:
-  - Result: pending
+    Pasted diff of `run_begin`/`run_finalize` showing containment refusal before any gate, receipt, lock, or transaction:
+    ```diff
+    @@ -6034,2 +6037,9 @@ def run_begin(args) -> int:
+         plan_path = resolution.paths[0]
+    +    plan_rel = _repo_relative(repo_root, plan_path)
+    +    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+    +        return _emit(
+    +            EXIT_CANNOT_RUN,
+    +            "cannot-run",
+    +            f"plan {plan_rel!r} is not inside repo root; run the verb from the checkout that owns the plan.",
+    +        )
+    @@ -6218,2 +6228,9 @@ def run_finalize(args) -> int:
+         plan_path = resolution.paths[0]
+    +    plan_rel = _repo_relative(repo_root, plan_path)
+    +    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+    +        return _emit(
+    +            EXIT_CANNOT_RUN,
+    +            "cannot-run",
+    +            f"plan {plan_rel!r} is not inside repo root; run the verb from the checkout that owns the plan.",
+    +        )
+    ```
+    Pasted `python3 -m pytest tests/test_repo_relative_posix.py -k OutOfRootPlanRefusal -o addopts="" -v`:
+    ```
+    tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_begin_out_of_root_plan_refused PASSED [ 50%]
+    tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_finalize_out_of_root_plan_refused PASSED [100%]
+
+    NOTE: 19 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 2 passed, 19 deselected in 0.56s =======================
+    ```
+    Pasted output of same test FAILING with guard temporarily removed:
+    ```
+    FAILED tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_begin_out_of_root_plan_refused
+    FAILED tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests::test_run_finalize_out_of_root_plan_refused
+    ======================= 2 failed, 19 deselected in 0.75s =======================
+    ```
+    `git diff --stat agent_workflows/ipd_lifecycle.py` before and after showing restore:
+    ```
+     agent_workflows/ipd_lifecycle.py | 36 +++++++++++++++++++++++++++++-------
+     1 file changed, 29 insertions(+), 7 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

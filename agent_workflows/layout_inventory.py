@@ -441,7 +441,17 @@ def _legacy_class(label: str, relpath: str) -> str:
 
 
 def _repo_relative(path: Path, repo: Path) -> Optional[str]:
-    """Return a repo-relative POSIX path without resolving symlinks, or ``None``."""
+    """Return a repo-relative POSIX path without resolving symlinks, or ``None``.
+
+    Does NOT delegate to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``, backlog ``rd6ei9``):
+    (1) ``None`` is a load-bearing signal consumed by :func:`layout_inventory.inventory`
+    (``"within_repo": _repo_relative(root, repo) is not None`` and ``"repo_relpath": repo_rel``)
+    and :func:`layout_inventory._git_state` (``if rel is None: return "external"``),
+    whereas ``repo_relative_posix`` always returns a ``str``; and
+    (2) ``path.absolute()`` without ``resolve()`` is deliberate so ``os.walk(..., followlinks=False)``
+    inventories symlinks at their lexical in-repo location (``kind = "symlink"``) rather than
+    resolving their targets (F-07).
+    """
 
     try:
         return path.absolute().relative_to(repo.absolute()).as_posix()

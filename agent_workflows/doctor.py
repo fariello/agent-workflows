@@ -6,7 +6,6 @@ structured, actionable report. Composes existing checks; reimplements none; writ
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -552,21 +551,15 @@ def probe_artifacts(
                 )
                 if tdrift:
                     for d in tdrift:
-                        loc = d.location
-                        try:
-                            p = Path(loc)
-                            if p.is_absolute() and p.is_relative_to(repo_root):
-                                loc = str(p.relative_to(repo_root))
-                        except Exception:
-                            pass
+                        loc = _normalize_rel_path(d.location, repo_root)
 
                         # Exclude untracked/ items if requested
-                        if not include_untracked and "untracked" in loc.split(os.sep):
+                        if not include_untracked and "untracked" in loc.split("/"):
                             continue
 
                         drift_item = core.Drift(loc, d.rule, d.detail)
                         # Categorize executed/ artifacts as warnings unless strict
-                        if not include_executed and "executed" in loc.split(os.sep):
+                        if not include_executed and "executed" in loc.split("/"):
                             res.executed_warnings.append(drift_item)
                         else:
                             res.type_drift.setdefault(t, []).append(drift_item)
@@ -607,22 +600,16 @@ def probe_artifacts(
             pass
         if collisions:
             for d in collisions:
-                loc = d.location
-                try:
-                    p = Path(loc)
-                    if p.is_absolute() and p.is_relative_to(repo_root):
-                        loc = str(p.relative_to(repo_root))
-                except Exception:
-                    pass
+                loc = _normalize_rel_path(d.location, repo_root)
 
-                if not include_untracked and "untracked" in loc.split(os.sep):
+                if not include_untracked and "untracked" in loc.split("/"):
                     continue
 
                 drift_item = core.Drift(loc, d.rule, d.detail)
                 # Identity collisions are never demoted into executed_warnings (collpop t0jyb2)
                 if (
                     not include_executed
-                    and "executed" in loc.split(os.sep)
+                    and "executed" in loc.split("/")
                     and d.rule not in ("check.id6-collision", "check.id6-identity-slot")
                 ):
                     res.executed_warnings.append(drift_item)
