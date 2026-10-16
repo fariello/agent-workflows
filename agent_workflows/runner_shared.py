@@ -30399,8 +30399,8 @@ def driver_begin(
         # lanetruth Order 01 (af7i6p) + Order 02 (z2isfg): the pinned env is the BASE and the
         # baseline declaration is layered on top, so the turn measures the tree it will really
         # execute in WITHOUT unpinning the tooling. The pin's arrival at the child is asserted
-        # BEHAVIORALLY by `tests/test_lane_tool_identity.py` (deleted in `19313eed`; no live guard
-        # currently asserts this; it read the env this builds and checked the pin's markers), which
+        # BEHAVIORALLY by `tests/test_driver_begin_child_env.py` (live behavioral guard, restored by
+        # o0gy5v; it reads the env this builds and checks the pin's markers), which
         # was strictly stronger than the source-text search that guard used before this symbol was
         # shared -- that search was measurably satisfiable by a COMMENT, and on oc a comment is what
         # satisfied it.
