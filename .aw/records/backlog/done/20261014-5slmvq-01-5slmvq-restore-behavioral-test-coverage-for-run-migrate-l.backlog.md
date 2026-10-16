@@ -1,5 +1,5 @@
 - Id: 5slmvq
-- Status: graduated
+- Status: done
 - Graduated-To: 5slmvq
 - Set: 5slmvq
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for _run_migrate_layout
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 1ue3kr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-5slmvq-01-1ue3kr-restore-behavioral-test-coverage-for-run-migrate-layout.ipd.md); evidence .aw/records/plans/executed/20261016-5slmvq-01-1ue3kr-restore-behavioral-test-coverage-for-run-migrate-layout.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: 1ue3kr
 - 2026-10-15 created (aw backlog): Restore behavioral test coverage for _run_migrate_layout
 
