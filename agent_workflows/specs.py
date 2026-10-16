@@ -1287,3 +1287,27 @@ def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:
     candidate = (repo_root / evidence).resolve()
     norm = str(candidate).replace("\\", "/")
     return ".agents/plans/executed" in norm or ".aw/records/plans/executed" in norm
+
+
+def _deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]:
+    """The refusal MESSAGE for a `->implemented` transition if spec still declares [Deferred] IDs, or None.
+
+    Governed by spec 89xjll Section 6.5, R-8, R-9, and AC-10 (IPD uiej2a).
+    """
+    from agent_workflows import production_checks as _pc
+
+    m = _SPEC_ID_BULLET_RE.search(text or "")
+    spec_id = m.group(1) if m else spec_path.name
+    try:
+        markers = _pc.parse_spec_id_markers(text or "")
+    except Exception:
+        markers = {}
+    deferred = sorted(k for k, v in markers.items() if v == "Deferred")
+    if not deferred:
+        return None
+    deferred_str = ", ".join(deferred)
+    return (
+        f"cannot transition spec {spec_id} to implemented: declared requirement or acceptance "
+        f"item(s) remain marked [Deferred]: {deferred_str} (spec 89xjll Section 6.5 / R-9 / AC-10).\n"
+        f"  remedy: remove each [Deferred] marker and plan the ID, or delete the requirement from the spec."
+    )

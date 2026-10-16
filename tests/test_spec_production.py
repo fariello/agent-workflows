@@ -1786,3 +1786,215 @@ class TestActionPlanEnforcementE07(unittest.TestCase):
                     self.assertIn("pln301", msg)
                     self.assertIn("--action plan <selector>", msg)
                     self.assertNotIn("Review is the next legal action", msg)
+
+
+class TestSpecProductionDeferredAndTracePrompt(unittest.TestCase):
+    """Behavioral tests for qualified citation prompt and spec-plan-trace-deferred event (89xjll R-5, R-6, R-7 / AC-9)."""
+
+    def test_approved_spec_production_prompt_qualified_citation(self):
+        """build_spec_production_prompt for approved post-cutover spec includes item 8 with qualified citation instruction and uncited IDs."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = _make_test_repo(Path(td))
+            spec_path = _write_spec(
+                repo,
+                id6="spcdef",
+                status="approved",
+                filename_date="20261001",
+                spec_date="2026-10-01",
+                requirements=[
+                    "R-1 Mandatory requirement one.",
+                    "R-2 [Should] Should requirement two.",
+                    "R-3 [Deferred] Deferred requirement three.",
+                ],
+                acceptance=[
+                    "AC-1 Mandatory acceptance one.",
+                    "AC-2 [Deferred] Deferred acceptance two.",
+                    "AC-3 [Should] Should acceptance three.",
+                ],
+            )
+            item = {"id6": "spcdef", "initial_status": "approved"}
+            prompt = runner_shared.build_spec_production_prompt(
+                item, {}, repo / "run", spec_path, repo
+            )
+            self.assertIn("## Production Contract", prompt)
+            self.assertIn(
+                "8. Mandatory uncited requirement and acceptance items awaiting coverage:",
+                prompt,
+            )
+            self.assertIn("AC-1", prompt)
+            self.assertIn("R-1", prompt)
+            self.assertIn("per spec 89xjll 6.2b.", prompt)
+            self.assertIn("spcdef R-2", prompt)
+
+    def test_spec_production_with_deferred_ids_emits_partial_pass_event_both_hosts(
+        self,
+    ):
+        """Spec production on an approved post-cutover spec with [Deferred] IDs on BOTH hosts
+        emits spec-plan-trace-deferred event in events.jsonl with partial=True and deferred_ids."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spcdef",
+                        status="approved",
+                        filename_date="20261001",
+                        spec_date="2026-10-01",
+                        requirements=[
+                            "R-1 Mandatory requirement one.",
+                            "R-2 [Should] Should requirement two.",
+                            "R-3 [Deferred] Deferred requirement three.",
+                        ],
+                        acceptance=[
+                            "AC-1 Mandatory acceptance one.",
+                            "AC-2 [Deferred] Deferred acceptance two.",
+                            "AC-3 [Should] Should acceptance three.",
+                        ],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add fixture spec"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-deferred"
+                    cmd = [
+                        "start",
+                        "spcdef",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plndef",
+                            spec_id6="spcdef",
+                            filename_date="20261001",
+                            e_items=["Implements `spcdef` R-1 and `spcdef` R-3"],
+                            v_items=["Validates `spcdef` AC-1 and `spcdef` AC-3"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "executed")
+
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    deferred_events = [
+                        e
+                        for e in events
+                        if e.get("event") == "spec-plan-trace-deferred"
+                    ]
+                    self.assertEqual(len(deferred_events), 1)
+                    dev = deferred_events[0]
+                    self.assertEqual(dev["id6"], "spcdef")
+                    self.assertTrue(dev["partial"])
+                    self.assertEqual(dev["deferred_ids"], ["AC-2", "R-3"])
+
+    def test_spec_production_without_deferred_ids_emits_no_deferred_event(self):
+        """A passing production on a spec declaring no [Deferred] IDs writes zero spec-plan-trace-deferred records."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(
+                        repo,
+                        id6="spcnod",
+                        status="approved",
+                        filename_date="20261001",
+                        spec_date="2026-10-01",
+                        requirements=["R-1 Mandatory requirement one."],
+                        acceptance=["AC-1 Mandatory acceptance one."],
+                    )
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add fixture spec"],
+                        cwd=repo,
+                        check=True,
+                    )
+
+                    run_id = f"run-{host_label}-nodef"
+                    cmd = [
+                        "start",
+                        "spcnod",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target,
+                            id6="plnnod",
+                            spec_id6="spcnod",
+                            filename_date="20261001",
+                            e_items=["Implements `spcnod` R-1"],
+                            v_items=["Validates `spcnod` AC-1"],
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    events = [
+                        json.loads(line)
+                        for line in (run_dir / "events.jsonl")
+                        .read_text(encoding="utf-8")
+                        .splitlines()
+                        if line.strip()
+                    ]
+                    deferred_events = [
+                        e
+                        for e in events
+                        if e.get("event") == "spec-plan-trace-deferred"
+                    ]
+                    self.assertEqual(len(deferred_events), 0)

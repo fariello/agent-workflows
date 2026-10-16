@@ -1,7 +1,8 @@
 # Spec: Spec Requirement ID Convention and the SPEC-PLAN-TRACE Contract
 
 - Date: 2026-10-01
-- Status: approved
+- Status: implemented
+- Graduated-To: reqids
 - Id: 89xjll
 - Author: opencode / antigravity (IPD jjh4aj)
 - From-Backlog: vy20et
@@ -9,6 +10,8 @@
 - Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope pooled over linked plans, qualified-citation grammar, severity, grandfathering behavior, `[Deferred]` marker and its `implemented` gate, and citation-not-implementation limit).
 
 ## Workflow history
+- 2026-10-16 implemented (aw specs): Implemented by IPDs rtvdak, 2hgxi1, and uiej2a: requirement-ID parser, SPEC-PLAN-TRACE verifier, partial-pass deferred event, qualified-citation prompt/review guidance, and Deferred-ID implemented gate
+- 2026-10-16 implementing (aw specs): IPDs jjh4aj, rtvdak, and uiej2a in Set reqids implement spec 89xjll
 
 - 2026-10-13 note (aw specs): amended Sections 2, 3.3 and 6.1 for implementing spec re-plan turn (plan 2hgxi1)
 - 2026-10-09 approved (aw set, --by-human): status set to approved
