@@ -976,6 +976,90 @@ class TestUnifiedStatuslineLayout:
         assert rs._strip_ansi(c_ascii) == p_ascii
         assert all(ord(c) < 128 for c in p_ascii)
 
+    def test_format_model_name(self) -> None:
+        assert (
+            rs.format_model_name("uri/its_direct/pt3-claude-opus-5.5-1m-us")
+            == "claude-opus-5.5-1m-us"
+        )
+        assert (
+            rs.format_model_name("its_direct/pt3-claude-opus-5.5-1m-us")
+            == "claude-opus-5.5-1m-us"
+        )
+        assert (
+            rs.format_model_name("uri/its_direct/pt3-claude-3-7-sonnet")
+            == "claude-3-7-sonnet"
+        )
+        assert rs.format_model_name("uri/its_direct/pt2-kimi-k2.5-us") == "kimi-k2.5-us"
+        assert (
+            rs.format_model_name("anthropic/claude-3-7-sonnet") == "claude-3-7-sonnet"
+        )
+        assert rs.format_model_name("google/gemini-2.5-pro") == "gemini-2.5-pro"
+        assert rs.format_model_name("openai/gpt-4o") == "gpt-4o"
+        assert rs.format_model_name("azure/gpt-4o") == "gpt-4o"
+        assert (
+            rs.format_model_name("bedrock/anthropic.claude-3-5-sonnet")
+            == "anthropic.claude-3-5-sonnet"
+        )
+        assert rs.format_model_name("Gemini 4 Argon") == "Gemini 4 Argon"
+        assert rs.format_model_name("gemini-2.5-pro") == "gemini-2.5-pro"
+        assert rs.format_model_name("") == ""
+        assert rs.format_model_name(None) == ""
+
+    def test_opencode_uri_badge_formatting_and_colors(self) -> None:
+        c_badge, p_badge = rs.make_badge(
+            "oc", "uri/its_direct/pt3-claude-opus-5.5-1m-us"
+        )
+        assert p_badge == " opencode › claude-opus-5.5-1m-us "
+        assert rs._strip_ansi(c_badge) == p_badge
+        assert "\033[1;38;5;51mopencode" in c_badge
+        assert "\033[1;38;5;215mclaude-opus-5.5-1m-us" in c_badge
+
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 5.0,
+            current_idx=1,
+            total_items=1,
+            setid="cleantgt",
+            id6="3m8aix",
+            runner="opencode",
+            model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
+            pal=rs.Palette(True),
+        )
+        assert len(lines) == 4
+        # Shows normalized model name instead of truncated provider URI
+        assert "opencode › claude-opus-5.5-1m-us" in rs._strip_ansi(lines[0])
+        # Retains ANSI colors
+        assert "\033[1;38;5;51mopencode" in lines[0]
+        assert "\033[1;38;5;215mclaude-opus-5.5-1m-us" in lines[0]
+        # Rectangular width integrity
+        widths = [_T.visible_width(line) for line in lines]
+        assert len(set(widths)) == 1
+
+    def test_statusline_top_border_badge_truncation_preserves_color(self) -> None:
+        # Excessively long model forces top border badge truncation
+        long_model = "very-long-custom-model-opus-5.5-extreme-context-window-2026"
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 100.0,
+            item_start_ts=1700000000.0 - 50.0,
+            last_act_ts=1700000000.0 - 5.0,
+            current_idx=1,
+            total_items=1,
+            setid="cleantgt",
+            id6="3m8aix",
+            runner="opencode",
+            model=long_model,
+            pal=rs.Palette(True),
+        )
+        assert len(lines) == 4
+        # Truncation must not strip ANSI styling to plain monochrome text
+        assert "\033[1;38;5;51mopencode" in lines[0]
+        assert "\033[1;38;5;215m" in lines[0]
+        widths = [_T.visible_width(line) for line in lines]
+        assert len(set(widths)) == 1
+
     def test_statusbar_labels_and_alternative_a(self) -> None:
         tracker = rs.StreamTracker()
         tracker.update(inp=119000, out=110700, cache=4500000, cost=6.16)

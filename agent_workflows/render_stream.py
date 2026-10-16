@@ -1347,6 +1347,35 @@ def format_runner_name(runner: str) -> str:
     return r
 
 
+def format_model_name(model: str | None) -> str:
+    """Format model name for statusline display according to conventions:
+    - Strip endpoint / provider prefixes (e.g. 'uri/its_direct/', 'its_direct/', 'anthropic/', 'google/', etc.)
+    - Strip gateway routing prefixes like 'pt3-', 'pt2-', 'pt1-'
+    """
+    if not model:
+        return ""
+    m = model.strip()
+    while True:
+        matched = False
+        for pfx in (
+            "uri/",
+            "its_direct/",
+            "anthropic/",
+            "google/",
+            "openai/",
+            "azure/",
+            "bedrock/",
+            "openrouter/",
+        ):
+            if m.startswith(pfx):
+                m = m[len(pfx) :]
+                matched = True
+                break
+        if not matched:
+            break
+    return re.sub(r"^pt\d+-", "", m)
+
+
 def _effective_color_depth(
     color: bool, *, pal: Palette | None = None, depth: str | None = None
 ) -> str:
@@ -1407,6 +1436,7 @@ def make_badge(
     styled = tier != _T.DEPTH_NONE
 
     r_name = format_runner_name(runner)
+    m_name = format_model_name(model)
     if use_unicode:
         div_map = {
             "dot": " · ",
@@ -1426,7 +1456,7 @@ def make_badge(
     p_div = div_map.get(divider_style, div_map["chevron"])
 
     v_str = f" ({variant})" if variant else ""
-    plain = f" {r_name}{p_div}{model}{v_str} "
+    plain = f" {r_name}{p_div}{m_name}{v_str} "
     if not styled:
         return plain, plain
 
@@ -1436,7 +1466,7 @@ def make_badge(
     c_bdr = _sgr256(67, depth=tier)
 
     c_v_str = f" {c_variant}({variant}){c_bdr}" if variant else ""
-    colored = f" {c_runner}{r_name}{c_bdr}{p_div}{c_model}{model}{c_bdr}{c_v_str} "
+    colored = f" {c_runner}{r_name}{c_bdr}{p_div}{c_model}{m_name}{c_bdr}{c_v_str} "
     return colored, plain
 
 
@@ -1825,7 +1855,7 @@ def format_statusline_lines(
         b_vis = _T.visible_width(plain_badge)
         if b_vis > span01 - 2:
             plain_badge = _T.truncate_visible(plain_badge, span01 - 2)
-            colored_badge = plain_badge
+            colored_badge = _T.truncate_visible(colored_badge, span01 - 2)
             b_vis = _T.visible_width(plain_badge)
         rem_top01 = max(0, span01 - 1 - b_vis)
         top_seg01_plain = f"{c_h}{plain_badge}{c_h * rem_top01}"
