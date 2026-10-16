@@ -6,7 +6,8 @@
 - Scope: Orchestration only: sequence the three children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-rbswitch-00-vg7zw3-stop-a-records-backend-change-from-orphaning-the-existing-re.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a9685d7b1970dfd323440ae8659ff39dd4ca7ea358c46f0de3a2e6d3de0a8feb
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +22,7 @@
 - Id: vg7zw3
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint a9685d7b1970, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 draft (opencode): created.
@@ -77,7 +79,7 @@ Orders run strictly in sequence, and each also waits on the `cfgreloc` child who
 
 ## Deferred / out of scope (with reason)
 
-- Companion records backends (a second git repository is involved); they keep refusing.
+- Moving records to or from a companion records backend (a second git repository is involved); such a switch keeps refusing whenever the current records root holds records (`s07f73` E-02 `reason="companion"`), and proceeds as a plain policy update only when there is nothing to orphan.
   - Carrier: n9vd2h
 - Config placement switches, which already move records as part of a full relocation.
   - Carrier: c54a4z
