@@ -6,7 +6,7 @@
 - Scope: Add sink-based per-type `CommandResult` collection and `aggregate_index_results` in `agent_workflows/artifact_core.py`, wire `agent_workflows.cli._run_noun_verb` to emit one aggregate `CommandResult` (`command="index"`, `target="all"`) once after the per-type loop when `not emit_human and verb == "index" and len(types) > 1`, add subprocess behavior tests in `tests/test_index_check_agent_records.py` and `tests/test_index_write_agent_records.py`, and record the fix in `CHANGELOG.md`.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/cli.py, tests/test_index_check_agent_records.py, tests/test_index_write_agent_records.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: hu2wka
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: Antigravity
 - Id: 7i4zba
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7i4zba verified (set indexallexit, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
