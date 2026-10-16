@@ -6,7 +6,7 @@
 - Scope: Pass `--no-renames` to the `git diff` in `check_lane_hook_bypass` so deleted rename sources are removed in the disposable worktree regardless of user or repo `diff.renames` config; add an outcome test that reproduces the refusal for a rename inside `executed/` under the REAL gate hook with rename detection forced ON (repo-local `git config diff.renames true`) and asserts it passes after the fix; give `leak_sanitizer._staged_files` (`--diff-filter=ACM`, which drops a renamed file from the staged leak scan under rename detection) the same `--no-renames` fix with its own test; audit the remaining `--diff-filter` calls in `agent_workflows/`. Does NOT change the hook, the gate, or the local `.git/config` (removing the workaround is the maintainer's choice, see OQ-01).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_lane_rule_break_detection.py, agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Blocks-Release: next
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: aw agy run model=Gemini-3.8-Flash-High (fleshed by opencode its_direct/pt3-claude-opus-5.5-1m-us)
 - Id: bbxvpq
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bbxvpq verified (set prop-j7dsci, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004
 - 2026-10-16 to-review (aw set): fleshed from the j7dsci agent proposal; defect reproduced 2026-10-16 (git 2.43.0); reclassified bug/medium gating next release
@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: reproduce, fix, audit
 
-- [ ] E-01 Add a test to `tests/test_lane_rule_break_detection.py` beside `test_hook_bypass_staged_gate_move_into_executed`. Fixture: `_setup_repo(pre_commit_cfg=<new config>)` where the new module-level config runs the REAL gate (`entry: "{_PY_ENTRY}" -m agent_workflows ipd-executed-gate`, `pass_filenames: false`, `always_run: true`), with `PYTHONPATH` set to this repository root via `mock.patch.dict(os.environ, ...)` (`check_lane_hook_bypass` passes `dict(os.environ)` to the hook, and the disposable worktree's cwd is the temp repo, so `-m agent_workflows` does not otherwise resolve to the code under test). Run `git config diff.renames true` in the temp repo (the disposable worktree shares that config, so the user's global and this checkout's `.git/config` cannot mask the defect). Base commit: the plan already in `executed/` with `- Status: executed` and its `- Id:`; head commit: `git mv` of that file to a new filename inside `executed/` (same content, same `- Id:`), committed with `--no-verify`. Assert `check_lane_hook_bypass(repo, base, head)` returns `passed is True`. Run it at the pre-fix HEAD and confirm it FAILS with the gate's `raw plan->executed transition (moved into executed/)` refusal.
+- [x] E-01 Add a test to `tests/test_lane_rule_break_detection.py` beside `test_hook_bypass_staged_gate_move_into_executed`. Fixture: `_setup_repo(pre_commit_cfg=<new config>)` where the new module-level config runs the REAL gate (`entry: "{_PY_ENTRY}" -m agent_workflows ipd-executed-gate`, `pass_filenames: false`, `always_run: true`), with `PYTHONPATH` set to this repository root via `mock.patch.dict(os.environ, ...)` (`check_lane_hook_bypass` passes `dict(os.environ)` to the hook, and the disposable worktree's cwd is the temp repo, so `-m agent_workflows` does not otherwise resolve to the code under test). Run `git config diff.renames true` in the temp repo (the disposable worktree shares that config, so the user's global and this checkout's `.git/config` cannot mask the defect). Base commit: the plan already in `executed/` with `- Status: executed` and its `- Id:`; head commit: `git mv` of that file to a new filename inside `executed/` (same content, same `- Id:`), committed with `--no-verify`. Assert `check_lane_hook_bypass(repo, base, head)` returns `passed is True`. Run it at the pre-fix HEAD and confirm it FAILS with the gate's `raw plan->executed transition (moved into executed/)` refusal.
   - Depends on: none
   - Expected outcome: a new test that fails before E-02 with the real gate's refusal and passes after (review probe 2026-10-16 reproduced exactly this: pre-fix staged `A executed/<new>`, gate exit 1; with `--no-renames`, staged `R100`, gate exit 0).
-  - Execution state: pending
-- [ ] E-02 In `runner_shared.check_lane_hook_bypass`, change the deletion probe to `["git", "diff", "--no-renames", "--name-only", "--diff-filter=D", base, head]`.
+  - Execution state: performed
+- [x] E-02 In `runner_shared.check_lane_hook_bypass`, change the deletion probe to `["git", "diff", "--no-renames", "--name-only", "--diff-filter=D", base, head]`.
   - Depends on: E-01
   - Expected outcome: E-01 passes; the existing `test_hook_bypass_staged_gate_move_into_executed` (a `--no-verify` raw move under the fake staged gate) still returns `passed is False`.
-  - Execution state: pending
-- [ ] E-03 In `leak_sanitizer._staged_files`, add `--no-renames` to the `git diff --cached --name-only --diff-filter=ACM` argv, and add a test to `tests/test_leak_sanitizer.py` that, in a temp repo with `git config diff.renames true`, commits a clean multi-line file, `git mv`s it, appends a planted home-path leak (built by concatenation as the existing staged tests do), stages it, and asserts `run(repo, staged=True)` reports the leak at the NEW path. Confirm the test fails before the one-flag change.
+  - Execution state: performed
+- [x] E-03 In `leak_sanitizer._staged_files`, add `--no-renames` to the `git diff --cached --name-only --diff-filter=ACM` argv, and add a test to `tests/test_leak_sanitizer.py` that, in a temp repo with `git config diff.renames true`, commits a clean multi-line file, `git mv`s it, appends a planted home-path leak (built by concatenation as the existing staged tests do), stages it, and asserts `run(repo, staged=True)` reports the leak at the NEW path. Confirm the test fails before the one-flag change.
   - Depends on: none
   - Expected outcome: the renamed-and-modified file is scanned in staged mode under rename detection (review probe 2026-10-16: with `diff.renames=true` the ACM probe printed nothing for a renamed file; with `--no-renames` it printed `b.txt`).
-  - Execution state: pending
-- [ ] E-04 Audit every remaining `--diff-filter` use in `agent_workflows/` (`git grep -n -e "--diff-filter" -- agent_workflows`, re-derived at execution) and record each call site and decision in a table in V-04; a call needs `--no-renames` only if it selects added or deleted paths. Add a CHANGELOG line under `## 2.0.0 (pending)` covering E-02 and E-03.
+  - Execution state: performed
+- [x] E-04 Audit every remaining `--diff-filter` use in `agent_workflows/` (`git grep -n -e "--diff-filter" -- agent_workflows`, re-derived at execution) and record each call site and decision in a table in V-04; a call needs `--no-renames` only if it selects added or deleted paths. Add a CHANGELOG line under `## 2.0.0 (pending)` covering E-02 and E-03.
   - Depends on: E-02, E-03
   - Expected outcome: audit table covering every match; no rename-blind add/delete probe remains; CHANGELOG line with no em/en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -106,22 +106,178 @@ N/A: no spec describes the disposable-worktree deletion probe; CHANGELOG line on
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the new test's fixture config line naming `ipd-executed-gate` quoted, and pasted pytest output of the new test FAILING at the pre-fix HEAD with the gate's `moved into executed/` refusal text.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Fixture config line in `tests/test_lane_rule_break_detection.py`:
+    ```python
+    _REAL_GATE_PRE_COMMIT_CONFIG = f"""repos:
+    - repo: local
+      hooks:
+      - id: ipd-executed-gate
+        name: ipd executed transition gate
+        entry: '"{_PY_ENTRY}" -m agent_workflows ipd-executed-gate'
+        language: system
+        pass_filenames: false
+        always_run: true
+    """
+    ```
+    Pasted pytest failure output at pre-fix HEAD:
+    ```
+    =================================== FAILURES ===================================
+    _ LaneRuleBreakDetectionTests.test_hook_bypass_rename_inside_executed_passes_under_real_gate _
+
+    self = <tests.test_lane_rule_break_detection.LaneRuleBreakDetectionTests testMethod=test_hook_bypass_rename_inside_executed_passes_under_real_gate>
+
+        def test_hook_bypass_rename_inside_executed_passes_under_real_gate(self):
+    ...
+            with mock.patch.dict(os.environ, {"PYTHONPATH": str(support.REPO_ROOT)}):
+                passed, msg = runner_shared.check_lane_hook_bypass(repo, base, head)
+    >       self.assertTrue(
+                passed, f"expected check_lane_hook_bypass to pass, but got: {msg}"
+            )
+    E       AssertionError: False is not true : expected check_lane_hook_bypass to pass, but got: ipd executed transition gate.............................................Failed
+    E       - hook id: ipd-executed-gate
+    E       - exit code: 1
+    E
+    E       aw ipd executed-transition gate REFUSED this commit (local prevention; the raw plan->executed path bypasses the finalize gates):
+    E         - .aw/records/plans/executed/20260901-demo-01-det001-demo.ipd.md (det001): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run `aw ipd finalize det001 --actor <agent/model> --message <summary> --apply` (which runs the receipt/scope/attribution gates and makes the lifecycle commit).
+    E       (This is a LOCAL best-effort hook; `--no-verify` bypasses it and the local `aw check`/`aw doctor` proclint detector is the backstop.)
+
+    tests/test_lane_rule_break_detection.py:821: AssertionError
+    ----------------------------- Captured stdout call -----------------------------
+    [master e1c71b7] add pre-commit config
+     1 file changed, 9 insertions(+)
+     create mode 100644 .pre-commit-config.yaml
+    [master 0c76991] base executed plan
+     1 file changed, 1 insertion(+), 1 deletion(-)
+     rename .aw/records/plans/{pending => executed}/20260828-demo-01-det001-demo.ipd.md (98%)
+    [master 1ee5a7b] rename within executed
+     1 file changed, 0 insertions(+), 0 deletions(-)
+     rename .aw/records/plans/executed/{20260828-demo-01-det001-demo.ipd.md => 20260901-demo-01-det001-demo.ipd.md} (100%)
+    NOTE: 9 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_hook_bypass_rename_inside_executed_passes_under_real_gate
+    ======================= 1 failed, 9 deselected in 1.97s ========================
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the changed `git diff` argv quoted from `check_lane_hook_bypass`, and pasted `python3 -m pytest tests/test_lane_rule_break_detection.py -o addopts=""` showing the new test and `test_hook_bypass_staged_gate_move_into_executed` both passing.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Changed `git diff` probe argv in `agent_workflows/runner_shared.py` (`check_lane_hook_bypass`):
+    ```python
+            ["git", "diff", "--no-renames", "--name-only", "--diff-filter=D", base, head]
+    ```
+    Pasted `python3 -m pytest tests/test_lane_rule_break_detection.py -o addopts=""` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4257740200
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/bbxvpq
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 10 items                                                            collected 10 items
+
+    tests/test_lane_rule_break_detection.py ..........                       [100%]
+
+    ============================= 10 passed in 37.66s ==============================
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the changed `_staged_files` argv quoted, pasted output of the new leak-sanitizer test failing before the flag change and passing after, and pasted `python3 -m pytest tests/test_leak_sanitizer.py -o addopts=""` summary.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Changed `_staged_files` argv in `agent_workflows/leak_sanitizer.py`:
+    ```python
+        out = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "diff",
+                "--no-renames",
+                "--cached",
+                "--name-only",
+                "--diff-filter=ACM",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    ```
+    Pasted output of new test failing before flag change:
+    ```
+    =================================== FAILURES ===================================
+    _ BinaryAndStagedScanTests.test_staged_scan_renamed_and_modified_file_under_rename_detection _
+
+    self = <tests.test_leak_sanitizer.BinaryAndStagedScanTests testMethod=test_staged_scan_renamed_and_modified_file_under_rename_detection>
+
+        def test_staged_scan_renamed_and_modified_file_under_rename_detection(self):
+    ...
+            fails, _warns = ls.run(repo, staged=True)
+            leaks_at_new_path = [
+                f
+                for f in fails
+                if f.rule == "home-path" and f.location.startswith("leaky_new.txt:")
+            ]
+    >       self.assertTrue(
+                leaks_at_new_path,
+                f"expected home-path leak at leaky_new.txt, got findings: {fails}",
+            )
+    E       AssertionError: [] is not true : expected home-path leak at leaky_new.txt, got findings: []
+
+    tests/test_leak_sanitizer.py:851: AssertionError
+    NOTE: 16 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    =========================== short test summary info ============================
+    FAILED tests/test_leak_sanitizer.py::BinaryAndStagedScanTests::test_staged_scan_renamed_and_modified_file_under_rename_detection
+    ======================= 1 failed, 16 deselected in 0.36s =======================
+    ```
+    Pasted output of new test passing after flag change:
+    ```
+    tests/test_leak_sanitizer.py .                                           [100%]
+
+    NOTE: 16 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ======================= 1 passed, 16 deselected in 0.32s =======================
+    ```
+    Pasted `python3 -m pytest tests/test_leak_sanitizer.py -o addopts=""` summary:
+    ```
+    tests/test_leak_sanitizer.py .................                           [100%]
+
+    ============================== 17 passed in 3.72s ==============================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `git grep -n -e "--diff-filter" -- agent_workflows` output with a decision row per match, the CHANGELOG line quoted, and the bare `python3 -m pytest` summary line.
   - Observed evidence:
-  - Result: pending
+    Pasted `git grep -n -e "--diff-filter" -- agent_workflows`:
+    ```
+    agent_workflows/leak_sanitizer.py:719:            "--diff-filter=ACM",
+    agent_workflows/runner_shared.py:658:    Read via `git diff --name-only --diff-filter=U`, which reports exactly the conflicted entries and
+    agent_workflows/runner_shared.py:664:    _rc, out, _err = _run_git(repo, ["diff", "--name-only", "--diff-filter=U"])
+    agent_workflows/runner_shared.py:676:    * a CONTENT CONFLICT starts the merge, so `MERGE_HEAD` EXISTS, `git diff --diff-filter=U` names
+    agent_workflows/runner_shared.py:679:      by merge") never starts the merge at all, so `MERGE_HEAD` is ABSENT, `--diff-filter=U` is EMPTY,
+    agent_workflows/runner_shared.py:6229:            wt_path, ["diff", "--name-only", "--diff-filter=U"]
+    agent_workflows/runner_shared.py:6378:    rc_u, out_u, _ = _run_git(lane_path, ["diff", "--name-only", "--diff-filter=U"])
+    agent_workflows/runner_shared.py:10174:            ["git", "diff", "--no-renames", "--name-only", "--diff-filter=D", base, head],
+    ```
+    Audit table:
+    | Match | Function / Context | Filter | Needs `--no-renames`? | Decision & Rationale |
+    | --- | --- | --- | --- | --- |
+    | `agent_workflows/leak_sanitizer.py:719` | `_staged_files` | `ACM` | Yes | Added `--no-renames` so staged renames are not classified as `R`, ensuring the added destination is scanned for leaks. |
+    | `agent_workflows/runner_shared.py:658, 664, 676, 679` | `_conflicted_paths` | `U` | No | Unmerged conflicted entries cannot be resolved as renames; unaffected by rename detection. Keep as-is. |
+    | `agent_workflows/runner_shared.py:6229` | `_merge_and_revalidate_candidate` | `U` | No | Unmerged conflict check; unaffected by rename detection. Keep as-is. |
+    | `agent_workflows/runner_shared.py:6378` | `_report_unmerged_conflicts` | `U` | No | Unmerged conflict reporting; unaffected by rename detection. Keep as-is. |
+    | `agent_workflows/runner_shared.py:10174` | `check_lane_hook_bypass` | `D` | Yes | Added `--no-renames` so deleted rename sources are reported as `D` and removed from the disposable worktree, preventing false raw add refusals in `executed/`. |
+
+    Quoted CHANGELOG line:
+    ```markdown
+    - Fixed: `runner_shared.check_lane_hook_bypass` and `leak_sanitizer._staged_files` now pass `--no-renames` to `git diff`, ensuring deleted rename sources are removed in disposable worktrees and renamed files are scanned for staged leaks even when git rename detection is enabled.
+    ```
+
+    Pasted bare `python3 -m pytest` summary line:
+    ```
+    708 passed in 34.08s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

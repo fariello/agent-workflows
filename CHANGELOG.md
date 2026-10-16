@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: `runner_shared.check_lane_hook_bypass` and `leak_sanitizer._staged_files` now pass `--no-renames` to `git diff`, ensuring deleted rename sources are removed in disposable worktrees and renamed files are scanned for staged leaks even when git rename detection is enabled.
 - Fixed: `aw releases readiness` now reports gates whose input files are absent as not-applicable instead of failing (or vacuously passing), so release review is usable in managed repositories.
 - Added: aw run verify records verifier decisions on frozen requirements for an active run ledger, returning exit 0 on satisfied results, exit 3 on non-satisfied results, exit 2 on unknown requirements or invalid arguments, and exit 6 on unauthorized actors or terminal runs.
 - Added: aw run init now freezes workflow requirements preserving R-NN ids and appends a requirement_set record at seq=1 with matching requirement digest, and refuses workflows with empty or missing requirement ids with exit 2.

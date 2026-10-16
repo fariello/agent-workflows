@@ -10171,7 +10171,15 @@ def check_lane_hook_bypass(lane_dir: Path, base: str, head: str) -> tuple[bool, 
             return True, f"hook checking unavailable: git checkout failed: {err}"
 
         proc_diff = subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=D", base, head],
+            [
+                "git",
+                "diff",
+                "--no-renames",
+                "--name-only",
+                "--diff-filter=D",
+                base,
+                head,
+            ],
             cwd=str(wt_dir),
             capture_output=True,
             text=True,

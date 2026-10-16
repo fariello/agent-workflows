@@ -61,6 +61,17 @@ _STAGED_GATE_PRE_COMMIT_CONFIG = f"""repos:
     always_run: true
 """
 
+_REAL_GATE_PRE_COMMIT_CONFIG = f"""repos:
+- repo: local
+  hooks:
+  - id: ipd-executed-gate
+    name: ipd executed transition gate
+    entry: '"{_PY_ENTRY}" -m agent_workflows ipd-executed-gate'
+    language: system
+    pass_filenames: false
+    always_run: true
+"""
+
 _PRE_COMMIT_SHIM_SOURCE = textwrap.dedent(
     """\
     import os
@@ -765,6 +776,51 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
         passed, msg = runner_shared.check_lane_hook_bypass(repo, base, head)
         self.assertFalse(passed)
         self.assertIn("check staged executed", msg)
+
+    def test_hook_bypass_rename_inside_executed_passes_under_real_gate(self):
+        """A rename inside executed/ passes the real gate under rename detection."""
+        _td, repo, plan, _run_dir, _state, _item = self._setup_repo(
+            pre_commit_cfg=_REAL_GATE_PRE_COMMIT_CONFIG
+        )
+        subprocess.run(["git", "config", "diff.renames", "true"], cwd=repo, check=True)
+
+        exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        executed_plan = exec_dir / plan.name
+        subprocess.run(
+            ["git", "mv", str(plan), str(executed_plan)], cwd=repo, check=True
+        )
+        content = executed_plan.read_text(encoding="utf-8").replace(
+            "- Status: approved", "- Status: executed"
+        )
+        executed_plan.write_text(content, encoding="utf-8")
+        subprocess.run(
+            ["git", "commit", "-am", "base executed plan", "--no-verify"],
+            cwd=repo,
+            check=True,
+        )
+        base = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+
+        renamed_plan = exec_dir / "20260901-demo-01-det001-demo.ipd.md"
+        subprocess.run(
+            ["git", "mv", str(executed_plan), str(renamed_plan)], cwd=repo, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "rename within executed", "--no-verify"],
+            cwd=repo,
+            check=True,
+        )
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+
+        with mock.patch.dict(os.environ, {"PYTHONPATH": str(support.REPO_ROOT)}):
+            passed, msg = runner_shared.check_lane_hook_bypass(repo, base, head)
+        self.assertTrue(
+            passed, f"expected check_lane_hook_bypass to pass, but got: {msg}"
+        )
 
     def test_hook_checking_unavailable_conditions(self):
         """Hook checking returns unavailable when config is absent, pre-commit is uninstalled, or exit 3."""
