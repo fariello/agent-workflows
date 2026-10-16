@@ -8457,9 +8457,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if not kept_legacy:
             # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
             from agent_workflows.install_wizard import (
+                PlacementSwitchRequired,
                 PolicyCancelledError,
                 PolicyError,
                 collect_policy_interactive,
+                config_placement_switch,
                 persist_project_policy,
                 render_pre_write_plan,
                 resolve_existing_policy,
@@ -8487,6 +8489,37 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     explicit_backend=getattr(args, "records_backend", None),
                     explicit_companion=getattr(args, "companion_dir", None),
                 )
+                switch = config_placement_switch(
+                    str(repo_root), policy, existing_policy=existing_policy
+                )
+                if switch is not None:
+                    cur_preset = existing_policy.preset if existing_policy else None
+                    if (
+                        not cur_preset
+                        and (switch.current_dir / "project.json").exists()
+                    ):
+                        try:
+                            cur_preset = json.loads(
+                                (switch.current_dir / "project.json").read_text(
+                                    encoding="utf-8"
+                                )
+                            ).get("preset")
+                        except Exception:
+                            pass
+                    from_desc = (
+                        f"{cur_preset} ({switch.current_dir})"
+                        if cur_preset
+                        else str(switch.current_dir)
+                    )
+                    raise PlacementSwitchRequired(
+                        f"Switching config placement from {from_desc} "
+                        f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+                        current_dir=switch.current_dir,
+                        target_dir=switch.target_dir,
+                        current_preset=cur_preset,
+                        target_preset=policy.preset,
+                        reason=switch.reason,
+                    )
             except PolicyCancelledError:
                 term.status("skip", f"{repo_root}: install cancelled; nothing written.")
                 returncode = 1

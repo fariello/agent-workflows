@@ -173,7 +173,7 @@ class DriverErrorUnificationTests(unittest.TestCase):
         self.assertIs(oc_runipd.DriverError, agy_runipd.DriverError)
         self.assertIs(oc_runipd.DriverError, runner_shared.DriverError)
 
-        for name in ("StallTimeout", "EmptyStatusSelection"):
+        for name in ("StallTimeout", "EmptyStatusSelection", "CorruptRunStateError"):
             with self.subTest(symbol=name):
                 shared_cls = getattr(runner_shared, name)
                 self.assertIs(getattr(oc_runipd, name), shared_cls)
@@ -5910,6 +5910,46 @@ class SessionIdPrecedenceTests(unittest.TestCase):
             for caller, fn in self._callers():
                 with self.subTest(caller=caller):
                     self.assertEqual(fn(log_path), "conv-FIRST")
+
+
+class LoadStateValidationTests(unittest.TestCase):
+    """Behavioral tests for runner_shared.load_state error handling and validation."""
+
+    def test_load_state_validation_and_errors(self):
+        corrupt_bodies: list[str | bytes] = [
+            "{corrupt json",
+            b"\xff\xfe",
+            "[1]",
+            '{"queue": "x"}',
+            '{"queue": ["x"]}',
+            '{"repo": "."}',
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = pathlib.Path(td)
+
+            # Missing state.json -> raises DriverError, but not CorruptRunStateError
+            with self.assertRaises(runner_shared.DriverError) as cm:
+                runner_shared.load_state(run_dir)
+            self.assertNotIsInstance(cm.exception, runner_shared.CorruptRunStateError)
+
+            # Valid state -> loads cleanly
+            valid_state = {"schema_version": 2, "queue": [{"id6": "abc123"}]}
+            (run_dir / "state.json").write_text(
+                json.dumps(valid_state), encoding="utf-8"
+            )
+            loaded = runner_shared.load_state(run_dir)
+            self.assertEqual(loaded, valid_state)
+
+            # Corrupt bodies -> raise CorruptRunStateError
+            for idx, body in enumerate(corrupt_bodies):
+                with self.subTest(idx=idx, body=body):
+                    state_file = run_dir / "state.json"
+                    if isinstance(body, bytes):
+                        state_file.write_bytes(body)
+                    else:
+                        state_file.write_text(body, encoding="utf-8")
+                    with self.assertRaises(runner_shared.CorruptRunStateError):
+                        runner_shared.load_state(run_dir)
 
 
 if __name__ == "__main__":

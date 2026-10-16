@@ -713,6 +713,7 @@ def _staged_files(repo_root: Path) -> list[str]:
             "-C",
             str(repo_root),
             "diff",
+            "--no-renames",
             "--cached",
             "--name-only",
             "--diff-filter=ACM",

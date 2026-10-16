@@ -52,6 +52,12 @@ documentation checks, workflow dispositions, capability freshness, benchmark inv
 changelog and versioning, the workflow artifact manifest, and the residual-risk sign-off, then
 emits the verdict.
 
+A gate whose input is absent (no `docs/`, no host matrix, no canonical `workflow.yaml` packages,
+no workflow manifest, no `CHANGELOG.md`) is reported NOT-APPLICABLE, is never counted as passed,
+does not force `NO-GO`, and is named in a WARNING line and as warning diagnostics. The `full_suite`
+and `residual_risk` gates are never not-applicable. The accepted risk is that an input deleted by
+mistake reads not-applicable, so review the WARNING line.
+
 Run the read-only report from the CLI:
 
 ```

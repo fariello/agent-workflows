@@ -113,6 +113,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: speculative feature with no consumer today; nothing remains to do for this bug.
 - Absent-`index.md` and not-applicable semantics of the same gate.
   - Carrier: 4bw2u5
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-uypgvi-02-4bw2u5-release-readiness-report-a-gate-whose-input-files-are-absent.ipd.md
 
 ## Scope check
 

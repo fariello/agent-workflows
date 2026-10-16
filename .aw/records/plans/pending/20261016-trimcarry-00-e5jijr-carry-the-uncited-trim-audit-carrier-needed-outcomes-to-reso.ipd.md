@@ -106,6 +106,7 @@ Orders 01 and 02 are independent. Orders 04 and 05 both append to the same findi
   - Carrier: z2xs98
 - `PROP-01` (`_run_migrate_layout`): carried by backlog `5slmvq` and its pending plan `1ue3kr`, not by `9qvfie`.
   - Carrier: 1ue3kr
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-5slmvq-01-1ue3kr-restore-behavioral-test-coverage-for-run-migrate-layout.ipd.md
 - Changing `pyproject.toml` `testpaths` to include the restored modules: routine-gate composition is a maintainer decision.
   - Carrier-Declined: deliberate non-goal; restored modules run in `make test-all` and release-review.
 

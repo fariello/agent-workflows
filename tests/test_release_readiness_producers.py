@@ -138,18 +138,25 @@ def test_drift_changed_generated_fails_gate(
     assert any("changed" in d and "prompt.md" in d for d in drift_files)
 
 
-def test_drift_zero_packages_passes_gate(
+def test_drift_zero_packages_is_not_applicable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Arm (d): zero packages passes with distinct detail and packages_checked == 0."""
+    """Arm (d): zero packages reports not-applicable with distinct detail and packages_checked == 0."""
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     wf_dir = tmp_path / ".aw" / "system" / "workflows"
     wf_dir.mkdir(parents=True)
 
     res = rr.gate_generated_drift(repo_root=tmp_path)
     assert res.name == "generated_drift"
-    assert res.passed is True
-    assert res.detail == "no canonical workflow packages to check"
+    assert res.passed is False
+    assert res.applicable is False
+    assert res.status == "not-applicable"
+    assert (
+        res.detail
+        == "no canonical workflow packages to check (input absent, NOT verified)"
+    )
+    assert res.evidence.get("missing") is True
+    assert res.evidence.get("path") == ".aw/system/workflows/*/workflow.yaml"
     assert res.evidence.get("packages_checked") == 0
     assert res.evidence.get("drift_files") == []
 
@@ -253,10 +260,10 @@ def test_disposition_missing_manifest_markers_fails_without_raising(
     assert res.evidence.get("undispositioned") == []
 
 
-def test_disposition_missing_index_md_fails_without_raising(
+def test_disposition_missing_index_md_is_not_applicable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Arm (i2): workflows dir with no index.md fails with FileNotFoundError without raising."""
+    """Arm (i2): workflows dir with no index.md reports not-applicable."""
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     wf_dir = tmp_path / ".aw" / "system" / "workflows"
     wf_dir.mkdir(parents=True)
@@ -264,8 +271,11 @@ def test_disposition_missing_index_md_fails_without_raising(
     res = rr.gate_workflow_disposition(repo_root=tmp_path)
     assert res.name == "workflow_disposition"
     assert res.passed is False
-    assert "could not run: FileNotFoundError" in res.detail
-    assert res.evidence.get("error") == "FileNotFoundError"
+    assert res.applicable is False
+    assert res.status == "not-applicable"
+    assert "workflow manifest missing: .aw/system/workflows/index.md" in res.detail
+    assert res.evidence.get("missing") is True
+    assert res.evidence.get("path") == ".aw/system/workflows/index.md"
     assert res.evidence.get("undispositioned") == []
 
 
@@ -327,10 +337,10 @@ def test_capability_empty_matrix_passes_gate(
     assert res.evidence.get("stale_claims") == []
 
 
-def test_capability_missing_matrix_fails_gate(
+def test_capability_missing_matrix_is_not_applicable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Arm (l): missing matrix file fails closed with missing evidence."""
+    """Arm (l): missing matrix file reports not-applicable."""
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     setup_minimal_workflows_tree(tmp_path)
     matrix_file = (
@@ -347,12 +357,15 @@ def test_capability_missing_matrix_fails_gate(
     res = rr.gate_capability_freshness(repo_root=tmp_path)
     assert res.name == "capability_freshness"
     assert res.passed is False
+    assert res.applicable is False
+    assert res.status == "not-applicable"
     assert res.evidence.get("missing") is True
     assert (
         res.evidence.get("path")
         == ".aw/system/workflows/conformance/tools/host_matrix.json"
     )
     assert res.evidence.get("stale_claims") == []
+    assert res.detail.endswith("(input absent, NOT verified)")
 
 
 # ==================================================================================================
@@ -616,8 +629,10 @@ def test_artifact_manifest_missing_body_and_lens_fail_gate(
         for p in res.evidence["problems"]
     )
 
-    # drift and disposition pass on the exact same tree
-    assert rr.gate_generated_drift(repo_root=tmp_path).passed is True
+    # drift is not-applicable and disposition passes on the exact same tree
+    drift_res = rr.gate_generated_drift(repo_root=tmp_path)
+    assert drift_res.applicable is False
+    assert drift_res.status == "not-applicable"
     assert rr.gate_workflow_disposition(repo_root=tmp_path).passed is True
 
     # Recreate body, add a lens column with missing lens file

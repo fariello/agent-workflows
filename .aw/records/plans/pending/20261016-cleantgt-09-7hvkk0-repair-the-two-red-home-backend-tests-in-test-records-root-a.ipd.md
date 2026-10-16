@@ -80,6 +80,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: not a defect; a design alternative rejected on scope, nothing is left outstanding.
 - Decoupling `test_home_records_runner_discovery` from the live corpus: owned by approved plan `4v8s0m`.
   - Carrier: 4v8s0m
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-g9kupi-01-4v8s0m-decouple-test-home-records-runner-discovery-from-the-live-re.ipd.md
 - Walker reverse-mapping and `tests/test_clean_target_recognition.py`: separate items.
   - Carrier: ki6t17, a48b4m
 

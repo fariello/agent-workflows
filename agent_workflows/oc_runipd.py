@@ -754,6 +754,9 @@ from agent_workflows.runner_shared import (
 # either driver's code path is caught by `except StallTimeout` in either driver, which is the same
 # defect class `DriverError` itself was moved to end.
 from agent_workflows.runner_shared import (
+    CorruptRunStateError as CorruptRunStateError,
+)
+from agent_workflows.runner_shared import (
     EmptyStatusSelection as EmptyStatusSelection,
 )
 from agent_workflows.runner_shared import (
@@ -907,6 +910,7 @@ __all__ = [
     "extract_newest_history_entry",
     "is_plan_review_approved",
     "observe_host_model",
+    "CorruptRunStateError",
 ]
 
 
@@ -5812,6 +5816,13 @@ def main(argv: list[str] | None = None) -> int:
         # table to render and no state to reconcile.
         print("Nothing awaiting review; no run started.")
         return 0
+    except CorruptRunStateError as exc:
+        if runner_shared.is_agent_mode(args):
+            runner_shared.emit_agent_run_refusal_record(
+                exc, cmd="oc run", run_dir=run_dir
+            )
+        print(f"runipd: {exc}", file=sys.stderr)
+        return 2
     except DriverError as exc:
         if runner_shared.is_agent_mode(args):
             runner_shared.emit_agent_run_refusal_record(

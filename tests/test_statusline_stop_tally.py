@@ -94,6 +94,43 @@ class TestComputeQueueTally:
         assert passed == 2
         assert failed == 2
 
+    def test_in_flight_provisional_fail_is_not_counted(self) -> None:
+        """An item still between its turn and integration holds a provisional fail-gate; not a fail."""
+        queue = [
+            {"id6": "aaa111", "status": "executed", "action": "execute"},
+            {"id6": "bbb222", "status": "fail-gate", "action": "execute"},
+            {"id6": "ccc333", "status": "queued", "action": "execute"},
+        ]
+        assert rs.compute_queue_tally(queue, in_flight_id6="bbb222") == (1, 0)
+        # Once the driver moves on, a genuine failure of that item is counted.
+        assert rs.compute_queue_tally(queue, in_flight_id6="ccc333") == (1, 1)
+        # A success of the in-flight item counts immediately.
+        queue[1]["status"] = "executed"
+        assert rs.compute_queue_tally(queue, in_flight_id6="bbb222") == (2, 0)
+
+    def test_statusline_badge_ignores_in_flight_provisional_fail(self) -> None:
+        """The rendered live statusline shows 0 fail while the current item is provisionally fail-gate."""
+        import io
+
+        state = {
+            "queue": [
+                {"id6": "aaa111", "status": "executed", "action": "execute"},
+                {"id6": "bbb222", "status": "fail-gate", "action": "execute"},
+            ]
+        }
+        sl = rs.Statusline(
+            pal=rs.Palette(False, use_unicode=True),
+            stream=io.StringIO(),
+            interval=0.0,
+            current_idx=2,
+            total_items=2,
+            setid="s",
+            id6="bbb222",
+            state=state,
+        )
+        text = "\n".join(sl._render_lines_unlocked())
+        assert "1 ok" in text and "0 fail" in text, text
+
 
 class TestStatuslineStopTallyRendering:
     @pytest.mark.parametrize("stop_level", [None, 1, 2, 3, 4])
