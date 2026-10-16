@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives both hosts' real `driver_begin` with `subprocess.run` spied, and repoint the now-stale comment in `runner_shared.driver_begin` at it. No production behavior changes.
 - Scope-Paths: tests/test_driver_begin_child_env.py, agent_workflows/runner_shared.py, .aw/records/plans/pending/20261014-o0gy5v-01-lyqn1t-restore-behavioral-coverage-of-driver-begin-child-env-pin-an.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: lyqn1t
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lyqn1t verified (set o0gy5v, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-o0gy5v-01-lyqn1t)
