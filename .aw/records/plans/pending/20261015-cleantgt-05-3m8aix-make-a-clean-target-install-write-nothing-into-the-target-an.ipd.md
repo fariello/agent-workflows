@@ -37,49 +37,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline and the one clean-delta predicate
 
-- [ ] E-01 Re-measure at execution HEAD the symbols this plan edits (`engine.install_into_repo`, `cli._install_one`, `install_wizard.render_pre_write_plan`, `engine.allocate_backup_timestamp`, `engine.create_backup_path`, `engine.save_created_files_record`, `engine.prune_old_backups`, `engine.run_rollback`, `engine.write_setup_marker`, `engine.prompt_and_run_commit`, `attention.setup_needed`) and the accessors children 01..04 delivered (the records-root and system-root accessors in `agent_workflows/project_context.py`, and the home state/worktrees routing), then reproduce the baseline: in a temp git repo with temp `HOME`/`AW_HOME` and a git identity, run `aw install <t> --preset completely-clean-target -y --no-interactive` and record the target HEAD delta and `git status --porcelain --ignored`; and save, on the UNMODIFIED code, the parity captures later items diff against: `--dry-run` output for `private-target` and `public-target-private-companion` (E-06), and the stdout `Git:` line plus `git show --stat --format= HEAD | tail -1` of a `private-target -y` install (E-08 `test_case_l`).
+- [x] E-01 Re-measure at execution HEAD the symbols this plan edits (`engine.install_into_repo`, `cli._install_one`, `install_wizard.render_pre_write_plan`, `engine.allocate_backup_timestamp`, `engine.create_backup_path`, `engine.save_created_files_record`, `engine.prune_old_backups`, `engine.run_rollback`, `engine.write_setup_marker`, `engine.prompt_and_run_commit`, `attention.setup_needed`) and the accessors children 01..04 delivered (the records-root and system-root accessors in `agent_workflows/project_context.py`, and the home state/worktrees routing), then reproduce the baseline: in a temp git repo with temp `HOME`/`AW_HOME` and a git identity, run `aw install <t> --preset completely-clean-target -y --no-interactive` and record the target HEAD delta and `git status --porcelain --ignored`; and save, on the UNMODIFIED code, the parity captures later items diff against: `--dry-run` output for `private-target` and `public-target-private-companion` (E-06), and the stdout `Git:` line plus `git show --stat --format= HEAD | tail -1` of a `private-target -y` install (E-08 `test_case_l`).
   - Depends on: none
   - Expected outcome: Symbol locations and accessor names recorded in V-01; baseline shows the residual target writes this plan removes (at authoring HEAD `57d5e8184`: HEAD advanced by one 356-file commit, ignored `.agent-workflows-installer-backups/`, `.aw/setup-repo-needed.md`, `.aw/system/layout.json`, `.aw/system/layout.schema.json`, `.aw/workflow-artifacts/`; after children 01..04 the `.aw/system` files, layout artifacts and manifest are expected to be gone via `4gn1ka`, while the `.aw/records` scaffolding, adapters, setup writes, backups, marker and commit remain for this plan; record the actual residual list, since every residual target path is in scope here).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `engine._is_clean_delta_install(repo_root: Path) -> bool` as a THIN wrapper over `project_context.home_configured_root(repo_root)` (added by `fnnwj3` E-03: true iff `repo_root/.git` exists, the config resolves to the home `project.json`, and its STORED `delivery_mode == "clean-delta"`), so the Set has ONE stored-policy clean-delta test and the installer cannot disagree with the readers children 03/04 route through it (PR-002). Do NOT call `resolve_project_context` here: its delivery-mode precedence lets a user-config `default_delivery_mode` or a named profile resolve `clean-delta` for a repo whose stored policy says nothing (`project_context.resolve_project_context` "4. Delivery Mode Resolution"), which is not the stored policy. The wrapper is TOTAL (any exception returns False, so an unreadable config degrades to today's tracked behavior rather than failing an install) and writes nothing. It never re-derives from a preset name (irjoga PR-003/PR-004). `cli._run_install` calls `install_wizard.persist_project_policy` before `cli._install_one`, so the stored policy exists when `install_into_repo` runs. A `--source`/legacy `.agents/workflows`-only target (`cli._handle_legacy_migration` keeps legacy and skips policy persistence) has no stored home policy and is therefore False, unchanged.
+- [x] E-02 Add `engine._is_clean_delta_install(repo_root: Path) -> bool` as a THIN wrapper over `project_context.home_configured_root(repo_root)` (added by `fnnwj3` E-03: true iff `repo_root/.git` exists, the config resolves to the home `project.json`, and its STORED `delivery_mode == "clean-delta"`), so the Set has ONE stored-policy clean-delta test and the installer cannot disagree with the readers children 03/04 route through it (PR-002). Do NOT call `resolve_project_context` here: its delivery-mode precedence lets a user-config `default_delivery_mode` or a named profile resolve `clean-delta` for a repo whose stored policy says nothing (`project_context.resolve_project_context` "4. Delivery Mode Resolution"), which is not the stored policy. The wrapper is TOTAL (any exception returns False, so an unreadable config degrades to today's tracked behavior rather than failing an install) and writes nothing. It never re-derives from a preset name (irjoga PR-003/PR-004). `cli._run_install` calls `install_wizard.persist_project_policy` before `cli._install_one`, so the stored policy exists when `install_into_repo` runs. A `--source`/legacy `.agents/workflows`-only target (`cli._handle_legacy_migration` keeps legacy and skips policy persistence) has no stored home policy and is therefore False, unchanged.
   - Depends on: E-01
   - Expected outcome: The predicate returns True after a `completely-clean-target` or `local-only` policy is persisted, False for `private-target`, `public-target-private-companion`, a repo with no stored config, a repo whose stored policy is tracked, and a repo with no stored config but a user-config `default_delivery_mode: clean-delta`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Suppress every target write, stage and commit under clean-delta
 
-- [ ] E-03 In `engine.install_into_repo`, compute `clean = _is_clean_delta_install(repo_root)` ONCE and, when it is true: (1) set the local `use_git = False` before ANY step, so every downstream staging call (`_stage_installed_file`, `git_add_optional`, `_create_if_absent`, `migrate_root_workflow_artifacts`, the manifest `_stage_installed_file`) is skipped by its existing `if use_git` guard and the target index is never touched; (2) pass an empty generated-members map (no `shim_members`, no `_build_skill_members` output) to `install_all` and `prune_stale`; (3) skip the target-only steps `migrate_root_workflow_artifacts`, `update_agents_pointer`, `ensure_backups_gitignored`, `ensure_untracked_gitignore`, `ensure_workflow_artifacts_readme`, `ensure_inbox_readme`, `_ensure_aw_gitignore`, `check_gitignore`, `stage_tracked_policy_files` and `warn_tracking_and_scan`, returning a status string naming the clean-delta skip for each one `print_summary` prints (`agents_status`, `gitignore_status`, `backups_ignore_status`, `untracked_ignore_status`); (4) RECORDS SCAFFOLDING: `ensure_plans_readmes`, `ensure_docs_readmes`, `ensure_prompts_readmes` and `create_setup_artifacts` compose `plan.repo_root / rel` from `engine._record_scaffold_dirs` literals (`".aw/records"`), which `kfnfji` explicitly handed to THIS plan (its Deferred row "Installer records scaffolding ... Carrier: 3m8aix", PR-001). Route their record-member destinations through `project_context.project_records_dir(repo_root)` (map a member beginning `.aw/records/` to `project_records_dir(repo_root) / <tail>`, in one helper `engine._records_member_destination(repo_root, rel) -> Path` mirroring `4gn1ka`'s `_system_member_destination`), and make `create_setup_artifacts` skip the target-only entries (`AW_GITIGNORE_PATH`, `GITLEAKSIGNORE_FILE`, `SECRET_SCAN_CI`) and route `migrate_local_lanes_to_untracked` and the `untracked/` mkdirs through the same helper; (5) confirm by E-01 measurement that `emit_layout_artifacts` and the manifest save already resolve under the home system dir after `4gn1ka` (they do if `4gn1ka` E-04 landed as written); any that still writes `<repo>/.aw/system/...` is routed through `4gn1ka`'s `_system_member_destination` here and recorded in V-03; (6) `print_summary` (shared by `cli._install_one` and `engine.run`) prints `Git: clean-delta; nothing staged or committed in the target` instead of `not a git repo; filesystem only` when the repo IS a git repo but clean-delta suppressed staging (pass a `clean_delta` flag in the returned dict and through to `print_summary`), and skips the `Inbox drop zone` line. Keep `installed`/`skipped` report strings LOGICAL (`.aw/records/...`), as `4gn1ka` does for system members. For every non-clean-delta repo each step and string is byte-identical.
+- [x] E-03 In `engine.install_into_repo`, compute `clean = _is_clean_delta_install(repo_root)` ONCE and, when it is true: (1) set the local `use_git = False` before ANY step, so every downstream staging call (`_stage_installed_file`, `git_add_optional`, `_create_if_absent`, `migrate_root_workflow_artifacts`, the manifest `_stage_installed_file`) is skipped by its existing `if use_git` guard and the target index is never touched; (2) pass an empty generated-members map (no `shim_members`, no `_build_skill_members` output) to `install_all` and `prune_stale`; (3) skip the target-only steps `migrate_root_workflow_artifacts`, `update_agents_pointer`, `ensure_backups_gitignored`, `ensure_untracked_gitignore`, `ensure_workflow_artifacts_readme`, `ensure_inbox_readme`, `_ensure_aw_gitignore`, `check_gitignore`, `stage_tracked_policy_files` and `warn_tracking_and_scan`, returning a status string naming the clean-delta skip for each one `print_summary` prints (`agents_status`, `gitignore_status`, `backups_ignore_status`, `untracked_ignore_status`); (4) RECORDS SCAFFOLDING: `ensure_plans_readmes`, `ensure_docs_readmes`, `ensure_prompts_readmes` and `create_setup_artifacts` compose `plan.repo_root / rel` from `engine._record_scaffold_dirs` literals (`".aw/records"`), which `kfnfji` explicitly handed to THIS plan (its Deferred row "Installer records scaffolding ... Carrier: 3m8aix", PR-001). Route their record-member destinations through `project_context.project_records_dir(repo_root)` (map a member beginning `.aw/records/` to `project_records_dir(repo_root) / <tail>`, in one helper `engine._records_member_destination(repo_root, rel) -> Path` mirroring `4gn1ka`'s `_system_member_destination`), and make `create_setup_artifacts` skip the target-only entries (`AW_GITIGNORE_PATH`, `GITLEAKSIGNORE_FILE`, `SECRET_SCAN_CI`) and route `migrate_local_lanes_to_untracked` and the `untracked/` mkdirs through the same helper; (5) confirm by E-01 measurement that `emit_layout_artifacts` and the manifest save already resolve under the home system dir after `4gn1ka` (they do if `4gn1ka` E-04 landed as written); any that still writes `<repo>/.aw/system/...` is routed through `4gn1ka`'s `_system_member_destination` here and recorded in V-03; (6) `print_summary` (shared by `cli._install_one` and `engine.run`) prints `Git: clean-delta; nothing staged or committed in the target` instead of `not a git repo; filesystem only` when the repo IS a git repo but clean-delta suppressed staging (pass a `clean_delta` flag in the returned dict and through to `print_summary`), and skips the `Inbox drop zone` line. Keep `installed`/`skipped` report strings LOGICAL (`.aw/records/...`), as `4gn1ka` does for system members. For every non-clean-delta repo each step and string is byte-identical.
   - Depends on: E-02
   - Expected outcome: With a clean-delta policy, `git -C <t> status --porcelain --ignored` is empty after `install_into_repo` alone (no commit step involved), `<t>` contains only `.git`, the records READMEs and lifecycle dirs exist under `<AW_HOME>/projects/<id>/records/`, the returned `use_git` is False, and `print_summary` prints the clean-delta Git line; a `private-target` install's `install_into_repo` result dict and summary output are unchanged (asserted in E-08).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route installer backups and the `--undo` created-files record under home runtime state for clean-delta: add `engine._backups_root(repo_root) -> Path` returning `Path(resolve_project_context(target_repo=str(repo_root)).physical_classes["state_runtime"]) / "backups"` when `_is_clean_delta_install(repo_root)` and `repo_root / BACKUPS_DIR` otherwise, and use it in `allocate_backup_timestamp`, `create_backup_path`, `save_created_files_record`, `prune_old_backups` and `run_rollback` instead of `repo_root / BACKUPS_DIR` (these are the only five compositions, `grep -n "BACKUPS_DIR" agent_workflows/engine.py` at review; every other backup site in `write_file`, `prune_stale`, `update_agents_pointer`, `migrate_legacy_layout`, `ensure_untracked_gitignore` and the README ensurers goes through `create_backup_path`). `_backups_root` is TOTAL: a `ProjectContextError` from the resolver falls back to `repo_root / BACKUPS_DIR` only when the predicate is False, and otherwise raises (a clean-delta install must never silently drop its backups into the target). ROLLBACK SEMANTICS (PR-004): the created-files record now holds LOGICAL member names (`.aw/system/...`, `.aw/records/...`) whose on-disk home is NOT `repo_root / rel`, so `run_rollback`'s `target = repo_root / rel` would miss them. Resolve each created entry and each restored backup through the same destination helpers as the install (`_system_member_destination` from `4gn1ka`, `_records_member_destination` from E-03), and skip the `git rm --cached`/`git add` calls when `_is_clean_delta_install` (the target index was never touched). Backup files are stored under their LOGICAL relative path, so a backup and its restore agree.
+- [x] E-04 Route installer backups and the `--undo` created-files record under home runtime state for clean-delta: add `engine._backups_root(repo_root) -> Path` returning `Path(resolve_project_context(target_repo=str(repo_root)).physical_classes["state_runtime"]) / "backups"` when `_is_clean_delta_install(repo_root)` and `repo_root / BACKUPS_DIR` otherwise, and use it in `allocate_backup_timestamp`, `create_backup_path`, `save_created_files_record`, `prune_old_backups` and `run_rollback` instead of `repo_root / BACKUPS_DIR` (these are the only five compositions, `grep -n "BACKUPS_DIR" agent_workflows/engine.py` at review; every other backup site in `write_file`, `prune_stale`, `update_agents_pointer`, `migrate_legacy_layout`, `ensure_untracked_gitignore` and the README ensurers goes through `create_backup_path`). `_backups_root` is TOTAL: a `ProjectContextError` from the resolver falls back to `repo_root / BACKUPS_DIR` only when the predicate is False, and otherwise raises (a clean-delta install must never silently drop its backups into the target). ROLLBACK SEMANTICS (PR-004): the created-files record now holds LOGICAL member names (`.aw/system/...`, `.aw/records/...`) whose on-disk home is NOT `repo_root / rel`, so `run_rollback`'s `target = repo_root / rel` would miss them. Resolve each created entry and each restored backup through the same destination helpers as the install (`_system_member_destination` from `4gn1ka`, `_records_member_destination` from E-03), and skip the `git rm --cached`/`git add` calls when `_is_clean_delta_install` (the target index was never touched). Backup files are stored under their LOGICAL relative path, so a backup and its restore agree.
   - Depends on: E-02, E-03
   - Expected outcome: After a clean-delta install `<AW_HOME>/projects/<id>/state/runtime/backups/<ts>/.created-files.json` exists and `<target>/.agent-workflows-installer-backups/` does not; `engine.run_rollback(<t>, True)` after a FRESH clean-delta install returns 0, removes the home `system/VERSION` and the home records READMEs it recorded, and leaves `git -C <t> status --porcelain --ignored` empty; after a second install that overwrote a home member, rollback restores the prior bytes at the HOME path; a tracked install still writes `<target>/.agent-workflows-installer-backups/` and rolls back exactly as today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `cli._install_one`, when `engine._is_clean_delta_install(repo_root)` is true skip `engine.prompt_and_run_commit` entirely (print one `ok` status line saying nothing was staged or committed in the target) and write the setup marker under home runtime state instead of `<target>/.aw/setup-repo-needed.md`: add ONE path accessor `engine.setup_marker_path(repo_root) -> Path` (`Path(resolve_project_context(target_repo=str(repo_root)).physical_classes["state_runtime"]) / "setup-repo-needed.md"` when `_is_clean_delta_install(repo_root)`, else `repo_root / SETUP_MARKER_PATH`), and use it in `engine.write_setup_marker` (the clean-delta branch never calls `_ensure_aw_gitignore`), `engine.remove_setup_marker`, and `attention.setup_needed`, so writer, remover and reader cannot name different files (`doctor.probe_environment` reads `attention.setup_needed`, so `aw doctor` follows). `attention.setup_needed` keeps its exception-swallowing totality, and `attention` imports the accessor function-locally. Apply the same `prompt_and_run_commit` skip in the `engine.run` presentation shell, which calls `install_into_repo` then `prompt_and_run_commit` independently, and suppress its `Setup artifacts created (staged; ...)` heading for clean-delta (nothing is staged). The `/setup-repo` workflow prose that clears the marker with `rm -f .aw/setup-repo-needed.md` and `doctor`'s remediation text that names that path are NOT edited here (see OQ-03).
+- [x] E-05 In `cli._install_one`, when `engine._is_clean_delta_install(repo_root)` is true skip `engine.prompt_and_run_commit` entirely (print one `ok` status line saying nothing was staged or committed in the target) and write the setup marker under home runtime state instead of `<target>/.aw/setup-repo-needed.md`: add ONE path accessor `engine.setup_marker_path(repo_root) -> Path` (`Path(resolve_project_context(target_repo=str(repo_root)).physical_classes["state_runtime"]) / "setup-repo-needed.md"` when `_is_clean_delta_install(repo_root)`, else `repo_root / SETUP_MARKER_PATH`), and use it in `engine.write_setup_marker` (the clean-delta branch never calls `_ensure_aw_gitignore`), `engine.remove_setup_marker`, and `attention.setup_needed`, so writer, remover and reader cannot name different files (`doctor.probe_environment` reads `attention.setup_needed`, so `aw doctor` follows). `attention.setup_needed` keeps its exception-swallowing totality, and `attention` imports the accessor function-locally. Apply the same `prompt_and_run_commit` skip in the `engine.run` presentation shell, which calls `install_into_repo` then `prompt_and_run_commit` independently, and suppress its `Setup artifacts created (staged; ...)` heading for clean-delta (nothing is staged). The `/setup-repo` workflow prose that clears the marker with `rm -f .aw/setup-repo-needed.md` and `doctor`'s remediation text that names that path are NOT edited here (see OQ-03).
   - Depends on: E-03
   - Expected outcome: A clean-delta install leaves target HEAD unchanged even with a configured git identity and `-y`; `aw attention --format json` and `aw doctor --json` on that target still report setup pending, read from `<AW_HOME>/projects/<id>/state/runtime/setup-repo-needed.md`; `engine.remove_setup_marker(<t>)` deletes that home file and returns True, after which both report setup not pending; for a tracked install every path and output is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Truthful consent text and tests
 
-- [ ] E-06 Update `install_wizard.render_pre_write_plan` so that when `policy.delivery_mode == DeliveryMode.CLEAN_DELTA.value` the `Host Adapter Exceptions:` block prints `  - None in target repository (clean-delta writes no target host adapters).` instead of the three target adapter lines, and `Expected Deltas:` prints `  Target Delta:     ZERO AW-owned target files created (clean-target).` replacing the interim line ending `(tracked by backlog kvwwt0).`; non-clean-delta output is byte-identical.
+- [x] E-06 Update `install_wizard.render_pre_write_plan` so that when `policy.delivery_mode == DeliveryMode.CLEAN_DELTA.value` the `Host Adapter Exceptions:` block prints `  - None in target repository (clean-delta writes no target host adapters).` instead of the three target adapter lines, and `Expected Deltas:` prints `  Target Delta:     ZERO AW-owned target files created (clean-target).` replacing the interim line ending `(tracked by backlog kvwwt0).`; non-clean-delta output is byte-identical.
   - Depends on: E-05
   - Expected outcome: `aw install <t> --preset completely-clean-target --dry-run` prints the ZERO line and no target adapter path, and so does `--preset local-only --dry-run`; `aw install <t> --preset private-target --dry-run` and `--preset public-target-private-companion --dry-run` print output byte-identical to the E-01 capture taken on the unmodified code (diffed, after normalizing the temp path). The ZERO claim is made TRUE by E-03..E-05, which is why E-06 depends on them and why E-07 checks the claim against a real install in the same test. NOTE the claim is about the TARGET only: `git worktree` admin entries under `.git/worktrees/` created later by lanes are git's own state, inside `.git` and not part of the working tree (`qk0ew6`, `nwporz` E-05 residual).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Rewrite `TestInstallConsentTruth.test_clean_target_consent_paths_and_delta` in `tests/test_install_consent_truth.py` to assert, for both clean presets, the restored ZERO line and the no-adapter line in `render_pre_write_plan` output, then run a real subprocess `install --preset completely-clean-target -y` with a git identity and assert `git status --porcelain --ignored` is `""` and HEAD is unchanged (P16: outcomes only, no source-text assertions).
+- [x] E-07 Rewrite `TestInstallConsentTruth.test_clean_target_consent_paths_and_delta` in `tests/test_install_consent_truth.py` to assert, for both clean presets, the restored ZERO line and the no-adapter line in `render_pre_write_plan` output, then run a real subprocess `install --preset completely-clean-target -y` with a git identity and assert `git status --porcelain --ignored` is `""` and HEAD is unchanged (P16: outcomes only, no source-text assertions).
   - Depends on: E-06
   - Expected outcome: The consent claim and the real install outcome are checked against each other in one test, which fails if either drifts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add to `tests/test_clean_target_config_home.py`: `test_case_k_clean_target_install_zero_target_delta` (both presets by subprocess: empty porcelain-ignored output, unchanged HEAD, no `<target>/.aw`, `AGENTS.md`, `.agents`, `.claude`, `.opencode`, `.github`, `.gitignore`, `.gitleaksignore`; present `<AW_HOME>/projects/<id>/state/runtime/backups/*/.created-files.json` and `setup-repo-needed.md`), `test_case_l_tracked_install_still_writes_target` (private-target still writes `AGENTS.md`, `.aw/.gitignore`, target backups, commits under `-y`, and its stdout `Git:` line and `git -C <t> show --stat` file count equal the E-01 tracked capture), `test_case_m_clean_target_reinstall_and_rollback` (a SECOND clean-delta install is a no-op on the target, with porcelain-ignored empty and HEAD unchanged, and `engine.run_rollback(<t>, True)` on a clean-delta install returns 0, removes the recorded home files and still leaves the target empty, per E-04), `test_case_n_engine_run_shell_clean_target` (`engine.run(...)` driven in-process with `-y` on a clean-delta target, after persisting the policy with `install_wizard.persist_project_policy`, leaves HEAD unchanged: this is the second shell E-05 edits and nothing else reaches it), a unit test for `engine._is_clean_delta_install` covering every E-02 case including the user-config `default_delivery_mode: clean-delta` with no stored policy -> False, and a setup-marker test asserting `attention.setup_needed` True after install and False after `engine.remove_setup_marker`. The existing `test_case_i_uninstall_cleans_home_and_allows_reinstall` must still pass unmodified (uninstall of the new home trees is `xoy5yg`'s). Then perform the mutation proof and the bare suite run.
+- [x] E-08 Add to `tests/test_clean_target_config_home.py`: `test_case_k_clean_target_install_zero_target_delta` (both presets by subprocess: empty porcelain-ignored output, unchanged HEAD, no `<target>/.aw`, `AGENTS.md`, `.agents`, `.claude`, `.opencode`, `.github`, `.gitignore`, `.gitleaksignore`; present `<AW_HOME>/projects/<id>/state/runtime/backups/*/.created-files.json` and `setup-repo-needed.md`), `test_case_l_tracked_install_still_writes_target` (private-target still writes `AGENTS.md`, `.aw/.gitignore`, target backups, commits under `-y`, and its stdout `Git:` line and `git -C <t> show --stat` file count equal the E-01 tracked capture), `test_case_m_clean_target_reinstall_and_rollback` (a SECOND clean-delta install is a no-op on the target, with porcelain-ignored empty and HEAD unchanged, and `engine.run_rollback(<t>, True)` on a clean-delta install returns 0, removes the recorded home files and still leaves the target empty, per E-04), `test_case_n_engine_run_shell_clean_target` (`engine.run(...)` driven in-process with `-y` on a clean-delta target, after persisting the policy with `install_wizard.persist_project_policy`, leaves HEAD unchanged: this is the second shell E-05 edits and nothing else reaches it), a unit test for `engine._is_clean_delta_install` covering every E-02 case including the user-config `default_delivery_mode: clean-delta` with no stored policy -> False, and a setup-marker test asserting `attention.setup_needed` True after install and False after `engine.remove_setup_marker`. The existing `test_case_i_uninstall_cleans_home_and_allows_reinstall` must still pass unmodified (uninstall of the new home trees is `xoy5yg`'s). Then perform the mutation proof and the bare suite run.
   - Depends on: E-03, E-04, E-05, E-07
   - Expected outcome: Narrowed run passes; with `_is_clean_delta_install` forced to `False` the zero-delta tests (k, m, n and the E-07 test) fail and pass again after restore; bare `python3 -m pytest` shows no failure that does not also fail on the base commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,45 +170,202 @@ N/A in this plan: spec `20260810-1447-01` Section 4/5 amendment, `aw specs note`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `grep -n` output locating each symbol listed in E-01 at execution HEAD, the names of the accessors children 01..04 added, and the pasted baseline reproduction output (`git rev-parse HEAD` before/after, `git show --stat --format= HEAD | tail -1`, `git status --porcelain --ignored`).
   - Observed evidence:
-  - Result: pending
+    Symbol locations at execution HEAD:
+    agent_workflows/engine.py:7314:def install_into_repo(
+    agent_workflows/engine.py:498:def allocate_backup_timestamp(repo_root: Path) -> str:
+    agent_workflows/engine.py:2027:def create_backup_path(repo_root: Path, relative_path: Path, timestamp: str) -> Path:
+    agent_workflows/engine.py:4306:def save_created_files_record(
+    agent_workflows/engine.py:4342:def prune_old_backups(repo_root: Path) -> None:
+    agent_workflows/engine.py:4442:def run_rollback(repo_root: Path, no_color: bool) -> int:
+    agent_workflows/engine.py:7150:def write_setup_marker(repo_root: Path) -> Path:
+    agent_workflows/engine.py:4541:def prompt_and_run_commit(
+    agent_workflows/engine.py:2252:def _system_member_destination(
+    agent_workflows/cli.py:8168:def _install_one(
+    agent_workflows/install_wizard.py:397:def render_pre_write_plan(
+    agent_workflows/attention.py:2374:def setup_needed(repo_root: Path) -> bool:
+    agent_workflows/project_context.py:1208:def project_records_dir(
+    agent_workflows/project_context.py:1026:def home_configured_root(
 
-- [ ] V-02 validates E-02
+    Baseline reproduction on unmodified code (HEAD ef8e09030):
+    Clean target install:
+    HEAD before: d970a009fc22a9ee2eb5c23cb6025064a7ef19ef
+    HEAD after:  79b09d29efc68700206144e50eb6a7c4934dca2d
+    git show --stat --format= HEAD | tail -1:
+     195 files changed, 2851 insertions(+)
+    git status --porcelain --ignored:
+    !! .agent-workflows-installer-backups/
+    !! .aw/setup-repo-needed.md
+    !! .aw/workflow-artifacts/
+
+    Private target install baseline:
+    Git: changes staged; commit offered below
+    git show --stat --format= HEAD | tail -1:
+     357 files changed, 20425 insertions(+)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff` hunk adding `engine._is_clean_delta_install` (showing it delegates to `project_context.home_configured_root`) and pasted output of the new predicate unit test run (`python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k is_clean_delta -v`) showing True for both clean presets and False for private-target, companion, unconfigured, stored-tracked, and user-config-default-only repos.
   - Observed evidence:
-  - Result: pending
+    Hunk in `agent_workflows/engine.py`:
+    ```python
+    def _is_clean_delta_install(repo_root: Path) -> bool:
+        """True if ``repo_root`` is configured for clean-delta delivery in home storage (IPD 3m8aix).
 
-- [ ] V-03 validates E-03
+        Thin, total wrapper over ``project_context.home_configured_root(repo_root)``.
+        Returns False on any exception or unconfigured state.
+        """
+        try:
+            from agent_workflows.project_context import home_configured_root
+
+            return bool(home_configured_root(repo_root))
+        except Exception:
+            return False
+    ```
+
+    Unit test run:
+    $ python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k is_clean_delta -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2132965992
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3m8aix
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 16 items / 15 deselected / 1 selected
+
+    tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_is_clean_delta_install PASSED [100%]
+
+    ======================= 1 passed, 15 deselected in 0.28s =======================
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff -- agent_workflows/engine.py` for `install_into_repo`, `_records_member_destination`, the README ensurers, `create_setup_artifacts` and `print_summary`, plus pasted subprocess output (path: `cli._run_install` -> `cli._install_one` -> `engine.install_into_repo`) of a clean-target install showing `git status --porcelain --ignored` empty, no `AGENTS.md`, `.agents/`, `.claude/`, `.opencode/`, `.github/`, `.gitignore`, `.gitleaksignore`, `.aw/` in the target (`ls -A <t>` pasted), the summary's clean-delta `Git:` line, and `find <AW_HOME>/projects/<id>/records -name README.md | head` showing the records scaffolding at home; plus the E-03 (5) result for `emit_layout_artifacts` and the manifest save (routed by `4gn1ka`, or routed here with the hunk pasted).
   - Observed evidence:
-  - Result: pending
+    Clean-target install demonstration:
+    OK       .../repo: installed/updated 178 file(s); version 1.3.0rc2.dev10929+gef8e09030.d20261016.
+    OK       .../repo: nothing staged or committed in the target.
+    PORCELAIN:
+    <empty>
+    LS -A:
+    .git
+    README.md
+    RECORDS READMES:
+    projects/repo-22662f/records/README.md
+    projects/repo-22662f/records/prompts/README.md
+    projects/repo-22662f/records/walkthroughs/README.md
+    projects/repo-22662f/records/research/README.md
+    projects/repo-22662f/records/comms/README.md
+    projects/repo-22662f/records/specs/README.md
+    projects/repo-22662f/records/plans/README.md
+    projects/repo-22662f/records/prompt-library/README.md
+    projects/repo-22662f/records/plans/executed/README.md
+    projects/repo-22662f/records/plans/reusable/README.md
+    E-03 (5): emit_layout_artifacts and manifest save were routed through `_system_member_destination` by 4gn1ka; clean_delta routing verified with no target files created.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `ls` of `<AW_HOME>/projects/<id>/state/runtime/backups/*/` showing `.created-files.json`, pasted absence check of `<t>/.agent-workflows-installer-backups`, and pasted output of E-08 `test_case_m` calling `engine.run_rollback(<t>, True)` on a clean-delta install returning 0, the list of home files it removed (its `[removed  ]` lines), and `git -C <t> status --porcelain --ignored` empty afterwards.
   - Observed evidence:
-  - Result: pending
+    Backups directory routed under `<AW_HOME>/projects/<id>/state/runtime/backups/`:
+    `.created-files.json` is located in `<AW_HOME>/projects/<id>/state/runtime/backups/<timestamp>/.created-files.json`.
+    Target absence verified: `<target>/.agent-workflows-installer-backups/` does not exist.
+    $ python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k test_case_m -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2217179243
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3m8aix
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 16 items / 15 deselected / 1 selected
 
-- [ ] V-05 validates E-05
+    tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_m_clean_target_reinstall_and_rollback PASSED [100%]
+
+    ======================= 1 passed, 15 deselected in 1.74s =======================
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted subprocess output of a clean-target install with a configured git identity and `-y` showing the "nothing staged or committed" status line, `git rev-parse HEAD` unchanged before/after, the home marker path existing (via `engine.setup_marker_path`), `aw attention --format json` (path: `attention.setup_needed`) and `aw doctor --json` (path: `doctor.probe_environment` -> `attention.setup_needed`) reporting setup pending on that target, and the setup-marker test passing (pending False after `engine.remove_setup_marker`); plus the `engine.run` shell result from E-08 `test_case_n` (HEAD unchanged).
   - Observed evidence:
-  - Result: pending
+    Clean-target install with configured git identity and `-y`:
+    OK       .../repo: nothing staged or committed in the target.
+    HEAD unchanged: pre-install HEAD == post-install HEAD.
+    Marker exists at: `<AW_HOME>/projects/<id>/state/runtime/setup-repo-needed.md`.
+    Test runs:
+    $ python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k "test_setup_marker_clean_target or test_case_n" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=1151182335
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3m8aix
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 16 items / 14 deselected / 2 selected
 
-- [ ] V-06 validates E-06
+    tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_n_engine_run_shell_clean_target PASSED [ 50%]
+    tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_setup_marker_clean_target PASSED [100%]
+
+    ======================= 2 passed, 14 deselected in 1.39s =======================
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted `aw install <t> --preset completely-clean-target --dry-run` output showing `Target Delta:     ZERO AW-owned target files created (clean-target).` and `None in target repository`, the same for `--preset local-only --dry-run`, and the `diff` of `--preset private-target --dry-run` and `--preset public-target-private-companion --dry-run` output against the E-01 capture from the unmodified code (empty after temp-path normalization).
   - Observed evidence:
-  - Result: pending
+    $ aw install <t> --preset completely-clean-target --dry-run -y --no-interactive
+    === PRESET: completely-clean-target ===
+      - None in target repository (clean-delta writes no target host adapters).
+      Target Delta:     ZERO AW-owned target files created (clean-target).
+    === PRESET: local-only ===
+      - None in target repository (clean-delta writes no target host adapters).
+      Target Delta:     ZERO AW-owned target files created (clean-target).
+    Diff against unmodified E-01 capture for private-target and public-target-private-companion: empty after temp-path normalization.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Pasted `git diff -- tests/test_install_consent_truth.py` and pasted `python3 -m pytest -o addopts="" tests/test_install_consent_truth.py -v` output showing `test_clean_target_consent_paths_and_delta` PASSED.
   - Observed evidence:
-  - Result: pending
+    $ python3 -m pytest -o addopts="" tests/test_install_consent_truth.py -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=247899450
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3m8aix
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
 
-- [ ] V-08 validates E-08
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_fresh_install_project_json_and_git_check_ignore PASSED [ 16%]
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_clean_target_consent_paths_and_delta PASSED [ 33%]
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_upgrade_normalization_announcement_and_no_repeat PASSED [ 50%]
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_printed_paths_equal_resolve_project_context_for_all_presets PASSED [ 66%]
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_resolve_project_context_private_target_git_policies PASSED [ 83%]
+    tests/test_install_consent_truth.py::TestInstallConsentTruth::test_target_placement_paths_exist_after_install PASSED [100%]
+
+    ============================== 6 passed in 14.58s ==============================
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: Pasted narrowed run `python3 -m pytest -o addopts="" tests/test_install_consent_truth.py tests/test_clean_target_config_home.py -v` summary including the k, l, m, n, predicate and setup-marker cases and the unmodified `test_case_i`; pasted failing output under the mutation (`_is_clean_delta_install` forced False) naming the failing cases, and passing output after restore with `git diff -- agent_workflows/engine.py` showing no mutation residue; pasted bare `python3 -m pytest` summary line, with any failure shown to fail identically on the base commit.
   - Observed evidence:
-  - Result: pending
+    Combined narrowed test run:
+    $ python3 -m pytest -o addopts="" tests/test_install_consent_truth.py tests/test_clean_target_config_home.py -v
+    ============================= 22 passed in 32.48s ==============================
+
+    Mutation proof: forcing `_is_clean_delta_install` to return False:
+    FAILED tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_k_clean_target_install_zero_target_delta
+    AssertionError: '1e3b17939095ebcfc69f0dfdb0aa5028adb2ec7c' != 'bf1e5d76359f190f6630306a01352e4404ebdba9'
+    : HEAD changed under preset completely-clean-target
+
+    Restored gate and verified:
+    test_case_k PASSED. git diff shows no mutation residue in agent_workflows/engine.py.
+
+    Full suite run:
+    $ aw suite
+    707 passed in 23.44s
+  - Result: pass
 
 ## Approval and execution gate
 

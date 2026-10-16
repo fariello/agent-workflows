@@ -2379,7 +2379,9 @@ def setup_needed(repo_root: Path) -> bool:
     NEVER creates anything. Replaces the old open-`setup-repo`-action check (the ledger was
     deleted)."""
     try:
-        return (Path(repo_root) / ".aw" / "setup-repo-needed.md").is_file()
+        from agent_workflows.engine import setup_marker_path
+
+        return setup_marker_path(repo_root).is_file()
     except Exception:
         return False
 

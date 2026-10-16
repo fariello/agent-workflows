@@ -8231,6 +8231,7 @@ def _install_one(
         gitignore_status=result["gitignore_status"],
         backups_ignore_status=result["backups_ignore_status"],
         use_git=result["use_git"],
+        clean_delta=result.get("clean_delta", False),
     )
 
     try:
@@ -8277,16 +8278,19 @@ def _install_one(
 
     # Offer to commit (auto under --yes; prompt otherwise; on decline it prints how to commit, so
     # nothing is left SILENTLY staged). This is the step batch paths previously skipped (the bug).
-    engine.prompt_and_run_commit(
-        plan=plan,
-        installed=result["installed"],
-        pruned=result["pruned"],
-        agents_status=result["agents_status"],
-        backups_ignore_status=result["backups_ignore_status"],
-        use_git=result["use_git"],
-        artifacts=result.get("artifacts") or [],
-        untracked_ignore_status=result.get("untracked_ignore_status", ""),
-    )
+    if not engine._is_clean_delta_install(repo_root):
+        engine.prompt_and_run_commit(
+            plan=plan,
+            installed=result["installed"],
+            pruned=result["pruned"],
+            agents_status=result["agents_status"],
+            backups_ignore_status=result["backups_ignore_status"],
+            use_git=result["use_git"],
+            artifacts=result.get("artifacts") or [],
+            untracked_ignore_status=result.get("untracked_ignore_status", ""),
+        )
+    else:
+        term.status("ok", f"{repo_root}: nothing staged or committed in the target.")
     return outcome
 
 

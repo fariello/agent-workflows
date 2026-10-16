@@ -461,17 +461,26 @@ def render_pre_write_plan(
 
     lines.append("")
     lines.append(term.colorize("Host Adapter Exceptions:", "bold"))
-    lines.append(f"  - AGENTS.md:       {repo_formatted}/AGENTS.md (adapter pointer)")
-    lines.append(f"  - .claude/:        {repo_formatted}/.claude/ (discovery adapter)")
-    lines.append(
-        f"  - .opencode/:      {repo_formatted}/.opencode/ (discovery adapter)"
-    )
+    if policy.delivery_mode == DeliveryMode.CLEAN_DELTA.value:
+        lines.append(
+            "  - None in target repository (clean-delta writes no target host adapters)."
+        )
+    else:
+        lines.append(
+            f"  - AGENTS.md:       {repo_formatted}/AGENTS.md (adapter pointer)"
+        )
+        lines.append(
+            f"  - .claude/:        {repo_formatted}/.claude/ (discovery adapter)"
+        )
+        lines.append(
+            f"  - .opencode/:      {repo_formatted}/.opencode/ (discovery adapter)"
+        )
 
     lines.append("")
     lines.append(term.colorize("Expected Deltas:", "bold"))
     if policy.delivery_mode == DeliveryMode.CLEAN_DELTA.value:
         lines.append(
-            "  Target Delta:     Project config, local config and install state are written only under the AW_HOME paths listed above; workflow files, records scaffolding and host adapters are still written into the target (tracked by backlog kvwwt0)."
+            "  Target Delta:     ZERO AW-owned target files created (clean-target)."
         )
     else:
         lines.append(

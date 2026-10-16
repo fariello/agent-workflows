@@ -465,6 +465,36 @@ class InstallPlan:
     backup_timestamp: Optional[str] = field(default=None, compare=False)
 
 
+def _is_clean_delta_install(repo_root: Path) -> bool:
+    """True if ``repo_root`` is configured for clean-delta delivery in home storage (IPD 3m8aix).
+
+    Thin, total wrapper over ``project_context.home_configured_root(repo_root)``.
+    Returns False on any exception or unconfigured state.
+    """
+    try:
+        from agent_workflows.project_context import home_configured_root
+
+        return bool(home_configured_root(repo_root))
+    except Exception:
+        return False
+
+
+def _backups_root(repo_root: Path) -> Path:
+    """Return the backups directory root for ``repo_root`` (IPD 3m8aix).
+
+    Routes under <AW_HOME>/projects/<id>/state/runtime/backups when clean-delta;
+    falls back to repo_root / BACKUPS_DIR otherwise. Total: fallback on ProjectContextError
+    applies only when predicate is False; clean-delta raises.
+    """
+    root = Path(repo_root)
+    if _is_clean_delta_install(root):
+        from agent_workflows.project_context import resolve_project_context
+
+        ctx = resolve_project_context(target_repo=str(root))
+        return Path(ctx.physical_classes["state_runtime"]) / "backups"
+    return root / BACKUPS_DIR
+
+
 def allocate_backup_timestamp(repo_root: Path) -> str:
     """Return a backup-directory token unique against existing backup directories.
 
@@ -477,7 +507,7 @@ def allocate_backup_timestamp(repo_root: Path) -> str:
     """
 
     base = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backups_path = repo_root / BACKUPS_DIR
+    backups_path = _backups_root(repo_root)
     if not (backups_path / base).exists():
         return base
     for n in range(1, 100):
@@ -1995,7 +2025,7 @@ def same_bytes(path: Path, data: bytes) -> bool:
 
 
 def create_backup_path(repo_root: Path, relative_path: Path, timestamp: str) -> Path:
-    return repo_root / BACKUPS_DIR / timestamp / relative_path
+    return _backups_root(repo_root) / timestamp / relative_path
 
 
 def git_available(repo_root: Path) -> bool:
@@ -2240,6 +2270,28 @@ def _system_member_destination(
 
     is_in_tree = _is_safe_subpath(_canonical_path(dest), _canonical_path(repo_root))
     return dest, is_in_tree
+
+
+def _records_member_destination(repo_root: Path, rel: str | Path) -> Path:
+    """Map a records member path onto its physical destination (IPD 3m8aix)."""
+    from agent_workflows.project_context import project_records_dir
+
+    rel_posix = str(rel).replace("\\", "/")
+    prefix = ".aw/records/"
+    if rel_posix.startswith(prefix):
+        tail = rel_posix[len(prefix) :]
+        return project_records_dir(repo_root) / tail
+    elif rel_posix == ".aw/records":
+        return project_records_dir(repo_root)
+    else:
+        return repo_root / rel
+
+
+def _is_dest_in_repo(dest: Path, repo_root: Path) -> bool:
+    """Return True if dest is physically inside repo_root."""
+    from agent_workflows.project_context import _canonical_path, _is_safe_subpath
+
+    return _is_safe_subpath(_canonical_path(dest), _canonical_path(repo_root))
 
 
 def write_file(
@@ -4268,7 +4320,7 @@ def save_created_files_record(
     writes NOTHING, preserving install idempotency (a repeated identical install must not
     accrue empty backup directories).
     """
-    backup_dir = repo_root / BACKUPS_DIR / timestamp
+    backup_dir = _backups_root(repo_root) / timestamp
     if not newly_created and not backup_dir.is_dir():
         return
     if not backup_dir.is_dir():
@@ -4289,7 +4341,7 @@ def save_created_files_record(
 
 def prune_old_backups(repo_root: Path) -> None:
     """Keep only the 5 most recent backups under BACKUPS_DIR."""
-    backups_path = repo_root / BACKUPS_DIR
+    backups_path = _backups_root(repo_root)
     if not backups_path.is_dir():
         return
     try:
@@ -4390,7 +4442,7 @@ def show_install_diffs(
 def run_rollback(repo_root: Path, no_color: bool) -> int:
     """Revert the last installation using the latest backup."""
     term = Term(color=False if no_color else None)
-    backups_path = repo_root / BACKUPS_DIR
+    backups_path = _backups_root(repo_root)
     if not backups_path.is_dir():
         sys.stderr.write(
             term.colorize("Error: No backups found. Cannot roll back.\n", "red")
@@ -4421,7 +4473,8 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
     latest_backup = with_record[-1] if with_record else dirs[-1]
     print(f"Rolling back using backup from {latest_backup.name}...")
 
-    use_git = git_available(repo_root)
+    clean = _is_clean_delta_install(repo_root)
+    use_git = git_available(repo_root) and not clean
 
     created_record = latest_backup / ".created-files.json"
     created_files = []
@@ -4438,12 +4491,17 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
             )
 
     for rel in created_files:
-        target = repo_root / rel
+        if rel.startswith(f"{AW_SYSTEM_DIR}/") or rel == AW_SYSTEM_DIR:
+            target, _ = _system_member_destination(repo_root, rel)
+        elif rel.startswith(".aw/records/") or rel == ".aw/records":
+            target = _records_member_destination(repo_root, rel)
+        else:
+            target = repo_root / rel
         if target.is_file():
             print(f"  [removed  ] {rel}")
             try:
                 target.unlink()
-                if use_git:
+                if use_git and _is_dest_in_repo(target, repo_root):
                     git_run(
                         repo_root, ["rm", "--cached", "--ignore-unmatch", "--", rel]
                     )
@@ -4457,12 +4515,18 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
         if rel_to_backup.as_posix() == ".created-files.json":
             continue
 
-        target = repo_root / rel_to_backup
+        rel_posix = rel_to_backup.as_posix()
+        if rel_posix.startswith(f"{AW_SYSTEM_DIR}/") or rel_posix == AW_SYSTEM_DIR:
+            target, _ = _system_member_destination(repo_root, rel_posix)
+        elif rel_posix.startswith(".aw/records/") or rel_posix == ".aw/records":
+            target = _records_member_destination(repo_root, rel_posix)
+        else:
+            target = repo_root / rel_to_backup
         target.parent.mkdir(parents=True, exist_ok=True)
         print(f"  [restored ] {rel_to_backup.as_posix()}")
         try:
             shutil.copy2(path, target)
-            if use_git:
+            if use_git and _is_dest_in_repo(target, repo_root):
                 git_run(repo_root, ["add", "--", rel_to_backup.as_posix()])
         except OSError as e:
             sys.stderr.write(
@@ -4734,6 +4798,7 @@ def print_summary(
     gitignore_status: str,
     backups_ignore_status: str,
     use_git: bool,
+    clean_delta: bool = False,
 ) -> None:
     term = Term(color=False if plan.no_color else None)
 
@@ -4742,9 +4807,13 @@ def print_summary(
     print(f"Version: {read_version(plan.source_root)}")
     print(f"Repository root: {plan.repo_root}")
     print(f"Source: {plan.source_root}")
-    print(
-        f"Git: {'changes staged; commit offered below' if use_git else 'not a git repo; filesystem only'}"
-    )
+    if clean_delta:
+        git_msg = "clean-delta; nothing staged or committed in the target"
+    elif use_git:
+        git_msg = "changes staged; commit offered below"
+    else:
+        git_msg = "not a git repo; filesystem only"
+    print(f"Git: {git_msg}")
     print()
 
     if migrated:
@@ -4787,6 +4856,7 @@ def print_summary(
 
     if (
         use_git
+        and not clean_delta
         and not plan.dry_run
         and (installed or pruned or backups_ignore_status.startswith("added"))
     ):
@@ -6279,12 +6349,12 @@ def _create_if_absent(
     untouched and recorded as skipped-existing.
     """
 
-    target = repo_root / rel
+    target = _records_member_destination(repo_root, rel)
     if target.exists():
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
-    if use_git:
+    if use_git and _is_dest_in_repo(target, repo_root):
         git_add_optional(repo_root, rel)
     created.append(rel)
 
@@ -6546,7 +6616,7 @@ def ensure_plans_readmes(
     )
 
     for rel_path, content_bytes in targets.items():
-        readme_path = plan.repo_root / rel_path
+        readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
             if rel_path == record_root_readme:
                 try:
@@ -6580,7 +6650,7 @@ def ensure_plans_readmes(
                         backup.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(readme_path, backup)
                     readme_path.write_bytes(content_bytes)
-                    if use_git:
+                    if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
                         git_add_optional(plan.repo_root, rel_path)
                     installed.append(f"{rel_path} [overwrite]")
                     continue
@@ -6591,7 +6661,7 @@ def ensure_plans_readmes(
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
-        if use_git:
+        if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
 
@@ -6618,7 +6688,7 @@ def ensure_docs_readmes(
     specs_readme = f"{dirs['specs']}/README.md"
 
     for rel_path, content_bytes in targets.items():
-        readme_path = plan.repo_root / rel_path
+        readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
             retired_hashes: frozenset[str] | None = None
             if rel_path == research_readme:
@@ -6656,7 +6726,7 @@ def ensure_docs_readmes(
                         backup.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(readme_path, backup)
                     readme_path.write_bytes(content_bytes)
-                    if use_git:
+                    if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
                         git_add_optional(plan.repo_root, rel_path)
                     installed.append(f"{rel_path} [overwrite]")
                     continue
@@ -6667,7 +6737,7 @@ def ensure_docs_readmes(
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
-        if use_git:
+        if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
 
@@ -6691,7 +6761,7 @@ def ensure_prompts_readmes(
     )
 
     for rel_path, content_bytes in targets.items():
-        readme_path = plan.repo_root / rel_path
+        readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
             skipped.append(f"{rel_path} [already current]")
             continue
@@ -6700,7 +6770,7 @@ def ensure_prompts_readmes(
             continue
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
-        if use_git:
+        if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
             git_add_optional(plan.repo_root, rel_path)
         installed.append(f"{rel_path} [install]")
 
@@ -6772,26 +6842,30 @@ def create_setup_artifacts(
     dirs = _record_scaffold_dirs(layout)
     _canonical_aw = str(dirs["comms"]).replace("\\", "/").startswith(".aw/")
 
+    clean = _is_clean_delta_install(repo_root)
+
     targets = collect_scaffold_members(repo_root, category="setup")
     # AW_GITIGNORE_PATH (.aw/.gitignore) is not in the declarative map (F-12) because it is a
     # create-or-append back-fill rather than a flat member, but create_setup_artifacts retains
     # writing it no-clobber for canonical aw layout to preserve exact write semantics.
     files: list[tuple[str, str]] = []
     for rel, content_bytes in targets.items():
-        if rel == GITLEAKSIGNORE_FILE and _canonical_aw:
+        if rel == GITLEAKSIGNORE_FILE and _canonical_aw and not clean:
             files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
+        if clean and rel in (AW_GITIGNORE_PATH, GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
+            continue
         files.append((rel, content_bytes.decode("utf-8")))
 
     if dry_run:
         for rel, _content in files:
-            if not (repo_root / rel).exists():
+            if not _records_member_destination(repo_root, rel).exists():
                 created.append(rel + " [dry-run]")
         return created
 
     comms_readme = f"{dirs['comms']}/README.md"
     for rel, content in files:
         if rel == comms_readme:
-            target = repo_root / rel
+            target = _records_member_destination(repo_root, rel)
             if target.is_file():
                 try:
                     current_text = target.read_text(encoding="utf-8")
@@ -6828,7 +6902,7 @@ def create_setup_artifacts(
                         backup_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(target, backup_path)
                     target.write_text(content, encoding="utf-8")
-                    if use_git:
+                    if use_git and _is_dest_in_repo(target, repo_root):
                         git_add_optional(repo_root, rel)
                     if installed is not None:
                         installed.append(f"{rel} [overwrite]")
@@ -6841,13 +6915,14 @@ def create_setup_artifacts(
     migrate_local_lanes_to_untracked(repo_root, dirs)
     # Materialize the gitignored `untracked/` quarantine lanes so they are discoverable (D94): side
     # effect only (uncommittable, not `--undo`-recorded - a user may write into them).
-    (repo_root / dirs["prompts"] / PROMPTS_UNTRACKED_SUBDIR).mkdir(
-        parents=True, exist_ok=True
-    )
+    (
+        _records_member_destination(repo_root, dirs["prompts"])
+        / PROMPTS_UNTRACKED_SUBDIR
+    ).mkdir(parents=True, exist_ok=True)
     for sub in COMMS_UNTRACKED_SUBDIRS:
-        (repo_root / dirs["comms"] / "untracked" / sub).mkdir(
-            parents=True, exist_ok=True
-        )
+        (
+            _records_member_destination(repo_root, dirs["comms"]) / "untracked" / sub
+        ).mkdir(parents=True, exist_ok=True)
     return created
 
 
@@ -7062,6 +7137,17 @@ def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str
     return written
 
 
+def setup_marker_path(repo_root: Path) -> Path:
+    """Return the physical path to the setup marker (IPD 3m8aix)."""
+    root = Path(repo_root)
+    if _is_clean_delta_install(root):
+        from agent_workflows.project_context import resolve_project_context
+
+        ctx = resolve_project_context(target_repo=str(root))
+        return Path(ctx.physical_classes["state_runtime"]) / "setup-repo-needed.md"
+    return root / SETUP_MARKER_PATH
+
+
 def write_setup_marker(repo_root: Path) -> Path:
     """setupmarker Order 01: write the self-explaining `.aw/setup-repo-needed.md` reminder + ensure
     `.aw/.gitignore` ignores it. Idempotent. Returns the marker path.
@@ -7072,17 +7158,18 @@ def write_setup_marker(repo_root: Path) -> Path:
     reach here (measured 2026-09-12: omitting it made the installer's path-scoped commit fail).
     """
     root = Path(repo_root)
-    marker = root / SETUP_MARKER_PATH
+    marker = setup_marker_path(root)
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(_SETUP_MARKER_TEMPLATE, encoding="utf-8")
-    _ensure_aw_gitignore(root)
+    if not _is_clean_delta_install(root):
+        _ensure_aw_gitignore(root)
     return marker
 
 
 def remove_setup_marker(repo_root: Path) -> bool:
     """setupmarker Order 01: remove the `.aw/setup-repo-needed.md` reminder if present. Idempotent.
     Returns True if a file was removed."""
-    marker = Path(repo_root) / SETUP_MARKER_PATH
+    marker = setup_marker_path(repo_root)
     if marker.is_file():
         marker.unlink()
         return True
@@ -7118,15 +7205,15 @@ def _lane_bases(repo_root: Path, dirs: dict) -> list[Path]:
     """Every comms/prompts base across BOTH layouts (canonical .aw/records + legacy .agents), plus any
     passed `dirs` values, deduped by resolved path."""
     cands = [
-        repo_root / ".aw" / "records" / "prompts",
-        repo_root / ".aw" / "records" / "comms",
+        _records_member_destination(repo_root, ".aw/records/prompts"),
+        _records_member_destination(repo_root, ".aw/records/comms"),
         repo_root / ".agents" / "prompts",
         repo_root / ".agents" / "comms",
     ]
     for key in ("prompts", "comms"):
         v = dirs.get(key)
         if v:
-            cands.append(repo_root / v)
+            cands.append(_records_member_destination(repo_root, v))
     seen: set = set()
     out: list[Path] = []
     for c in cands:
@@ -7170,7 +7257,7 @@ def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
                 stale.unlink()
         else:
             _ensure_untracked_gitignore(base)
-    if want_aw_gitignore:
+    if want_aw_gitignore and not _is_clean_delta_install(repo_root):
         _ensure_aw_gitignore(repo_root)
     return renamed
 
@@ -7280,7 +7367,8 @@ def install_into_repo(
         plan, "backup_timestamp", allocate_backup_timestamp(plan.repo_root)
     )
 
-    use_git = git_available(plan.repo_root)
+    clean = _is_clean_delta_install(repo_root)
+    use_git = git_available(plan.repo_root) and not clean
     workflows = parse_manifest(plan.source_root)
     body_members = collect_source_members(plan.source_root, target_layout=target_layout)
     shim_members = generate_shim_members(
@@ -7299,7 +7387,7 @@ def install_into_repo(
     skill_members = _build_skill_members(workflows, plan.source_root, target_layout)
     # Generated non-body members written the same idempotent skip-unchanged way (shim +
     # skill), so each path is recorded in the ownership manifest by write_file.
-    generated_members = {**shim_members, **skill_members}
+    generated_members = {} if clean else {**shim_members, **skill_members}
 
     migrated = migrate_legacy_layout(plan, use_git)
     # wfartifacts Order 05 (y4pptx): relocate an EXISTING install's run records off the retired
@@ -7316,30 +7404,38 @@ def install_into_repo(
     # a tree that is already ignored, which `_ensure_aw_gitignore` guarantees. Both Orders 01 and 02
     # are `executed`, and the migration additionally untracks what it moves, so the destination is
     # ignored IN EFFECT rather than by assumption (asserted with `git check-ignore` in the tests).
-    migrated.extend(
-        migrate_root_workflow_artifacts(repo_root, use_git=use_git, dry_run=dry_run)
-    )
+    if not clean:
+        migrated.extend(
+            migrate_root_workflow_artifacts(repo_root, use_git=use_git, dry_run=dry_run)
+        )
     migrated.extend(migrate_root_state_records(repo_root, dry_run=dry_run))
     installed, skipped, _ = install_all(plan, body_members, generated_members, use_git)
     pruned = prune_stale(
         plan, body_members, generated_members, use_git, target_layout=target_layout
     )
     timestamp = plan.backup_timestamp or allocate_backup_timestamp(plan.repo_root)
-    agents_status = update_agents_pointer(
-        plan, use_git, timestamp, target_layout=target_layout
-    )
-    backups_ignore_status = ensure_backups_gitignored(plan, use_git)
-    untracked_ignore_status = ensure_untracked_gitignore(plan, use_git)
+    if clean:
+        agents_status = {resolve_agents_file(plan.repo_root): "skipped (clean-delta)"}
+        backups_ignore_status = "skipped (clean-delta)"
+        untracked_ignore_status = "skipped (clean-delta)"
+    else:
+        agents_status = update_agents_pointer(
+            plan, use_git, timestamp, target_layout=target_layout
+        )
+        backups_ignore_status = ensure_backups_gitignored(plan, use_git)
+        untracked_ignore_status = ensure_untracked_gitignore(plan, use_git)
     # Canonical step order (D83): README-ensurers BEFORE create_setup_artifacts. This matches the
     # single-repo run() path; both operate on disjoint no-clobber paths so the filesystem outcome is
     # order-independent, but a single canonical order removes the last orchestration divergence.
-    ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
+    if not clean:
+        ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     ensure_plans_readmes(plan, use_git, installed, skipped)
     ensure_docs_readmes(plan, use_git, installed, skipped)
     ensure_prompts_readmes(plan, use_git, installed, skipped)
-    if (repo_root / AW_GITIGNORE_PATH).is_file():
+    if not clean and (repo_root / AW_GITIGNORE_PATH).is_file():
         _ensure_aw_gitignore(repo_root)
-    ensure_inbox_readme(plan, use_git, installed, skipped)
+    if not clean:
+        ensure_inbox_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(
         repo_root,
         use_git,
@@ -7361,7 +7457,7 @@ def install_into_repo(
     }
     layout_artifacts = emit_layout_artifacts(repo_root, dry_run=dry_run)
     # gzsfqn E-03: compute gitignore advisory after all ignore files are written by create_setup_artifacts
-    gitignore_status = check_gitignore(plan)
+    gitignore_status = "skipped (clean-delta)" if clean else check_gitignore(plan)
 
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
@@ -7425,8 +7521,9 @@ def install_into_repo(
 
         _config.sync_cutovers_on_install(plan.repo_root)
         # gzsfqn E-02: stage wizard-written tracked policy files so commit captures them
-        stage_tracked_policy_files(plan.repo_root, use_git, installed)
-        warn_tracking_and_scan(plan, use_git)
+        if not clean:
+            stage_tracked_policy_files(plan.repo_root, use_git, installed)
+            warn_tracking_and_scan(plan, use_git)
 
     return {
         "repo": repo_root,
@@ -7439,6 +7536,7 @@ def install_into_repo(
         # re-install at the same version, and on a `legacy`-layout target, which has no .aw/system).
         "layout_artifacts": layout_artifacts,
         "use_git": use_git,
+        "clean_delta": clean,
         "version": read_installed_version(repo_root),
         "agents_status": agents_status,
         "gitignore_status": gitignore_status,
@@ -7595,8 +7693,9 @@ def run(args: argparse.Namespace) -> int:
             gitignore_status=result["gitignore_status"],
             backups_ignore_status=backups_ignore_status,
             use_git=use_git,
+            clean_delta=result.get("clean_delta", False),
         )
-        if artifacts:
+        if artifacts and not result.get("clean_delta", False):
             print()
             print(
                 "Setup artifacts created (staged; run /setup-repo for stack-tailored setup):"
@@ -7604,16 +7703,17 @@ def run(args: argparse.Namespace) -> int:
             for item in artifacts:
                 print(f"  - {item}")
 
-        prompt_and_run_commit(
-            plan=plan,
-            installed=installed,
-            pruned=pruned,
-            agents_status=agents_status,
-            backups_ignore_status=backups_ignore_status,
-            use_git=use_git,
-            artifacts=artifacts,
-            untracked_ignore_status=untracked_ignore_status,
-        )
+        if not result.get("clean_delta", False):
+            prompt_and_run_commit(
+                plan=plan,
+                installed=installed,
+                pruned=pruned,
+                agents_status=agents_status,
+                backups_ignore_status=backups_ignore_status,
+                use_git=use_git,
+                artifacts=artifacts,
+                untracked_ignore_status=untracked_ignore_status,
+            )
     return returncode
 
 

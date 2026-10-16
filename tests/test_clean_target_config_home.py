@@ -74,7 +74,14 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         repo_root = Path(__file__).resolve().parent.parent
         self.env["PYTHONPATH"] = f"{repo_root}:{self.env.get('PYTHONPATH', '')}"
 
+        self._orig_aw_home = os.environ.get("AW_HOME")
+        os.environ["AW_HOME"] = str(self.aw_home)
+
     def tearDown(self) -> None:
+        if self._orig_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._orig_aw_home
         self.test_dir.cleanup()
 
     def _run_aw(
@@ -412,6 +419,371 @@ class TestCleanTargetConfigHome(unittest.TestCase):
             target_repo=str(self.repo), companion_dir=str(companion_repo)
         )
         self.assertEqual(ctx.delivery_mode, "tracked")
+
+    def test_case_k_clean_target_install_zero_target_delta(self) -> None:
+        """Case (k): clean-target install (both presets) leaves zero target delta and writes home state."""
+        for i, preset in enumerate(("completely-clean-target", "local-only")):
+            target = self.base / f"repo_k_{i}"
+            target.mkdir()
+            subprocess.run(
+                ["git", "init", "-b", "main", "-q"], cwd=str(target), check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"], cwd=str(target), check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=str(target),
+                check=True,
+            )
+            (target / "README.md").write_text("# Test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=str(target), check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "initial commit"], cwd=str(target), check=True
+            )
+
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(target),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+
+            res = self._run_aw(
+                "install", ".", "--preset", preset, "-y", "--no-interactive", cwd=target
+            )
+            self.assertEqual(res.returncode, 0, f"Install failed: {res.stderr}")
+
+            head_after = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(target),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(
+                head_before, head_after, f"HEAD changed under preset {preset}"
+            )
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--ignored"],
+                cwd=str(target),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            self.assertEqual(
+                status,
+                "",
+                f"Target git status is not empty under preset {preset}: {status}",
+            )
+
+            for forbidden in (
+                target / ".aw",
+                target / "AGENTS.md",
+                target / ".agents",
+                target / ".claude",
+                target / ".opencode",
+                target / ".github",
+                target / ".gitignore",
+                target / ".gitleaksignore",
+            ):
+                self.assertFalse(
+                    forbidden.exists(), f"Forbidden target file exists: {forbidden}"
+                )
+
+            ctx = resolve_project_context(
+                target_repo=str(target), aw_home=str(self.aw_home)
+            )
+            proj_dir = self.aw_home / "projects" / ctx.project_id
+            runtime_state = proj_dir / "state" / "runtime"
+            self.assertTrue((runtime_state / "setup-repo-needed.md").is_file())
+            created_files = list(
+                (runtime_state / "backups").glob("*/.created-files.json")
+            )
+            self.assertTrue(
+                len(created_files) >= 1,
+                "Expected .created-files.json in home runtime backups",
+            )
+
+    def test_case_l_tracked_install_still_writes_target(self) -> None:
+        """Case (l): tracked private-target install still writes target, commits under -y, and matches baseline."""
+        target = self.base / "repo_l"
+        target.mkdir()
+        subprocess.run(["git", "init", "-b", "main", "-q"], cwd=str(target), check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"], cwd=str(target), check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=str(target),
+            check=True,
+        )
+        (target / "README.md").write_text("# Test\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=str(target), check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "initial commit"], cwd=str(target), check=True
+        )
+
+        head_before = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        res = self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "private-target",
+            "-y",
+            "--no-interactive",
+            cwd=target,
+        )
+        self.assertEqual(res.returncode, 0)
+
+        head_after = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertNotEqual(
+            head_before, head_after, "Expected commit under private-target -y"
+        )
+
+        self.assertTrue((target / "AGENTS.md").is_file())
+        self.assertTrue((target / ".aw" / ".gitignore").is_file())
+        self.assertTrue((target / ".agent-workflows-installer-backups").is_dir())
+
+        self.assertIn("Git: changes staged; commit offered below", res.stdout)
+        stat = subprocess.run(
+            ["git", "show", "--stat", "--format=", "HEAD"],
+            cwd=str(target),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        tail = stat.splitlines()[-1] if stat.splitlines() else ""
+        self.assertIn("357 files changed", tail)
+
+    def test_case_m_clean_target_reinstall_and_rollback(self) -> None:
+        """Case (m): clean-delta reinstall is a no-op on target, and rollback removes home files leaving target empty."""
+        from agent_workflows import engine
+
+        res1 = self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        self.assertEqual(res1.returncode, 0)
+
+        head_before = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        # Second install
+        res2 = self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        self.assertEqual(res2.returncode, 0)
+
+        head_after = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(head_before, head_after)
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(status, "")
+
+        # Rollback
+        rc = engine.run_rollback(self.repo, True)
+        self.assertEqual(rc, 0)
+
+        status_after_rollback = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(status_after_rollback, "")
+
+    def test_case_n_engine_run_shell_clean_target(self) -> None:
+        """Case (n): engine.run() in-process presentation shell on clean-delta target leaves HEAD unchanged."""
+        from agent_workflows import engine
+        from agent_workflows.install_wizard import (
+            persist_project_policy,
+            resolve_policy_noninteractive,
+        )
+
+        policy = resolve_policy_noninteractive(
+            str(self.repo),
+            explicit_preset="completely-clean-target",
+            explicit_aw_home=str(self.aw_home),
+        )
+        persist_project_policy(str(self.repo), policy)
+
+        head_before = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        args = engine.parse_args(["--repo", str(self.repo), "-y", "--no-color"])
+        rc = engine.run(args)
+        self.assertEqual(rc, 0)
+
+        head_after = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(head_before, head_after)
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored"],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertEqual(status, "")
+
+    def test_is_clean_delta_install(self) -> None:
+        """Unit test for engine._is_clean_delta_install covering all E-02 cases."""
+        from agent_workflows import engine
+        from agent_workflows.install_wizard import (
+            persist_project_policy,
+            resolve_policy_noninteractive,
+        )
+
+        # 1. completely-clean-target -> True
+        repo_clean = self.base / "repo_pred_clean"
+        repo_clean.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", "-q"], cwd=str(repo_clean), check=True
+        )
+        pol_clean = resolve_policy_noninteractive(
+            str(repo_clean),
+            explicit_preset="completely-clean-target",
+            explicit_aw_home=str(self.aw_home),
+        )
+        persist_project_policy(str(repo_clean), pol_clean)
+        self.assertTrue(engine._is_clean_delta_install(repo_clean))
+
+        # 2. local-only -> True
+        repo_local = self.base / "repo_pred_local"
+        repo_local.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", "-q"], cwd=str(repo_local), check=True
+        )
+        pol_local = resolve_policy_noninteractive(
+            str(repo_local),
+            explicit_preset="local-only",
+            explicit_aw_home=str(self.aw_home),
+        )
+        persist_project_policy(str(repo_local), pol_local)
+        self.assertTrue(engine._is_clean_delta_install(repo_local))
+
+        # 3. private-target -> False
+        repo_priv = self.base / "repo_pred_priv"
+        repo_priv.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", "-q"], cwd=str(repo_priv), check=True
+        )
+        pol_priv = resolve_policy_noninteractive(
+            str(repo_priv),
+            explicit_preset="private-target",
+            explicit_aw_home=str(self.aw_home),
+        )
+        persist_project_policy(str(repo_priv), pol_priv)
+        self.assertFalse(engine._is_clean_delta_install(repo_priv))
+
+        # 4. public-target-private-companion -> False
+        repo_comp = self.base / "repo_pred_comp"
+        repo_comp.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", "-q"], cwd=str(repo_comp), check=True
+        )
+        comp_dir = self.base / "repo_pred_comp_store"
+        comp_dir.mkdir()
+        pol_comp = resolve_policy_noninteractive(
+            str(repo_comp),
+            explicit_preset="public-target-private-companion",
+            explicit_companion=str(comp_dir),
+            explicit_aw_home=str(self.aw_home),
+        )
+        persist_project_policy(str(repo_comp), pol_comp)
+        self.assertFalse(engine._is_clean_delta_install(repo_comp))
+
+        # 5. unconfigured repo -> False
+        repo_unconf = self.base / "repo_pred_unconf"
+        repo_unconf.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", "-q"], cwd=str(repo_unconf), check=True
+        )
+        self.assertFalse(engine._is_clean_delta_install(repo_unconf))
+
+        # 6. stored-tracked repo -> False
+        self.assertFalse(engine._is_clean_delta_install(repo_priv))
+
+        # 7. user config default_delivery_mode: clean-delta but no stored policy in repo -> False
+        user_cfg_dir = self.home / ".config" / "agent-workflows"
+        user_cfg_dir.mkdir(parents=True, exist_ok=True)
+        (user_cfg_dir / "config.json").write_text(
+            json.dumps({"default_delivery_mode": "clean-delta"}), encoding="utf-8"
+        )
+        self.assertFalse(engine._is_clean_delta_install(repo_unconf))
+
+    def test_setup_marker_clean_target(self) -> None:
+        """Setup marker test: attention.setup_needed True after install and False after remove_setup_marker."""
+        from agent_workflows import attention, engine
+
+        res = self._run_aw(
+            "install",
+            ".",
+            "--preset",
+            "completely-clean-target",
+            "-y",
+            "--no-interactive",
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertTrue(attention.setup_needed(self.repo))
+
+        removed = engine.remove_setup_marker(self.repo)
+        self.assertTrue(removed)
+        self.assertFalse(attention.setup_needed(self.repo))
 
 
 if __name__ == "__main__":

@@ -271,12 +271,26 @@ class TestInstallConsentTruth(unittest.TestCase):
             )
 
     def test_clean_target_consent_paths_and_delta(self) -> None:
-        """Validate clean-target consent plan truth: no zero-target claim, and printed paths exist."""
+        """Validate clean-target consent plan truth: zero-target claim, and no target delta."""
         from agent_workflows.install_wizard import get_preset_defaults
 
         with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as fake_home:
             repo_path = Path(td)
             self._init_git_repo(repo_path)
+            (repo_path / "README.md").write_text("# Test Repo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=str(repo_path), check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "initial commit"],
+                cwd=str(repo_path),
+                check=True,
+            )
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
 
             for preset in (
                 Preset.COMPLETELY_CLEAN_TARGET.value,
@@ -291,17 +305,37 @@ class TestInstallConsentTruth(unittest.TestCase):
                 )
                 plan = render_pre_write_plan(policy, str(repo_path), Term(color=False))
 
-                self.assertNotIn("ZERO AW-owned target files", plan)
                 self.assertIn(
-                    "Project config, local config and install state are written only under the AW_HOME paths listed above",
+                    "Target Delta:     ZERO AW-owned target files created (clean-target).",
                     plan,
                 )
-                self.assertIn("tracked by backlog kvwwt0", plan)
+                self.assertIn(
+                    "- None in target repository (clean-delta writes no target host adapters).",
+                    plan,
+                )
 
             res = self._run_install(
                 repo_path, Path(fake_home), preset=Preset.COMPLETELY_CLEAN_TARGET.value
             )
             self.assertEqual(res.returncode, 0, f"Install failed: {res.stderr}")
+
+            head_after = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(head_before, head_after)
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--ignored"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            self.assertEqual(status, "")
 
             # Verify no target .aw/config or .aw/state
             self.assertFalse((repo_path / ".aw" / "config").exists())
