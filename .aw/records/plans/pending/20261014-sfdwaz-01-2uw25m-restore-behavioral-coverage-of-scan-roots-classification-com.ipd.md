@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Restore the invariant as behavioral tests
 
-- [ ] E-01 Create `tests/test_scan_root_classification.py` with a `ScanRootClassificationTests` class whose `test_no_scan_root_is_scanned_then_silently_dropped` calls `attention._classify_tree(root)` for every entry of `artifact_core.SCAN_ROOTS` and asserts the list of roots that return `None` and are not in the closed exemption set (`CITATION_ONLY_ROOT_DOCS = {"DECISIONS.md", "README.md", "ARCHITECTURE.md"}`, `LEGACY_CONTAINER_ROOTS = {".agents/docs"}`) is empty, with a failure message naming the offenders and the two remedies.
+- [x] E-01 Create `tests/test_scan_root_classification.py` with a `ScanRootClassificationTests` class whose `test_no_scan_root_is_scanned_then_silently_dropped` calls `attention._classify_tree(root)` for every entry of `artifact_core.SCAN_ROOTS` and asserts the list of roots that return `None` and are not in the closed exemption set (`CITATION_ONLY_ROOT_DOCS = {"DECISIONS.md", "README.md", "ARCHITECTURE.md"}`, `LEGACY_CONTAINER_ROOTS = {".agents/docs"}`) is empty, with a failure message naming the offenders and the two remedies.
   - Depends on: none
   - Expected outcome: the test passes at HEAD; it reports `[]` offenders.
-  - Execution state: pending
-- [ ] E-02 In the same module add `test_the_exemptions_are_live_and_justified`: build a temp repo in which every exempted root exists (each of the three root docs as a file; `.agents/docs` as a directory holding one `.md` child), call `artifact_core.iter_scan_files(repo)` with its default roots, and assert that for each exempted name at least one returned repo-relative path equals that name or lies under `<name>/` (`iter_scan_files` returns FILES, not roots, so a directory root is observed through its child). Also assert `attention._classify_tree` returns a non-`None` policy for `.agents/docs/specs/x.spec.md` and `.agents/docs/research/y.md` (the children that justify the container exemption).
+  - Execution state: performed
+- [x] E-02 In the same module add `test_the_exemptions_are_live_and_justified`: build a temp repo in which every exempted root exists (each of the three root docs as a file; `.agents/docs` as a directory holding one `.md` child), call `artifact_core.iter_scan_files(repo)` with its default roots, and assert that for each exempted name at least one returned repo-relative path equals that name or lies under `<name>/` (`iter_scan_files` returns FILES, not roots, so a directory root is observed through its child). Also assert `attention._classify_tree` returns a non-`None` policy for `.agents/docs/specs/x.spec.md` and `.agents/docs/research/y.md` (the children that justify the container exemption).
   - Depends on: E-01
   - Expected outcome: test passes; a stale exemption (a name no longer scanned) would fail it.
-  - Execution state: pending
-- [ ] E-03 In the same module add `test_todo_md_is_not_scanned`: build a temp repo containing `TODO.md` plus one `DECISIONS.md`, call `artifact_core.iter_scan_files(repo)` with its default roots, and assert `TODO.md` is absent from the returned relative paths while `DECISIONS.md` is present (this `iter_scan_files` assertion is the load-bearing one); then call `attention.scan(repo)` and assert no returned item or drift row names `TODO.md`.
+  - Execution state: performed
+- [x] E-03 In the same module add `test_todo_md_is_not_scanned`: build a temp repo containing `TODO.md` plus one `DECISIONS.md`, call `artifact_core.iter_scan_files(repo)` with its default roots, and assert `TODO.md` is absent from the returned relative paths while `DECISIONS.md` is present (this `iter_scan_files` assertion is the load-bearing one); then call `attention.scan(repo)` and assert no returned item or drift row names `TODO.md`.
   - Depends on: E-01
   - Expected outcome: test passes.
-  - Execution state: pending
-- [ ] E-05 In the same module add `test_the_invariant_detects_an_unclassified_root`: factor the E-01 offender computation into a module-level helper taking a roots iterable, run it over `artifact_core.SCAN_ROOTS + ("TODO.md", ".aw/records/no-such-tree")`, and assert it returns exactly the two appended roots (proves the guard is not vacuous).
+  - Execution state: performed
+- [x] E-05 In the same module add `test_the_invariant_detects_an_unclassified_root`: factor the E-01 offender computation into a module-level helper taking a roots iterable, run it over `artifact_core.SCAN_ROOTS + ("TODO.md", ".aw/records/no-such-tree")`, and assert it returns exactly the two appended roots (proves the guard is not vacuous).
   - Depends on: E-01
   - Expected outcome: test passes; the helper returns `[".aw/records/no-such-tree", "TODO.md"]` (Python `sorted` order: `.` sorts before `T`; measured at review HEAD `de5c53233`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Repoint the comment
 
-- [ ] E-04 Edit the comment above `artifact_core.SCAN_ROOTS` (the sentence "former invariant `tests/test_artifact_core.py::ScanRootClassificationInvariantTests` was deleted in `19313eed`; no live guard currently asserts this.") so it names the restored guard `tests/test_scan_root_classification.py::ScanRootClassificationTests` and keeps the `19313eed` history. Comment-only edit; no executable change.
+- [x] E-04 Edit the comment above `artifact_core.SCAN_ROOTS` (the sentence "former invariant `tests/test_artifact_core.py::ScanRootClassificationInvariantTests` was deleted in `19313eed`; no live guard currently asserts this.") so it names the restored guard `tests/test_scan_root_classification.py::ScanRootClassificationTests` and keeps the `19313eed` history. Comment-only edit; no executable change.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/artifact_core.py` touches only comment lines.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,26 +117,77 @@ N/A: no behavior or contract changes; only a test module and a code comment.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_scan_root_classification.py -v` output showing the test that pins "every `SCAN_ROOTS` entry classifies via `attention._classify_tree` or is in the closed exemption set" PASSED (the E-01 name is a pointer, not the bar), plus pasted `rg -n "\binspect\b|\bimport ast\b|\bast\.|getsource|read_text\(" tests/test_scan_root_classification.py` output (expected: no match, or only matches that read a temp-repo fixture and never a package module), showing no source-reading (P16).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```
+    tests/test_scan_root_classification.py::ScanRootClassificationTests::test_no_scan_root_is_scanned_then_silently_dropped PASSED [ 50%]
+    ```
+    P16 source-reading check:
+    ```
+    $ rg -n "\binspect\b|\bimport ast\b|\bast\.|getsource|read_text\(" tests/test_scan_root_classification.py
+    (exit 1, 0 matches)
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the test that pins "every exempted name is still yielded by `iter_scan_files` over a temp repo, and `.agents/docs` children classify non-`None`" PASSED, plus a one-off pasted demonstration that the exemption guard is live: rerun the E-02 assertion with an extra non-scanned name (for example `NOT-A-ROOT.md`) added to the exemption set and paste the resulting assertion failure.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    ```
+    tests/test_scan_root_classification.py::ScanRootClassificationTests::test_the_exemptions_are_live_and_justified PASSED [ 75%]
+    ```
+    Negative demonstration with non-scanned name `NOT-A-ROOT.md`:
+    ```
+    Traceback (most recent call last):
+      File "<string>", line 22, in <module>
+        assert found, f"Exempted root {name!r} is not observed in iter_scan_files output: {scanned_rel_paths}"
+               ^^^^^
+    AssertionError: Exempted root 'NOT-A-ROOT.md' is not observed in iter_scan_files output: ['.agents/docs/note.md', 'ARCHITECTURE.md', 'DECISIONS.md', 'README.md']
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing the test that pins "`TODO.md` is absent from `iter_scan_files` output and from every `attention.scan` item and drift row, while `DECISIONS.md` is present" PASSED, and the module run's summary line showing zero failed and zero errors (re-derive the count at execution; do not compare against a number written here).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    ```
+    tests/test_scan_root_classification.py::ScanRootClassificationTests::test_todo_md_is_not_scanned PASSED [100%]
+
+    ============================== 4 passed in 0.25s ===============================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff agent_workflows/artifact_core.py` showing only `#` comment lines changed, naming `tests/test_scan_root_classification.py::ScanRootClassificationTests`, and still carrying `19313eed` and the "Do not re-add `TODO.md`" instruction, plus the pasted summary line of a bare `python3 -m pytest` run with zero failures.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```diff
+    diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+    index 2ae64966a..53d16f6dd 100644
+    --- a/agent_workflows/artifact_core.py
+    +++ b/agent_workflows/artifact_core.py
+    @@ -575,7 +575,7 @@ def repo_relative_posix(
+     # tree + the Notes section"). Committed lightweight work belongs in `records/backlog/`, which IS
+     # scanned and IS attention-visible. Do not re-add `TODO.md` here: former invariant
+     # `tests/test_artifact_core.py::ScanRootClassificationInvariantTests` was deleted in `19313eed`;
+    -# no live guard currently asserts this.
+    +# restored as `tests/test_scan_root_classification.py::ScanRootClassificationTests`.
+     SCAN_ROOTS = (
+         "DECISIONS.md",
+         "README.md",
+    ```
+    Full pytest suite summary:
+    ```
+    695 passed in 20.69s
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted pytest output showing the test that pins "the offender helper reports both appended unclassified roots and nothing else" PASSED, plus the pasted value of a one-off `python3 -c` call of the helper over `SCAN_ROOTS + ("TODO.md", ".aw/records/no-such-tree")` showing exactly those two roots.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_scan_root_classification.py::ScanRootClassificationTests::test_the_invariant_detects_an_unclassified_root PASSED [ 25%]
+    ```
+    One-off `python3 -c` call:
+    ```
+    $ python3 -c 'from agent_workflows import artifact_core; from tests.test_scan_root_classification import find_unclassified_roots; roots = artifact_core.SCAN_ROOTS + ("TODO.md", ".aw/records/no-such-tree"); print(find_unclassified_roots(roots))'
+    ['.aw/records/no-such-tree', 'TODO.md']
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
