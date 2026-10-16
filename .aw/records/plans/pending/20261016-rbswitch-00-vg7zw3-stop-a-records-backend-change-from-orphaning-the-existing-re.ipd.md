@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the three children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-rbswitch-00-vg7zw3-stop-a-records-backend-change-from-orphaning-the-existing-re.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: a9685d7b1970dfd323440ae8659ff39dd4ca7ea358c46f0de3a2e6d3de0a8feb
@@ -20,8 +20,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: vg7zw3
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint a9685d7b1970, model uri/its_direct/pt3-claude-opus-5.5-1m-us

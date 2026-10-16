@@ -6,7 +6,7 @@
 - Scope: IN: in `agent_workflows/placement_switch.py`, `plan_records_root_switch(repo_path, new_policy, *, aw_home=None) -> SwitchPlan` (read-only, `direction` `records-to-home` or `records-to-target`, `retire_side=None`, items for the `records` class only plus one in-place `rewrite` of the config sources that carry `records_backend`); `execute_records_root_switch(repo_path, new_policy, *, aw_home=None, fault_injection=None) -> SwitchResult`; a `mode` field (`placement` or `records`) in the journal so the EXISTING `resume_placement_switch`, `rollback_placement_switch` and `placement_switch_status` dispatch on it; tests. OUT: CLI flags, preview rendering and messages (Order 03 `vv9ki4`); companion records (`n9vd2h`); config or durable-state movement (Set `cfgreloc`).
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_records_root_switch_execute.py
 - Item-Dependencies: executed:s07f73, executed:6u755v
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: fxbm7j
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-16 draft (opencode): created.

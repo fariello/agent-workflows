@@ -6,7 +6,7 @@
 - Scope: Add a dedicated behavioral regression test module for the `run_work_begin` lease `plan_path` computation covering both the out-of-root (clean-delta) and in-root (tracked records) cases, prove it fails without the guard, normalize the out-of-root value to POSIX form, and record the fix in CHANGELOG.
 - Scope-Paths: agent_workflows/work_cmd.py, tests/test_work_begin_plan_path_outside_root.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: t1fri2
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-16 draft (opencode): created.

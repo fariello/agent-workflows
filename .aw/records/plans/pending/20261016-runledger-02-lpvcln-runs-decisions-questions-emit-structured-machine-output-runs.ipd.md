@@ -6,7 +6,7 @@
 - Scope: Give the two projection leaves a bare-JSON machine payload (same `_emit_machine` family as their `aw runs` siblings) while keeping human output and exit codes unchanged; route every ledger path these two ledger leaves print through `agent_schema.normalize_repo_path`, and the same-defect sibling sites in this file (`runs show` human `Ledger:` line and `_emit_not_a_ledger`'s machine `path`, review PR-001); add behavioral tests; update the live conformance sweep and exemption registry that currently pin the raw-markdown gap; add a CHANGELOG line.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_runs_machine_output_paths.py, tests/test_live_conformance_sweep.py, tests/conformance_matrix.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: lpvcln
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-005)
 
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005

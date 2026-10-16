@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the three children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cmpreloc-00-aqun5z-support-placement-switches-into-and-out-of-the-public-target.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 90b83754d0a96fd787e8c0e1fe51517060b0acc8c5e18361ebc27834cf51a405
@@ -19,8 +19,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: aqun5z
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 cross-reference (opencode, from /plan-review of fo08zx PR-001): ownership of the interim `companion-unsupported` blocker re-assigned: `fo08zx` E-06 adds an `allow_companion=True` library opt-in, `y1e2m9` removes the blocker from the default path; completion criteria and child rows reconciled.
 - 2026-10-16 coverage pass (aw oc run): fingerprint 90b83754d0a9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004

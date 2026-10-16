@@ -6,7 +6,7 @@
 - Scope: test-fixture-only change to `TestCleanTargetRecognition._strip_in_target_residue`; no production code.
 - Scope-Paths: tests/test_clean_target_recognition.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 01
 - Author: opencode
 - Id: jl0bv0
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode/claude-opus): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-16 draft (opencode): created.

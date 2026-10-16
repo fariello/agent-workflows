@@ -6,7 +6,7 @@
 - Scope: Apply `agent_schema.filter_record_fields` to the `--agent` success record in `run_cli._run_init`, add a behavioral regression test, and retire the `("run init", "--fields")` KNOWN_BROKEN ceiling entry.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_init.py, tests/test_shared_flag_honored.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: tgfxin
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode/claude-opus): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-16 to-review (aw set): status set to to-review

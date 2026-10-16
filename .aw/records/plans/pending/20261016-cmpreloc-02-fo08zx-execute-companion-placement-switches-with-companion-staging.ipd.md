@@ -6,7 +6,7 @@
 - Scope: IN: companion handling inside `execute_placement_switch`, `resume_placement_switch`, `rollback_placement_switch` and `placement_switch_status` for plans carrying `companion_action`; the `in-place` direction (config rewritten in place, no retirement); the attach and detach phases; per-repository staging (target and companion) with an ignore filter; companion entries in the journal and receipt; companion fault points; a keyword-only `allow_companion` opt-in past the interim `companion-unsupported` blocker (E-06); tests. OUT: removing that blocker from the default path (Order 03 `y1e2m9`, together with the CLI gating that makes it safe); CLI, docs and spec (Order 03 `y1e2m9`); `cli._run_install`'s own fresh-install companion attach, which stays as is.
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_placement_switch_companion_execute.py
 - Item-Dependencies: executed:xc8nae, executed:6u755v
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: fo08zx
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 cross-reference (opencode, from /plan-review of xc8nae PR-001): Order 01 `xc8nae` now KEEPS `companion-unsupported` as an ordinary blocker beside a full companion census, so the cfgreloc executor and `ozr356` keep refusing companion pairs until this plan ships. This plan must remove that blocker in `placement_switch.plan_placement_switch` in the same change that adds executor support, and update `xc8nae`'s tests that assert it; its review should add that step explicitly. Also from that review: pair (d)'s `config_project` item carries `dest_git=None` (the new in-tree `project.json` stays untracked, F-02), and the target `dirty-aw-tree` rule now ignores exactly the untracked `.aw/config/project.json` a fresh companion install leaves.

@@ -6,7 +6,7 @@
 - Scope: IN: additive fields on `placement_switch.SwitchItem` (`source_git`, `dest_git` in `target`/`companion`/`None`) and `placement_switch.SwitchPlan` (`companion_dir`, `companion_action` in `attach`/`detach`/`None`, `companion_create`, `config_retrack` in `untrack`/`track`/`None`), a new `direction` value `in-place` and a `retire_side` of `None` for the two pairs whose config directory does not change; replacing the `companion-unsupported` SHORT-CIRCUIT with a fully populated companion census while KEEPING `companion-unsupported` as an ordinary blocker on every companion plan (the interim safety gate; Order 02 `fo08zx` adds an `allow_companion` library opt-in past it and Order 03 `y1e2m9` removes it from the default path, see E-02 and Deferred); companion blockers `companion-not-git`, `companion-dirty`, `companion-unmerged`, `companion-preflight`, `companion-to-companion`; tests. OUT: executing (Order 02 `fo08zx`), CLI and docs (Order 03 `y1e2m9`), moving a companion binding between two companion directories (`aw storage move`, `storage.move_companion`).
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_placement_switch_companion_plan.py, tests/test_placement_switch_plan.py
 - Item-Dependencies: executed:xvlemm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: xc8nae
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
 - 2026-10-16 draft (opencode): created.

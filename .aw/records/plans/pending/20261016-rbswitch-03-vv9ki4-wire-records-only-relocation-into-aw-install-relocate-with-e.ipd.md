@@ -6,7 +6,7 @@
 - Scope: IN: in `cli._run_install`, on `RecordsRootSwitchRequired` with `reason="records"`: without `--relocate` keep refusing, message naming `--relocate` and the `--dry-run` preview; with `--relocate --dry-run` render the Order 02 plan and write nothing; with `--relocate` (one confirm, `-y` proceeds, interactive default NO) call `execute_records_root_switch` and continue into the normal same-root install; `--relocate-resume`/`--relocate-rollback` and the `cli._install_one` pending-journal guard already dispatch on journal mode (`fxbm7j` E-04), so verify them end-to-end for a records journal; an `allow_records_switch` keyword on `install_wizard.resolve_policy_noninteractive`/`collect_policy_interactive`; `placement_switch.render_plan` accepting a records-mode plan; the spec Section 8.2 implementation-status sentence; CHANGELOG and README. OUT: companion records (`n9vd2h`); new CLI flags (the `ozr356` flags are reused, not duplicated).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_records_root_switch_cli.py, tests/test_records_root_switch_guard.py, CHANGELOG.md, README.md, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: executed:fxbm7j, executed:ozr356
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: vv9ki4
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-16 draft (opencode): created.
