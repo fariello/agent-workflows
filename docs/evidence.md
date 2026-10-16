@@ -1,6 +1,8 @@
 # Evidence layer
 
-Every run records tamper-evident evidence in an append-only ledger. The modules are
+A workflow run driven through `aw run` records tamper-evident evidence in an append-only ledger.
+Runner runs (`aw oc run` / `aw agy run`) keep their record in `state.json` and `events.jsonl` instead
+and do not write a ledger. The modules are
 `agent_workflows/run_ledger_store.py`, `run_ledger_schema.py`, and `run_evidence.py`.
 
 ## The ledger

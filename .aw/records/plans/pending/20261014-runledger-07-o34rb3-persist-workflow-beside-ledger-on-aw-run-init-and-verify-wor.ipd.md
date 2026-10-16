@@ -118,6 +118,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: v47z9u
 - Amending spec `25kzda` Section 1.2 step 8 and Section 5.1 to scope `ledger.jsonl` to `aw run`.
   - Carrier: 9epp40
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-04-9epp40-amend-spec-25kzda-1-2-step-8-and-5-1-to-scope-the-hash-chain.ipd.md
 - Promoting the `aw runs` ledger leaves to `LIVE_SAFE_LEAVES` in `tests/conformance_matrix.py`.
   - Carrier: g5s94t
 - Freezing `requirement_set` on `aw run init` and adding `aw run verify` for `verifier_decision` records.
