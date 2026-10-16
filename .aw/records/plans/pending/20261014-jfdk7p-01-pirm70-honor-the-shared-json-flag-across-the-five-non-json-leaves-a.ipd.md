@@ -36,36 +36,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-derive baseline at execution HEAD
 
-- [ ] E-01 Re-derive at execution HEAD the stdout/stderr/returncode behavior of the five `jfdk7p` leaves (`config get`, `config is`, `upgrade-test env`, `upgrade-test probe`, `upgrade-test clean`) under `--json` and verify the target code sites in `agent_workflows/cli.py`, `agent_workflows/upgrade_rehearsal.py`, and `tests/test_shared_flag_honored.py` against Findings F-01 through F-05.
+- [x] E-01 Re-derive at execution HEAD the stdout/stderr/returncode behavior of the five `jfdk7p` leaves (`config get`, `config is`, `upgrade-test env`, `upgrade-test probe`, `upgrade-test clean`) under `--json` and verify the target code sites in `agent_workflows/cli.py`, `agent_workflows/upgrade_rehearsal.py`, and `tests/test_shared_flag_honored.py` against Findings F-01 through F-05.
   - Depends on: none
   - Expected outcome: A reproduction snippet calling `tests.conformance_matrix.run_cli` with `["--json"]` across the five `jfdk7p` leaves and a targeted `python3 -m pytest tests/test_shared_flag_honored.py -k "json"` run confirm the baseline `KNOWN_BROKEN` failure signatures and verify whether sibling plans (`83ns86` / `aws1tg` or `4y614a`) have already modified `agent_workflows/upgrade_rehearsal.py` or `tests/test_shared_flag_honored.KNOWN_BROKEN`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Honor `--json` on `config` error/refusal paths and across `upgrade-test`
 
-- [ ] E-02 Teach `agent_workflows/cli._emit_config_agent_error` to emit the canonical `--json` cannot-run document on stdout and return `2` when `--json` (`getattr(args, "json", False)` or `getattr(args, "as_json", False)`) is active, by delegating to `renderers.emit_usage_refusal`.
+- [x] E-02 Teach `agent_workflows/cli._emit_config_agent_error` to emit the canonical `--json` cannot-run document on stdout and return `2` when `--json` (`getattr(args, "json", False)` or `getattr(args, "as_json", False)`) is active, by delegating to `renderers.emit_usage_refusal`.
   - Depends on: E-01
   - Expected outcome: In `agent_workflows/cli._emit_config_agent_error`, after the existing `if getattr(args, "agent", False):` branch (left unchanged) and before the human `term.status("fail", msg)` fallback, when `getattr(args, "json", False) or getattr(args, "as_json", False)` is truthy, the function returns `renderers.emit_usage_refusal(cmd, _sanitize_config_agent_error_message(msg), "aw config --help", select_output(args))` (`from agent_workflows import renderers` and `from agent_workflows.result_types import select_output`, imported locally). That prints the `JsonRenderer` document (`"status": "cannot-run"`, `"exit_code": 2`, `summary` passed through `agent_schema.redact_home_paths`) on stdout and returns `2`, so `config get --json`, `config is --json`, and every other `config` subcommand routing exit-2 errors through `_emit_config_agent_error` (`show`, `set`, `unset`, `add`, `remove`) emit parseable, leak-clean JSON on stdout. The human path (no flag) is byte-identical to today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Teach `agent_workflows/upgrade_rehearsal.py` and `agent_workflows/cli.py` to honor `--json` in the `HarnessError` exit-2 handlers (`upgrade_rehearsal.main` and `cli._dispatch`), in `upgrade_rehearsal.cmd_env` on a valid sandbox, and in `upgrade_rehearsal.cmd_clean` on both the empty-targets (`if not targets:`) and preview-without-`-y` (`if not args.yes:`) branches.
+- [x] E-03 Teach `agent_workflows/upgrade_rehearsal.py` and `agent_workflows/cli.py` to honor `--json` in the `HarnessError` exit-2 handlers (`upgrade_rehearsal.main` and `cli._dispatch`), in `upgrade_rehearsal.cmd_env` on a valid sandbox, and in `upgrade_rehearsal.cmd_clean` on both the empty-targets (`if not targets:`) and preview-without-`-y` (`if not args.yes:`) branches.
   - Depends on: E-01
   - Expected outcome: (1) Both `HarnessError` handlers, `upgrade_rehearsal.main` (`except HarnessError as exc:`) and `cli._dispatch` (`if args.command == "upgrade-test":` ... `except upgrade_rehearsal.HarnessError as exc:`), after their existing `--agent` branch, return `renderers.emit_usage_refusal(<cmd>, str(exc), "aw upgrade-test --help", select_output(args))` when `getattr(args, "json", False)` is truthy, where `<cmd>` is `f"upgrade-test {subcmd}"` in `cli._dispatch` and `f"upgrade-test {getattr(args, 'command', '')}".strip()` in `upgrade_rehearsal.main` (the subparser dest is `command`; there is no `args.cmd`). No new error helper is added; (2) `upgrade_rehearsal.cmd_env`, after the `--agent` branch and before the human `export` loop, under `getattr(args, "json", False)` prints `json.dumps({"sandbox": str(sandbox), "env": {k: env[k] for k in ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT")}}, indent=2)` and returns `0`. It MUST NOT dump the whole `sandbox_env(...)` dict: that is a copy of `os.environ` (99 keys at review, including any secret-bearing variable of the operator's shell), so emitting it would leak credentials onto stdout. The three keys are exactly the ones the human branch exports; (3) `upgrade_rehearsal.cmd_clean`, after the `--agent` branch inside `if not targets:`, under `--json` prints `json.dumps([], indent=2)` and returns `0` (the same list shape the `-y` branch already prints for `results`), and inside `if not args.yes:` prints `json.dumps({"would_remove": [str(t) for t in targets]}, indent=2)` and returns `0` (mirroring the `--agent` preview data key).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Retire `jfdk7p` from `KNOWN_BROKEN` and add branch-level behavioral tests
 
-- [ ] E-04 Remove the five `(leaf, "--json"): "jfdk7p"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN`, add branch-level behavioral regression tests in `tests/test_shared_flag_honored.py` covering every repaired branch, verify mutation sensitivity on the live working tree with a restoring `try/finally` wrapper, and run the full `python3 -m pytest` suite.
+- [x] E-04 Remove the five `(leaf, "--json"): "jfdk7p"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN`, add branch-level behavioral regression tests in `tests/test_shared_flag_honored.py` covering every repaired branch, verify mutation sensitivity on the live working tree with a restoring `try/finally` wrapper, and run the full `python3 -m pytest` suite.
   - Depends on: E-02, E-03
   - Expected outcome: The five `"jfdk7p"` entries are removed from `tests/test_shared_flag_honored.KNOWN_BROKEN` (and if `KNOWN_BROKEN` is completely empty at execution HEAD because `aws1tg` and `4y614a` have already landed, `test_known_broken_citations_resolve` allows an empty dict without failing `assert seen_citations`), new behavioral tests in `tests/test_shared_flag_honored.py` assert parseable JSON (`status == "cannot-run"`, `exit_code == 2` for refusals) and home-path redaction across `config` exit-2 refusals, `upgrade-test env` and `probe` on both valid sandboxes and non-sandbox exit-2 paths (via CLI and standalone `upgrade_rehearsal.main`), and `upgrade-test clean` across empty, preview, and `-y` branches, a test asserts `upgrade-test env <sandbox> --json` carries exactly the keys `XDG_CONFIG_HOME`, `AW_HOME`, `GIT_TERMINAL_PROMPT` under `env` and does NOT contain the value of a sentinel variable planted in the subprocess environment via `run_cli(..., env_overrides={...})`, the mutation proof fails with a reversion and passes after restoration with matching `sha256`, and bare `python3 -m pytest` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Release notes
 
-- [ ] E-05 Add one `Fixed:` bullet under the existing `## 2.0.0 (pending)` heading in `CHANGELOG.md` stating that `aw config` refusals and `aw upgrade-test env`, `probe`, and `clean` now print parseable JSON on stdout under `--json` on every branch, including errors. Add no heading, reword no neighbouring bullet, and write no em or en dashes (user-facing prose).
+- [x] E-05 Add one `Fixed:` bullet under the existing `## 2.0.0 (pending)` heading in `CHANGELOG.md` stating that `aw config` refusals and `aw upgrade-test env`, `probe`, and `clean` now print parseable JSON on stdout under `--json` on every branch, including errors. Add no heading, reword no neighbouring bullet, and write no em or en dashes (user-facing prose).
   - Depends on: E-04
   - Expected outcome: a single added `Fixed:` bullet in `CHANGELOG.md` with zero em/en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -183,30 +183,321 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output of the baseline reproduction command invoking `tests.conformance_matrix.run_cli` with `["--json"]` across the five `jfdk7p` leaves (populated by E-01) and `python3 -m pytest tests/test_shared_flag_honored.py -k "json"` at execution HEAD.
   - Observed evidence:
-  - Result: pending
+    Baseline reproduction across the five leaves at execution HEAD:
+    ```
+    === config get ===
+    argv: ['config', 'get', 'interactive', '--json']
+    returncode: 2
+    stdout: "FAIL     Unknown config key 'interactive'. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.m"
+    stderr: ''
+    === config is ===
+    argv: ['config', 'is', 'interactive', '--json']
+    returncode: 2
+    stdout: 'FAIL     Missing variable name. Usage: aw config is <value> in <varname>\n'
+    stderr: ''
+    === upgrade-test env ===
+    argv: ['upgrade-test', 'env', 'dummy', '--json']
+    returncode: 2
+    stdout: ''
+    stderr: 'error: not a sandbox (no .aw-upgrade-test.json): <repo-root>/dummy\n'
+    === upgrade-test probe ===
+    argv: ['upgrade-test', 'probe', 'dummy', '--json']
+    returncode: 2
+    stdout: ''
+    stderr: 'error: not a sandbox (no .aw-upgrade-test.json): <repo-root>/dummy\n'
+    === upgrade-test clean ===
+    argv: ['upgrade-test', 'clean', '--json']
+    returncode: 0
+    stdout: 'Nothing to clean.\n'
+    stderr: ''
+    ```
+    Baseline targeted pytest:
+    ```
+    79 passed, 5 xfailed in 21.85s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -- agent_workflows/cli.py` showing the `--json` / `as_json` branch in `_emit_config_agent_error` delegating to `renderers.emit_usage_refusal`, plus pasted CLI output from running `python3 -m agent_workflows config get interactive --json` and `python3 -m agent_workflows config is interactive --json` (produced by `_emit_config_agent_error` in E-02) confirming exit code `2`, valid JSON on stdout with `"status": "cannot-run"`, and an empty stderr.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/cli.py`:
+    ```diff
+    @@ -10526,6 +10526,16 @@ def _emit_config_agent_error(
+                 extra={"error": clean_msg},
+                 args=args,
+             )
+    +    if getattr(args, "json", False) or getattr(args, "as_json", False):
+    +        from agent_workflows import renderers
+    +        from agent_workflows.result_types import select_output
+    +
+    +        return renderers.emit_usage_refusal(
+    +            cmd,
+    +            _sanitize_config_agent_error_message(msg),
+    +            "aw config --help",
+    +            select_output(args),
+    +        )
+         term.status("fail", msg)
+         return 2
+    ```
+    CLI output for `config get interactive --json`:
+    ```
+    EXIT CODE: 2
+    STDOUT:
+    {
+      "schema": "aw.agent/v1",
+      "command": "config-get",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw config --help"
+        }
+      ],
+      "data": {}
+    }
+    STDERR: ''
+    ```
+    CLI output for `config is interactive --json`:
+    ```
+    EXIT CODE: 2
+    STDOUT:
+    {
+      "schema": "aw.agent/v1",
+      "command": "config-is",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "Missing variable name. Usage: aw config is <value> in <varname>",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw config --help"
+        }
+      ],
+      "data": {}
+    }
+    STDERR: ''
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff -- agent_workflows/upgrade_rehearsal.py agent_workflows/cli.py` showing the `HarnessError` `--json` branches in `upgrade_rehearsal.main` and `cli._dispatch` calling `renderers.emit_usage_refusal`, the `cmd_env` `--json` branch emitting only the three sandbox keys, and the two `cmd_clean` `--json` branches, plus pasted CLI output from `python3 -m agent_workflows upgrade-test env dummy --json`, `python3 -m agent_workflows upgrade-test probe dummy --json`, `python3 -m agent_workflows upgrade-test clean --root <empty-tmp-dir> --json`, and `upgrade-test env <marked-tmp-sandbox> --json` run with a planted sentinel environment variable (produced by E-03), confirming valid JSON on stdout and the sentinel value absent.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/upgrade_rehearsal.py agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    @@ -18675,6 +18685,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
+                         summary=str(exc),
+                         args=args,
+                     )
+    +            if getattr(args, "json", False):
+    +                from agent_workflows import renderers
+    +
+    +                return renderers.emit_usage_refusal(
+    +                    f"upgrade-test {subcmd}",
+    +                    str(exc),
+    +                    "aw upgrade-test --help",
+    +                    select_output(args),
+    +                )
+                 print(f"error: {exc}", file=sys.stderr)
+                 return 2
+    diff --git a/agent_workflows/upgrade_rehearsal.py b/agent_workflows/upgrade_rehearsal.py
+    @@ -1514,6 +1514,14 @@ def cmd_env(args: argparse.Namespace) -> int:
+                 summary=f"Environment exports for {sandbox}",
+                 args=args,
+             )
+    +    if getattr(args, "json", False):
+    +        keys = ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT")
+    +        print(
+    +            json.dumps(
+    +                {"sandbox": str(sandbox), "env": {k: env[k] for k in keys}}, indent=2
+    +            )
+    +        )
+    +        return 0
+         for key in ("XDG_CONFIG_HOME", "AW_HOME", "GIT_TERMINAL_PROMPT"):
+             print(f"export {key}={shlex.quote(env[key])}")
+    @@ -1533,6 +1541,9 @@ def cmd_clean(args: argparse.Namespace) -> int:
+                     summary="Nothing to clean.",
+                     args=args,
+                 )
+    +        if getattr(args, "json", False):
+    +            print(json.dumps([], indent=2))
+    +            return 0
+             print("Nothing to clean.")
+             return 0
+         if not args.yes:
+    @@ -1544,6 +1555,9 @@ def cmd_clean(args: argparse.Namespace) -> int:
+                     status="preview",
+                     args=args,
+                 )
+    +        if getattr(args, "json", False):
+    +            print(json.dumps({"would_remove": [str(t) for t in targets]}, indent=2))
+    +            return 0
+             print("Would remove:")
+    @@ -1753,6 +1767,16 @@ def main(argv: Optional[Sequence[str]]) -> int:
+                     summary=str(exc),
+                     args=args,
+                 )
+    +        if getattr(args, "json", False):
+    +            from agent_workflows import renderers
+    +            from agent_workflows.result_types import select_output
+    +
+    +            return renderers.emit_usage_refusal(
+    +                f"upgrade-test {getattr(args, 'command', '')}".strip(),
+    +                str(exc),
+    +                "aw upgrade-test --help",
+    +                select_output(args),
+    +            )
+             print(f"error: {exc}", file=sys.stderr)
+             return 2
+    ```
+    CLI output for `upgrade-test env dummy --json`:
+    ```
+    exit code: 2
+    stdout:
+    {
+      "schema": "aw.agent/v1",
+      "command": "upgrade-test env",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "not a sandbox (no .aw-upgrade-test.json): <repo-root>/dummy",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw upgrade-test --help"
+        }
+      ],
+      "data": {}
+    }
+    stderr: ''
+    ```
+    CLI output for `upgrade-test probe dummy --json`:
+    ```
+    exit code: 2
+    stdout:
+    {
+      "schema": "aw.agent/v1",
+      "command": "upgrade-test probe",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "not a sandbox (no .aw-upgrade-test.json): <repo-root>/dummy",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw upgrade-test --help"
+        }
+      ],
+      "data": {}
+    }
+    stderr: ''
+    ```
+    CLI output for `upgrade-test clean --root <empty-tmp-dir> --json`:
+    ```
+    exit code: 0
+    stdout:
+    []
+    stderr: ''
+    ```
+    CLI output for `upgrade-test env <marked-tmp-sandbox> --json` with planted sentinel:
+    ```
+    exit code: 0
+    stdout:
+    {
+      "sandbox": "<tmp>/sandbox",
+      "env": {
+        "XDG_CONFIG_HOME": "<tmp>/sandbox/.aw-upgrade-test/xdg-config",
+        "AW_HOME": "<tmp>/sandbox/.aw-upgrade-test/aw-home",
+        "GIT_TERMINAL_PROMPT": "0"
+      }
+    }
+    stderr: ''
+    sentinel in stdout: False
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `git diff -- tests/test_shared_flag_honored.py` showing removal of all five `"jfdk7p"` entries from `KNOWN_BROKEN` and the new branch-level regression tests, pasted output of the live-tree mutation proof (pre-mutation `sha256`, failing pytest output when a repaired `--json` branch is commented out, restored `sha256` match, and passing pytest output), and pasted output of the full bare `python3 -m pytest` suite.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_shared_flag_honored.py`:
+    ```diff
+    -KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
+    -    # --json unhonored on five leaves (jfdk7p):
+    -    ("config get", "--json"): "jfdk7p",
+    -    ("config is", "--json"): "jfdk7p",
+    -    ("upgrade-test env", "--json"): "jfdk7p",
+    -    ("upgrade-test probe", "--json"): "jfdk7p",
+    -    ("upgrade-test clean", "--json"): "jfdk7p",
+    -}
+    +KNOWN_BROKEN: Dict[Tuple[str, str], str] = {}
+    ...
+    +def test_config_json_refusals_branch_behavior() -> None:
+    +...
+    +def test_upgrade_test_json_harness_error_and_redaction(tmp_path: Path) -> None:
+    +...
+    +def test_upgrade_test_env_json_payload_secrecy(tmp_path: Path) -> None:
+    +...
+    +def test_upgrade_test_clean_json_branches(tmp_path: Path) -> None:
+    ```
+    Live-tree mutation proof output:
+    ```
+    PRE-MUTATION SHA256: 09feddd3958550249f172b064df14fcccaf9d35fbc6affc92a90cf98f75166af
+    Mutated agent_workflows/cli.py. Running pytest...
+    MUTATION PYTEST EXIT CODE: 1
+    FAILED tests/test_shared_flag_honored.py::test_config_json_refusals_branch_behavior
+    1 failed in 2.23s
+    POST-RESTORE SHA256: 09feddd3958550249f172b064df14fcccaf9d35fbc6affc92a90cf98f75166af
+    RESTORED PYTEST EXIT CODE: 0
+    1 passed in 4.34s
+    ```
+    Full bare `python3 -m pytest` suite output:
+    ```
+    707 passed in 28.56s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff CHANGELOG.md` showing exactly one added `Fixed:` bullet under `## 2.0.0 (pending)` and no other change, plus a pasted check confirming zero em or en dashes (`\u2013`, `\u2014`) in the added line.
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 9808126a8..1f59a0a57 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+
+     - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+     - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
+    +- Fixed: aw config refusals and aw upgrade-test env, probe, and clean now print parseable JSON on stdout under --json on every branch, including errors.
+     - Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
+     - Fixed: project_context.resolve_project_context and project_context.project_config_dir now read user configuration through config.config_dir() (honoring AW_CONFIG_DIR and XDG_CONFIG_HOME) instead of a hard-coded ~/.config/agent-workflows path when user_config_dir is omitted.
+     - Fixed: project_context.find_project_root, is_project_dir, and _find_git_root now treat shared system temp roots (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP) and any paths listed in the new AW_PROJECT_CEILING environment variable (an os.pathsep-separated list) as climb ceilings: a listed directory is never itself a project or git root and upward climbs never pass above it into parent directories, while subdirectories continue to resolve normally, eliminating test fixture pollution from stray markers.
+    ```
+    Dash check output:
+    ```
+    Zero em or en dashes confirmed.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

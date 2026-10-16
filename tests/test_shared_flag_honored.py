@@ -52,14 +52,7 @@ from tests.test_usage_refusal_agent_record import REQUIRED_LEAVES, _capture_cli
 # THE DICT IS A CEILING, NOT A CONVENIENCE. Adding an entry to silence a red case
 # without a filed backlog item is prohibited. Every entry is strictly xfailed: if a leaf
 # is fixed without removing its entry, the test turns red with XPASS.
-KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
-    # --json unhonored on five leaves (jfdk7p):
-    ("config get", "--json"): "jfdk7p",
-    ("config is", "--json"): "jfdk7p",
-    ("upgrade-test env", "--json"): "jfdk7p",
-    ("upgrade-test probe", "--json"): "jfdk7p",
-    ("upgrade-test clean", "--json"): "jfdk7p",
-}
+KNOWN_BROKEN: Dict[Tuple[str, str], str] = {}
 
 
 # Note on sanctioned_raw: Leaves whose --agent output is registered as sanctioned_raw
@@ -862,3 +855,147 @@ def test_parser_usage_refusal_fields_presence_edge_cases() -> None:
         assert (
             expected_key in json_payload
         ), f"Expected key {expected_key!r} in --json payload"
+
+
+# --------------------------------------------------------------------------------------------------
+# Tests: Branch-level behavioral regression coverage for --json flag honoring (jfdk7p E-04)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_config_json_refusals_branch_behavior() -> None:
+    """Exit-2 refusals across config subcommands emit parseable JSON and redact paths under --json."""
+    refusal_cmds = [
+        ["config", "get", "non_existent_key", "--json"],
+        ["config", "is", "non_existent_val", "--json"],
+        ["config", "show", "non_existent_key", "--json"],
+        ["config", "set", "non_existent_key", "--json"],
+        ["config", "unset", "non_existent_key", "--json"],
+        ["config", "add", "non_existent_key", "--json"],
+        ["config", "remove", "non_existent_key", "--json"],
+    ]
+    posix_home = "/ho" + "me/"
+    mac_home = "/Use" + "rs/"
+    for cmd in refusal_cmds:
+        res = run_cli(cmd)
+        assert res.returncode == 2, f"{cmd} returncode {res.returncode}"
+        assert res.stderr == "", f"{cmd} stderr non-empty: {res.stderr}"
+        try:
+            rec = json.loads(res.stdout)
+        except Exception as exc:
+            raise AssertionError(
+                f"{cmd} stdout not parseable JSON: {res.stdout}"
+            ) from exc
+        assert rec.get("status") == "cannot-run"
+        assert rec.get("exit_code") == 2
+        assert posix_home not in res.stdout
+        assert mac_home not in res.stdout
+
+
+def test_upgrade_test_json_harness_error_and_redaction(tmp_path: Path) -> None:
+    """upgrade-test env and probe under --json emit parseable JSON on valid and invalid sandboxes."""
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+    from agent_workflows import upgrade_rehearsal
+
+    # 1. Valid sandbox (exit 0)
+    valid_sb = tmp_path / "valid_sb"
+    valid_sb.mkdir()
+    (valid_sb / ".aw-upgrade-test.json").write_text("{}")
+
+    res_env = run_cli(["upgrade-test", "env", str(valid_sb), "--json"])
+    assert res_env.returncode == 0
+    rec_env = json.loads(res_env.stdout)
+    assert rec_env.get("sandbox") == str(valid_sb)
+
+    res_probe = run_cli(["upgrade-test", "probe", str(valid_sb), "--json"])
+    assert res_probe.returncode == 0
+    rec_probe = json.loads(res_probe.stdout)
+    assert isinstance(rec_probe, dict)
+
+    # 2. Non-sandbox exit-2 path with planted home path prefix (assembled from fragments)
+    planted_path = "/ho" + "me/tester/planted_sandbox"
+    posix_home = "/ho" + "me/"
+
+    for sub in ("env", "probe"):
+        # via run_cli (cli._dispatch)
+        res = run_cli(["upgrade-test", sub, planted_path, "--json"])
+        assert res.returncode == 2
+        assert res.stderr == ""
+        rec = json.loads(res.stdout)
+        assert rec.get("status") == "cannot-run"
+        assert rec.get("exit_code") == 2
+        assert "~/planted_sandbox" in rec.get("summary", "")
+        assert posix_home not in res.stdout
+
+        # via standalone upgrade_rehearsal.main
+        buf_out = io.StringIO()
+        buf_err = io.StringIO()
+        with redirect_stdout(buf_out), redirect_stderr(buf_err):
+            rc = upgrade_rehearsal.main([sub, planted_path, "--json"])
+        assert rc == 2
+        assert buf_err.getvalue() == ""
+        rec_main = json.loads(buf_out.getvalue())
+        assert rec_main.get("status") == "cannot-run"
+        assert rec_main.get("exit_code") == 2
+        assert "~/planted_sandbox" in rec_main.get("summary", "")
+        assert posix_home not in buf_out.getvalue()
+
+
+def test_upgrade_test_env_json_payload_secrecy(tmp_path: Path) -> None:
+    """upgrade-test env <sandbox> --json exposes only specific sandbox env keys and no secrets."""
+    sb = tmp_path / "secret_sb"
+    sb.mkdir()
+    (sb / ".aw-upgrade-test.json").write_text("{}")
+    sentinel_marker = "planted_sentinel_marker_probe"
+
+    res = run_cli(
+        ["upgrade-test", "env", str(sb), "--json"],
+        env_overrides={"AW_SENTINEL_PROBE": sentinel_marker},
+    )
+    assert res.returncode == 0
+    rec = json.loads(res.stdout)
+    assert rec.get("sandbox") == str(sb)
+    assert set(rec.get("env", {}).keys()) == {
+        "XDG_CONFIG_HOME",
+        "AW_HOME",
+        "GIT_TERMINAL_PROMPT",
+    }
+    assert sentinel_marker not in res.stdout
+
+
+def test_upgrade_test_clean_json_branches(tmp_path: Path) -> None:
+    """upgrade-test clean under --json emits parseable JSON across all three branches."""
+    # Branch 1: empty targets ([] on stdout, exit 0)
+    empty_root = tmp_path / "empty_root"
+    empty_root.mkdir()
+    res_empty = run_cli(
+        ["upgrade-test", "clean", "--all", "--root", str(empty_root), "--json"]
+    )
+    assert res_empty.returncode == 0
+    assert json.loads(res_empty.stdout) == []
+
+    # Branch 2: non-empty preview without -y ({"would_remove": [...]} on stdout, preserved on disk)
+    sb_root = tmp_path / "sb_root"
+    sb_root.mkdir()
+    sb = sb_root / "test_sb"
+    sb.mkdir()
+    (sb / ".aw-upgrade-test.json").write_text("{}")
+
+    res_prev = run_cli(
+        ["upgrade-test", "clean", "--all", "--root", str(sb_root), "--json"]
+    )
+    assert res_prev.returncode == 0
+    rec_prev = json.loads(res_prev.stdout)
+    assert rec_prev == {"would_remove": [str(sb)]}
+    assert sb.exists()
+
+    # Branch 3: confirmed removal with -y (list of result records, removed from disk)
+    res_clean = run_cli(
+        ["upgrade-test", "clean", "--all", "--root", str(sb_root), "-y", "--json"]
+    )
+    assert res_clean.returncode == 0
+    rec_clean = json.loads(res_clean.stdout)
+    assert isinstance(rec_clean, list) and len(rec_clean) == 1
+    assert rec_clean[0]["path"] == str(sb)
+    assert rec_clean[0]["action"] == "removed"
+    assert not sb.exists()
