@@ -3,20 +3,22 @@
 - Date: 2026-10-16
 - Kind: child
 - Concern: Backlog `n9vd2h`: after Orders 01 (`xc8nae`) and 02 (`fo08zx`) the library can plan and execute a companion placement switch, but `aw install` still refuses it. Plan `ozr356` E-01 deliberately makes the companion refusal NOT suggest `--relocate` and name `n9vd2h` instead ("involves a companion repository and is not supported yet (backlog n9vd2h)"), and its E-05 case (7) asserts that a companion `--relocate --dry-run` refuses naming `companion-unsupported`. Both become false once this Set ships, and spec `20260810-1447-01` Section 8.1 item 3 (written by `ppu39q` E-04) says "companion switches refuse (backlog `n9vd2h`)". Until all three move together, the CLI, its tests and the contract would disagree.
-- Scope: IN: in `install_wizard`, the companion branch of the `PlacementSwitchRequired` message becomes the same remedy message as every other pair (names `--relocate` and the `--relocate --dry-run` preview), keeping the substring `Switching config placement`; in `cli._run_install`, passing `--companion-dir` through to `plan_placement_switch`/`execute_placement_switch` for a relocation and refusing a relocation INTO the companion preset when no companion dir resolves; `placement_switch.render_plan` lines for the companion fields (companion dir, attach or detach, create, per-repository staged counts, the three Order 01 warnings); updating the `ozr356` CLI test case (7) to the new behavior; new end-to-end CLI tests; CHANGELOG, README and the spec Section 8.1 item 3 amendment. OUT: `aw storage attach|detach|move|reattach` (unchanged), moving between two companion dirs (Order 01 `companion-to-companion` blocker).
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_placement_switch_cli.py, tests/test_placement_switch_companion_cli.py, CHANGELOG.md, README.md, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+- Scope: IN: in `install_wizard`, the companion branch of the `PlacementSwitchRequired` message becomes the same remedy message as every other pair (names `--relocate` and the `--relocate --dry-run` preview), keeping the substring `Switching config placement`; in `cli._run_install`, passing `--companion-dir` through to `plan_placement_switch`/`execute_placement_switch` for a relocation and refusing a relocation INTO the companion preset when no companion dir resolves; `placement_switch.render_plan` lines for the companion fields (companion dir, attach or detach, create, per-repository staged counts, the three Order 01 warnings); removing the interim `companion-unsupported` planner blocker (`xc8nae` E-02) and the `allow_companion` keyword (`fo08zx` E-06) from `placement_switch` and retargeting the planner and executor tests that assert or pass them (E-05); updating the `ozr356` CLI test case (7) to the new behavior; new end-to-end CLI tests; CHANGELOG, README and the spec Section 8.1 item 3 amendment. OUT: `aw storage attach|detach|move|reattach` (unchanged), moving between two companion dirs (Order 01 `companion-to-companion` blocker).
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_placement_switch_cli.py, tests/test_placement_switch_companion_cli.py, tests/test_placement_switch_companion_plan.py, tests/test_placement_switch_plan.py, tests/test_placement_switch_companion_execute.py, CHANGELOG.md, README.md, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: executed:fo08zx, executed:ozr356
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: n9vd2h
 - Set: cmpreloc
 - Order: 3
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode
 - Id: y1e2m9
 
 ## Workflow history
+- 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-16 cross-reference (opencode, from /plan-review of fo08zx PR-001): `xc8nae` keeps `companion-unsupported` as an interim planner blocker and `fo08zx` E-06 adds only a keyword-only `allow_companion=True` library opt-in past it. THIS plan must remove the blocker and the keyword from `placement_switch.plan_placement_switch`/`execute_placement_switch` in the same change as E-01's gating of the fresh-install attach block, update the `xc8nae`/`fo08zx` tests that assert the blocker or pass the keyword (they live in `tests/test_placement_switch_companion_plan.py`, `tests/test_placement_switch_plan.py` and `tests/test_placement_switch_companion_execute.py`, which must be added to `- Scope-Paths:`), and its review should add that step explicitly. Also: `fo08zx` does NOT stage `<companion>/.aw/companion_identity.json` (absolute `git_common_dir_hash`, D92).
 - 2026-10-16 draft (opencode): created.
@@ -37,6 +39,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a companion refusal names `--relocate`; a relocation into the companion preset without a companion dir refuses before planning; the fresh-install attach path is unchanged for non-relocating installs.
   - Execution state: pending
 
+- [ ] E-05 Remove the interim gate, in the SAME commit as E-01's attach gating (never before it: until the fresh-install attach block is gated, a blocker-free companion plan would let `aw install --relocate` switch and then attach a second time outside the journal, `fo08zx` F-07). In `agent_workflows/placement_switch.py` delete the `companion-unsupported` blocker from `plan_placement_switch` and the keyword-only `allow_companion` parameter from `plan_placement_switch` and `execute_placement_switch`. Retarget the tests that pin the interim behavior, keeping what each protected: in `tests/test_placement_switch_companion_plan.py` and `tests/test_placement_switch_plan.py` (`xc8nae` E-03) the clean-fixture blocker list becomes exactly `[]` for every companion pair and the "companion-unsupported present on all six pairs" case becomes "absent on all six pairs" (the cfgreloc pairs still never carry it); in `tests/test_placement_switch_companion_execute.py` (`fo08zx` E-05) drop every `allow_companion=True` argument and turn case (0) into: a default `execute_placement_switch` for pair (a) completes (the opt-in is no longer needed). If, at execution HEAD, `placement_switch.plan_placement_switch` has no `allow_companion` parameter or does not emit `companion-unsupported` (the `xc8nae`/`fo08zx` chain is not as planned), stop and report.
+  - Depends on: E-01
+  - Expected outcome: no code path emits `companion-unsupported`; `allow_companion` no longer exists; the three planner/executor modules pass with the retargeted assertions.
+  - Execution state: pending
+
 - [ ] E-02 Preview text. Extend `placement_switch.render_plan` (`ozr356` E-06) with, when `plan.companion_action` is set: the companion directory, "attach" or "detach", "will be created and git-initialized" when `companion_create`, staged counts per repository ("target: <n> staged, companion: <m> staged"), "project.json will be untracked in the target" / "tracked again" for `config_retrack`, and the text of every Order 01 warning (`records-leave-target-history`, `companion-left-in-place`, `config-becomes-untracked`). Words, not only color (spec Section 8 "uses words in addition to color"). No em or en dashes in any rendered string (user-facing).
   - Depends on: E-01
   - Expected outcome: `--relocate --dry-run` for a companion pair prints the companion lines and writes nothing.
@@ -49,8 +56,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: End-to-end tests
 
-- [ ] E-04 Update `tests/test_placement_switch_cli.py` case (7) (`ozr356` E-05): `--preset public-target-private-companion --companion-dir <c> --relocate --dry-run` on a committed `private-target` repo now exits `0` and prints the companion preview, and without `--relocate` the refusal names `--relocate` and does not name `n9vd2h` (the protected behavior, a refusal without opt-in, is kept). Create `tests/test_placement_switch_companion_cli.py` (`pytestmark = pytest.mark.slow`; every case a subprocess `python3 -m agent_workflows install ...` in a scratch dir with `HOME`, `AW_HOME`, `XDG_CONFIG_HOME` inside it, `AW_NO_REEXEC=1`, `PYTHONPATH`, `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, `timeout=`; fresh install per test). Cases: (1) `private-target` -> companion `--relocate --dry-run -y` with a nonexistent companion path: exit `0`, output names the companion dir, "attach" and "created", target, companion path (absent) and `AW_HOME` unchanged by snapshot; (2) same with `--relocate -y`: exit `0`, `aw context --json` (subprocess) reports `preset: public-target-private-companion` and records under the companion, `x.backlog.md` staged `A` in the companion and `D` in the target, `git rev-list --count HEAD` unchanged in the target and the companion has no commits; (3) `--preset public-target-private-companion --relocate -y` with no `--companion-dir` on a `private-target` repo: exit `1`, message names `--companion-dir`, nothing written; (4) companion -> `local-only --relocate -y` on a committed companion fixture: exit `0`, records under `AW_HOME`, companion directory and `.git` still present, attachment record absent, receipt present; (5) recovery: drive `execute_placement_switch(..., fault_injection="after-attach")` in a subprocess for pair (a), then `install <repo> --preset public-target-private-companion -y` refuses naming `--relocate-resume`, then `--relocate-rollback -y` restores the pre-switch target and leaves no companion directory; (6) a dirty companion (`companion-dirty`) on companion -> `private-target` `--relocate -y`: exit `1` naming `companion-dirty`. Run `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_companion_cli.py tests/test_placement_switch_cli.py tests/test_placement_switch_companion_execute.py tests/test_placement_switch_companion_plan.py tests/test_reinstall_preserves_config.py -v`, bare `python3 -m pytest`, `make test-all`, and `aw sanitize --agent`.
-  - Depends on: E-03
+- [ ] E-04 Update `tests/test_placement_switch_cli.py` case (7) (`ozr356` E-05): `--preset public-target-private-companion --companion-dir <c> --relocate --dry-run` on a committed `private-target` repo now exits `0` and prints the companion preview, and without `--relocate` the refusal names `--relocate` and does not name `n9vd2h` (the protected behavior, a refusal without opt-in, is kept). Create `tests/test_placement_switch_companion_cli.py` (`pytestmark = pytest.mark.slow`; every case a subprocess `python3 -m agent_workflows install ...` in a scratch dir with `HOME`, `AW_HOME`, `XDG_CONFIG_HOME` inside it, `AW_NO_REEXEC=1`, `PYTHONPATH`, `GIT_AUTHOR_*`/`GIT_COMMITTER_*`, `timeout=`; fresh install per test). Cases: (1) `private-target` -> companion `--relocate --dry-run -y` with a nonexistent companion path: exit `0`, output names the companion dir, "attach" and "created", target, companion path (absent) and `AW_HOME` unchanged by snapshot; (2) same with `--relocate -y`: exit `0`, `aw context --json` (subprocess) reports `preset: public-target-private-companion` and records under the companion, `x.backlog.md` staged `A` in the companion and `D` in the target, and the switch's changes NOT committed: `git -C <repo> ls-tree -r --name-only HEAD` still lists `.aw/records/backlog/open/x.backlog.md` and `.aw/config/project.json`, and the companion's commit count is unchanged (an installer commit of installer paths in the target under `-y` is today's behavior, `ozr356` E-03, `engine.prompt_and_run_commit` path-scoped `git commit -- <paths>`, so `git rev-list --count HEAD` in the target is NOT asserted unchanged); (3) `--preset public-target-private-companion --relocate -y` with no `--companion-dir` on a `private-target` repo: exit `1`, message names `--companion-dir`, nothing written; (4) companion -> `local-only --relocate -y` on a committed companion fixture: exit `0`, records under `AW_HOME`, companion directory and `.git` still present, attachment record absent, receipt present; (5) recovery: drive `execute_placement_switch(..., fault_injection="after-attach")` in a subprocess for pair (a), then `install <repo> --preset public-target-private-companion -y` refuses naming `--relocate-resume`, then `--relocate-rollback -y` restores the pre-switch target and leaves no companion directory; (6) a dirty companion (`companion-dirty`) on companion -> `private-target` `--relocate -y`: exit `1` naming `companion-dirty`. Run `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_companion_cli.py tests/test_placement_switch_cli.py tests/test_placement_switch_companion_execute.py tests/test_placement_switch_companion_plan.py tests/test_placement_switch_plan.py tests/test_reinstall_preserves_config.py -v`, bare `python3 -m pytest`, `make test-all`, and `aw sanitize --agent`.
+  - Depends on: E-03, E-05
   - Expected outcome: every case passes; full suites green; sanitizer clean.
   - Execution state: pending
 
@@ -76,7 +83,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. Shared refusal message, companion dir requirement, no double attach (E-01).
 2. Companion preview lines (E-02).
 3. CHANGELOG, README and spec 8.1 item 3 (E-03).
-4. Updated and new end-to-end tests and full gates (E-04).
+4. Remove the interim `companion-unsupported` gate and `allow_companion`, retargeting Order 01/02 tests (E-05).
+5. Updated and new end-to-end tests and full gates (E-04).
 
 ## Deferred / out of scope (with reason)
 
@@ -87,13 +95,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none; the `cli.py`, `install_wizard.py` and `placement_switch.py` edits are the message, the companion-dir guard, the attach gate and the preview; the `tests/test_placement_switch_cli.py` edit retargets one case this Set makes obsolete.
+- Over-scope: none; the `cli.py`, `install_wizard.py` and `placement_switch.py` edits are the message, the companion-dir guard, the attach gate, the preview and the interim-gate removal; the `tests/test_placement_switch_cli.py` edit retargets one case this Set makes obsolete, and the three Order 01/02 test modules are edited only to retarget the interim-gate assertions E-05 removes.
 - Under-scope: none; refusal, preview, execute and recovery are each reachable from `aw install` for companion pairs and tested end-to-end.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -m '' tests/test_placement_switch_companion_cli.py tests/test_placement_switch_cli.py -v` passes.
-- All placement-switch modules and `tests/test_reinstall_preserves_config.py` pass together.
+- All placement-switch modules (including the three E-05 retargets) and `tests/test_reinstall_preserves_config.py` pass together.
 - `aw specs check` on the amended spec conforms.
 - Bare `python3 -m pytest` and `make test-all` pass; `aw sanitize --agent` exits `0`.
 
@@ -119,8 +127,13 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-05 validates E-05
+  - Required evidence: pasted `git diff -- agent_workflows/placement_switch.py` showing the blocker and keyword removed; pasted `grep -rn "companion-unsupported\|allow_companion" agent_workflows/ tests/` output with no matches; pasted `git log -1 --name-only` showing E-05 and E-01's attach gating in the same commit; pasted `-v` summary of the three retargeted modules passing.
+  - Observed evidence:
+  - Result: pending
+
 - [ ] V-02 validates E-02
-  - Required evidence: pasted scratch `--relocate --dry-run` output for pair `private-target` -> companion (produced by `cli._run_install` -> `placement_switch.render_plan`) with before/after snapshots of target, companion path and `AW_HOME` equal.
+  - Required evidence: pasted scratch `--relocate --dry-run` output for pair `private-target` -> companion (produced by `cli._run_install` -> `placement_switch.render_plan`) with before/after snapshots of target, companion path and `AW_HOME` equal, and a pasted Python check printing 0 em/en dashes in that output.
   - Observed evidence:
   - Result: pending
 
