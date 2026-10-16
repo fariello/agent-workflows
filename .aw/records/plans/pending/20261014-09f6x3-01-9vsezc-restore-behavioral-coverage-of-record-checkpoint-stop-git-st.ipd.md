@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Host-wrapper behavior on a dirty isolated worktree
 
-- [ ] E-01 Add a test to `tests/test_liftaudit_stop_halts_run.py` that, for each host module (`oc_runipd`, `agy_runipd`, via `subTest`), creates a temp main repo and a SEPARATE temp git repo standing in for the isolated lane (reuse the file's `_init_clean_repo` helper), writes an untracked `dirty_file.txt` into the lane only, builds a `runner_stop.CheckpointObserver(detector=lambda line: True, requested_level=3)`, calls `mod._record_checkpoint_stop(run_dir, state, item, obs, work_dir=lane)`, and asserts: the returned `git_state` contains `dirty_file.txt`; it does not start with `<unobserved`; `item["stopped"]["git_state"]` equals the returned value; `item["stopped"]["stopped_deliberately"]` is True and `level` is 3; and `run_dir / "events.jsonl"` gained exactly one JSON line whose `id6` matches the item.
+- [x] E-01 Add a test to `tests/test_liftaudit_stop_halts_run.py` that, for each host module (`oc_runipd`, `agy_runipd`, via `subTest`), creates a temp main repo and a SEPARATE temp git repo standing in for the isolated lane (reuse the file's `_init_clean_repo` helper), writes an untracked `dirty_file.txt` into the lane only, builds a `runner_stop.CheckpointObserver(detector=lambda line: True, requested_level=3)`, calls `mod._record_checkpoint_stop(run_dir, state, item, obs, work_dir=lane)`, and asserts: the returned `git_state` contains `dirty_file.txt`; it does not start with `<unobserved`; `item["stopped"]["git_state"]` equals the returned value; `item["stopped"]["stopped_deliberately"]` is True and `level` is 3; and `run_dir / "events.jsonl"` gained exactly one JSON line whose `id6` matches the item.
   - Depends on: none
   - Expected outcome: a new test exercising both real host wrappers end to end through real `git status --short`, passing against current code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a test in the same file proving the worktree-resolution precedence observably, with BOTH repos dirty under DISTINCT names (lane: untracked `dirty_file.txt`; main: untracked `main_dirty.txt`), so every case asserts a POSITIVE observation rather than an absence that an `<unobserved: ...>` string would also satisfy. For each host via `subTest`: (a) NO `work_dir`, `item["worktree"] = str(lane)`: `git_state` contains `dirty_file.txt` and not `main_dirty.txt`; (b) NO `work_dir`, `item = {"attempts": [{"worktree": str(lane)}]}`: likewise; (c) `work_dir=lane` AND `item["worktree"] = str(main)`: `git_state` contains `dirty_file.txt` and not `main_dirty.txt` (`work_dir` wins); (d) none set: `git_state` contains `main_dirty.txt` (fallback to `state["repo"]`). In every case assert `git_state` does not start with `<unobserved`.
+- [x] E-02 Add a test in the same file proving the worktree-resolution precedence observably, with BOTH repos dirty under DISTINCT names (lane: untracked `dirty_file.txt`; main: untracked `main_dirty.txt`), so every case asserts a POSITIVE observation rather than an absence that an `<unobserved: ...>` string would also satisfy. For each host via `subTest`: (a) NO `work_dir`, `item["worktree"] = str(lane)`: `git_state` contains `dirty_file.txt` and not `main_dirty.txt`; (b) NO `work_dir`, `item = {"attempts": [{"worktree": str(lane)}]}`: likewise; (c) `work_dir=lane` AND `item["worktree"] = str(main)`: `git_state` contains `dirty_file.txt` and not `main_dirty.txt` (`work_dir` wins); (d) none set: `git_state` contains `main_dirty.txt` (fallback to `state["repo"]`). In every case assert `git_state` does not start with `<unobserved`.
   - Depends on: E-01
   - Expected outcome: the record observes the isolated lane, not the main checkout, whenever the call or the item names one, with `work_dir` taking precedence, and falls back to `state["repo"]` otherwise.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Shared definition contract
 
-- [ ] E-03 Add a test calling `runner_shared._record_checkpoint_stop` directly with an injected `git_status_fn=lambda repo: f"?? {repo.name}-dirty"` and asserting the record's `git_state` is exactly that string for the resolved lane path; plus a test that a raising `git_status_fn` yields a `git_state` beginning `<unobserved:` without the call raising; plus a test that omitting `git_status_fn` raises `TypeError` (mirroring the existing `test_record_forced_stop_omitted_git_status_fn_raises`).
+- [x] E-03 Add a test calling `runner_shared._record_checkpoint_stop` directly with an injected `git_status_fn=lambda repo: f"?? {repo.name}-dirty"` and asserting the record's `git_state` is exactly that string for the resolved lane path; plus a test that a raising `git_status_fn` yields a `git_state` beginning `<unobserved:` without the call raising; plus a test that omitting `git_status_fn` raises `TypeError` (mirroring the existing `test_record_forced_stop_omitted_git_status_fn_raises`).
   - Depends on: none
   - Expected outcome: the injection seam, honest-failure note, and no-default rule documented in `runner_shared._record_checkpoint_stop` are each asserted by calling the function.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Repoint the in-code citation
 
-- [ ] E-04 In the `runner_shared._record_checkpoint_stop` docstring, replace only the parenthetical "(`tests/test_runner_stop.py::test_stop_isolated_git_status` was deleted in `19313eed`; no live guard currently asserts this)" with wording that the deleted test was removed in `19313eed` and the property is now asserted behaviorally by the dual-host dirty-lane tests in `tests/test_liftaudit_stop_halts_run.py`. Leave every other line of the docstring, the function body, and the separate `test_runner_stop.py` mention near the `signal.signal` design-history comment in `runner_shared` (a different property) unchanged.
+- [x] E-04 In the `runner_shared._record_checkpoint_stop` docstring, replace only the parenthetical "(`tests/test_runner_stop.py::test_stop_isolated_git_status` was deleted in `19313eed`; no live guard currently asserts this)" with wording that the deleted test was removed in `19313eed` and the property is now asserted behaviorally by the dual-host dirty-lane tests in `tests/test_liftaudit_stop_halts_run.py`. Leave every other line of the docstring, the function body, and the separate `test_runner_stop.py` mention near the `signal.signal` design-history comment in `runner_shared` (a different property) unchanged.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: after this plan the docstring no longer falsely claims the property is unguarded; docstring-only diff in `agent_workflows/runner_shared.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,24 +120,295 @@ N/A: restores test coverage plus one in-code docstring correction (E-04); no spe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_liftaudit_stop_halts_run.py -v` output showing the E-01 test PASSED with both `driver=oc_runipd` and `driver=agy_runipd` subtests exercised; plus pasted output of the in-process mutation driver (each host's `git_status` patched to the unbound `runner_shared.git_status`) showing that test FAILED with the recorded `<unobserved: ... 'run_checked'>` value visible, then PASSED unpatched, and `git diff --stat -- agent_workflows/` showing no executable change.
   - Observed evidence:
-  - Result: pending
+    Pytest verbose output showing E-01 passed:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3575789284
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 11 items
 
-- [ ] V-02 validates E-02
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_omitted_git_status_fn_raises PASSED [  9%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_agy_run_queue_stop_now_force_level4 PASSED [ 18%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_raising_git_status_fn_yields_unobserved PASSED [ 27%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_agy_run_queue_stop_at_checkpoint_level3 PASSED [ 36%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_injected_git_status PASSED [ 45%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_dirty_isolated_worktree PASSED [ 54%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_worktree_resolution_precedence PASSED [ 63%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_oc_run_queue_stop_now_force_level4 PASSED [ 72%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_forced_stop_omitted_git_status_fn_raises PASSED [ 81%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_forced_stop_injected_git_status PASSED [ 90%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_oc_run_queue_stop_at_checkpoint_level3 PASSED [100%]
+
+    ============================== 11 passed in 2.20s ==============================
+    ```
+    Subtest execution confirmed: `test_record_checkpoint_stop_dirty_isolated_worktree` executes subtests for `driver="oc_runipd"` and `driver="agy_runipd"`, both PASS.
+
+    In-process mutation check driver output:
+    ```
+    === 1. MUTATION RUN: oc_runipd.git_status patched ===
+    test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) ...
+      test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) (driver='oc_runipd') ... FAIL
+
+    ======================================================================
+    FAIL: test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) (driver='oc_runipd')
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_liftaudit_stop_halts_run.py", line 281, in test_record_checkpoint_stop_dirty_isolated_worktree
+        self.assertIn("dirty_file.txt", rec["git_state"])
+        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 'dirty_file.txt' not found in "<unobserved: git_status() missing 1 required keyword-only argument: 'run_checked'>"
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.110s
+
+    FAILED (failures=1)
+
+    === 2. MUTATION RUN: agy_runipd.git_status patched ===
+    test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) ...
+      test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) (driver='agy_runipd') ... FAIL
+
+    ======================================================================
+    FAIL: test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) (driver='agy_runipd')
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_liftaudit_stop_halts_run.py", line 281, in test_record_checkpoint_stop_dirty_isolated_worktree
+        self.assertIn("dirty_file.txt", rec["git_state"])
+        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: 'dirty_file.txt' not found in "<unobserved: git_status() missing 1 required keyword-only argument: 'run_checked'>"
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.121s
+
+    FAILED (failures=1)
+
+    === 3. CLEAN RUN: unpatched ===
+    test_record_checkpoint_stop_dirty_isolated_worktree (tests.test_liftaudit_stop_halts_run.LiftauditStopHaltsRunTests.test_record_checkpoint_stop_dirty_isolated_worktree) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.212s
+
+    OK
+    ```
+    Working tree `git diff --stat -- agent_workflows/` after mutation check:
+    ```
+     agent_workflows/runner_shared.py | 5 +++--
+     1 file changed, 3 insertions(+), 2 deletions(-)
+    ```
+    (No executable change; diff contains docstring edit only.)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the E-02 precedence test PASSED, and the test source excerpt showing the dirty-main (`main_dirty.txt`) / dirty-lane (`dirty_file.txt`) setup and the four resolution cases (`item["worktree"]`, `attempts[-1]["worktree"]`, `work_dir` over `item["worktree"]`, fallback to `state["repo"]`), each asserting a positive observation.
   - Observed evidence:
-  - Result: pending
+    Pytest output showing precedence test PASSED:
+    ```
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_worktree_resolution_precedence PASSED [ 63%]
+    ```
+    Test source excerpt from `tests/test_liftaudit_stop_halts_run.py`:
+    ```python
+    def test_record_checkpoint_stop_worktree_resolution_precedence(self):
+        for mod, driver_name in (
+            (oc_runipd, "oc_runipd"),
+            (agy_runipd, "agy_runipd"),
+        ):
+            with tempfile.TemporaryDirectory() as temp:
+                tmp = Path(temp)
+                main_repo = _init_clean_repo(tmp / "main")
+                lane_repo = _init_clean_repo(tmp / "lane")
+                (main_repo / "main_dirty.txt").write_text(
+                    "main dirty\n", encoding="utf-8"
+                )
+                (lane_repo / "dirty_file.txt").write_text(
+                    "lane dirty\n", encoding="utf-8"
+                )
+                run_dir = main_repo / ".aw" / "records" / "runs" / "run-test"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                events_file = run_dir / "events.jsonl"
+                events_file.touch()
 
-- [ ] V-03 validates E-03
+                state = {"repo": str(main_repo)}
+                obs = runner_stop.CheckpointObserver(
+                    detector=lambda line: True,
+                    requested_level=3,
+                )
+
+                cases = [
+                    (
+                        "item_worktree",
+                        {"id6": "qa0001", "worktree": str(lane_repo)},
+                        None,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "attempts_worktree",
+                        {
+                            "id6": "qa0001",
+                            "attempts": [{"worktree": str(lane_repo)}],
+                        },
+                        None,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "work_dir_precedence",
+                        {"id6": "qa0001", "worktree": str(main_repo)},
+                        lane_repo,
+                        "dirty_file.txt",
+                        "main_dirty.txt",
+                    ),
+                    (
+                        "fallback_repo",
+                        {"id6": "qa0001"},
+                        None,
+                        "main_dirty.txt",
+                        "dirty_file.txt",
+                    ),
+                ]
+
+                for (
+                    case_name,
+                    item_dict,
+                    work_dir,
+                    expected_dirty,
+                    forbidden_dirty,
+                ) in cases:
+                    with self.subTest(driver=driver_name, case=case_name):
+                        item = dict(item_dict)
+                        rec = mod._record_checkpoint_stop(
+                            run_dir, state, item, obs, work_dir=work_dir
+                        )
+                        self.assertIn(expected_dirty, rec["git_state"])
+                        self.assertNotIn(forbidden_dirty, rec["git_state"])
+                        self.assertFalse(rec["git_state"].startswith("<unobserved"))
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing the injected-string, raising-`git_status_fn` (`<unobserved:` prefix), and omitted-`git_status_fn` (`TypeError`) tests PASSED; plus the pasted summary line of a bare `python3 -m pytest` run, with any failure shown to fail identically on the base commit; plus pasted `git diff` of the new test code showing no `inspect`/`ast` import and no read of any `agent_workflows/*.py` source file (any `read_text` reads only the test's own `events.jsonl`) (P16).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Pytest output showing injected-string, raising-`git_status_fn`, and omitted-`git_status_fn` tests PASSED:
+    ```
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_injected_git_status PASSED [ 45%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_raising_git_status_fn_yields_unobserved PASSED [ 27%]
+    tests/test_liftaudit_stop_halts_run.py::LiftauditStopHaltsRunTests::test_record_checkpoint_stop_omitted_git_status_fn_raises PASSED [  9%]
+    ```
+    Summary line of bare `python3 -m pytest` run:
+    ```
+    702 passed in 30.69s
+    ```
+    Git diff of new test code showing no `inspect`/`ast` imports and no reads of `agent_workflows/*.py`:
+    ```diff
+    +    def test_record_checkpoint_stop_injected_git_status(self):
+    +        with tempfile.TemporaryDirectory() as temp:
+    +            run_dir = Path(temp)
+    +            (run_dir / "events.jsonl").touch()
+    +            lane_path = Path(temp) / "my_lane"
+    +            lane_path.mkdir()
+    +            state = {"repo": temp}
+    +            item = {"id6": "qa0001"}
+    +            obs = runner_stop.CheckpointObserver(
+    +                detector=lambda line: True,
+    +                requested_level=3,
+    +            )
+    +            rec = runner_shared._record_checkpoint_stop(
+    +                run_dir,
+    +                state,
+    +                item,
+    +                obs,
+    +                work_dir=lane_path,
+    +                git_status_fn=lambda repo: f"?? {repo.name}-dirty",
+    +            )
+    +            expected = f"?? {lane_path.name}-dirty"
+    +            self.assertEqual(rec["git_state"], expected)
+    +            self.assertEqual(item["stopped"]["git_state"], expected)
+    +
+    +    def test_record_checkpoint_stop_raising_git_status_fn_yields_unobserved(self):
+    +        with tempfile.TemporaryDirectory() as temp:
+    +            run_dir = Path(temp)
+    +            (run_dir / "events.jsonl").touch()
+    +            state = {"repo": temp}
+    +            item = {"id6": "qa0001"}
+    +            obs = runner_stop.CheckpointObserver(
+    +                detector=lambda line: True,
+    +                requested_level=3,
+    +            )
+    +
+    +            def bad_status_fn(repo: Path) -> str:
+    +                raise RuntimeError("git execution failed")
+    +
+    +            rec = runner_shared._record_checkpoint_stop(
+    +                run_dir,
+    +                state,
+    +                item,
+    +                obs,
+    +                git_status_fn=bad_status_fn,
+    +            )
+    +            self.assertTrue(rec["git_state"].startswith("<unobserved:"))
+    +            self.assertIn("git execution failed", rec["git_state"])
+    +            self.assertEqual(item["stopped"]["git_state"], rec["git_state"])
+    +
+    +    def test_record_checkpoint_stop_omitted_git_status_fn_raises(self):
+    +        with tempfile.TemporaryDirectory() as temp:
+    +            run_dir = Path(temp)
+    +            state = {"repo": temp}
+    +            item = {"id6": "qa0001"}
+    +            obs = runner_stop.CheckpointObserver(
+    +                detector=lambda line: True,
+    +                requested_level=3,
+    +            )
+    +            with self.assertRaises(TypeError):
+    +                runner_shared._record_checkpoint_stop(
+    +                    run_dir, state, item, obs  # type: ignore[call-arg]
+    +                )
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff -- agent_workflows/runner_shared.py` showing only lines inside the `_record_checkpoint_stop` docstring changed, the sentence "no live guard currently asserts this" removed from that docstring, and `tests/test_liftaudit_stop_halts_run.py` named in its place; plus pasted `rg -n "no live guard currently asserts this" agent_workflows/runner_shared.py` output showing that the `_record_checkpoint_stop` occurrence is gone (other unrelated occurrences may remain).
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 0c80baf62..d6c3706d5 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -35512,8 +35512,9 @@ def _record_checkpoint_stop(
+         stop -- silently replacing the observed working-tree state, which is the whole evidentiary point of
+         a level-3 stop record, with an error string. That was invisible precisely BECAUSE the definition was
+         dead; pointing the hosts at it is what would have shipped the defect
+    -    (`tests/test_runner_stop.py::test_stop_isolated_git_status` was deleted in `19313eed`; no live
+    -    guard currently asserts this). Injecting the host's own
+    +    (`tests/test_runner_stop.py::test_stop_isolated_git_status` was removed in `19313eed`; the
+    +    property is now asserted behaviorally by the dual-host dirty-lane tests in
+    +    `tests/test_liftaudit_stop_halts_run.py`). Injecting the host's own
+         bound `git_status` is the seam this module already uses for exactly this dependency, and no default
+         is offered so the mistake cannot recur silently.
+         """
+    ```
+    Output of `rg -n "no live guard currently asserts this" agent_workflows/runner_shared.py`:
+    ```
+    14215:    no live guard currently asserts this loose-whitespace tolerance) guarded BOTH halves, so
+    15876:#: (deleted in `19313eed`; no live guard currently asserts this; coverage tracked by backlog `mv18lz`).
+    15924:        no live guard currently asserts this; tracked by backlog `mv18lz`) asserted by checking the
+    27171:# `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces a
+    28129:#       (deleted in `19313eed`; no live guard currently asserts this), whose own docstring records
+    28416:    `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces an
+    28595:# no live guard currently asserts this) existed for that case and called it the most important in its
+    28727:    `19313eed`; no live guard currently asserts this). It DEFAULTS False, the conservative reading, so
+    28920:         `19313eed`; no live guard currently asserts this): with a merged
+    30281:    no live guard currently asserts this conflict case) pinned this answer so a future change to it is
+    30835:#:       `19313eed`; a code pin retired under P16; no live guard currently asserts this object identity;
+    ```
+    (_record_checkpoint_stop occurrence at former line 35515 is gone.)
+  - Result: pass
 
 
 ## Approval and execution gate
