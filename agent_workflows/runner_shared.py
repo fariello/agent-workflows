@@ -19694,7 +19694,7 @@ def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:
 
     WHAT THE ALLOWLIST AND EXTRACTOR DO NOT REACH (RESIDUAL GAPS):
       * Non-allowlisted sections leave 83 residual raw pattern hits invisible (55 gate boilerplate, 13 history, etc.).
-      * Indented non-sub-field lines inside allowlisted sections leave 476 lines (74,625 characters) invisible to both extractors, carrying 14 hazard hits (pinned in code by E-04's `c3`).
+      * Indented lines following a checklist leaf or `- Key: value` subfield inside allowlisted sections remain excluded from `prose_sections` (pinned in code by E-04's `c3`), leaving 125 residual indented lines (29,148 characters across 93 corpus orchestrators measured 2026-10-16 under plan `u1l9rx`) invisible to both extractors, while indented continuation lines of unattached prose bullets and paragraphs are joined onto their opening lines.
 
     ACCEPTED ONE-TIME INVALIDATION:
     Widening changes the payload and moves every digest. All 26 entries in the store (`.aw/state/runtime/orchestrator-probe-verdicts.json`:
@@ -19702,6 +19702,7 @@ def probe_cache_payload(orchestrator_text: str) -> dict[str, Any]:
     because there are 0 `- Kind: orchestrator` plans in `.aw/records/plans/pending/`. A miss reads `unknown` and probes, so the invalidation
     clears nothing and cannot launder an uncovered plan. Dual-digest or versioned-digest fallbacks were refused because serving an old verdict
     under the narrow key is the exact stale-verdict defect this widening closes.
+    Note that under `go6vzi` (`u1l9rx`), joining wrapped unattached prose continuations introduces a one-time coverage-fingerprint shift for orchestrators with wrapped prose bullets.
 
     STANDING RE-PROBE COST AND METHODOLOGY (F-10):
     Over the 61 executed orchestrators with an approved revision in git history, comparing newest-approved to final:
@@ -19771,7 +19772,9 @@ def probe_cache_digest(orchestrator_text: str) -> str:
     NOT COVERED (a change here must NOT re-probe): the `[ ]`/`[x]` checkbox marks, `Execution
     state:`, `Result:`, `Observed evidence:`, `## Workflow history`, non-allowlisted prose sections
     (Approval and execution gate, Open questions, Deferred, explanatory paragraphs in Child IPDs),
-    and indented non-sub-field lines inside allowlisted sections.
+    and indented lines following a checklist leaf or `- Key: value` subfield inside allowlisted sections
+    (indented continuation lines of unattached prose bullets and paragraphs are joined and covered,
+    causing a one-time fingerprint shift for orchestrators with wrapped prose bullets under `go6vzi`).
 
     DELIBERATE DIVERGENCE FROM :func:`ipd_lifecycle.frozen_region_digest`, stated because the
     overlap is large and the difference is the entire justification for a second function:

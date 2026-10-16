@@ -242,6 +242,179 @@ class TestProbePayloadDefaultSuite(unittest.TestCase):
             "if this now passes the indented-line gap was closed and F-16 plus the Deferred row must be updated.",
         )
 
+    def test_wrapped_completion_criteria_bullet_keeps_owner_continuation(self):
+        """Wrapped 2-line and 3-line bullets in allowlisted sections join and keep OWNER continuation."""
+        doc_wrapped = """# Synthetic Test Orchestrator
+- Concern: testing wrapped prose bullet continuations
+- Scope: tests
+- Scope-Paths: tests/test_orchestrator_probe_payload.py
+- Item-Dependencies: none
+- Status: approved
+- Readiness: go-pending-approval
+- Work-Kind: followup
+- Priority: medium
+- From-Backlog: go6vzi
+- Set: probeprose
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: syn001
+- Kind: orchestrator
+
+## Workflow history
+- 2026-10-14 approved: test
+
+## Goal
+A test orchestrator for wrapped completion criteria bullets.
+
+## Completion criteria (the whole Set is done only when)
+- First criterion wrapping onto second line
+  OWNER: syn002 (executed).
+- Second criterion wrapping onto three lines
+  with intermediate continuation
+  OWNER: syn002 (executed).
+
+## Child IPDs, sequence, and dependencies
+
+| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
+|---|---|---|---|---|---|---|---|
+| 01 | syn | syn002 | standard | child 1 | executed | none | none |
+
+## Detailed Implementation Checklist (TODO)
+
+- [ ] E-01 Simple task
+  - Depends on: none
+  - Execution state: pending
+"""
+        doc_unwrapped = doc_wrapped.replace(
+            "- First criterion wrapping onto second line\n  OWNER: syn002 (executed).",
+            "- First criterion wrapping onto second line OWNER: syn002 (executed).",
+        ).replace(
+            "- Second criterion wrapping onto three lines\n  with intermediate continuation\n  OWNER: syn002 (executed).",
+            "- Second criterion wrapping onto three lines with intermediate continuation OWNER: syn002 (executed).",
+        )
+
+        # 1. unattached_section_prose joins the lines into single lines
+        unattached = lint.unattached_section_prose(doc_wrapped)
+        sec_name = "Completion criteria (the whole Set is done only when)"
+        self.assertIn(sec_name, unattached)
+        lines = unattached[sec_name].splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(
+            lines[0],
+            "- First criterion wrapping onto second line OWNER: syn002 (executed).",
+        )
+        self.assertEqual(
+            lines[1],
+            "- Second criterion wrapping onto three lines with intermediate continuation OWNER: syn002 (executed).",
+        )
+
+        # 2. probe_cache_payload contains the joined bullet on one line with OWNER present
+        payload = rs.probe_cache_payload(doc_wrapped)
+        prose = payload["prose_sections"][sec_name]
+        self.assertIn(
+            "- First criterion wrapping onto second line OWNER: syn002 (executed).",
+            prose,
+        )
+        self.assertIn(
+            "- Second criterion wrapping onto three lines with intermediate continuation OWNER: syn002 (executed).",
+            prose,
+        )
+
+        # 3. orchestrator_probe_excerpt renders the joined bullet on one line with OWNER present
+        excerpt = rs.orchestrator_probe_excerpt(doc_wrapped)
+        self.assertIn(
+            "- First criterion wrapping onto second line OWNER: syn002 (executed).",
+            excerpt,
+        )
+        self.assertIn(
+            "- Second criterion wrapping onto three lines with intermediate continuation OWNER: syn002 (executed).",
+            excerpt,
+        )
+
+        # 4. probe_cache_digest equals the digest of the unwrapped document
+        d_wrapped = rs.probe_cache_digest(doc_wrapped)
+        d_unwrapped = rs.probe_cache_digest(doc_unwrapped)
+        self.assertEqual(d_wrapped, d_unwrapped)
+
+        # 5. Editing the wrapped continuation line moves probe_cache_digest
+        doc_edited = doc_wrapped.replace("OWNER: syn002", "OWNER: syn003")
+        self.assertNotEqual(rs.probe_cache_digest(doc_edited), d_wrapped)
+
+    def test_e_leaf_indented_continuation_still_excluded_from_unattached_prose(self):
+        """E-* leaf continuations, subfield continuations, and indented lines after blank lines are excluded from prose."""
+        doc = """# Synthetic Test Orchestrator
+- Concern: testing leaf continuation exclusion
+- Scope: tests
+- Scope-Paths: tests/test_orchestrator_probe_payload.py
+- Item-Dependencies: none
+- Status: approved
+- Readiness: go-pending-approval
+- Work-Kind: followup
+- Priority: medium
+- From-Backlog: go6vzi
+- Set: probeprose
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: syn001
+- Kind: orchestrator
+
+## Workflow history
+- 2026-10-14 approved: test
+
+## Goal
+A test orchestrator for exclusion checks.
+
+## Child IPDs, sequence, and dependencies
+
+| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
+|---|---|---|---|---|---|---|---|
+| 01 | syn | syn002 | standard | child 1 | executed | none | none |
+
+## Detailed Implementation Checklist (TODO)
+
+An unattached prose section opening paragraph
+  with an indented continuation line that should be kept.
+
+- [ ] E-01 Execute first task with
+  a two-space continuation line for leaf action.
+  - Depends on: none
+  - Expected outcome: done with
+    subfield continuation line that must be excluded
+
+  Indented line after blank line that must not attach
+"""
+        leaf_cont = "a two-space continuation line for leaf action."
+        subfield_cont = "subfield continuation line that must be excluded"
+        blank_cont = "Indented line after blank line that must not attach"
+        kept_prose_cont = "with an indented continuation line that should be kept."
+
+        unattached = lint.unattached_section_prose(doc)
+        payload = rs.probe_cache_payload(doc)
+
+        # Leaf continuation is captured in e_items
+        self.assertTrue(
+            any(leaf_cont in item for item in payload["e_items"]),
+            "Leaf continuation line must be in e_items",
+        )
+
+        # Unattached prose continuation is kept and joined
+        sec_prose = unattached.get("Detailed Implementation Checklist (TODO)", "")
+        self.assertIn(kept_prose_cont, sec_prose)
+        self.assertIn(
+            kept_prose_cont,
+            payload["prose_sections"].get(
+                "Detailed Implementation Checklist (TODO)", ""
+            ),
+        )
+
+        # Leaf continuation, subfield continuation, and indented line after blank are excluded from unattached prose
+        for text_source in (sec_prose, "\n".join(payload["prose_sections"].values())):
+            self.assertNotIn(leaf_cont, text_source)
+            self.assertNotIn(subfield_cont, text_source)
+            self.assertNotIn(blank_cont, text_source)
+
 
 @pytest.mark.livecorpus
 class TestProbePayloadLiveCorpus(unittest.TestCase):
