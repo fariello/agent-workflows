@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: integration_is_earned (S-18, S-22)
 
-- [ ] E-01 Create `tests/test_suite_exit_code_authority.py` with a keyword-only `_suite_result(...)` helper building `runner_shared.SuiteCheckResult` (defaults `passing=False, exit_code=1, summary="1 failed, 1 passed in 0.01s", reason="the driver-run suite did not pass", cwd=".", timeout_seconds=600.0, elapsed_seconds=0.5, failures=()`), and a test class that, for each host module (`oc_runipd`, `agy_runipd`) via `subTest`, calls `module.integration_is_earned(validate=False, verify_disp=None, suite_result=...)` and asserts (both host attributes currently resolve to the one `runner_shared.integration_is_earned` re-exported by `oc_runipd` and `agy_runipd`, so the per-host loop guards against a host re-binding or shadowing the name, not two implementations; do NOT assert identity, which would be a structure pin): (a) exit 1 with `failures=()` gives `earned is False`, `signal == runner_shared.INTEGRATION_REFUSED_SUITE_FAILED`, and `runner_shared.gate_answer_is_warranted(integration_gate_relevant=True, earned=..., integration_signal=..., session_id="s")[0] is True`; (b) the same with `summary=""` also refuses and is warranted; (c) exit codes 124 and 127 with empty list and summary refuse and are warranted; (d) the control: `passing=True, exit_code=0, summary="9 passed", failures=("FAILED stale::leftover",)` gives `earned is True` and `gate_answer_is_warranted(...)[0] is False` (a green suite is never taxed with a question). Assertion messages state that the exit code, not the list, is the authority.
+- [x] E-01 Create `tests/test_suite_exit_code_authority.py` with a keyword-only `_suite_result(...)` helper building `runner_shared.SuiteCheckResult` (defaults `passing=False, exit_code=1, summary="1 failed, 1 passed in 0.01s", reason="the driver-run suite did not pass", cwd=".", timeout_seconds=600.0, elapsed_seconds=0.5, failures=()`), and a test class that, for each host module (`oc_runipd`, `agy_runipd`) via `subTest`, calls `module.integration_is_earned(validate=False, verify_disp=None, suite_result=...)` and asserts (both host attributes currently resolve to the one `runner_shared.integration_is_earned` re-exported by `oc_runipd` and `agy_runipd`, so the per-host loop guards against a host re-binding or shadowing the name, not two implementations; do NOT assert identity, which would be a structure pin): (a) exit 1 with `failures=()` gives `earned is False`, `signal == runner_shared.INTEGRATION_REFUSED_SUITE_FAILED`, and `runner_shared.gate_answer_is_warranted(integration_gate_relevant=True, earned=..., integration_signal=..., session_id="s")[0] is True`; (b) the same with `summary=""` also refuses and is warranted; (c) exit codes 124 and 127 with empty list and summary refuse and are warranted; (d) the control: `passing=True, exit_code=0, summary="9 passed", failures=("FAILED stale::leftover",)` gives `earned is True` and `gate_answer_is_warranted(...)[0] is False` (a green suite is never taxed with a question). Assertion messages state that the exit code, not the list, is the authority.
   - Depends on: none
   - Expected outcome: the S-18/S-22 inversion guard runs on both hosts, with a passing control proving the refusal is not vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a test that `_suite_result(failures=(), summary="").failing_text` is non-empty after `.strip()`, and that its first line (first 30 chars) appears in `runner_shared.gate_answer_question(failing=text, changed_files=("a.py",))`, so the escalation question never shows an empty evidence section.
+- [x] E-02 Add a test that `_suite_result(failures=(), summary="").failing_text` is non-empty after `.strip()`, and that its first line (first 30 chars) appears in `runner_shared.gate_answer_question(failing=text, changed_files=("a.py",))`, so the escalation question never shows an empty evidence section.
   - Depends on: E-01
   - Expected outcome: the deleted `test_the_question_never_shows_an_EMPTY_evidence_section` is restored behaviorally.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the relative comparisons (S-23, S-24)
 
-- [ ] E-03 Add tests for `runner_shared.new_failures_since_baseline` with a `SuiteBaseline(state="completed", base_commit="abc", failures=("FAILED tests/t.py::a - assert 1 == 2",))`: an EMPTY merged list with `suite_passed=False` returns `judgement == REVALIDATION_UNKNOWN` and `introduced_nothing is False`; the same with `suite_passed` omitted (default) is also `unknown`; and the control with `suite_passed=True` returns `REVALIDATION_NO_REGRESSION`.
+- [x] E-03 Add tests for `runner_shared.new_failures_since_baseline` with a `SuiteBaseline(state="completed", base_commit="abc", failures=("FAILED tests/t.py::a - assert 1 == 2",))`: an EMPTY merged list with `suite_passed=False` returns `judgement == REVALIDATION_UNKNOWN` and `introduced_nothing is False`; the same with `suite_passed` omitted (default) is also `unknown`; and the control with `suite_passed=True` returns `REVALIDATION_NO_REGRESSION`.
   - Depends on: E-01
   - Expected outcome: S-23 guarded: an empty list on a red suite is never read as "nothing new".
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add tests for `runner_shared.unattributed_merged_failures` with `attributed=(normalize_failure_id("FAILED tests/t.py::a - assert 1 == 2"),)`: an EMPTY merged list with `suite_passed=False` returns `unknown`; with `suite_passed` omitted returns `unknown`; controls: merged `("FAILED tests/t.py::a - x",)` returns `no-regression`, and merged `("FAILED tests/t.py::a - x", "FAILED tests/t.py::b - y")` returns `regressed`.
+- [x] E-04 Add tests for `runner_shared.unattributed_merged_failures` with `attributed=(normalize_failure_id("FAILED tests/t.py::a - assert 1 == 2"),)`: an EMPTY merged list with `suite_passed=False` returns `unknown`; with `suite_passed` omitted returns `unknown`; controls: merged `("FAILED tests/t.py::a - x",)` returns `no-regression`, and merged `("FAILED tests/t.py::a - x", "FAILED tests/t.py::b - y")` returns `regressed`.
   - Depends on: E-01
   - Expected outcome: S-24 guarded: an empty merged list never vacuously satisfies "every failure was attributed away".
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: honest documentation (F-3)
 
-- [ ] E-05 In `agent_workflows/runner_shared.py`, edit ONLY comment/docstring text at the four sites citing `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` ("deleted in `19313eed`; no live guard currently asserts this"): the `(a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE` comment block (line 28128), the `THE COMPARISON IN HERE IS THE ONE THAT ALREADY INVERTED` comment block (line 28594), the `new_failures_since_baseline` docstring (line 28726), and the `unattributed_merged_failures` docstring (line 28919). Keep the historical note that the original guard was deleted in `19313eed`, and replace "no live guard currently asserts this" with a pointer to `tests/test_suite_exit_code_authority.py`. Do NOT touch the other "no live guard" comments in the file, which concern different properties.
+- [x] E-05 In `agent_workflows/runner_shared.py`, edit ONLY comment/docstring text at the four sites citing `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` ("deleted in `19313eed`; no live guard currently asserts this"): the `(a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE` comment block (line 28128), the `THE COMPARISON IN HERE IS THE ONE THAT ALREADY INVERTED` comment block (line 28594), the `new_failures_since_baseline` docstring (line 28726), and the `unattributed_merged_failures` docstring (line 28919). Keep the historical note that the original guard was deleted in `19313eed`, and replace "no live guard currently asserts this" with a pointer to `tests/test_suite_exit_code_authority.py`. Do NOT touch the other "no live guard" comments in the file, which concern different properties.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: no `runner_shared.py` comment says this property is unguarded once the guard exists; there is no code change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,29 +124,363 @@ N/A for specs and CHANGELOG: this restores test coverage and corrects internal c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -v` output showing the E-01 tests PASSED, plus the test source excerpt showing the `for ... in (("oc", oc_runipd), ("agy", agy_runipd))` / `subTest(host=...)` loop (this repository has no `pytest-subtests` plugin, so `-v` prints one line per test method, never per subtest); plus pasted mutant-A output (see Required tests) showing the red-with-empty-list test FAILED, then the unmutated run passing.
   - Observed evidence:
-  - Result: pending
+    Pasted `python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -v` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=70513952
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
 
-- [ ] V-02 validates E-02
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_unattributed_merged_failures_empty_red_and_controls PASSED [ 16%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_passing_control PASSED [ 33%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_passing_exit_earns_integration_regardless_of_the_list PASSED [ 50%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_the_question_never_shows_an_empty_evidence_section PASSED [ 66%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_red_exit_with_empty_failing_list_still_escalates PASSED [ 83%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_empty_red_is_unknown PASSED [100%]
+
+    ============================== 6 passed in 0.35s ===============================
+    ```
+    Test source excerpt showing the `for ... in (("oc", oc_runipd), ("agy", agy_runipd))` / `subTest(host=...)` loop:
+    ```python
+        for host_name, host_module in (("oc", oc_runipd), ("agy", agy_runipd)):
+            with self.subTest(host=host_name, case="exit 1 empty failures"):
+                res = _suite_result(passing=False, exit_code=1, failures=())
+                verdict = host_module.integration_is_earned(
+                    validate=False,
+                    verify_disp=None,
+                    suite_result=res,
+                )
+                self.assertFalse(
+                    verdict.earned,
+                    "The exit code, not the list, is the authority: exit 1 with empty failures must refuse integration",
+                )
+                self.assertEqual(
+                    verdict.signal,
+                    runner_shared.INTEGRATION_REFUSED_SUITE_FAILED,
+                    "The exit code, not the list, is the authority: refusal signal must be suite-failed",
+                )
+                warranted, _ = runner_shared.gate_answer_is_warranted(
+                    integration_gate_relevant=True,
+                    earned=verdict.earned,
+                    integration_signal=verdict.signal,
+                    session_id="s",
+                )
+                self.assertTrue(
+                    warranted,
+                    "The exit code, not the list, is the authority: unparseable red suite must escalate to agent",
+                )
+    ```
+    Mutant A output showing red-with-empty-list test FAILED:
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_xssw86:. python3 -m pytest -o addopts="" -v -p mutant_a tests/test_suite_exit_code_authority.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3719526008
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
+
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_passing_control PASSED [ 16%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_the_question_never_shows_an_empty_evidence_section PASSED [ 33%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_passing_exit_earns_integration_regardless_of_the_list PASSED [ 50%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_unattributed_merged_failures_empty_red_and_controls PASSED [ 66%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_red_exit_with_empty_failing_list_still_escalates FAILED [ 83%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_empty_red_is_unknown PASSED [100%]
+
+    =================================== FAILURES ===================================
+    _ SuiteExitCodeAuthorityTests.test_red_exit_with_empty_failing_list_still_escalates _
+
+    self = <tests.test_suite_exit_code_authority.SuiteExitCodeAuthorityTests testMethod=test_red_exit_with_empty_failing_list_still_escalates>
+
+        def test_red_exit_with_empty_failing_list_still_escalates(self) -> None:
+            """The exit code, not the list, is the authority: a red suite with an empty list refuses and escalates."""
+            for host_name, host_module in (("oc", oc_runipd), ("agy", agy_runipd)):
+                with self.subTest(host=host_name, case="exit 1 empty failures"):
+                    res = _suite_result(passing=False, exit_code=1, failures=())
+                    verdict = host_module.integration_is_earned(
+                        validate=False,
+                        verify_disp=None,
+                        suite_result=res,
+                    )
+    >               self.assertFalse(
+                        verdict.earned,
+                        "The exit code, not the list, is the authority: exit 1 with empty failures must refuse integration",
+                    )
+    E               AssertionError: True is not false : The exit code, not the list, is the authority: exit 1 with empty failures must refuse integration
+
+    tests/test_suite_exit_code_authority.py:61: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_red_exit_with_empty_failing_list_still_escalates
+    ========================= 1 failed, 5 passed in 0.23s ==========================
+    ```
+    Unmutated run passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -v
+    ============================== 6 passed in 0.35s ===============================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the evidence-section test PASSED, and the test source excerpt showing it calls the real `SuiteCheckResult.failing_text` and `runner_shared.gate_answer_question`.
   - Observed evidence:
-  - Result: pending
+    Pasted pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -k "test_the_question_never_shows_an_empty_evidence_section" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items / 5 deselected / 1 selected
 
-- [ ] V-03 validates E-03
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_the_question_never_shows_an_empty_evidence_section PASSED [100%]
+
+    ======================= 1 passed, 5 deselected in 0.22s ========================
+    ```
+    Test source excerpt:
+    ```python
+        def test_the_question_never_shows_an_empty_evidence_section(self) -> None:
+            """An empty section reads as 'no failures'; question must show non-empty evidence."""
+            text = _suite_result(failures=(), summary="").failing_text
+            self.assertTrue(text.strip())
+            prompt = runner_shared.gate_answer_question(failing=text, changed_files=("a.py",))
+            self.assertIn(text.splitlines()[0][:30], prompt)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing the `new_failures_since_baseline` tests PASSED; plus pasted mutant-B output (see Required tests) showing the empty-red `unknown` assertion FAILED, then the unmutated run passing.
   - Observed evidence:
-  - Result: pending
+    Pasted pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -k "test_new_failures_since_baseline" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items / 4 deselected / 2 selected
 
-- [ ] V-04 validates E-04
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_empty_red_is_unknown PASSED [ 50%]
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_passing_control PASSED [100%]
+
+    ======================= 2 passed, 4 deselected in 0.23s ========================
+    ```
+    Mutant B output showing empty-red unknown assertion FAILED:
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_xssw86:. python3 -m pytest -o addopts="" -v -p mutant_b tests/test_suite_exit_code_authority.py
+    =================================== FAILURES ===================================
+    _ SuiteExitCodeAuthorityTests.test_new_failures_since_baseline_empty_red_is_unknown _
+
+    self = <tests.test_suite_exit_code_authority.SuiteExitCodeAuthorityTests testMethod=test_new_failures_since_baseline_empty_red_is_unknown>
+
+        def test_new_failures_since_baseline_empty_red_is_unknown(self) -> None:
+            """An empty merged list on a non-passing suite is unknown, never no-regression."""
+            baseline = runner_shared.SuiteBaseline(
+                state="completed",
+                base_commit="abc",
+                failures=("FAILED tests/t.py::a - assert 1 == 2",),
+            )
+            res_explicit = runner_shared.new_failures_since_baseline(
+                merged_failures=(),
+                baseline=baseline,
+                suite_passed=False,
+            )
+    >       self.assertEqual(res_explicit.judgement, runner_shared.REVALIDATION_UNKNOWN)
+    E       AssertionError: 'no-regression' != 'unknown'
+    E       - no-regression
+    E       + unknown
+
+    tests/test_suite_exit_code_authority.py:185: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_new_failures_since_baseline_empty_red_is_unknown
+    ========================= 2 failed, 4 passed in 0.25s ==========================
+    ```
+    Unmutated run passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -v
+    ============================== 6 passed in 0.35s ===============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted pytest output showing the `unattributed_merged_failures` tests PASSED; plus pasted bare `python3 -m pytest` output with the `N passed` summary and no new failures; plus pasted mutant-B output showing the E-04 empty-red test FAILED; plus pasted `git diff` of the new file showing no `inspect`/`ast` import, no read of any `agent_workflows/*.py` source, and no assertion on docstring or reason prose (P16).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Pasted pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_suite_exit_code_authority.py -k "test_unattributed_merged_failures" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items / 5 deselected / 1 selected
+
+    tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_unattributed_merged_failures_empty_red_and_controls PASSED [100%]
+
+    ======================= 1 passed, 5 deselected in 0.22s ========================
+    ```
+    Bare `python3 -m pytest` output showing 707 passed with zero failures:
+    ```
+    $ python3 -m pytest
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 10%]
+    ......................................................................... [ 20%]
+    ........................................................................ [ 30%]
+    ........................................................................ [ 40%]
+    ........................................................................ [ 51%]
+    ........................................................................ [ 61%]
+    ........................................................................ [ 71%]
+    ........................................................................ [ 81%]
+    ........................................................................ [ 91%]
+    ..........................................................               [100%]
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    707 passed in 23.09s
+    ```
+    Mutant B output showing E-04 empty-red test FAILED:
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_xssw86:. python3 -m pytest -o addopts="" -v -p mutant_b tests/test_suite_exit_code_authority.py
+    =================================== FAILURES ===================================
+    _ SuiteExitCodeAuthorityTests.test_unattributed_merged_failures_empty_red_and_controls _
+
+    self = <tests.test_suite_exit_code_authority.SuiteExitCodeAuthorityTests testMethod=test_unattributed_merged_failures_empty_red_and_controls>
+
+        def test_unattributed_merged_failures_empty_red_and_controls(self) -> None:
+            """An empty merged list on a non-passing suite is unknown; controls verify non-empty behavior."""
+            attributed = (
+                runner_shared.normalize_failure_id("FAILED tests/t.py::a - assert 1 == 2"),
+            )
+            res_explicit = runner_shared.unattributed_merged_failures(
+                merged_failures=(),
+                attributed=attributed,
+                suite_passed=False,
+            )
+    >       self.assertEqual(res_explicit.judgement, runner_shared.REVALIDATION_UNKNOWN)
+    E       AssertionError: 'no-regression' != 'unknown'
+    E       - no-regression
+    E       + unknown
+
+    tests/test_suite_exit_code_authority.py:220: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_suite_exit_code_authority.py::SuiteExitCodeAuthorityTests::test_unattributed_merged_failures_empty_red_and_controls
+    ========================= 2 failed, 4 passed in 0.25s ==========================
+    ```
+    P16 compliance check showing no inspect/ast/source-reading or code pins:
+    ```
+    $ python3 -c "
+    import re
+    text = open('tests/test_suite_exit_code_authority.py').read()
+    assert not re.search(r'\b(inspect|ast)\b', text), 'found inspect/ast'
+    assert 'read_text' not in text, 'found read_text'
+    assert 'getsource' not in text, 'found getsource'
+    print('P16 check passed clean')
+    "
+    P16 check passed clean
+    ```
+    `git show e61af7cfb36d98cb957fd3ef44423e185e2efa20 -- tests/test_suite_exit_code_authority.py` excerpt:
+    ```diff
+    +++ b/tests/test_suite_exit_code_authority.py
+    @@ -0,0 +1,252 @@
+    +#!/usr/bin/env python3
+    +"""Behavioral tests for the suite exit code authority (IPD xssw86, backlog jgpts7).
+    +
+    +Restores behavioral coverage that the post-merge suite's exit code, not its parsed
+    +failing-test list, is the authority on integration:
+    +- A non-passing suite never earns integration merely because its failing list is empty (the 32ij2j inversion).
+    +- A passing exit earns integration regardless of the list.
+    +- A non-passing suite always escalates to the agent with non-empty evidence rather than silently integrating.
+    +- Empty lists on non-passing suites in relative comparisons (new_failures_since_baseline,
+    +  unattributed_merged_failures) yield unknown judgements rather than vacuous passes.
+    +
+    +Behavior-only tests: observable behavior and outcomes only (P16).
+    +"""
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff -- agent_workflows/runner_shared.py` showing only comment/docstring lines changed at the four `TheExitCodeIsTheAuthorityAndNotTheList` sites, each now naming `tests/test_suite_exit_code_authority.py`; plus pasted `grep -n "TheExitCodeIsTheAuthorityAndNotTheList" agent_workflows/runner_shared.py` output showing no remaining hit beside "no live guard currently asserts this"; plus the bare `python3 -m pytest` output for V-04, which MUST be taken after this edit (run the full suite last).
   - Observed evidence:
-  - Result: pending
+    Pasted `git show e61af7cfb36d98cb957fd3ef44423e185e2efa20 -- agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 42db940da..078919253 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -28149,7 +28149,7 @@ evidence block. Claim `{GATE_ANSWER_NOT_MINE}` only if you believe it.
+     #
+     #   (a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS NOT "NOTHING NEW". This is the `32ij2j`
+     #       inversion, guarded by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`
+    -#       (deleted in `19313eed`; no live guard currently asserts this), whose own docstring records
+    +#       (deleted in `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`), whose own docstring records
+     #       that plan comparing failing sets as a subset over an ALWAYS-EMPTY
+     #       string so that "every lane passed including one that broke everything" (the always-empty read
+     #       was SHIPPED in `run_suite_check` until `h5pyqa`). Measured while authoring this: with a merged
+    @@ -28615,7 +28615,7 @@ REVALIDATION_CACHE_KEY: str = "post_merge_revalidation"
+     # it is written to REFUSE TO BE THE AUTHORITY. Plan `32ij2j` compared failing SETS as a subset and
+     # derived them from an always-empty string, so every lane passed INCLUDING one that broke everything;
+     # `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` (deleted in `19313eed`;
+    -# no live guard currently asserts this) existed for that case and called it the most important in its
+    +# guarded live by `tests/test_suite_exit_code_authority.py`) existed for that case and called it the most important in its
+     # file. Three rules below close the ways the subtraction can lie,
+     # and each is a MEASURED hazard rather than a hypothetical one. A list may make a refusal SPECIFIC;
+     # it may NEVER manufacture a pass.
+    @@ -28747,7 +28747,7 @@ def new_failures_since_baseline(
+         evaluated, because "empty because green" and "empty because nothing parsed" look identical from
+         the list alone - and the EXIT CODE, not the list, is this repository's authority on which one it
+         is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` was deleted in
+    -    `19313eed`; no live guard currently asserts this). It DEFAULTS False, the conservative reading, so
+    +    `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`). It DEFAULTS False, the conservative reading, so
+         a caller that forgets it gets `unknown` rather than a pass.
+         """
+
+    @@ -28940,7 +28940,7 @@ def unattributed_merged_failures(
+
+           1. AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS UNKNOWN. This is the `32ij2j` inversion
+              (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`, deleted in
+    -         `19313eed`; no live guard currently asserts this): with a merged
+    +         `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`): with a merged
+              list of `()` the predicate "every failing id was attributed away" is VACUOUSLY TRUE, so a tree
+              that broke everything integrates. The EXIT CODE, never the list, is this repository's authority
+              on whether an empty list means "green" or "nothing parsed", which is why ``suite_passed`` is
+    ```
+    Grep output showing no remaining hit beside "no live guard currently asserts this":
+    ```
+    $ grep -n -C 1 "TheExitCodeIsTheAuthorityAndNotTheList" agent_workflows/runner_shared.py
+    28150-#   (a) AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS NOT "NOTHING NEW". This is the `32ij2j`
+    28151:#       inversion, guarded by `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`
+    28152-#       (deleted in `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`), whose own docstring records
+    --
+    28616-# derived them from an always-empty string, so every lane passed INCLUDING one that broke everything;
+    28617:# `tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` (deleted in `19313eed`;
+    28618-# guarded live by `tests/test_suite_exit_code_authority.py`) existed for that case and called it the most important in its
+    --
+    28748-    the list alone - and the EXIT CODE, not the list, is this repository's authority on which one it
+    28749:    is (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList` was deleted in
+    28750-    `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`). It DEFAULTS False, the conservative reading, so
+    --
+    28941-      1. AN EMPTY MERGED FAILING LIST ON A NON-PASSING SUITE IS UNKNOWN. This is the `32ij2j` inversion
+    28942:         (`tests/test_suite_adjudication.py::TheExitCodeIsTheAuthorityAndNotTheList`, deleted in
+    28943-         `19313eed`; guarded live by `tests/test_suite_exit_code_authority.py`): with a merged
+    ```
+    Bare `python3 -m pytest` output for V-04 (run last, after E-05 edit):
+    ```
+    $ python3 -m pytest
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    707 passed in 23.09s
+    ```
+  - Result: pass
 
 
 ## Approval and execution gate
