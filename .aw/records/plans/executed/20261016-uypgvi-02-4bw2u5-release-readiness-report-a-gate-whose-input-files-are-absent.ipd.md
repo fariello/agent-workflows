@@ -6,7 +6,7 @@
 - Scope: IN: (1) a not-applicable state on `release_readiness.GateResult` and its aggregation in `ReleaseReadinessReport` (verdict, `failing_gates`, a new `not_applicable_gates` and `passed_gates`, `to_dict`, `render`); (2) not-applicable reporting on absent input in `gate_docs_checks` (no `docs/`), `gate_capability_freshness` (no `host_matrix.json`), `gate_generated_drift` (zero `*/workflow.yaml` packages), `gate_workflow_disposition` (no workflow manifest `index.md`), and `gate_changelog_versioning` (no `CHANGELOG.md` while the version resolves); (3) prominent not-applicable display in `release_readiness.run_readiness` (human, `--json`, `--agent`); (4) behavioral tests, including updating the existing tests that pin the old fail-or-pass-on-absent behavior; (5) `docs/recovery.md` and `CHANGELOG.md`. OUT: `agent_workflows/migration_complex.py`, `.aw/system/workflows/release-review/**`, and `RELEASING.md` (owned by `kmmoca`); `gate_full_suite` and `gate_residual_risk` (explicit attestations, never not-applicable, kmmoca D-4); `gate_leak_scan`, `gate_ipd_lint`, `gate_benchmark_thresholds`, `gate_artifact_manifest` (no absent-file input named by the maintainer; `artifact_manifest` keeps failing on a missing `index.md`); a missing `.aw/system/workflows/` tree (still FAIL: it is the installed framework itself, not an optional input); and the two managed-repository false-NO-GO causes that are NOT absent inputs (OQ-01, OQ-02).
 - Scope-Paths: agent_workflows/release_readiness.py, tests/test_release_readiness_not_applicable.py, tests/test_release_readiness.py, tests/test_release_readiness_docs_gate.py, tests/test_release_readiness_producers.py, tests/test_releases_readiness_cli.py, docs/recovery.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: 4bw2u5
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4bw2u5 verified (set uypgvi, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us, round 1): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
