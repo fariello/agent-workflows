@@ -6,7 +6,8 @@
 - Scope: Replace the live-corpus read in that one test with a self-contained synthetic fixture plan written by the test itself, preserving every behavioral assertion (home-backend `aw show` and `aw oc run start --prepare-only` discovery). No production code changes.
 - Scope-Paths: tests/test_records_root_accessor.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: g9kupi
@@ -18,6 +19,8 @@
 - Id: 4v8s0m
 
 ## Workflow history
+- 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
+- 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-004)
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored from backlog g9kupi; failure reproduced in lane before authoring.
@@ -32,9 +35,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Self-contained fixture
 
-- [ ] E-01 In `tests/test_records_root_accessor.py::test_home_records_runner_discovery`, remove the `REPO_ROOT / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-..."` read and instead write a synthetic, minimal, runner-eligible plan into `pending_dir` (inline text constant or a small helper in the same module), using a fixture-only Set id and id6 (for example Set `fixtset`, Order 01, a fixed 6-char id6 that is not a live repo id6) and a filename following `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md`. The plan text must carry whatever status and metadata `aw oc run start --prepare-only` requires to queue it (determine the minimum by driving the command, not by reading runner source into the test); the executed-state copy of `kfnfji` is NOT reusable because its `- Status: executed` makes it ineligible for queueing.
+- [ ] E-01 In `tests/test_records_root_accessor.py::test_home_records_runner_discovery`, remove the `REPO_ROOT / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-..."` read and instead write a synthetic, minimal, runner-eligible plan into `pending_dir` (inline text constant or a small helper in the same module), using a fixture-only Set id and id6 (Set `fixtset`, Order 01, id6 `zq9fx1`, which `grep -rl zq9fx1 .aw/records agent_workflows tests` showed unused at review) and a fixed-date filename following `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md` (e.g. `20260101-fixtset-01-zq9fx1-fixture-plan.ipd.md`). The fixture must pass the runner's structure preflight (`[RUN-STRUCTURE-PREFLIGHT]`, which runs `aw ipd lint` rules on queued plans); the minimum demonstrated at review (OQ-01) is: front matter `Date`, `Kind: child`, `Concern`, `Scope`, `Scope-Paths`, `Item-Dependencies: none`, `Status: approved`, `Readiness: go-pending-approval`, `Approval: <date>, recorded via aw ipd set: status set to approved`, `Work-Kind`, `Priority`, `Set`, `Order: 1`, `Highest E allocated: 01`, `Author`, `Id`; a `## Workflow history` containing a `/plan-review (...): APPROVE; none` verdict line (else `IPD-M107`); every required H2 (`Goal`, `Detailed Implementation Checklist (TODO)`, `Project conventions discovered (Step 0)`, `Findings`, `Proposed changes (ordered, validatable)`, `Deferred / out of scope (with reason)`, `Scope check`, `Required tests / validation`, `Spec / documentation sync`, `Open questions`, `Validation and cross-check (verify before reporting done)`, `Approval and execution gate`, else `IPD-H202`); one `E-01`/`V-01` pair. These `Readiness`/`Approval` values are synthetic data inside a throwaway `tmp_path` home-records dir, not attestations on a tracked record, so the AGENTS.md rule against hand-writing another role's attestation does not apply. The executed-state copy of `kfnfji` is NOT reusable because its `- Status: executed` makes it ineligible for queueing.
   - Depends on: none
-  - Expected outcome: the test no longer references any path under `REPO_ROOT / ".aw/records"` and no longer mentions `kfnfji`/`cleantgt` except in the module docstring provenance line.
+  - Expected outcome: the test reads no file from the repository's own `.aw/records/` tree; `REPO_ROOT` is used only by its definition and by `run_aw`'s `PYTHONPATH`; `kfnfji`/`cleantgt` appear only in the module docstring provenance line.
   - Execution state: pending
 - [ ] E-02 Update the assertions in the same test to the fixture identity: `aw show <fixture-id6>` returns 0 and its stdout contains the fixture filename stem prefix; `aw oc run start --prepare-only <fixture-id6>` returns 0 and its stdout contains `Run order (1 item(s)): 01 <fixture-id6>` and `<fixture-set> 01 <fixture-id6>`. Keep the assertion strength identical to the original (same two commands, same returncode and stdout checks).
   - Depends on: E-01
@@ -42,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 - [ ] E-03 Run the module and the routine gate and confirm no regression.
   - Depends on: E-02
-  - Expected outcome: `python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q` reports all tests passed; bare `python3 -m pytest` shows no new failures attributable to this change.
+  - Expected outcome: `python3 -m pytest tests/test_records_root_accessor.py -o addopts=""` reports every collected test passed (re-derive the count at execution; do not use a review-time count as the bar). This module is NOT in `pyproject.toml` `testpaths`, so the bare `python3 -m pytest` routine gate does not collect it; run the bare gate anyway as the regression check and show no new failures attributable to this change.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -59,6 +62,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-1 | The test reads `REPO_ROOT / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md"`. | `tests/test_records_root_accessor.py::test_home_records_runner_discovery`, the `real_plan = (...).read_text(...)` statement. |
 | F-2 | That file now lives only under `executed/`. | `ls .aw/records/plans/*/*kfnfji*` -> `.aw/records/plans/executed/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md` |
 | F-3 | The test fails deterministically. | `python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q -k runner_discovery` -> `FileNotFoundError: [Errno 2] No such file or directory: '.../.aw/records/plans/pending/20261015-cleantgt-01-kfnfji-...ipd.md'`, `1 failed, 17 deselected`. |
+| F-5 | Queueing needs more than `aw ipd scaffold` plus `Status: approved`: the runner's structure preflight refused a minimal fixture with `IPD-H202` (missing H2s), then `IPD-M104` (no `Approval:`), `IPD-M113` (no `Readiness:`), then `IPD-M107` (Readiness without a review verdict in history). With all of these present, the probe printed `Run order (1 item(s)): 01 zq9fx1` and `fixtset 01 zq9fx1 -`, `1 passed`. | Review-time probe in an ignored scratch file under `.aw/state/` reusing this module's `home_records_env` and `run_aw`. |
 | F-4 | Simply repointing at `executed/` is wrong: the copy carries `- Status: executed`, so it would not be queued by `--prepare-only`, and it would re-break the next time records are archived/sharded. | Lifecycle described in AGENTS.md "Agent plans" and `aw archive plans` weekly-sharding of terminal plans. |
 
 ## Proposed changes (ordered, validatable)
@@ -79,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q` passes in full (V-01, V-02, V-03).
+- `python3 -m pytest tests/test_records_root_accessor.py -o addopts=""` passes in full (V-02, V-03); the grep in V-01 shows no live-corpus read.
 - Bare `python3 -m pytest` shows no new failures (V-03).
 
 ## Spec / documentation sync
@@ -92,15 +96,15 @@ N/A: test-only fix; no spec or user-facing doc describes this test's fixture.
 
 - Blocking: no
 - Status: resolved
-- Owner: executor
-- Resolution or deferral rationale: Determined empirically during E-01 by driving `aw oc run start --prepare-only` against the fixture; `aw ipd scaffold` output plus `- Status: approved` and concrete Scope-Paths/Item-Dependencies is the expected starting point, since the runner queues approved plans (AGENTS.md "SO: to answer 'what can I run unattended?', report the plans whose `- Status:` is `approved`").
+- Owner: reviewer
+- Resolution or deferral rationale: Demonstrated at review (F-5): a fixture carrying the field and section set listed in E-01 is accepted by `aw show zq9fx1` (exit 0, stdout contains `20260101-fixtset-01-zq9fx1`) and by `aw oc run start --prepare-only zq9fx1` (exit 0, stdout contains `Run order (1 item(s)): 01 zq9fx1` and `fixtset 01 zq9fx1`). Each omission produced a distinct preflight refusal (`IPD-H202`, `IPD-M104`, `IPD-M113`, `IPD-M107`) with exit 2.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `grep -n "REPO_ROOT / \".aw/records\|kfnfji\|cleantgt" tests/test_records_root_accessor.py` showing no live-corpus path read remains (only the docstring provenance line may match), plus the diff hunk of the new fixture.
+  - Required evidence: pasted output of `grep -n "kfnfji\|cleantgt\|plans/pending/2026\|REPO_ROOT" tests/test_records_root_accessor.py` showing only the docstring provenance line (kfnfji/cleantgt) and the `REPO_ROOT` definition and `PYTHONPATH` lines match (the pre-fix file matches lines 592/596 here; note the old read spans two lines, so a single-line `REPO_ROOT / ".aw/records` pattern never matched and is not usable evidence), plus the diff hunk of the new fixture.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -108,7 +112,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: pasted summary lines of `python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q` (all passed) and of bare `python3 -m pytest` (the `N passed` line, with any failures shown to be pre-existing and unrelated).
+  - Required evidence: pasted summary line of `python3 -m pytest tests/test_records_root_accessor.py -o addopts=""` (`N passed`, zero failed, N re-derived at execution) and of bare `python3 -m pytest` (the `N passed` line, with any failure shown pre-existing by reproducing it on the pre-change tree or naming an unrelated cause).
   - Observed evidence:
   - Result: pending
 
@@ -117,4 +121,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval. Commit only `tests/test_records_root_accessor.py` and this plan through `aw commit <plan> -- <paths>`; never push. Move to `.aw/records/plans/executed/` via the tooled lifecycle only after `aw ipd lint --phase pre-transition` conforms and every V-* item records pasted passing evidence.
+Execute only after human approval (`aw ipd set approved 4v8s0m --by-human`). Open question OQ-01 is resolved. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit is made and then justified at finalize with `--scope-reason`. HONESTY (hard MUST): every `V-*` pastes the ACTUAL runner output; never claim a pass you did not run. Commit only `tests/test_records_root_accessor.py` and this plan through `aw commit 4v8s0m -- <paths>`, verifying `git diff --cached --name-only` first; never `git add -A`, never push, never tag. Lifecycle: the transition to `executed/` happens only after `aw ipd lint --phase pre-transition` conforms and every V-* item records pasted passing evidence; under `aw oc run`/`aw agy run` the runner finalizes, by hand run `aw ipd finalize 4v8s0m`; never hand-`git mv`. Inherits `- Blocks-Release: next` from backlog `g9kupi`.
