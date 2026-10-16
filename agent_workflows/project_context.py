@@ -18,6 +18,7 @@ import json
 import functools
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -312,23 +313,87 @@ def _find_git_root(start_dir: str) -> Optional[str]:
     return None
 
 
+def _is_registered_submodule(dot_git: Path) -> bool:
+    """True if dot_git is a submodule gitfile whose gitdir sits under .git/modules/ with no commondir.
+
+    Rule 1 (IPD ivq0nr OQ-01 maintainer decision):
+    Detects a registered submodule without spawning git: its .git is a file whose gitdir sits under
+    the parent's .git/modules/, and that admin dir has no commondir (distinguishing it from a worktree).
+    """
+    if not dot_git.is_file():
+        return False
+    try:
+        content = dot_git.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    gitdir_str = None
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("gitdir:"):
+            gitdir_str = line[len("gitdir:") :].strip()
+            break
+    if not gitdir_str:
+        return False
+    gitdir = (dot_git.parent / gitdir_str).resolve()
+    if not gitdir.is_dir():
+        return False
+    if (gitdir / "commondir").exists():
+        return False
+    dot_git_parent = dot_git.parent.resolve()
+    for parent_candidate in dot_git_parent.parents:
+        modules_dir = parent_candidate / ".git" / "modules"
+        if modules_dir.is_dir():
+            try:
+                gitdir.relative_to(modules_dir)
+                return True
+            except ValueError:
+                pass
+    parts = gitdir.parts
+    for i in range(len(parts) - 1):
+        if parts[i] == ".git" and parts[i + 1] == "modules":
+            return True
+    return False
+
+
 def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
     """Climb from ``start`` (default cwd) for the nearest ancestor that IS an AW project root.
 
     Returns the first directory (``start`` itself or an ancestor) that contains a ``.aw/`` or a
     legacy ``.agents/`` marker directory, else ``None``. Git-style upward walk (like
     ``_find_git_root``), so a repo-scoped ``aw`` verb works from any subdirectory. Pure and
-    side-effect-free; symlink-safe (paths are resolved). git presence is NOT a marker: a ``.aw/``
-    tree can exist without git, and a bare ``.git`` ancestor with no AW marker is NOT an AW project
-    (IPD awretrofit Order 06, OQ-01).
+    side-effect-free (except for one notice line when resolving a submodule to its parent project);
+    symlink-safe (paths are resolved). git presence is NOT a marker: a ``.aw/`` tree can exist without
+    git, and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
+    OQ-01).
+
+    Git boundaries and ceilings (IPD ivq0nr OQ-01 maintainer decision 2026-10-15):
+    - An enclosing ``.git`` boundary that lacks an AW marker is a CEILING for project discovery:
+      upward discovery stops at the git boundary and returns None, rather than escaping into an outer
+      directory's ``.aw/`` marker (such as ``$HOME``, ``/tmp``, or a parent checkout).
+    - Registered submodule exception: A registered git submodule without its own ``.aw/`` resolves
+      to its enclosing parent project. Detect it without spawning git: its ``.git`` is a file whose
+      gitdir sits under the parent's ``.git/modules/``, and that admin dir has no ``commondir``. Prints
+      one notice line to stderr saying the parent project was used.
+    - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``.
+    - Any other nested git repository without ``.aw/`` (its own ``.git`` directory, a vendored or scratch
+      clone) stops at its own boundary and never binds to an outer project.
     """
 
     curr = Path(start).resolve() if start is not None else Path.cwd().resolve()
+    submodule_encountered = False
     while True:
         if _is_project_marker(curr / ".aw") or _is_project_marker(
             curr / ".agents", legacy=True
         ):
+            if submodule_encountered:
+                sys.stderr.write(f"notice: parent project was used at {curr}\n")
             return curr
+        dot_git = curr / ".git"
+        if dot_git.exists():
+            if _is_registered_submodule(dot_git):
+                submodule_encountered = True
+            else:
+                return None
         if curr == curr.parent:  # reached the filesystem root
             return None
         curr = curr.parent
@@ -446,11 +511,11 @@ def no_project_message(
     the agreement a property of the inputs instead of an accident of the callers (`quqyc4` F-19).
     The default preserves every pre-existing caller's behavior.
 
-    PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO ``find_project_root``
-    (`quqyc4` E-02). Root detection is DELIBERATELY git-blind: a ``.aw/`` tree can exist without git,
-    and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
-    OQ-01), an unpinned rule (the test that formerly locked it was deleted). This function only decides
-    what to SAY once that climb has already failed; it never decides what counts as a project.
+    Per IPD ivq0nr OQ-01 maintainer decision (2026-10-15), upward discovery in ``find_project_root``
+    is bounded at enclosing ``.git`` boundaries (acting as ceilings, with an exception for
+    registered submodules resolving to their parent project). A bare ``.git`` ancestor with no AW
+    marker remains NOT an AW project, but stops upward walk from escaping to an outer project.
+    This function decides what to SAY once that climb has failed; it never decides what counts as a project.
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()
@@ -489,8 +554,8 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
 
     Exposed so a caller building a MACHINE record can attach the same install offer as a structured
     ``NextAction`` without re-deriving (or re-implementing) the probe, and without parsing prose out
-    of the human message (`quqyc4` E-04). Same git-blindness caveat as ``no_project_message``: this
-    answers "what should we SAY", never "is this an AW project".
+    of the human message (`quqyc4` E-04; updated per IPD ivq0nr OQ-01 maintainer decision).
+    This answers "what should we SAY", never "is this an AW project".
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()
@@ -558,7 +623,8 @@ def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassifica
 
     Composes the existing ``is_project_dir`` and ``find_project_root`` predicates without
     re-implementing root detection or walking the filesystem independently. Pure, read-only,
-    and side-effect-free. Git-blind: root detection does not check for git repositories.
+    and side-effect-free. Per IPD ivq0nr OQ-01 maintainer decision (2026-10-15), root detection in
+    ``find_project_root`` bounds upward discovery at enclosing git repository ceilings.
 
     Returns a ``ProjectClassification`` with:
     - ``case=ProjectLocationCase.IS_PROJECT_ROOT`` if ``path`` is itself an AW project root.

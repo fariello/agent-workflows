@@ -248,6 +248,120 @@ class ScaffoldTests(unittest.TestCase):
             if old is not None:
                 os.environ["AW_IPD_AUTHOR"] = old
 
+    def test_scaffold_with_dir_writes_inside_target_without_climbing(self):
+        """aw ipd scaffold --dir <target> --apply writes inside <target> without climbing to cwd's project."""
+        cwd_proj = self.tmp / "cwd_proj"
+        cwd_pending = cwd_proj / ".aw" / "records" / "plans" / "pending"
+        cwd_pending.mkdir(parents=True)
+
+        target_proj = self.tmp / "target_proj"
+        target_pending = target_proj / ".aw" / "records" / "plans" / "pending"
+        target_pending.mkdir(parents=True)
+
+        repo_root = Path(__file__).resolve().parent.parent
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(repo_root)
+        env["AW_NO_REEXEC"] = "1"
+
+        res = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "ipd",
+                "scaffold",
+                "--dir",
+                str(target_proj),
+                "--kind",
+                "child",
+                "--order",
+                "1",
+                "--set",
+                "tset",
+                "--title",
+                "Target Plan",
+                "--author",
+                "tester",
+                "--priority",
+                "medium",
+                "--work-kind",
+                "chore",
+                "--apply",
+            ],
+            cwd=str(cwd_proj),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(
+            res.returncode, 0, f"scaffold failed: {res.stdout} {res.stderr}"
+        )
+        self.assertIn("wrote ", res.stdout)
+        target_plans = list(target_pending.glob("*.md"))
+        self.assertEqual(len(target_plans), 1, "plan must be written in target_proj")
+        cwd_plans = list(cwd_pending.glob("*.md"))
+        self.assertEqual(len(cwd_plans), 0, "cwd_proj pending must remain empty")
+
+    def test_scaffold_without_dir_in_uninstalled_repo_or_non_project_refuses(self):
+        """aw ipd scaffold --apply without --dir inside an uninstalled repo/dir refuses with exit 2 and creates no records."""
+        outer_proj = self.tmp / "outer_proj"
+        (outer_proj / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        inner_uninstalled = outer_proj / "inner_repo"
+        inner_uninstalled.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", str(inner_uninstalled)],
+            check=True,
+            capture_output=True,
+        )
+
+        repo_root = Path(__file__).resolve().parent.parent
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(repo_root)
+        env["AW_NO_REEXEC"] = "1"
+
+        res = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "ipd",
+                "scaffold",
+                "--kind",
+                "child",
+                "--order",
+                "1",
+                "--set",
+                "tset",
+                "--title",
+                "Nested Plan",
+                "--author",
+                "tester",
+                "--priority",
+                "medium",
+                "--work-kind",
+                "chore",
+                "--apply",
+            ],
+            cwd=str(inner_uninstalled),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(
+            res.returncode, 2, "scaffold without --dir in uninstalled repo must exit 2"
+        )
+        out = res.stdout + res.stderr
+        self.assertIn("no AW project found", out)
+        self.assertTrue("aw install" in out or "pass --dir" in out)
+        self.assertFalse(
+            (inner_uninstalled / ".aw").exists(),
+            "must not create .aw in uninstalled repo",
+        )
+        outer_plans = list(
+            (outer_proj / ".aw" / "records" / "plans" / "pending").glob("*.md")
+        )
+        self.assertEqual(len(outer_plans), 0, "must not write plan into outer project")
+
 
 class SyncTests(unittest.TestCase):
     def setUp(self):
