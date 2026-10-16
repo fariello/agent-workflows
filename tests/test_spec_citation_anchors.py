@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 import pytest
 
-from agent_workflows import spec_citations
+from agent_workflows import agent_schema, check_engine, cli, spec_citations
 
 
 @pytest.fixture
@@ -401,3 +401,118 @@ def test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero(
     assert rec["outcome"] == "clean"
     assert rec["exit"] == 0
     assert rec.get("findings", 0) == 0
+
+
+def test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero(
+    temp_spec_repo: Path,
+) -> None:
+    """(g) CLI: bare `aw check --source-anchors --agent --verbose` reports outcome 'conforms', exit 0, and verbose evidence."""
+    src_file = temp_spec_repo / "agent_workflows" / "mod_cli_g.py"
+    src_file.write_text(
+        "# Stale anchor: spec smpl01 Section 2.1 :11\n\n"
+        "# Generic comment block naming no spec id6:\n"
+        "# as specified by spec `:11`, verify this.\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "check",
+            "--source-anchors",
+            "--agent",
+            "--verbose",
+            "--dir",
+            str(temp_spec_repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    assert "Traceback" not in proc.stderr
+    assert "ValueError" not in proc.stderr
+    assert proc.stdout.strip()
+    records = []
+    for line in proc.stdout.strip().splitlines():
+        line = line.strip()
+        if line:
+            records.append(json.loads(line))
+    result_recs = [
+        r for r in records if r.get("kind") == "result" or r.get("cmd") == "check"
+    ]
+    assert len(result_recs) >= 1
+    rec = result_recs[0]
+    assert rec["outcome"] == "conforms"
+    assert rec["exit"] == 0
+    assert rec["target"] == "source-anchors"
+    assert rec["findings"] == 2
+    assert rec["findings_by_severity"] == {"error": 0, "warning": 0, "info": 2}
+    ev_by_key = {e["key"]: e for e in rec["evidence"]}
+    assert ev_by_key["source_anchors"]["status"] == "conforms"
+    assert ev_by_key["rules"]["status"] == "conforms"
+    assert ev_by_key["rules"]["value"] == {"errors": 0, "warnings": 0, "info": 2}
+    diagnostics = rec.get("diagnostics", [])
+    assert len(diagnostics) == 2
+    assert all(d.get("rule") == "check.spec-anchor-stale" for d in diagnostics)
+    assert all(d.get("severity") == "info" for d in diagnostics)
+    assert any(
+        "encloses '### 1.1 Normative Roles'" in d.get("detail", "") for d in diagnostics
+    )
+    assert any("unattributed" in d.get("detail", "") for d in diagnostics)
+    assert agent_schema.validate_agent_record(rec) == []
+
+
+def test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one(
+    temp_spec_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """(h) CLI: `aw check --source-anchors --agent --verbose` reports outcome 'findings' and exit 1 when rule severity is non-info."""
+    src_file = temp_spec_repo / "agent_workflows" / "mod_cli_h.py"
+    src_file.write_text(
+        "# Stale anchor: spec smpl01 Section 2.1 :11\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(
+        check_engine.RULE_REGISTRY,
+        "check.spec-anchor-stale",
+        check_engine.RULE_REGISTRY["check.spec-anchor-stale"]._replace(
+            severity="error"
+        ),
+    )
+    ret = cli.main(
+        [
+            "check",
+            "--source-anchors",
+            "--agent",
+            "--verbose",
+            "--dir",
+            str(temp_spec_repo),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert ret == 1
+    assert captured.err == ""
+    assert captured.out.strip()
+    records = []
+    for line in captured.out.strip().splitlines():
+        line = line.strip()
+        if line:
+            records.append(json.loads(line))
+    result_recs = [
+        r for r in records if r.get("kind") == "result" or r.get("cmd") == "check"
+    ]
+    assert len(result_recs) >= 1
+    rec = result_recs[0]
+    assert agent_schema.validate_agent_record(rec) == []
+    assert rec["outcome"] == "findings"
+    assert rec["exit"] == 1
+    assert rec["target"] == "source-anchors"
+    assert rec["findings"] == 1
+    assert rec["findings_by_severity"] == {"error": 1, "warning": 0, "info": 0}
+    ev_by_key = {e["key"]: e for e in rec["evidence"]}
+    assert ev_by_key["source_anchors"]["status"] == "findings"
+    assert ev_by_key["rules"]["status"] == "findings"
+    assert ev_by_key["rules"]["value"] == {"errors": 1, "warnings": 0, "info": 0}

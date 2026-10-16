@@ -6,7 +6,7 @@
 - Scope: (1) Verify with pasted runner output on the current tree that commit `44696b524` (`fz3i3m` `E-02`) repaired `cli._run_check`'s `--source-anchors` branch, that both `aw check --source-anchors --agent` and `aw check specs --source-anchors --agent` succeed on the real tree, and that all existing tests in `tests/test_spec_citation_anchors.py` pass (`E-01`). (2) Add two behavioral tests (`test_g` and `test_h`) to `tests/test_spec_citation_anchors.py` over self-written fixtures (`temp_spec_repo`) covering bare `aw check --source-anchors --agent --verbose` with attributed and unattributed findings (`outcome: "conforms"`, `exit: 0`, and `evidence` statuses/counts) and the non-`info` severity arm (`outcome: "findings"`, `exit: 1`, and `evidence` statuses/counts), then run the module and the bare test suite (`E-02`), so `g3ropl` closes through its `From-Backlog: g3ropl` / `Blocks-Release: next` carrier. EXCLUDES any edit to `agent_workflows/cli.py` or `agent_workflows/spec_citations.py` unless `E-01` uncovers a regression, EXCLUDES changing the registered severity of `check.spec-anchor-stale` in `agent_workflows/check_engine.py`, and EXCLUDES any live-tree census assertion in tests.
 - Scope-Paths: tests/test_spec_citation_anchors.py
 - Item-Dependencies: executed:fz3i3m
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 02
 - Author: antigravity/Gemini-4-Argon-High
 - Id: f0kolj
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: f0kolj verified (set sbh1o1, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
@@ -37,17 +37,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Verify the landed crash fix and record the baseline
 
-- [ ] E-01 Confirm on the current tree that commit `44696b524` (`fz3i3m` `E-02`) is present in `agent_workflows/cli.py` (`_run_check`'s `if getattr(args, "source_anchors", False):` branch derives `rule_sev = ce.rule_spec("check.spec-anchor-stale").severity` and `exit_code = core.drift_exit_code(diagnostics)`, setting `status` and both `Evidence.status` fields to `"clean"` on zero findings, `"conforms"` when `exit_code == 0`, and `"findings"` otherwise). Run and paste: (1) `python3 -m agent_workflows check --source-anchors --agent` and `python3 -m agent_workflows check specs --source-anchors --agent` on the real tree (with exit codes and stderr; use the `python3 -m agent_workflows` spelling because the installed `aw` console script prints a one-line `aw: invoked in checkout ... re-running with ...` re-exec notice on stderr inside a lane worktree, which is not a defect; if `aw` is used instead, stderr must contain nothing beyond that notice); (2) `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` (every collected test passing, re-derived at execution; the existing `--source-anchors --agent` tests `test_e_*`/`test_f_*` are non-binding pointers); and (3) the pre-edit bare-suite baseline `python3 -m pytest` summary line and failing-test-id set for `E-02` to compare against.
+- [x] E-01 Confirm on the current tree that commit `44696b524` (`fz3i3m` `E-02`) is present in `agent_workflows/cli.py` (`_run_check`'s `if getattr(args, "source_anchors", False):` branch derives `rule_sev = ce.rule_spec("check.spec-anchor-stale").severity` and `exit_code = core.drift_exit_code(diagnostics)`, setting `status` and both `Evidence.status` fields to `"clean"` on zero findings, `"conforms"` when `exit_code == 0`, and `"findings"` otherwise). Run and paste: (1) `python3 -m agent_workflows check --source-anchors --agent` and `python3 -m agent_workflows check specs --source-anchors --agent` on the real tree (with exit codes and stderr; use the `python3 -m agent_workflows` spelling because the installed `aw` console script prints a one-line `aw: invoked in checkout ... re-running with ...` re-exec notice on stderr inside a lane worktree, which is not a defect; if `aw` is used instead, stderr must contain nothing beyond that notice); (2) `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` (every collected test passing, re-derived at execution; the existing `--source-anchors --agent` tests `test_e_*`/`test_f_*` are non-binding pointers); and (3) the pre-edit bare-suite baseline `python3 -m pytest` summary line and failing-test-id set for `E-02` to compare against.
   - Depends on: none
   - Expected outcome: both real-tree CLI commands exit 0 with a `result` record for which `agent_schema.validate_agent_record` returns `[]`, an `outcome` of `clean` or `conforms` (the live finding count is NOT a bar), and empty stderr (no `Traceback`/`ValueError`); every collected test in `tests/test_spec_citation_anchors.py` passes; bare-suite baseline summary line and failing-test-id set are recorded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add behavioral coverage for bare command, verbose evidence, and non-info severity
 
-- [ ] E-02 Add two behavioral tests to `tests/test_spec_citation_anchors.py` over self-written fixtures in `temp_spec_repo` (never asserting on the live tree census or inspecting source text): (g) `test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero`, driving bare `aw check --source-anchors --agent --verbose --dir <temp_spec_repo>` (no positional `specs` noun, matching `g3ropl`'s Summary command) via `subprocess.run` on a fixture file containing one stale attributed anchor and one unattributed anchor in separate comment blocks (separated by a blank line so the second block does not inherit the first block's `id6`), asserting `proc.returncode == 0`, no `Traceback` or `ValueError` in `proc.stderr`, every non-empty stdout line parses as JSON, and the `result` record has `outcome == "conforms"`, `exit == 0`, `target == "source-anchors"`, `findings == 2`, `findings_by_severity == {"error": 0, "warning": 0, "info": 2}`, both `evidence` entries (`source_anchors` and `rules`) carrying `status == "conforms"` with `rules["value"] == {"errors": 0, "warnings": 0, "info": 2}`, and two `check.spec-anchor-stale` diagnostics (one attributed, one unattributed) with `severity == "info"`, and `agent_schema.validate_agent_record(rec) == []`; and (h) `test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one`, using `monkeypatch.setitem(check_engine.RULE_REGISTRY, "check.spec-anchor-stale", check_engine.RULE_REGISTRY["check.spec-anchor-stale"]._replace(severity="error"))` and calling `cli.main(["check", "--source-anchors", "--agent", "--verbose", "--dir", str(temp_spec_repo)])` (capturing output via `capsys`) on a fixture with one stale anchor, asserting return value `1`, empty stderr, and an `aw.agent/v1` `result` record for which `agent_schema.validate_agent_record(rec) == []` (the exact predicate that raised the original `Exit code mismatch` `ValueError`) with `outcome == "findings"`, `exit == 1`, `target == "source-anchors"`, `findings == 1`, `findings_by_severity == {"error": 1, "warning": 0, "info": 0}`, and both `evidence` entries carrying `status == "findings"` with `rules["value"] == {"errors": 1, "warnings": 0, "info": 0}`. Then run `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` and the bare suite `python3 -m pytest`, comparing the summary line and failing-test-id set against the `E-01` baseline.
+- [x] E-02 Add two behavioral tests to `tests/test_spec_citation_anchors.py` over self-written fixtures in `temp_spec_repo` (never asserting on the live tree census or inspecting source text): (g) `test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero`, driving bare `aw check --source-anchors --agent --verbose --dir <temp_spec_repo>` (no positional `specs` noun, matching `g3ropl`'s Summary command) via `subprocess.run` on a fixture file containing one stale attributed anchor and one unattributed anchor in separate comment blocks (separated by a blank line so the second block does not inherit the first block's `id6`), asserting `proc.returncode == 0`, no `Traceback` or `ValueError` in `proc.stderr`, every non-empty stdout line parses as JSON, and the `result` record has `outcome == "conforms"`, `exit == 0`, `target == "source-anchors"`, `findings == 2`, `findings_by_severity == {"error": 0, "warning": 0, "info": 2}`, both `evidence` entries (`source_anchors` and `rules`) carrying `status == "conforms"` with `rules["value"] == {"errors": 0, "warnings": 0, "info": 2}`, and two `check.spec-anchor-stale` diagnostics (one attributed, one unattributed) with `severity == "info"`, and `agent_schema.validate_agent_record(rec) == []`; and (h) `test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one`, using `monkeypatch.setitem(check_engine.RULE_REGISTRY, "check.spec-anchor-stale", check_engine.RULE_REGISTRY["check.spec-anchor-stale"]._replace(severity="error"))` and calling `cli.main(["check", "--source-anchors", "--agent", "--verbose", "--dir", str(temp_spec_repo)])` (capturing output via `capsys`) on a fixture with one stale anchor, asserting return value `1`, empty stderr, and an `aw.agent/v1` `result` record for which `agent_schema.validate_agent_record(rec) == []` (the exact predicate that raised the original `Exit code mismatch` `ValueError`) with `outcome == "findings"`, `exit == 1`, `target == "source-anchors"`, `findings == 1`, `findings_by_severity == {"error": 1, "warning": 0, "info": 0}`, and both `evidence` entries carrying `status == "findings"` with `rules["value"] == {"errors": 1, "warnings": 0, "info": 0}`. Then run `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` and the bare suite `python3 -m pytest`, comparing the summary line and failing-test-id set against the `E-01` baseline.
   - Depends on: E-01
   - Expected outcome: `tests/test_spec_citation_anchors.py` passes all collected tests (including `test_g` and `test_h`), and the bare suite `python3 -m pytest` shows no new failing test IDs relative to the `E-01` baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,14 +109,200 @@ N/A: no specification or user-facing documentation changes. The `aw.agent/v1` en
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste (1) the stdout, stderr, and exit code of `python3 -m agent_workflows check --source-anchors --agent` and `python3 -m agent_workflows check specs --source-anchors --agent` on the real tree (produced by `agent_workflows.cli._run_check`), plus the `agent_schema.validate_agent_record` return value (`[]`) for each `result` record; (2) the per-test `-v` output and summary line of `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` showing every collected test `PASSED` (count re-derived at execution, not a bar); and (3) the pre-edit bare-suite `python3 -m pytest` summary line and failing-test-id set.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```
+# (1) Real-tree CLI checks:
+$ python3 -m agent_workflows check --source-anchors --agent
+STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"clean","exit":0,"verified":true,"complete":true,"target":"source-anchors","findings":0,"evidence":["source_anchors","rules"],"next":null}
+STDERR:
+EXIT: 0
+validate_agent_record: []
+
+$ python3 -m agent_workflows check specs --source-anchors --agent
+STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"clean","exit":0,"verified":true,"complete":true,"target":"source-anchors","findings":0,"evidence":["source_anchors","rules"],"next":null}
+STDERR:
+EXIT: 0
+validate_agent_record: []
+
+# (2) Pre-edit module test run:
+$ python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py
+tests/test_spec_citation_anchors.py::test_cli_bare_check_specs_omits_finding PASSED [  7%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_named_heading_produces_no_finding PASSED [ 15%]
+tests/test_spec_citation_anchors.py::test_cli_non_specs_positional_type_runs_anchor_report PASSED [ 23%]
+tests/test_spec_citation_anchors.py::test_b_table_row_anchor_key_cell_absent_produces_one_finding PASSED [ 30%]
+tests/test_spec_citation_anchors.py::test_a_table_row_anchor_key_cell_in_block_produces_no_finding PASSED [ 38%]
+tests/test_spec_citation_anchors.py::test_e_cli_check_specs_source_anchors_agent_stale_anchor_conforms_exit_zero PASSED [ 46%]
+tests/test_spec_citation_anchors.py::test_bare_backtick_spelling_detected_in_same_comment_block PASSED [ 53%]
+tests/test_spec_citation_anchors.py::test_d_bare_backtick_offset_without_spec_word_produces_no_finding PASSED [ 61%]
+tests/test_spec_citation_anchors.py::test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero PASSED [ 69%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_different_heading_produces_one_finding PASSED [ 76%]
+tests/test_spec_citation_anchors.py::test_past_eof_and_in_fence_offsets_reported_as_invalid PASSED [ 84%]
+tests/test_spec_citation_anchors.py::test_cli_check_specs_source_anchors_exits_zero_with_finding PASSED [ 92%]
+tests/test_spec_citation_anchors.py::test_c_unattributed_spec_anchor_in_block_naming_no_id6_produces_finding PASSED [100%]
+13 passed in 2.26s
+
+# (3) Pre-edit bare-suite baseline:
+$ python3 -m pytest
+702 passed in 25.09s
+Failing test IDs: set()
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste (1) `git diff -- tests/test_spec_citation_anchors.py` showing the added `test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero` and `test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one` tests; (2) the per-test `-v` output and summary line of `python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py` showing every collected test `PASSED`, including the two new tests (names are non-binding pointers) that pin, respectively, bare `check --source-anchors --agent --verbose` returning `outcome: "conforms"` / `exit: 0` with `conforms` evidence statuses and `info` counts, and the non-`info` severity arm returning `outcome: "findings"` / `exit: 1` with `findings` evidence statuses and `errors: 1`, each `result` record passing `agent_schema.validate_agent_record` with `[]`; and (3) the post-edit bare-suite `python3 -m pytest` summary line and failing-test-id set compared against `V-01`, showing zero new failures.
   - Observed evidence:
-  - Result: pending
+```diff
+$ git diff -- tests/test_spec_citation_anchors.py
+diff --git a/tests/test_spec_citation_anchors.py b/tests/test_spec_citation_anchors.py
+index c60fab099..6750ff0e5 100644
+--- a/tests/test_spec_citation_anchors.py
++++ b/tests/test_spec_citation_anchors.py
+@@ -12,7 +12,7 @@ import sys
+ from pathlib import Path
+ import pytest
+
+-from agent_workflows import spec_citations
++from agent_workflows import agent_schema, check_engine, cli, spec_citations
+
+
+ @pytest.fixture
+@@ -401,3 +401,108 @@ def test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero(
+     assert rec["outcome"] == "clean"
+     assert rec["exit"] == 0
+     assert rec.get("findings", 0) == 0
++
++
++def test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero(
++    temp_spec_repo: Path,
++) -> None:
++    """(g) CLI: bare `aw check --source-anchors --agent --verbose` reports outcome 'conforms', exit 0, and verbose evidence."""
++    src_file = temp_spec_repo / "agent_workflows" / "mod_cli_g.py"
++    src_file.write_text(
++        "# Stale anchor: spec smpl01 Section 2.1 :11\n\n"
++        "# Generic comment block naming no spec id6:\n"
++        "# as specified by spec `:11`, verify this.\n",
++        encoding="utf-8",
+     )
++    proc = subprocess.run(
++        [
++            sys.executable,
++            "-m",
++            "agent_workflows.cli",
++            "check",
++            "--source-anchors",
++            "--agent",
++            "--verbose",
++            "--dir",
++            str(temp_spec_repo),
++        ],
++        capture_output=True,
++        text=True,
++        check=False,
++    )
++    assert proc.returncode == 0
++    assert "Traceback" not in proc.stderr
++    assert "ValueError" not in proc.stderr
++    assert proc.stdout.strip()
++    records = []
++    for line in proc.stdout.strip().splitlines():
++        line = line.strip()
++        if line:
++            records.append(json.loads(line))
++    result_recs = [
++        r for r in records if r.get("kind") == "result" or r.get("cmd") == "check"
++    ]
++    assert len(result_recs) >= 1
++    rec = result_recs[0]
++    assert rec["outcome"] == "conforms"
++    assert rec["exit"] == 0
++    assert rec["target"] == "source-anchors"
++    assert rec["findings"] == 2
++    assert rec["findings_by_severity"] == {"error": 0, "warning": 0, "info": 2}
++    ev_by_key = {e["key"]: e for e in rec["evidence"]}
++    assert ev_by_key["source_anchors"]["status"] == "conforms"
++    assert ev_by_key["rules"]["status"] == "conforms"
++    assert ev_by_key["rules"]["value"] == {"errors": 0, "warnings": 0, "info": 2}
++    diagnostics = rec.get("diagnostics", [])
++    assert len(diagnostics) == 2
++    assert all(d.get("rule") == "check.spec-anchor-stale" for d in diagnostics)
++    assert all(d.get("severity") == "info" for d in diagnostics)
++    assert any("encloses '### 1.1 Normative Roles'" in d.get("detail", "") for d in diagnostics)
++    assert any("unattributed" in d.get("detail", "") for d in diagnostics)
++    assert agent_schema.validate_agent_record(rec) == []
++
++
++def test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one(
++    temp_spec_repo: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    """(h) CLI: `aw check --source-anchors --agent --verbose` reports outcome 'findings' and exit 1 when rule severity is non-info."""
++    src_file = temp_spec_repo / "agent_workflows" / "mod_cli_h.py"
++    src_file.write_text(
++        "# Stale anchor: spec smpl01 Section 2.1 :11\n",
++        encoding="utf-8",
++    )
++    monkeypatch.setitem(
++        check_engine.RULE_REGISTRY,
++        "check.spec-anchor-stale",
++        check_engine.RULE_REGISTRY["check.spec-anchor-stale"]._replace(severity="error"),
++    )
++    ret = cli.main(
++        ["check", "--source-anchors", "--agent", "--verbose", "--dir", str(temp_spec_repo)]
++    )
++    captured = capsys.readouterr()
++    assert ret == 1
++    assert captured.err == ""
++    assert captured.out.strip()
++    records = []
++    for line in captured.out.strip().splitlines():
++        line = line.strip()
++        if line:
++            records.append(json.loads(line))
++    result_recs = [
++        r for r in records if r.get("kind") == "result" or r.get("cmd") == "check"
++    ]
++    assert len(result_recs) >= 1
++    rec = result_recs[0]
++    assert agent_schema.validate_agent_record(rec) == []
++    assert rec["outcome"] == "findings"
++    assert rec["exit"] == 1
++    assert rec["target"] == "source-anchors"
++    assert rec["findings"] == 1
++    assert rec["findings_by_severity"] == {"error": 1, "warning": 0, "info": 0}
++    ev_by_key = {e["key"]: e for e in rec["evidence"]}
++    assert ev_by_key["source_anchors"]["status"] == "findings"
++    assert ev_by_key["rules"]["status"] == "findings"
++    assert ev_by_key["rules"]["value"] == {"errors": 1, "warnings": 0, "info": 0}
+```
+
+```
+# (2) Post-edit module test run:
+$ python3 -m pytest -o addopts="" -v tests/test_spec_citation_anchors.py
+tests/test_spec_citation_anchors.py::test_g_cli_bare_check_source_anchors_agent_verbose_findings_conforms_exit_zero PASSED [  6%]
+tests/test_spec_citation_anchors.py::test_cli_bare_check_specs_omits_finding PASSED [ 13%]
+tests/test_spec_citation_anchors.py::test_c_unattributed_spec_anchor_in_block_naming_no_id6_produces_finding PASSED [ 20%]
+tests/test_spec_citation_anchors.py::test_h_cli_check_source_anchors_agent_non_info_severity_reports_findings_exit_one PASSED [ 26%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_different_heading_produces_one_finding PASSED [ 33%]
+tests/test_spec_citation_anchors.py::test_citation_landing_under_named_heading_produces_no_finding PASSED [ 40%]
+tests/test_spec_citation_anchors.py::test_b_table_row_anchor_key_cell_absent_produces_one_finding PASSED [ 46%]
+tests/test_spec_citation_anchors.py::test_bare_backtick_spelling_detected_in_same_comment_block PASSED [ 53%]
+tests/test_spec_citation_anchors.py::test_cli_check_specs_source_anchors_exits_zero_with_finding PASSED [ 60%]
+tests/test_spec_citation_anchors.py::test_f_cli_check_specs_source_anchors_agent_clean_reports_clean_exit_zero PASSED [ 66%]
+tests/test_spec_citation_anchors.py::test_e_cli_check_specs_source_anchors_agent_stale_anchor_conforms_exit_zero PASSED [ 73%]
+tests/test_spec_citation_anchors.py::test_a_table_row_anchor_key_cell_in_block_produces_no_finding PASSED [ 80%]
+tests/test_spec_citation_anchors.py::test_d_bare_backtick_offset_without_spec_word_produces_no_finding PASSED [ 86%]
+tests/test_spec_citation_anchors.py::test_cli_non_specs_positional_type_runs_anchor_report PASSED [ 93%]
+tests/test_spec_citation_anchors.py::test_past_eof_and_in_fence_offsets_reported_as_invalid PASSED [100%]
+15 passed in 3.27s
+
+# (3) Post-edit bare suite run:
+$ python3 -m pytest
+702 passed in 23.20s
+Failing test IDs: set() (0 new failures compared against V-01 baseline)
+```
+  - Result: pass
 
 
 ## Approval and execution gate
