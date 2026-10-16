@@ -84,6 +84,7 @@ Measured at starting HEAD `73e295d27` in this lane.
 
 - Repairing and relocating `tools/awphysical/test_awphysical_tools.py` (the remaining red uncollected test module in `tests.test_uncollected_test_modules.EXEMPT`): separate regression surface with its own backlog item (`byz9pj`), outside `3rj8wr`'s scope.
   - Carrier: byz9pj
+  - Carrier-Evidence: .aw/records/backlog/done/20261011-byz9pj-01-byz9pj-triage-uncollected-awphysical-test-failure.backlog.md
 - Rewriting `_read_id` re-export bindings in `agent_workflows/agy_runipd.py` to remove `# noqa: F401`: separate concern owned by sibling plan `vzk1iw` (backlog `fh8x8k`), outside `3rj8wr`'s scope.
   - Carrier: vzk1iw
   - Carrier-Evidence: .aw/records/plans/executed/20261011-fh8x8k-01-vzk1iw-justify-agy-runipd-re-exports-by-its-same-name-idiom-and-rec.ipd.md
