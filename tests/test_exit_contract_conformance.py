@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import contextlib
 import io
+import subprocess
+from pathlib import Path
 from unittest import mock
 import pytest
 
@@ -152,27 +154,36 @@ def test_live_heavy_leaves_partition_subset() -> None:
     )
 
 
+@pytest.fixture(scope="session")
+def live_ledger_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    td = tmp_path_factory.mktemp("live_ledger")
+    subprocess.run(["git", "init"], cwd=td, check=True, capture_output=True)
+    return conformance_matrix.seed_ledger_fixture(td)
+
+
 @pytest.mark.parametrize("leaf", conformance_matrix.live_cheap_leaves())
-def test_live_safe_leaves_exit_contract_membership_cheap(leaf: str) -> None:
+def test_live_safe_leaves_exit_contract_membership_cheap(
+    leaf: str, live_ledger_dir: Path
+) -> None:
     """Every cheap safe leaf executed live must produce an exit code declared in exit_contract.
 
     Coverage boundary (IPD 34iwyp E-06):
-    Covers live_cheap_leaves() (13 safe leaves), executing real CLI subprocesses across
+    Covers live_cheap_leaves() (safe leaves), executing real CLI subprocesses across
     both human and --agent surfaces default-collected without a slow marker.
     """
-    extra = conformance_matrix.LIVE_SAFE_LEAVES[leaf]
     decl = command_surface.get_declaration(leaf)
     assert decl is not None, f"Declared leaf {leaf!r} missing from declaration index"
+    argv_base = conformance_matrix.live_leaf_argv(leaf, live_ledger_dir)
 
     # 1. Human surface
-    argv_human = [*leaf.split(), *extra]
+    argv_human = argv_base
     res_human = conformance_matrix.run_cli(argv_human)
     assert (
         res_human.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
 
     # 2. Agent surface
-    argv_agent = [*leaf.split(), *extra, "--agent"]
+    argv_agent = [*argv_base, "--agent"]
     res_agent = conformance_matrix.run_cli(argv_agent)
     assert (
         res_agent.returncode in decl.exit_contract
@@ -182,26 +193,28 @@ def test_live_safe_leaves_exit_contract_membership_cheap(leaf: str) -> None:
 @pytest.mark.slow
 @pytest.mark.timeout(500)
 @pytest.mark.parametrize("leaf", sorted(conformance_matrix.LIVE_HEAVY_LEAVES))
-def test_live_safe_leaves_exit_contract_membership_heavy(leaf: str) -> None:
+def test_live_safe_leaves_exit_contract_membership_heavy(
+    leaf: str, live_ledger_dir: Path
+) -> None:
     """Every heavy safe leaf executed live must produce an exit code declared in exit_contract.
 
     Coverage boundary (IPD 34iwyp E-06):
     Covers LIVE_HEAVY_LEAVES (doctor, attention, status), marked @pytest.mark.slow and
     given an explicit @pytest.mark.timeout(500) due to measured heavy runtimes.
     """
-    extra = conformance_matrix.LIVE_SAFE_LEAVES[leaf]
     decl = command_surface.get_declaration(leaf)
     assert decl is not None, f"Declared leaf {leaf!r} missing from declaration index"
+    argv_base = conformance_matrix.live_leaf_argv(leaf, live_ledger_dir)
 
     # 1. Human surface
-    argv_human = [*leaf.split(), *extra]
+    argv_human = argv_base
     res_human = conformance_matrix.run_cli(argv_human)
     assert (
         res_human.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
 
     # 2. Agent surface
-    argv_agent = [*leaf.split(), *extra, "--agent"]
+    argv_agent = [*argv_base, "--agent"]
     res_agent = conformance_matrix.run_cli(argv_agent)
     assert (
         res_agent.returncode in decl.exit_contract
