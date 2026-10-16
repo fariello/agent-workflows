@@ -6,7 +6,7 @@
 - Scope: IN: a lazy, fail-open `_config_dir()` helper in `agent_workflows/project_context.py` delegating to `config.config_dir()` (mirroring `leak_sanitizer._config_dir` and `model_vocab._user_config_dir`); routing both hard-coded `os.path.expanduser("~/.config/agent-workflows")` fallbacks in `project_context._resolve_effective_aw_home` and `project_context.resolve_project_context` through `_config_dir()` when `user_config_dir` is not supplied; behavioral unit tests in `tests/test_project_context.py` covering `XDG_CONFIG_HOME` and `AW_CONFIG_DIR` resolution across `effective_aw_home`, `project_config_dir`, `GLOBAL_DEFAULTS`, and `NAMED_GLOBAL_PROFILE`; and a `CHANGELOG.md` entry. OUT: changing `project_context.get_default_aw_home()` (which already reads `AW_HOME` and `XDG_CONFIG_HOME` for the platform-default `AW_HOME` fallback); `AW_HOME` runner containment (tracked separately by backlog `s4pys7`).
 - Scope-Paths: agent_workflows/project_context.py, tests/test_project_context.py, CHANGELOG.md, agent_workflows/runner_shared.py, tests/test_agent_user_config_containment.py, .aw/records/plans/pending/20261014-m9dobx-01-qi5ljl-route-project-context-user-config-reads-through-config-confi.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: antigravity Gemini-4-Argon-High
 - Id: qi5ljl
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qi5ljl verified (set m9dobx, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record 20261014-m9dobx-01-qi5ljl)
