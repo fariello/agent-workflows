@@ -25,6 +25,8 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
 - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
+- Fixed: aw index <type> --check --json no longer puts the absolute repository path (repo_root) or the human report text (human_rendered) in data; diagnostic locations stay repo-relative.
+- Fixed: aw ipd scaffold now accepts --dir and no longer writes a plan into an enclosing project, and project discovery stops at an enclosing git repository that has no agent-workflows install.
 - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
 - Fixed: aw pwatch, aw runners, and runner stream headers, statuslines, event prefixes, and run summaries now honor the color_depth pin and 16-color terminal detection, so none removes all ANSI color escapes from those surfaces and 16 uses basic 16-color ANSI codes instead of 256-color sequences.
 - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.

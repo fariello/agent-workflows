@@ -21,6 +21,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import agent_schema
+from agent_workflows.result_types import CommandResult, Diagnostic
 
 # Reuses tests.conformance_matrix.run_cli (which passes cwd and pins NO_COLOR/COLUMNS)
 # rather than forking a subprocess harness.
@@ -428,6 +429,99 @@ class IndexCheckSubprocessTests(unittest.TestCase):
 
         res_json = run_cli(["index", "all", "--check", "--json"], cwd=self.root)
         self.assertNotIn(str(self.root), res_json.stdout)
+
+    def test_json_check_data_shape_and_no_leak_across_modes(self):
+        for mode in ("clean", "missing", "stale"):
+            _create_fixture_repo(self.root, mode=mode)
+            expected_exit = 1 if mode == "stale" else 0
+            for verb in VERBS:
+                with self.subTest(mode=mode, verb=verb):
+                    res = run_cli(["index", verb, "--check", "--json"], cwd=self.root)
+                    self.assertEqual(res.returncode, expected_exit)
+                    doc = json.loads(res.stdout)
+                    self.assertNotIn("repo_root", doc["data"])
+                    self.assertNotIn("human_rendered", doc["data"])
+                    self.assertEqual(doc["data"].get("target"), verb)
+                    self.assertNotIn(str(self.root), res.stdout)
+                    self.assertNotIn(Path.home().as_posix(), res.stdout)
+
+    def test_json_and_agent_dangling_citation_in_root_decisions(self):
+        _create_fixture_repo(self.root, mode="clean")
+        (self.root / "DECISIONS.md").write_text(
+            "See PLAN-zzzzzz and RSCH-zzzzzz.\n", encoding="utf-8"
+        )
+        for verb in ("plans", "research"):
+            with self.subTest(verb=verb, surface="json"):
+                res = run_cli(["index", verb, "--check", "--json"], cwd=self.root)
+                self.assertEqual(res.returncode, 0)
+                doc = json.loads(res.stdout)
+                self.assertNotIn("repo_root", doc["data"])
+                self.assertNotIn("human_rendered", doc["data"])
+                self.assertNotIn(str(self.root), res.stdout)
+                dangling = [
+                    d
+                    for d in doc.get("diagnostics", [])
+                    if d.get("rule") == "dangling-citation"
+                ]
+                self.assertTrue(
+                    dangling, f"Expected dangling-citation diagnostic for {verb}"
+                )
+                self.assertEqual(dangling[0].get("location"), "DECISIONS.md:1")
+
+            with self.subTest(verb=verb, surface="agent"):
+                res = run_cli(
+                    ["index", verb, "--check", "--agent", "--verbose"],
+                    cwd=self.root,
+                )
+                self.assertEqual(res.returncode, 0)
+                self.assertNotIn(str(self.root), res.stdout)
+                lines = [line for line in res.stdout.splitlines() if line.strip()]
+                self.assertTrue(lines)
+                rec = json.loads(lines[-1])
+                val_errors = agent_schema.validate_agent_record(rec)
+                self.assertEqual(
+                    val_errors,
+                    [],
+                    f"Schema validation errors for {verb}: {val_errors}",
+                )
+                self.assertEqual(rec.get("exit"), res.returncode)
+                dangling = [
+                    d
+                    for d in rec.get("diagnostics", [])
+                    if d.get("rule") == "dangling-citation"
+                ]
+                self.assertTrue(
+                    dangling, f"Expected dangling-citation diagnostic for {verb}"
+                )
+                self.assertEqual(dangling[0].get("location"), "DECISIONS.md:1")
+
+
+class CommandResultOutOfBandRelativizationTests(unittest.TestCase):
+    def test_command_result_out_of_band_repo_root_relativization(self):
+        with tempfile.TemporaryDirectory(prefix="norootmarker_") as td:
+            root = Path(td)
+            loc = f"{root / 'DECISIONS.md'}:1"
+            res = CommandResult(
+                command="index",
+                target="plans",
+                repo_root=root,
+                diagnostics=[
+                    Diagnostic(
+                        location=loc,
+                        rule="dangling-citation",
+                        detail="PLAN-zzzzzz",
+                        severity="info",
+                    )
+                ],
+                data={"target": "plans"},
+            )
+            as_dict = res.to_dict()
+            self.assertNotIn("repo_root", as_dict)
+            self.assertNotIn("repo_root", as_dict["data"])
+            self.assertEqual(as_dict["data"], {"target": "plans"})
+            self.assertEqual(as_dict["diagnostics"][0]["location"], "DECISIONS.md:1")
+            rec = res.to_agent_record()
+            self.assertEqual(rec["diagnostics"][0]["location"], "DECISIONS.md:1")
 
 
 if __name__ == "__main__":
