@@ -129,6 +129,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: nf84rt
 - Replacing the `not_runnable` and `arg_fixture_needed` exemptions for ledger leaves in `tests/conformance_matrix.py` with live conformance-harness scenario rows.
   - Carrier: g5s94t
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-05-g5s94t-add-ledger-leaves-to-live-safe-leaves-once-aw-run-init-lands.ipd.md
 - A `--clear` / revoke for a verifier decision: a later decision already supersedes (F-08).
   - Carrier-Declined: a later decision already supersedes
 
