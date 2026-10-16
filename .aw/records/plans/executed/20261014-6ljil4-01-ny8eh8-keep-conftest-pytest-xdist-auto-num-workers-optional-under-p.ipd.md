@@ -6,7 +6,7 @@
 - Scope: Document the `optionalhook=True` contract on `conftest.pytest_xdist_auto_num_workers` (`conftest.py`, lines 1-20 and 89-96); convert `tests/test_xdist_auto_workers.py` to a `unittest.TestCase` class (`XdistAutoWorkersTests`) so both `pytest` and `unittest discover` (`make test-serial`) execute all tests; scrub `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` in the `-p no:xdist` subprocess helper (keeping the production `-p no:xdist` argv) and contain the import-time side effects of `import conftest` under `unittest`; and add behavioral tests verifying both ambient-`PYTEST_ADDOPTS` isolation and in-process `pytest.PytestPluginManager.check_pending()` validation of `conftest` without `xdist` hookspecs.
 - Scope-Paths: conftest.py, tests/test_xdist_auto_workers.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: 6ljil4
 - Blocks-Release: next
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: Antigravity
 - Id: ny8eh8
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ny8eh8 verified (set 6ljil4, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
@@ -37,12 +37,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Conftest optionalhook contract and xdist-disabled test hardening
 
-- [ ] E-01 Update `conftest.py` around `conftest.pytest_xdist_auto_num_workers` (`@pytest.hookimpl(optionalhook=True)` / `def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:`, lines 89-96) and the module docstring (`"""Root pytest conftest: guarantee the suite ALWAYS runs in parallel (-n auto)`, lines 1-20) to document why `optionalhook=True` is load-bearing (backlog `6ljil4`: `pytest_xdist_auto_num_workers` is an `xdist.newhooks` hookspec registered only when `xdist.plugin` loads, so omitting `optionalhook=True` raises `pluggy.PluginValidationError` during `PytestPluginManager.check_pending()` whenever `pytest` is invoked with `-p no:xdist`, such as in `tools/replay_coverage_diff.py` serial runs or `-o addopts="" -p no:xdist`), and update the module docstring (`conftest.py`, line 6) to reflect the `pytest_xdist_auto_num_workers` worker-bounding policy rather than `one worker per CPU`; and correct the coordinator-role comment (`conftest.py` line 158, `make test-serial` (`python3 -m unittest`) never loads this file`), which is false once a unittest module imports `conftest` (`F-06`), to say that `unittest` loads it only through an explicit import and that `tests/test_xdist_auto_workers.py` restores `os.environ` around that import. Documentation-only: do NOT change the hook's decorator, signature, return values, or any other `conftest.py` code (the worker-count tests in E-02 pin that behavior unchanged).
+- [x] E-01 Update `conftest.py` around `conftest.pytest_xdist_auto_num_workers` (`@pytest.hookimpl(optionalhook=True)` / `def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:`, lines 89-96) and the module docstring (`"""Root pytest conftest: guarantee the suite ALWAYS runs in parallel (-n auto)`, lines 1-20) to document why `optionalhook=True` is load-bearing (backlog `6ljil4`: `pytest_xdist_auto_num_workers` is an `xdist.newhooks` hookspec registered only when `xdist.plugin` loads, so omitting `optionalhook=True` raises `pluggy.PluginValidationError` during `PytestPluginManager.check_pending()` whenever `pytest` is invoked with `-p no:xdist`, such as in `tools/replay_coverage_diff.py` serial runs or `-o addopts="" -p no:xdist`), and update the module docstring (`conftest.py`, line 6) to reflect the `pytest_xdist_auto_num_workers` worker-bounding policy rather than `one worker per CPU`; and correct the coordinator-role comment (`conftest.py` line 158, `make test-serial` (`python3 -m unittest`) never loads this file`), which is false once a unittest module imports `conftest` (`F-06`), to say that `unittest` loads it only through an explicit import and that `tests/test_xdist_auto_workers.py` restores `os.environ` around that import. Documentation-only: do NOT change the hook's decorator, signature, return values, or any other `conftest.py` code (the worker-count tests in E-02 pin that behavior unchanged).
   - Depends on: none
   - Expected outcome: `conftest.pytest_xdist_auto_num_workers` retains `@pytest.hookimpl(optionalhook=True)` with an explicit comment and docstring explaining the `-p no:xdist` `PluginValidationError` contract (`6ljil4`), the module docstring accurately states the `-n auto` worker resolution policy, and `git diff -- conftest.py` touches only comment and docstring lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Refactor `tests/test_xdist_auto_workers.py` into a `unittest.TestCase` subclass (`class XdistAutoWorkersTests(unittest.TestCase):`) and harden its `-p no:xdist` coverage:
+- [x] E-02 Refactor `tests/test_xdist_auto_workers.py` into a `unittest.TestCase` subclass (`class XdistAutoWorkersTests(unittest.TestCase):`) and harden its `-p no:xdist` coverage:
   - Wrap all existing worker-count and CPU-count tests (`test_auto_num_workers_defaults_to_half_cpus`, `test_auto_num_workers_scaling_and_floors`, `test_auto_num_workers_ci_mode`, `test_auto_num_workers_honors_env_override`, `test_auto_num_workers_env_override_floors_at_one`, `test_auto_num_workers_invalid_env_falls_back_to_local_policy`, `test_available_cpus_returns_positive_integer`, and `test_pytest_runs_without_xdist_plugin`) as methods on `XdistAutoWorkersTests(unittest.TestCase)` so both `python3 -m pytest` and `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py` discover and execute them.
   - Extract a helper `_run_pytest_without_xdist(self) -> subprocess.CompletedProcess[str]` on `XdistAutoWorkersTests` that copies `os.environ`, pops `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` from the copy so ambient xdist flags (`-n`, `--dist`) cannot leak ahead of `-o addopts=` in `_pytest.config.Config._preparse`, and runs `[sys.executable, "-m", "pytest", "-o", "addopts=", "-p", "no:xdist", "tests/test_xdist_auto_workers.py", "-k", "test_available_cpus_returns_positive_integer"]` with `env=<the scrubbed copy>`, `cwd=os.path.dirname(os.path.abspath(conftest.__file__))` (the repository root, so the relative test path resolves regardless of the runner's working directory), `capture_output=True`, `text=True`, `check=False`, and `timeout=120` (so a hung child fails the test instead of hanging `make test-serial`, where the `conftest.py` hang guard does not run). The argv deliberately disables only `xdist`, matching the real serial invocation it protects (`tools/replay_coverage_diff.py` `_build_pytest_cmd`, `cmd.extend(["-p", "no:xdist"])` at line 169); do NOT add `-p no:xdist.looponfail`, which would make the test exercise a different invocation than production.
   - Add `test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags(self) -> None`: sets `PYTEST_ADDOPTS="-n 2 --dist=worksteal"` in `os.environ` via `patch.dict` and asserts `_run_pytest_without_xdist()` exits `0` with neither `PluginValidationError` nor `unrecognized arguments` in `stdout`/`stderr`.
@@ -51,9 +51,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Keep every existing worker-count assertion and its input/expected pairs unchanged; this item only re-homes them as methods (use `self.assertEqual`/`self.assertTrue` or plain `assert`, either runs under both runners).
   - Depends on: E-01
   - Expected outcome: every test in `tests/test_xdist_auto_workers.py` is a method of `XdistAutoWorkersTests(unittest.TestCase)` and passes under both `python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py` and `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py -v` (exit `0`, with the unittest `Ran N tests` count equal to the pytest `N passed` count and N greater than zero), including when `PYTEST_ADDOPTS="-n 2 --dist=worksteal"` is set in the outer environment; the two new tests and the re-homed `test_pytest_runs_without_xdist_plugin` are among those run.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Perform sensitivity verification and full repository validation:
+- [x] E-03 Perform sensitivity verification and full repository validation:
   - Sensitivity check A (hook contract): temporarily change `@pytest.hookimpl(optionalhook=True)` to `@pytest.hookimpl` on `conftest.pytest_xdist_auto_num_workers`, run `python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py -k "test_conftest_registers_on_pluginmanager_without_xdist_hookspecs or test_pytest_runs_without_xdist_plugin"`, verify both tests fail with `PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers'`, and restore `@pytest.hookimpl(optionalhook=True)`.
   - Sensitivity check B (env scrub): temporarily delete the `PYTEST_ADDOPTS` pop from `_run_pytest_without_xdist`, run `python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py -k test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags`, verify it fails on the child's non-zero exit with `unrecognized arguments: -n` in the captured output, and restore the pop.
   - After both restorations, confirm with `git diff -- conftest.py tests/test_xdist_auto_workers.py` that no sensitivity mutation remains (only the E-01/E-02 edits).
@@ -61,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Run the bare repository test suite (`python3 -m pytest`), `aw check release-gates`, and `aw sanitize --agent`.
   - Depends on: E-01, E-02
   - Expected outcome: Sensitivity check A proves both the in-process `PytestPluginManager.check_pending()` test and the subprocess `-p no:xdist` test fail when `optionalhook=True` is removed; sensitivity check B proves the ambient-`PYTEST_ADDOPTS` test fails when the scrub is removed; both mutations are reverted; `unittest discover`, ambient-`PYTEST_ADDOPTS` pytest, bare `python3 -m pytest`, `aw check release-gates`, and `aw sanitize --agent` all exit `0`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -127,20 +127,267 @@ N/A for `.spec.md` files and `CHANGELOG.md`: `conftest.py` and `tests/test_xdist
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `git diff -- conftest.py` showing `@pytest.hookimpl(optionalhook=True)` on `conftest.pytest_xdist_auto_num_workers` unchanged, the updated docstring and comment citing `6ljil4`, the updated module header docstring, and the corrected `make test-serial` comment (former line 158), with every changed line a comment or docstring line (no executable code changed).
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/conftest.py b/conftest.py
+index 68490b563..8230e8626 100644
+--- a/conftest.py
++++ b/conftest.py
+@@ -3,7 +3,8 @@ run the suite in the COORDINATOR role so a runner-launched turn measures the sam
+ tree a human does (backlog `1uq1cu`).
 
-- [ ] V-02 validates E-02
+ The release suite is large and IO/subprocess bound; running it serially costs multiples of
+-the wall time, so `-n auto` (pytest-xdist, capped at six workers) is the default in
++the wall time, so `-n auto` (pytest-xdist, capped at half of available CPUs up to six workers,
++minimum 1) is the default in
+ `[tool.pytest.ini_options] addopts` in pyproject.toml. That default hard-requires the
+ xdist plugin: without it, pytest aborts with `unrecognized arguments: -n` before any
+ test runs.
+@@ -85,13 +86,29 @@ def _available_cpus() -> int:
+     return os.cpu_count() or 2
+
+
++# --------------------------------------------------------------------------------------
++# xdist auto-num-workers hook: cap -n auto worker count and stay optional under -p no:xdist
++# (backlog `6ljil4`).
++#
++# WHY optionalhook=True IS LOAD-BEARING. `pytest_xdist_auto_num_workers` is an
++# `xdist.newhooks` hookspec registered only when `xdist.plugin` loads. When pytest is
++# invoked with `-p no:xdist` (such as in `tools/replay_coverage_diff.py` serial runs or
++# `python3 -m pytest -o addopts="" -p no:xdist`), pluggy's `PytestPluginManager.check_pending()`
++# fails with `pluggy.PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers'`
++# unless this hook implementation is declared with `optionalhook=True`.
++# --------------------------------------------------------------------------------------
+ @pytest.hookimpl(optionalhook=True)
+ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
+     """Resolve -n auto worker count.
+
+-    Use at most half the available CPUs and never more than six workers.
++    Use at most half the available CPUs and never more than six workers (minimum 1).
+     An explicit PYTEST_XDIST_AUTO_NUM_WORKERS can lower the count, but cannot
+     exceed the same limit.
++
++    Declared with optionalhook=True because pytest_xdist_auto_num_workers is an
++    xdist.newhooks hookspec loaded only when xdist.plugin is active; without
++    optionalhook=True, running pytest under -p no:xdist raises PluginValidationError
++    during PytestPluginManager.check_pending() (backlog `6ljil4`).
+     """
+     cpus = _available_cpus()
+     limit = min(6, max(1, cpus // 2))
+@@ -148,10 +165,11 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
+ # role with `support.declare_execution_role`, and a test that needs the worker marking sets
+ # it on an explicit env dict passed to the code under test; re-asserting the marker with a
+ # throwaway `pytest_runtest_setup` plugin is how to check a file (as plan yx9xsa did). The scrub
+-# is pytest-only, so `make test-serial` (`python3 -m unittest`) never loads this file and is
+-# protected only by the per-class declarations. (2) This scrubs the CURRENT process only;
+-# a subprocess a test spawns inherits this already-cleaned environment, which is the
+-# intended propagation.
++# is pytest-only; `make test-serial` (`python3 -m unittest`) loads this file only through an
++# explicit import, and `tests/test_xdist_auto_workers.py` restores `os.environ` around that
++# import; serial unittest suites are otherwise protected only by the per-class declarations.
++# (2) This scrubs the CURRENT process only; a subprocess a test spawns inherits this
++# already-cleaned environment, which is the intended propagation.
+ #
+ # Done at import time, before any test module is collected, so no test can observe the
+ # marked value. `pop` is unconditional and side-effect-free when the variable is absent,
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Pasted `git diff -- tests/test_xdist_auto_workers.py` and pasted outputs of (1) `python3 -m pytest -o addopts="" -v tests/test_xdist_auto_workers.py` (reachable via `XdistAutoWorkersTests` created in `E-02`), (2) `PYTEST_ADDOPTS="-n 2 --dist=worksteal" python3 -m pytest -o addopts="" -v tests/test_xdist_auto_workers.py` (reachable via `XdistAutoWorkersTests._run_pytest_without_xdist` created in `E-02`), and (3) `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py -v` (reachable via `XdistAutoWorkersTests(unittest.TestCase)` created in `E-02`), all exit `0` with every test passing, where the `-v` listings name `test_pytest_runs_without_xdist_plugin`, `test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags`, and `test_conftest_registers_on_pluginmanager_without_xdist_hookspecs` as passed (names are pointers; the bar is the behavior) and the unittest `Ran N tests` equals the pytest `N passed` (N re-derived at execution, non-zero, no `skipped`); and (4) the diff shows `_run_pytest_without_xdist` popping `PYTEST_ADDOPTS`/`PYTEST_PLUGINS`, passing repo-root `cwd` and `timeout=120`, and the `setUpClass` loader restoring `os.environ` around the `conftest` import.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 11 tests pass under pytest (-o addopts=""), ambient PYTEST_ADDOPTS (-n 2 --dist=worksteal), and unittest discover (-s tests -t . -p test_xdist_auto_workers.py -v); git diff shows env scrub in _run_pytest_without_xdist and os.environ snapshot/restore in setUpClass.
+(1) `python3 -m pytest -o addopts="" -v tests/test_xdist_auto_workers.py`:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=4268215418
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 11 items
 
-- [ ] V-03 validates E-03
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_available_cpus_returns_positive_integer PASSED [  9%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_scaling_and_floors PASSED [ 18%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_ci_mode PASSED [ 27%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_honors_env_override PASSED [ 36%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_invalid_env_falls_back_to_local_policy PASSED [ 45%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_conftest_registers_on_pluginmanager_without_xdist_hookspecs PASSED [ 54%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_env_override_floors_at_one PASSED [ 63%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_plugin PASSED [ 72%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags PASSED [ 81%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_caps_env_override PASSED [ 90%]
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_defaults_to_half_cpus PASSED [100%]
+
+============================== 11 passed in 1.95s ==============================
+```
+
+(2) `PYTEST_ADDOPTS="-n 2 --dist=worksteal" python3 -m pytest -o addopts="" -v tests/test_xdist_auto_workers.py`:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=526381185
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+created: 2/2 workersinitialized: 1/2 workersinitialized: 2/2 workersready: 1/2 workers      ready: 2/2 workerscollecting: 1/2 workers2 workers [11 items]
+scheduling tests via WorkStealingScheduling
+
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_conftest_registers_on_pluginmanager_without_xdist_hookspecs
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_scaling_and_floors
+[gw1] [  9%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_scaling_and_floors
+[gw0] [ 18%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_conftest_registers_on_pluginmanager_without_xdist_hookspecs
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_plugin
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_ci_mode
+[gw0] [ 27%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_ci_mode
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_invalid_env_falls_back_to_local_policy
+[gw0] [ 36%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_invalid_env_falls_back_to_local_policy
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_available_cpus_returns_positive_integer
+[gw0] [ 45%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_available_cpus_returns_positive_integer
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_caps_env_override
+[gw0] [ 54%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_caps_env_override
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_defaults_to_half_cpus
+[gw0] [ 63%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_defaults_to_half_cpus
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_env_override_floors_at_one
+[gw0] [ 72%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_env_override_floors_at_one
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags
+[gw1] [ 81%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_plugin
+tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_honors_env_override
+[gw1] [ 90%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_auto_num_workers_honors_env_override
+[gw0] [100%] PASSED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags
+
+============================== 11 passed in 1.83s ==============================
+```
+
+(3) `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py -v`:
+```
+test_auto_num_workers_caps_env_override (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_caps_env_override)
+PYTEST_XDIST_AUTO_NUM_WORKERS exceeding the max cap is bounded. ... ok
+test_auto_num_workers_ci_mode (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_ci_mode)
+CI uses the same six-worker and half-CPU limits. ... ok
+test_auto_num_workers_defaults_to_half_cpus (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_defaults_to_half_cpus)
+On 12 available CPUs, the default uses six workers. ... ok
+test_auto_num_workers_env_override_floors_at_one (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_env_override_floors_at_one)
+PYTEST_XDIST_AUTO_NUM_WORKERS <= 0 is floored at 1. ... ok
+test_auto_num_workers_honors_env_override (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_honors_env_override)
+PYTEST_XDIST_AUTO_NUM_WORKERS explicitly overrides the auto calculation. ... ok
+test_auto_num_workers_invalid_env_falls_back_to_local_policy (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_invalid_env_falls_back_to_local_policy)
+Invalid non-integer in PYTEST_XDIST_AUTO_NUM_WORKERS falls back gracefully. ... ok
+test_auto_num_workers_scaling_and_floors (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_auto_num_workers_scaling_and_floors)
+The default stays within six workers and half of available CPUs. ... ok
+test_available_cpus_returns_positive_integer (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_available_cpus_returns_positive_integer)
+_available_cpus returns a sensible positive CPU count on the running system. ... ok
+test_conftest_registers_on_pluginmanager_without_xdist_hookspecs (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_conftest_registers_on_pluginmanager_without_xdist_hookspecs)
+In-process test that conftest registers and validates without xdist hookspecs. ... ok
+test_pytest_runs_without_xdist_plugin (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_pytest_runs_without_xdist_plugin)
+When xdist is disabled (-p no:xdist), pytest runs without PluginValidationError. ... ok
+test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags (tests.test_xdist_auto_workers.XdistAutoWorkersTests.test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags)
+Ambient PYTEST_ADDOPTS with xdist flags does not leak into scrubbed subprocess. ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 1.346s
+
+OK
+```
+
+(4) `git diff -- tests/test_xdist_auto_workers.py`:
+Shows `_run_pytest_without_xdist` popping `PYTEST_ADDOPTS`/`PYTEST_PLUGINS`, passing repo-root `cwd` and `timeout=120`, and `setUpClass` loader restoring `os.environ` around `conftest` import.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted output of the sensitivity check in `E-03` (temporarily changing `@pytest.hookimpl(optionalhook=True)` to `@pytest.hookimpl` on `conftest.pytest_xdist_auto_num_workers` and running `python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py -k "test_conftest_registers_on_pluginmanager_without_xdist_hookspecs or test_pytest_runs_without_xdist_plugin"`), showing both tests failing with `PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers'` before restoration; pasted output of sensitivity check B showing the ambient-addopts test failing with `unrecognized arguments: -n` while the scrub is removed; pasted `git diff -- conftest.py tests/test_xdist_auto_workers.py` after restoration showing no residual mutation; pasted exit-0 outputs of `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py -v` and `PYTEST_ADDOPTS="-n 2 --dist=worksteal" python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py`; followed by pasted exit-0 outputs of bare `python3 -m pytest`, `aw check release-gates`, and `aw sanitize --agent`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Sensitivity check A confirmed failure on bare hookimpl; sensitivity check B confirmed failure on missing PYTEST_ADDOPTS pop; clean git diff confirmed after restorations; unittest discover (11 tests, OK), ambient-addopts pytest (11 passed), bare pytest (707 passed), aw check release-gates (112 checked), and aw sanitize --agent (0 findings) all exit 0.
+(1) Sensitivity check A (removing optionalhook=True):
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1903433794
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 11 items / 9 deselected / 2 selected
+
+tests/test_xdist_auto_workers.py FF                                      [100%]
+
+=================================== FAILURES ===================================
+_________ XdistAutoWorkersTests.test_pytest_runs_without_xdist_plugin __________
+...
+E       INTERNALERROR> pluggy._manager.PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers' in plugin <module 'conftest' from '/mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8/conftest.py'>
+...
+_ XdistAutoWorkersTests.test_conftest_registers_on_pluginmanager_without_xdist_hookspecs _
+...
+E                       pluggy._manager.PluginValidationError: unknown hook 'pytest_xdist_auto_num_workers' in plugin <module 'conftest' from '/mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8/conftest.py'>
+...
+=========================== short test summary info ============================
+FAILED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_plugin
+FAILED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_conftest_registers_on_pluginmanager_without_xdist_hookspecs
+======================= 2 failed, 9 deselected in 0.80s ========================
+```
+
+(2) Sensitivity check B (removing env.pop("PYTEST_ADDOPTS", None)):
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=2024726750
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 11 items / 10 deselected / 1 selected
+
+tests/test_xdist_auto_workers.py F                                       [100%]
+
+=================================== FAILURES ===================================
+_ XdistAutoWorkersTests.test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags _
+...
+E       AssertionError: 4 != 0 : pytest failed with output:
+E
+E       ERROR: usage: python3 -m pytest [options] [file_or_dir] [file_or_dir] [...]
+E       python3 -m pytest: error: unrecognized arguments: -n --dist=worksteal tests/test_xdist_auto_workers.py
+E         inifile: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8/pyproject.toml
+E         rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/ny8eh8
+=========================== short test summary info ============================
+FAILED tests/test_xdist_auto_workers.py::XdistAutoWorkersTests::test_pytest_runs_without_xdist_when_ambient_pytest_addopts_has_xdist_flags
+======================= 1 failed, 10 deselected in 0.63s =======================
+```
+
+(3) Confirmed restorations clean via `git diff -- conftest.py tests/test_xdist_auto_workers.py`.
+
+(4) `python3 -m unittest discover -s tests -t . -p test_xdist_auto_workers.py -v`:
+```
+Ran 11 tests in 1.248s
+
+OK
+```
+
+(5) `PYTEST_ADDOPTS="-n 2 --dist=worksteal" python3 -m pytest -o addopts="" tests/test_xdist_auto_workers.py`:
+```
+11 passed in 2.55s
+```
+
+(6) `python3 -m pytest`:
+```
+NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+707 passed in 22.25s
+```
+
+(7) `aw check release-gates`:
+```
+AW check  release-gates                                                  2132 ms
+✓ CONFORMS  112 release-gates checked
+
+Evidence
+  backlog  45   specs  19   plans  47   releases  1
+  errors  0   warnings  0   info  0
+```
+
+(8) `aw sanitize --agent`:
+```
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5233,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 
