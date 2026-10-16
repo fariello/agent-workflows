@@ -6,7 +6,7 @@
 - Scope: Stop find_project_root, is_project_dir, and _find_git_root at shared temporary root containers (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP, and AW_PROJECT_CEILING) and export AW_PROJECT_CEILING in conftest.py and tests/__init__.py so stray /tmp/.aw or /tmp/.agents (or an enclosing checkout when basetemp is inside a repo) cannot poison non-project temp fixtures.
 - Scope-Paths: agent_workflows/project_context.py, conftest.py, tests/__init__.py, tests/test_nonsurveyable_root_refusal.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: 5tj8g4
 - Work-Kind: chore
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: i44j8w
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: i44j8w verified (set 5tj8g4, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review applied revisions
 - 2026-10-15 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
