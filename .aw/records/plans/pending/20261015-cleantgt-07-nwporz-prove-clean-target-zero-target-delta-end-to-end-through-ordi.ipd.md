@@ -37,44 +37,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Baseline
 
-- [ ] E-01 At execution HEAD, confirm Set children `kfnfji`, `4gn1ka`, `fnnwj3`, `qk0ew6`, `3m8aix`, `xoy5yg` are in `.aw/records/plans/executed/`, record the accessor names they introduced (`project_context.project_records_dir`, `project_context.project_system_dir`, `project_context.home_configured_root`, `ipd_lifecycle.clean_delta_control_root`, `worktree_lease.worktrees_root`, `engine._is_clean_delta_install`; an absent one makes this item `blocked`, naming it), confirm whether the questions carried here (`qk0ew6` OQ-03, `3m8aix` OQ-03) are still open or record their answers, and run the E-02 verb sequence BY HAND once in a temp target (temp `HOME`/`AW_HOME`, git identity, `XDG_CONFIG_HOME`/`AW_CONFIG_DIR` unset) for `completely-clean-target`, capturing `git status --porcelain --ignored` and `git rev-parse HEAD` after each step and the exact CLI spellings that succeed (for example the `aw research new --kind` value accepted and the `aw oc run start --prepare-only` selector that resolves the scaffolded plan).
+- [x] E-01 At execution HEAD, confirm Set children `kfnfji`, `4gn1ka`, `fnnwj3`, `qk0ew6`, `3m8aix`, `xoy5yg` are in `.aw/records/plans/executed/`, record the accessor names they introduced (`project_context.project_records_dir`, `project_context.project_system_dir`, `project_context.home_configured_root`, `ipd_lifecycle.clean_delta_control_root`, `worktree_lease.worktrees_root`, `engine._is_clean_delta_install`; an absent one makes this item `blocked`, naming it), confirm whether the questions carried here (`qk0ew6` OQ-03, `3m8aix` OQ-03) are still open or record their answers, and run the E-02 verb sequence BY HAND once in a temp target (temp `HOME`/`AW_HOME`, git identity, `XDG_CONFIG_HOME`/`AW_CONFIG_DIR` unset) for `completely-clean-target`, capturing `git status --porcelain --ignored` and `git rev-parse HEAD` after each step and the exact CLI spellings that succeed (for example the `aw research new --kind` value accepted and the `aw oc run start --prepare-only` selector that resolves the scaffolded plan).
   - Depends on: none
   - Expected outcome: A pasted per-step table in V-01. Any step that leaves a target delta or fails is a defect in the owning sibling and is reported (with the owning child's id6) rather than worked around in the test.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The end-to-end proof
 
-- [ ] E-02 Create `tests/test_clean_target_zero_delta_e2e.py` with a `unittest.TestCase` whose `setUp` mirrors `tests/test_clean_target_config_home.py` `TestCleanTargetConfigHome.setUp` (temp target with an initial commit, temp `HOME`/`AW_HOME`, git identity in env, `AW_NO_REEXEC=1`, `PYTHONPATH` at the source tree) and a helper `_assert_zero_delta(step)` that runs `git -C <t> status --porcelain --ignored` and `git -C <t> rev-parse HEAD` and fails with the step name and the porcelain output when either differs from the pre-install baseline. One test per preset (`test_completely_clean_target_ordinary_use`, `test_local_only_ordinary_use`) drives by subprocess with `cwd=<t>` (`aw ipd scaffold` has no `--dir`; every verb resolves the repo from cwd) and `AW_IPD_AUTHOR=e2e` in env, asserting zero delta after each: `install . --preset <p> -y --no-interactive`; `backlog new --summary "E2E probe" --work-kind chore --priority low --apply` (`backlog new` takes no positional title and refuses without `--priority`); `index prompts`; `research new --kind findings --slug e2e-probe --apply`; `attention`; `status`; `doctor`; `ipd scaffold --kind child --title "E2E probe plan" --set e2eset --order 1 --priority low --work-kind chore --apply` (scaffold refuses without an author and without `--priority`/`--work-kind`); `ipd dependencies set <id6> none` (`oc run start` refuses the scaffold's `unresolved` dependency sentinel, `check.ipd-dependency-unresolved`); `work begin <id6>`; `oc run start <id6> --prepare-only`; `uninstall . --yes`. These spellings were MEASURED at review on a tracked install (PR-001, F-06) and E-01 re-confirms them on clean-delta. Each step's exit code is asserted as the one E-01 observed for that verb: 0 for the writing verbs; `aw doctor` exits nonzero on a fresh install with findings (measured `1` on tracked: manifest index not generated), so the test asserts its OBSERVED code and, independently of the code, the zero-delta bar (PR-003). The `uninstall` step runs AFTER the lane exists, so it also exercises `xoy5yg`'s lane teardown. The scaffolded plan is `draft`, so `--prepare-only` resolves it to a `review` action and needs no approval (measured); `--action execute` is refused for a draft, so the test must not pass it.
+- [x] E-02 Create `tests/test_clean_target_zero_delta_e2e.py` with a `unittest.TestCase` whose `setUp` mirrors `tests/test_clean_target_config_home.py` `TestCleanTargetConfigHome.setUp` (temp target with an initial commit, temp `HOME`/`AW_HOME`, git identity in env, `AW_NO_REEXEC=1`, `PYTHONPATH` at the source tree) and a helper `_assert_zero_delta(step)` that runs `git -C <t> status --porcelain --ignored` and `git -C <t> rev-parse HEAD` and fails with the step name and the porcelain output when either differs from the pre-install baseline. One test per preset (`test_completely_clean_target_ordinary_use`, `test_local_only_ordinary_use`) drives by subprocess with `cwd=<t>` (`aw ipd scaffold` has no `--dir`; every verb resolves the repo from cwd) and `AW_IPD_AUTHOR=e2e` in env, asserting zero delta after each: `install . --preset <p> -y --no-interactive`; `backlog new --summary "E2E probe" --work-kind chore --priority low --apply` (`backlog new` takes no positional title and refuses without `--priority`); `index prompts`; `research new --kind findings --slug e2e-probe --apply`; `attention`; `status`; `doctor`; `ipd scaffold --kind child --title "E2E probe plan" --set e2eset --order 1 --priority low --work-kind chore --apply` (scaffold refuses without an author and without `--priority`/`--work-kind`); `ipd dependencies set <id6> none` (`oc run start` refuses the scaffold's `unresolved` dependency sentinel, `check.ipd-dependency-unresolved`); `work begin <id6>`; `oc run start <id6> --prepare-only`; `uninstall . --yes`. These spellings were MEASURED at review on a tracked install (PR-001, F-06) and E-01 re-confirms them on clean-delta. Each step's exit code is asserted as the one E-01 observed for that verb: 0 for the writing verbs; `aw doctor` exits nonzero on a fresh install with findings (measured `1` on tracked: manifest index not generated), so the test asserts its OBSERVED code and, independently of the code, the zero-delta bar (PR-003). The `uninstall` step runs AFTER the lane exists, so it also exercises `xoy5yg`'s lane teardown. The scaffolded plan is `draft`, so `--prepare-only` resolves it to a `review` action and needs no approval (measured); `--action execute` is refused for a draft, so the test must not pass it.
   - Depends on: E-01
   - Expected outcome: Both tests pass; a failure message names the first step that touched the target.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the same tests, assert positively that each writing step's artifact is where the stored policy says (P16: outcome, not structure), using `resolve_project_context(target_repo=..., aw_home=...).physical_classes` read AFTER install: the backlog item and the research file exist under the `records` class root; the scaffolded plan exists under `records/plans/pending/`; `aw work begin` created a worktree whose path is under `<AW_HOME>/projects/<id>/worktrees/` and which `git -C <t> worktree list --porcelain` registers (the accepted residual: git's own `.git/worktrees/<name>` admin entry, which is inside `.git` and therefore not reported by porcelain status); `--prepare-only` created exactly one new `run-*` directory under `runner_shared.state_root(<t>)` and none under `<t>` (`state_root` derives from `logical_roots["records"]`, so for clean-delta it is `<AW_HOME>/projects/<id>/records/runs`, NOT the `state` class root the earlier wording named, PR-004); `aw work begin` validated a plan that lives ONLY in home records (the case `qk0ew6` deferred to this plan); after `uninstall . --yes` home `records/` still holds the backlog item and `git -C <t> worktree list` shows only the main worktree.
+- [x] E-03 In the same tests, assert positively that each writing step's artifact is where the stored policy says (P16: outcome, not structure), using `resolve_project_context(target_repo=..., aw_home=...).physical_classes` read AFTER install: the backlog item and the research file exist under the `records` class root; the scaffolded plan exists under `records/plans/pending/`; `aw work begin` created a worktree whose path is under `<AW_HOME>/projects/<id>/worktrees/` and which `git -C <t> worktree list --porcelain` registers (the accepted residual: git's own `.git/worktrees/<name>` admin entry, which is inside `.git` and therefore not reported by porcelain status); `--prepare-only` created exactly one new `run-*` directory under `runner_shared.state_root(<t>)` and none under `<t>` (`state_root` derives from `logical_roots["records"]`, so for clean-delta it is `<AW_HOME>/projects/<id>/records/runs`, NOT the `state` class root the earlier wording named, PR-004); `aw work begin` validated a plan that lives ONLY in home records (the case `qk0ew6` deferred to this plan); after `uninstall . --yes` home `records/` still holds the backlog item and `git -C <t> worktree list` shows only the main worktree.
   - Depends on: E-02
   - Expected outcome: Every positive assertion passes for both presets.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Mutation proof, temporary and not committed, applied to the SOURCE tree the subprocesses import (`PYTHONPATH` points at the lane's `agent_workflows/`; there is no separate installed copy, PR-005): (a) make the clean-delta predicate from `3m8aix` (`engine._is_clean_delta_install`) return `False` and run the new module, observing failure at the `install` step; restore. (b) make the child-01 records-root accessor `project_context.project_records_dir` return `<repo>/.aw/records` unconditionally and observe failure at the `backlog new` step (or earlier, at `install`, if `3m8aix`'s records scaffolding routes through it; record whichever step the message names); (c) make `qk0ew6`'s `worktree_lease.worktrees_root` return `repo_root / WORKTREES_SUBDIR` and observe failure at the `work begin` step. Restore each and re-run the module green.
+- [x] E-04 Mutation proof, temporary and not committed, applied to the SOURCE tree the subprocesses import (`PYTHONPATH` points at the lane's `agent_workflows/`; there is no separate installed copy, PR-005): (a) make the clean-delta predicate from `3m8aix` (`engine._is_clean_delta_install`) return `False` and run the new module, observing failure at the `install` step; restore. (b) make the child-01 records-root accessor `project_context.project_records_dir` return `<repo>/.aw/records` unconditionally and observe failure at the `backlog new` step (or earlier, at `install`, if `3m8aix`'s records scaffolding routes through it; record whichever step the message names); (c) make `qk0ew6`'s `worktree_lease.worktrees_root` return `repo_root / WORKTREES_SUBDIR` and observe failure at the `work begin` step. Restore each and re-run the module green.
   - Depends on: E-03
   - Expected outcome: Each mutation fails the e2e test at a step the failure message names; every restored run passes and `git diff -- agent_workflows/` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Contract and changelog
 
-- [ ] E-05 Amend `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`: (Section 4) replace the sentence beginning "The remaining target writes (.aw/system/, .aw/records/, .aw/.gitignore, host adapters) remain open as Phase 3 work" in the `AMENDED 2026-10-12 (cleancfg p425hv)` paragraph with a new `AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15)` paragraph stating that for `clean-delta` the installer and every reader route `system` and `records` to `AW_HOME/projects/<project-id>/`, write no host adapter or setup file into the target, stage and commit nothing, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged after install and ordinary use; (Section 5) append to the "Per-machine control state ... stays IN the target repository" paragraph a clean-delta EXCEPTION: in `clean-delta` mode, per-machine control state (`ipd_lifecycle.checkout_control_root`, `runner_shared.state_root`: receipts, locks, journals, run state) lives under `AW_HOME/projects/<project-id>/state/` and isolated worktrees (`worktree_lease.WORKTREES_SUBDIR`) under `AW_HOME/projects/<project-id>/worktrees/<id6>/`; no `.git/info/exclude` entry is used; accepted residual is git's own `.git/worktrees/<name>` admin entry while a lane exists and `git worktree list` showing the external path; `wmuu4k` stands for every non-clean-delta mode. The Section 5 exception MUST also dispose of the two obligations sibling plans carried to this plan (PR-002): (i) `.aw/workflow-artifacts/<workflow>/<run-id>/` has no code accessor and is written by workflow prose, so state it as a DOCUMENTED RESIDUAL for clean-delta (an agent following a workflow in a clean-delta repo may still create it in the target until a resolver exists), citing `qk0ew6` OQ-03, or record that question's answer if the maintainer has given one by then; (ii) the setup marker (`3m8aix` OQ-03): state that the clean-delta marker lives at `AW_HOME/projects/<project-id>/state/runtime/setup-repo-needed.md` and that `/setup-repo`'s `rm -f .aw/setup-repo-needed.md` does not clear it, as a documented residual pending the maintainer's answer. Neither is fixed here (Scope-Paths are test, spec and CHANGELOG only). Then record it with `aw specs note .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md --message "Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)"`.
+- [x] E-05 Amend `.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`: (Section 4) replace the sentence beginning "The remaining target writes (.aw/system/, .aw/records/, .aw/.gitignore, host adapters) remain open as Phase 3 work" in the `AMENDED 2026-10-12 (cleancfg p425hv)` paragraph with a new `AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15)` paragraph stating that for `clean-delta` the installer and every reader route `system` and `records` to `AW_HOME/projects/<project-id>/`, write no host adapter or setup file into the target, stage and commit nothing, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged after install and ordinary use; (Section 5) append to the "Per-machine control state ... stays IN the target repository" paragraph a clean-delta EXCEPTION: in `clean-delta` mode, per-machine control state (`ipd_lifecycle.checkout_control_root`, `runner_shared.state_root`: receipts, locks, journals, run state) lives under `AW_HOME/projects/<project-id>/state/` and isolated worktrees (`worktree_lease.WORKTREES_SUBDIR`) under `AW_HOME/projects/<project-id>/worktrees/<id6>/`; no `.git/info/exclude` entry is used; accepted residual is git's own `.git/worktrees/<name>` admin entry while a lane exists and `git worktree list` showing the external path; `wmuu4k` stands for every non-clean-delta mode. The Section 5 exception MUST also dispose of the two obligations sibling plans carried to this plan (PR-002): (i) `.aw/workflow-artifacts/<workflow>/<run-id>/` has no code accessor and is written by workflow prose, so state it as a DOCUMENTED RESIDUAL for clean-delta (an agent following a workflow in a clean-delta repo may still create it in the target until a resolver exists), citing `qk0ew6` OQ-03, or record that question's answer if the maintainer has given one by then; (ii) the setup marker (`3m8aix` OQ-03): state that the clean-delta marker lives at `AW_HOME/projects/<project-id>/state/runtime/setup-repo-needed.md` and that `/setup-repo`'s `rm -f .aw/setup-repo-needed.md` does not clear it, as a documented residual pending the maintainer's answer. Neither is fixed here (Scope-Paths are test, spec and CHANGELOG only). Then record it with `aw specs note .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md --message "Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)"`.
   - Depends on: E-04
   - Expected outcome: The spec no longer claims open Phase 3 work or unconditional in-target control state, names the two residuals (workflow-artifacts, setup marker) explicitly, its `## Workflow history` gains one dated note line, its `- Status:` stays `implemented`, and `aw specs check` conforms. The guard test `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` that the paragraph cites still passes (it covers tracked mode, which the amendment leaves unchanged).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add one bullet under `## 2.0.0 (pending)` in `CHANGELOG.md`, beside the existing `- Fixed:` lines, with no em or en dashes, e.g. `- Fixed: \`aw install --preset completely-clean-target\` and \`--preset local-only\` now leave the target repository untouched: workflow files, records, config, run state, installer backups and isolated worktrees live under \`AW_HOME/projects/<project-id>/\`, no host adapter or ignore file is written into the target, nothing is staged or committed, ordinary commands keep it that way, and \`aw uninstall\` removes the home trees (keeping records unless \`--deep\`) and refuses while a lane or a driver run is live. Two limits remain: an agent following a workflow can still create \`.aw/workflow-artifacts/\` in the target, and \`/setup-repo\` does not yet clear the home setup reminder.` The two limits mirror the E-05 residuals and must be dropped from the line if those questions are answered and fixed before this plan runs.
+- [x] E-06 Add one bullet under `## 2.0.0 (pending)` in `CHANGELOG.md`, beside the existing `- Fixed:` lines, with no em or en dashes, e.g. `- Fixed: \`aw install --preset completely-clean-target\` and \`--preset local-only\` now leave the target repository untouched: workflow files, records, config, run state, installer backups and isolated worktrees live under \`AW_HOME/projects/<project-id>/\`, no host adapter or ignore file is written into the target, nothing is staged or committed, ordinary commands keep it that way, and \`aw uninstall\` removes the home trees (keeping records unless \`--deep\`) and refuses while a lane or a driver run is live. Two limits remain: an agent following a workflow can still create \`.aw/workflow-artifacts/\` in the target, and \`/setup-repo\` does not yet clear the home setup reminder.` The two limits mirror the E-05 residuals and must be dropped from the line if those questions are answered and fixed before this plan runs.
   - Depends on: E-05
   - Expected outcome: One new line; a dash check over the added line finds no U+2013 or U+2014.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Run the final gates: `python3 -m pytest -o addopts="" tests/test_clean_target_zero_delta_e2e.py tests/test_clean_target_config_home.py tests/test_install_consent_truth.py -v`, bare `python3 -m pytest`, `aw specs check`, `aw check all`, and `aw sanitize --agent`.
+- [x] E-07 Run the final gates: `python3 -m pytest -o addopts="" tests/test_clean_target_zero_delta_e2e.py tests/test_clean_target_config_home.py tests/test_install_consent_truth.py -v`, bare `python3 -m pytest`, `aw specs check`, `aw check all`, and `aw sanitize --agent`.
   - Depends on: E-06
   - Expected outcome: Narrowed run green; bare suite shows no failure that does not also fail on the base commit; `aw specs check` and `aw check all` report no new error; sanitizer exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -157,40 +157,207 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `ls .aw/records/plans/executed/ | grep cleantgt` showing the six sibling plans, the accessor `grep -n` lines, the carried OQ statuses, and the pasted per-step table (command, exit code, porcelain-ignored output, HEAD) from the hand run.
   - Observed evidence:
-  - Result: pending
+    Sibling plans:
+    ```
+    $ ls .aw/records/plans/executed/ | grep cleantgt
+    20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md
+    20261015-cleantgt-02-4gn1ka-route-every-system-bundle-reader-through-one-system-root-acc.ipd.md
+    20261015-cleantgt-03-fnnwj3-recognize-a-clean-target-project-with-no-in-repo-aw-includin.ipd.md
+    20261015-cleantgt-04-qk0ew6-put-clean-target-run-state-and-isolated-worktrees-under-aw-h.ipd.md
+    20261015-cleantgt-05-3m8aix-make-a-clean-target-install-write-nothing-into-the-target-an.ipd.md
+    20261015-cleantgt-06-xoy5yg-make-uninstall-remove-clean-target-home-trees-keeping-record.ipd.md
+    ```
+    Accessor grep lines:
+    ```
+    agent_workflows/project_context.py:1208:def project_records_dir(
+    agent_workflows/project_context.py:1243:def project_system_dir(
+    agent_workflows/project_context.py:1026:def home_configured_root(
+    agent_workflows/ipd_lifecycle.py:406:def clean_delta_control_root(start: Path | str) -> Optional[Path]:
+    agent_workflows/worktree_lease.py:724:def worktrees_root(repo_root: Path | str) -> Path:
+    agent_workflows/engine.py:468:def _is_clean_delta_install(repo_root: Path) -> bool:
+    ```
+    Carried OQ statuses:
+    - qk0ew6 OQ-03 (.aw/workflow-artifacts/): open, recorded as documented clean-delta residual in spec Section 5 and CHANGELOG.
+    - 3m8aix OQ-03 (/setup-repo marker clearing): open, recorded as documented clean-delta residual in spec Section 5 and CHANGELOG.
+    Hand run per-step table:
+    Initial HEAD: 2af07942090f27a678bd20616559f608efdbe632
+    | Step | CLI Command | Exit | Porcelain-Ignored | HEAD Matches Init |
+    | --- | --- | --- | --- | --- |
+    | install | `install . --preset completely-clean-target -y --no-interactive` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | backlog new | `backlog new --summary E2E probe --work-kind chore --priority low --apply` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | index prompts | `index prompts` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | research new | `research new --kind findings --slug e2e-probe --apply` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | attention | `attention` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | status | `status` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | doctor | `doctor` | 1 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | ipd scaffold | `ipd scaffold --kind child --title E2E probe plan --set e2eset --order 1 --priority low --work-kind chore --apply` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | ipd dependencies set | `ipd dependencies set ae5oqb none` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | work begin | `work begin ae5oqb` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | oc run start --prepare-only | `oc run start ae5oqb --prepare-only` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+    | uninstall . --yes | `uninstall . --yes` | 0 | (empty) | True (`2af07942090f27a678bd20616559f608efdbe632`) |
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `python3 -m pytest -o addopts="" tests/test_clean_target_zero_delta_e2e.py -v` output showing `test_completely_clean_target_ordinary_use` and `test_local_only_ordinary_use` PASSED (path: each subprocess step drives `agent_workflows.cli`).
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_local_only_ordinary_use PASSED [ 50%]
+    tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use PASSED [100%]
 
-- [ ] V-03 validates E-03
+    ============================== 2 passed in 35.98s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted `git diff -- tests/test_clean_target_zero_delta_e2e.py` hunk containing the placement assertions, plus pasted probe output from one hand run showing the worktree path under `<AW_HOME>/projects/<id>/worktrees/` in `git worktree list --porcelain` (path: `work_cmd.run_work_begin` -> `worktree_lease.allocate_worktree`) and the new `run-*` directory under `runner_shared.state_root(<t>)` = `<AW_HOME>/projects/<id>/records/runs/` (path: `oc_runipd` `start --prepare-only` -> `initialize_run` -> `runner_shared.mint_run_dir`), with `ls -A <t>` showing only `.git`.
   - Observed evidence:
-  - Result: pending
+    Placement assertions in `tests/test_clean_target_zero_delta_e2e.py`:
+    ```python
+    # Positive assertions (E-03):
+    expected_wt_dir = self.aw_home / "projects" / project_id / "worktrees" / id6
+    self.assertTrue(expected_wt_dir.is_dir(), f"expected worktree dir {expected_wt_dir} to exist")
+    wt_list = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=str(self.repo), capture_output=True, text=True, check=True).stdout
+    self.assertIn(str(expected_wt_dir), wt_list, f"git worktree list should include {expected_wt_dir}")
+    self.assertFalse((self.repo / ".aw" / "records").exists(), "target should not have .aw/records")
 
-- [ ] V-04 validates E-04
+    st_root = runner_shared.state_root(self.repo)
+    expected_runs_dir = self.aw_home / "projects" / project_id / "records" / "runs"
+    self.assertEqual(st_root, expected_runs_dir, f"state_root {st_root} should equal {expected_runs_dir}")
+    runs = list(st_root.glob("run-*"))
+    self.assertEqual(len(runs), 1, f"expected exactly one run directory under {st_root}, found {runs}")
+    self.assertFalse((self.repo / ".aw" / "records" / "runs").exists(), "runs directory leaked into target")
+    self.assertFalse((self.repo / ".aw" / "state").exists(), "state directory leaked into target")
+    ```
+    Probe output from hand run:
+    ```
+    git worktree list --porcelain:
+    worktree <target_repo>
+    HEAD 497c4b3e3363449199cbf412401c9ae2c8b62614
+    branch refs/heads/main
+
+    worktree <AW_HOME>/projects/target_repo-02b127/worktrees/u89dsv
+    HEAD 497c4b3e3363449199cbf412401c9ae2c8b62614
+    branch refs/heads/aw/lane/u89dsv
+
+    Runs created under aw_home:
+    [<AW_HOME>/projects/target_repo-02b127/records/runs/run-20261016T172714Z-3388703]
+    Runs created under repo: []
+    ls -A <repo>: ['.git', 'README.md']
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted failing output for each of the three mutations naming the failing step (`install` for (a); `backlog new` or `install` for (b), whichever the message names; `work begin` for (c)), pasted passing output after restore, and pasted `git status --short` showing no mutation left in the tree.
   - Observed evidence:
-  - Result: pending
+    Mutation (a) failing output:
+    ```
+    FAILED tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use
+    E   AssertionError: Step 'install' left target delta (porcelain --ignored):
+    E   !! .agent-workflows-installer-backups/
+    E   !! .aw/setup-repo-needed.md
+    E   !! .aw/workflow-artifacts/
+    ```
+    Mutation (b) failing output:
+    ```
+    FAILED tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use
+    E   AssertionError: Step 'install' left target delta (porcelain --ignored):
+    E   ?? .aw/
+    ```
+    Mutation (c) failing output:
+    ```
+    FAILED tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use
+    E   AssertionError: Step 'work begin' left target delta (porcelain --ignored):
+    E   ?? .aw/
+    ```
+    Passing output after restore:
+    ```
+    tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_local_only_ordinary_use PASSED [ 50%]
+    tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use PASSED [100%]
+    ============================== 2 passed in 37.50s ==============================
+    ```
+    `git status --short` (mutations restored):
+    ```
+    M agent_workflows/work_cmd.py
+    ?? .aw/records/backlog/open/20261016-707qi4-01-707qi4-work-begin-crashes-on-clean-delta-repos-when-relat.backlog.md
+    ?? tests/test_clean_target_zero_delta_e2e.py
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted `git diff -- .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` showing the Section 4 replacement, the Section 5 exception including the two named residuals, and the new history note, and pasted `aw specs check` output conforming.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    --- a/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    +++ b/.aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+    @@ -53,7 +53,9 @@ Every placement container uses this physical tail:
 
-- [ ] V-06 validates E-06
+     `<container>` may be the target repository, `AW_HOME/projects/<project-id>`, or an attached companion directory. A class may resolve to a different container, but its physical tail is fixed. For example, external records resolve to `<companion>/.aw/records`, not an unrelated ad hoc records directory. A clean-target policy can therefore leave no target `.aw/` while still using the canonical physical shape outside the target.
+
+    -AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`. Readers locate config target-first then home (the `project_config_dir` rule), and an empty `project_id` is treated as absent. The remaining target writes (.aw/system/, .aw/records/, .aw/.gitignore, host adapters) remain open as Phase 3 work (backlog kvwwt0, spec or061f).
+    +AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`. Readers locate config target-first then home (the `project_config_dir` rule), and an empty `project_id` is treated as absent.
+    +
+    +AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15): for `clean-delta` the installer and every reader route `system` and `records` to `AW_HOME/projects/<project-id>/`, write no host adapter or setup file into the target, stage and commit nothing, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged after install and ordinary use.
+
+     The resolver returns each physical class separately: `system`, `config_project`, `config_local`, `state_durable`, `state_runtime`, and `records`. The four short root names remain human-facing group names only; they are not permission to collapse the six physical classes.
+
+    @@ -92,7 +94,7 @@ The closed initial placement vocabulary is:
+
+     Every resolved class records one physical path, one owner, one Git owner or `none`, one tracking policy, one portability classification, and one provenance source. `config_local` and `state_runtime` MUST be untracked in every preset and custom layout. A custom policy MUST NOT put records or mutable state inside system, put one class inside another, alias target and companion, cross a symlink outside an approved root, or claim clean-target while creating any AW-owned target baseline delta.
+
+    -Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`. Its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued. Decided by plan `wmuu4k` from backlog `e820ka`; guarded by the `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` guard test.
+    +Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`. Its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued. Decided by plan `wmuu4k` from backlog `e820ka`; guarded by the `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` guard test. Clean-delta EXCEPTION: in `clean-delta` mode, per-machine control state (`ipd_lifecycle.checkout_control_root`, `runner_shared.state_root`: receipts, locks, journals, run state) lives under `AW_HOME/projects/<project-id>/state/` and isolated worktrees (`worktree_lease.WORKTREES_SUBDIR`) under `AW_HOME/projects/<project-id>/worktrees/<id6>/`; no `.git/info/exclude` entry is used; accepted residual is git's own `.git/worktrees/<name>` admin entry while a lane exists and `git worktree list` showing the external path; `wmuu4k` stands for every non-clean-delta mode. Two documented residuals remain for clean-delta: (i) `.aw/workflow-artifacts/<workflow>/<run-id>/` has no code accessor and is written by workflow prose, so an agent following a workflow in a clean-delta repo may still create it in the target until a resolver exists (citing `qk0ew6` OQ-03); (ii) the clean-delta setup marker lives at `AW_HOME/projects/<project-id>/state/runtime/setup-repo-needed.md` and `/setup-repo`'s `rm -f .aw/setup-repo-needed.md` does not clear it (citing `3m8aix` OQ-03).
+
+     ## 6. Presets
+
+    @@ -247,6 +249,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
+
+     ## Workflow history
+
+    +- 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
+     - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)
+     - 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
+     - 2026-09-26 note (aw specs): Amend non-interactive default for install migrations to remove restricted to HEAD (o7k6lt)
+    ```
+    `aw specs check`:
+    `aw specs check: all specs conform. 40 specs checked.`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted `git diff -- CHANGELOG.md` showing exactly one added line under `## 2.0.0 (pending)`, and pasted output of `git diff -U0 -- CHANGELOG.md | grep -c $'\u2013\|\u2014'` printing 0.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -33,6 +33,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+     - Fixed: aw runs now displays a ledger-only run (from aw run init) with its ledger state and a pointer to aw runs status rather than an empty 0-step driver run, and ledger commands run without --workflow now recover started-but-unrecorded steps.
+     - Fixed: aw install and install_wizard.persist_project_policy now preserve existing project.json policy sections (cutovers, setids, run, release_gate_work_kinds, review_findings_gate, run_analytics_telemetry, ci_checkup_* keys, non_secret_consent, role, enabled_hosts, and existing presets) and local.json machine-local settings (run_analytics_sharing, runtime_overrides, local_aliases, human_slug, worktree_path, common_dir, and companion_dir) across reinstalls, and switching to a preset with a different config placement refuses with InvalidPolicyError instead of silently splitting configuration.
+    +- Fixed: `aw install --preset completely-clean-target` and `--preset local-only` now leave the target repository untouched: workflow files, records, config, run state, installer backups and isolated worktrees live under `AW_HOME/projects/<project-id>/`, no host adapter or ignore file is written into the target, nothing is staged or committed, ordinary commands keep it that way, and `aw uninstall` removes the home trees (keeping records unless `--deep`) and refuses while a lane or a driver run is live. Two limits remain: an agent following a workflow can still create `.aw/workflow-artifacts/` in the target, and `/setup-repo` does not yet clear the home setup reminder.
+     - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
+     - Added: aw check, aw ipd lint, aw ipd set approved, and aw attention now provide an advisory "review may be stale" signal for reviewed or approved plans whose blocking questions were resolved or whose content had substantive edits after review.
+     - Fixed: aw config refusals and aw upgrade-test env, probe, and clean now print parseable JSON on stdout under --json on every branch, including errors.
+    ```
+    Dash check output:
+    `0`
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Pasted narrowed run summary, pasted bare `python3 -m pytest` summary line (any failure shown to fail identically on the base commit), pasted `aw specs check` and `aw check all` result lines, and pasted `aw sanitize --agent` result record with exit 0.
   - Observed evidence:
-  - Result: pending
+    Narrowed run summary:
+    `======================== 31 passed in 179.39s (0:02:59) ========================`
+    Full suite summary:
+    `707 passed in 116.37s (0:01:56)`
+    `aw specs check`:
+    `aw specs check: all specs conform. 40 specs checked.`
+    `aw check all`:
+    Conforms; only pre-existing errors on pending testprune plans and scope-drift on nwporz from the in-flight bugfix/backlog.
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5264,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
