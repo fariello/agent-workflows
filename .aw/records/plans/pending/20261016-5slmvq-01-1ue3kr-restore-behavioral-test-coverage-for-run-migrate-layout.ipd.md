@@ -6,7 +6,8 @@
 - Scope: Add one new behavioral test module that drives `cli.main(["migrate-layout", ...])` in temporary git repos seeded with a legacy `.agents/` tree, asserting on exit codes and on-disk side effects; prove with an in-memory return-none mutant that the module kills the measured mutation. No production code changes.
 - Scope-Paths: tests/test_migrate_layout_cli.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 5slmvq
@@ -17,9 +18,9 @@
 - Id: 1ue3kr
 
 ## Workflow history
-
-- 2026-10-16 draft (opencode): created.
+- 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 PR-004 PR-005 PR-006
 - 2026-10-16 to-review (opencode): authored review-ready plan graduating backlog 5slmvq.
+- 2026-10-16 draft (opencode): created.
 
 ## Goal
 
@@ -31,14 +32,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Wizard and confirm gate
 
-- [ ] E-01 Create `tests/test_migrate_layout_cli.py` with a `unittest.TestCase` fixture whose `setUp` makes a temp git repo (`git init`, local `user.email`/`user.name`, `commit.gpgsign false`), points `AW_HOME` at a temp dir, seeds `.agents/workflows/index.md`, `.agents/plans/pending/p.md`, `.agents/README.md`, commits them, and `chdir`s into the repo; `tearDown` restores cwd and `AW_HOME` and removes the temp dir. Add tests: (a) `mock.patch("sys.stdin", io.StringIO("1\n1\ny\n"))` then `cli.main(["migrate-layout"])` returns 0, `.aw/system/workflows/index.md` and `.aw/records/plans/pending/p.md` exist and `.agents/workflows/index.md` is gone; (b) the same with explicit `wizard` action returns 0 and migrates; (c) answers `"1\n1\nn\n"` return 1 and `.aw/` does not exist while both seeded `.agents/` files are unchanged.
+- [ ] E-01 Create `tests/test_migrate_layout_cli.py` with a `unittest.TestCase` fixture whose `setUp` makes a temp git repo with `tests.support.init_repo` (which scrubs inherited `GIT_DIR`/`GIT_INDEX_FILE` etc. via `clean_git_env` and sets local `user.email`/`user.name`/`commit.gpgsign false`, so a test run from inside a hook or lane cannot write to the outer repository), points `AW_HOME` at a temp dir, seeds `.agents/workflows/index.md`, `.agents/plans/pending/p.md`, `.agents/README.md`, commits them (`git add`/`git commit` run with `env=tests.support.clean_git_env()`), and `chdir`s into the repo; `tearDown` restores cwd and `AW_HOME` and removes the temp dir. Add tests: (a) `mock.patch("sys.stdin", io.StringIO("1\n1\ny\n"))` then `cli.main(["migrate-layout"])` returns 0, `.aw/system/workflows/index.md` and `.aw/records/plans/pending/p.md` exist and `.agents/workflows/index.md` is gone; (b) the same with explicit `wizard` action returns 0 and migrates; (c) answers `"1\n1\nn\n"` return 1 and `.aw/` does not exist while all three seeded `.agents/` files still exist with their seeded content.
   - Depends on: none
   - Expected outcome: Three wizard tests pass against current code.
   - Execution state: pending
 
 ### Task group 2: Config file and flag precedence
 
-- [ ] E-02 In the same module add: (a) a `--config` JSON `{"target_backend": "companion", "leftovers": "keep", "confirm": true}` run returns 0 and `.aw/config/config.json` has `records_backend == "companion"`; (b) the same config plus `--target-backend repository --leftovers remove` returns 0 and `records_backend == "repository"` (CLI overrides config); (c) a missing `--config` path returns 1, and a config file containing `{not valid json` returns 1, each with `.aw/` absent.
+- [ ] E-02 In the same module add: (a) a `--config` JSON `{"target_backend": "companion", "leftovers": "keep", "confirm": true}` run returns 0, `.aw/config/config.json` has `records_backend == "companion"`, `.aw/state/runtime/transactions/migration_transaction.json` records `leftover_disposition.disposition == "keep"`, and `.agents/README.md` still exists; (b) the same config plus `--target-backend repository --leftovers remove` returns 0, `records_backend == "repository"`, the transaction disposition is `"remove"`, and `.agents/README.md` is gone (CLI overrides config for BOTH keys); (c) a missing `--config` path returns 1, and a config file containing `{not valid json` returns 1, each with `.aw/` absent.
   - Depends on: E-01
   - Expected outcome: Config/precedence tests pass against current code.
   - Execution state: pending
@@ -52,14 +53,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: Prove the coverage is load-bearing
 
-- [ ] E-04 Run an in-memory return-none mutation probe with no source edit: write a pytest plugin in an UNTRACKED scratch directory under the gitignored `.aw/state/` (never committed) that rebinds `agent_workflows.cli._run_migrate_layout` to a function returning `None` at import. Run `PYTHONPATH=<scratch>:. python3 -m pytest -o addopts="" -q -n0 -p <plugin> tests/test_migrate_layout_cli.py` and confirm failures. Rebinding the module attribute reaches the code because `cli.main` dispatches through the global name (`if args.command == "migrate-layout": return _run_migrate_layout(args, term)`). Add a second plugin that wraps the real function but forces the wizard confirm answer to `y` (patch `builtins.input` inside the wrapper to return `"y"` for the prompt beginning `Confirm and execute`) and confirm the decline test from E-01(c) fails. Delete the scratch plugins afterwards.
+- [ ] E-04 Run an in-memory return-none mutation probe with no source edit: write a pytest plugin in an UNTRACKED scratch directory under the gitignored `.aw/state/` (never committed) that rebinds `agent_workflows.cli._run_migrate_layout` to a function returning `None` at import. Run `PYTHONPATH=<scratch>:. python3 -m pytest -o addopts="" -q -n0 -p <plugin> tests/test_migrate_layout_cli.py` and confirm failures. Rebinding the module attribute reaches the code because `cli.main` dispatches through the global name (`if args.command == "migrate-layout": return _run_migrate_layout(args, term)`). Add a second plugin that wraps the real function but forces the wizard confirm answer to `y` (patch `builtins.input` inside the wrapper to return `"y"` for the prompt beginning `Confirm and execute`) and confirm the decline test from E-01(c) fails. The wrapper must restore `builtins.input` in a `finally`. Pass `-p no:cacheprovider` so the probe writes no `.pytest_cache`. Delete the scratch plugins afterwards. (Mechanism demonstrated at review on 2026-10-16 with a two-test scratch module: unmutated `2 passed`; return-none plugin `2 failed`; confirm-bypass plugin `1 failed, 1 passed` with only the decline test failing.)
   - Depends on: E-03
-  - Expected outcome: The return-none mutant fails most tests in the module (at least the wizard-accept, config, override, and `--yes` tests); the confirm-bypass mutant fails the decline test; unmutated code passes.
+  - Expected outcome: Under the return-none mutant every test that asserts a 0 or 1 exit code fails (that is every test in the module, since `None` equals neither); under the confirm-bypass mutant the wizard-decline test fails; unmutated code passes.
   - Execution state: pending
 
 ### Task group 5: Regression and commit
 
-- [ ] E-05 Run the module explicitly (`python3 -m pytest -o addopts="" -v tests/test_migrate_layout_cli.py`), then the fast suite bare (`python3 -m pytest`), and commit only the new module via `aw commit <plan> -- tests/test_migrate_layout_cli.py`.
+- [ ] E-05 Run the module explicitly (`python3 -m pytest -o addopts="" -v tests/test_migrate_layout_cli.py`), then the fast suite bare (`python3 -m pytest`), and commit only the new module via `aw commit 1ue3kr -- tests/test_migrate_layout_cli.py`.
   - Depends on: E-04
   - Expected outcome: Module green, fast suite green, one path-scoped commit.
   - Execution state: pending
@@ -98,7 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 - `status`/`resume`/`rollback`/`cleanup`/`inventory` sub-action dispatch: thin wrappers over `MigrationManager`; adding them is optional and not required to kill the measured mutant.
   - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
-- Adding the new module to `pyproject.toml` `testpaths`: changes the routine-gate composition, a maintainer decision outside this backlog item.
+- Adding the new module to `pyproject.toml` `testpaths`: changes the routine-gate composition, a maintainer decision outside this backlog item. The guard is still load-bearing without it: CI's `Run self-tests (parallel)` step in `.github/workflows/tests.yml` runs `python -m pytest tests/ -n auto -rfEs`, which collects every unmarked module under `tests/`, so the new module must NOT carry a `slow` or `livecorpus` mark.
   - Carrier-Declined: deliberate non-goal or out of scope for this plan as described above
 
 ## Scope check
@@ -135,7 +136,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted runner output showing the config, CLI-override, missing-config and invalid-JSON tests PASSED, plus the assertion lines reading `records_backend` from `.aw/config/config.json` (`companion` vs `repository`).
+  - Required evidence: Pasted runner output showing the config, CLI-override, missing-config and invalid-JSON tests PASSED, plus the assertion lines reading `records_backend` from `.aw/config/config.json` (`companion` vs `repository`) and the transaction `leftover_disposition.disposition` (`keep` vs `remove`) with the `.agents/README.md` presence/absence assertions.
   - Observed evidence:
   - Result: pending
 
@@ -145,12 +146,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Pasted output of both mutant runs (`-p <plugin>`) showing a nonzero failure count with the failing test names (return-none: at least wizard-accept, config, override, `--yes`; confirm-bypass: wizard-decline), plus `git status --short` showing no scratch plugin is tracked or staged.
+  - Required evidence: Pasted output of the unmutated run and both mutant runs (`-p <plugin>`) with their summary lines: return-none shows every test failing (or names any that survive with the reason); confirm-bypass shows the wizard-decline test failing. Plus the plugin source pasted, and `git status --short` showing no scratch plugin is tracked or staged.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted final summary lines of the explicit module run and of bare `python3 -m pytest` (`N passed`, no failures), plus `git show --stat HEAD` showing only `tests/test_migrate_layout_cli.py` in the commit.
+  - Required evidence: Pasted final summary lines of the explicit module run and of bare `python3 -m pytest` (`N passed`, no failures), `python3 -m pytest -o addopts="" --collect-only -q -m 'not slow and not livecorpus' tests/test_migrate_layout_cli.py` showing the module is collected by the CI marker filter, plus `git show --stat HEAD` showing only `tests/test_migrate_layout_cli.py` in the commit.
   - Observed evidence:
   - Result: pending
 
@@ -159,4 +160,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). The executor follows the AGENTS.md execution contract: path-scoped `aw commit` of the declared Scope-Paths only, no push, actual runner output pasted as evidence. After every `V-*` item is `pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the tooled lifecycle transition.
+Execute only after explicit human approval (`Status: approved`). Execution contract:
+
+- Open questions: OQ-01 is resolved; nothing blocks execution.
+- Scope fence: `- Scope-Paths:` declares what this plan edits. An edit outside it is allowed when needed and must be justified at finalize (`--scope-reason`); do not stop over it. No production code changes.
+- Honesty: you MUST paste the ACTUAL runner output in each `V-*`; never claim a pass you did not run.
+- Commits: path-scoped via `aw commit 1ue3kr -- tests/test_migrate_layout_cli.py`; never `git add -A`, never commit the scratch mutation plugins, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize, so leave the plan in `pending/`. Executed by hand (`aw work begin 1ue3kr`), finish with `aw ipd finalize 1ue3kr --actor <agent/model> --message <summary> --apply` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms; never `git mv` the plan to `executed/`.
