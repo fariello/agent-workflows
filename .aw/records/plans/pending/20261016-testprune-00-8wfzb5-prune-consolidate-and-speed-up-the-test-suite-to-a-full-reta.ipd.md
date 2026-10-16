@@ -6,9 +6,10 @@
 - Scope: Orchestrate five children in strict order: (01) measurement tooling and decision table; (02) delete structure/name/architecture pins; (03) consolidate duplicates, marginal and combinatorial tests; (04) speed up to under 120s; (05) prove nothing was lost (coverage parity, mutation spot-check, flakes, final numbers). Runs after `hguae9` (Set `testtier`) so the `core` marker exists and is protected. Orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261016-testprune-00-8wfzb5-prune-consolidate-and-speed-up-the-test-suite-to-a-full-reta.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: b66a93808155895602504b22dec12c5a08f33dc513fd4c14d683864ea77dd57f
+- Coverage-Fingerprint: 153a062252c4516c10eb91dd738ba25a83ddee5a5c792aa03cd5f10046bdd40c
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: high
@@ -19,6 +20,9 @@
 - Id: 8wfzb5
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): status set to reviewed
+- 2026-10-16 coverage pass (aw oc run): fingerprint 153a062252c4, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-16 to-review (aw set): authored from prompt 4ul37x (Set testprune)
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint b66a93808155, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -69,10 +73,13 @@ THIS IS AN ORCHESTRATOR AND ITS ITEMS ARE ORCHESTRATION ONLY. Each item confirms
 
 ## Completion criteria (the whole Set is done only when)
 
-- Full retained suite median wall under 120s on 6 workers. Owner: c8bfp9
-- Union line and branch coverage does not drop; every lost line restored or justified. Owner: vgus66
-- Mutation spot-check of at least 20 sampled deletions plus every defect-citing one, all caught. Owner: vgus66
-- Every deletion recorded with node id and reason in the decision table. Owner: qqrgv3
+- Full retained suite median wall under 120s on 6 workers (three warm runs), OR the miss recorded with the remaining over-2s tests and their justifications for a maintainer decision (`c8bfp9` OQ-02); assertions are never weakened and tests never deleted to hit the number. Owner: c8bfp9 (measured), vgus66 (final measurement)
+- Union line and branch coverage of `agent_workflows/` does not drop below the baseline `qqrgv3` records at its execution (post-`hguae9` main, so core markers and any tests `hguae9` added are in the baseline); every lost line or branch restored or justified. Owner: vgus66
+- Mutation spot-check of at least 20 sampled deletions or consolidations plus every defect-citing one, all caught after any restorations (each restoration shown fail-then-pass). Owner: vgus66
+- No retained test pins code structure, names or architecture except a recorded KEEP with its reason. Owner: tv72xy
+- Every deletion recorded with node id, category and reason in the decision-table research. Owner: qqrgv3 (creates the table), tv72xy and 83nnyn (append their rows), vgus66 (finalizes counts)
+- No flake: three randomized full runs and one serial run pass, or each flake dispositioned. Owner: vgus66
+- CHANGELOG line and the Set's final report research record. Owner: vgus66
 
 ## Cross-IPD validation
 
@@ -131,4 +138,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Orchestration only: run with `aw oc run testprune` after `hguae9` executes and after review and approval; each child runs in its own isolated worktree. Never push or tag.
+Orchestration only: run with `aw oc run testprune` after `hguae9` executes and after review and approval of every child; each child runs in its own isolated worktree, and child `qqrgv3`'s `executed:hguae9` dependency makes the runner hold the Set (`dependency-blocked`) until then. This plan carries no work of its own: every completion criterion above names an owning child. Under the runner, the orchestrator is retired to `executed` automatically once every child is `executed`; executed by hand, perform E-01..E-05 in order (each confirms one child), paste each child's quoted evidence into its V-item (never claim a result you did not read), then run `aw ipd lint --phase pre-transition` and `aw ipd finalize 8wfzb5`, never a hand `git mv`. Commit only via `aw commit 8wfzb5 -- <this plan>`. Never push or tag.
