@@ -72,18 +72,22 @@ jobs:
         # `build` stays explicit: it belongs to the packaging gate, not to the test environment.
         run: python -m pip install --upgrade pip build && python -m pip install -e ".[test]"
 
+      - name: Run core tier
+        shell: bash
+        # Exercise bare pytest invocation (conftest hook selects the core tier under 30s budget).
+        run: python -m pytest -rfEs
+
       - name: Run self-tests (parallel)
         shell: bash
-        # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,
-        # per-test tempdirs). `python -m unittest discover -s tests -t .` remains an
+        # Process-based parallelism; runs the thorough non-slow suite over tests/.
+        # `python -m unittest discover -s tests -t .` remains an
         # equivalent serial fallback (see `make test-serial`).
         run: python -m pytest tests/ -n auto -rfEs
 
       # Advisory step running slow-marked tests: currently advisory because of known pre-existing
       # slow failures tracked by backlog items:
-      # - 57dwkc & 4vfkl1: installer deep-cleanup leaves .aw/ directory
-      # - 3ypquf: installer deep-cleanup README classified at-risk
-      # - g0bdgg: subcommand description gaps in CLI parser
+      # - denczr: test_second_install_nochange_leaves_clean_status_and_no_false_lines
+      # - mo9oza: TypecheckGateTests.test_typecheck_gate_clean_exit
       # Flip condition: remove continue-on-error once -m slow reports 0 failed on the ubuntu leg,
       # i.e. once every owning item is done.
       - name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)
