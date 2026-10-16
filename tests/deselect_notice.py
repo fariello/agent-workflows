@@ -48,6 +48,8 @@ def pytest_configure(config: Any) -> None:
                 worker_output = getattr(node, "workeroutput", {})
                 if worker_output and "deselected_count" in worker_output:
                     _worker_counts.append(worker_output["deselected_count"])
+                if worker_output and worker_output.get("core_filter_applied"):
+                    config._core_filter_applied = True
 
         config.pluginmanager.register(
             _XdistNoticeHooks(), name="tests_deselect_notice_xdist"
@@ -63,6 +65,8 @@ def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
     config = getattr(session, "config", None)
     if config and hasattr(config, "workeroutput"):
         config.workeroutput["deselected_count"] = _deselected_count
+        if getattr(config, "_core_filter_applied", False):
+            config.workeroutput["core_filter_applied"] = True
 
 
 def pytest_terminal_summary(
@@ -75,6 +79,7 @@ def pytest_terminal_summary(
         keyword = getattr(config.option, "keyword", "") or ""
         deselect = getattr(config.option, "deselect", None) or []
         has_k_or_deselect = bool(keyword or deselect)
+        core_filter_applied = bool(getattr(config, "_core_filter_applied", False))
 
         names = parse_negated_markers(markexpr)
         if names is not None and len(names) > 0:
@@ -84,27 +89,54 @@ def pytest_terminal_summary(
                 cats = f"'{names[0]}' and '{names[1]}'"
             else:
                 cats = f"{', '.join(repr(n) for n in names[:-1])} and {names[-1]!r}"
-            if has_k_or_deselect:
-                parenthetical = (
-                    f"(this run's marker filter skips {cats}, and -k/--deselect also contributed); "
-                    "run everything with: make test-all"
-                )
+            if core_filter_applied:
+                if has_k_or_deselect:
+                    parenthetical = (
+                        f"(default bare run selects 'core', marker filter skips {cats}, and -k/--deselect also contributed); "
+                        "run everything with: make test-all"
+                    )
+                else:
+                    parenthetical = (
+                        f"(default bare run selects 'core' and marker filter skips {cats}); "
+                        "run everything with: make test-all"
+                    )
             else:
-                parenthetical = (
-                    f"(this run's marker filter skips {cats}); "
-                    "run everything with: make test-all"
-                )
+                if has_k_or_deselect:
+                    parenthetical = (
+                        f"(this run's marker filter skips {cats}, and -k/--deselect also contributed); "
+                        "run everything with: make test-all"
+                    )
+                else:
+                    parenthetical = (
+                        f"(this run's marker filter skips {cats}); "
+                        "run everything with: make test-all"
+                    )
         elif names is not None:
             # Empty list: no marker filter active
-            parenthetical = "(no marker filter was active; deselected by -k/--deselect)"
+            if core_filter_applied:
+                if has_k_or_deselect:
+                    parenthetical = "(default bare run selects 'core'; -k/--deselect also contributed; run everything with: make test-all)"
+                else:
+                    parenthetical = "(default bare run selects 'core'; run everything with: make test-all)"
+            else:
+                parenthetical = (
+                    "(no marker filter was active; deselected by -k/--deselect)"
+                )
         else:
             # None: print expression verbatim
-            if has_k_or_deselect:
-                parenthetical = f"(filtered by marker expression: '{markexpr}', and -k/--deselect also contributed)"
+            if core_filter_applied:
+                if has_k_or_deselect:
+                    parenthetical = f"(default bare run selects 'core', filtered by marker expression: '{markexpr}', and -k/--deselect also contributed; run everything with: make test-all)"
+                else:
+                    parenthetical = f"(default bare run selects 'core' and filtered by marker expression: '{markexpr}'; run everything with: make test-all)"
             else:
-                parenthetical = f"(filtered by marker expression: '{markexpr}')"
+                if has_k_or_deselect:
+                    parenthetical = f"(filtered by marker expression: '{markexpr}', and -k/--deselect also contributed)"
+                else:
+                    parenthetical = f"(filtered by marker expression: '{markexpr}')"
 
+        deselected_by = "core filter/-m/-k" if core_filter_applied else "-m/-k"
         terminalreporter.write_line(
-            f"NOTE: {total_deselected} tests were deselected by -m/-k and did not "
+            f"NOTE: {total_deselected} tests were deselected by {deselected_by} and did not "
             f"run {parenthetical}"
         )

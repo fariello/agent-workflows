@@ -43,6 +43,10 @@ from pathlib import Path
 from tests.support import REPO_ROOT
 from agent_workflows import local_leaks as ll
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _init_repo(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)

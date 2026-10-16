@@ -16,6 +16,10 @@ from pathlib import Path
 from agent_workflows import artifact_core as _core
 from agent_workflows import plans_index as I
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _plan(
     root,

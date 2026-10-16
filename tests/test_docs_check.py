@@ -13,6 +13,10 @@ from pathlib import Path
 from agent_workflows import docs_check as dc
 from tests.support import REPO_ROOT
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 class DocCheckFalsifiabilityTests(unittest.TestCase):
     def test_detects_em_dash(self):

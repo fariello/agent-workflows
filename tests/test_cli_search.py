@@ -14,6 +14,10 @@ from pathlib import Path
 
 from agent_workflows import cli
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 class SearchOptionsTests(unittest.TestCase):
     def setUp(self):

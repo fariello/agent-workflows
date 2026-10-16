@@ -33,6 +33,10 @@ from pathlib import Path
 
 from agent_workflows import manifest as M
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 #: The `sense` column of `NORMALIZATION`: does this pair of texts share a hash, or must it not?
 SAME = "same-hash"
 DIFFERS = "different-hash"

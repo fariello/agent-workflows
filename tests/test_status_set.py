@@ -16,6 +16,10 @@ from unittest.mock import patch
 from agent_workflows import agent_schema, check_engine, cli
 from tests import support
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 class StatusSetTestBase(unittest.TestCase):
     def setUp(self):

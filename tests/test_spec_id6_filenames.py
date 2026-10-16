@@ -21,6 +21,10 @@ from pathlib import Path
 from agent_workflows import check_engine as ce
 from agent_workflows import cli
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _load_npn():
     return ce._load_normalizer()

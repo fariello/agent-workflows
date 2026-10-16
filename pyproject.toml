@@ -193,30 +193,13 @@ include = [
 # Pytest is used ONLY as a parallel test runner (see the `test` extra). The tests are
 # stdlib unittest.TestCase and also run under `python -m unittest discover -s tests -t .`.
 [tool.pytest.ini_options]
-# The routine gate collects representative behavioral tests from each core
-# subsystem. Explicit `tests/` collection (make test-all) still runs every test.
-testpaths = [
-    "tests/test_attention_contract.py",
-    "tests/test_backlog.py",
-    "tests/test_check_engine.py",
-    "tests/test_cli_search.py",
-    "tests/test_commit_default_message.py",
-    "tests/test_docs_check.py",
-    "tests/test_ipd_lint.py",
-    "tests/test_ipd_schema.py",
-    "tests/test_json_and_exitcodes.py",
-    "tests/test_local_leaks.py",
-    "tests/test_manifest.py",
-    "tests/test_plans_index.py",
-    "tests/test_research_index.py",
-    "tests/test_run_selection_policy.py",
-    "tests/test_runner_shared.py",
-    "tests/test_scope_match.py",
-    "tests/test_spec_id6_filenames.py",
-    "tests/test_status_set.py",
-    "tests/test_xdist_auto_workers.py",
-]
+# Bare `python3 -m pytest` runs the core behavioral regression tier in under 30s
+# (the runner merge gate; an explicit path runs everything non-slow it names).
+# Thorough tier: `make test-all` or `aw suite --thorough` (pre-push, CI, release).
+# Wall-time budget: 30s (enforced on >=12 CPUs / 6 workers; escape with AW_CORE_BUDGET_ENFORCE=0).
+testpaths = ["tests"]
 markers = [
+    "core: fast behavioral regression test run by a bare `pytest`; author-assigned; see CONTRIBUTING",
     "slow: heavy subprocess/integration tests (spawn the CLI, install into temp repos). Deselected by default for a fast per-run suite; run them with `make test-all` / `-m ''`.",
     "livecorpus: asserts a property over EVERY artifact in this repository's own .aw/records/ tree, so ANY agent writing a plan can turn it red. Deselected by default for one measured reason: a runner lane merges its work only if the full test suite passes, so a red test here blocks integration for every concurrent lane, not just the one whose plan is at fault. Measured 2026-09-19: one such test went red on three correctly-cleared plans and cost run run-20260919T194413Z-2056285 2h 10m and $55.02 with nothing integrated. These tests are VALUABLE and are not deleted (that one caught a real parser bug a made-up-data test could not), so they still run in `make test-all`, in release-review, and wherever a failure informs a human instead of halting a queue.",
 ]

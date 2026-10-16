@@ -44,6 +44,8 @@ from agent_workflows import ipd_schema as S
 from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_DOCS, SOURCE_PLANS
 from tests.support import SOURCE_WORKFLOWS as _SWF
 
+pytestmark = pytest.mark.core
+
 CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
 SPEC = next(
     (SOURCE_DOCS / "specs").rglob("20260802-1904-01-ipd-structure-and-linting.spec.md")

@@ -20,6 +20,10 @@ from agent_workflows import attention_contract as A
 from agent_workflows import plans
 from agent_workflows import research_contract
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 FIX = Path(__file__).parent / "fixtures" / "attnview"
 
 

@@ -23,6 +23,10 @@ from agent_workflows import cli
 from agent_workflows.work_cmd import _default_commit_message
 from tests import support
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 _PLAN = """# IPD: Demo work plan
 
 - Date: 2026-08-28

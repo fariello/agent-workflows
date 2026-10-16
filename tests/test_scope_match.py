@@ -15,6 +15,10 @@ from unittest.mock import patch
 from agent_workflows import ipd_lifecycle
 from agent_workflows import work_cmd
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 class ScopeMatchUnitTests(unittest.TestCase):
     """Table-driven unit tests for ipd_lifecycle._scope_match."""

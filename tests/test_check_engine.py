@@ -38,6 +38,10 @@ from pathlib import Path
 
 from agent_workflows import attention_contract, check_engine as ce, ipd_lint
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 NONCONFORMANT = "check.name-nonconformant"
 ID6_COLLISION = "check.id6-collision"
 SETID_COLLISION = "check.setid-collision"

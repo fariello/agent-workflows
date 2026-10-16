@@ -122,6 +122,42 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
 
 
 # --------------------------------------------------------------------------------------
+# Core test tier selection: run only core-marked tests on bare pytest invocation (IPD hguae9).
+# --------------------------------------------------------------------------------------
+@pytest.hookimpl
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Select the core test tier on a bare pytest invocation.
+
+    Only applies when pytest fell back to testpaths (config.args_source == ArgsSource.TESTPATHS)
+    and AW_TEST_TIER is not 'thorough'. Explicit path or nodeid runs (make test-all, pytest tests/,
+    pytest tests/test_foo.py) retain all non-slow tests they name.
+    """
+    args_source = getattr(config, "args_source", None)
+    testpaths_source = getattr(
+        getattr(pytest, "Config", None), "ArgsSource", None
+    ) and getattr(pytest.Config.ArgsSource, "TESTPATHS", None)
+
+    if (
+        testpaths_source is not None
+        and args_source == testpaths_source
+        and os.environ.get("AW_TEST_TIER") != "thorough"
+    ):
+        config._core_filter_applied = True  # type: ignore[attr-defined]
+        core_items: list[pytest.Item] = []
+        deselected_items: list[pytest.Item] = []
+        for item in items:
+            if item.get_closest_marker("core") is not None:
+                core_items.append(item)
+            else:
+                deselected_items.append(item)
+        if deselected_items:
+            config.hook.pytest_deselected(items=deselected_items)
+            items[:] = core_items
+
+
+# --------------------------------------------------------------------------------------
 # The test session is a COORDINATOR, never a managed worker lane (backlog `1uq1cu`).
 # --------------------------------------------------------------------------------------
 #

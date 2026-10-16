@@ -50,6 +50,8 @@ from agent_workflows import agy_runipd, oc_runipd, runner_shared
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from support import REPO_ROOT, load_module  # noqa: E402
 
+pytestmark = pytest.mark.core
+
 BOTH = ("oc_runipd", "agy_runipd")
 _MODULES = {
     "oc_runipd": oc_runipd,

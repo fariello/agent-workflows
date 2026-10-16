@@ -38,6 +38,8 @@ import pytest
 from agent_workflows import run_selection_policy as pol
 from agent_workflows import selectors as sel
 
+pytestmark = pytest.mark.core
+
 # --------------------------------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------------------------------

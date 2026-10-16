@@ -9,6 +9,10 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from agent_workflows import cli
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _run(argv):
     out, err = io.StringIO(), io.StringIO()

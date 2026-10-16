@@ -18,6 +18,10 @@ from agent_workflows import research_cmd as C
 from agent_workflows import research_index as I
 from tests import support
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _write(
     root: Path,

@@ -22,6 +22,10 @@ from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
 from tests import support
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 
 def _args(**kw):
     ns = argparse.Namespace()

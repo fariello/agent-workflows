@@ -50,6 +50,10 @@ from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
 
 from tests.support import SOURCE_WORKFLOWS as _SWF
 
+import pytest
+
+pytestmark = pytest.mark.core
+
 CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
 # A static, checked-in conforming orchestrator fixture (see tests/fixtures/). Decoupled from
 # the mutable live plans board so ordinary lifecycle moves (pending -> executed) never break
