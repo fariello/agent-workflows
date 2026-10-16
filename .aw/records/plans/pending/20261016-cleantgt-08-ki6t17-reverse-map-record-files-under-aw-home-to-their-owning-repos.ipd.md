@@ -6,7 +6,7 @@
 - Scope: IN: (1) one pure-ish resolver `project_context.record_owner_root(path, aw_home=None) -> Optional[Path]` that, for a path under `<effective AW_HOME>/projects/<id>/records/`, returns the owning repository root, trying in order a cwd-anchored candidate, the home `local.json` `common_dir` back-pointer, and a `registry.json` `target_paths` entry for that project id, and ACCEPTING a candidate only if `project_records_dir(candidate)` is that same records root; returns `None` for any other path; (2) `install_wizard.persist_project_policy` fills the existing `local.json` `common_dir` field with the canonical git common dir when it writes `local.json` under AW_HOME and the field is empty (no schema change, nothing written into the target); (3) routing all thirteen walkers through the resolver BEFORE their climb, keeping the climb unchanged for every other path; (4) `orchestrator_readiness.run_coverage` falling back to `project_context.find_project_root` so a clean-target root with no in-tree `.aw` is recognized; (5) a behavioral test module; (6) a spec amendment and a CHANGELOG line. OUT: records under a COMPANION root (`records_backend: companion`; not measured, filed as `miq4mi`); the many cwd-climbing root finders that start from a directory rather than a record file (`project_context.find_project_root` is already clean-target aware via `fnnwj3`); populating `registry.json` at install (registry semantics belong to `aw project attach`, see OQ-01); the two pre-existing red test modules found while measuring (`a48b4m`, `5mnbaz`).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/install_wizard.py, agent_workflows/artifact_core.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/record_placement.py, agent_workflows/ipd_lint.py, agent_workflows/orchestrator_readiness.py, agent_workflows/check_engine.py, tests/test_record_owner_root.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:kfnfji, executed:fnnwj3
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode
 - Id: ki6t17
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5.5-1m-us, round 1): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-16 draft (opencode): created.

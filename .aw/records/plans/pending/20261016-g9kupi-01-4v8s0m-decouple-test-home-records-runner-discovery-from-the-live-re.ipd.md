@@ -6,7 +6,7 @@
 - Scope: Replace the live-corpus read in that one test with a self-contained synthetic fixture plan written by the test itself, preserving every behavioral assertion (home-backend `aw show` and `aw oc run start --prepare-only` discovery). No production code changes.
 - Scope-Paths: tests/test_records_root_accessor.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 4v8s0m
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-004)
 

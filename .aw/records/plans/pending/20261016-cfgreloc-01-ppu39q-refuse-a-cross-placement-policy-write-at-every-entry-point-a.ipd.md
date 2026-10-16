@@ -6,7 +6,7 @@
 - Scope: IN: a pure path-based detector `install_wizard.config_placement_switch(repo_path, policy)` comparing `project_context.project_config_dir(repo)` (the AUTHORITATIVE dir every reader uses) with the directory `persist_project_policy` would write; a typed `PlacementSwitchRequired(InvalidPolicyError)` carrying both paths and presets; the refusal at the top of `persist_project_policy` (defense in depth, before any write) and in `cli._run_install` right after `collect_policy_interactive` returns (before the dry-run render, companion attach and any write); replacing the value-based check in `resolve_policy_noninteractive` with the shared detector; the placement-switch contract as a new spec Section 8.1. OUT: the planner, executor, retirement and the `--relocate` flag (Orders 02 to 05).
 - Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/cli.py, tests/test_placement_switch_guard.py, tests/test_reinstall_preserves_config.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: ppu39q
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-16 draft (opencode): created.

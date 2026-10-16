@@ -6,7 +6,7 @@
 - Scope: IN: new module `agent_workflows/placement_switch.py` with dataclasses `SwitchItem` (class, source, destination, kind `move`/`discard`/`rewrite`, `tracked`, sha256, size, mode) and `SwitchPlan` (repo, project_id, from/to preset, from/to config dirs, `direction` `to-home`/`to-target`, items, `retire_side`, blockers, warnings, `to_dict()`), and `plan_placement_switch(repo_path, new_policy, *, aw_home=None) -> SwitchPlan`; read-only (no writes, no `mkdir`; subprocess only `git status --porcelain`, `git ls-files` and `git worktree list --porcelain`, each with `GIT_OPTIONAL_LOCKS=0`). OUT: executing, retiring, CLI.
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_placement_switch_plan.py
 - Item-Dependencies: executed:ppu39q
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: xvlemm
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
 - 2026-10-16 draft (opencode): created.

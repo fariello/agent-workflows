@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cfgreloc-00-c54a4z-relocate-project-config-and-retire-the-old-footprint-on-a-cr.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 396ffd40cc17e644fb2946239463cd6c985b189f1860e7ba03b481d430883164
@@ -20,8 +20,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: c54a4z
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint 396ffd40cc17, model uri/its_direct/pt3-claude-opus-5.5-1m-us

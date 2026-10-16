@@ -6,7 +6,7 @@
 - Scope: IN: `placement_switch.retire_footprint(repo_root, side, *, use_git=True, preserve=(), changed_out=None) -> list[str]` that retires ONE explicit side; for `side="target"` it calls `engine.uninstall_repo(repo_root, use_git, home_trees=None, ...)` through a new keyword `engine.uninstall_repo(..., side="target")` that forces the in-tree branch (skips the `_clean_delta_home_trees` auto-detect and the clean-delta lane teardown) while keeping every existing caller's default behavior; `preserve` is a set of repo-relative paths the retirement must not touch (the executor passes the already-handled config and records paths); for `side="home"` it removes only `<project_dir>/system`, `<project_dir>/state` and the remaining `<project_dir>/config` files, then prunes `<project_dir>` only when empty, refusing (raising) if `<project_dir>/records` still holds files. OUT: moving data (Order 04), CLI (Order 05).
 - Scope-Paths: agent_workflows/placement_switch.py, agent_workflows/engine.py, tests/test_placement_switch_retire.py
 - Item-Dependencies: executed:xvlemm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: gjylny
+- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-16 draft (opencode): created.
