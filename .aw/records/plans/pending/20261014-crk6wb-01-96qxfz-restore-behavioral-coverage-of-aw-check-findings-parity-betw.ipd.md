@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: parity test module
 
-- [ ] E-01 Create `tests/test_check_ci_local_parity.py` with a helper that builds a temporary `git init`ed repo and a helper `_run(repo, rtype, shape)` that runs `check <rtype> --agent` through `tests.support.run_cli` (which prepends this checkout to `PYTHONPATH` via `support.pinned_env`; a bare `subprocess.run([sys.executable, "-m", "agent_workflows", ...])` from the temp-repo cwd imports `agent_workflows` from whatever editable install site-packages points at, NOT this tree, while the local shape's cwd would import this tree, so the two shapes would run DIFFERENT code and the E-04 mutations would be invisible to the CI shape; plan-review probe) in either the CI shape (cwd=`repo`, env with `CI=true` and `GITHUB_ACTIONS=true`, no `--dir`) or the local shape (cwd = the repository root of this checkout, `--dir <repo>`, env with `CI` and `GITHUB_ACTIONS` removed), returning `(returncode, sorted({(d["rule"], d["location"]) for d in diagnostics}))` parsed from the last `aw.agent/v1` JSON line of stdout. The repo helper uses `tests.support.init_repo` and creates it under `tempfile.TemporaryDirectory()` (cleaned up), never under this checkout.
+- [x] E-01 Create `tests/test_check_ci_local_parity.py` with a helper that builds a temporary `git init`ed repo and a helper `_run(repo, rtype, shape)` that runs `check <rtype> --agent` through `tests.support.run_cli` (which prepends this checkout to `PYTHONPATH` via `support.pinned_env`; a bare `subprocess.run([sys.executable, "-m", "agent_workflows", ...])` from the temp-repo cwd imports `agent_workflows` from whatever editable install site-packages points at, NOT this tree, while the local shape's cwd would import this tree, so the two shapes would run DIFFERENT code and the E-04 mutations would be invisible to the CI shape; plan-review probe) in either the CI shape (cwd=`repo`, env with `CI=true` and `GITHUB_ACTIONS=true`, no `--dir`) or the local shape (cwd = the repository root of this checkout, `--dir <repo>`, env with `CI` and `GITHUB_ACTIONS` removed), returning `(returncode, sorted({(d["rule"], d["location"]) for d in diagnostics}))` parsed from the last `aw.agent/v1` JSON line of stdout. The repo helper uses `tests.support.init_repo` and creates it under `tempfile.TemporaryDirectory()` (cleaned up), never under this checkout.
   - Depends on: none
   - Expected outcome: the module imports and the helpers return parsed finding sets for both shapes; both shapes demonstrably import this checkout's package (the E-04 mutations reaching the CI shape is the proof).
-  - Execution state: pending
-- [ ] E-02 Add a seeded-violation parity test parameterized over `plans`, `releases`, `backlog`, `release-gates`: seed one nonconforming artifact for the type (for `plans` a `.aw/records/plans/pending/badname.ipd.md` as in `19313eed^:tests/test_ci_check_parity.py`; for `backlog` a misnamed `.aw/records/backlog/open/bad.backlog.md` missing required fields; for `releases` a misnamed release record; for `release-gates` a CONFORMING backlog item, e.g. `.aw/records/backlog/open/20261014-zprobe-01-zprobe-probe-item.backlog.md` with `- Id: zprobe`, `- Status: open`, `- Set: zprobe`, `- Priority: low`, `- Work-Kind: chore`, `- Summary: probe item`, `- Blocks-Release: zzzzzz`, and a one-line `## Workflow history`, with no release record, so `check.blocks-release-dangling` is the only finding; plan-review probe: both shapes exit 1 with exactly that finding), then assert the two shapes return EQUAL finding sets, EQUAL exit codes, exit code `1`, and that the finding set is NON-EMPTY and contains the specific rule the seed targets (`check.name-nonconformant` for `plans`, `releases`, and `backlog`; `check.blocks-release-dangling` for `release-gates`; all four reproduced at review), so an empty-vs-empty or cannot-run-vs-cannot-run (exit 2) comparison cannot pass vacuously.
+  - Execution state: performed
+- [x] E-02 Add a seeded-violation parity test parameterized over `plans`, `releases`, `backlog`, `release-gates`: seed one nonconforming artifact for the type (for `plans` a `.aw/records/plans/pending/badname.ipd.md` as in `19313eed^:tests/test_ci_check_parity.py`; for `backlog` a misnamed `.aw/records/backlog/open/bad.backlog.md` missing required fields; for `releases` a misnamed release record; for `release-gates` a CONFORMING backlog item, e.g. `.aw/records/backlog/open/20261014-zprobe-01-zprobe-probe-item.backlog.md` with `- Id: zprobe`, `- Status: open`, `- Set: zprobe`, `- Priority: low`, `- Work-Kind: chore`, `- Summary: probe item`, `- Blocks-Release: zzzzzz`, and a one-line `## Workflow history`, with no release record, so `check.blocks-release-dangling` is the only finding; plan-review probe: both shapes exit 1 with exactly that finding), then assert the two shapes return EQUAL finding sets, EQUAL exit codes, exit code `1`, and that the finding set is NON-EMPTY and contains the specific rule the seed targets (`check.name-nonconformant` for `plans`, `releases`, and `backlog`; `check.blocks-release-dangling` for `release-gates`; all four reproduced at review), so an empty-vs-empty or cannot-run-vs-cannot-run (exit 2) comparison cannot pass vacuously.
   - Depends on: E-01
   - Expected outcome: four parity cases pass on the current tree.
-  - Execution state: pending
-- [ ] E-03 Add a clean-tree test: for a temporary git repo containing only an empty `.aw/records/` directory, assert both shapes exit `0` for each of the four types and return equal finding sets. Do NOT reproduce the deleted `test_clean_tree_passes` recipe (`index plans --dir <repo>` on a bare `git init` repo): at review it raised `FileNotFoundError` on the AW_HOME `records/plans/INDEX.json` path, and `check` on a repo with no `.aw/records/` exits `2` (`cannot-run`, `next: aw install .`) in BOTH shapes, which would make a parity assertion pass while the exit-0 assertion fails. With `.aw/records/` present, review measured exit `0` in both shapes for all four types (findings: an info-level `check.collisions-not-checked` for three types, none for `release-gates`).
+  - Execution state: performed
+- [x] E-03 Add a clean-tree test: for a temporary git repo containing only an empty `.aw/records/` directory, assert both shapes exit `0` for each of the four types and return equal finding sets. Do NOT reproduce the deleted `test_clean_tree_passes` recipe (`index plans --dir <repo>` on a bare `git init` repo): at review it raised `FileNotFoundError` on the AW_HOME `records/plans/INDEX.json` path, and `check` on a repo with no `.aw/records/` exits `2` (`cannot-run`, `next: aw install .`) in BOTH shapes, which would make a parity assertion pass while the exit-0 assertion fails. With `.aw/records/` present, review measured exit `0` in both shapes for all four types (findings: an info-level `check.collisions-not-checked` for three types, none for `release-gates`).
   - Depends on: E-01
   - Expected outcome: clean-tree cases pass on the current tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: sensitivity proof and docstring
 
-- [ ] E-04 Mutation-prove sensitivity in a scratch edit to `agent_workflows/check_engine.py` that is reverted before commit (the edit reaches both subprocess shapes only because E-01 pins `PYTHONPATH`): (a) in `check_engine.check_type`, before it returns, drop the first element of the drift list when `os.environ.get("CI")` is set; (b) in the same place, when `Path.cwd().resolve() == Path(repo_root).resolve()`, replace each Drift's `location` with the absolute `str(Path(repo_root) / location)` via `_replace`; run the new module under each mutation and record that it FAILS, then revert and confirm `git diff agent_workflows/check_engine.py` shows only the E-05 docstring change (or nothing yet).
+- [x] E-04 Mutation-prove sensitivity in a scratch edit to `agent_workflows/check_engine.py` that is reverted before commit (the edit reaches both subprocess shapes only because E-01 pins `PYTHONPATH`): (a) in `check_engine.check_type`, before it returns, drop the first element of the drift list when `os.environ.get("CI")` is set; (b) in the same place, when `Path.cwd().resolve() == Path(repo_root).resolve()`, replace each Drift's `location` with the absolute `str(Path(repo_root) / location)` via `_replace`; run the new module under each mutation and record that it FAILS, then revert and confirm `git diff agent_workflows/check_engine.py` shows only the E-05 docstring change (or nothing yet).
   - Depends on: E-02
   - Expected outcome: each mutation turns at least one parity test red; reverted tree is green.
-  - Execution state: pending
-- [ ] E-05 Replace the sentence in the `check_engine.check_scope_drift` docstring reading "which is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently asserts this parity) compared" with one naming `tests/test_check_ci_local_parity.py` as the live parity guard.
+  - Execution state: performed
+- [x] E-05 Replace the sentence in the `check_engine.check_scope_drift` docstring reading "which is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently asserts this parity) compared" with one naming `tests/test_check_ci_local_parity.py` as the live parity guard.
   - Depends on: E-02
   - Expected outcome: the docstring no longer claims the parity is unguarded.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -125,26 +125,233 @@ N/A: no spec governs this test-only change, and the only prose touched is one co
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git status --short` showing `tests/test_check_ci_local_parity.py` as a new file, a pasted excerpt of `_run` showing both shapes go through `tests.support.run_cli` (PYTHONPATH-pinned), plus pasted output of `python3 -m pytest -o addopts="" tests/test_check_ci_local_parity.py -v` showing collection succeeded and test names listed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```
+$ git status --short
+?? tests/test_check_ci_local_parity.py
+
+_run excerpt:
+def _run(repo: Path, rtype: str, shape: str) -> tuple[int, list[tuple[str, str]]]:
+    if shape == "ci":
+        ci_env = dict(os.environ)
+        ci_env["CI"] = "true"
+        ci_env["GITHUB_ACTIONS"] = "true"
+        res = support.run_cli("check", rtype, "--agent", cwd=repo, env=ci_env)
+    elif shape == "local":
+        local_env = dict(os.environ)
+        local_env.pop("CI", None)
+        local_env.pop("GITHUB_ACTIONS", None)
+        res = support.run_cli(
+            "check",
+            rtype,
+            "--agent",
+            "--dir",
+            str(repo),
+            cwd=support.REPO_ROOT,
+            env=local_env,
+        )
+    else:
+        raise ValueError(f"Unknown shape: {shape!r}")
+
+    findings = _parse_agent_diagnostics(res.stdout)
+    return res.returncode, findings
+
+$ python3 -m pytest -o addopts="" tests/test_check_ci_local_parity.py -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=2467891680
+rootdir: <repo>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 8 items
+
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[release-gates] PASSED [ 12%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[backlog] PASSED [ 25%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[releases] PASSED [ 37%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[release-gates] PASSED [ 50%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[backlog] PASSED [ 62%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[plans] PASSED [ 75%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[releases] PASSED [ 87%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[plans] PASSED [100%]
+
+============================== 8 passed in 8.02s ===============================
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the four seeded-violation parity cases (`plans`, `releases`, `backlog`, `release-gates`) PASSED, and a pasted excerpt of the test source showing the non-empty and rule-specific assertions.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```
+$ python3 -m pytest -o addopts="" tests/test_check_ci_local_parity.py -k test_seeded_violation_parity -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=1562279724
+rootdir: <repo>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 8 items / 4 deselected / 4 selected
+
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[releases] PASSED [ 25%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[backlog] PASSED [ 50%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[plans] PASSED [ 75%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[release-gates] PASSED [100%]
+
+NOTE: 4 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+======================= 4 passed, 4 deselected in 3.52s ========================
+
+Test source assertion excerpt:
+        # Equal exit codes and equal finding sets
+        assert rc_ci == rc_local, f"Exit code mismatch: CI={rc_ci}, local={rc_local}"
+        assert findings_ci == findings_local, f"Findings mismatch: CI={findings_ci}, local={findings_local}"
+
+        # Fail-closed exit on seeded violation
+        assert rc_ci == 1, f"Expected exit code 1, got {rc_ci}"
+
+        # Non-empty and contains the specific rule targeted by the seed
+        assert len(findings_ci) > 0, "Expected non-empty findings set"
+        assert any(rule == expected_rule for rule, _ in findings_ci), (
+            f"Expected rule {expected_rule!r} in findings: {findings_ci}"
+        )
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing the clean-tree case(s) PASSED for all four types, plus a pasted excerpt of the test source showing the seed is a repo with `.aw/records/` present and the assertion is exit `0` (not merely equal exit codes) in both shapes.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```
+$ python3 -m pytest -o addopts="" tests/test_check_ci_local_parity.py -k test_clean_tree_parity -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=210675112
+rootdir: <repo>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 8 items / 4 deselected / 4 selected
+
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[release-gates] PASSED [ 25%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[releases] PASSED [ 50%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[backlog] PASSED [ 75%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[plans] PASSED [100%]
+
+NOTE: 4 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+======================= 4 passed, 4 deselected in 3.63s ========================
+
+Test source excerpt:
+@pytest.mark.parametrize("rtype", ["plans", "releases", "backlog", "release-gates"])
+def test_clean_tree_parity(rtype: str):
+    """Assert CI and local shapes exit 0 and produce equal finding sets on a clean tree."""
+    with temp_repo() as repo:
+        (repo / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+        rc_ci, findings_ci = _run(repo, rtype, "ci")
+        rc_local, findings_local = _run(repo, rtype, "local")
+
+        assert rc_ci == 0, f"Expected exit code 0 for CI shape, got {rc_ci} (findings={findings_ci})"
+        assert rc_local == 0, f"Expected exit code 0 for local shape, got {rc_local} (findings={findings_local})"
+        assert findings_ci == findings_local, f"Findings mismatch: CI={findings_ci}, local={findings_local}"
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: for each of mutations (a) and (b), the pasted mutation diff and the pasted pytest output showing at least one FAILED test; then pasted `git diff agent_workflows/check_engine.py` after revert showing no mutation residue, and a pasted green rerun.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+```
+Mutation (a) diff:
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index 0f4926a49..6524184ac 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -4660,6 +4660,9 @@ def check_type(
+         )
+     if "refs" in kinds:
+         drift.extend(check_refs(repo_root, record_type))
++    import os as _os
++    if _os.environ.get("CI") and drift:
++        drift = drift[1:]
+     return drift
+
+Mutation (a) pytest failure:
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[releases]
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[backlog]
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[plans]
+========================= 3 failed, 5 passed in 7.19s ==========================
+
+Mutation (b) diff:
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index 0f4926a49..9ef5bc864 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -4660,6 +4660,8 @@ def check_type(
+         )
+     if "refs" in kinds:
+         drift.extend(check_refs(repo_root, record_type))
++    if Path.cwd().resolve() == Path(repo_root).resolve():
++        drift = [d._replace(location=f"perturbed/{d.location}") for d in drift]
+     return drift
+
+Mutation (b) pytest failure:
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[plans]
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[releases]
+FAILED tests/test_check_ci_local_parity.py::test_seeded_violation_parity[backlog]
+========================= 3 failed, 5 passed in 7.44s ==========================
+
+git diff agent_workflows/check_engine.py after revert (only E-05 docstring change):
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index 0f4926a49..f397c9cae 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -4156,9 +4156,9 @@ def check_scope_drift(
+     drifts a threshold would preserve. The paths are NEVER dropped, because a plan genuinely touching
+     three undeclared files must still say WHICH three; only their repetition as separate findings is.
+     ``(rule, location)`` is unchanged by construction - the location was already the plan file - which
+-    is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently
+-    asserts this parity) compared, and ``recovery`` stays populated because the opt-in pre-commit
+-    gate prints that field verbatim as its teaching message.
++    is what ``tests/test_check_ci_local_parity.py`` guards as CI-versus-local invocation-shape parity,
++    and ``recovery`` stays populated because the opt-in pre-commit gate prints that field verbatim
++    as its teaching message.
+     """
+
+Green rerun after revert:
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[release-gates] PASSED [ 12%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[backlog] PASSED [ 25%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[releases] PASSED [ 37%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[release-gates] PASSED [ 50%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[backlog] PASSED [ 62%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[plans] PASSED [ 75%]
+tests/test_check_ci_local_parity.py::test_seeded_violation_parity[releases] PASSED [ 87%]
+tests/test_check_ci_local_parity.py::test_clean_tree_parity[plans] PASSED [100%]
+============================== 8 passed in 8.02s ===============================
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff agent_workflows/check_engine.py` showing only the docstring sentence change naming `tests/test_check_ci_local_parity.py`, plus the pasted `N passed` summary line of a bare `python3 -m pytest` run.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/check_engine.py
+diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
+index 0f4926a49..f397c9cae 100644
+--- a/agent_workflows/check_engine.py
++++ b/agent_workflows/check_engine.py
+@@ -4156,9 +4156,9 @@ def check_scope_drift(
+     drifts a threshold would preserve. The paths are NEVER dropped, because a plan genuinely touching
+     three undeclared files must still say WHICH three; only their repetition as separate findings is.
+     ``(rule, location)`` is unchanged by construction - the location was already the plan file - which
+-    is what ``tests/test_ci_check_parity.py`` (deleted in ``19313eed``; no live guard currently
+-    asserts this parity) compared, and ``recovery`` stays populated because the opt-in pre-commit
+-    gate prints that field verbatim as its teaching message.
++    is what ``tests/test_check_ci_local_parity.py`` guards as CI-versus-local invocation-shape parity,
++    and ``recovery`` stays populated because the opt-in pre-commit gate prints that field verbatim
++    as its teaching message.
+     """
+     from agent_workflows import ipd_lifecycle as _life
+     from agent_workflows import worktree_lease as _lease
+
+Bare python3 -m pytest summary line:
+702 passed in 23.51s
+```
+  - Result: pass
 
 ## Approval and execution gate
 
