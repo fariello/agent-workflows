@@ -35,6 +35,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: aw ipd scaffold now accepts --dir and no longer writes a plan into an enclosing project, and project discovery stops at an enclosing git repository that has no agent-workflows install.
 - Fixed: aw rename and aw group now scan README.md files for citation rewrites while still skipping generated INDEX.md and STATUS.md manifests.
 - Fixed: aw pwatch, aw runners, and runner stream headers, statuslines, event prefixes, and run summaries now honor the color_depth pin and 16-color terminal detection, so none removes all ANSI color escapes from those surfaces and 16 uses basic 16-color ANSI codes instead of 256-color sequences.
+- Fixed: aw rename plans and aw group plans now refuse to rename or regroup a plan that is mid-execution (one holding a live begin receipt), preventing isolated-lane merge conflicts and finalize failures while the plan is in flight.
 - Changed: the plans README and the IPD spec now recommend spelling a records entry in Scope-Paths as .aw/records/<type>/**/<filename> so it survives a status move, and the literal form remains valid.
 - Changed: aw pwatch now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
 - Changed: aw runners (table dashboard) now returns exit 143 when terminated by SIGTERM, while continuing to exit 0 on SIGINT (Ctrl-C) and restoring previous signal handlers when exiting.
