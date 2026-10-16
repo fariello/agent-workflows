@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_benchmark_runners_reports.py` byte-for-byte from `19313eed^` (it passes unchanged at authoring HEAD: `14 passed in 0.20s`), commit it, then re-run the audit's own instrument `tools/mutation_probe.py` with a NARROWED selection so the `unprovable` verdict is replaced by a measured `guarded` / `unguarded` verdict. No production code changes.
 - Scope-Paths: tests/test_benchmark_runners_reports.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 24h56i
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 24h56i verified (set trimcarry, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Restore the deleted module
 
-- [ ] E-01 Restore the file with `git show 19313eed^:tests/test_benchmark_runners_reports.py > tests/test_benchmark_runners_reports.py` (no edits). Confirm `tests/test_benchmark_runners_reports.py` did not already exist (`git ls-files tests/test_benchmark_runners_reports.py` prints nothing before the restore); if it does, STOP and report, since another change recreated it. Confirm it reads no production source (`grep -nE 'inspect\.|import ast|getsource' tests/test_benchmark_runners_reports.py` prints nothing) and run it explicitly: `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_benchmark_runners_reports.py`. If any test fails at execution HEAD, classify the failure the way findings `hpjj44` `## Replay failures` does (cite the commit that changed the asserted behavior via `git log -S`/`-G` on the asserted symbol), and update ONLY the assertion that encodes the superseded behavior, never weakening an assertion whose behavior is unchanged.
+- [x] E-01 Restore the file with `git show 19313eed^:tests/test_benchmark_runners_reports.py > tests/test_benchmark_runners_reports.py` (no edits). Confirm `tests/test_benchmark_runners_reports.py` did not already exist (`git ls-files tests/test_benchmark_runners_reports.py` prints nothing before the restore); if it does, STOP and report, since another change recreated it. Confirm it reads no production source (`grep -nE 'inspect\.|import ast|getsource' tests/test_benchmark_runners_reports.py` prints nothing) and run it explicitly: `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_benchmark_runners_reports.py`. If any test fails at execution HEAD, classify the failure the way findings `hpjj44` `## Replay failures` does (cite the commit that changed the asserted behavior via `git log -S`/`-G` on the asserted symbol), and update ONLY the assertion that encodes the superseded behavior, never weakening an assertion whose behavior is unchanged.
   - Depends on: none
   - Expected outcome: every collected test passes with zero failures and zero errors (14 at authoring and at review; the count is context, not the bar), or each failure is classified with a cited commit and minimally updated; the module carries no source-reading assertion.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Run the fast suite bare (`python3 -m pytest`) and commit only the restored module: `aw commit <this plan> -- tests/test_benchmark_runners_reports.py`.
+- [x] E-02 Run the fast suite bare (`python3 -m pytest`) and commit only the restored module: `aw commit <this plan> -- tests/test_benchmark_runners_reports.py`.
   - Depends on: E-01
   - Expected outcome: fast suite green; one path-scoped commit containing only the module.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Settle PROP-02 with a measured verdict
 
-- [ ] E-03 With the module committed (the probe mutates COMMITTED HEAD in a disposable worktree, `tools/mutation_probe.py` `probe`), run the selection preflight `python3 -m pytest -o addopts= -q --collect-only tests/test_benchmark_runners_reports.py` (exit 0, 14 collected), then the survivor probe (NO `--extra-test`: the selection must be the committed module) `mkdir -p .aw/state/trimcarry-24h56i && python3 tools/mutation_probe.py agent_workflows/benchmark_metrics.py::compute_aggregate_metrics --op return-none --format json -- tests/test_benchmark_runners_reports.py > .aw/state/trimcarry-24h56i/prop02.json` (gitignored, `.aw/.gitignore` `/state/`). Map the probe verdict with the `rq3q7v` rule: `killed` -> `guarded`; `survived` (after the passing preflight) -> `unguarded`; `killed-by-import` -> rerun once with `--op raise`, mapping that rerun's verdict the same way, else `unprovable`; `error`/`timeout`/`invalid` -> `unprovable` with the reason. Record the final verdict, the `newly_failing` ids and `wall_s` in this plan's V-03 evidence; Order 06 (`z2xs98`) cites it in the Set reconciliation.
+- [x] E-03 With the module committed (the probe mutates COMMITTED HEAD in a disposable worktree, `tools/mutation_probe.py` `probe`), run the selection preflight `python3 -m pytest -o addopts= -q --collect-only tests/test_benchmark_runners_reports.py` (exit 0, 14 collected), then the survivor probe (NO `--extra-test`: the selection must be the committed module) `mkdir -p .aw/state/trimcarry-24h56i && python3 tools/mutation_probe.py agent_workflows/benchmark_metrics.py::compute_aggregate_metrics --op return-none --format json -- tests/test_benchmark_runners_reports.py > .aw/state/trimcarry-24h56i/prop02.json` (gitignored, `.aw/.gitignore` `/state/`). Map the probe verdict with the `rq3q7v` rule: `killed` -> `guarded`; `survived` (after the passing preflight) -> `unguarded`; `killed-by-import` -> rerun once with `--op raise`, mapping that rerun's verdict the same way, else `unprovable`; `error`/`timeout`/`invalid` -> `unprovable` with the reason. Record the final verdict, the `newly_failing` ids and `wall_s` in this plan's V-03 evidence; Order 06 (`z2xs98`) cites it in the Set reconciliation.
   - Depends on: E-02
   - Expected outcome: a MEASURED final verdict (`guarded` or `unguarded`) faithfully recorded, `guarded` expected: probe verdict `killed` with a non-empty `newly_failing` drawn from the restored module (review demonstration F5 named `test_metrics_computation_and_proportions`, `test_benchmark_reports_generation_and_formatting`, `test_baseline_comparison_and_regression_triage`, `test_ci_safe_offline_benchmark_runner`; these names are non-binding pointers), and `checkout_status_changed` empty. A final `unprovable` does not meet the goal: record it with the reason and leave V-03 `failed`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,20 +111,84 @@ N/A: test-only restoration; no spec or user-facing document describes this test 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git ls-files` pre-check output (empty); pasted `-v` runner output in which every collected test is PASSED and the summary shows no failures or errors (or each failure with its cited commit and the one-line diff of the updated assertion), plus the empty output of the `grep -nE 'inspect\.|import ast|getsource'` check, plus `git diff --no-index <(git show 19313eed^:tests/test_benchmark_runners_reports.py) tests/test_benchmark_runners_reports.py` output (empty when unchanged).
   - Observed evidence:
-  - Result: pending
+    `git ls-files tests/test_benchmark_runners_reports.py`:
+    (empty)
+    `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_benchmark_runners_reports.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items
 
-- [ ] V-02 validates E-02
+    tests/test_benchmark_runners_reports.py::test_live_runner_adapters_four_target_models PASSED [  7%]
+    tests/test_benchmark_runners_reports.py::test_runner_adapter_unknown_host_rejected PASSED [ 14%]
+    tests/test_benchmark_runners_reports.py::test_runner_doubles_all_eight_outcomes PASSED [ 21%]
+    tests/test_benchmark_runners_reports.py::test_live_execution_gate_blocks_executor_agent PASSED [ 28%]
+    tests/test_benchmark_runners_reports.py::test_ablation_scheduler_matrix_and_randomization PASSED [ 35%]
+    tests/test_benchmark_runners_reports.py::test_paired_comparison_computes_deltas_and_rejects_incompatible PASSED [ 42%]
+    tests/test_benchmark_runners_reports.py::test_metrics_computation_and_proportions PASSED [ 50%]
+    tests/test_benchmark_runners_reports.py::test_dollar_cost_is_strictly_rejected PASSED [ 57%]
+    tests/test_benchmark_runners_reports.py::test_wilson_score_uncertainty PASSED [ 64%]
+    tests/test_benchmark_runners_reports.py::test_release_thresholds_truth_table PASSED [ 71%]
+    tests/test_benchmark_runners_reports.py::test_signed_human_revision_policy_enforcement PASSED [ 78%]
+    tests/test_benchmark_runners_reports.py::test_benchmark_reports_generation_and_formatting PASSED [ 85%]
+    tests/test_benchmark_runners_reports.py::test_baseline_comparison_and_regression_triage PASSED [ 92%]
+    tests/test_benchmark_runners_reports.py::test_ci_safe_offline_benchmark_runner PASSED [100%]
+
+    ============================== 14 passed in 0.27s ==============================
+    ```
+    `grep -nE 'inspect\.|import ast|getsource' tests/test_benchmark_runners_reports.py`:
+    (empty, exit 1)
+    `git diff --no-index <(git show 19313eed^:tests/test_benchmark_runners_reports.py) tests/test_benchmark_runners_reports.py`:
+    (empty, exit 0)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted final summary line of bare `python3 -m pytest` (`N passed`, no failures), pasted `aw commit` output, and `git show --stat HEAD` listing only `tests/test_benchmark_runners_reports.py`.
   - Observed evidence:
-  - Result: pending
+    Final summary line of bare `python3 -m pytest`:
+    `707 passed in 25.05s`
+    `aw commit 24h56i -- tests/test_benchmark_runners_reports.py`:
+    ```
+    aw commit: committed 1 path(s): ae7781d3f55e6ed9fd2319eaeb4788d0338259e5
+    ```
+    `git show --stat HEAD`:
+    ```
+    commit ae7781d3f55e6ed9fd2319eaeb4788d0338259e5 (HEAD -> aw/lane/24h56i)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 16 18:18:09 2026 -0400
 
-- [ ] V-03 validates E-03
+        work(24h56i): Restore the deleted benchmark runners and reports tests and prove they guard compute_aggregate_metrics
+
+        AW-Run: run-20261016T221501Z-3469718
+        AW-Item: 24h56i
+        AW-Runner: aw agy run
+
+     tests/test_benchmark_runners_reports.py | 680 ++++++++++++++++++++++++++++++++
+     1 file changed, 680 insertions(+)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted collect-only summary (exit 0, collected count greater than zero and equal to the number of tests the V-01 `-v` run PASSED, which rules out the `rq3q7v` F-03 empty-selection false `survived`); the pasted probe JSON (produced by `tools/mutation_probe.py` `main`) showing `head` equal to the E-02 commit, `selection` equal to `["tests/test_benchmark_runners_reports.py"]`, `extra_tests_overwrote: []`, `verdict`, `newly_failing`, `checkout_status_changed: []` and `wall_s` (plus the `--op raise` rerun JSON if the first verdict was `killed-by-import`); the one-line final verdict mapping, which must be `guarded` or `unguarded` for `pass`; pasted `git status --short` showing no probe artifact is tracked or staged.
   - Observed evidence:
-  - Result: pending
+    Preflight collect-only summary:
+    `14 tests collected in 0.17s`
+    Probe JSON (.aw/state/trimcarry-24h56i/prop02.json):
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "ae7781d3f55e6ed9fd2319eaeb4788d0338259e5", "mutant_failing": 4, "newly_failing": ["tests.test_benchmark_runners_reports::test_baseline_comparison_and_regression_triage", "tests.test_benchmark_runners_reports::test_benchmark_reports_generation_and_formatting", "tests.test_benchmark_runners_reports::test_ci_safe_offline_benchmark_runner", "tests.test_benchmark_runners_reports::test_metrics_computation_and_proportions"], "newly_failing_total": 4, "operator": "return-none", "reason": null, "selection": ["tests/test_benchmark_runners_reports.py"], "target": "agent_workflows/benchmark_metrics.py::compute_aggregate_metrics", "verdict": "killed", "wall_s": 4.6}
+    ```
+    Final verdict mapping:
+    Final verdict: `guarded` (probe verdict `killed`, 4 newly failing tests in restored module, wall_s: 4.6s)
+    `git status --short`:
+    (empty)
+  - Result: pass
 
 ## Approval and execution gate
 
