@@ -1,5 +1,5 @@
 - Id: txw63z
-- Status: graduated
+- Status: done
 - Graduated-To: txw63z
 - Blocks-Release: next
 - Set: txw63z
@@ -8,5 +8,6 @@
 - Summary: runner_shared references non-existent decision.why on LaneTeardownDecision
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD uwaasz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-txw63z-01-uwaasz-pass-decision-reason-and-inventory-detail-when-close-already.ipd.md); evidence .aw/records/plans/executed/20261014-txw63z-01-uwaasz-pass-decision-reason-and-inventory-detail-when-close-already.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: uwaasz
 - 2026-10-13 created (aw backlog): runner_shared references non-existent decision.why on LaneTeardownDecision
