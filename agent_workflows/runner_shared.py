@@ -28435,8 +28435,8 @@ def perform_gate_answer(
     what it does NOT contain: `baseline` appears in exactly two places, the `gate_answer_question(...)`
     call and the `gate_answer_record(...)` call. It is absent from every `if`, from the `release`
     conjunction, from the `earns_recheck` loop and from the `violation` text. That absence IS the
-    maintainer's 2026-09-08 ruling in executable form; `tests/test_suite_baseline.py` (deleted in
-    `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces an
+    maintainer's 2026-09-08 ruling in executable form; `tests/test_suite_baseline.py` (guarded live
+    by `tests/test_gate_answer_baseline_indifference.py`, restored by `tosnwd`) asserted a `not-mine` verdict produces an
     IDENTICAL `GateAnswerOutcome.release` whether the failing id is in the baseline or not. Do not "finish" it into a check; see `SUITE_BASELINE_SUBDIR` for why.
     """
 
