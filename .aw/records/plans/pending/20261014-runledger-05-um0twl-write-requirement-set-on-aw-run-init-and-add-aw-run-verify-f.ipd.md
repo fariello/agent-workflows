@@ -125,6 +125,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Persisting the workflow beside the ledger so later step-DAG leaves (`start`, `record`, `next`) do not require `--workflow` repeated. Both plans edit `_run_init`, and E-08 states how the two writes coexist.
   - Carrier: o34rb3
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-07-o34rb3-persist-workflow-beside-ledger-on-aw-run-init-and-verify-wor.ipd.md
 - Rendering a ledger-only run directory in the `aw runs` summary viewer instead of showing `0 steps`.
   - Carrier: nf84rt
 - Replacing the `not_runnable` and `arg_fixture_needed` exemptions for ledger leaves in `tests/conformance_matrix.py` with live conformance-harness scenario rows.
