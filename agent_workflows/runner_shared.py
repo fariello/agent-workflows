@@ -3945,12 +3945,17 @@ def commit_spec_transition_output(
     if not allowed:
         return None, ()
 
-    add_paths = [p for p in allowed if (wt / p).exists()]
+    from agent_workflows import git_commit_helper as _gch
+
+    # Filter paths for git add (pex4pv): when a spec transitions, 'specs set --no-commit'
+    # renames the file via git mv, leaving the old path staged as deleted (RM). Passing
+    # the old path to git add fails with pathspec errors. Only add paths that exist on disk
+    # or are in the index (to stage unstaged deletions).
+    add_paths = [p for p in allowed if (wt / p).exists() or _gch._in_index(wt, p)]
     if add_paths:
         rc, _out, _err = _run_git(wt, ["add", "--", *add_paths])
         if rc != 0:
             return None, ()
-    from agent_workflows import git_commit_helper as _gch
 
     if is_note:
         subject = f"note(spec): record planned stage for {spec_id6}"
