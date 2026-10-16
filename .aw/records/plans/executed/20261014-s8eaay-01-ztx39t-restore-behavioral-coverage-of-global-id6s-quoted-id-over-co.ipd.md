@@ -6,7 +6,7 @@
 - Scope: Add one behavioral test module that drives `global_id6s` and `mint_id6` against a temp records tree and asserts the over-collection outcome; refresh the stale "no live guard" sentence in the `global_id6s` docstring.
 - Scope-Paths: tests/test_id6_global_mint.py, agent_workflows/artifact_core.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: ztx39t
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ztx39t verified (set s8eaay, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
@@ -35,21 +35,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Restore the behavioral test
 
-- [ ] E-01 Create `tests/test_id6_global_mint.py` with a test that materializes a temp repo containing `.aw/records/research/20260101-demo-01-own111-r.research-report.md` (YAML front matter `id: own111`, body with a fenced ```` ```markdown ```` block quoting `- Id: qut111` / `- Status: approved`), calls `artifact_core.global_id6s(root)`, and asserts both `own111` and `qut111` are in the returned set, with an assertion message explaining the superset is deliberate for minting (sk7ggr E-07) and pointing at `76w6mq`/`xvon5j` if a reader is ever bounded.
+- [x] E-01 Create `tests/test_id6_global_mint.py` with a test that materializes a temp repo containing `.aw/records/research/20260101-demo-01-own111-r.research-report.md` (YAML front matter `id: own111`, body with a fenced ```` ```markdown ```` block quoting `- Id: qut111` / `- Status: approved`), calls `artifact_core.global_id6s(root)`, and asserts both `own111` and `qut111` are in the returned set, with an assertion message explaining the superset is deliberate for minting (sk7ggr E-07) and pointing at `76w6mq`/`xvon5j` if a reader is ever bounded.
   - Depends on: none
   - Expected outcome: the new test exists, uses only `tempfile`, `pathlib` and `agent_workflows.artifact_core` calls, and reads no production source (no `inspect`, `ast`, regex or substring search over `.py` files).
-  - Execution state: pending
-- [ ] E-02 In the same module add a second test that drives `artifact_core.mint_id6(root, _rng=...)` against the same tree. NOTE THE RNG GRANULARITY: `generate_id6` calls `_rng(ID6_ALPHABET)` once PER CHARACTER (six calls per candidate), so the pinned `_rng` must be a per-character iterator, e.g. `chars = iter("qut111" "fre111"); _rng = lambda _alphabet: next(chars)`, which yields candidate `qut111` first and `fre111` second. Assert the minted id6 is `fre111` (the quoted id6 is refused). In the same test, as the in-suite negative control, run the identical pinned `_rng` (fresh iterator) against a sibling tree whose fixture omits the fenced quote and assert it mints `qut111`, so the test proves the refusal comes from the quotation and not from the rng.
+  - Execution state: performed
+- [x] E-02 In the same module add a second test that drives `artifact_core.mint_id6(root, _rng=...)` against the same tree. NOTE THE RNG GRANULARITY: `generate_id6` calls `_rng(ID6_ALPHABET)` once PER CHARACTER (six calls per candidate), so the pinned `_rng` must be a per-character iterator, e.g. `chars = iter("qut111" "fre111"); _rng = lambda _alphabet: next(chars)`, which yields candidate `qut111` first and `fre111` second. Assert the minted id6 is `fre111` (the quoted id6 is refused). In the same test, as the in-suite negative control, run the identical pinned `_rng` (fresh iterator) against a sibling tree whose fixture omits the fenced quote and assert it mints `qut111`, so the test proves the refusal comes from the quotation and not from the rng.
   - Depends on: E-01
   - Expected outcome: the test asserts `mint_id6` returns `fre111` on the quoting tree and `qut111` on the non-quoting tree. Demonstrated at review (HEAD `6372c22ef`): exactly those two values were returned, and `global_id6s` returned `['own111', 'qut111']` and `['own111']` respectively.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Docstring accuracy
 
-- [ ] E-03 Update the sentence in the `artifact_core.global_id6s` docstring that reads "``tests/test_id6_global_mint.py`` (deleted in ``19313eed``; no live guard currently asserts this)" so it states that the restored module (backlog `s8eaay`, plan `ztx39t`) asserts the superset behavior. Change no code.
+- [x] E-03 Update the sentence in the `artifact_core.global_id6s` docstring that reads "``tests/test_id6_global_mint.py`` (deleted in ``19313eed``; no live guard currently asserts this)" so it states that the restored module (backlog `s8eaay`, plan `ztx39t`) asserts the superset behavior. Change no code.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/artifact_core.py` shows a docstring-only change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,18 +104,133 @@ None. Whether to restore the signature pin was resolved from AGENTS.md/P16 (no);
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest tests/test_id6_global_mint.py` showing the over-collection test passing, plus pasted output of a local (uncommitted) negative run where the `qut111` assertion fails when the quoted block is removed from the fixture; and `rg -n "import inspect|inspect\.|import ast|ast\.parse|read_text\(.*\.py" tests/test_id6_global_mint.py` returning no match (exit 1).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Over-collection test passing:
+      ```
+      $ python3 -m pytest -o addopts="" -v tests/test_id6_global_mint.py
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+      cachedir: .pytest_cache
+      Using --randomly-seed=188498522
+      rootdir: <repo-root>
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 2 items
+
+      tests/test_id6_global_mint.py::GlobalMintSupersetTests::test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate PASSED [ 50%]
+      tests/test_id6_global_mint.py::GlobalMintSupersetTests::test_mint_id6_refuses_quoted_id_and_mints_next_candidate PASSED [100%]
+
+      ============================== 2 passed in 0.34s ===============================
+      ```
+    Local negative run when quoted block is omitted:
+      ```
+      =================================== FAILURES ===================================
+      _ GlobalMintSupersetTests.test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate _
+      ...
+      >           self.assertIn(
+                      quoted,
+                      got,
+                      "MEASURED BEHAVIOR, deliberately pinned: an id6 QUOTED inside a fenced code block is "
+                      "collected too, because the underlying identity readers are unbounded. That makes the set "
+                      "a conservative SUPERSET, which is deliberate for MINTING (sk7ggr E-07) and wrong for CHECKING. "
+                      "If this assertion starts failing because a reader was bounded, the mint path is still "
+                      "correct (the set merely got tighter) - see IPD 76w6mq / xvon5j",
+                  )
+      E           AssertionError: 'qut111' not found in {'own111'} : MEASURED BEHAVIOR, deliberately pinned: an id6 QUOTED inside a fenced code block is collected too, because the underlying identity readers are unbounded. That makes the set a conservative SUPERSET, which is deliberate for MINTING (sk7ggr E-07) and wrong for CHECKING. If this assertion starts failing because a reader was bounded, the mint path is still correct (the set merely got tighter) - see IPD 76w6mq / xvon5j
+
+      tests/test_id6_global_mint.py:57: AssertionError
+      =========================== short test summary info ============================
+      FAILED tests/test_id6_global_mint.py::GlobalMintSupersetTests::test_the_mint_set_over_collects_quoted_ids_and_that_is_deliberate
+      ========================= 1 failed, 1 passed in 0.38s ==========================
+      ```
+    Forbidden source-code inspection check:
+      ```
+      $ rg -n "import inspect|inspect\.|import ast|ast\.parse|read_text\(.*\.py" tests/test_id6_global_mint.py
+      # Exited 1 with no matches
+      ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output showing the `mint_id6` refusal test passing, and the test source excerpt showing the per-character pinned `_rng`, the `fre111` assertion on the quoting tree, and the `qut111` assertion on the non-quoting control tree.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Pytest output showing mint refusal test passing:
+      ```
+      tests/test_id6_global_mint.py::GlobalMintSupersetTests::test_mint_id6_refuses_quoted_id_and_mints_next_candidate PASSED [100%]
+      ```
+    Test source excerpt from `tests/test_id6_global_mint.py`:
+      ```python
+          def test_mint_id6_refuses_quoted_id_and_mints_next_candidate(self):
+              """E-02: mint_id6 refuses quoted id6 and advances to next candidate; control tree mints quoted id6."""
+              with tempfile.TemporaryDirectory() as td:
+                  root = Path(td)
+                  p = root / RESEARCH / "20260101-demo-01-own111-r.research-report.md"
+                  p.parent.mkdir(parents=True, exist_ok=True)
+                  p.write_text(QUOTING_REPORT_TEXT, encoding="utf-8")
+
+                  chars = iter("qut111fre111")
+
+                  def _rng(_alphabet):
+                      return next(chars)
+
+                  minted = core.mint_id6(root, _rng=_rng)
+                  self.assertEqual(
+                      minted,
+                      "fre111",
+                      "mint_id6 must refuse the quoted candidate 'qut111' and advance to 'fre111'",
+                  )
+
+              with tempfile.TemporaryDirectory() as td_control:
+                  root_control = Path(td_control)
+                  p_control = (
+                      root_control / RESEARCH / "20260101-demo-01-own111-r.research-report.md"
+                  )
+                  p_control.parent.mkdir(parents=True, exist_ok=True)
+                  p_control.write_text(NON_QUOTING_REPORT_TEXT, encoding="utf-8")
+
+                  chars_control = iter("qut111fre111")
+
+                  def _rng_control(_alphabet):
+                      return next(chars_control)
+
+                  minted_control = core.mint_id6(root_control, _rng=_rng_control)
+                  self.assertEqual(
+                      minted_control,
+                      "qut111",
+                      "on the control tree without the quoted block, the same candidate 'qut111' is free and must be minted",
+                  )
+      ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff agent_workflows/artifact_core.py` showing only docstring lines changed, and pasted bare `python3 -m pytest` summary line with no new failures.
   - Observed evidence:
-  - Result: pending
+    - Diff of `agent_workflows/artifact_core.py`:
+      ```diff
+      $ git diff agent_workflows/artifact_core.py
+      diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
+      index d18a58bde..c4727bd43 100644
+      --- a/agent_workflows/artifact_core.py
+      +++ b/agent_workflows/artifact_core.py
+      @@ -122,9 +122,9 @@ def global_id6s(repo_root) -> set:
+           requires a conservative superset: refusing to mint an id6 that some document merely quotes costs
+           one draw out of 36**6, while narrowing the collision set risks minting a genuine duplicate.
+           The unbounded readers behind checking, status resolution, and dependency indexing were bounded
+      -    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` (deleted in
+      -    ``19313eed``; no live guard currently asserts this) pinned the superset behavior so this
+      -    cannot be mistaken for an exact census.
+      +    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` (restored in
+      +    backlog ``s8eaay``, plan ``ztx39t``) asserts the superset behavior so this cannot be mistaken for
+      +    an exact census.
+
+           So do NOT "optimize" this onto a checker's reader, do not describe it to a user as "the id6s in
+           use", and never reuse it to decide that a collision EXISTS. Over-collect for minting; parse
+      ```
+    - Bare pytest summary:
+      ```
+      $ python3 -m pytest
+      707 passed in 21.62s
+      ```
+  - Result: pass
 
 ## Approval and execution gate
 
