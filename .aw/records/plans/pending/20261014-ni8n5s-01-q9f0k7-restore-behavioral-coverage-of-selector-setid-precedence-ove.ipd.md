@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Outcome tests
 
-- [ ] E-01 Create `tests/test_selector_precedence_outcomes.py` (`unittest.TestCase`, `tempfile.TemporaryDirectory` cleaned up in `tearDown`, no `slow`/`livecorpus` marker, following `tests/test_selector_two_dialect_readers.py`) with a temporary-repo fixture (plans tree under `.aw/records/plans/pending/`, several plans declaring `- Set: demo`, plus one colliding plan declaring `- Set: other` whose FILENAME contains `demo`) and a test asserting `selectors.resolve(root, "plans", "demo")` returns `kind == selectors.MATCH_SETID`, contains every `Set: demo` plan, and excludes the colliding file.
+- [x] E-01 Create `tests/test_selector_precedence_outcomes.py` (`unittest.TestCase`, `tempfile.TemporaryDirectory` cleaned up in `tearDown`, no `slow`/`livecorpus` marker, following `tests/test_selector_two_dialect_readers.py`) with a temporary-repo fixture (plans tree under `.aw/records/plans/pending/`, several plans declaring `- Set: demo`, plus one colliding plan declaring `- Set: other` whose FILENAME contains `demo`) and a test asserting `selectors.resolve(root, "plans", "demo")` returns `kind == selectors.MATCH_SETID`, contains every `Set: demo` plan, and excludes the colliding file.
   - Depends on: none
   - Expected outcome: The test passes against the current resolver and would fail if `substring` were evaluated before `setid`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same module add (a) a `status`-over-`substring` collision test (a token, e.g. `approved`, that is a declared `- Status:` value of some plans, is NOT any plan's `- Set:` value, AND is a fragment of another plan's filename resolves with `kind == selectors.MATCH_STATUS` and excludes the filename-only hit), and (b) a fall-through test: a token that is a filename fragment only (no record declares it as Set or Status) resolves with `kind == selectors.MATCH_SUBSTRING` to exactly that file, proving the setid result above came from precedence and not from substring being broken.
+- [x] E-02 In the same module add (a) a `status`-over-`substring` collision test (a token, e.g. `approved`, that is a declared `- Status:` value of some plans, is NOT any plan's `- Set:` value, AND is a fragment of another plan's filename resolves with `kind == selectors.MATCH_STATUS` and excludes the filename-only hit), and (b) a fall-through test: a token that is a filename fragment only (no record declares it as Set or Status) resolves with `kind == selectors.MATCH_SUBSTRING` to exactly that file, proving the setid result above came from precedence and not from substring being broken.
   - Depends on: E-01
   - Expected outcome: Three behavioral tests in the module, all asserting on `Resolution.kind` and `Resolution.paths` only; no `inspect`, `ast`, regex over source, or reference to `selectors._PRECEDENCE`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Prove the setid test is falsifiable: rebind `selectors._PRECEDENCE` IN PROCESS (never edit `selectors.py` and never use a scratch copy of the module, which the test would not import) so `MATCH_SUBSTRING` precedes `MATCH_SETID`, then run the E-01 test in that same process, e.g. `python3 -c "import pytest; from agent_workflows import selectors as s; s._PRECEDENCE=(s.MATCH_PATH, s.MATCH_ID6, s.MATCH_SUBSTRING, s.MATCH_SETID, s.MATCH_STATUS, s.MATCH_STEM); raise SystemExit(pytest.main(['-o', 'addopts=', '-q', 'tests/test_selector_precedence_outcomes.py', '-k', '<setid test name>']))"`, and observe it FAIL. `resolve` reads the module global `_PRECEDENCE` at call time, so the rebind takes effect. Nothing from this probe is committed or written to disk.
+- [x] E-03 Prove the setid test is falsifiable: rebind `selectors._PRECEDENCE` IN PROCESS (never edit `selectors.py` and never use a scratch copy of the module, which the test would not import) so `MATCH_SUBSTRING` precedes `MATCH_SETID`, then run the E-01 test in that same process, e.g. `python3 -c "import pytest; from agent_workflows import selectors as s; s._PRECEDENCE=(s.MATCH_PATH, s.MATCH_ID6, s.MATCH_SUBSTRING, s.MATCH_SETID, s.MATCH_STATUS, s.MATCH_STEM); raise SystemExit(pytest.main(['-o', 'addopts=', '-q', 'tests/test_selector_precedence_outcomes.py', '-k', '<setid test name>']))"`, and observe it FAIL. `resolve` reads the module global `_PRECEDENCE` at call time, so the rebind takes effect. Nothing from this probe is committed or written to disk.
   - Depends on: E-02
   - Expected outcome: Captured failing pytest output under the reordered precedence; `git diff --stat agent_workflows/selectors.py` prints nothing (E-04 not yet applied).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Comment repoint and commit
 
-- [ ] E-04 Edit the `_PRECEDENCE IS FROZEN AS SEMANTICS` comment in `agent_workflows/selectors.py` (the paragraph reading "Formerly pinned by `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`; no live guard currently asserts this)") so it names `tests/test_selector_precedence_outcomes.py` as the live behavioral guard, keeping the historical reference. Comment-only change; then run the bare suite and commit via `aw commit q9f0k7 -- tests/test_selector_precedence_outcomes.py agent_workflows/selectors.py`.
+- [x] E-04 Edit the `_PRECEDENCE IS FROZEN AS SEMANTICS` comment in `agent_workflows/selectors.py` (the paragraph reading "Formerly pinned by `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`; no live guard currently asserts this)") so it names `tests/test_selector_precedence_outcomes.py` as the live behavioral guard, keeping the historical reference. Comment-only change; then run the bare suite and commit via `aw commit q9f0k7 -- tests/test_selector_precedence_outcomes.py agent_workflows/selectors.py`.
   - Depends on: E-03
   - Expected outcome: Comment updated, no code change in `selectors.py`, bare suite passes, single path-scoped commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,25 +117,147 @@ N/A: no spec or user-facing doc describes this test; the only documentation touc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output of `python3 -m pytest tests/test_selector_precedence_outcomes.py -o addopts="" -v` showing the setid-collision test PASSED, plus the test source excerpt showing the colliding file is a `Set: other` plan whose filename contains `demo` and the assertions on `kind == selectors.MATCH_SETID` and exclusion of the colliding path.
   - Observed evidence:
-  - Result: pending
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=3725032953
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/q9f0k7
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
 
-- [ ] V-02 validates E-02
+tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_filename_substring_resolves_when_earlier_rules_do_not_match PASSED [ 33%]
+tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_setid_outranks_filename_substring_on_collision PASSED [ 66%]
+tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_status_outranks_filename_substring_on_collision PASSED [100%]
+
+============================== 3 passed in 0.22s ===============================
+```
+Source excerpt from `tests/test_selector_precedence_outcomes.py`:
+```python
+        # Colliding plan declaring `- Set: other` whose FILENAME contains `demo`
+        self.setid_collide_plan = (
+            self.pend / "20260101-other-01-dd0001-demo-colliding-plan.ipd.md"
+        )
+        self.setid_collide_plan.write_text(
+            "# Set Collision Plan\n\n- Id: dd0001\n- Status: draft\n- Set: other\n\n## Goal\nCollide setid\n",
+            encoding="utf-8",
+        )
+...
+    def test_setid_outranks_filename_substring_on_collision(self) -> None:
+        """A token matching both Set ID and filename substring resolves as MATCH_SETID."""
+        got = selectors.resolve(self.repo_root, "plans", "demo")
+        self.assertEqual(got.kind, selectors.MATCH_SETID)
+        resolved_paths = [p.resolve() for p in got.paths]
+        for plan_path in self.demo_plans:
+            self.assertIn(plan_path.resolve(), resolved_paths)
+        self.assertNotIn(self.setid_collide_plan.resolve(), resolved_paths)
+        self.assertEqual(len(resolved_paths), len(self.demo_plans))
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Same verbose pytest output showing the status-collision and substring fall-through tests PASSED, and pasted `rg -n "import inspect|from inspect|import ast|_PRECEDENCE|read_text\(.*selectors" tests/test_selector_precedence_outcomes.py` returning no matches.
   - Observed evidence:
-  - Result: pending
+```
+Verbose test output from V-01 shows both tests passed:
+tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_filename_substring_resolves_when_earlier_rules_do_not_match PASSED
+tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_status_outranks_filename_substring_on_collision PASSED
 
-- [ ] V-03 validates E-03
+Clean token check:
+$ rg -n "import inspect|from inspect|import ast|_PRECEDENCE|read_text\(.*selectors" tests/test_selector_precedence_outcomes.py
+(no matches, exit code 1)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted pytest output of the setid-collision test FAILING with `selectors._PRECEDENCE` monkeypatched to place `MATCH_SUBSTRING` before `MATCH_SETID` (produced by the E-03 in-process probe, with the exact command pasted), and pasted `git diff --stat agent_workflows/selectors.py` printing nothing before E-04.
   - Observed evidence:
-  - Result: pending
+```
+Exact probe command and failing output:
+$ python3 -c "import pytest; from agent_workflows import selectors as s; s._PRECEDENCE=(s.MATCH_PATH, s.MATCH_ID6, s.MATCH_SUBSTRING, s.MATCH_SETID, s.MATCH_STATUS, s.MATCH_STEM); raise SystemExit(pytest.main(['-o', 'addopts=', '-q', 'tests/test_selector_precedence_outcomes.py', '-k', 'test_setid_outranks_filename_substring_on_collision']))"
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ SelectorPrecedenceOutcomesTests.test_setid_outranks_filename_substring_on_collision _
 
-- [ ] V-04 validates E-04
+self = <tests.test_selector_precedence_outcomes.SelectorPrecedenceOutcomesTests testMethod=test_setid_outranks_filename_substring_on_collision>
+
+    def test_setid_outranks_filename_substring_on_collision(self) -> None:
+        """A token matching both Set ID and filename substring resolves as MATCH_SETID."""
+        got = selectors.resolve(self.repo_root, "plans", "demo")
+>       self.assertEqual(got.kind, selectors.MATCH_SETID)
+E       AssertionError: 'substring' != 'setid'
+E       - substring
+E       + setid
+
+tests/test_selector_precedence_outcomes.py:91: AssertionError
+NOTE: 2 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+=========================== short test summary info ============================
+FAILED tests/test_selector_precedence_outcomes.py::SelectorPrecedenceOutcomesTests::test_setid_outranks_filename_substring_on_collision
+1 failed, 2 deselected in 0.15s
+
+Pre-E-04 diff check:
+$ git diff --stat agent_workflows/selectors.py
+(no output, exit code 0)
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted `git show --stat HEAD` naming `tests/test_selector_precedence_outcomes.py` and `agent_workflows/selectors.py` and no path outside Scope-Paths, pasted `git show HEAD -- agent_workflows/selectors.py` showing only comment lines changed, and the pasted summary line of a bare `python3 -m pytest` run showing all passed with zero failures.
   - Observed evidence:
-  - Result: pending
+```
+$ git show --stat HEAD
+commit 1057341350e9b24a6b80c68c4909f319efe94e47 (HEAD -> aw/lane/q9f0k7)
+Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+Date:   Fri Oct 16 03:43:13 2026 -0400
+
+    work(q9f0k7): Restore behavioral coverage of selector setid precedence over filename substring
+
+    AW-Run: run-20261016T041640Z-2100696
+    AW-Item: q9f0k7
+    AW-Runner: aw agy run
+
+ agent_workflows/selectors.py               |   6 +-
+ tests/test_selector_precedence_outcomes.py | 116 +++++++++++++++++++++++++++++
+ 2 files changed, 119 insertions(+), 3 deletions(-)
+
+$ git show HEAD -- agent_workflows/selectors.py
+commit 1057341350e9b24a6b80c68c4909f319efe94e47 (HEAD -> aw/lane/q9f0k7)
+Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+Date:   Fri Oct 16 03:43:13 2026 -0400
+
+    work(q9f0k7): Restore behavioral coverage of selector setid precedence over filename substring
+
+    AW-Run: run-20261016T041640Z-2100696
+    AW-Item: q9f0k7
+    AW-Runner: aw agy run
+
+diff --git a/agent_workflows/selectors.py b/agent_workflows/selectors.py
+index a7aef5f80..43e641334 100644
+--- a/agent_workflows/selectors.py
++++ b/agent_workflows/selectors.py
+@@ -114,9 +114,9 @@ _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+ # `_PRECEDENCE` IS FROZEN AS SEMANTICS, NOT AS INERTIA. A token can legitimately be BOTH a Set id
+ # and a filename fragment, so the order decides which record WINS an existing query; reordering it
+ # silently changes matching. Formerly pinned by
+-# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`;
+-# no live guard currently asserts this), which also proved the corollary that a stem or substring
+-# query cannot be made read-free while the order stands.
++# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`);
++# guarded behaviorally by `tests/test_selector_precedence_outcomes.py`, which also preserves the
++# corollary that a stem or substring query cannot be made read-free while the order stands.
+ #
+ # THE PARSED FILENAME `id6` SLOT IS NOT A SAFE DISCRIMINATOR, a live trap independent of any
+ # filter: `parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")` returns
+```
+Bare `python3 -m pytest` summary:
+```
+705 passed in 23.04s
+```
+  - Result: pass
 
 ## Approval and execution gate
 
