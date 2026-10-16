@@ -42,11 +42,14 @@ from agent_workflows.runner_shared import (
     ANALYTICS_DIRNAME,
     analytics_root,
     canonical_terminal_status,
+    discarded_user_config_keys,
     extract_verifier_test_commands,
+    format_discarded_user_config_line,
     host_labels_for_driver_id,
     landed_verdict,
     path_is_within_analytics,
     queue_entry_type,
+    read_discarded_user_config_events,
     state_root,
 )
 from agent_workflows.term import Term, strip_ansi
@@ -213,6 +216,9 @@ class StepSummary:
     # mlhryi E-01: preserve typed queue entry metadata
     artifact_type: str | None = None
     initial_status: str | None = None
+    discarded_user_config_count: int = 0
+    discarded_user_config_keys: list[str] = field(default_factory=list)
+    discarded_user_config: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def is_projected(self) -> bool:
@@ -242,6 +248,9 @@ class RunSummary:
     is_live: bool = False
     runtime_seconds: float | None = None
     runtime_str: str | None = None
+    discarded_user_config_count: int = 0
+    discarded_user_config_keys: list[str] = field(default_factory=list)
+    discarded_user_config: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def timestamp_dt(self) -> datetime | None:
@@ -958,6 +967,16 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
     steps: list[StepSummary] = []
     counts: dict[str, int] = {}
 
+    discarded_events = read_discarded_user_config_events(run_dir)
+    # Indexing rule: events are keyed by id6, and a step receives every event
+    # whose id6 equals the step's id6. If the same id6 appears at more than one
+    # position, each such step receives the same events.
+    discarded_by_id6: dict[str, list[dict[str, Any]]] = {}
+    for ev in discarded_events:
+        ev_id6 = str(ev.get("id6") or "").strip()
+        if ev_id6:
+            discarded_by_id6.setdefault(ev_id6, []).append(ev)
+
     if state_file.is_file():
         try:
             state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -1170,6 +1189,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     else []
                 )
 
+                step_discarded = discarded_by_id6.get(id6, [])
+
                 steps.append(
                     StepSummary(
                         position=pos,
@@ -1211,6 +1232,11 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         corroboration_reason=item_corr_reason,
                         artifact_type=step_atype,
                         initial_status=step_initial_status,
+                        discarded_user_config_count=len(step_discarded),
+                        discarded_user_config_keys=discarded_user_config_keys(
+                            step_discarded
+                        ),
+                        discarded_user_config=step_discarded,
                     )
                 )
 
@@ -1292,6 +1318,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                             step_v_toks,
                         ) = extract_step_usage({"position": pos, "id6": id6}, run_dir)
 
+                        step_discarded = discarded_by_id6.get(id6, [])
+
                         steps.append(
                             StepSummary(
                                 position=pos,
@@ -1310,6 +1338,11 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                                 exec_tokens=step_e_toks,
                                 verify_cost=step_v_cost,
                                 verify_tokens=step_v_toks,
+                                discarded_user_config_count=len(step_discarded),
+                                discarded_user_config_keys=discarded_user_config_keys(
+                                    step_discarded
+                                ),
+                                discarded_user_config=step_discarded,
                             )
                         )
         except (OSError, ValueError, IndexError):
@@ -1375,6 +1408,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
         is_live=is_live,
         runtime_seconds=runtime_seconds,
         runtime_str=runtime_str,
+        discarded_user_config_count=len(discarded_events),
+        discarded_user_config_keys=discarded_user_config_keys(discarded_events),
+        discarded_user_config=discarded_events,
     )
 
 
@@ -2458,6 +2494,20 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                     if getattr(term, "color", False)
                     else f"  ~ correction: {truncated}"
                 )
+        if step.discarded_user_config:
+            for ev in step.discarded_user_config:
+                f = ev.get("file", "unknown")
+                keys = ev.get("keys")
+                change = ev.get("change")
+                if keys:
+                    msg = f"  ! user-config discarded: {f} {keys}"
+                elif change:
+                    msg = f"  ! user-config discarded: {f} ({change})"
+                else:
+                    msg = f"  ! user-config discarded: {f}"
+                details.append(
+                    term.color256(msg, 214) if getattr(term, "color", False) else msg
+                )
         if details:
             item_id = step.stem or (
                 f"{step.setid}-{step.id6}" if step.setid else step.id6
@@ -2607,6 +2657,16 @@ def format_run_human(
         lines.append(f"  Total:        {tot_line}")
         lines.append(f"    - Execute:  {exec_line}")
         lines.append(f"    - Verify:   {ver_line}")
+
+    if run.discarded_user_config:
+        disc_text = format_discarded_user_config_line(run.discarded_user_config)
+        if disc_text:
+            disc_line = f"  {disc_text}"
+            lines.append(
+                term.color256(disc_line, 214)
+                if getattr(term, "color", False)
+                else disc_line
+            )
 
     if run.steps:
         tbl = render_steps_table(
@@ -2916,6 +2976,12 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
             },
         }
 
+    discarded_count = sum(s.discarded_user_config_count for s in summaries)
+    discarded_runs = sum(1 for s in summaries if s.discarded_user_config_count > 0)
+    discarded_keys = list(
+        dict.fromkeys(k for s in summaries for k in s.discarded_user_config_keys)
+    )
+
     return {
         "runs_count": total_runs,
         "steps_count": total_steps,
@@ -2924,6 +2990,9 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
         "avg_cost_per_run": avg_cost_per_run,
         "total_tokens": dict(total_tokens) if total_tokens else {},
         "avg_tokens_per_run": avg_tokens_per_run,
+        "discarded_user_config_count": discarded_count,
+        "discarded_user_config_runs": discarded_runs,
+        "discarded_user_config_keys": discarded_keys,
         "by_status": status_summary,
         "by_action": action_summary,
         "by_phase": by_phase,
@@ -2949,6 +3018,17 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         if getattr(term, "color", False)
         else header_title
     )
+
+    disc_count = summary_data["discarded_user_config_count"]
+    disc_runs = summary_data["discarded_user_config_runs"]
+    disc_keys = summary_data["discarded_user_config_keys"]
+    if disc_count > 0:
+        disc_line = f"Agent user-config changes discarded: {disc_count} across {disc_runs} run(s) ({disc_keys})"
+        lines.append(
+            term.color256(disc_line, 214)
+            if getattr(term, "color", False)
+            else disc_line
+        )
 
     if has_any_cost:
         cost_str = f"${total_cost:.2f}"

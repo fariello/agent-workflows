@@ -36,23 +36,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: baseline and shared `events.jsonl` reader in `agent_workflows/runner_shared.py`
 
-- [ ] E-01 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and any failing node ids. The post-change bar is that no node id fails that did not fail here.
+- [x] E-01 CAPTURE THE BASELINE: run the bare suite `python3 -m pytest` BEFORE the first edit and record its summary line and any failing node ids. The post-change bar is that no node id fails that did not fail here.
   - Depends on: none
   - Expected outcome: a recorded baseline summary line and failing-node-id list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/runner_shared.py` (user-config containment section around `runner_shared.reconcile_agent_user_config` at line 47214 and `runner_shared.report_discarded_user_config` at line 47333), define `AGENT_USER_CONFIG_DISCARDED_EVENT = "agent-user-config-discarded"` and extract three shared helpers:
+- [x] E-02 In `agent_workflows/runner_shared.py` (user-config containment section around `runner_shared.reconcile_agent_user_config` at line 47214 and `runner_shared.report_discarded_user_config` at line 47333), define `AGENT_USER_CONFIG_DISCARDED_EVENT = "agent-user-config-discarded"` and extract three shared helpers:
   1. `read_discarded_user_config_events(run_dir: Any, *, raise_on_error: bool = False) -> list[dict[str, Any]]`: resolves `run_dir_path` (`Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")` when `isinstance(run_dir, Mapping)` else `Path(run_dir)`), opens `<run_dir_path>/events.jsonl` when `is_file()` (with `errors="replace"`, as `run_viewer.load_run_summary` already does for this file), and returns each JSON object line where `data.get("event") == AGENT_USER_CONFIG_DISCARDED_EVENT` (normalizing `keys` to `[str(k) for k in data["keys"]]` when `isinstance(data.get("keys"), list)`). A line that does not contain the substring `AGENT_USER_CONFIG_DISCARDED_EVENT` is skipped BEFORE `json.loads` (cheap prefilter: `aw runs` now reads every listed run's `events.jsonl`, which grows with heartbeat and lifecycle events; measured at review on a 200k-line, ~12 MB file, a full `json.loads` scan took 0.45s versus 0.035s with the substring prefilter, F-05). Skips blank or malformed JSON lines. Error contract: with `raise_on_error=False` (default, for read-only viewer callers) it catches `OSError` and returns `[]`; with `raise_on_error=True` it lets `OSError` propagate so `report_discarded_user_config` keeps its existing `error: failed to summarize discarded user-config changes: <exc>` line (its existing `except Exception` stays, so the report still never raises).
   2. `discarded_user_config_keys(events: Sequence[Mapping[str, Any]]) -> list[str]`: returns the deduplicated list of top-level key strings across `events` in order of first appearance (`list(dict.fromkeys(str(k) for ev in events if isinstance(ev, Mapping) and isinstance(ev.get("keys"), list) for k in ev["keys"]))`).
   3. `format_discarded_user_config_line(events: Sequence[Mapping[str, Any]]) -> str | None`: returns `None` when `events` is empty, and otherwise returns `"Agent user-config changes discarded: <count> (<id6>: <file> <keys>; ...)"` with the exact formatting `runner_shared.report_discarded_user_config` already emits (measured at review for a two-event run: `Agent user-config changes discarded: 2 (9y27t2: config.json ['color_depth']; 9y27t2: notes.txt)`; `keys` renders as the Python list repr and an event without keys renders `<id6>: <file>` with no change word).
   Update `runner_shared.reconcile_agent_user_config` to reference `AGENT_USER_CONFIG_DISCARDED_EVENT` and refactor `runner_shared.report_discarded_user_config` to call `read_discarded_user_config_events(run_dir, raise_on_error=True)` and `format_discarded_user_config_line(events)`.
   - Depends on: E-01
   - Expected outcome: one shared constant, reader, key extractor, and formatter in `agent_workflows/runner_shared.py`; `runner_shared.report_discarded_user_config` produces byte-identical output for both populated and clean run directories (the existing `tests/test_agent_user_config_containment.py` `test_report_discarded_user_config_output` still passes unmodified) while sharing the reader with `run_viewer`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: surface per-run and per-step discarded user-config changes in `agent_workflows/run_viewer.py`
 
-- [ ] E-03 In `agent_workflows/run_viewer.py`:
+- [x] E-03 In `agent_workflows/run_viewer.py`:
   1. Import `discarded_user_config_keys`, `format_discarded_user_config_line`, and `read_discarded_user_config_events` from `agent_workflows.runner_shared` (at `from agent_workflows.runner_shared import`, lines 41-51).
   2. Add three defaulted fields to `run_viewer.StepSummary` (around line 215) and `run_viewer.RunSummary` (around line 244):
      - `discarded_user_config_count: int = 0`
@@ -64,27 +64,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   5. In `run_viewer.render_step_details` (around line 2460, before `if details:`), for each event `ev` in `step.discarded_user_config`, append `"  ! user-config discarded: <file> <keys>"` (or `"  ! user-config discarded: <file> (<change>)"` when `keys` is absent/empty, or `"  ! user-config discarded: <file>"` when neither is present), styled with `term.color256(..., 214)` when color is enabled.
   - Depends on: E-02
   - Expected outcome: `aw runs` single-run human output (default, `--short`, `--detail`) and `aw runs --json` / `--agent` per-run records (and `--latest-only` step records) surface the count, keys, and event records of discarded user-config changes per run and per step when present, while clean runs with zero events have byte-identical human output and `0` / `[]` fields in JSON.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In `run_viewer.build_multi_run_summary_dict` and `run_viewer.format_multi_run_summary`, aggregate `discarded_user_config_count` (sum across `summaries`), `discarded_user_config_runs` (number of runs with a non-zero count), and `discarded_user_config_keys` (deduplicated keys in order of appearance across `summaries`) into the returned summary dict (keys always present, `0` / `[]` when none), and when `discarded_user_config_count > 0` append `"Agent user-config changes discarded: <count> across <runs> run(s) (<keys>)"` (styled with color `214` when color is enabled) in `format_multi_run_summary` immediately after the header title line, OUTSIDE the `if has_any_cost:` block (the `Total Cost:` / `Total Tokens:` lines are emitted only when some step has cost, so anchoring the new line there would hide it on runs without usage data, F-06).
+- [x] E-06 In `run_viewer.build_multi_run_summary_dict` and `run_viewer.format_multi_run_summary`, aggregate `discarded_user_config_count` (sum across `summaries`), `discarded_user_config_runs` (number of runs with a non-zero count), and `discarded_user_config_keys` (deduplicated keys in order of appearance across `summaries`) into the returned summary dict (keys always present, `0` / `[]` when none), and when `discarded_user_config_count > 0` append `"Agent user-config changes discarded: <count> across <runs> run(s) (<keys>)"` (styled with color `214` when color is enabled) in `format_multi_run_summary` immediately after the header title line, OUTSIDE the `if has_any_cost:` block (the `Total Cost:` / `Total Tokens:` lines are emitted only when some step has cost, so anchoring the new line there would hide it on runs without usage data, F-06).
   - Depends on: E-03
   - Expected outcome: `aw runs --summary-only` (human and `--json` / `--agent`) and the multi-run summary appended after several runs report the aggregate count, run count, and keys, including when no step carries cost data; with no events anywhere the human summary is unchanged and the dict carries `0` / `0` / `[]`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: behavioral tests and changelog
 
-- [ ] E-04 Add behavioral tests in `tests/test_agent_user_config_containment.py` and `tests/test_run_viewer.py`:
+- [x] E-04 Add behavioral tests in `tests/test_agent_user_config_containment.py` and `tests/test_run_viewer.py`:
   1. In `tests/test_agent_user_config_containment.py`, add `test_read_and_format_discarded_user_config_helpers` testing `runner_shared.read_discarded_user_config_events`, `runner_shared.discarded_user_config_keys`, and `runner_shared.format_discarded_user_config_line` across: (i) multiple events across turns/files with overlapping and non-overlapping `keys` plus an `added` non-JSON file without `keys`; (ii) blank and malformed lines in `events.jsonl` ignored without raising; (iii) missing `events.jsonl` returning `[]` and `None`; and (iv) end-to-end integration where `reconcile_agent_user_config` writes to `events.jsonl` and `run_viewer.load_run_summary` + `run_viewer.format_run_human` + `cli.main(["runs", "--dir", ..., "--json", ...])` surface the exact count (`1`) and keys (`["color_depth"]`).
   2. In `tests/test_run_viewer.py`, add the new tests inside a new `unittest.TestCase` subclass (the module's existing tests are `TestCase` classes, e.g. `RunViewerTests`, and the suite also runs under `python -m unittest discover`), building fixtures with the module's own `_build_viewer_fixture`/`_run_viewer` helpers or the same `state.json` shape under a temp `.aw/records/runs/run-<ts>-<pid>/`, testing `run_viewer.load_run_summary`, `run_viewer.format_run_human` (default, `--short`, `--detail`, colored and uncolored), `run_viewer.build_multi_run_summary_dict`, `run_viewer.format_multi_run_summary`, ` execution-report.md` fallback loading with `events.jsonl`, and `run_viewer.run_viewer_cli` (`--json`, `--summary-only --json`, `--latest-only --json`, `--agent`, and human) across a run with discarded user-config events and a clean run without them. Also cover: an event whose `id6` matches no step is still counted on the run; a multi-run summary with no cost data still prints the aggregate line (E-06); and the clean run's human output equals its output with the feature's fields at defaults (no extra line).
   3. Mutation proofs (temporary, reverted, confirmed by `git diff`): (a) make `load_run_summary` skip the `read_discarded_user_config_events` call and confirm the run-viewer tests fail; (b) in `read_discarded_user_config_events`, drop the `data.get("event") == AGENT_USER_CONFIG_DISCARDED_EVENT` comparison (keep the substring prefilter) and confirm the helper test fails on a fixture line that mentions the event name in another field (for example `{"event": "heartbeat", "note": "agent-user-config-discarded"}`), which the prefilter alone admits; the fixture must include such a line so the exact-match check is pinned.
   - Depends on: E-03, E-06
   - Expected outcome: all new and existing tests in `tests/test_agent_user_config_containment.py` and `tests/test_run_viewer.py` pass, and the new tests fail if the `E-03` wiring in `run_viewer.py` is reverted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `CHANGELOG.md`, add one `- Added:` bullet at the top of the `## 2.0.0 (pending)` entry list (around line 27) stating that `aw runs` now surfaces the count, keys, and event details of discarded agent user-config changes per run in human, `--json`, and `--agent` output from the run's durable `events.jsonl` log. Write no em or en dashes (user-facing prose rule).
+- [x] E-05 In `CHANGELOG.md`, add one `- Added:` bullet at the top of the `## 2.0.0 (pending)` entry list (around line 27) stating that `aw runs` now surfaces the count, keys, and event details of discarded agent user-config changes per run in human, `--json`, and `--agent` output from the run's durable `events.jsonl` log. Write no em or en dashes (user-facing prose rule).
   - Depends on: E-03, E-06
   - Expected outcome: one new `- Added:` bullet in `CHANGELOG.md` with no em or en dashes and `aw sanitize --agent` clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,35 +160,383 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted pre-change `python3 -m pytest` summary line and the list of any failing node ids.
   - Observed evidence:
-  - Result: pending
+```
+707 passed in 22.01s
+Failing node ids: none
+```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted output of a Python one-liner driving `runner_shared.read_discarded_user_config_events`, `runner_shared.discarded_user_config_keys`, `runner_shared.format_discarded_user_config_line`, and `runner_shared.report_discarded_user_config` on a temp run dir with two `agent-user-config-discarded` events in `events.jsonl` and on an empty run dir, plus `git diff -- agent_workflows/runner_shared.py`.
   - Observed evidence:
-  - Result: pending
+```
+RUN1 events: 2
+RUN1 keys: ['color_depth']
+RUN1 line: Agent user-config changes discarded: 2 (9y27t2: config.json ['color_depth']; 9y27t2: notes.txt)
+RUN1 report: "Agent user-config changes discarded: 2 (9y27t2: config.json ['color_depth']; 9y27t2: notes.txt)\n"
+RUN2 events: 0
+RUN2 keys: []
+RUN2 line: None
+RUN2 report: ''
+```
+Diff:
+```diff
+diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+index b08c8d366..8cf344dbd 100644
+--- a/agent_workflows/runner_shared.py
++++ b/agent_workflows/runner_shared.py
+@@ -47715,6 +47715,81 @@ def prepare_agent_user_config(
+         return None
 
-- [ ] V-03 validates E-03
+
++AGENT_USER_CONFIG_DISCARDED_EVENT = "agent-user-config-discarded"
++
++
++def read_discarded_user_config_events(
++    run_dir: Any,
++    *,
++    raise_on_error: bool = False,
++) -> list[dict[str, Any]]:
++    """Read agent-user-config-discarded events from <run_dir>/events.jsonl."""
++    try:
++        if isinstance(run_dir, Mapping):
++            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
++        else:
++            run_dir_path = Path(run_dir)
++
++        events_path = run_dir_path / "events.jsonl"
++        events: list[dict[str, Any]] = []
++
++        if not events_path.is_file():
++            return []
++        with events_path.open("r", encoding="utf-8", errors="replace") as handle:
++            for line in handle:
++                line = line.strip()
++                if not line or AGENT_USER_CONFIG_DISCARDED_EVENT not in line:
++                    continue
++                try:
++                    data = json.loads(line)
++                    if (
++                        isinstance(data, dict)
++                        and data.get("event") == AGENT_USER_CONFIG_DISCARDED_EVENT
++                    ):
++                        if isinstance(data.get("keys"), list):
++                            data["keys"] = [str(k) for k in data["keys"]]
++                        events.append(data)
++                except Exception:
++                    continue
++        return events
++    except OSError:
++        if raise_on_error:
++            raise
++        return []
++
++
++def discarded_user_config_keys(events: Sequence[Mapping[str, Any]]) -> list[str]:
++    """Return deduplicated list of top-level key strings across events in order of first appearance."""
++    return list(
++        dict.fromkeys(
++            str(k)
++            for ev in events
++            if isinstance(ev, Mapping) and isinstance(ev.get("keys"), list)
++            for k in ev["keys"]
++        )
++    )
++
++
++def format_discarded_user_config_line(
++    events: Sequence[Mapping[str, Any]],
++) -> str | None:
++    """Format the human summary line for discarded user-config events."""
++    if not events:
++        return None
++    count = len(events)
++    details: list[str] = []
++    for ev in events:
++        id6 = ev.get("id6", "unknown")
++        f = ev.get("file", "unknown")
++        keys = ev.get("keys")
++        if keys:
++            details.append(f"{id6}: {f} {keys}")
++        else:
++            details.append(f"{id6}: {f}")
++    details_str = "; ".join(details)
++    return f"Agent user-config changes discarded: {count} ({details_str})"
++
++
+ def reconcile_agent_user_config(
+     handle: Optional[AgentUserConfig],
+     run_dir: Path | str,
+@@ -47760,7 +47835,7 @@ def reconcile_agent_user_config(
+                 records.append(
+                     {
+                         "at": utc_now(),
+-                        "event": "agent-user-config-discarded",
++                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
+                         "id6": id6,
+                         "attempt": attempt_no,
+                         "file": rel,
+@@ -47772,7 +47847,7 @@ def reconcile_agent_user_config(
+                 records.append(
+                     {
+                         "at": utc_now(),
+-                        "event": "agent-user-config-discarded",
++                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
+                         "id6": id6,
+                         "attempt": attempt_no,
+                         "file": rel,
+@@ -47786,7 +47861,7 @@ def reconcile_agent_user_config(
+                 if current_sha != handle.seed_hashes[rel]:
+                     rec: dict[str, Any] = {
+                         "at": utc_now(),
+-                        "event": "agent-user-config-discarded",
++                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
+                         "id6": id6,
+                         "attempt": attempt_no,
+                         "file": rel,
+@@ -47848,42 +47923,10 @@ def report_discarded_user_config(
+     out = stream if stream is not None else sys.stdout
+     lines: list[str] = []
+     try:
+-        if isinstance(run_dir, dict):
+-            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
+-        else:
+-            run_dir_path = Path(run_dir)
+-        events_path = run_dir_path / "events.jsonl"
+-        events: list[dict[str, Any]] = []
+-        if events_path.is_file():
+-            with events_path.open("r", encoding="utf-8") as handle:
+-                for line in handle:
+-                    line = line.strip()
+-                    if not line:
+-                        continue
+-                    try:
+-                        data = json.loads(line)
+-                        if (
+-                            isinstance(data, dict)
+-                            and data.get("event") == "agent-user-config-discarded"
+-                        ):
+-                            events.append(data)
+-                    except Exception:
+-                        continue
+-        if events:
+-            count = len(events)
+-            details = []
+-            for ev in events:
+-                id6 = ev.get("id6", "unknown")
+-                f = ev.get("file", "unknown")
+-                keys = ev.get("keys")
+-                if keys:
+-                    details.append(f"{id6}: {f} {keys}")
+-                else:
+-                    details.append(f"{id6}: {f}")
+-            details_str = "; ".join(details)
+-            lines.append(
+-                f"Agent user-config changes discarded: {count} ({details_str})"
+-            )
++        events = read_discarded_user_config_events(run_dir, raise_on_error=True)
++        line = format_discarded_user_config_line(events)
++        if line is not None:
++            lines.append(line)
+     except Exception as exc:
+         lines.append(f"error: failed to summarize discarded user-config changes: {exc}")
+     for line in lines:
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of a Python one-liner driving `run_viewer.load_run_summary`, `run_viewer.format_run_human` (default and `detail=True`), `run_viewer.format_multi_run_summary`, and `cli.main(["runs", "--dir", <tmp>, "--json"])` on a temp repo containing one run with `agent-user-config-discarded` events (`keys: ["color_depth"]`) and one clean run, showing `Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])` and `! user-config discarded: config.json ['color_depth']` in human output (default and `short=True` for the run line, `detail=True` for the step line) and `discarded_user_config_count == 1`, `discarded_user_config_keys == ["color_depth"]` on both the run record and the `9y27t2` step record in `--json` and `--agent` output (and `0` / `[]` with no extra human line on the clean run). Reachable via `run_viewer.load_run_summary`, `format_run_human`, and `render_step_details` changed in `E-03`.
   - Observed evidence:
-  - Result: pending
+```
+=== RUN 1 HUMAN DEFAULT ===
+run-20261014T100000Z-1111111  [c4q9e8]
+  pid: 1111111 [exited]
+  start: 2026-10-14 10:00:00, end: 2026-10-14 10:05:00, duration: 5m 00s
+  1 steps: 1 executed
+  Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])
+Status   Landed Date SetID  N ID6    Action  Attempts Elapsed Cost Total Tok Verified Issue
+executed yes    -    c4q9e8 - 9y27t2 execute        -       -    -         - -        no
+=== RUN 1 HUMAN SHORT ===
+run-20261014T100000Z-1111111  [c4q9e8]
+  pid: 1111111 [exited]
+  start: 2026-10-14 10:00:00, end: 2026-10-14 10:05:00, duration: 5m 00s
+  1 steps: 1 executed
+  Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])
+Status   Landed Date SetID  N ID6    Action  Verified Issue
+executed yes    -    c4q9e8 - 9y27t2 execute -        no
+=== RUN 1 HUMAN DETAIL ===
+run-20261014T100000Z-1111111  [c4q9e8]
+  pid: 1111111 [exited]
+  start: 2026-10-14 10:00:00, end: 2026-10-14 10:05:00, duration: 5m 00s
+  1 steps: 1 executed
+  Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])
+Status   Landed Date SetID  N ID6    Action  Attempts Elapsed Cost Total Tok Verified Issue
+executed yes    -    c4q9e8 - 9y27t2 execute        -       -    -         - -        no
 
-- [ ] V-04 validates E-04
+Details for c4q9e8-9y27t2:
+  ! user-config discarded: config.json ['color_depth']
+=== RUN 2 HUMAN DEFAULT ===
+run-20261014T110000Z-2222222  [c4q9e8]
+  pid: 2222222 [exited]
+  start: 2026-10-14 11:00:00, end: 2026-10-14 11:05:00, duration: 5m 00s
+  1 steps: 1 executed
+Status   Landed  Date SetID  N ID6    Action  Attempts Elapsed Cost Total Tok Verified Issue
+executed unknown -    c4q9e8 - clean1 execute        -       -    -         - -        YES
+=== MULTI RUN SUMMARY ===
+--- Summary across 2 runs (2 steps) ---
+Agent user-config changes discarded: 1 across 1 run(s) (['color_depth'])
+No recorded cost/token data for the selected runs.
+=== CLI RUNS --JSON ===
+RUN run-20261014T100000Z-1111111: count=1, keys=['color_depth']
+  STEP 9y27t2: count=1, keys=['color_depth']
+RUN run-20261014T110000Z-2222222: count=0, keys=[]
+  STEP clean1: count=0, keys=[]
+=== CLI RUNS --AGENT ===
+run-1 count: 1 keys: ['color_depth']
+ step 9y27t2 count: 1 keys: ['color_depth']
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted runner output of `python3 -m pytest -o addopts="" tests/test_agent_user_config_containment.py tests/test_run_viewer.py tests/test_runs_subdir_root.py` all passing; pasted failing output under mutation (a) and under mutation (b), each passing again after revert, with a pasted `git diff --stat -- agent_workflows/` after revert showing only `runner_shared.py` and `run_viewer.py` with the intended E-02/E-03/E-06 edits (no residual mutation); and the full bare suite `python3 -m pytest` summary line with no failing node id absent from the V-01 baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Targeted tests passing (75 passed in 17.39s), mutations (a) and (b) verified and cleanly reverted, git diff stat showing only intended files, full suite passing with 707 passed.
+Targeted tests:
+```
+tests/test_runs_subdir_root.py ........                                  [ 10%]
+tests/test_run_viewer.py ............................................... [ 73%]
+...........                                                              [ 88%]
+tests/test_agent_user_config_containment.py .........                    [100%]
 
-- [ ] V-06 validates E-06
+============================= 75 passed in 17.39s ==============================
+```
+Mutation (a) failing output:
+```
+FAILED tests/test_run_viewer.py::DiscardedUserConfigRunViewerTests::test_multi_run_summary_aggregation_and_no_cost_runs
+FAILED tests/test_run_viewer.py::DiscardedUserConfigRunViewerTests::test_run_viewer_cli_modes
+FAILED tests/test_run_viewer.py::DiscardedUserConfigRunViewerTests::test_load_and_format_run_human_and_clean_run_equality
+FAILED tests/test_run_viewer.py::DiscardedUserConfigRunViewerTests::test_execution_report_fallback_with_events
+======================= 4 failed, 54 deselected in 0.96s =======================
+```
+Mutation (b) failing output:
+```
+FAILED tests/test_agent_user_config_containment.py::test_read_and_format_discarded_user_config_helpers
+======================= 1 failed, 8 deselected in 3.19s ========================
+```
+`git diff --stat -- agent_workflows/` after revert:
+```
+ agent_workflows/run_viewer.py    |  82 ++++++++++++++++++++++++++
+ agent_workflows/runner_shared.py | 121 ++++++++++++++++++++++++++-------------
+ 2 files changed, 164 insertions(+), 39 deletions(-)
+```
+Full bare suite summary:
+```
+707 passed in 22.03s
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff -- agent_workflows/run_viewer.py` hunks for `build_multi_run_summary_dict` and `format_multi_run_summary`, and pasted output (reachable via `run_viewer.format_multi_run_summary` and `cli.main(["runs", "--dir", <tmp>, "--summary-only", "--json"])` changed in `E-06`) on a temp repo with two runs WITHOUT any cost data, one carrying a `color_depth` discard event, showing the human line `Agent user-config changes discarded: 1 across 1 run(s) (['color_depth'])` (exact rendering of the key list as implemented) and the JSON summary fields `discarded_user_config_count == 1`, `discarded_user_config_runs == 1`, `discarded_user_config_keys == ["color_depth"]`; plus the same commands on a clean repo showing no line and `0` / `0` / `[]`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff hunks for build_multi_run_summary_dict and format_multi_run_summary verified against temp repo with color_depth discard event and clean repo.
+Diff hunks:
+```diff
+@@ -2974,6 +2974,16 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
+             },
+         }
 
-- [ ] V-05 validates E-05
++    discarded_count = sum(s.discarded_user_config_count for s in summaries)
++    discarded_runs = sum(1 for s in summaries if s.discarded_user_config_count > 0)
++    discarded_keys = list(
++        dict.fromkeys(
++            k
++            for s in summaries
++            for k in s.discarded_user_config_keys
++        )
++    )
++
+     return {
+         "runs_count": total_runs,
+         "steps_count": total_steps,
+@@ -2981,6 +2981,9 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
+         "avg_cost_per_run": avg_cost_per_run,
+         "total_tokens": dict(total_tokens) if total_tokens else {},
+         "avg_tokens_per_run": avg_tokens_per_run,
++        "discarded_user_config_count": discarded_count,
++        "discarded_user_config_runs": discarded_runs,
++        "discarded_user_config_keys": discarded_keys,
+         "by_status": status_summary,
+         "by_action": action_summary,
+         "by_phase": by_phase,
+@@ -3006,6 +3006,17 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
+         else header_title
+     )
+
++    disc_count = summary_data["discarded_user_config_count"]
++    disc_runs = summary_data["discarded_user_config_runs"]
++    disc_keys = summary_data["discarded_user_config_keys"]
++    if disc_count > 0:
++        disc_line = f"Agent user-config changes discarded: {disc_count} across {disc_runs} run(s) ({disc_keys})"
++        lines.append(
++            term.color256(disc_line, 214)
++            if getattr(term, "color", False)
++            else disc_line
++        )
++
+     if has_any_cost:
+         cost_str = f"${total_cost:.2f}"
+         cost_val_str = (
+```
+Output:
+```
+=== POPULATED REPO ===
+HUMAN MULTI (with_event=True):
+--- Summary across 2 runs (2 steps) ---
+Agent user-config changes discarded: 1 across 1 run(s) (['color_depth'])
+No recorded cost/token data for the selected runs.
+JSON SUMMARY (with_event=True):
+discarded_user_config_count == 1
+discarded_user_config_runs == 1
+discarded_user_config_keys == ['color_depth']
+=== CLEAN REPO ===
+HUMAN MULTI (with_event=False):
+--- Summary across 2 runs (2 steps) ---
+No recorded cost/token data for the selected runs.
+JSON SUMMARY (with_event=False):
+discarded_user_config_count == 0
+discarded_user_config_runs == 0
+discarded_user_config_keys == []
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff -- CHANGELOG.md`, a check confirming zero `\u2013` / `\u2014` characters in the diff, and pasted output of `aw sanitize --agent` showing `"outcome":"clean"`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHANGELOG.md diff pasted, dash verification confirmed zero en/em dashes, leak sanitizer clean.
+`git diff -- CHANGELOG.md`:
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c140645fa..c4f1706d9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Added: aw runs now surfaces the count, keys, and event details of discarded agent user-config changes per run in human, --json, and --agent output from the run's durable events.jsonl log.
+ - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+ - Fixed: aw install and install_wizard.persist_project_policy now preserve existing project.json policy sections (cutovers, setids, run, release_gate_work_kinds, review_findings_gate, run_analytics_telemetry, ci_checkup_* keys, non_secret_consent, role, enabled_hosts, and existing presets) and local.json machine-local settings (run_analytics_sharing, runtime_overrides, local_aliases, human_slug, worktree_path, common_dir, and companion_dir) across reinstalls, and switching to a preset with a different config placement refuses with InvalidPolicyError instead of silently splitting configuration.
+ - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
+```
+Dash verification:
+```
+en-dashes: 0, em-dashes: 0
+```
+Sanitizer output:
+```json
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5241,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 

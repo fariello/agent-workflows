@@ -3432,3 +3432,294 @@ class RunsAgentStreamAndRefusalTests(TestCase):
                 self.assertIsInstance(c, str)
                 self.assertFalse(c.startswith("/"))
                 self.assertTrue(c.startswith(".aw/records/plans/pending/"))
+
+
+class DiscardedUserConfigRunViewerTests(TestCase):
+    """Behavioral tests for discarded agent user-config changes in aw runs (IPD swpf3q)."""
+
+    def setUp(self):
+        self.maxDiff = None
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self._temp_dir.name)
+        self.runs_dir = self.root / ".aw" / "records" / "runs"
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        self._temp_dir.cleanup()
+
+    def _create_run_with_events(self) -> Path:
+        r_dir = self.runs_dir / "run-20261014T100000Z-1111111"
+        r_dir.mkdir(exist_ok=True)
+        (r_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20261014T100000Z-1111111",
+                    "created_at": "2026-10-14T10:00:00+00:00",
+                    "updated_at": "2026-10-14T10:05:00+00:00",
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "9y27t2",
+                            "setid": "c4q9e8",
+                            "action": "execute",
+                            "status": "executed",
+                            "stem": "20261014-c4q9e8-01-9y27t2-test",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        events = [
+            {
+                "event": "agent-user-config-discarded",
+                "id6": "9y27t2",
+                "file": "config.json",
+                "keys": ["color_depth"],
+            },
+            {
+                "event": "agent-user-config-discarded",
+                "id6": "orphan",
+                "file": "extra.txt",
+                "change": "added",
+            },
+        ]
+        (r_dir / "events.jsonl").write_text(
+            "".join(json.dumps(ev) + "\n" for ev in events), encoding="utf-8"
+        )
+        return r_dir
+
+    def _create_clean_run(self) -> Path:
+        r_dir = self.runs_dir / "run-20261014T110000Z-2222222"
+        r_dir.mkdir(exist_ok=True)
+        (r_dir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20261014T110000Z-2222222",
+                    "created_at": "2026-10-14T11:00:00+00:00",
+                    "updated_at": "2026-10-14T11:05:00+00:00",
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "clean1",
+                            "setid": "c4q9e8",
+                            "action": "execute",
+                            "status": "executed",
+                            "stem": "20261014-c4q9e8-02-clean1-test",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return r_dir
+
+    def test_load_and_format_run_human_and_clean_run_equality(self):
+        r1 = self._create_run_with_events()
+        r2 = self._create_clean_run()
+
+        s1 = run_viewer.load_run_summary(r1, self.root)
+        self.assertIsNotNone(s1)
+        self.assertEqual(s1.discarded_user_config_count, 2)
+        self.assertEqual(s1.discarded_user_config_keys, ["color_depth"])
+        self.assertEqual(len(s1.discarded_user_config), 2)
+        step1 = s1.steps[0]
+        self.assertEqual(step1.discarded_user_config_count, 1)
+        self.assertEqual(step1.discarded_user_config_keys, ["color_depth"])
+        self.assertEqual(len(step1.discarded_user_config), 1)
+
+        term_plain = Term(color=False)
+        term_color = Term(color=True)
+
+        h_default = run_viewer.format_run_human(s1, term_plain)
+        self.assertIn(
+            "Agent user-config changes discarded: 2 (9y27t2: config.json ['color_depth']; orphan: extra.txt)",
+            h_default,
+        )
+        self.assertNotIn("! user-config discarded:", h_default)
+
+        h_short = run_viewer.format_run_human(s1, term_plain, short=True)
+        self.assertIn("Agent user-config changes discarded: 2", h_short)
+
+        h_detail = run_viewer.format_run_human(s1, term_plain, detail=True)
+        self.assertIn("Agent user-config changes discarded: 2", h_detail)
+        self.assertIn("! user-config discarded: config.json ['color_depth']", h_detail)
+
+        h_color = run_viewer.format_run_human(s1, term_color)
+        self.assertIn("\x1b[38;5;214m", h_color)
+        self.assertEqual(strip_ansi(h_color), h_default)
+
+        s2 = run_viewer.load_run_summary(r2, self.root)
+        self.assertIsNotNone(s2)
+        self.assertEqual(s2.discarded_user_config_count, 0)
+        self.assertEqual(s2.discarded_user_config_keys, [])
+        self.assertEqual(s2.discarded_user_config, [])
+        self.assertEqual(s2.steps[0].discarded_user_config_count, 0)
+
+        h2_plain = run_viewer.format_run_human(s2, term_plain)
+        self.assertNotIn("Agent user-config changes discarded", h2_plain)
+        self.assertNotIn("user-config discarded", h2_plain)
+
+        s2_defaults = run_viewer.RunSummary(
+            run_id=s2.run_id,
+            run_dir=s2.run_dir,
+            created_at=s2.created_at,
+            updated_at=s2.updated_at,
+            driver=s2.driver,
+            selectors=s2.selectors,
+            setids=s2.setids,
+            steps=s2.steps,
+            counts=s2.counts,
+            total_cost=s2.total_cost,
+            total_tokens=s2.total_tokens,
+            exec_cost=s2.exec_cost,
+            exec_tokens=s2.exec_tokens,
+            verify_cost=s2.verify_cost,
+            verify_tokens=s2.verify_tokens,
+            pid=s2.pid,
+            pid_state=s2.pid_state,
+            is_live=s2.is_live,
+            runtime_seconds=s2.runtime_seconds,
+            runtime_str=s2.runtime_str,
+        )
+        self.assertEqual(h2_plain, run_viewer.format_run_human(s2_defaults, term_plain))
+
+    def test_multi_run_summary_aggregation_and_no_cost_runs(self):
+        r1 = self._create_run_with_events()
+        r2 = self._create_clean_run()
+
+        s1 = run_viewer.load_run_summary(r1, self.root)
+        s2 = run_viewer.load_run_summary(r2, self.root)
+
+        summary_dict = run_viewer.build_multi_run_summary_dict([s1, s2])
+        self.assertEqual(summary_dict["discarded_user_config_count"], 2)
+        self.assertEqual(summary_dict["discarded_user_config_runs"], 1)
+        self.assertEqual(summary_dict["discarded_user_config_keys"], ["color_depth"])
+
+        term_plain = Term(color=False)
+        term_color = Term(color=True)
+        multi_plain = run_viewer.format_multi_run_summary([s1, s2], term_plain)
+        self.assertIn(
+            "Agent user-config changes discarded: 2 across 1 run(s) (['color_depth'])",
+            multi_plain,
+        )
+        self.assertIn("No recorded cost/token data for the selected runs.", multi_plain)
+
+        multi_color = run_viewer.format_multi_run_summary([s1, s2], term_color)
+        self.assertIn("\x1b[38;5;214m", multi_color)
+        self.assertEqual(strip_ansi(multi_color), multi_plain)
+
+        clean_dict = run_viewer.build_multi_run_summary_dict([s2])
+        self.assertEqual(clean_dict["discarded_user_config_count"], 0)
+        self.assertEqual(clean_dict["discarded_user_config_runs"], 0)
+        self.assertEqual(clean_dict["discarded_user_config_keys"], [])
+
+        clean_multi = run_viewer.format_multi_run_summary([s2], term_plain)
+        self.assertNotIn("Agent user-config changes discarded", clean_multi)
+
+    def test_execution_report_fallback_with_events(self):
+        r_dir = self.runs_dir / "run-20261014T120000Z-3333333"
+        r_dir.mkdir(exist_ok=True)
+        report_md = (
+            "# Run execution report: run-20261014T120000Z-3333333\n\n"
+            "- Created: 2026-10-14 12:00:00\n"
+            "- Updated: 2026-10-14 12:05:00\n"
+            "- Selectors: `c4q9e8`\n\n"
+            "| # | ID6 | Set | Action | Status | Verify | Attempts | Session |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| 1 | 9y27t2 | c4q9e8 | execute | executed | - | 1 | - |\n"
+        )
+        (r_dir / "execution-report.md").write_text(report_md, encoding="utf-8")
+        (r_dir / "events.jsonl").write_text(
+            json.dumps(
+                {
+                    "event": "agent-user-config-discarded",
+                    "id6": "9y27t2",
+                    "file": "config.json",
+                    "keys": ["color_depth"],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        s = run_viewer.load_run_summary(r_dir, self.root)
+        self.assertIsNotNone(s)
+        self.assertEqual(s.discarded_user_config_count, 1)
+        self.assertEqual(s.discarded_user_config_keys, ["color_depth"])
+        self.assertEqual(len(s.steps), 1)
+        self.assertEqual(s.steps[0].discarded_user_config_count, 1)
+        self.assertEqual(s.steps[0].discarded_user_config_keys, ["color_depth"])
+
+    def test_run_viewer_cli_modes(self):
+        self._create_run_with_events()
+        self._create_clean_run()
+
+        # 1. Human mode
+        out_h, err_h, rc_h = _run_viewer(self.root, ["--no-color"])
+        self.assertEqual(rc_h, 0, err_h)
+        self.assertIn("Agent user-config changes discarded: 2", out_h)
+
+        # 2. --json mode
+        out_j, err_j, rc_j = _run_viewer(self.root, ["--json"])
+        self.assertEqual(rc_j, 0, err_j)
+        data_j = json.loads(out_j)
+        runs_j = {r["run_id"]: r for r in data_j.get("runs", [])}
+        self.assertEqual(
+            runs_j["run-20261014T100000Z-1111111"]["discarded_user_config_count"], 2
+        )
+        self.assertEqual(
+            runs_j["run-20261014T100000Z-1111111"]["discarded_user_config_keys"],
+            ["color_depth"],
+        )
+        self.assertEqual(
+            runs_j["run-20261014T110000Z-2222222"]["discarded_user_config_count"], 0
+        )
+        self.assertEqual(
+            runs_j["run-20261014T110000Z-2222222"]["discarded_user_config_keys"], []
+        )
+
+        # 3. --summary-only --json
+        out_s, err_s, rc_s = _run_viewer(self.root, ["--summary-only", "--json"])
+        self.assertEqual(rc_s, 0, err_s)
+        data_s = json.loads(out_s)
+        summary = data_s.get("summary", data_s)
+        self.assertEqual(summary["discarded_user_config_count"], 2)
+        self.assertEqual(summary["discarded_user_config_runs"], 1)
+        self.assertEqual(summary["discarded_user_config_keys"], ["color_depth"])
+
+        # 4. --latest-only --json
+        out_l, err_l, rc_l = _run_viewer(self.root, ["--latest-only", "--json"])
+        self.assertEqual(rc_l, 0, err_l)
+        data_l = json.loads(out_l)
+        steps_l = {st["id6"]: st for st in data_l.get("steps", [])}
+        self.assertEqual(steps_l["9y27t2"]["discarded_user_config_count"], 1)
+        self.assertEqual(
+            steps_l["9y27t2"]["discarded_user_config_keys"], ["color_depth"]
+        )
+        self.assertEqual(steps_l["clean1"]["discarded_user_config_count"], 0)
+        self.assertEqual(steps_l["clean1"]["discarded_user_config_keys"], [])
+
+        # 5. --agent mode
+        out_a, err_a, rc_a = _run_viewer(self.root, ["--agent"])
+        self.assertEqual(rc_a, 0, err_a)
+        items_a = []
+        for line in out_a.splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                if rec.get("kind") == "item":
+                    items_a.append(rec)
+        runs_a = {r["run_id"]: r for r in items_a}
+        self.assertEqual(
+            runs_a["run-20261014T100000Z-1111111"]["discarded_user_config_count"], 2
+        )
+        self.assertEqual(
+            runs_a["run-20261014T100000Z-1111111"]["discarded_user_config_keys"],
+            ["color_depth"],
+        )
+        self.assertEqual(
+            runs_a["run-20261014T110000Z-2222222"]["discarded_user_config_count"], 0
+        )
+        self.assertEqual(
+            runs_a["run-20261014T110000Z-2222222"]["discarded_user_config_keys"], []
+        )

@@ -47715,6 +47715,81 @@ def prepare_agent_user_config(
         return None
 
 
+AGENT_USER_CONFIG_DISCARDED_EVENT = "agent-user-config-discarded"
+
+
+def read_discarded_user_config_events(
+    run_dir: Any,
+    *,
+    raise_on_error: bool = False,
+) -> list[dict[str, Any]]:
+    """Read agent-user-config-discarded events from <run_dir>/events.jsonl."""
+    try:
+        if isinstance(run_dir, Mapping):
+            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
+        else:
+            run_dir_path = Path(run_dir)
+
+        events_path = run_dir_path / "events.jsonl"
+        events: list[dict[str, Any]] = []
+
+        if not events_path.is_file():
+            return []
+        with events_path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or AGENT_USER_CONFIG_DISCARDED_EVENT not in line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    if (
+                        isinstance(data, dict)
+                        and data.get("event") == AGENT_USER_CONFIG_DISCARDED_EVENT
+                    ):
+                        if isinstance(data.get("keys"), list):
+                            data["keys"] = [str(k) for k in data["keys"]]
+                        events.append(data)
+                except Exception:
+                    continue
+        return events
+    except OSError:
+        if raise_on_error:
+            raise
+        return []
+
+
+def discarded_user_config_keys(events: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Return deduplicated list of top-level key strings across events in order of first appearance."""
+    return list(
+        dict.fromkeys(
+            str(k)
+            for ev in events
+            if isinstance(ev, Mapping) and isinstance(ev.get("keys"), list)
+            for k in ev["keys"]
+        )
+    )
+
+
+def format_discarded_user_config_line(
+    events: Sequence[Mapping[str, Any]],
+) -> str | None:
+    """Format the human summary line for discarded user-config events."""
+    if not events:
+        return None
+    count = len(events)
+    details: list[str] = []
+    for ev in events:
+        id6 = ev.get("id6", "unknown")
+        f = ev.get("file", "unknown")
+        keys = ev.get("keys")
+        if keys:
+            details.append(f"{id6}: {f} {keys}")
+        else:
+            details.append(f"{id6}: {f}")
+    details_str = "; ".join(details)
+    return f"Agent user-config changes discarded: {count} ({details_str})"
+
+
 def reconcile_agent_user_config(
     handle: Optional[AgentUserConfig],
     run_dir: Path | str,
@@ -47760,7 +47835,7 @@ def reconcile_agent_user_config(
                 records.append(
                     {
                         "at": utc_now(),
-                        "event": "agent-user-config-discarded",
+                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
                         "id6": id6,
                         "attempt": attempt_no,
                         "file": rel,
@@ -47772,7 +47847,7 @@ def reconcile_agent_user_config(
                 records.append(
                     {
                         "at": utc_now(),
-                        "event": "agent-user-config-discarded",
+                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
                         "id6": id6,
                         "attempt": attempt_no,
                         "file": rel,
@@ -47786,7 +47861,7 @@ def reconcile_agent_user_config(
                 if current_sha != handle.seed_hashes[rel]:
                     rec: dict[str, Any] = {
                         "at": utc_now(),
-                        "event": "agent-user-config-discarded",
+                        "event": AGENT_USER_CONFIG_DISCARDED_EVENT,
                         "id6": id6,
                         "attempt": attempt_no,
                         "file": rel,
@@ -47848,42 +47923,10 @@ def report_discarded_user_config(
     out = stream if stream is not None else sys.stdout
     lines: list[str] = []
     try:
-        if isinstance(run_dir, dict):
-            run_dir_path = Path(run_dir.get("run_dir") or run_dir.get("repo") or ".")
-        else:
-            run_dir_path = Path(run_dir)
-        events_path = run_dir_path / "events.jsonl"
-        events: list[dict[str, Any]] = []
-        if events_path.is_file():
-            with events_path.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                        if (
-                            isinstance(data, dict)
-                            and data.get("event") == "agent-user-config-discarded"
-                        ):
-                            events.append(data)
-                    except Exception:
-                        continue
-        if events:
-            count = len(events)
-            details = []
-            for ev in events:
-                id6 = ev.get("id6", "unknown")
-                f = ev.get("file", "unknown")
-                keys = ev.get("keys")
-                if keys:
-                    details.append(f"{id6}: {f} {keys}")
-                else:
-                    details.append(f"{id6}: {f}")
-            details_str = "; ".join(details)
-            lines.append(
-                f"Agent user-config changes discarded: {count} ({details_str})"
-            )
+        events = read_discarded_user_config_events(run_dir, raise_on_error=True)
+        line = format_discarded_user_config_line(events)
+        if line is not None:
+            lines.append(line)
     except Exception as exc:
         lines.append(f"error: failed to summarize discarded user-config changes: {exc}")
     for line in lines:

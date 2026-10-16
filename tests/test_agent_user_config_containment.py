@@ -586,3 +586,125 @@ def test_profiles_subdirectory_containment():
 
         # Source file is unchanged
         assert (profiles_dir / "team.json").read_bytes() == orig_team_bytes
+
+
+def test_read_and_format_discarded_user_config_helpers():
+    """Cell (h) / E-04: test read_discarded_user_config_events, discarded_user_config_keys, and format_discarded_user_config_line."""
+    from agent_workflows import cli, run_viewer
+    from agent_workflows.term import Term
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # (i) & (ii): multiple events across turns/files with overlapping and non-overlapping keys,
+        # added non-JSON file without keys, blank lines, malformed JSON lines,
+        # and a line mentioning the event name in another field (e.g. heartbeat) to pin exact match.
+        run1 = tmp / "run1"
+        run1.mkdir()
+        events_file1 = run1 / "events.jsonl"
+        events_content = (
+            "\n"
+            '{"event": "heartbeat", "note": "agent-user-config-discarded"}\n'
+            '{"event": "agent-user-config-discarded", "id6": "9y27t2", "file": "config.json", "keys": ["color_depth", "editor"]}\n'
+            "malformed json line with agent-user-config-discarded in it\n"
+            '{"event": "agent-user-config-discarded", "id6": "swpf3q", "file": "profiles/team.json", "keys": ["editor", "records_backend"]}\n'
+            '{"event": "agent-user-config-discarded", "id6": "swpf3q", "file": "notes.txt", "change": "added"}\n'
+            "\n"
+        )
+        events_file1.write_text(events_content, encoding="utf-8")
+
+        events1 = runner_shared.read_discarded_user_config_events(run1)
+        assert len(events1) == 3
+        assert events1[0]["file"] == "config.json"
+        assert events1[1]["file"] == "profiles/team.json"
+        assert events1[2]["file"] == "notes.txt"
+
+        keys1 = runner_shared.discarded_user_config_keys(events1)
+        assert keys1 == ["color_depth", "editor", "records_backend"]
+
+        line1 = runner_shared.format_discarded_user_config_line(events1)
+        assert line1 == (
+            "Agent user-config changes discarded: 3 "
+            "(9y27t2: config.json ['color_depth', 'editor']; "
+            "swpf3q: profiles/team.json ['editor', 'records_backend']; "
+            "swpf3q: notes.txt)"
+        )
+
+        # (iii) missing events.jsonl returning [] and None
+        run_empty = tmp / "run_empty"
+        run_empty.mkdir()
+        events_empty = runner_shared.read_discarded_user_config_events(run_empty)
+        assert events_empty == []
+        assert runner_shared.discarded_user_config_keys(events_empty) == []
+        assert runner_shared.format_discarded_user_config_line(events_empty) is None
+
+        # (iv) end-to-end integration where reconcile_agent_user_config writes to events.jsonl
+        # and run_viewer.load_run_summary + run_viewer.format_run_human + cli.main(["runs", ...])
+        # surface exact count (1) and keys (["color_depth"]).
+        repo = tmp / "repo"
+        repo_runs = repo / ".aw" / "runs"
+        repo_runs.mkdir(parents=True)
+        run_e2e = repo_runs / "run-20261014T120000Z-3333333"
+        run_e2e.mkdir()
+
+        source_cfg = tmp / "src_cfg"
+        source_cfg.mkdir()
+        (source_cfg / "config.json").write_text(
+            json.dumps({"color_depth": "16"}), encoding="utf-8"
+        )
+
+        item = {"position": 1, "id6": "9y27t2", "stem": "20261014-demo-01-9y27t2-test"}
+        handle = runner_shared.prepare_agent_user_config(
+            run_e2e, item, attempt_no=1, suffix="", source_dir=source_cfg
+        )
+        assert handle is not None
+
+        # Modify color_depth in sandbox
+        (handle.path / "config.json").write_text(
+            json.dumps({"color_depth": "256"}), encoding="utf-8"
+        )
+
+        # Reconcile writes event to run_e2e / events.jsonl
+        reconciled = runner_shared.reconcile_agent_user_config(handle, run_e2e, item)
+        assert len(reconciled) == 1
+
+        # Write state.json so run_viewer can load the run
+        (run_e2e / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": "run-20261014T120000Z-3333333",
+                    "queue": [item],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        summary = run_viewer.load_run_summary(run_e2e, repo)
+        assert summary is not None
+        assert summary.discarded_user_config_count == 1
+        assert summary.discarded_user_config_keys == ["color_depth"]
+        assert len(summary.steps) == 1
+        assert summary.steps[0].discarded_user_config_count == 1
+        assert summary.steps[0].discarded_user_config_keys == ["color_depth"]
+
+        term = Term(color=False)
+        human_text = run_viewer.format_run_human(summary, term)
+        assert (
+            "Agent user-config changes discarded: 1 (9y27t2: config.json ['color_depth'])"
+            in human_text
+        )
+
+        old_stdout = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            cli.main(["runs", "--dir", str(repo), "--json"])
+        finally:
+            sys.stdout = old_stdout
+
+        cli_json = json.loads(buf.getvalue())
+        runs_list = cli_json.get("runs", [])
+        assert len(runs_list) == 1
+        assert runs_list[0]["discarded_user_config_count"] == 1
+        assert runs_list[0]["discarded_user_config_keys"] == ["color_depth"]
+        assert runs_list[0]["steps"][0]["discarded_user_config_count"] == 1
+        assert runs_list[0]["steps"][0]["discarded_user_config_keys"] == ["color_depth"]
