@@ -1,5 +1,5 @@
 - Id: hybluq
-- Status: graduated
+- Status: done
 - Graduated-To: hybluq
 - Set: hybluq
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral coverage of zero-finding direction in check_release_gate_consistency on ungated item with gated carrier lost with tests/test_bug_gate_check.py
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD k9niwu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-hybluq-01-k9niwu-restore-behavioral-coverage-that-check-release-gate-consiste.ipd.md); evidence .aw/records/plans/executed/20261014-hybluq-01-k9niwu-restore-behavioral-coverage-that-check-release-gate-consiste.ipd.md
 - 2026-10-15 graduated (aw backlog): graduated by run run-20261014T234541Z-3805433: k9niwu
 - 2026-10-14 created (aw backlog): Restore behavioral coverage of zero-finding direction in check_release_gate_consistency on ungated item with gated carrier lost with tests/test_bug_gate_check.py
 
