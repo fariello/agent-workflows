@@ -6,7 +6,8 @@
 - Scope: IN: (1) make the installer's per-member byte producer `engine._member_source_bytes` rewrite the two version stamps in the installed `index.md` to the same `read_version(source_root)` value it already writes into VERSION, on both the install path (`engine.install_all`) and the preview path (`engine.show_install_diffs`), which share that producer; (2) behavioral regression tests in `tests/test_installer.py` (git-tagged diverging source, non-git source, idempotent re-install, and the `gate_artifact_manifest` outcome on the installed target); (3) a `CHANGELOG.md` entry. OUT: `agent_workflows/release_readiness.py` (the gate's stamp/VERSION equality check is correct and is kept; it detected a real installer inconsistency); re-baking this repository's own `.aw/system/VERSION` or `index.md` (`make version-file`, a release-time act under RELEASING.md); `versioning.status()` classifications; the `Makefile` `version-file` target (already syncs both stamps).
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: 7rs77x
@@ -17,6 +18,7 @@
 - Id: e9l2e0
 
 ## Workflow history
+- 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored from backlog 7rs77x at HEAD dcb5a064d; root cause located in `engine._member_source_bytes`; decided installer-side reconciliation (OQ-01).
@@ -40,17 +42,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Write the regression tests FIRST in `tests/test_installer.py` and show them RED against the unmodified `agent_workflows/engine.py`.
   - Depends on: E-01
-  - Expected outcome: a new `unittest.TestCase` class (for example `ResolvedIndexStampTests`) modelled on `ResolvedVersionStampTests` (git-tagged source whose baked VERSION is `1.2.1` and whose tag `v7.3.0` resolves to `7.3.0`; its `index.md` additionally carries `<!-- WORKFLOWS-VERSION: 1.2.1 -->` and `Version: \`1.2.1\` (source of truth: ...)` lines above the manifest markers), asserting observable outcomes only (no `inspect`, `ast`, or source regex): (1) after `INS.install_into_repo(target, resolved_root, yes=True, no_color=True)` the target's installed `index.md` carries `WORKFLOWS-VERSION: 7.3.0` and `Version: \`7.3.0\``, equal to the installed `.aw/system/VERSION`, and every other byte of `index.md` equals the source file (compare the text with both stamp lines substituted back); (2) `release_readiness.gate_artifact_manifest(repo_root=target)` returns `passed is True` with no "version stamp" problem (falsifiability: on the unmodified engine it fails with "version stamp mismatch"); (3) a second install reports no `index.md` member as written again and leaves its bytes unchanged (idempotence, mirroring `test_a_second_install_is_idempotent`); (4) a NON-git source (no `init_repo`, `GIT_CEILING_DIRECTORIES` set via `mock.patch.dict(os.environ, ...)` to the temp parent) installs `index.md` byte-identical to the source, because the resolver's answer there IS the baked file; (5) an `index.md` with NO stamp lines installs byte-identical (the rewrite is a no-op when nothing matches). RED proof: run `python3 -m pytest -o addopts="" -q tests/test_installer.py -k ResolvedIndexStamp` before E-03 and paste the failing output.
+  - Expected outcome: a new `unittest.TestCase` class (for example `ResolvedIndexStampTests`) modelled on `ResolvedVersionStampTests` (git-tagged source whose baked VERSION is `1.2.1` and whose tag `v7.3.0` resolves to `7.3.0`; its `index.md` additionally carries `<!-- WORKFLOWS-VERSION: 1.2.1 -->` and `Version: \`1.2.1\` (source of truth: ...)` lines above the manifest markers, and its manifest row names the body as `.aw/system/workflows/plan-review/plan-review.md`, NOT the `.agents/workflows/...` path `ResolvedVersionStampTests.MANIFEST_ROW` uses: `gate_artifact_manifest` resolves body paths against the aw-layout target, so the legacy path adds a "missing body file" problem and case (2) could never pass, measured at review), asserting observable outcomes only (no `inspect`, `ast`, or source regex): (1) after `INS.install_into_repo(target, resolved_root, yes=True, no_color=True)` the target's installed `index.md` carries `WORKFLOWS-VERSION: 7.3.0` and `Version: \`7.3.0\``, equal to the installed `.aw/system/VERSION`, and every other byte of `index.md` equals the source file (compare the text with both stamp lines substituted back); (2) `release_readiness.gate_artifact_manifest(repo_root=target)` returns `passed is True` with no "version stamp" problem (falsifiability: on the unmodified engine it fails with "version stamp mismatch"); (3) a second install reports no `index.md` member as written again and leaves its bytes unchanged (idempotence, mirroring `test_a_second_install_is_idempotent`); (4) a NON-git source (no `init_repo`, `GIT_CEILING_DIRECTORIES` set via `mock.patch.dict(os.environ, ...)` to the temp parent) installs `index.md` byte-identical to the source, because the resolver's answer there IS the baked file; (5) an `index.md` with NO stamp lines installs byte-identical (the rewrite is a no-op when nothing matches). Cases (3)-(5) are regression guards that also pass on the unmodified engine (a verbatim copy is already idempotent and byte-identical); only (1) and (2) are expected RED. RED proof: run `python3 -m pytest -o addopts="" -q tests/test_installer.py -k ResolvedIndexStamp` before E-03 and paste the failing output.
   - Execution state: pending
 
 - [ ] E-03 Extend `engine._member_source_bytes` so the installed `index.md` carries the resolved version in both stamps.
   - Depends on: E-02
-  - Expected outcome: when `source_relative == "index.md"`, the producer decodes the source bytes as UTF-8, substitutes the first `<!-- WORKFLOWS-VERSION: [^>]*-->` and the first `(?m)^Version: \`[^\`]*\`` with `read_version(source_root)` (the same patterns the `Makefile` `version-file` target uses, and the same resolved value the VERSION branch writes, computed once per call), preserves every other byte including line endings, and returns the original bytes unchanged when neither pattern matches or the resolved value is `unknown` (so an unresolvable source never stamps `unknown` into a manifest that previously named a version). The docstring explains that `index.md` is the second derived member and why. `engine.show_install_diffs` needs no edit because it already calls the same producer; confirm by reading it. Every other member stays a verbatim copy.
+  - Expected outcome: when `source_relative == "index.md"`, the producer decodes the source bytes as UTF-8, substitutes the first match of the comment stamp and the first match of the `Version:` line with `read_version(source_root)` (the same resolved value the VERSION branch writes, computed once per call), writing the canonical forms `<!-- WORKFLOWS-VERSION: <v> -->` and `Version: \`<v>\`` that the `Makefile` `version-file` target writes. MATCH with the whitespace-tolerant patterns the consumer reads, `release_readiness.gate_artifact_manifest`'s `<!--\s*WORKFLOWS-VERSION:\s*([^\s>]+)\s*-->` and `(?m)^Version:\s*\`([^\`]+)\``, not the Makefile's stricter single-space patterns, so every stamp the gate can read is one the installer rewrites (review D-1); preserves every other byte including line endings, and returns the original bytes unchanged when neither pattern matches or the resolved value is `unknown` (so an unresolvable source never stamps `unknown` into a manifest that previously named a version). The docstring explains that `index.md` is the second derived member and why. `engine.show_install_diffs` needs no edit because it already calls the same producer; confirm by reading it. Every other member stays a verbatim copy.
   - Execution state: pending
 
 - [ ] E-04 Record the fix in `CHANGELOG.md`.
   - Depends on: E-03
-  - Expected outcome: one `Fixed:` bullet under the current pending section stating that an install from a development checkout now stamps the installed `index.md` with the same resolved version as `.aw/system/VERSION`, so `aw releases readiness` no longer reports a false `artifact_manifest` version-stamp mismatch in managed repos; no em or en dashes in the added text.
+  - Expected outcome: one `Fixed:` bullet in the topmost section, `## 2.0.0 (pending)` (where the other current `Fixed:` bullets, including the `artifact_manifest` one, live; NOT the older `## 1.3.0 (pending)` section), stating that an install from a development checkout now stamps the installed `index.md` with the same resolved version as `.aw/system/VERSION`, so `aw releases readiness` no longer reports a false `artifact_manifest` version-stamp mismatch in managed repos; no em or en dashes in the added text.
   - Execution state: pending
 
 ### Task group 3: validation
@@ -81,6 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | Only `index.md` carries the stamp in shipped content consumed by code. | `git grep -n "WORKFLOWS-VERSION" -- agent_workflows` at `dcb5a064d` matches only `agent_workflows/release_readiness.py`; the shipped stamp lives only in `.aw/system/workflows/index.md`. |
 | F-05 | A correctly baked release install does NOT reproduce, so `followup` (not `bug`) stands. | A wheel or non-git copy resolves to the baked file, so VERSION and the stamp agree. A bake-then-tag tag tree has VERSION equal to its tag (RELEASING.md). Counterexample worth noting: tag `v1.3.0-rc.1` was NOT bake-then-tagged (`git show v1.3.0-rc.1:.agents/workflows/VERSION` is `1.2.1` while the resolver reports `1.3.0rc1`), so an install from that tag checkout would also mismatch. The fix covers both cases because the stamp now follows the resolver. |
 | F-06 | No test covers the installed `index.md` stamp. | `git grep -n "WORKFLOWS-VERSION" -- tests` matches only `tests/test_release_readiness_producers.py` fixtures; `ResolvedVersionStampTests` in `tests/test_installer.py` asserts only VERSION and the manifest `installed_version`. |
+| F-07 | The fix is sufficient for the gate, measured at review. | At `b551549b9`: a managed install gave VERSION `1.3.0rc2.dev11020+gb551549b9`, `index.md` stamps `1.2.1`, gate `False ['version stamp mismatch: ...']`. On a synthetic tagged source (`v7.3.0`, baked `1.2.1`, aw-layout body row) the unpatched gate printed `False ['version stamp mismatch: index.md has 1.2.1 but .aw/system/VERSION has 7.3.0']`; with `_member_source_bytes` patched to rewrite both stamps it printed `True []`, and a second install reported no `index.md` line written. With the legacy `.agents/workflows/...` body row the gate also reported `missing body file`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -142,7 +145,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the pre-E-03 RED output of `python3 -m pytest -o addopts="" -q tests/test_installer.py -k ResolvedIndexStamp` (cases (1)-(3) failing against the unmodified engine; (4) and (5) may pass, which is expected) and `git diff --stat` showing only `tests/test_installer.py` changed at that point.
+  - Required evidence: paste the pre-E-03 RED output of `python3 -m pytest -o addopts="" -q tests/test_installer.py -k ResolvedIndexStamp` (cases (1) and (2) failing against the unmodified engine, (2) with the "version stamp mismatch" problem and no "missing body file" problem; (3), (4) and (5) passing, which is expected because a verbatim copy is already idempotent and byte-identical) and `git diff --stat` showing only `tests/test_installer.py` changed at that point.
   - Observed evidence:
   - Result: pending
 
@@ -152,7 +155,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `git diff -- CHANGELOG.md` and the dash-scan output over the added lines showing 0 matches.
+  - Required evidence: paste the `git diff -- CHANGELOG.md` (the hunk header must place the bullet inside `## 2.0.0 (pending)`) and the dash-scan output over the added lines showing 0 matches.
   - Observed evidence:
   - Result: pending
 
