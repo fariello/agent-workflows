@@ -1,0 +1,199 @@
+# IPD: release_readiness: disposition a managed repo's own workflow rows as repo-local instead of failing workflow_disposition
+
+- Date: 2026-10-16
+- Kind: child
+- Concern: `release_readiness.gate_workflow_disposition` (behind `aw releases readiness`, which plan `kmmoca` makes release-review run in every managed repository) calls `migration_inventory.build_inventory`, whose `_command_disposition` raises `InventoryError` "manifest command '<name>' has no reviewed family assignment (silent omission)" for any manifest command absent from `migration_inventory._COMMAND_FAMILY`. That table is THIS toolkit's own reviewed catalog. A managed repository that adds its own workflow row (exactly what the installed `/scaffold` workflow tells it to do) therefore gets a permanent `NO-GO` it cannot clear without editing toolkit source. Measured at `00d07c836` (F-01).
+- Scope: IN: (1) `migration_inventory.build_inventory` and `migration_inventory.check_completeness` gain an opt-in repo-local mode in which a manifest COMMAND absent from `_COMMAND_FAMILY` is collected into a new `InventoryResult.repo_local` list instead of raising, and is exempt from the "has NO disposition" completeness finding; the default (opt-in off) is byte-for-byte today's fail-closed behavior; (2) `release_readiness.gate_workflow_disposition` enables that mode exactly when the repository is NOT this toolkit's source checkout (`engine.is_source_checkout(root)` is False), and reports the repo-local commands by name in `detail` and `evidence["repo_local"]`; (3) behavioral tests in a new module plus the one existing test that pins the old managed-tree failure; (4) `docs/recovery.md` and `CHANGELOG.md`. OUT: giving repo-local workflows a fabricated family or disposition row (OQ-02); any change to `_COMMAND_FAMILY`, `_FAMILY_DEFAULTS`, catalog (`assess-*`/`advise-*`) handling, or the Order-14 ownership fence; the not-applicable state and absent-`index.md` behavior (owned by `4bw2u5`); release-review workflow bodies and `RELEASING.md` (owned by `kmmoca`); the installer and `index.md` version stamps (owned by `e9l2e0`).
+- Scope-Paths: agent_workflows/migration_inventory.py, agent_workflows/release_readiness.py, tests/test_release_readiness_repo_local_workflows.py, tests/test_release_readiness_producers.py, docs/recovery.md, CHANGELOG.md
+- Item-Dependencies: executed:4bw2u5
+- Status: to-review
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: ufawpb
+- Blocks-Release: next
+- Set: uypgvi
+- Order: 4
+- Highest E allocated: 07
+- Author: opencode
+- Id: snhhw2
+
+## Workflow history
+
+- 2026-10-16 draft (opencode): created.
+- 2026-10-16 to-review (opencode): authored from backlog ufawpb at HEAD 00d07c836; reproduced on a fresh managed install; resolved the support question from repository evidence (OQ-01).
+
+## Goal
+
+Make `workflow_disposition` honest in both kinds of repository: in this toolkit's source checkout every manifest command must still carry a reviewed family (fail closed, unchanged), while in a managed repository the repo's own workflow rows are reported as repo-local (named, not silently passed, not fabricated into a family) and no longer force a `NO-GO` the maintainer cannot clear.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: re-measure before changing anything
+
+- [ ] E-01 Reproduce the false NO-GO at the executing HEAD and record the baseline.
+  - Depends on: none
+  - Expected outcome: one pasted transcript proving: (a) a fresh managed install into a gitignored scratch dir (`mkdir -p .aw/state/scratch-snhhw2/mr && git -C .aw/state/scratch-snhhw2/mr init -q`, then `python3 -m agent_workflows install .aw/state/scratch-snhhw2/mr --yes --no-interactive --preset private-target --delivery-mode tracked --records-backend repository`) passes `release_readiness.gate_workflow_disposition(repo_root=<scratch>)`; (b) after appending a copy of the `| whatnext |` manifest row renamed `| mycustomwf |` to the scratch `.aw/system/workflows/index.md`, the same gate prints `False` with evidence `undispositioned == ["manifest command 'mycustomwf' has no reviewed family assignment (silent omission)"]`; (c) `python3 -c "from pathlib import Path; from agent_workflows import engine; print(engine.is_source_checkout(Path('.')), engine.is_source_checkout(Path('.aw/state/scratch-snhhw2/mr')))"` prints `True False`; (d) `git grep -n -e build_inventory -e _COMMAND_FAMILY -e InventoryError -- agent_workflows tests` shows `release_readiness.gate_workflow_disposition` is the only production caller of `build_inventory` (so the new keyword cannot change another caller); (e) the shape of `gate_workflow_disposition` as left by `4bw2u5` (its not-applicable branch for an absent `index.md`), quoted, since this plan edits the same function after it; (f) the pre-edit bare `python3 -m pytest` summary line and the sorted names of any failing tests (the baseline E-07 compares against by name). If (b) already passes, stop and reconcile rather than duplicating work.
+  - Execution state: pending
+
+### Task group 2: the fix
+
+- [ ] E-02 Write the regression tests FIRST in `tests/test_release_readiness_repo_local_workflows.py` and show them RED against the unmodified modules.
+  - Depends on: E-01
+  - Expected outcome: a new pytest module, asserting observable outcomes only (no `inspect`, `ast`, or source regex; GUIDING_PRINCIPLES P16), with `GIT_CEILING_DIRECTORIES` pinned to `tmp_path.parent` and reusing `tests.test_release_readiness_producers.setup_minimal_workflows_tree` for the managed-style tree (no `pyproject.toml`, so `engine.is_source_checkout` is False there). Cases: (1) `test_managed_repo_custom_command_is_repo_local_not_failing`: the minimal tree plus a manifest row `mycustomwf` (body file created) gives `gate_workflow_disposition(repo_root=tmp_path).passed is True`, `evidence["repo_local"] == ["mycustomwf"]`, `evidence["undispositioned"] == []`, and `"mycustomwf"` appears in `detail`; (2) `test_source_checkout_custom_command_still_fails_closed`: the SAME tree made a source checkout (add `pyproject.toml` containing `name = "agent-workflows"` and `.aw/system/VERSION`, and confirm `engine.is_source_checkout(tmp_path)` is True in the test) gives `passed is False` with the "no reviewed family assignment" finding and `evidence.get("repo_local", []) == []` (the falsifiability contrast for case 1); (3) `test_managed_repo_without_custom_rows_reports_no_repo_local`: the plain minimal tree passes with `evidence["repo_local"] == []` and `detail == "all workflows dispositioned"` (no noise for the common case); (4) `test_repo_local_mode_keeps_other_findings`: in the managed tree with a custom row AND `conformance/operator-protocol.md` removed, the gate still FAILS on "conformance entry file missing" while listing `mycustomwf` under `repo_local` (repo-local mode exempts only the unassigned-command omission, nothing else); (5) `test_build_inventory_default_still_raises`: `migration_inventory.build_inventory(<managed wf_dir with custom row>)` with no keyword raises `InventoryError` naming `mycustomwf`, and with `allow_repo_local=True` returns an `InventoryResult` whose `repo_local == ["mycustomwf"]`, whose `dispositions` has no `mycustomwf` key, and whose `findings` is empty; (6) `test_cli_managed_repo_custom_row_is_go`: `python3 -m agent_workflows releases readiness --suite-passed --residual-risk-signer qa --json` (subprocess, `PYTHONPATH` pinned as in `tests/test_releases_readiness_cli.py::_run_subprocess`) over the tree built by `tests.test_releases_readiness_cli._build_subprocess_go_tree` plus a custom manifest row: exit `0` (or, if another gate fails on that tree at execution HEAD, `workflow_disposition` is absent from `data.failing_gates` and that other gate is named as measured), and the `workflow_disposition` gate's evidence carries `repo_local == ["mycustomwf"]`. RED proof: run `python3 -m pytest -o addopts="" -q tests/test_release_readiness_repo_local_workflows.py` before E-03 and paste the failing output (cases 1, 5 and 6 fail; 2, 3 and 4 may pass or fail only on the missing `repo_local` key, which is expected).
+  - Execution state: pending
+
+- [ ] E-03 Add the opt-in repo-local mode to `migration_inventory`.
+  - Depends on: E-02
+  - Expected outcome: `InventoryResult` gains `repo_local: List[str] = field(default_factory=list)` (sorted, included in `to_dict()` as `"repo_local"`); `build_inventory(source_root, *, allow_repo_local: bool = False)`: for each manifest COMMAND whose name is not in `_COMMAND_FAMILY`, when `allow_repo_local` is True the command is appended to `repo_local` and gets NO disposition, otherwise `_command_disposition` raises exactly as today; `check_completeness(dispositions, workflows, source_root, repo_local=())` skips the "subject '<x>' has NO disposition (silent omission)" finding only for subjects in `repo_local`, and every other check (vocabulary, canonical target, conformance entry, Order-14 fence, stray dispositions) is unchanged. Lens/persona catalog rows are untouched (they already disposition any `assess-*`/`advise-*` row). A comment at `_COMMAND_FAMILY` states that the table is this toolkit's own catalog, that fail-closed remains the default and the source-checkout behavior, and that only a managed repository's own rows are reported as repo-local, citing backlog `ufawpb`.
+  - Execution state: pending
+
+- [ ] E-04 Enable repo-local mode in `release_readiness.gate_workflow_disposition` outside the toolkit source checkout.
+  - Depends on: E-03
+  - Expected outcome: on the filesystem path only (an injected `undispositioned` sequence still bypasses the filesystem, unchanged), the gate computes `allow_repo_local = not engine.is_source_checkout(root)` (imported lazily beside `migration_inventory`), passes it to `build_inventory`, and adds `evidence["repo_local"]` (always present on this path, `[]` when none). When `repo_local` is non-empty and there are no findings, `passed` is True and `detail` is `"all workflows dispositioned; N repo-local workflow(s) outside the toolkit catalog: a, b"`; with no repo-local rows `detail` stays exactly `"all workflows dispositioned"`. Findings still FAIL as today. The `InventoryError` branch remains for the source checkout. Whatever branch `4bw2u5` added for an absent `index.md` (E-01(e)) is preserved unchanged. The docstring states the source-checkout/managed distinction and why.
+  - Execution state: pending
+
+- [ ] E-05 Update the one existing test that pins the old managed-tree failure.
+  - Depends on: E-04
+  - Expected outcome: `tests/test_release_readiness_producers.py::test_disposition_unassigned_command_fails_without_raising` keeps its intent (an unassigned command in the toolkit's own catalog fails without raising) by making its fixture a source checkout (`pyproject.toml` with `name = "agent-workflows"` and `.aw/system/VERSION`), with a docstring line citing `ufawpb` for why; its assertions (`passed is False`, one undispositioned entry, "no reviewed family assignment") stay as they are. No other existing test changes; any other test that turns red is a regression to investigate, not to edit.
+  - Execution state: pending
+
+- [ ] E-06 Document the behavior in `docs/recovery.md` and `CHANGELOG.md`.
+  - Depends on: E-04
+  - Expected outcome: `docs/recovery.md` "Release readiness (decision only)" gains a short paragraph: in a managed repository, workflow rows the repository added itself are listed as repo-local by the `workflow_disposition` gate and do not force NO-GO, while in the toolkit's own source checkout every command must carry a reviewed disposition. `CHANGELOG.md` gains one `Fixed:` bullet under the current pending section saying `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows. No em or en dashes in either addition (AGENTS.md user-facing prose rule).
+  - Execution state: pending
+
+### Task group 3: validation
+
+- [ ] E-07 Run targeted and full validation, and re-observe the managed install.
+  - Depends on: E-05, E-06
+  - Expected outcome: (1) `python3 -m pytest -o addopts="" -q tests/test_release_readiness_repo_local_workflows.py tests/test_release_readiness_producers.py tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_releases_readiness_cli.py` passes with 0 failures; (2) re-running E-01(a)+(b) in a FRESH scratch dir (`.aw/state/scratch-snhhw2/mr2`) prints `True` with `evidence["repo_local"] == ["mycustomwf"]`; (3) `gate_workflow_disposition(repo_root=Path('.'))` in this checkout still passes with `evidence["repo_local"] == []` (the toolkit's own manifest is fully dispositioned and the source checkout is not in repo-local mode); (4) a `\u2014`/`\u2013` scan of the `docs/recovery.md` and `CHANGELOG.md` additions finds 0; (5) `python3 -m agent_workflows sanitize --agent` reports `"outcome": "clean"`; (6) bare `python3 -m pytest` passes with zero new failures compared by name against the E-01(f) baseline; (7) `rm -rf .aw/state/scratch-snhhw2` and `git status --porcelain` lists only `- Scope-Paths:` entries.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- `_COMMAND_FAMILY` FAILS CLOSED by design: an unassigned toolkit command must be dispositioned, not defaulted (comments at the `spec-review` and `askme` entries: "That is the table working, not a defect"). This plan keeps that in the toolkit source checkout and does not add a default family.
+- `engine.is_source_checkout` is the established positive-identity test for "this is the agent-workflows developer checkout" (package metadata plus `.aw/system` presence); `project_layout.install_system_tree` already branches on it.
+- Managed repositories are expected to add their own manifest rows: the installed `/scaffold` workflow says "Add a row to the manifest table in `.aw/system/workflows/index.md` between the `WORKFLOWS-MANIFEST` markers" and then regenerate shims with `aw install .` (`.aw/system/workflows/scaffold/scaffold.md` Step 3 and Step 4).
+- Sibling plans in Set `uypgvi` own adjacent surfaces: `4bw2u5` (not-applicable gate state, same function), `kmmoca` (release-review consumption), `e9l2e0` (installer stamps).
+- Tests assert observable behavior only (AGENTS.md, GUIDING_PRINCIPLES P16); the full suite runs bare as `python3 -m pytest`, narrowed runs clear defaults with `-o addopts=""`.
+- User-facing prose (`docs/`, `CHANGELOG.md`) carries no em or en dashes (AGENTS.md).
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | Reproduced: one custom manifest row in a fresh managed install turns `workflow_disposition` from pass to fail. | At `00d07c836`: `python3 -m agent_workflows install .aw/state/scratch-snhhw2/mr --yes --no-interactive --preset private-target --delivery-mode tracked --records-backend repository` (rc=0); `gate_workflow_disposition(repo_root=<scratch>).passed` printed `True`; after appending a `| mycustomwf |` copy of the `whatnext` row it printed `False {'undispositioned': ["manifest command 'mycustomwf' has no reviewed family assignment (silent omission)"]}`; on this checkout the gate printed `True`. |
+| F-02 | ROOT CAUSE: the inventory treats the toolkit's catalog as the complete universe of commands in any repository. | `migration_inventory._command_disposition` raises `InventoryError` when `_COMMAND_FAMILY.get(cmd)` is None; `build_inventory` calls it for every non-catalog row of `engine.parse_manifest(root)`; `release_readiness.gate_workflow_disposition` catches `InventoryError` and fails. |
+| F-03 | The source checkout and a managed install are already distinguishable by an existing predicate. | `engine.is_source_checkout(Path('.'))` printed `True` in this worktree; the managed scratch has no `pyproject.toml` naming `agent-workflows`, so the predicate's package-metadata check returns False there. |
+| F-04 | Custom rows are a supported, documented use in managed repos, not misuse. | `.aw/system/workflows/scaffold/scaffold.md` (installed into every managed repo) Step 3 "Add a row to the manifest table in `.aw/system/workflows/index.md`"; `.aw/system/workflows/index.md` "Add personas with `scaffold`". |
+| F-05 | Only one production caller and one existing test are affected. | `git grep -ln -e migration_inventory -e InventoryError -- agent_workflows tests` at `00d07c836`: `agent_workflows/release_readiness.py`, `agent_workflows/migration_inventory.py`, a docstring mention in `agent_workflows/migration_compact.py`, and `tests/test_release_readiness_producers.py`; in that test module only `test_disposition_unassigned_command_fails_without_raising` builds a non-source tree with an unassigned command. |
+| F-06 | The readiness producer tests are green at authoring HEAD. | `python3 -m pytest -o addopts="" -q tests/test_release_readiness_producers.py` at `00d07c836`: `26 passed in 1.19s`. |
+
+## Proposed changes (ordered, validatable)
+
+1. Reproduce and baseline (E-01).
+2. RED behavioral tests for managed vs source-checkout behavior and the CLI (E-02).
+3. Opt-in repo-local mode in `migration_inventory` (E-03).
+4. Enable it in `gate_workflow_disposition` outside the source checkout and report the names (E-04).
+5. Re-point the one test pinning the old managed-tree failure at a source-checkout fixture (E-05).
+6. Docs and changelog (E-06).
+7. Targeted, end-to-end and full-suite validation (E-07).
+
+## Deferred / out of scope (with reason)
+
+- Fabricating a family or `Disposition` row (execution mode, risk, skill decision, migration owner) for repo-local workflows: rejected (OQ-02). Those values are the toolkit's reviewed migration bookkeeping; inventing them for a workflow nobody reviewed would assert facts the inventory cannot know.
+  - Carrier-Declined: rejected design alternative, not outstanding work; nothing remains to do.
+- A per-repo config file letting a managed repo declare dispositions for its own workflows: not needed for the fix and would add a new public contract; revisit only if a consumer needs repo-local dispositions.
+  - Carrier-Declined: speculative feature with no consumer today; nothing remains to do for this bug.
+- Absent-`index.md` and not-applicable semantics of the same gate.
+  - Carrier: 4bw2u5
+
+## Scope check
+
+- Over-scope: none. Two production functions, one opt-in keyword, their tests, and two doc lines.
+- Under-scope: none for the backlog item. It asks whether managed-repo custom workflows are supported (answered yes from F-04, OQ-01) and how they are dispositioned (reported as repo-local, OQ-02), and the gate no longer reports a false `NO-GO` (E-02 cases 1 and 6, E-07(2)).
+
+## Required tests / validation
+
+- New `tests/test_release_readiness_repo_local_workflows.py` (E-02), RED before E-03 and GREEN after E-04.
+- Re-pointed `test_disposition_unassigned_command_fails_without_raising` (E-05) and the rest of the readiness suites stay green (E-07(1)).
+- End-to-end managed install with a custom row, this-checkout gate, dash scan, `aw sanitize --agent`, and bare `python3 -m pytest` compared by name with the baseline (E-07).
+
+## Spec / documentation sync
+
+- `docs/recovery.md` and `CHANGELOG.md` (E-06).
+- No spec describes the inventory or this gate: `git grep -ln -e migration_inventory -e workflow_disposition -e _COMMAND_FAMILY -- .aw/records/specs/ docs/` matched nothing at `00d07c836`, so no `.spec.md` is touched or declared.
+- `.aw/system/workflows/scaffold/scaffold.md` already documents adding rows; after this fix that advice no longer breaks release readiness, so it needs no edit.
+
+## Open questions
+
+### OQ-01: Are managed-repository custom workflows supported?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED from repository evidence: yes. The toolkit installs `/scaffold` into every managed repo and it instructs the owner to add manifest rows and regenerate shims (F-04); the installer generates shims from whatever rows the manifest carries. Failing release readiness for following the toolkit's own instructions is the defect. Reviewer: if the maintainer instead wants custom rows unsupported, the alternative is to change `/scaffold`, and this plan should be retired rather than executed.
+
+### OQ-02: How is a repo-local workflow dispositioned?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author
+- Resolution or deferral rationale: RESOLVED: it is NOT given a disposition; it is listed by name as repo-local in the gate's `detail` and `evidence["repo_local"]`, and is exempt only from the "no disposition" omission check. This keeps the inventory truthful (no fabricated family values), keeps the omission visible rather than silently passing, keeps fail-closed for the toolkit's own catalog in the source checkout (where a missing family is a real defect), and is reversible by removing one keyword. The mode is selected by `engine.is_source_checkout`, the repository's established identity predicate (F-03).
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the execution HEAD sha and the full E-01 transcript (code path: `engine.install_into_repo` via `python3 -m agent_workflows install`, then `release_readiness.gate_workflow_disposition`): (a) the scratch gate `True`; (b) the gate `False` with the quoted "no reviewed family assignment" evidence after adding `mycustomwf`; (c) the `is_source_checkout` output `True False`; (d) the `git grep` output; (e) the quoted current `gate_workflow_disposition` absent-`index.md` branch; (f) the pre-edit bare `python3 -m pytest` summary line and sorted failing-test names.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the pre-E-03 RED output of `python3 -m pytest -o addopts="" -q tests/test_release_readiness_repo_local_workflows.py` (cases 1, 5, 6 failing) and `git diff --stat` showing only the new test module changed at that point.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the `git diff -- agent_workflows/migration_inventory.py` and the GREEN output of `python3 -m pytest -o addopts="" -v tests/test_release_readiness_repo_local_workflows.py -k build_inventory_default_still_raises`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste the `git diff -- agent_workflows/release_readiness.py` hunk for `gate_workflow_disposition` and the GREEN output of `python3 -m pytest -o addopts="" -v tests/test_release_readiness_repo_local_workflows.py` showing all six cases passing.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste the `git diff -- tests/test_release_readiness_producers.py` (fixture and docstring only, assertions unchanged) and the GREEN output of `python3 -m pytest -o addopts="" -q tests/test_release_readiness_producers.py`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste `git diff -- docs/recovery.md CHANGELOG.md` and the dash-scan output over the added lines showing 0 matches.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste (1) the targeted pytest summary line with 0 failures; (2) from the fresh `mr2` scratch install with `mycustomwf` added (code path: `engine.install_into_repo`, then `release_readiness.gate_workflow_disposition`), the gate's `passed`, `detail` and `evidence["repo_local"]`; (3) the same gate on this checkout; (4) the dash-scan result; (5) the `aw sanitize --agent` record; (6) the bare `python3 -m pytest` summary line and by-name comparison against the E-01(f) baseline; (7) the post-cleanup `git status --porcelain`.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan requires explicit human approval (`- Status: approved`) before execution.
+
+EXECUTION CONTRACT. Commit only the declared `- Scope-Paths:` through `aw commit snhhw2 -- <paths>` (never `git add -A`), never push, and paste actual runner output for every test claim. The E-01/E-07 scratch installs live under the gitignored `.aw/state/scratch-snhhw2/` and are never committed.
+
+SCOPE FENCE. `gate_workflow_disposition` is also edited by `4bw2u5` (this plan's declared dependency); preserve its not-applicable branch. Do not touch `_COMMAND_FAMILY` entries, `_FAMILY_DEFAULTS`, release-review bodies, `RELEASING.md`, or the installer. An out-of-scope edit that proves necessary is made and justified with `--scope-reason` at finalize.
+
+RELEASE GATE. Inherits `- Blocks-Release: next` from backlog `ufawpb` (a live `bug`).
+
+POST-GATE LIFECYCLE. Do not mark this plan `executed` until `aw ipd lint --phase pre-transition` conforms and all seven `V-*` items carry pasted evidence with `Result: pass`. Under `aw oc run` or `aw agy run` the runner owns begin/finalize; by hand, use `aw ipd finalize`, never a hand `git mv`.
