@@ -1,5 +1,5 @@
 - Id: dbr23q
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: rereview
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw oc/agy review refuses to re-review a reviewed or approved plan, contradicting spec 25kzda 2.6; there is no first-class re-review verb
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD ygngc2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261015-rereview-02-ygngc2-flag-a-reviewed-or-approved-plan-whose-review-may-be-stale-a.ipd.md); evidence .aw/records/plans/executed/20261015-rereview-02-ygngc2-flag-a-reviewed-or-approved-plan-whose-review-may-be-stale-a.ipd.md
 - 2026-10-15 graduated (aw set): graduated to rereview Set: ggsdrl (explicit confirmed re-review) and ygngc2 (advisory staleness flag)
 - 2026-10-15 created (aw backlog): aw oc/agy review refuses to re-review a reviewed or approved plan, contradicting spec 25kzda 2.6; there is no first-class re-review verb
 
