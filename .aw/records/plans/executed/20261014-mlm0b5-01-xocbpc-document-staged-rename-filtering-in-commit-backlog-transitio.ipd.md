@@ -6,7 +6,7 @@
 - Scope: Document the `add_paths` staged-rename source filtering and `_gch._in_index` unstaged-deletion staging in `runner_shared.commit_backlog_transition_output` (`agent_workflows/runner_shared.py`, lines 4158-4165) citing `mlm0b5` and `git_commit_helper.offer_commit`; add direct unit coverage of `runner_shared.commit_backlog_transition_output` in `TestBacklogProductionUnitE10` (`tests/test_backlog_production.py`, line 210) across staged `git mv` renames (`RM`), unstaged moves (` D` + `??`), and post-transition rollback renames (`graduated -> open`); and tighten `TestBacklogProductionE07.test_5_5c_case1_success` (`tests/test_backlog_production.py`, line 486), `TestBacklogProductionE08.test_case5c_rollback_lands_on_disk` (`tests/test_backlog_production.py`, line 954), and `TestBacklogAlreadyCompleteIntegrationE05.test_case_a_with_isolate_worktree` (`tests/test_backlog_already_complete.py`, line 237) on both hosts (`oc` and `agy`) to assert `backlog_transition_commit`, the `backlog-transition-committed` event, the `R` rename commit in git history, clean tracked porcelain status, and clean lane teardown.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_backlog_production.py, tests/test_backlog_already_complete.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: xocbpc
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xocbpc verified (set mlm0b5, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review, opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-14 to-review (aw set): Authored review-ready child IPD xocbpc from backlog mlm0b5
