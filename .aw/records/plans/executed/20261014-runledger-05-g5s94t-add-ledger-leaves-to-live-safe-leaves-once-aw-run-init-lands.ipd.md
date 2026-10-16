@@ -5,8 +5,9 @@
 - Concern: `tests/conformance_matrix.py` exempts the eight `aw runs` subcommands (`runs decisions`, `runs evidence`, `runs next`, `runs questions`, `runs resume`, `runs show`, `runs status`, `runs verify-ledger`) in `EXEMPTION_REGISTRY` with the pre-`v47z9u` reason `"Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace."`, exempts the four `aw run` write leaves (`run start`, `run record`, `run cancel`, `run finalize`) in `MUTATION_EXEMPTION_REGISTRY` with `"Requires target positional argument."`, and omits all eight `aw runs` leaves from `LIVE_SAFE_LEAVES` (`covered_by="declaration"` in `build_matrix`). Once plan `v47z9u` (`hegwri`) lands `aw run init`, the conformance harness can initialize a real `ledger.jsonl` in an isolated fixture directory, making the eight `aw runs` leaves live conformance scenario rows in `LIVE_SAFE_LEAVES`, wiring `aw run init` into `MUTATION_UNIVERSE`, driving the four `aw run` ledger writers live against the initialized ledger, and replacing the stale `EXEMPTION_REGISTRY` / `MUTATION_EXEMPTION_REGISTRY` rationales with measured contract citations. Backlog `a4tjxc`.
 - Scope: (1) In `tests/conformance_matrix.py`, add `seed_ledger_fixture` (invoking `aw run init --workflow <root>/wf.json --run-id run-abcdef1234 --dir <root>` and seeding the Set projection files `decisions.md` and `open-questions.md`) and `live_leaf_argv`, add the eight `aw runs` leaves to `LIVE_SAFE_LEAVES`, add `"run init": ["--workflow", "wf.json"]` to `RUNNABLE_ARGV`, write `wf.json` into the installed-project template (and nothing else, so mutation clones stay a clean `aw install` tree), and update the eight `EXEMPTION_REGISTRY` and four `MUTATION_EXEMPTION_REGISTRY` rationales. (2) In `tests/test_agent_surface_conformance.py`, pass `RUNNABLE_ARGV.get(leaf, [])` in `test_agent_surface_conformance_mutation` so `run init` executes in `MUTATION_UNIVERSE` with its required `--workflow` flag. (3) In `tests/test_exit_contract_conformance.py` and `tests/test_live_conformance_sweep.py`, route every `LIVE_SAFE_LEAVES` invocation through `live_leaf_argv` against a session-scoped `live_ledger_dir` fixture, and add non-vacuous live conformance tests for the eight `aw runs` leaves and the four `aw run` writers. OUT: migrating `run_cli._emit_machine` from bare JSON dicts (`docs/cli-output-contract.md` Section 3.1, pinned by `tests/test_run_recovery_cli.py`) to `aw.agent/v1` envelopes or collapsing the 8-code run-execution exit vocabulary `{0..7}` into `{0, 1, 2}`; giving `runs decisions` / `runs questions` a machine (`--agent`/`--json`) branch (F-07, filed as a new backlog item by E-07); redacting the absolute ledger path that `runs evidence` and `runs verify-ledger` print (F-08, same backlog item); writing `requirement_set` / `verifier_decision` records (`8l1hgw` / `um0twl`); persisting the workflow beside the ledger (`sflov4` / `o34rb3`); viewer rendering of ledger-only directories (`nf84rt` / `3a3hh9`).
 - Scope-Paths: tests/conformance_matrix.py, tests/test_live_conformance_sweep.py, tests/test_exit_contract_conformance.py, tests/test_agent_surface_conformance.py, .aw/records/backlog/open
+- Scope-Exceeded: tests/test_shared_flag_honored.py (E-05 required adding KNOWN_BROKEN entry for run init --fields defect gm9saf)
 - Item-Dependencies: executed:v47z9u
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Backlog: a4tjxc
 - Work-Kind: chore
@@ -16,9 +17,9 @@
 - Highest E allocated: 09
 - Author: agent:antigravity
 - Id: g5s94t
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g5s94t verified (set runledger, attempt 1). [Scope reconciliation - out-of-scope tests/test_shared_flag_honored.py: E-05 required adding KNOWN_BROKEN entry for run init --fields defect gm9saf]
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-14 to-review (agent:antigravity): authored review-ready IPD from backlog a4tjxc
