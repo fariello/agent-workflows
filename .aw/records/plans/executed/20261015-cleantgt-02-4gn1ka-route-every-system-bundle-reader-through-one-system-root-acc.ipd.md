@@ -5,8 +5,9 @@
 - Concern: The installed `system` bundle (`workflows/`, `VERSION`, `managed-sections.json`, `layout.json`, `layout.schema.json`) is located by hand-composed `<repo>/.aw/system/...` paths (`engine.AW_SYSTEM_DIR`, `manifest.DEFAULT_MANIFEST_RELPATH`, `engine.AW_LAYOUT_JSON_PATH`) in every reader and writer, although `resolve_project_context` already places `physical_classes["system"]` under `AW_HOME/projects/<project_id>/system` whenever the stored `delivery_mode` is `clean-delta`. So a clean-target install writes and `git add`s the bundle into the target (irjoga F-01 measured 161 staged `.aw/system/` files), and if the bundle lived at home, `read_installed_version`, the manifest lookup, `aw check` and `aw layout` would all report "not installed".
 - Scope: Add ONE pure accessor `project_context.project_system_dir(repo_root, aw_home=None) -> Path` (in-tree `<repo>/.aw/system` for an unconfigured or `tracked` project, the resolver's `physical_classes["system"]` when the STORED policy places it elsewhere), and route every TARGET-side system location decision through it: the read side (manifest path, installed version, layout detection, split-brain detection, compat state, emitted-layout load, `aw layout`, `clean_delta.resolve_system_provider`), the install write side (member destination mapping, git staging gate, framework-file collection, prune, layout emission, manifest save) and the upgrade rehearsal probe. Repository-backed and `tracked` installs (including this repository) keep byte-identical behavior. SOURCE-side literals (the package's own bundled `.aw/system` used by `resolve_source_root`, `_compat`, `release_readiness`, `versioning.resolve_version` defaults, `security_hardening`, `host_capability_registry`) are audited and left unchanged with reasons. Out of scope: suppressing host adapters, setup files, backups and the auto-commit (`3m8aix`), uninstall (`xoy5yg`), and project-root recognition with no in-repo `.aw` (`fnnwj3`).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/manifest.py, agent_workflows/engine.py, agent_workflows/compat_migration.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/clean_delta.py, agent_workflows/upgrade_rehearsal.py, tests/test_system_root_accessor.py, .aw/records/plans/pending/20261015-cleantgt-02-4gn1ka-route-every-system-bundle-reader-through-one-system-root-acc.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-g9kupi-01-g9kupi-fix-test-records-root-accessor-hardcoded-pending-p.backlog.md (Backlog item g9kupi filed for pre-existing defect found during E-06 test validation per defect-reporting instructions)
 - Item-Dependencies: executed:kfnfji
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 4gn1ka
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4gn1ka verified (set cleantgt, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-g9kupi-01-g9kupi-fix-test-records-root-accessor-hardcoded-pending-p.backlog.md: Backlog item g9kupi filed for pre-existing defect found during E-06 test validation per defect-reporting instructions]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-006)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
