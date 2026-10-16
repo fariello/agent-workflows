@@ -1,5 +1,5 @@
 - Id: m9dobx
-- Status: graduated
+- Status: done
 - Graduated-To: m9dobx
 - Blocks-Release: next
 - Set: m9dobx
@@ -8,6 +8,7 @@
 - Summary: project_context reads user config from a hard-coded ~/.config/agent-workflows, ignoring XDG_CONFIG_HOME that config.config_dir honors
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD qi5ljl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-m9dobx-01-qi5ljl-route-project-context-user-config-reads-through-config-confi.ipd.md); evidence .aw/records/plans/executed/20261014-m9dobx-01-qi5ljl-route-project-context-user-config-reads-through-config-confi.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: qi5ljl
 - 2026-10-12 created (aw backlog): filed while graduating btw02e (plan 9y27t2)
 
