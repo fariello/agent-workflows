@@ -53,7 +53,9 @@ Every placement container uses this physical tail:
 
 `<container>` may be the target repository, `AW_HOME/projects/<project-id>`, or an attached companion directory. A class may resolve to a different container, but its physical tail is fixed. For example, external records resolve to `<companion>/.aw/records`, not an unrelated ad hoc records directory. A clean-target policy can therefore leave no target `.aw/` while still using the canonical physical shape outside the target.
 
-AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`. Readers locate config target-first then home (the `project_config_dir` rule), and an empty `project_id` is treated as absent. The remaining target writes (.aw/system/, .aw/records/, .aw/.gitignore, host adapters) remain open as Phase 3 work (backlog kvwwt0, spec or061f).
+AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `config/project.json`, `config/local.json` and `state/durable/` under `AW_HOME/projects/<project-id>/`. Readers locate config target-first then home (the `project_config_dir` rule), and an empty `project_id` is treated as absent.
+
+AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15): for `clean-delta` the installer and every reader route `system` and `records` to `AW_HOME/projects/<project-id>/`, write no host adapter or setup file into the target, stage and commit nothing, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged after install and ordinary use.
 
 The resolver returns each physical class separately: `system`, `config_project`, `config_local`, `state_durable`, `state_runtime`, and `records`. The four short root names remain human-facing group names only; they are not permission to collapse the six physical classes.
 
@@ -92,7 +94,7 @@ The closed initial placement vocabulary is:
 
 Every resolved class records one physical path, one owner, one Git owner or `none`, one tracking policy, one portability classification, and one provenance source. `config_local` and `state_runtime` MUST be untracked in every preset and custom layout. A custom policy MUST NOT put records or mutable state inside system, put one class inside another, alias target and companion, cross a symlink outside an approved root, or claim clean-target while creating any AW-owned target baseline delta.
 
-Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`. Its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued. Decided by plan `wmuu4k` from backlog `e820ka`; guarded by the `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` guard test.
+Per-machine control state (`.aw/state/`, `.aw/config/local.json`, `.aw/records/runs/`, `.aw/workflow-artifacts/`, `.aw/worktrees/`) stays IN the target repository and is covered by the framework-owned `.aw/.gitignore`. Its location is decided in one accessor (`ipd_lifecycle.checkout_control_root`, driver runs via `runner_shared.state_root`), so relocation out of the repo (retired `58ha43`) is not pursued. Decided by plan `wmuu4k` from backlog `e820ka`; guarded by the `AwGitignoreLaneTests.test_git_ignores_every_per_machine_control_path` guard test. Clean-delta EXCEPTION: in `clean-delta` mode, per-machine control state (`ipd_lifecycle.checkout_control_root`, `runner_shared.state_root`: receipts, locks, journals, run state) lives under `AW_HOME/projects/<project-id>/state/` and isolated worktrees (`worktree_lease.WORKTREES_SUBDIR`) under `AW_HOME/projects/<project-id>/worktrees/<id6>/`; no `.git/info/exclude` entry is used; accepted residual is git's own `.git/worktrees/<name>` admin entry while a lane exists and `git worktree list` showing the external path; `wmuu4k` stands for every non-clean-delta mode. Two documented residuals remain for clean-delta: (i) `.aw/workflow-artifacts/<workflow>/<run-id>/` has no code accessor and is written by workflow prose, so an agent following a workflow in a clean-delta repo may still create it in the target until a resolver exists (citing `qk0ew6` OQ-03); (ii) the clean-delta setup marker lives at `AW_HOME/projects/<project-id>/state/runtime/setup-repo-needed.md` and `/setup-repo`'s `rm -f .aw/setup-repo-needed.md` does not clear it (citing `3m8aix` OQ-03).
 
 ## 6. Presets
 
@@ -247,6 +249,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
 - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)
 - 2026-10-07 note (aw specs): Amend Section 6 preset table private-target Durable state to target ignored and Section 4.1 durable state rows with D92 ignore note (IPD gi1w75)
 - 2026-09-26 note (aw specs): Amend non-interactive default for install migrations to remove restricted to HEAD (o7k6lt)
