@@ -15693,6 +15693,12 @@ def summarize_graduation_cluster(repo: Path | None, source_id6: str) -> str:
 def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
     """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
     r = repo or Path(".")
+    # A FILENAME-SUBSTRING hit is not an identification: the runner's own selector never matches a
+    # non-plan by substring, so saying "'ufawp' is a backlog item" for a truncated id6 blames the
+    # TYPE when the real problem is the TYPO (the full id6 `ufawpb` would have run). Substring hits
+    # are therefore collected as near matches and reported as a "did you mean" only after every
+    # exact (path/id6/stem) cross-type identification has had its chance.
+    near: list[tuple[str, str]] = []
     try:
         from agent_workflows import selectors
 
@@ -15700,6 +15706,14 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
             if rtype == "plans":
                 continue
             res = selectors.resolve(r, rtype, sel_str)
+            if res.is_match and res.kind == selectors.MATCH_SUBSTRING:
+                for p in res.paths:
+                    try:
+                        declared_id = selectors._read_id(p.read_text(encoding="utf-8"))
+                    except Exception:
+                        declared_id = None
+                    near.append((declared_id or p.name, rtype))
+                continue
             if res.is_match:
                 rel_paths = []
                 for p in res.paths:
@@ -15774,9 +15788,17 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
         return f"Plan file not found: '{sel_str}'"
 
     if ID6_RE.fullmatch(sel_str):
-        return f"No IPD plan found with id6 '{sel_str}' under .aw/records/plans/."
-
-    return f"No IPD plan, Set, or file matching '{sel_str}' found under .aw/records/plans/."
+        base = f"No IPD plan found with id6 '{sel_str}' under .aw/records/plans/."
+    else:
+        base = f"No IPD plan, Set, or file matching '{sel_str}' found under .aw/records/plans/."
+    if near:
+        label = {"backlog": "backlog item", "specs": "spec"}
+        shown = ", ".join(
+            f"{name} ({label.get(rtype, rtype)})" for name, rtype in near[:5]
+        )
+        more = "" if len(near) <= 5 else f", +{len(near) - 5} more"
+        base += f" Did you mean: {shown}{more}? An id6 selector must be the exact 6 characters."
+    return base
 
 
 # ==================================================================================================
