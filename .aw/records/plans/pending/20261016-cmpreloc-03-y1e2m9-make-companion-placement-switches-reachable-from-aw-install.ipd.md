@@ -18,6 +18,7 @@
 
 ## Workflow history
 
+- 2026-10-16 cross-reference (opencode, from /plan-review of fo08zx PR-001): `xc8nae` keeps `companion-unsupported` as an interim planner blocker and `fo08zx` E-06 adds only a keyword-only `allow_companion=True` library opt-in past it. THIS plan must remove the blocker and the keyword from `placement_switch.plan_placement_switch`/`execute_placement_switch` in the same change as E-01's gating of the fresh-install attach block, update the `xc8nae`/`fo08zx` tests that assert the blocker or pass the keyword (they live in `tests/test_placement_switch_companion_plan.py`, `tests/test_placement_switch_plan.py` and `tests/test_placement_switch_companion_execute.py`, which must be added to `- Scope-Paths:`), and its review should add that step explicitly. Also: `fo08zx` does NOT stage `<companion>/.aw/companion_identity.json` (absolute `git_common_dir_hash`, D92).
 - 2026-10-16 draft (opencode): created.
 - 2026-10-16 to-review (opencode): authored review-ready child of Set cmpreloc graduating backlog n9vd2h.
 

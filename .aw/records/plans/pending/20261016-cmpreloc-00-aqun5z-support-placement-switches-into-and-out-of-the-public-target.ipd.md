@@ -9,7 +9,7 @@
 - Status: reviewed
 - Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 13badcceab78bba7b9d9e031299bc3916ad4af1071b708344b1731211f3a514f
+- Coverage-Fingerprint: 90b83754d0a96fd787e8c0e1fe51517060b0acc8c5e18361ebc27834cf51a405
 - Coverage-Checked: 2026-10-16 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: low
@@ -21,6 +21,8 @@
 - Id: aqun5z
 
 ## Workflow history
+- 2026-10-16 cross-reference (opencode, from /plan-review of fo08zx PR-001): ownership of the interim `companion-unsupported` blocker re-assigned: `fo08zx` E-06 adds an `allow_companion=True` library opt-in, `y1e2m9` removes the blocker from the default path; completion criteria and child rows reconciled.
+- 2026-10-16 coverage pass (aw oc run): fingerprint 90b83754d0a9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-16 coverage pass (aw oc run): fingerprint 13badcceab78, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -58,14 +60,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | `xc8nae` | `20261016-cmpreloc-01-xc8nae-extend-the-placement-switch-planner-to-companion-pairs.ipd.md` | Read-only companion census for the six pairs, per-repository source/destination, attach/detach, companion blockers and warnings, with purity tests (also needs cfgreloc `xvlemm`, declared in its `- Item-Dependencies:`). | none |
-| 02 | `fo08zx` | `20261016-cmpreloc-02-fo08zx-execute-companion-placement-switches-with-companion-staging.ipd.md` | Executes companion plans inside the cfgreloc journal: companion creation, per-repository staging with an ignore filter, attach/detach, config retracking, resume, rollback, fault points and tests, and lifts the interim `companion-unsupported` planner blocker Order 01 keeps (also needs cfgreloc `6u755v`). | 01 |
-| 03 | `y1e2m9` | `20261016-cmpreloc-03-y1e2m9-make-companion-placement-switches-reachable-from-aw-install.ipd.md` | Makes companion switches reachable from `aw install --relocate` with preview lines, updates the cfgreloc CLI test, adds end-to-end tests, CHANGELOG, README and the spec Section 8.1 item 3 amendment (also needs cfgreloc `ozr356`). | 02 |
+| 02 | `fo08zx` | `20261016-cmpreloc-02-fo08zx-execute-companion-placement-switches-with-companion-staging.ipd.md` | Executes companion plans inside the cfgreloc journal: companion creation, per-repository staging with an ignore filter, attach/detach, config retracking, resume, rollback, fault points and tests, and adds a library opt-in (`allow_companion=True`) past the interim `companion-unsupported` planner blocker Order 01 keeps (also needs cfgreloc `6u755v`). | 01 |
+| 03 | `y1e2m9` | `20261016-cmpreloc-03-y1e2m9-make-companion-placement-switches-reachable-from-aw-install.ipd.md` | Makes companion switches reachable from `aw install --relocate` (removing the interim `companion-unsupported` blocker and the `allow_companion` opt-in) with preview lines, updates the cfgreloc CLI test, adds end-to-end tests, CHANGELOG, README and the spec Section 8.1 item 3 amendment (also needs cfgreloc `ozr356`). | 02 |
 
 ## Completion criteria (the whole Set is done only when)
 
 - The planner computes a fully populated plan for every pair into or out of `public-target-private-companion` and blocks unsafe companion states, while still carrying `companion-unsupported` as an ordinary interim blocker so the cfgreloc executor and CLI keep refusing until execution support exists (`xc8nae` OQ-03). Owner: xc8nae
-- A companion switch completes, resumes or rolls back with both repositories byte-checked, staged and never committed, and the planner no longer emits `companion-unsupported` for any companion pair (lifted in the same change as executor support). Owner: fo08zx
-- `aw install --relocate` reaches companion switches, previews them, and the CHANGELOG, README and spec Section 8.1 describe the shipped behavior. Owner: y1e2m9
+- A companion switch completes, resumes or rolls back with both repositories byte-checked, staged and never committed, when opted in past the interim `companion-unsupported` blocker (`allow_companion=True`, `fo08zx` E-06). Owner: fo08zx
+- `aw install --relocate` reaches companion switches (the planner no longer emits `companion-unsupported` on the default path and the `allow_companion` keyword is gone), previews them, and the CHANGELOG, README and spec Section 8.1 describe the shipped behavior. Owner: y1e2m9
 
 ## Cross-IPD validation
 
