@@ -19,6 +19,7 @@ import functools
 import os
 import re
 import sys
+import tempfile
 import types
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
@@ -315,15 +316,59 @@ def _is_repos_schema_mapping(value: Dict[str, Any]) -> bool:
     return all(key in _ALLOWED_REPOS_KEYS for key in value)
 
 
+def _project_climb_ceilings() -> set[Path]:
+    """Return resolved canonical paths that act as ceilings for project-root and git-root climbs.
+
+    Candidate ceilings include tempfile.gettempdir(), POSIX shared temp roots (/tmp and /var/tmp
+    when present on disk), paths named by TMPDIR, TEMP, or TMP in os.environ, and any
+    os.pathsep-separated path in os.environ.get("AW_PROJECT_CEILING", "").
+    """
+    candidates: list[str | Path] = [tempfile.gettempdir()]
+    for posix_root in ("/tmp", "/var/tmp"):
+        try:
+            cand = Path(posix_root)
+            if cand.exists():
+                candidates.append(cand)
+        except (OSError, RuntimeError):
+            pass
+    for env_var in ("TMPDIR", "TEMP", "TMP"):
+        val = os.environ.get(env_var)
+        if val:
+            candidates.append(val)
+    ceiling_env = os.environ.get("AW_PROJECT_CEILING", "")
+    if ceiling_env:
+        for entry in ceiling_env.split(os.pathsep):
+            entry = entry.strip()
+            if entry:
+                candidates.append(entry)
+
+    ceilings: set[Path] = set()
+    for candidate in candidates:
+        try:
+            p = Path(candidate).expanduser().resolve()
+            ceilings.add(p)
+        except (OSError, RuntimeError):
+            continue
+    return ceilings
+
+
 def _find_git_root(start_dir: str) -> Optional[str]:
-    """Find the Git root directory by walking up from start_dir without subprocess."""
+    """Find the Git root directory by walking up from start_dir without subprocess.
+
+    Upward walk stops and returns None when reaching a temporary root container or
+    configured project ceiling (see ``_project_climb_ceilings``).
+    """
+    ceilings = _project_climb_ceilings()
     curr = Path(start_dir).resolve()
-    while curr != curr.parent:
+    while True:
+        if curr in ceilings:
+            return None
         git_dir = curr / ".git"
         if git_dir.exists():
             return curr.as_posix()
+        if curr == curr.parent:
+            return None
         curr = curr.parent
-    return None
 
 
 def _is_registered_submodule(dot_git: Path) -> bool:
@@ -390,11 +435,20 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
     - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``.
     - Any other nested git repository without ``.aw/`` (its own ``.git`` directory, a vendored or scratch
       clone) stops at its own boundary and never binds to an outer project.
+
+    Temporary root containers and project ceilings (IPD i44j8w):
+    - Shared temporary roots (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP) and any paths
+      listed in AW_PROJECT_CEILING are ceilings for project discovery: upward discovery stops and
+      returns None when reaching any ceiling container (neither treating the ceiling itself as a
+      project root nor escaping above it into ancestor directories).
     """
 
     curr = Path(start).resolve() if start is not None else Path.cwd().resolve()
+    ceilings = _project_climb_ceilings()
     submodule_encountered = False
     while True:
+        if curr in ceilings:
+            return None
         if _is_project_marker(curr / ".aw") or _is_project_marker(
             curr / ".agents", legacy=True
         ):
@@ -580,9 +634,20 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
 def is_project_dir(repo_root: str | Path) -> bool:
     """True if ``repo_root`` is (or contains) an AW project marker - i.e. a real project, not a bare
     directory with nothing to survey. Used by repo-scoped verbs to decide between running and
-    emitting ``no_project_message`` (IPD awretrofit Order 06)."""
+    emitting ``no_project_message`` (IPD awretrofit Order 06).
 
-    p = Path(repo_root)
+    Returns False immediately if ``repo_root`` resolves to a temporary root container or
+    configured project ceiling (see ``_project_climb_ceilings``).
+    """
+
+    try:
+        p = Path(repo_root).expanduser().resolve()
+    except (OSError, RuntimeError):
+        p = Path(repo_root)
+
+    if p in _project_climb_ceilings():
+        return False
+
     return _is_project_marker(p / ".aw") or _is_project_marker(
         p / ".agents", legacy=True
     )

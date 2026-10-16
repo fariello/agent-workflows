@@ -36,31 +36,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Project-root and git-root climb ceiling in `agent_workflows/project_context.py`
 
-- [ ] E-01 BEFORE editing, record the pre-edit baseline: (a) the bare `python3 -m pytest` summary line and failing-test-id set; (b) a run of the twelve modules named in `## Required tests / validation` under a polluted `TMPDIR` built as described there (hyphen-free name), with its summary line and failing-test-id set (expected nonzero: 40 failures across the 11 modules were measured at review, context only and not a bar); (c) the V-01 one-liner's output at the pre-edit tree. Then add `_project_climb_ceilings() -> set[Path]` in `agent_workflows/project_context.py` and enforce the ceiling in `project_context.find_project_root`, `project_context.is_project_dir`, and `project_context._find_git_root`, updating all three docstrings to state the ceiling.
+- [x] E-01 BEFORE editing, record the pre-edit baseline: (a) the bare `python3 -m pytest` summary line and failing-test-id set; (b) a run of the twelve modules named in `## Required tests / validation` under a polluted `TMPDIR` built as described there (hyphen-free name), with its summary line and failing-test-id set (expected nonzero: 40 failures across the 11 modules were measured at review, context only and not a bar); (c) the V-01 one-liner's output at the pre-edit tree. Then add `_project_climb_ceilings() -> set[Path]` in `agent_workflows/project_context.py` and enforce the ceiling in `project_context.find_project_root`, `project_context.is_project_dir`, and `project_context._find_git_root`, updating all three docstrings to state the ceiling.
   - Depends on: none
   - Expected outcome: the pre-edit baseline (a)-(c) is recorded. `_project_climb_ceilings()` returns resolved canonical `Path` objects for `tempfile.gettempdir()`, POSIX shared temp roots `/tmp` and `/var/tmp` (when present on disk), any path named by `TMPDIR`, `TEMP`, or `TMP` in `os.environ`, and any `os.pathsep`-separated path in `os.environ.get("AW_PROJECT_CEILING", "")`. The ceiling check is the FIRST statement in each loop iteration, before any marker or `.git` check, so it composes with sibling plan `ivq0nr`'s `.git`-boundary check in `find_project_root` (F-04) whichever lands first. `find_project_root(start)` returns `None` immediately when `curr in ceilings` (neither matching the ceiling container itself as a project root nor walking above it into its parents). `is_project_dir(repo_root)` returns `False` when `Path(repo_root).resolve() in _project_climb_ceilings()`, preserving the invariant `is_project_dir(p) == (find_project_root(p) == p.resolve())` required by `classify_project_dir`. `_find_git_root(start_dir)` stops and returns `None` when `curr in ceilings`. Any AW project or git repo created inside a subdirectory of a temp root (such as `/tmp/tmpXXXXXX` or `basetemp / "test_foo0"`) remains a strict descendant of the ceiling and continues to resolve normally.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Session ceiling guard in `conftest.py` and `tests/__init__.py`
 
-- [ ] E-02 Export and restore `AW_PROJECT_CEILING` in `conftest.py` and `tests/__init__.py` so pytest's `basetemp` and the session temp root are always registered as climb ceilings.
+- [x] E-02 Export and restore `AW_PROJECT_CEILING` in `conftest.py` and `tests/__init__.py` so pytest's `basetemp` and the session temp root are always registered as climb ceilings.
   - Depends on: E-01
   - Expected outcome: `conftest.py` records the session temp root (`tempfile.gettempdir()`) in `_SANDBOX_ENV["AW_PROJECT_CEILING"]`, appends `str(tmp_path_factory.getbasetemp().resolve())` (joined with `os.pathsep`) to both `_SANDBOX_ENV["AW_PROJECT_CEILING"]` and `os.environ["AW_PROJECT_CEILING"]` via a session-scoped autouse fixture taking `tmp_path_factory` (the mechanism demonstrated at review, under both `-n auto` and `-n0`; do NOT use the private `config._tmp_path_factory`). Because `_restore_home_sandbox` already re-applies `os.environ.update(_SANDBOX_ENV)` before and after every test, `AW_PROJECT_CEILING` is restored alongside `AW_HOME` and `XDG_CONFIG_HOME` with no change to that fixture (`_HOME_KEYS` has no other reader, so adding the key there is optional). `tests/__init__.py` sets `os.environ.setdefault("AW_PROJECT_CEILING", tempfile.gettempdir())` so `python3 -m unittest discover` gets the same ceiling backstop even when a custom temp root is used.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Regression tests for polluted temp roots and explicit ceilings
 
-- [ ] E-03 Add behavioral unit and CLI subprocess regression tests in `tests/test_nonsurveyable_root_refusal.py` covering a polluted `TMPDIR` containing stray `.aw/records`, `.agents/plans`, and `.git` markers as well as `AW_PROJECT_CEILING` containment.
+- [x] E-03 Add behavioral unit and CLI subprocess regression tests in `tests/test_nonsurveyable_root_refusal.py` covering a polluted `TMPDIR` containing stray `.aw/records`, `.agents/plans`, and `.git` markers as well as `AW_PROJECT_CEILING` containment.
   - Depends on: E-01, E-02
   - Expected outcome: New test methods in `tests/test_nonsurveyable_root_refusal.py` create an isolated temporary container `$T` with `$T/.aw/records/specs/draft`, `$T/.agents/plans`, and `$T/.git` planted directly at the temp root, allocate child scratch directories inside `$T` with `TMPDIR=$T`, and verify both in-process (`find_project_root`, `is_project_dir`, `classify_project_dir`, `nonsurveyable_root_refusal`, `git_root_for_message`) and via CLI subprocess (`aw attention --agent`, `aw specs check --agent`) that: (1) the temp root container `$T` itself and non-project child directories inside `$T` report `find_project_root == None`, `is_project_dir == False`, `ProjectLocationCase.NO_PROJECT`, and exit code `2` (`cannot-run`); (2) a real project child `$T/child_proj` with its own `.aw/records` still resolves `is_project_dir($T/child_proj) == True` and `find_project_root($T/child_proj/sub) == $T/child_proj`; (3) `AW_PROJECT_CEILING` stops upward climbs from escaping a custom base directory situated inside an enclosing AW project; and (4) a module-level pytest test `test_tmp_path_does_not_climb_past_basetemp(tmp_path)` asserts `find_project_root(tmp_path) is None`, which under a `--basetemp` placed inside an AW project fails without the E-02 fixture and passes with it (demonstrated at review). The polluted temp container in (1) is created with a hyphen-free prefix (F-03). Every subprocess sets `env` explicitly (copy of `os.environ` with `TMPDIR` overridden) and every temp dir is cleaned up.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Changelog sync and polluted-TMPDIR suite verification
 
-- [ ] E-04 Add a `Fixed:` entry under `## 2.0.0 (pending)` in `CHANGELOG.md` (with no em or en dashes) that names the new `AW_PROJECT_CEILING` variable and its semantics (an `os.pathsep`-separated list; a listed directory is never itself a project or git root and the climb never passes above it; the system temp roots are always ceilings), and run both the targeted regression modules under a polluted `TMPDIR` and the full pytest suite.
+- [x] E-04 Add a `Fixed:` entry under `## 2.0.0 (pending)` in `CHANGELOG.md` (with no em or en dashes) that names the new `AW_PROJECT_CEILING` variable and its semantics (an `os.pathsep`-separated list; a listed directory is never itself a project or git root and the climb never passes above it; the system temp roots are always ceilings), and run both the targeted regression modules under a polluted `TMPDIR` and the full pytest suite.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `CHANGELOG.md` documents the fix and `AW_PROJECT_CEILING` using plain hyphens/colons only; the E-01(b) polluted-`TMPDIR` module run, repeated against the SAME hyphen-free polluted container, reports `0 failed` (contrast with the nonzero E-01(b) baseline); `aw sanitize --agent` exits 0; the bare `python3 -m pytest` failing-test-id set contains no id absent from the E-01(a) baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,6 +121,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Passing explicit `--dir` to `aw ipd scaffold` in `tests/test_finalize_sendback.py`: owned by dedicated release-blocking bug backlog item `nj13xp` (`.aw/records/backlog/open/20261012-nj13xp-01-nj13xp-test-finalize-sendback-e2e-runs-aw-ipd-scaffold-wi.backlog.md`).
   - Carrier: nj13xp
+  - Carrier-Evidence: .aw/records/backlog/done/20261012-nj13xp-01-nj13xp-test-finalize-sendback-e2e-runs-aw-ipd-scaffold-wi.backlog.md
 
 ## Scope check
 
@@ -151,25 +152,272 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste output of a `python3 -c` one-liner (driven through `agent_workflows.project_context`) that creates a temporary root `T` with `T/.aw/records`, `T/.agents/plans`, and `T/.git`, sets `TMPDIR=T`, and prints `(is_project_dir(T), find_project_root(T), find_project_root(T/'nongit'), _find_git_root(str(T/'nongit')), is_project_dir(T/'proj'), find_project_root(T/'proj'/'sub'))` showing `(False, None, None, None, True, PosixPath('.../proj'))`, beside the E-01(c) pre-edit output of the same one-liner (which must differ, e.g. `True`/`T` in the first slots), plus `git diff -- agent_workflows/project_context.py` showing the ceiling check as the first statement of each climb loop.
   - Observed evidence:
-  - Result: pending
+    Pre-edit E-01(c) output:
+    ```
+    (True, PosixPath('/tmp/awpollprepm358vc5'), PosixPath('/tmp/awpollprepm358vc5'), '/tmp/awpollprepm358vc5', True, PosixPath('/tmp/awpollprepm358vc5/proj'))
+    ```
+    Post-edit output:
+    ```
+    (False, None, None, None, True, PosixPath('/tmp/awpollpostbmmnrd8l/proj'))
+    ```
+    git diff -- agent_workflows/project_context.py:
+    ```diff
+    diff --git a/agent_workflows/project_context.py b/agent_workflows/project_context.py
+    index 8b86f9d55..1c1bdc1bf 100644
+    --- a/agent_workflows/project_context.py
+    +++ b/agent_workflows/project_context.py
+    @@ -19,6 +19,7 @@ import functools
+     import os
+     import re
+     import sys
+    +import tempfile
+     import types
+     from pathlib import Path
+     from typing import Any, Dict, List, Mapping, Optional
+    @@ -315,15 +316,59 @@ def _is_repos_schema_mapping(value: Dict[str, Any]) -> bool:
+         return all(key in _ALLOWED_REPOS_KEYS for key in value)
 
-- [ ] V-02 validates E-02
+
+    +def _project_climb_ceilings() -> set[Path]:
+    +    """Return resolved canonical paths that act as ceilings for project-root and git-root climbs.
+    +
+    +    Candidate ceilings include tempfile.gettempdir(), POSIX shared temp roots (/tmp and /var/tmp
+    +    when present on disk), paths named by TMPDIR, TEMP, or TMP in os.environ, and any
+    +    os.pathsep-separated path in os.environ.get("AW_PROJECT_CEILING", "").
+    +    """
+    +    candidates: list[str | Path] = [tempfile.gettempdir()]
+    +    for posix_root in ("/tmp", "/var/tmp"):
+    +        try:
+    +            cand = Path(posix_root)
+    +            if cand.exists():
+    +                candidates.append(cand)
+    +        except (OSError, RuntimeError):
+    +            pass
+    +    for env_var in ("TMPDIR", "TEMP", "TMP"):
+    +        val = os.environ.get(env_var)
+    +        if val:
+    +            candidates.append(val)
+    +    ceiling_env = os.environ.get("AW_PROJECT_CEILING", "")
+    +    if ceiling_env:
+    +        for entry in ceiling_env.split(os.pathsep):
+    +            entry = entry.strip()
+    +            if entry:
+    +                candidates.append(entry)
+    +
+    +    ceilings: set[Path] = set()
+    +    for candidate in candidates:
+    +        try:
+    +            p = Path(candidate).expanduser().resolve()
+    +            ceilings.add(p)
+    +        except (OSError, RuntimeError):
+    +            continue
+    +    return ceilings
+    +
+    +
+     def _find_git_root(start_dir: str) -> Optional[str]:
+    -    """Find the Git root directory by walking up from start_dir without subprocess."""
+    +    """Find the Git root directory by walking up from start_dir without subprocess.
+    +
+    +    Upward walk stops and returns None when reaching a temporary root container or
+    +    configured project ceiling (see ``_project_climb_ceilings``).
+    +    """
+    +    ceilings = _project_climb_ceilings()
+         curr = Path(start_dir).resolve()
+    -    while curr != curr.parent:
+    +    while True:
+    +        if curr in ceilings:
+    +            return None
+             git_dir = curr / ".git"
+             if git_dir.exists():
+                 return curr.as_posix()
+    +        if curr == curr.parent:
+    +            return None
+             curr = curr.parent
+    -    return None
+
+
+     def _is_registered_submodule(dot_git: Path) -> bool:
+    @@ -390,11 +435,20 @@ def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
+         - Submodules with their own ``.aw/`` use themselves (unchanged). Linked worktrees carry their own ``.aw/``.
+         - Any other nested git repository without ``.aw/`` (its own ``.git`` directory, a vendored or scratch
+           clone) stops at its own boundary and never binds to an outer project.
+    +
+    +    Temporary root containers and project ceilings (IPD i44j8w):
+    +    - Shared temporary roots (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP) and any paths
+    +      listed in AW_PROJECT_CEILING are ceilings for project discovery: upward discovery stops and
+    +      returns None when reaching any ceiling container (neither treating the ceiling itself as a
+    +      project root nor escaping above it into ancestor directories).
+         """
+
+         curr = Path(start).resolve() if start is not None else Path.cwd().resolve()
+    +    ceilings = _project_climb_ceilings()
+         submodule_encountered = False
+         while True:
+    +        if curr in ceilings:
+    +            return None
+             if _is_project_marker(curr / ".aw") or _is_project_marker(
+                 curr / ".agents", legacy=True
+             ):
+    @@ -580,9 +634,20 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
+     def is_project_dir(repo_root: str | Path) -> bool:
+         """True if ``repo_root`` is (or contains) an AW project marker - i.e. a real project, not a bare
+         directory with nothing to survey. Used by repo-scoped verbs to decide between running and
+    -    emitting ``no_project_message`` (IPD awretrofit Order 06)."""
+    +    emitting ``no_project_message`` (IPD awretrofit Order 06).
+    +
+    +    Returns False immediately if ``repo_root`` resolves to a temporary root container or
+    +    configured project ceiling (see ``_project_climb_ceilings``).
+    +    """
+    +
+    +    try:
+    +        p = Path(repo_root).expanduser().resolve()
+    +    except (OSError, RuntimeError):
+    +        p = Path(repo_root)
+    +
+    +    if p in _project_climb_ceilings():
+    +        return False
+
+    -    p = Path(repo_root)
+         return _is_project_marker(p / ".aw") or _is_project_marker(
+             p / ".agents", legacy=True
+         )
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste (1) `git diff -- conftest.py tests/__init__.py`; (2) the output of `python3 -m pytest -o addopts="" -v --basetemp=.aw/state/bt-i44j8w tests/test_nonsurveyable_root_refusal.py` showing `test_tmp_path_does_not_climb_past_basetemp` PASSED with a basetemp inside this AW checkout (the observation is produced by the E-02 session fixture plus `project_context.find_project_root`); and (3) `env -u AW_PROJECT_CEILING python3 -c "import tests, os; print(os.environ.get('AW_PROJECT_CEILING'))"` printing the temp dir (the `tests/__init__.py` unittest backstop).
   - Observed evidence:
-  - Result: pending
+    (1) git diff -- conftest.py tests/__init__.py:
+    ```diff
+    diff --git a/conftest.py b/conftest.py
+    index fbfc45a23..68490b563 100644
+    --- a/conftest.py
+    +++ b/conftest.py
+    @@ -224,6 +224,7 @@ _atexit.register(_shutil.rmtree, _AW_TEST_SANDBOX, True)
+     _SANDBOX_ENV = {
+         "AW_HOME": _AW_TEST_SANDBOX,
+         "XDG_CONFIG_HOME": os.path.join(_AW_TEST_SANDBOX, "xdg-config"),
+    +    "AW_PROJECT_CEILING": _tempfile.gettempdir(),
+     }
+     os.environ.update(_SANDBOX_ENV)
 
-- [ ] V-03 validates E-03
+    @@ -241,6 +242,16 @@ def _restore_home_sandbox():
+             _shutil.rmtree(_xdg_dir, ignore_errors=True)
+
+
+    +@pytest.fixture(scope="session", autouse=True)
+    +def _register_basetemp_project_ceiling(tmp_path_factory: pytest.TempPathFactory):
+    +    """Register pytest's resolved basetemp as an AW project climb ceiling."""
+    +    basetemp = str(tmp_path_factory.getbasetemp().resolve())
+    +    current = _SANDBOX_ENV.get("AW_PROJECT_CEILING", "")
+    +    updated = f"{current}{os.pathsep}{basetemp}" if current else basetemp
+    +    _SANDBOX_ENV["AW_PROJECT_CEILING"] = updated
+    +    os.environ["AW_PROJECT_CEILING"] = updated
+    +
+    +
+     # --------------------------------------------------------------------------------------
+     # Per-test hang guard: dual CPU budget + wall ceiling (IPD 6ye76g).
+     # --------------------------------------------------------------------------------------
+    diff --git a/tests/__init__.py b/tests/__init__.py
+    index 9c21baa18..13c84f088 100644
+    --- a/tests/__init__.py
+    +++ b/tests/__init__.py
+    @@ -35,6 +35,7 @@ if not os.environ.get("AW_HOME"):
+     # preventing unintended external host subprocess spawns (e.g. opencode export)
+     # when tests drive runner code without an injected launcher double.
+     os.environ.setdefault("AW_IN_TEST_SESSION", "1")
+    +os.environ.setdefault("AW_PROJECT_CEILING", tempfile.gettempdir())
+
+     # Network/credential guard: a test may create a repo with a real remote (e.g. an
+     # https://github.com/... origin) and then reach code that probes it (git ls-remote /
+    ```
+    (2) python3 -m pytest -o addopts="" -v --basetemp=.aw/state/bt-i44j8w tests/test_nonsurveyable_root_refusal.py:
+    ```
+    tests/test_nonsurveyable_root_refusal.py::test_tmp_path_does_not_climb_past_basetemp PASSED [  6%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_d_git_repo_without_aw_explicit PASSED [ 13%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_c_no_project_no_git_explicit PASSED [ 20%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_aw_project_ceiling_stops_climb_inside_enclosing_project PASSED [ 26%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_b_project_subdirectory_explicit PASSED [ 33%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_non_explicit_variant_git_repo_without_aw PASSED [ 40%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_non_explicit_variant_no_project_no_git PASSED [ 46%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_stray_markers_in_temp_root_do_not_poison_children PASSED [ 53%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_fixture_preconditions PASSED [ 60%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_purity_and_silence PASSED [ 66%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_a_real_project_root PASSED [ 73%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_inner_git_boundary_stops_discovery_under_outer_aw_project PASSED [ 80%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_git_submodule_with_own_aw_uses_itself_without_notice PASSED [ 86%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_nongit_aw_project_subdirectories_discover_root PASSED [ 93%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_git_submodule_without_aw_resolves_to_parent_with_notice PASSED [100%]
+    ============================== 15 passed in 1.41s ==============================
+    ```
+    (3) env -u AW_PROJECT_CEILING python3 -c "import tests, os; print(os.environ.get('AW_PROJECT_CEILING'))":
+    ```
+    /tmp
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff --stat -- tests/test_nonsurveyable_root_refusal.py` and the `python3 -m pytest -o addopts="" -v tests/test_nonsurveyable_root_refusal.py` output showing every collected test PASSED, including the new tests that pin (1) the polluted temp root and its non-project children resolving to no project with CLI exit 2 `cannot-run`, (2) a real child project still resolving, and (3) the `AW_PROJECT_CEILING` containment (test names are non-binding pointers).
   - Observed evidence:
-  - Result: pending
+    git diff --stat -- tests/test_nonsurveyable_root_refusal.py:
+    ```
+     tests/test_nonsurveyable_root_refusal.py | 124 +++++++++++++++++++++++++++++++
+     1 file changed, 124 insertions(+)
+    ```
+    python3 -m pytest -o addopts="" -v tests/test_nonsurveyable_root_refusal.py:
+    ```
+    tests/test_nonsurveyable_root_refusal.py::test_tmp_path_does_not_climb_past_basetemp PASSED [  6%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_purity_and_silence PASSED [ 13%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_aw_project_ceiling_stops_climb_inside_enclosing_project PASSED [ 20%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_a_real_project_root PASSED [ 26%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_b_project_subdirectory_explicit PASSED [ 33%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_stray_markers_in_temp_root_do_not_poison_children PASSED [ 40%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_non_explicit_variant_git_repo_without_aw PASSED [ 46%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_d_git_repo_without_aw_explicit PASSED [ 53%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_fixture_preconditions PASSED [ 60%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_non_explicit_variant_no_project_no_git PASSED [ 66%]
+    tests/test_nonsurveyable_root_refusal.py::NonsurveyableRootRefusalTests::test_case_c_no_project_no_git_explicit PASSED [ 73%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_nongit_aw_project_subdirectories_discover_root PASSED [ 80%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_git_submodule_without_aw_resolves_to_parent_with_notice PASSED [ 86%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_git_submodule_with_own_aw_uses_itself_without_notice PASSED [ 93%]
+    tests/test_nonsurveyable_root_refusal.py::FindProjectRootGitBoundariesAndSubmodulesTests::test_inner_git_boundary_stops_discovery_under_outer_aw_project PASSED [100%]
+    ============================== 15 passed in 1.29s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste (1) the `git diff -- CHANGELOG.md` showing the new `Fixed:` entry with zero em/en dashes, (2) the summary line of the twelve-module run under the same hyphen-free polluted `TMPDIR` as E-01(b), showing `0 failed`, beside the E-01(b) baseline summary showing nonzero failures; and (3) the `aw sanitize --agent` result record, and the bare `python3 -m pytest` summary line and failing-test-id set compared against the E-01(a) baseline, with zero new failing ids.
   - Observed evidence:
-  - Result: pending
+    (1) git diff -- CHANGELOG.md:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index ed070db80..c5869382e 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -25,6 +25,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+     - Fixed: project_context.resolve_project_context and project_context.project_config_dir now read user configuration through config.config_dir() (honoring AW_CONFIG_DIR and XDG_CONFIG_HOME) instead of a hard-coded ~/.config/agent-workflows path when user_config_dir is omitted.
+    +- Fixed: project_context.find_project_root, is_project_dir, and _find_git_root now treat shared system temp roots (/tmp, /var/tmp, tempfile.gettempdir(), TMPDIR/TEMP/TMP) and any paths listed in the new AW_PROJECT_CEILING environment variable (an os.pathsep-separated list) as climb ceilings: a listed directory is never itself a project or git root and upward climbs never pass above it into parent directories, while subdirectories continue to resolve normally, eliminating test fixture pollution from stray markers.
+     - Fixed: the shipped conformance host matrix (.aw/system/workflows/conformance/tools/host_matrix.json) no longer carries unproven supported booleans, so aw releases readiness no longer reports 19 stale capability claims; host support is established only by probe evidence recorded in the capability registry.
+     - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
+     - Fixed: aw index plans, prompts, research, and all now refuse with exit code 2 (cannot-run) and a structured record when the records directory does not exist, instead of crashing with a FileNotFoundError traceback.
+    ```
+    (2) Twelve-module run under polluted TMPDIR:
+    Baseline E-01(b): `20 failed, 305 passed in 66.97s (0:01:06)` (EXIT: 1)
+    Post-edit: `328 passed in 39.65s` (EXIT: 0) (0 failed)
+    (3) aw sanitize --agent:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5227,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Bare python3 -m pytest summary and failing-test-id comparison:
+    Baseline E-01(a): `702 passed in 25.70s`, failing-test-id set: `set()`
+    Post-edit: `702 passed in 26.56s`, failing-test-id set: `set()`
+    Zero new failing test ids.
+  - Result: pass
 
 ## Approval and execution gate
 
