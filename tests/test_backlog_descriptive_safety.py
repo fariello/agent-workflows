@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from agent_workflows import agent_schema
 from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
 
@@ -399,13 +401,26 @@ class BacklogDescriptiveSafetyTests(unittest.TestCase):
         self.assertIn(str(A.MAX_DESCRIPTIVE_LEN + 1), err_301)
 
     def test_agent_mode_refusal_shape(self):
-        """E-05 non-regression: --agent mode refusal returns rc 2 without envelope on stdout."""
+        """E-05 non-regression: --agent mode refusal returns rc 2 and emits an aw.agent/v1 cannot-run record on stdout."""
         rc, out, err = _call_new(
             self.repo, summary="bad\nsummary", agent=True, slug="agent-mode"
         )
         self.assertEqual(rc, 2)
-        self.assertEqual(out, "")
+        rec = json.loads(out)
+        self.assertEqual(agent_schema.validate_agent_record(rec), [])
+        self.assertEqual(rec["kind"], "error")
+        self.assertEqual(rec["cmd"], "backlog new")
+        self.assertEqual(rec["outcome"], "cannot-run")
+        self.assertEqual(rec["exit"], 2)
+        self.assertEqual(rec["next"], "aw backlog new --help")
         self.assertIn("newline", err.lower())
+
+        rc_human, out_human, err_human = _call_new(
+            self.repo, summary="bad\nsummary", agent=False, slug="human-mode"
+        )
+        self.assertEqual(rc_human, 2)
+        self.assertEqual(out_human, "")
+        self.assertIn("newline", err_human.lower())
 
     def test_legitimate_multiword_message_and_gate_ref_succeed(self):
         """V-03 (f): legitimate multi-word messages and valid gate refs succeed."""
