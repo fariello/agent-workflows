@@ -42,14 +42,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the live `.aw/system/workflows/conformance/tools/host_matrix.json` boolean claims, `HostCapabilityRegistry.migrate_from_static_matrix`, and `release_readiness.gate_capability_freshness` at the executing HEAD before changing any file.
+- [x] E-01 Re-measure the live `.aw/system/workflows/conformance/tools/host_matrix.json` boolean claims, `HostCapabilityRegistry.migrate_from_static_matrix`, and `release_readiness.gate_capability_freshness` at the executing HEAD before changing any file.
   - Depends on: none
   - Expected outcome: one pasted transcript proving, by driving the code on the repository root: (a) `host_capability_registry.load_host_matrix(host_capability_registry.DEFAULT_MATRIX_PATH)` loads 8 hosts and 24 `t*` tier dicts, of which 19 carry `"supported": True` and 5 carry `"supported": False`; (b) `HostCapabilityRegistry().migrate_from_static_matrix(data)` returns `24` and every record has `result == "unverified"` and `source_type == "static_migration"` (the values of `hcr.STATUS_UNVERIFIED` and `hcr.SOURCE_STATIC_MIGRATION`); and (c) `release_readiness.gate_capability_freshness()` returns `passed=False`, `detail == "19 stale claim(s)"`, and `evidence["claims_checked"] == 19`, with all 19 `stale_claims` entries being STRINGS of the form `"<host>:<tier>: Unproven claim: static migration seed requires an operator-run live probe."`. If (a) already shows 0 `"supported"` keys and (c) already returns `passed=True`, stop and reconcile rather than repeating the change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: add falsifiable behavioral tests and retire the unproven booleans
 
-- [ ] E-02 Add behavioral and falsifiability tests in `tests/test_host_capability_registry.py` for the shipped default host matrix and `release_readiness.gate_capability_freshness`, and verify they fail (RED) before editing `.aw/system/workflows/conformance/tools/host_matrix.json`.
+- [x] E-02 Add behavioral and falsifiability tests in `tests/test_host_capability_registry.py` for the shipped default host matrix and `release_readiness.gate_capability_freshness`, and verify they fail (RED) before editing `.aw/system/workflows/conformance/tools/host_matrix.json`.
   - Depends on: E-01
   - Expected outcome: add a `unittest.TestCase` class `TestShippedHostMatrixAndFreshnessGate` in `tests/test_host_capability_registry.py`. The module is `unittest`-based, so use `tempfile.TemporaryDirectory()`, not pytest's `tmp_path`. Exercise real functions and data, and never inspect `.py` source via `inspect`, `ast`, or regex. Add two test methods (names are non-binding pointers):
     - `(t1)` shipped-matrix shape and migration:
@@ -63,28 +63,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       - Call `release_readiness.gate_capability_freshness(repo_root=REPO)`, where `REPO = Path(__file__).resolve().parent.parent`. Assert `passed is True`, `detail == "no stale capability claims"`, and `evidence == {"stale_claims": [], "claims_checked": 0}`.
       - Then, in a `tempfile.TemporaryDirectory()` `t`, write a copy of `data` to `t / ".aw/system/workflows/conformance/tools/host_matrix.json"` with `copy["hosts"]["antigravity"]["t2_layout"]["supported"] = True`. Assert `gate_capability_freshness(repo_root=t)` returns `passed is False`, `evidence["claims_checked"] == 1`, and `evidence["stale_claims"][0].startswith("antigravity:t2_layout:")`. The entries are strings, not dicts.
     Run `python3 -m pytest -o addopts="" -v tests/test_host_capability_registry.py -k TestShippedHostMatrixAndFreshnessGate` against the pre-E-03 matrix. Both methods must FAIL with `AssertionError`: t1 on the non-empty `"supported"` list, and t2 on `passed is True` with `19 stale claim(s)`. A failure of any other kind (`TypeError`, `KeyError`, `AttributeError`) means the test is broken, not validly RED, and must be fixed before E-03.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Remove the `"supported"` boolean keys from all 24 `t1_policy`, `t2_layout`, and `t3_global` tier objects across the 8 hosts in `.aw/system/workflows/conformance/tools/host_matrix.json`.
+- [x] E-03 Remove the `"supported"` boolean keys from all 24 `t1_policy`, `t2_layout`, and `t3_global` tier objects across the 8 hosts in `.aw/system/workflows/conformance/tools/host_matrix.json`.
   - Depends on: E-02
   - Expected outcome: in `.aw/system/workflows/conformance/tools/host_matrix.json`, the `"supported"` entry is deleted from each host's `t1_policy`, `t2_layout`, and `t3_global` object. All 8 host keys, `display_name`, `t1_policy.mechanism`, `t1_policy.notes`, `t2_layout.preferred_path`, `t3_global.global_path`, `diagnostic_commands`, and `command_template` keep their values. The file stays valid JSON with the existing 2-space indentation. Trailing commas are fixed where the removed key was the last member: `"supported"` is the FIRST key of each `t1_policy` and the LAST key of each `t2_layout`/`t3_global`, so the preceding line's comma must be dropped in the latter. Both new tests and all existing tests in `tests/test_host_capability_registry.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: validate across capability, lifecycle, release-readiness, and full test suites
 
-- [ ] E-04 Run the capability, release-readiness, and lifecycle fixture checks, verify `aw releases readiness --suite-passed --residual-risk-signer qa` on the live checkout, and run the bare full test suite.
+- [x] E-04 Run the capability, release-readiness, and lifecycle fixture checks, verify `aw releases readiness --suite-passed --residual-risk-signer qa` on the live checkout, and run the bare full test suite.
   - Depends on: E-03
   - Expected outcome:
     1. `python3 -m pytest -o addopts="" -q tests/test_host_capability_registry.py tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py` reports 0 failed. The pass count is re-derived at execution and is not a bar.
     2. `lifecycle_fixtures.run_all_fixtures()` returns a `List[FixtureOutcome]`, one per name in `lifecycle_fixtures.ALL_FIXTURES`. It must satisfy `all(o.passed for o in outcomes)`, and the `multi-host-discovery` outcome's `evidence["hosts"]` must list all 8 hosts.
     3. `python3 -m agent_workflows releases readiness --suite-passed --residual-risk-signer qa` on the live worktree reports `capability_freshness | PASS | no stale capability claims`. Paste the overall verdict and exit code as observed. If any OTHER gate fails, name it and show it fails identically at the execution base, so it is not caused by this change.
     4. Bare `python3 -m pytest` shows zero new failures, compared by name against the execution-base baseline.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add one `- Fixed:` bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (no em or en dashes). It states that the shipped conformance host matrix no longer carries unproven `supported` booleans, so `aw releases readiness` no longer reports 19 stale capability claims, and that host support is established only by probe evidence in the capability registry.
+- [x] E-05 Add one `- Fixed:` bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (no em or en dashes). It states that the shipped conformance host matrix no longer carries unproven `supported` booleans, so `aw releases readiness` no longer reports 19 stale capability claims, and that host support is established only by probe evidence in the capability registry.
   - Depends on: E-04
   - Expected outcome: `CHANGELOG.md` gains exactly one bullet under the pending release heading, with zero em or en dashes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -175,43 +175,513 @@ Run the following:
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the execution HEAD sha and the full E-01 transcript (code paths: `host_capability_registry.load_host_matrix`, `HostCapabilityRegistry.migrate_from_static_matrix`, `release_readiness.gate_capability_freshness`) showing:
     - (a) 8 hosts and 24 `t*` tier dicts, with 19 `"supported": True` and 5 `"supported": False`;
     - (b) `migrate_from_static_matrix` returning `24`, with every record `result == "unverified"` and `source_type == "static_migration"`;
     - (c) `gate_capability_freshness()` returning `passed=False`, `detail='19 stale claim(s)'`, and `claims_checked=19`, with the stale entries printed as strings.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD sha: `cb4edcf857cb0a4bfb8a84a8bf6aaca016ba7baf`
 
-- [ ] V-02 validates E-02
+    ```
+    Loaded 8 hosts
+    Total tier entries: 24
+    Supported counts: {True: 19, False: 5, 'missing': 0}
+      antigravity:t1_policy -> supported=True
+      antigravity:t2_layout -> supported=True
+      antigravity:t3_global -> supported=True
+      claude_code:t1_policy -> supported=True
+      claude_code:t2_layout -> supported=True
+      claude_code:t3_global -> supported=True
+      codex:t1_policy -> supported=False
+      codex:t2_layout -> supported=True
+      codex:t3_global -> supported=True
+      copilot:t1_policy -> supported=False
+      copilot:t2_layout -> supported=True
+      copilot:t3_global -> supported=True
+      cursor:t1_policy -> supported=False
+      cursor:t2_layout -> supported=True
+      cursor:t3_global -> supported=True
+      gemini_cli:t1_policy -> supported=True
+      gemini_cli:t2_layout -> supported=True
+      gemini_cli:t3_global -> supported=True
+      kiro:t1_policy -> supported=False
+      kiro:t2_layout -> supported=True
+      kiro:t3_global -> supported=True
+      opencode:t1_policy -> supported=False
+      opencode:t2_layout -> supported=True
+      opencode:t3_global -> supported=True
+    Migrated records count: 24
+    All records unverified and static_migration: True
+    gate_capability_freshness result:
+      passed: False
+      detail: 19 stale claim(s)
+      claims_checked: 19
+      stale_claims count: 19
+        antigravity:t1_policy: Unproven claim: static migration seed requires an operator-run live probe.
+        antigravity:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        antigravity:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        claude_code:t1_policy: Unproven claim: static migration seed requires an operator-run live probe.
+        claude_code:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        claude_code:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        codex:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        codex:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        copilot:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        copilot:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        cursor:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        cursor:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        gemini_cli:t1_policy: Unproven claim: static migration seed requires an operator-run live probe.
+        gemini_cli:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        gemini_cli:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        kiro:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        kiro:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+        opencode:t2_layout: Unproven claim: static migration seed requires an operator-run live probe.
+        opencode:t3_global: Unproven claim: static migration seed requires an operator-run live probe.
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste:
     1. the `git diff` hunk adding `TestShippedHostMatrixAndFreshnessGate` in `tests/test_host_capability_registry.py`;
     2. the pre-E-03 RED pytest output of `python3 -m pytest -o addopts="" -v tests/test_host_capability_registry.py -k TestShippedHostMatrixAndFreshnessGate`, showing both new methods failing with `AssertionError` (not `TypeError`/`KeyError`/`AttributeError`) against the unmodified `host_matrix.json`;
     3. `git grep -n -E 'getsource|import ast|ast\.parse|import inspect' tests/test_host_capability_registry.py` returning exit 1 (no matches).
   - Observed evidence:
-  - Result: pending
+    1. Git diff hunk in `tests/test_host_capability_registry.py`:
+    ```diff
+    @@ -668,6 +670,129 @@ class PromotionGateTests(unittest.TestCase):
+             self.assertFalse(eval_res.is_supported)
 
-- [ ] V-03 validates E-03
+
+    +class TestShippedHostMatrixAndFreshnessGate(unittest.TestCase):
+    +    """Behavioral and falsifiability tests for the shipped default host matrix and freshness gate."""
+    +
+    +    def test_shipped_matrix_shape_and_migration(self):
+    +        self.assertTrue(
+    +            hcr.DEFAULT_MATRIX_PATH.is_file(),
+    +            f"Shipped default matrix path {hcr.DEFAULT_MATRIX_PATH} must exist as a file",
+    +        )
+    +        data = hcr.load_host_matrix(hcr.DEFAULT_MATRIX_PATH)
+    +        hosts = data.get("hosts", {})
+    +        expected_hosts = {
+    +            "antigravity",
+    +            "claude_code",
+    +            "codex",
+    +            "copilot",
+    +            "cursor",
+    +            "gemini_cli",
+    +            "kiro",
+    +            "opencode",
+    +        }
+    +        self.assertEqual(set(hosts.keys()), expected_hosts)
+    +
+    +        for host_name, cfg in hosts.items():
+    +            self.assertIn("display_name", cfg)
+    +            self.assertTrue(cfg.get("display_name"))
+    +            self.assertIn("command_template", cfg)
+    +            self.assertTrue(cfg.get("command_template"))
+    +            self.assertIn("diagnostic_commands", cfg)
+    +
+    +            self.assertIn("t1_policy", cfg)
+    +            self.assertTrue(isinstance(cfg["t1_policy"], dict))
+    +            self.assertTrue(cfg["t1_policy"].get("mechanism"))
+    +
+    +            self.assertIn("t2_layout", cfg)
+    +            self.assertTrue(isinstance(cfg["t2_layout"], dict))
+    +            self.assertTrue(cfg["t2_layout"].get("preferred_path"))
+    +
+    +            self.assertIn("t3_global", cfg)
+    +            self.assertTrue(isinstance(cfg["t3_global"], dict))
+    +            self.assertTrue(cfg["t3_global"].get("global_path"))
+    +
+    +        supported_keys = [
+    +            (h, k)
+    +            for h, cfg in hosts.items()
+    +            for k, v in cfg.items()
+    +            if k.startswith("t") and isinstance(v, dict) and "supported" in v
+    +        ]
+    +        self.assertEqual(
+    +            supported_keys,
+    +            [],
+    +            "Shipped host matrix tier objects must not contain 'supported' booleans",
+    +        )
+    +
+    +        reg = hcr.HostCapabilityRegistry()
+    +        migrated_count = reg.migrate_from_static_matrix(data)
+    +        self.assertEqual(migrated_count, 24)
+    +
+    +        for host_name in expected_hosts:
+    +            for tier_name in ("t1_policy", "t2_layout", "t3_global"):
+    +                query_res = reg.query_capability(
+    +                    host=host_name, exact_version="1.0.0", feature=tier_name
+    +                )
+    +                self.assertFalse(query_res.is_supported)
+    +                rec = reg.get_record(host_name, "1.0.0", tier_name)
+    +                self.assertIsNotNone(rec)
+    +                self.assertEqual(rec.result, hcr.STATUS_UNVERIFIED)
+    +                self.assertEqual(rec.source_type, hcr.SOURCE_STATIC_MIGRATION)
+    +
+    +        for host_name in expected_hosts:
+    +            for tier in ("T1", "T2", "T3"):
+    +                with self.subTest(host=host_name, tier=tier):
+    +                    with tempfile.TemporaryDirectory() as td:
+    +                        base = Path(td)
+    +                        fixture = hcr.scaffold_probe_fixture(
+    +                            base, host_name, "1.0.0", tier=tier
+    +                        )
+    +                        cmds = hcr.render_probe_commands(
+    +                            host_name, "1.0.0", tier, base, fixture.nonce
+    +                        )
+    +                        self.assertIsNotNone(fixture)
+    +                        self.assertIsNotNone(cmds)
+    +
+    +    def test_freshness_gate_on_shipped_matrix_and_falsifiability_control(self):
+    +        repo_root = Path(__file__).resolve().parent.parent
+    +        gate_res = release_readiness.gate_capability_freshness(repo_root=repo_root)
+    +        self.assertTrue(
+    +            gate_res.passed,
+    +            f"gate_capability_freshness failed on repo_root: {gate_res.detail}",
+    +        )
+    +        self.assertEqual(gate_res.detail, "no stale capability claims")
+    +        self.assertEqual(
+    +            gate_res.evidence,
+                {"stale_claims": [], "claims_checked": 0},
+    +        )
+    +
+    +        data = hcr.load_host_matrix(hcr.DEFAULT_MATRIX_PATH)
+    +        with tempfile.TemporaryDirectory() as td:
+    +            t = Path(td)
+    +            matrix_path = (
+    +                t
+    +                / ".aw"
+    +                / "system"
+    +                / "workflows"
+    +                / "conformance"
+    +                / "tools"
+    +                / "host_matrix.json"
+    +            )
+    +            matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    +            copy_data = copy.deepcopy(data)
+    +            copy_data["hosts"]["antigravity"]["t2_layout"]["supported"] = True
+    +            matrix_path.write_text(json.dumps(copy_data), encoding="utf-8")
+    +
+    +            falsify_res = release_readiness.gate_capability_freshness(repo_root=t)
+    +            self.assertFalse(falsify_res.passed)
+    +            self.assertEqual(falsify_res.evidence.get("claims_checked"), 1)
+    +            stale = falsify_res.evidence.get("stale_claims", [])
+    +            self.assertEqual(len(stale), 1)
+    +            self.assertTrue(
+    +                stale[0].startswith("antigravity:t2_layout:"),
+    +                f"Unexpected stale claim prefix: {stale[0]}",
+    +            )
+    ```
+
+    2. Pre-E-03 RED pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_host_capability_registry.py -k TestShippedHostMatrixAndFreshnessGate
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=253850535
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 30 items / 28 deselected / 2 selected
+
+    tests/test_host_capability_registry.py::TestShippedHostMatrixAndFreshnessGate::test_shipped_matrix_shape_and_migration FAILED [ 50%]
+    tests/test_host_capability_registry.py::TestShippedHostMatrixAndFreshnessGate::test_freshness_gate_on_shipped_matrix_and_falsifiability_control FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestShippedHostMatrixAndFreshnessGate.test_shipped_matrix_shape_and_migration _
+    ...
+    >       self.assertEqual(
+                supported_keys,
+                [],
+                "Shipped host matrix tier objects must not contain 'supported' booleans",
+            )
+    E       AssertionError: Lists differ: [('opencode', 't1_policy'), ('opencode', '[595 chars]al')] != []
+    ...
+    _ TestShippedHostMatrixAndFreshnessGate.test_freshness_gate_on_shipped_matrix_and_falsifiability_control _
+    ...
+    >       self.assertTrue(
+                gate_res.passed,
+                f"gate_capability_freshness failed on repo_root: {gate_res.detail}",
+            )
+    E       AssertionError: False is not true : gate_capability_freshness failed on repo_root: 19 stale claim(s)
+    =========================== short test summary info ============================
+    FAILED tests/test_host_capability_registry.py::TestShippedHostMatrixAndFreshnessGate::test_shipped_matrix_shape_and_migration
+    FAILED tests/test_host_capability_registry.py::TestShippedHostMatrixAndFreshnessGate::test_freshness_gate_on_shipped_matrix_and_falsifiability_control
+    ======================= 2 failed, 28 deselected in 0.33s =======================
+    ```
+
+    3. No code-pinning search:
+    ```
+    $ git grep -n -E 'getsource|import ast|ast\.parse|import inspect' tests/test_host_capability_registry.py
+    (exit 1, no matches)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste:
     1. the `git diff` for `.aw/system/workflows/conformance/tools/host_matrix.json`, showing only the 24 `"supported"` lines removed (plus the trailing-comma adjustments on the preceding lines) and every other field preserved;
     2. `git grep -n '"supported"' .aw/system/workflows/conformance/tools/host_matrix.json` returning exit 1 (0 matches), and `python3 -m json.tool .aw/system/workflows/conformance/tools/host_matrix.json > /dev/null` exiting 0;
     3. the post-E-03 GREEN pytest output of `python3 -m pytest -o addopts="" -v tests/test_host_capability_registry.py`, showing every test in the file passing, including both methods of `TestShippedHostMatrixAndFreshnessGate`.
   - Observed evidence:
-  - Result: pending
+    1. `git diff .aw/system/workflows/conformance/tools/host_matrix.json`:
+    ```diff
+    diff --git a/.aw/system/workflows/conformance/tools/host_matrix.json b/.aw/system/workflows/conformance/tools/host_matrix.json
+    index bd5f527d2..db6b5e1d6 100644
+    --- a/.aw/system/workflows/conformance/tools/host_matrix.json
+    +++ b/.aw/system/workflows/conformance/tools/host_matrix.json
+    @@ -3,17 +3,14 @@
+         "opencode": {
+           "display_name": "OpenCode",
+           "t1_policy": {
+    -        "supported": false,
+             "mechanism": "out-of-repo absolute import not resolved by default",
+             "notes": "Requires native skill or in-repo fallback"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".config/opencode/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".config/opencode/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "opencode debug context",
+    @@ -24,17 +21,14 @@
+         "claude_code": {
+           "display_name": "Claude Code",
+           "t1_policy": {
+    -        "supported": true,
+             "mechanism": "supports absolute file import via @path or project config",
+             "notes": "Resolves out-of-repo pointer with permission prompt"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".claude/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".claude/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".claude/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".claude/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "claude doctor",
+    @@ -45,17 +39,14 @@
+         "codex": {
+           "display_name": "Codex CLI",
+           "t1_policy": {
+    -        "supported": false,
+             "mechanism": "refuses out-of-repo absolute import without flag",
+             "notes": "Strict workspace boundary"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".codex/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".codex/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "codex status",
+    @@ -66,17 +57,14 @@
+         "copilot": {
+           "display_name": "GitHub / VS Code Copilot",
+           "t1_policy": {
+    -        "supported": false,
+             "mechanism": "refuses absolute file reference outside workspace root",
+             "notes": "Workspace isolation enforced"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".config/github-copilot/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".config/github-copilot/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "github-copilot-cli status",
+    @@ -87,17 +75,14 @@
+         "cursor": {
+           "display_name": "Cursor",
+           "t1_policy": {
+    -        "supported": false,
+             "mechanism": "unproven out-of-repo resolution",
+             "notes": "Requires workspace local file"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".cursor/rules/{skill_name}.mdc",
+    -        "supported": true
+    +        "global_path": ".cursor/rules/{skill_name}.mdc"
+           },
+           "diagnostic_commands": [
+             "cursor --status",
+    @@ -108,17 +93,14 @@
+         "antigravity": {
+           "display_name": "Antigravity CLI (AGY)",
+           "t1_policy": {
+    -        "supported": true,
+             "mechanism": "resolves out-of-repo path with user consent",
+             "notes": "Supports external pointer via skill reference"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".gemini/antigravity-cli/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".gemini/antigravity-cli/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "agy status",
+    @@ -129,17 +111,14 @@
+         "gemini_cli": {
+           "display_name": "Gemini CLI",
+           "t1_policy": {
+    -        "supported": true,
+             "mechanism": "resolves external files with consent prompt",
+             "notes": "CLI mode supports external paths"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".agents/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".agents/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".gemini/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".gemini/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "gemini status",
+    @@ -150,17 +129,14 @@
+         "kiro": {
+           "display_name": "Kiro",
+           "t1_policy": {
+    -        "supported": false,
+             "mechanism": "out-of-repo absolute import unverified",
+             "notes": "Requires in-repo pointer or native skill; capability unverified until probed"
+           },
+           "t2_layout": {
+    -        "preferred_path": ".kiro/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "preferred_path": ".kiro/skills/{skill_name}/SKILL.md"
+           },
+           "t3_global": {
+    -        "global_path": ".kiro/skills/{skill_name}/SKILL.md",
+    -        "supported": true
+    +        "global_path": ".kiro/skills/{skill_name}/SKILL.md"
+           },
+           "diagnostic_commands": [
+             "kiro-cli status",
+    ```
 
-- [ ] V-04 validates E-04
+    2. Validation commands:
+    ```
+    $ git grep -n '"supported"' .aw/system/workflows/conformance/tools/host_matrix.json
+    (exit 1, 0 matches)
+    $ python3 -m json.tool .aw/system/workflows/conformance/tools/host_matrix.json > /dev/null
+    (exit 0)
+    ```
+
+    3. Post-E-03 GREEN pytest run:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_host_capability_registry.py
+    ============================== 30 passed in 0.63s ==============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste:
     1. the output of `python3 -m pytest -o addopts="" -q tests/test_host_capability_registry.py tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py` (0 failed);
     2. the driven output of `[(o.name, o.passed) for o in lifecycle_fixtures.run_all_fixtures()]` with every entry `True`, plus the `multi-host-discovery` outcome's `evidence["hosts"]` listing all 8 hosts (code path: `lifecycle_fixtures.run_multi_host_discovery` via `hcr.load_host_matrix`);
     3. the full CLI output and exit code of `python3 -m agent_workflows releases readiness --suite-passed --residual-risk-signer qa`, showing the `capability_freshness | PASS | no stale capability claims` row (code path: `release_readiness.build_report` -> `gate_capability_freshness`), with any other failing gate shown to fail identically at the execution base;
     4. the execution-base and post-change bare `python3 -m pytest` summary lines, with zero new failures by name (pass counts are context, not a bar).
   - Observed evidence:
-  - Result: pending
+    1. 6-file test suite:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_host_capability_registry.py tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py
+    104 passed in 18.32s
+    ```
 
-- [ ] V-05 validates E-05
+    2. Lifecycle fixtures:
+    ```python
+    >>> [(o.name, o.passed) for o in lifecycle_fixtures.run_all_fixtures()]
+    [('clean-install', True), ('legacy-update', True), ('partial-state', True), ('customized-file', True), ('interrupted-update', True), ('rollback', True), ('downgrade-warning', True), ('no-network', True), ('no-credential', True), ('multi-host-discovery', True), ('unsupported-host', True)]
+    >>> sorted(mhd.evidence.get("hosts", []))
+    ['antigravity', 'claude_code', 'codex', 'copilot', 'cursor', 'gemini_cli', 'kiro', 'opencode']
+    ```
+
+    3. Releases readiness:
+    ```
+    $ python3 -m agent_workflows releases readiness --suite-passed --residual-risk-signer qa
+    # Release Readiness Report
+
+    Verdict: GO
+
+    | Gate | Result | Detail |
+    |---|---|---|
+    | full_suite | PASS | full suite green |
+    | leak_scan | PASS | aw sanitize --agent exit 0 |
+    | ipd_lint | PASS | aw ipd lint --all --agent exit 0 |
+    | generated_drift | PASS | no canonical workflow packages to check |
+    | docs_checks | PASS | docs checks pass |
+    | workflow_disposition | PASS | all workflows dispositioned |
+    | capability_freshness | PASS | no stale capability claims |
+    | benchmark_thresholds | PASS | benchmark release invariants hold |
+    | changelog_versioning | PASS | changelog entry + resolvable version present |
+    | artifact_manifest | PASS | artifact manifest present and consistent |
+    | residual_risk | PASS | residual risk signed off by qa |
+    (exit 0)
+    ```
+
+    4. Bare full test suite baseline and post-change:
+    - Execution-base baseline: `702 passed in 34.88s` (0 failed)
+    - Post-change test run: `702 passed in 19.50s` (0 failed)
+    - Zero new failures.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `git diff CHANGELOG.md` showing the one new `- Fixed:` bullet under `## 2.0.0 (pending)`, plus pasted output of `git diff -U0 CHANGELOG.md | grep -P '^\+.*[\x{2013}\x{2014}]'` returning exit 1 (no em/en dash on any added line).
   - Observed evidence:
-  - Result: pending
+    `git diff CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index d1b1715f6..ac55f62a9 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: the shipped conformance host matrix (.aw/system/workflows/conformance/tools/host_matrix.json) no longer carries unproven supported booleans, so aw releases readiness no longer reports 19 stale capability claims; host support is established only by probe evidence recorded in the capability registry.
+     - Fixed: aw index all and aw index all --check now emit a single aggregate aw.agent/v1 result record under --agent and a single valid JSON document under --json, ensuring record exit parity with the process exit code and closing multi-document parsing failures.
+    ```
+
+    Dash check:
+    ```
+    $ git diff -U0 CHANGELOG.md | grep -P '^\+.*[\x{2013}\x{2014}]'
+    (exit 1, no matches)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
