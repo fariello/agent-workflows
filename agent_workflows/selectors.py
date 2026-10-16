@@ -114,9 +114,9 @@ _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 # `_PRECEDENCE` IS FROZEN AS SEMANTICS, NOT AS INERTIA. A token can legitimately be BOTH a Set id
 # and a filename fragment, so the order decides which record WINS an existing query; reordering it
 # silently changes matching. Formerly pinned by
-# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`;
-# no live guard currently asserts this), which also proved the corollary that a stem or substring
-# query cannot be made read-free while the order stands.
+# `tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests` (deleted in `19313eed`);
+# guarded behaviorally by `tests/test_selector_precedence_outcomes.py`, which also preserves the
+# corollary that a stem or substring query cannot be made read-free while the order stands.
 #
 # THE PARSED FILENAME `id6` SLOT IS NOT A SAFE DISCRIMINATOR, a live trap independent of any
 # filter: `parse_clustered("20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md")` returns
