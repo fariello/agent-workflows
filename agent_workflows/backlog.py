@@ -1116,13 +1116,21 @@ def run_new(args) -> int:
     from agent_workflows.result_types import select_output
 
     ctx = select_output(args)
+
+    def _refuse(err_msg: str) -> int:
+        msg = err_msg.strip()
+        sys.stderr.write(f"{msg}\n")
+        return emit_usage_refusal(
+            "backlog new",
+            msg.removeprefix("aw backlog new: "),
+            "aw backlog new --help",
+            ctx,
+        )
+
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     status = getattr(args, "status", None) or "open"
     if status not in STATUSES:
-        sys.stderr.write(
-            f"aw backlog new: --status must be one of {sorted(STATUSES)}\n"
-        )
-        return 2
+        return _refuse(f"aw backlog new: --status must be one of {sorted(STATUSES)}")
     item = BacklogItem()
     existing_ids = set()
     existing_items_data: List[Tuple[Path, BacklogItem, str]] = []
@@ -1148,8 +1156,7 @@ def run_new(args) -> int:
         repo_root, _setid_arg, verb="aw backlog new"
     )
     if _setid_err:
-        sys.stderr.write(f"{_setid_err}\n")
-        return 2
+        return _refuse(_setid_err)
     if _setid_warn:
         sys.stderr.write(f"note: {_setid_warn}\n")
     item.set = _setid_arg or item.id  # singleton set defaults to the id
@@ -1169,42 +1176,22 @@ def run_new(args) -> int:
         if not value
     ]
     if _missing:
-        err_msg = (
+        return _refuse(
             f"aw backlog new: {' and '.join(_missing)} required: decide the item's priority "
             f"({' | '.join(sorted(PRIORITIES))}) and work kind ({' | '.join(sorted(KINDS))}) "
-            "when you file it; a plan graduated from this item inherits both\n"
+            "when you file it; a plan graduated from this item inherits both"
         )
-        sys.stderr.write(err_msg)
-        emit_usage_refusal(
-            "backlog new",
-            err_msg.strip(),
-            "aw backlog new --help",
-            ctx,
-        )
-        return 2
     item.summary = (getattr(args, "summary", None) or "").strip()
     item.gate_kind = getattr(args, "gate_kind", None)
     item.gate_ref = getattr(args, "gate_ref", None)
     if item.priority not in PRIORITIES:
-        sys.stderr.write(
-            f"aw backlog new: --priority must be one of {sorted(PRIORITIES)}\n"
+        return _refuse(
+            f"aw backlog new: --priority must be one of {sorted(PRIORITIES)}"
         )
-        return 2
     if item.kind not in KINDS:
-        sys.stderr.write(
-            f"aw backlog new: --work-kind must be one of {sorted(KINDS)}\n"
-        )
-        return 2
+        return _refuse(f"aw backlog new: --work-kind must be one of {sorted(KINDS)}")
     if not (item.summary or "").strip():
-        err_msg = "aw backlog new: --summary is required\n"
-        sys.stderr.write(err_msg)
-        emit_usage_refusal(
-            "backlog new",
-            err_msg.strip(),
-            "aw backlog new --help",
-            ctx,
-        )
-        return 2
+        return _refuse("aw backlog new: --summary is required")
 
     raw_summary = getattr(args, "summary", None)
     _summary_val = (
@@ -1216,8 +1203,7 @@ def run_new(args) -> int:
         "aw backlog new", "--summary", _summary_val
     )
     if _summary_err:
-        sys.stderr.write(f"{_summary_err}\n")
-        return 2
+        return _refuse(_summary_err)
 
     raw_gate_ref = getattr(args, "gate_ref", None)
     if raw_gate_ref is not None:
@@ -1225,22 +1211,19 @@ def run_new(args) -> int:
             "aw backlog new", "--gate-ref", raw_gate_ref, bound_length=True
         )
         if _gr_err:
-            sys.stderr.write(f"{_gr_err}\n")
-            return 2
+            return _refuse(_gr_err)
 
     if status == "blocked" and (not item.gate_kind or not item.gate_ref):
-        sys.stderr.write(
-            "aw backlog new: a blocked item requires --gate-kind and --gate-ref\n"
+        return _refuse(
+            "aw backlog new: a blocked item requires --gate-kind and --gate-ref"
         )
-        return 2
 
     if status == "blocked":
         _gate_err = A.validate_gate_flags(
             "aw backlog new", item.gate_kind, item.gate_ref
         )
         if _gate_err:
-            sys.stderr.write(f"{_gate_err}\n")
-            return 2
+            return _refuse(_gate_err)
 
     rel_exempt_kind = getattr(args, "release_exempt_kind", None)
     rel_exempt_ref = getattr(args, "release_exempt_ref", None)
@@ -1248,8 +1231,7 @@ def run_new(args) -> int:
         "aw backlog new", rel_exempt_kind, rel_exempt_ref
     )
     if _exempt_err:
-        sys.stderr.write(f"{_exempt_err}\n")
-        return 2
+        return _refuse(_exempt_err)
 
     is_exempt = bool(rel_exempt_kind and rel_exempt_kind != "-")
     if rel_exempt_kind and rel_exempt_kind != "-":
@@ -1262,10 +1244,9 @@ def run_new(args) -> int:
         from agent_workflows import releases as _releases
 
         if _releases.resolve_release(repo_root, br) is None:
-            sys.stderr.write(
-                f"aw backlog new: --blocks-release {br!r} does not resolve to a release record\n"
+            return _refuse(
+                f"aw backlog new: --blocks-release {br!r} does not resolve to a release record"
             )
-            return 2
         item.blocks_release = br
 
     # nobugship di08i9 E-01: DEFAULT THE RELEASE GATE ON A BUG, through the ONE shared predicate so
@@ -1288,8 +1269,7 @@ def run_new(args) -> int:
             "aw backlog new", "--message", message, bound_length=False
         )
         if _msg_err:
-            sys.stderr.write(f"{_msg_err}\n")
-            return 2
+            return _refuse(_msg_err)
 
     today = datetime.date.today().strftime("%Y%m%d")
     slug = (
@@ -1446,7 +1426,6 @@ def run_new(args) -> int:
             lines.append(f"  {BACKLOG_DUPLICATE_GUARD_COVERAGE}")
         return "\n".join(lines) + "\n"
 
-    ctx = select_output(args)
     if not getattr(args, "apply", False):
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(

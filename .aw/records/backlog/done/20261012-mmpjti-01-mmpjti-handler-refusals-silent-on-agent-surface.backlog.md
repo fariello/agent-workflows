@@ -1,5 +1,5 @@
 - Id: mmpjti
-- Status: graduated
+- Status: done
 - Graduated-To: mmpjti
 - Blocks-Release: next
 - Set: mmpjti
@@ -8,6 +8,7 @@
 - Summary: handler-level early refusals in backlog new, specs new, prompts new and ipd scaffold still emit no aw.agent/v1 record under --agent
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD xvv7n4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-mmpjti-01-xvv7n4-emit-aw-agent-v1-cannot-run-records-on-remaining-handler-usa.ipd.md); evidence .aw/records/plans/executed/20261014-mmpjti-01-xvv7n4-emit-aw-agent-v1-cannot-run-records-on-remaining-handler-usa.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131015Z-4038279: xvv7n4
 - 2026-10-12 created (aw backlog): handler-level early refusals in backlog new, specs new, prompts new and ipd scaffold still emit no aw.agent/v1 record under --agent
 

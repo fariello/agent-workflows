@@ -496,41 +496,38 @@ def run_new(args) -> int:
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     ctx = select_output(args)
 
-    slug_arg = (getattr(args, "slug", None) or "").strip()
-    if not slug_arg:
-        err_msg = "aw prompts new: --slug is required\n"
-        sys.stderr.write(err_msg)
-        emit_usage_refusal(
+    def _refuse(err_msg: str) -> int:
+        msg = err_msg.strip()
+        sys.stderr.write(f"{msg}\n")
+        return emit_usage_refusal(
             "prompts new",
-            err_msg.strip(),
+            msg.removeprefix("aw prompts new: "),
             "aw prompts new --help",
             ctx,
         )
-        return 2
+
+    slug_arg = (getattr(args, "slug", None) or "").strip()
+    if not slug_arg:
+        return _refuse("aw prompts new: --slug is required")
     slug = core.kebab(slug_arg)[:60].strip("-")
     if not slug:
-        sys.stderr.write(
-            "aw prompts new: --slug must contain at least one alphanumeric character\n"
+        return _refuse(
+            "aw prompts new: --slug must contain at least one alphanumeric character"
         )
-        return 2
 
     kind = (getattr(args, "kind", None) or "research").strip()
     if kind not in PROMPT_KINDS:
-        sys.stderr.write(
-            "aw prompts new: unrecognized --kind {!r}; expected one of {}\n".format(
+        return _refuse(
+            "aw prompts new: unrecognized --kind {!r}; expected one of {}".format(
                 kind, ", ".join(PROMPT_KINDS)
             )
         )
-        return 2
 
     status = (getattr(args, "status", None) or DEFAULT_STATUS).strip()
 
     date_iso = (getattr(args, "date", None) or "").strip() or _today_iso()
     if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
-        sys.stderr.write(
-            f"aw prompts new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
-        )
-        return 2
+        return _refuse(f"aw prompts new: --date must be YYYY-MM-DD (got {date_iso!r})")
     date_compact = date_iso.replace("-", "")
 
     # `--time` is ACCEPTED AND IGNORED FOR THE NAME (IPD ubac5n OQ-01): the clustered grammar has no
@@ -540,8 +537,7 @@ def run_new(args) -> int:
     # habits pass it; removing it would make argparse exit 2 on a previously valid invocation.
     hhmm = (getattr(args, "time", None) or "").strip()
     if hhmm and not re.match(r"\A\d{4}\Z", hhmm):
-        sys.stderr.write(f"aw prompts new: --time must be HHMM (got {hhmm!r})\n")
-        return 2
+        return _refuse(f"aw prompts new: --time must be HHMM (got {hhmm!r})")
 
     root = prompts_root(repo_root)
     # IPD sk7ggr E-01: repository-wide mint, unioned with the prompts tree's own ids. Minted BEFORE
@@ -555,8 +551,7 @@ def run_new(args) -> int:
         # The shared setid guard already prefixes the verb name; only an error raised HERE needs one,
         # or the message reads `aw prompts new: aw prompts new: ...`.
         prefix = "" if set_err.startswith("aw prompts new:") else "aw prompts new: "
-        sys.stderr.write(f"{prefix}{set_err}\n")
-        return 2
+        return _refuse(f"{prefix}{set_err}")
     assert set_id is not None
 
     order = next_order_for_set(root, set_id)

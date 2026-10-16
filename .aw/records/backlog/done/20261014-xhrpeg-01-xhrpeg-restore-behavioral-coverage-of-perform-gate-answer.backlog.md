@@ -1,5 +1,5 @@
 - Id: xhrpeg
-- Status: graduated
+- Status: done
 - Graduated-To: xhrpeg
 - Set: xhrpeg
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral coverage of perform_gate_answer baseline non-refusal and not-mine outcome equivalence lost with tests/test_suite_baseline.py
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD tosnwd executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-xhrpeg-01-tosnwd-restore-behavioral-coverage-of-perform-gate-answer-baseline.ipd.md); evidence .aw/records/plans/executed/20261014-xhrpeg-01-tosnwd-restore-behavioral-coverage-of-perform-gate-answer-baseline.ipd.md
 - 2026-10-15 graduated (aw backlog): graduated by run run-20261014T234541Z-3805433: tosnwd
 - 2026-10-14 created (aw backlog): Restore behavioral coverage of perform_gate_answer baseline non-refusal and not-mine outcome equivalence lost with tests/test_suite_baseline.py
 

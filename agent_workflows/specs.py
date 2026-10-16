@@ -1064,23 +1064,29 @@ def run_new(args) -> int:
     summary = (getattr(args, "summary", None) or "").strip()
     ctx = select_output(args)
 
-    if not title:
-        err_msg = "aw specs new: --title is required\n"
-        sys.stderr.write(err_msg)
-        emit_usage_refusal(
+    def _refuse(err_msg: str, machine_msg: Optional[str] = None) -> int:
+        msg = err_msg.strip()
+        sys.stderr.write(f"{msg}\n")
+        m_msg = (
+            machine_msg
+            if machine_msg is not None
+            else msg.removeprefix("aw specs new: ")
+        )
+        return emit_usage_refusal(
             "specs new",
-            err_msg.strip(),
+            m_msg,
             "aw specs new --help",
             ctx,
         )
-        return 2
+
+    if not title:
+        return _refuse("aw specs new: --title is required")
 
     # E-02 (IPD uz05bl): Refuse unsafe descriptive values for --title and --summary before minting an id6.
     _raw_title = getattr(args, "title", None)
     _title_err = _refuse_unsafe_descriptive("aw specs new", "--title", _raw_title)
     if _title_err:
-        sys.stderr.write(f"{_title_err}\n")
-        return 2
+        return _refuse(_title_err)
 
     _raw_summary = getattr(args, "summary", None)
     if _raw_summary is not None:
@@ -1088,8 +1094,7 @@ def run_new(args) -> int:
             "aw specs new", "--summary", _raw_summary, prose=True
         )
         if _summary_err:
-            sys.stderr.write(f"{_summary_err}\n")
-            return 2
+            return _refuse(_summary_err)
     slug = core.kebab(slug_arg or title)[:60] or "spec"
 
     # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.
@@ -1108,17 +1113,11 @@ def run_new(args) -> int:
         history_date = core.utc_history_date()
 
     if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
-        sys.stderr.write(
-            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
-        )
-        return 2
+        return _refuse(f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})")
     try:
         _dt.date.fromisoformat(date_iso)
     except ValueError:
-        sys.stderr.write(
-            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
-        )
-        return 2
+        return _refuse(f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})")
 
     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6), unioned with the spec
     # tree's own ids rather than replacing them.
@@ -1154,10 +1153,14 @@ def run_new(args) -> int:
                 "destination matches records root rather than a record inside it"
             )
     except ValueError:
-        sys.stderr.write(
-            f"aw specs new: destination {dest} escapes records tree {specs_dir}\n"
+        from agent_workflows.agent_schema import normalize_repo_path
+
+        norm_dest = normalize_repo_path(dest, repo_root)
+        norm_specs_dir = normalize_repo_path(specs_dir, repo_root)
+        return _refuse(
+            f"aw specs new: destination {dest} escapes records tree {specs_dir}",
+            machine_msg=f"destination {norm_dest} escapes records tree {norm_specs_dir}",
         )
-        return 2
 
     rendered = _render_new_spec(
         title=title,

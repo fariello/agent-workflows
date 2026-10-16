@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that calls `runner_shared.perform_gate_answer` with a stub `ask` and asserts on the returned `GateAnswerOutcome` (`release` and `record`) across corroborating, contradicting, absent and unsupplied baselines, for `not-mine` and `mine` answers, and correct the one now-stale sentence in `runner_shared.perform_gate_answer`'s docstring that says no live guard asserts this property. No behavior change; no source-reading assertions.
 - Scope-Paths: tests/test_gate_answer_baseline_indifference.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: OpenCode Claude Opus
 - Id: tosnwd
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tosnwd verified (set xhrpeg, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: not-mine equivalence
 
-- [ ] E-01 Create `tests/test_gate_answer_baseline_indifference.py` with fixtures: `_suite_result()` building `oc_runipd.SuiteCheckResult(passing=False, exit_code=1, ..., failures=("FAILED tests/test_pre_existing.py::T::test_already_red - assert 1 == 2",))`; `_completed(failures)` building `runner_shared.SuiteBaseline(state=runner_shared.SUITE_BASELINE_COMPLETED, ...)`; and `_perform(answer, baseline)` that, in a `tempfile.TemporaryDirectory`, passes an `ask` stub writing `{"schema_version": 1, "disposition": "executed", runner_shared.GATE_ANSWER_KEY: answer}` to the outcome path (every `answer` dict MUST carry a non-empty `reason`: `validate_gate_answer` fails closed on a `not-mine` with no reason, which would make the test fail for the wrong reason) and returning `(0, "ses-1", path, ["stub"])`, then calls `runner_shared.perform_gate_answer(suite_result=..., changed_files=("agent_workflows/term.py",), ask=ask, outcome_path=path, session_id="ses-1", baseline=baseline)`. Add a test that, for `{"answer": "not-mine", ...}`, runs four baselines: corroborating (contains the failing id), contradicting (contains only a different id), `runner_shared.suite_baseline_absent("...")`, and `None`; asserts `release is True` and `record["answer"] == "not-mine"` for all four; and asserts (as `subTest`s per field) that `answer`, `reason`, `usable`, `integrates`, `refuses`, `released`, `awaits_human_decision`, `violation`, `recheck_attempts`, `recheck_passed` and `failing_tests` are equal across all four records.
+- [x] E-01 Create `tests/test_gate_answer_baseline_indifference.py` with fixtures: `_suite_result()` building `oc_runipd.SuiteCheckResult(passing=False, exit_code=1, ..., failures=("FAILED tests/test_pre_existing.py::T::test_already_red - assert 1 == 2",))`; `_completed(failures)` building `runner_shared.SuiteBaseline(state=runner_shared.SUITE_BASELINE_COMPLETED, ...)`; and `_perform(answer, baseline)` that, in a `tempfile.TemporaryDirectory`, passes an `ask` stub writing `{"schema_version": 1, "disposition": "executed", runner_shared.GATE_ANSWER_KEY: answer}` to the outcome path (every `answer` dict MUST carry a non-empty `reason`: `validate_gate_answer` fails closed on a `not-mine` with no reason, which would make the test fail for the wrong reason) and returning `(0, "ses-1", path, ["stub"])`, then calls `runner_shared.perform_gate_answer(suite_result=..., changed_files=("agent_workflows/term.py",), ask=ask, outcome_path=path, session_id="ses-1", baseline=baseline)`. Add a test that, for `{"answer": "not-mine", ...}`, runs four baselines: corroborating (contains the failing id), contradicting (contains only a different id), `runner_shared.suite_baseline_absent("...")`, and `None`; asserts `release is True` and `record["answer"] == "not-mine"` for all four; and asserts (as `subTest`s per field) that `answer`, `reason`, `usable`, `integrates`, `refuses`, `released`, `awaits_human_decision`, `violation`, `recheck_attempts`, `recheck_passed` and `failing_tests` are equal across all four records.
   - Depends on: none
   - Expected outcome: The test passes against current code. At authoring a prototype of exactly this shape printed `True True True True` for the four releases.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same module, add a test asserting that between a `not-mine` outcome with a completed baseline and one with an absent baseline, the set of differing `record` keys is exactly `{"suite_baseline"}` (a record is not a check); and a symmetric test that a `mine` answer has `release is False` both with a completed baseline and with `None`, with the differing key set again exactly `{"suite_baseline"}` (the baseline must not rescue a refusal either).
+- [x] E-02 In the same module, add a test asserting that between a `not-mine` outcome with a completed baseline and one with an absent baseline, the set of differing `record` keys is exactly `{"suite_baseline"}` (a record is not a check); and a symmetric test that a `mine` answer has `release is False` both with a completed baseline and with `None`, with the differing key set again exactly `{"suite_baseline"}` (the baseline must not rescue a refusal either).
   - Depends on: E-01
   - Expected outcome: Both tests pass against current code. At authoring the prototype printed `['suite_baseline'] ['suite_baseline']` for not-mine (vs absent, vs contradicting) and `False False mine ['suite_baseline']` for mine.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Prove the coverage is load-bearing
 
-- [ ] E-03 Run an in-memory mutation probe with no source edit: write three pytest plugins in an UNTRACKED scratch directory under the gitignored `.aw/state/` (never committed), each rebinding `runner_shared.perform_gate_answer` at import with a wrapper around the original. Mutant A: when the answer is `not-mine` and `baseline` is completed and does not contain every failing id, return a copy of the outcome with `release=False` and `record["refuses"]=True` (the rejected constraint). Mutant B: when `baseline` is completed and the answer is `mine`, return `release=True` (baseline rescue). Mutant C: when the answer is `not-mine` and the baseline is `None` or not `known`, return `release=False` (the most plausible well-meant 'fail closed on an unknown baseline' change, which the maintainer's 2026-09-20 any-run ruling forbids). Run the new module once per plugin with `PYTHONPATH=.aw/state/<scratch>:. python3 -m pytest -o addopts="" -q -p <plugin> tests/test_gate_answer_baseline_indifference.py` (`-o addopts=""` already disables xdist, so the plugin loads in-process; do not add `-n0`) and confirm each mutant makes at least one test fail, then delete the scratch directory. The test module must call `runner_shared.perform_gate_answer` through the module attribute (not a `from ... import` binding) so the rebinding reaches it.
+- [x] E-03 Run an in-memory mutation probe with no source edit: write three pytest plugins in an UNTRACKED scratch directory under the gitignored `.aw/state/` (never committed), each rebinding `runner_shared.perform_gate_answer` at import with a wrapper around the original. Mutant A: when the answer is `not-mine` and `baseline` is completed and does not contain every failing id, return a copy of the outcome with `release=False` and `record["refuses"]=True` (the rejected constraint). Mutant B: when `baseline` is completed and the answer is `mine`, return `release=True` (baseline rescue). Mutant C: when the answer is `not-mine` and the baseline is `None` or not `known`, return `release=False` (the most plausible well-meant 'fail closed on an unknown baseline' change, which the maintainer's 2026-09-20 any-run ruling forbids). Run the new module once per plugin with `PYTHONPATH=.aw/state/<scratch>:. python3 -m pytest -o addopts="" -q -p <plugin> tests/test_gate_answer_baseline_indifference.py` (`-o addopts=""` already disables xdist, so the plugin loads in-process; do not add `-n0`) and confirm each mutant makes at least one test fail, then delete the scratch directory. The test module must call `runner_shared.perform_gate_answer` through the module attribute (not a `from ... import` binding) so the rebinding reaches it.
   - Depends on: E-02
   - Expected outcome: All three mutants are killed (nonzero pytest exit with named failing tests); the unmutated module passes. At review a minimal prototype of this exact mechanism (scratch under `.aw/state/`, deleted after) gave: unmutated `2 passed`; A `1 failed, 1 passed` (`test_not_mine`); B `1 failed, 1 passed` (`test_mine`); C `1 failed, 1 passed` (`test_not_mine`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Regression
 
-- [ ] E-04 In `agent_workflows/runner_shared.py`, in the `perform_gate_answer` docstring paragraph beginning "`baseline` IS PASSED STRAIGHT THROUGH", replace the parenthetical "(deleted in `19313eed`; no live guard currently asserts this)" with a pointer to `tests/test_gate_answer_baseline_indifference.py` as the live behavioral guard (restored by `tosnwd`). Change no other text and no code.
+- [x] E-04 In `agent_workflows/runner_shared.py`, in the `perform_gate_answer` docstring paragraph beginning "`baseline` IS PASSED STRAIGHT THROUGH", replace the parenthetical "(deleted in `19313eed`; no live guard currently asserts this)" with a pointer to `tests/test_gate_answer_baseline_indifference.py` as the live behavioral guard (restored by `tosnwd`). Change no other text and no code.
   - Depends on: E-03
   - Expected outcome: a docstring-only diff in `runner_shared.py`; the docstring no longer claims the property is unguarded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Run the full fast suite bare (`python3 -m pytest`) and confirm no regressions; commit the new module and the docstring edit via `aw commit tosnwd -- tests/test_gate_answer_baseline_indifference.py agent_workflows/runner_shared.py`.
+- [x] E-05 Run the full fast suite bare (`python3 -m pytest`) and confirm no regressions; commit the new module and the docstring edit via `aw commit tosnwd -- tests/test_gate_answer_baseline_indifference.py agent_workflows/runner_shared.py`.
   - Depends on: E-04
   - Expected outcome: Suite green with the new tests included; one path-scoped commit touching exactly those two paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,30 +129,186 @@ No spec or user-facing documentation change: test-only plus one internal docstri
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted pytest output of `python3 -m pytest -o addopts="" -q tests/test_gate_answer_baseline_indifference.py -k not_mine` showing the not-mine equivalence test passed, plus the test source excerpt showing all four baselines and the field list; `rg -n "\bimport (inspect|ast)\b|\binspect\.|\bast\.|getsource|read_text\(" tests/test_gate_answer_baseline_indifference.py` returns no hits.
   - Observed evidence:
-  - Result: pending
+    Pasted test output passing under pytest:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_gate_answer_baseline_indifference.py -k not_mine
+    .                                                                        [100%]
+    NOTE: 2 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    1 passed, 2 deselected in 0.28s
+    ```
+    Test source excerpt showing all four baselines and the field list:
+    ```python
+        corroborating = _perform(answer, _completed((DEFAULT_FAILING_ID,)))
+        contradicting = _perform(
+            answer,
+            _completed(("FAILED tests/test_something_else.py::T::test_other",)),
+        )
+        absent = _perform(
+            answer,
+            runner_shared.suite_baseline_absent("no baseline was taken"),
+        )
+        unsupplied = _perform(answer, None)
+...
+FIELDS_TO_COMPARE = (
+    "answer",
+    "reason",
+    "usable",
+    "integrates",
+    "refuses",
+    "released",
+    "awaits_human_decision",
+    "violation",
+    "recheck_attempts",
+    "recheck_passed",
+    "failing_tests",
+)
+    ```
+    No hits for forbidden AST/inspect/source-reading patterns:
+    ```
+    $ rg -n "\bimport (inspect|ast)\b|\binspect\.|\bast\.|getsource|read_text\(" tests/test_gate_answer_baseline_indifference.py
+    # (exit code 1, 0 matches)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted pytest output showing the differing-keys test and the mine-symmetry test passed, and the excerpt asserting the differing key set equals `{"suite_baseline"}`.
   - Observed evidence:
-  - Result: pending
+    Pasted test output passing under pytest:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_gate_answer_baseline_indifference.py -k "test_differing or test_mine"
+    ..                                                                       [100%]
+    NOTE: 1 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    2 passed, 1 deselected in 0.30s
+    ```
+    Excerpt asserting differing key set equals `{"suite_baseline"}`:
+    ```python
+        differing = {
+            k
+            for k in completed_outcome.record
+            if completed_outcome.record[k] != absent_outcome.record.get(k)
+        }
+        self.assertEqual(
+            {"suite_baseline"},
+            differing,
+            "exactly one field may differ between completed and absent baseline, and it must be suite_baseline",
+        )
+...
+        differing = {
+            k
+            for k in with_completed.record
+            if with_completed.record[k] != with_none.record.get(k)
+        }
+        self.assertEqual(
+            {"suite_baseline"},
+            differing,
+            "exactly one field may differ for mine answer, and it must be suite_baseline",
+        )
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted pytest output for the unmutated module and for each of the three mutant plugins, each mutant showing a nonzero exit and at least one named failing test; `git status --porcelain` showing no scratch file tracked or left outside gitignored `.aw/state/`.
   - Observed evidence:
-  - Result: pending
+    Unmutated module:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_gate_answer_baseline_indifference.py
+    ...                                                                      [100%]
+    3 passed in 0.34s
+    ```
+    Mutant A (rejected constraint: refuse not-mine when baseline does not contain failing id):
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_tosnwd:. python3 -m pytest -o addopts="" -q -p mutant_a tests/test_gate_answer_baseline_indifference.py
+    F..                                                                      [100%]
+    =================================== FAILURES ===================================
+    ____ GateAnswerBaselineIndifferenceTests.test_not_mine_outcome_equivalence _____
+    ...
+    >       self.assertTrue(contradicting.release)
+    E       AssertionError: False is not true
+    =========================== short test summary info ============================
+    FAILED tests/test_gate_answer_baseline_indifference.py::GateAnswerBaselineIndifferenceTests::test_not_mine_outcome_equivalence
+    1 failed, 2 passed in 0.21s
+    ```
+    Mutant B (baseline rescue: release mine when baseline is completed):
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_tosnwd:. python3 -m pytest -o addopts="" -q -p mutant_b tests/test_gate_answer_baseline_indifference.py
+    .F.                                                                      [100%]
+    =================================== FAILURES ===================================
+    ____________ GateAnswerBaselineIndifferenceTests.test_mine_symmetry ____________
+    ...
+    >       self.assertFalse(with_completed.release)
+    E       AssertionError: True is not false
+    =========================== short test summary info ============================
+    FAILED tests/test_gate_answer_baseline_indifference.py::GateAnswerBaselineIndifferenceTests::test_mine_symmetry
+    1 failed, 2 passed in 0.19s
+    ```
+    Mutant C (fail closed on unknown baseline: refuse not-mine when baseline is None or not known):
+    ```
+    $ PYTHONPATH=.aw/state/scratch_mutants_tosnwd:. python3 -m pytest -o addopts="" -q -p mutant_c tests/test_gate_answer_baseline_indifference.py
+    .F.                                                                      [100%]
+    =================================== FAILURES ===================================
+    ____ GateAnswerBaselineIndifferenceTests.test_not_mine_outcome_equivalence _____
+    ...
+    >       self.assertTrue(absent.release)
+    E       AssertionError: False is not true
+    =========================== short test summary info ============================
+    FAILED tests/test_gate_answer_baseline_indifference.py::GateAnswerBaselineIndifferenceTests::test_not_mine_outcome_equivalence
+    1 failed, 2 passed in 0.19s
+    ```
+    Git status porcelain (clean, no scratch files tracked or remaining):
+    ```
+    $ git status --porcelain
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `git diff agent_workflows/runner_shared.py` showing only the docstring sentence changed (no code line).
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index b08c8d366..f2200f5ee 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -28435,8 +28435,8 @@ def perform_gate_answer(
+         what it does NOT contain: `baseline` appears in exactly two places, the `gate_answer_question(...)`
+         call and the `gate_answer_record(...)` call. It is absent from every `if`, from the `release`
+         conjunction, from the `earns_recheck` loop and from the `violation` text. That absence IS the
+    -    maintainer's 2026-09-08 ruling in executable form; `tests/test_suite_baseline.py` (deleted in
+    -    `19313eed`; no live guard currently asserts this) asserted a `not-mine` verdict produces an
+    +    maintainer's 2026-09-08 ruling in executable form; `tests/test_suite_baseline.py` (guarded live
+    +    by `tests/test_gate_answer_baseline_indifference.py`, restored by `tosnwd`) asserted a `not-mine` verdict produces an
+         IDENTICAL `GateAnswerOutcome.release` whether the failing id is in the baseline or not. Do not "finish" it into a check; see `SUITE_BASELINE_SUBDIR` for why.
+         """
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted final summary line of bare `python3 -m pytest` with zero failures, and `git show --stat <commit>` for the E-05 commit listing exactly `tests/test_gate_answer_baseline_indifference.py` and `agent_workflows/runner_shared.py`.
   - Observed evidence:
-  - Result: pending
+    Final summary line of bare `python3 -m pytest`:
+    ```
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    707 passed in 23.38s
+    ```
+    Pasted `git show --stat 48010b05657a99e16ebea6375c220fd4a1165a88`:
+    ```
+    commit 48010b05657a99e16ebea6375c220fd4a1165a88 (HEAD -> aw/lane/tosnwd)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 16 04:44:41 2026 -0400
+
+        work(tosnwd): Restore behavioral coverage of perform_gate_answer baseline non-refusal and not-mine outcome equivalence
+
+        AW-Run: run-20261016T041642Z-2101544
+        AW-Item: tosnwd
+        AW-Runner: aw agy run
+
+     agent_workflows/runner_shared.py                |   4 +-
+     tests/test_gate_answer_baseline_indifference.py | 182 ++++++++++++++++++++++++
+     2 files changed, 184 insertions(+), 2 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -126,6 +126,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: um0twl
 - Classifying and rendering ledger-only run directories in `agent_workflows/run_viewer.py`.
   - Carrier: 3a3hh9
+  - Carrier-Evidence: .aw/records/plans/executed/20261014-runledger-06-3a3hh9-classify-and-render-ledger-only-run-directories-in-aw-runs-v.ipd.md
 
 ## Scope check
 
