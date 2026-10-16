@@ -126,7 +126,7 @@ question, OQ4).
 ### 4.5 Regroup / rename verb
 `aw plans set-assign <id...> --set <s> [--rename]` and `aw plans mv <id> [...]`: (re)assign a plan's
 `Set:`/`Order:` and OPTIONALLY rename it to the clustering grammar, keeping `Id` stable and rewriting
-citations by the stable id. A citing plan holding a live begin receipt is NOT rewritten; the skip is reported and the citation is left for that plan's author to fix after it finalizes (decision D163). Reuses the shared dangling detector to flag danglers. Writing-command
+citations by the stable id. A citing plan holding a live begin receipt is NOT rewritten; the skip is reported and the citation is left for that plan's author to fix after it finalizes (decision D163). A plan holding a live begin receipt cannot itself be renamed or regrouped by `aw rename plans` or `aw group plans`; the verb refuses with `EXIT_CANNOT_RUN` until the plan finalizes or the stale receipt is removed (decision D173). Reuses the shared dangling detector to flag danglers. Writing-command
 safety per Section 3.
 
 ### 4.6 Weekly cold shards inside the terminal disposition dirs + archival

@@ -25,6 +25,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
+from agent_workflows import artifact_types as _types
 from agent_workflows import plans_index as _idx
 from agent_workflows import record_history as _rh
 from agent_workflows import selectors as _selectors
@@ -473,6 +474,36 @@ def apply_reference_rewrites(edits: List[RefEdit]) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _in_flight_target_error(
+    repo_root: Path, src: Path, id6: Optional[str] = None
+) -> Optional[str]:
+    """Return an error message if `src` is an in-flight plan holding a live begin receipt.
+
+    Reuses `artifact_refs.classify_citing_plans_for_rewrite` as the single liveness predicate.
+    """
+    _, must_skip = _refs.classify_citing_plans_for_rewrite(repo_root, [src])
+    if not must_skip:
+        return None
+    _, reason = must_skip[0]
+    if reason == _refs._CLASSIFY_MISSING_ID_REASON:
+        return None
+    try:
+        rel = src.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel = src.as_posix()
+    plan_id = id6
+    if not plan_id:
+        try:
+            plan_id = _read_id(src.read_text(encoding="utf-8")) or "unknown"
+        except OSError:
+            plan_id = "unknown"
+    return (
+        "cannot rename or regroup in-flight plan %s (%s): %s "
+        "(wait for aw ipd finalize, or remove the stale receipt under .aw/state/ipd-lifecycle/ if its session is dead)"
+        % (plan_id, rel, reason)
+    )
+
+
 def apply_renames(
     repo_root: Path,
     plans_dir: Path,
@@ -496,6 +527,29 @@ def apply_renames(
 
     if not emit_human:
         yes = True
+
+    for p in plans:
+        err = _in_flight_target_error(repo_root, p.old_path, p.id6)
+        if err is not None:
+            if emit_human:
+                print(f"error: {err}")
+            try:
+                rel = p.old_path.resolve().relative_to(repo_root.resolve()).as_posix()
+            except ValueError:
+                rel = p.old_path.as_posix()
+            return MutationResult(
+                _types.EXIT_CANNOT_RUN,
+                applied=False,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location=rel,
+                        rule="in-flight-plan",
+                        detail=f"error: {err}",
+                        severity="error",
+                    ),
+                ),
+                notes=tuple(notes),
+            )
 
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
