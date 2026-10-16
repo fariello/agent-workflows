@@ -6,7 +6,7 @@
 - Scope: IN: extract a shared reader, key-list extractor, and human summary line formatter in `agent_workflows/runner_shared.py` (`AGENT_USER_CONFIG_DISCARDED_EVENT`, `read_discarded_user_config_events`, `discarded_user_config_keys`, `format_discarded_user_config_line`) used by both `runner_shared.report_discarded_user_config` and `agent_workflows/run_viewer.py`; extend `run_viewer.StepSummary` and `run_viewer.RunSummary` with `discarded_user_config_count`, `discarded_user_config_keys`, and `discarded_user_config`; populate them in `run_viewer.load_run_summary` (both `state.json` and `execution-report.md` fallback paths); render the per-run summary line in `run_viewer.format_run_human`, per-step detail lines in `run_viewer.render_step_details`, and multi-run aggregates in `run_viewer.build_multi_run_summary_dict` and `run_viewer.format_multi_run_summary`; behavioral tests in `tests/test_agent_user_config_containment.py` and `tests/test_run_viewer.py`; and `CHANGELOG.md`. OUT: changing how user-config writes are sandboxed or reconciled during a turn (already shipped in `9y27t2`); `AW_HOME` containment (backlog `s4pys7`); `project_context` XDG config resolution (backlog `m9dobx`); flagging a discarded user-config write as a step artifact/refusal issue in `step_has_issue` (the write was contained and discarded by the runner, so the artifact and run completion remain valid; see OQ-02).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_agent_user_config_containment.py, tests/test_run_viewer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: Antigravity
 - Id: swpf3q
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: swpf3q verified (set c4q9e8, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 
