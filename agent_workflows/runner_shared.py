@@ -17362,9 +17362,9 @@ def expand_dependency_closure(
 #
 # WHY (3) REPORTS RATHER THAN REFUSING, since the asymmetry looks like an oversight and is not.
 # Refusing on untracked content would make an unattended run unstartable in essentially any working
-# checkout (`evaluate_clean_base`'s own docstring says so, and `tests/test_lane_clean_base.py
-# ::test_case_3_an_untracked_file_does_NOT_refuse` asserted it before deletion in `19313eed`; no
-# live guard currently asserts this), and a gate that false-positives on correct behavior trains
+# checkout (`evaluate_clean_base`'s own docstring says so; `tests/test_clean_base_untracked.py`
+# asserts this as a live behavioral guard across both hosts), and a gate that false-positives on
+# correct behavior trains
 # operators to bypass it. The measured incident is the other half: a stray
 # `aw install` wrote 130+ uncommitted, largely UNTRACKED files into a working tree and on at least two
 # occasions an agent did not realize the pollution was its own. Reporting puts that in front of the
