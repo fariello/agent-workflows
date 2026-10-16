@@ -675,3 +675,27 @@ def test_rendered_prompts_contain_aw_suite(tmp_path: Path) -> None:
         assert (
             "python3 -m pytest <test_file>" in text
         ), f"{label} prompt missing narrowed pytest guidance"
+
+
+def test_suite_thorough_explain_differs_and_narrowed_selection_refused(
+    tmp_path: Path,
+) -> None:
+    """E-06: aw suite --thorough --explain differs in argv digest from aw suite --explain,
+    and --thorough with -k still exits 2 with SUITE_REFUSAL_MESSAGE.
+    """
+    repo = _init_fixture_repo(tmp_path / "repo_thorough")
+
+    res_plain = _run_aw_suite(repo, "--explain", "--json")
+    assert res_plain.returncode == 0, f"plain explain failed: {res_plain.stderr}"
+    data_plain = json.loads(res_plain.stdout)
+
+    res_thor = _run_aw_suite(repo, "--thorough", "--explain", "--json")
+    assert res_thor.returncode == 0, f"thorough explain failed: {res_thor.stderr}"
+    data_thor = json.loads(res_thor.stdout)
+
+    assert data_plain["components"]["argv"] != data_thor["components"]["argv"]
+    assert data_plain["digest"] != data_thor["digest"]
+
+    res_refuse = _run_aw_suite(repo, "--thorough", "-k", "some_test")
+    assert res_refuse.returncode == 2
+    assert suite_cache.SUITE_REFUSAL_MESSAGE in res_refuse.stderr

@@ -116,7 +116,7 @@ in your own scripts for "the command could not run at all".
 | Only the fields you care about (agent) | `aw check plans --agent --fields findings` |
 | Bounded output with a continuation hint | `aw find plans --agent --limit 20` |
 | Launch an IPD with a saved model alias | `aw run as gem <selector>` |
-| Run the full test suite with tree-keyed caching | `aw suite` |
+| Run the test suite with tree-keyed caching (core tier by default, or --thorough) | `aw suite` |
 
 ## Naming a model once instead of on every run
 
@@ -128,8 +128,12 @@ made default for you, and `aw setup` offers to set one up with a question that d
 per-field override precedence, storage and privacy, and what happens on a bad or missing
 profile.
 
-## Running the full test suite (`aw suite`)
+## Running the test suite (`aw suite`)
 
-`aw suite` runs or serves the repository's bare full `pytest` suite with a bounded xdist worker count (`max(2, cpus // slots)` where `slots` comes from `AW_SUITE_SLOTS`, default `max(1, cpus // 6)`) and caches passing verdicts and confirmed reproducible failures in `<git-common-dir>/aw-suite-cache/<digest>.json` with a 14-day expiry. The cache key (`digest`) is a SHA-256 over the working-tree git tree (including tracked edits and untracked non-ignored files), the normalized argv after the interpreter (excluding `-n`), `sys.version` and `sys.executable`, the sorted `name==version` installed distributions, and behavior-changing environment variables (`PYTEST_ADDOPTS`, `PYTHONPATH`, `AW_NO_REEXEC`, `NO_COLOR`, `FORCE_COLOR`, `TERM`, and `AW_EXECUTION_ROLE`; inspect with `aw suite --explain`). State outside the key (wall clock, network, or `.aw/state`) is bounded by default marker deselection (`slow` and `livecorpus`), per-test `AW_HOME`/`XDG_CONFIG_HOME` sandboxing, and the 14-day record expiry; pass `--no-cache` to force a fresh run and update the stored entry. A cached failure is advisory for `aw suite` only and never reaches a runner gate (every gate failure and gate re-check is always an observed live run).
+`aw suite` runs or serves the repository's test suite with a bounded xdist worker count (`max(2, cpus // slots)` where `slots` comes from `AW_SUITE_SLOTS`, default `max(1, cpus // 6)`) and caches passing verdicts and confirmed reproducible failures in `<git-common-dir>/aw-suite-cache/<digest>.json` with a 14-day expiry.
+
+By default, `aw suite` runs the core test tier (under 30s wall time budget on 6 workers) that covers every first-party module and declared command leaf. Pass `--thorough` (`aw suite --thorough`) to run the thorough tier (all tests across `tests/`, excluding only `slow` and `livecorpus`), which is the suite run before git push and in release verification. The thorough mode has an extended timeout of 1800s.
+
+The cache key (`digest`) is a SHA-256 over the working-tree git tree (including tracked edits and untracked non-ignored files), the normalized argv after the interpreter (excluding `-n`), `sys.version` and `sys.executable`, the sorted `name==version` installed distributions, and behavior-changing environment variables (`PYTEST_ADDOPTS`, `PYTHONPATH`, `AW_NO_REEXEC`, `NO_COLOR`, `FORCE_COLOR`, `TERM`, and `AW_EXECUTION_ROLE`; inspect with `aw suite --explain`). Because the normalized argv is part of the key, core and thorough results never collide. State outside the key (wall clock, network, or `.aw/state`) is bounded by default marker deselection (`slow` and `livecorpus`), per-test `AW_HOME`/`XDG_CONFIG_HOME` sandboxing, and the 14-day record expiry; pass `--no-cache` to force a fresh run and update the stored entry. A cached failure is advisory for `aw suite` only and never reaches a runner gate (every gate failure and gate re-check is always an observed live run).
 
 Cache misses serialize across all runs on the machine using a slot lock under `AW_SUITE_LOCK_DIR` (defaults to `$XDG_RUNTIME_DIR/agent-workflows` or `/tmp/agent-workflows-<uid>`). The number of slots defaults to `max(1, cpus // 6)` and can be configured with `AW_SUITE_SLOTS`. When all slots are busy, `aw suite` prints periodic waiting lines showing holder pids and elapsed wait time. Waiting never fails a suite: if the wait exceeds `AW_SUITE_SLOT_TIMEOUT` (default 3600s), `aw suite` prints a warning and runs anyway without a slot. While waiting or running a suite inside a driver turn, `aw suite` touches a machine-wide heartbeat file every 60 seconds to signal ongoing progress to the runner stall watchdog; turns configured with a `--stall-timeout` below 60s are not protected by this heartbeat.

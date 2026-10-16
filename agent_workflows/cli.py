@@ -220,13 +220,15 @@ _DESCRIPTIONS = {
         "advanced main in a way your branch can still fast-forward over."
     ),
     "suite": (
-        "Run the full pytest suite with a bounded xdist worker count and a tree-keyed result cache "
-        "under <git-common-dir>/aw-suite-cache/. Keyed on the working-tree git tree (tracked edits "
+        "Run the pytest suite (core tier by default, or thorough tier with --thorough) "
+        "with a bounded xdist worker count and a tree-keyed result cache under "
+        "<git-common-dir>/aw-suite-cache/. Keyed on the working-tree git tree (tracked edits "
         "and untracked non-ignored files), normalized argv, Python interpreter, installed "
-        "distributions, and behavior-changing environment variables. Pass --no-cache to force a "
-        "fresh run and --explain to inspect the key components. Narrowed selections (file paths, "
-        "-k, -m, :: node ids) are refused with exit 2; run narrowed checks with plain "
-        "python3 -m pytest."
+        "distributions, and behavior-changing environment variables. Pass --thorough to run "
+        "the thorough tier (all tests including non-core; used before push and release). "
+        "Pass --no-cache to force a fresh run and --explain to inspect the key components. "
+        "Narrowed selections (file paths, -k, -m, :: node ids) are refused with exit 2; "
+        "run narrowed checks with plain python3 -m pytest."
     ),
     "install": (
         "Install or update the agent-workflows framework in one or more target repos "
@@ -1647,6 +1649,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--explain",
         action="store_true",
         help="Print the cache key components and digests, and on a miss which component differed from the most recent record for the same HEAD.",
+    )
+    p_suite.add_argument(
+        "--thorough",
+        action="store_true",
+        help="Run the thorough test tier (all tests including non-core; used before push and release).",
     )
     p_suite.add_argument(
         "--no-serve-failures",
@@ -18497,8 +18504,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 )
             return 2
 
+        is_thorough = bool(getattr(args, "thorough", False))
+        suite_argv = _sc.SUITE_THOROUGH_ARGV if is_thorough else _sc.SUITE_CHECK_ARGV
+        suite_timeout = (
+            _sc.SUITE_THOROUGH_TIMEOUT_SECONDS
+            if is_thorough
+            else _sc.SUITE_CHECK_TIMEOUT_SECONDS
+        )
+
         if bool(getattr(args, "explain", False)):
-            key = _sc.suite_key(repo_root)
+            key = _sc.suite_key(repo_root, argv=suite_argv)
             diff_info = _sc.explain_key_diff(repo_root, key)
             exit_rc = 0 if key.cacheable else 2
             if ctx.is_agent or ctx.is_json:
@@ -18560,6 +18575,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         stream_live = not (ctx.is_agent or ctx.is_json)
         res = _sc.run_full_suite(
             repo_root,
+            argv=suite_argv,
+            timeout=suite_timeout,
             use_cache=not bool(getattr(args, "no_cache", False)),
             serve_failures=not bool(getattr(args, "no_serve_failures", False)),
             stream=stream_live,

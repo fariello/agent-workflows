@@ -53,8 +53,17 @@ from agent_workflows import platform_lock
 from agent_workflows.runner_shared import INTEGRATION_LOCK_PROGRESS_SECONDS
 
 SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
+SUITE_THOROUGH_TIMEOUT_SECONDS: float = 1800.0
 
 SUITE_CHECK_ARGV: Tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
+SUITE_THOROUGH_ARGV: Tuple[str, ...] = (
+    sys.executable or "python3",
+    "-m",
+    "pytest",
+    "tests/",
+    "-m",
+    "",
+)
 
 SUITE_FAILURE_LINE_LIMIT: int = 40
 
