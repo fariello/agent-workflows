@@ -260,6 +260,12 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     VERIFY_REFUSAL_CODE_UNEVIDENCED as VERIFY_REFUSAL_CODE_UNEVIDENCED,
 )
+from agent_workflows.runner_shared import (
+    VERIFY_REFUSAL_CODE_TRANSPORT_ERROR as VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+)
+from agent_workflows.runner_shared import (
+    verifier_transport_refusal_text as verifier_transport_refusal_text,
+)
 
 # depblock 01 (`akzy45`) E-04: the DRAIN-TIME classification, imported from `runner_shared` and NOT from
 # `oc_runipd`. This host already imports 53 names from that driver (AST-measured), and adding to that

@@ -25586,6 +25586,9 @@ def verify_absence_text(code: str, *, plan_hint: str = "") -> tuple[str, str]:
 #: Refusal code: the verifier reported VERIFIED but provided no test evidence in `tests_run`.
 VERIFY_REFUSAL_CODE_UNEVIDENCED: str = "verifier-no-test-evidence"
 
+#: Refusal code: the verifier encountered a spawn error or transport failure.
+VERIFY_REFUSAL_CODE_TRANSPORT_ERROR: str = "verifier-transport-error"
+
 #: Recognized test runner command prefixes.
 VERIFY_COMMAND_PREFIXES: tuple[str, ...] = (
     "python",
@@ -25770,6 +25773,31 @@ def verifier_session_collision_text(session_id: str = "") -> tuple[str, str, str
     return code, reason, remedy
 
 
+def verifier_transport_refusal_text(
+    detail: str = "", *, exit_code: int | None = None
+) -> tuple[str, str, str]:
+    """Return (code, reason, remedy) when a verifier fails with a transport or spawn error."""
+    code = VERIFY_REFUSAL_CODE_TRANSPORT_ERROR
+    parts: list[str] = []
+    if exit_code is not None:
+        parts.append(f"exit code {exit_code}")
+    if detail:
+        cleaned = _redact_absolute_paths(str(detail).strip())
+        if cleaned:
+            parts.append(cleaned)
+    info = f" ({', '.join(parts)})" if parts else ""
+    reason = (
+        f"the verifier process failed with a transport or spawn error{info}: "
+        "verification could not be completed, so this turn is recorded NOT VERIFIED and was not integrated"
+    )
+    remedy = (
+        "inspect the verifier command and host environment, then re-run this item's "
+        "verification. The lane is PRESERVED and nothing was merged, so do NOT re-run "
+        "the plan from scratch - that would discard work already done"
+    )
+    return code, reason, remedy
+
+
 def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> list[str]:
     """Render the `## Verification evidence` section for `execution-report.md`.
 
@@ -25870,6 +25898,7 @@ VERIFICATION_RETRYABLE_REFUSAL_CODES: frozenset[str] = frozenset(
         VERIFY_REFUSAL_CODE_UNEVIDENCED,
         VERDICT_REFUSAL_CODE_UNREADABLE,
         VERIFY_ABSENCE_NO_OUTCOME_FILE,
+        VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
     }
 )
 
@@ -25913,6 +25942,11 @@ def verification_failure_is_retryable(
     code = (refusal_code or "").strip()
     disp = (verify_disp or "").strip() if verify_disp else None
     if code in VERIFICATION_RETRYABLE_REFUSAL_CODES:
+        if code == VERIFY_REFUSAL_CODE_TRANSPORT_ERROR:
+            return (
+                True,
+                f"verification refusal code {code!r} is in spec 5.5's retryable verifier transport failure class",
+            )
         return (
             True,
             f"verification refusal code {code!r} is in spec 5.5's retryable validation-evidence class",
@@ -39459,13 +39493,51 @@ def execute_item_core(
                     )
                     v_outcome_file.unlink(missing_ok=True)
                     try:
-                        v_rc, v_session, _v_log, _v_argv = spawn_verifier(
-                            v_prompt_file,
-                            current_plan_path,
-                            work_dir,
-                            tracker,
-                            attempt_no,
-                        )
+                        try:
+                            v_rc, v_session, _v_log, _v_argv = spawn_verifier(
+                                v_prompt_file,
+                                current_plan_path,
+                                work_dir,
+                                tracker,
+                                attempt_no,
+                            )
+                        except (
+                            FileNotFoundError,
+                            PermissionError,
+                            OSError,
+                            HostSpawnError,
+                        ) as spawn_err:
+                            attempt["verify_exit_code"] = None
+                            attempt["verify_spawn_error"] = _redact_absolute_paths(
+                                str(spawn_err)
+                            )
+                            verify_disp = VERIFY_DISP_UNVERIFIED
+                            disposition = "fail-verify"
+                            v_code, v_reason, v_remedy = (
+                                verifier_transport_refusal_text(
+                                    str(spawn_err), exit_code=None
+                                )
+                            )
+                            record_refusal(
+                                item,
+                                code=v_code,
+                                reason=v_reason,
+                                remedy=v_remedy,
+                            )
+                            attempt[VERIFICATION_REFUSED_KEY] = {
+                                "code": v_code,
+                                "reason": v_reason,
+                                "remedy": v_remedy,
+                                "verify_disp": verify_disp,
+                            }
+                            print(
+                                pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                file=sys.stderr,
+                            )
+                            print(pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr)
+                            return disposition, verify_disp
+
+                        attempt["verify_exit_code"] = v_rc
                         # runwire (`eow7p4`) E-01: capture and persist the verifier session id
                         # on the attempt record rather than discarding it. An absent id is recorded
                         # as absent (None) and is not conflated with equality.
@@ -39745,62 +39817,104 @@ def execute_item_core(
                                     pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr
                                 )
                             else:
-                                # runverdict-06 (`fzxfph`) E-02: FACT 2, AND IT IS A RECORDED HARD FAILURE.
-                                #
-                                # THE VERIFIER RAN AND WROTE NOTHING. This arm previously recorded the same
-                                # bare `unverified` as an unreadable verdict and as a killed turn, so three
-                                # facts with three different remedies read as one benign caveat. Spec `25kzda`
-                                # §4.2's `RUN-FRESH-VERIFIER` row already calls this case a FAILURE ("<item>
-                                # has no valid independent verification attempt"), so recording it as one
-                                # implements the spec rather than amending it.
-                                #
-                                # "HARD FAILURE" MEANS RECORDED AND REPORTED AS SUCH, NOT A NEW REFUSAL, and
-                                # that boundary is what keeps this change small. `integration_is_earned`
-                                # ALREADY refuses integration for any non-`verified` token when validation is
-                                # ON, and `self_finalize` is gated on that earned verdict, so this turn
-                                # already does not auto-merge and its lane is already preserved. Adding a
-                                # second refusal on top would be redundant and could strand work the existing
-                                # gate handles. KNOW THE LIMIT OF THAT GUARANTEE rather than overclaiming it:
-                                # the validation-OFF branch of that predicate never reads `verify_disp` at all,
-                                # so with a passing driver-run suite an item still integrates on the
-                                # `driver-run-suite` signal; oc defaults `--validate` OFF while agy defaults
-                                # its verifier ON, so the guarantee holds on agy's default and on oc only
-                                # under `--validate`.
-                                #
-                                # `verify_disp` KEEPS ITS EXISTING TOKEN DELIBERATELY. A novel value would
-                                # render as a bare `-` in `aw runs` (`run_viewer` matches `verified` ->`yes`,
-                                # `(unverified, verify-failed, failed)` -> `no`, everything else -> `-`),
-                                # which is precisely how "no verification ran" already renders and is the
-                                # opposite of this change's purpose; `run_viewer.py` is not in this plan's
-                                # scope. So the DISTINCTION rides on the refusal record and the
-                                # `verify_absence` field, both of which already render.
-                                v_reason, v_remedy = verify_absence_text(
-                                    VERIFY_ABSENCE_NO_OUTCOME_FILE
-                                )
-                                v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
-                                record_refusal(
-                                    item,
-                                    code=v_code,
-                                    reason=v_reason,
-                                    remedy=v_remedy,
-                                )
-                                attempt["verify_absence"] = v_code
-                                item["verify_absence"] = v_code
-                                verify_disp = VERIFY_DISP_UNVERIFIED
-                                disposition = "fail-verify"
-                                attempt[VERIFICATION_REFUSED_KEY] = {
-                                    "code": v_code,
-                                    "reason": v_reason,
-                                    "remedy": v_remedy,
-                                    "verify_disp": verify_disp,
-                                }
-                                print(
-                                    pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
-                                    file=sys.stderr,
-                                )
-                                print(
-                                    pal(f"    -> {v_remedy}", "yellow"), file=sys.stderr
-                                )
+                                v_host_err = scan_last_host_error(_v_log)
+                                if v_rc != 0 or v_host_err is not None:
+                                    verify_disp = VERIFY_DISP_UNVERIFIED
+                                    disposition = "fail-verify"
+                                    detail = (
+                                        f"{v_host_err[0]}: {v_host_err[1]}"
+                                        if v_host_err
+                                        else ""
+                                    )
+                                    v_code, v_reason, v_remedy = (
+                                        verifier_transport_refusal_text(
+                                            detail, exit_code=v_rc
+                                        )
+                                    )
+                                    record_refusal(
+                                        item,
+                                        code=v_code,
+                                        reason=v_reason,
+                                        remedy=v_remedy,
+                                    )
+                                    attempt[VERIFICATION_REFUSED_KEY] = {
+                                        "code": v_code,
+                                        "reason": v_reason,
+                                        "remedy": v_remedy,
+                                        "verify_disp": verify_disp,
+                                    }
+                                    print(
+                                        pal(
+                                            f"  ! IPD {item['id6']} {v_reason}",
+                                            "yellow",
+                                        ),
+                                        file=sys.stderr,
+                                    )
+                                    print(
+                                        pal(f"    -> {v_remedy}", "yellow"),
+                                        file=sys.stderr,
+                                    )
+                                else:
+                                    # runverdict-06 (`fzxfph`) E-02: FACT 2, AND IT IS A RECORDED HARD FAILURE.
+                                    #
+                                    # THE VERIFIER RAN AND WROTE NOTHING. This arm previously recorded the same
+                                    # bare `unverified` as an unreadable verdict and as a killed turn, so three
+                                    # facts with three different remedies read as one benign caveat. Spec `25kzda`
+                                    # §4.2's `RUN-FRESH-VERIFIER` row already calls this case a FAILURE ("<item>
+                                    # has no valid independent verification attempt"), so recording it as one
+                                    # implements the spec rather than amending it.
+                                    #
+                                    # "HARD FAILURE" MEANS RECORDED AND REPORTED AS SUCH, NOT A NEW REFUSAL, and
+                                    # that boundary is what keeps this change small. `integration_is_earned`
+                                    # ALREADY refuses integration for any non-`verified` token when validation is
+                                    # ON, and `self_finalize` is gated on that earned verdict, so this turn
+                                    # already does not auto-merge and its lane is already preserved. Adding a
+                                    # second refusal on top would be redundant and could strand work the existing
+                                    # gate handles. KNOW THE LIMIT OF THAT GUARANTEE rather than overclaiming it:
+                                    # the validation-OFF branch of that predicate never reads `verify_disp` at all,
+                                    # so with a passing driver-run suite an item still integrates on the
+                                    # `driver-run-suite` signal; oc defaults `--validate` OFF while agy defaults
+                                    # its verifier ON, so the guarantee holds on agy's default and on oc only
+                                    # under `--validate`.
+                                    #
+                                    # `verify_disp` KEEPS ITS EXISTING TOKEN DELIBERATELY. A novel value would
+                                    # render as a bare `-` in `aw runs` (`run_viewer` matches `verified` ->`yes`,
+                                    # `(unverified, verify-failed, failed)` -> `no`, everything else -> `-`),
+                                    # which is precisely how "no verification ran" already renders and is the
+                                    # opposite of this change's purpose; `run_viewer.py` is not in this plan's
+                                    # scope. So the DISTINCTION rides on the refusal record and the
+                                    # `verify_absence` field, both of which already render.
+                                    v_reason, v_remedy = verify_absence_text(
+                                        VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                    )
+                                    v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                    record_refusal(
+                                        item,
+                                        code=v_code,
+                                        reason=v_reason,
+                                        remedy=v_remedy,
+                                    )
+                                    attempt["verify_absence"] = v_code
+                                    item["verify_absence"] = v_code
+                                    verify_disp = VERIFY_DISP_UNVERIFIED
+                                    disposition = "fail-verify"
+                                    attempt[VERIFICATION_REFUSED_KEY] = {
+                                        "code": v_code,
+                                        "reason": v_reason,
+                                        "remedy": v_remedy,
+                                        "verify_disp": verify_disp,
+                                    }
+                                    print(
+                                        pal(
+                                            f"  ! IPD {item['id6']} {v_reason}",
+                                            "yellow",
+                                        ),
+                                        file=sys.stderr,
+                                    )
+                                    print(
+                                        pal(f"    -> {v_remedy}", "yellow"),
+                                        file=sys.stderr,
+                                    )
                     except runner_stop.StopNowForce as stop:
                         now = utc_now()
                         attempt["interrupted_at"] = now

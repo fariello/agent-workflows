@@ -1438,7 +1438,7 @@ A Set-level production refusal (`SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`) and an 
 The runner provides three distinct classification surfaces that key on different evidence by design:
 - `turn_failure_is_retryable`: classifies a finished turn by its runner disposition.
 - `finalize_retry_decision`: classifies a refused finalize by the gate's findings carried across the subprocess boundary. It keys primarily on shipped lint finding codes (`finalize_refusal_is_retryable`, `retryable_finalize_finding_codes`), retaining a prose fallback for findings without a lint code and for answerable checkpoint messages excluded from the code set.
-- `verification_retry_decision`: classifies a refused or unevidenced verification outcome before integration. It remands the lane to the executing agent under the shared `--retry-budget` with a separate action counter when verification evidence is missing (`verifier-no-test-evidence`), the verdict requires correction (`verifier-declined`), or the outcome file was unreadable/unrecorded (`verification-outcome-unreadable`, `verification-never-recorded`); environment obstacles (`BLOCKED`) are not retryable.
+- `verification_retry_decision`: classifies a refused or unevidenced verification outcome before integration. It remands the lane to the executing agent under the shared `--retry-budget` with a separate action counter when verification evidence is missing (`verifier-no-test-evidence`), the verdict requires correction (`verifier-declined`), a verifier transport failure occurred (`verifier-transport-error`), or the outcome file was unreadable/unrecorded (`verification-outcome-unreadable`, `verification-never-recorded`); environment obstacles (`BLOCKED`) are not retryable.
 
 The normative mapping between the retry classes above and the runner's disposition vocabulary is declared in the following table:
 
@@ -1449,7 +1449,7 @@ The normative mapping between the retry classes above and the runner's dispositi
 | stall or turn-limit expiry | `failed-safely`, `timeout` | `turn_failure_is_retryable` | Yes | Host stall or turn-limit expiry without response. Evidence: turn timer or runner watchdog. Shipped (Order 04, `ytas91`). |
 | missing expected artifact or failed deterministic check | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate by finding codes; correction packet sent. At lane integration, the deterministic check `new_stale_anchors` refuses new stale spec line-anchor citations under cause `spec-anchor-new-stale` with a bounded fix-it turn, failing open on `unknown` detector failure. Shipped. |
 | missing or stale validation evidence | None (turn); findings (finalize); refusal (verification) | `finalize_retry_decision`, `verification_retry_decision` | Yes (at finalize and verification) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`) and verification gate (`verifier-no-test-evidence`, `verifier-declined`, `verification-outcome-unreadable`, `verification-never-recorded`; `BLOCKED` is not retried). Shipped. |
-| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | Skeptical verifier session crash or transport failure. Implementing: `yd4tqw` (from backlog `jodcz3`). |
+| verifier transport failure | `verifier-transport-error` | `verification_retry_decision` | Yes | Skeptical verifier session crash or transport failure. Shipped (`yd4tqw`, from backlog `jodcz3`). |
 | a hook refusal of any commit | `hook-refused` | `turn_failure_is_retryable` / commit gateway | Yes | Pre-commit hook rejected commit. Worktree preserved; fix-it turn given hook output. Shipped (Order 05, `w9nvq4`). |
 | a red combined suite after merge | `integration-test-failed` | integration gate | Yes | Verification suite failed after merge in lane or integration worktree. Shipped (Order 05, `w9nvq4`). |
 | an out-of-scope change (revert or justify) | `fail-gate` | `turn_failure_is_retryable` / finalize gate | Yes | Delta outside frozen scope. Agent may revert edit or record justification widening scope. Shipped (Order 06, `psgyzw`). |
@@ -1746,6 +1746,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): sync Section 5.5 retry policy table and verification_retry_decision bullet for verifier-transport-error (IPD yd4tqw, from backlog jodcz3)
 - 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)
 - 2026-10-16 note (aw specs): AMENDED 2026-10-16 (plan v47z9u, backlog hegwri): Section 6.2 amended to record the durable storage location for run ledgers as <runs root>/<run-id>/ledger.jsonl (runner_shared.state_root), leaving large captured outputs open.
 - 2026-10-16 note (aw specs): Section 5.5 retry policy table owner citations, Order numbers, and status labels updated per plan 6g08rp (backlog w5opbr)

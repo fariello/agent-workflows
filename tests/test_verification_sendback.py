@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from agent_workflows import agy_runipd, lane_containment, oc_runipd, runner_shared
@@ -58,12 +59,27 @@ def _state_and_item(repo: Path, plan: Path, retry_budget: int = 2) -> tuple[dict
 
 
 def _fake_run_with_change_and_verifier(
-    run_dir: Path, v_outcome: dict | None = None, *, write_nothing: bool = False
+    run_dir: Path,
+    v_outcome: dict | None = None,
+    *,
+    write_nothing: bool = False,
+    verifier_action: Any = None,
 ):
     """Worker turn commits a change in the lane; verifier turn writes v_outcome unless write_nothing."""
 
     def fake_run(state, rd, item, *_args, **kwargs):
         if kwargs.get("fresh_session") or kwargs.get("log_suffix") == "verify":
+            if verifier_action is not None:
+                if isinstance(verifier_action, type) and issubclass(
+                    verifier_action, BaseException
+                ):
+                    raise verifier_action("verifier exception")
+                if isinstance(verifier_action, BaseException):
+                    raise verifier_action
+                if isinstance(verifier_action, int):
+                    return verifier_action, "vses", str(run_dir / "vlog"), ["x"]
+                if callable(verifier_action):
+                    return verifier_action(state, rd, item, *_args, **kwargs)
             if not write_nothing and v_outcome is not None:
                 (
                     run_dir
@@ -196,6 +212,123 @@ class VerificationRetryDecisionUnitTests(unittest.TestCase):
         self.assertFalse(dec_stop.exhausted)
         self.assertIn("DELIBERATE OPERATOR STOP", dec_stop.reason)
 
+    def test_verifier_transport_error_retry_decision_cases(self) -> None:
+        state = {"options": {"retry_budget": 2}}
+        item: dict = {"id6": "vte001"}
+
+        # Predicate check
+        retryable, why = runner_shared.verification_failure_is_retryable(
+            item, runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR, "unverified"
+        )
+        self.assertTrue(retryable)
+        self.assertIn("verifier transport failure", why)
+
+        # 1. Below budget -> retry=True
+        dec = runner_shared.verification_retry_decision(
+            item,
+            state,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            "unverified",
+            attempt_no=1,
+        )
+        self.assertTrue(dec.retry)
+        self.assertFalse(dec.exhausted)
+        self.assertEqual(dec.attempts, 0)
+        self.assertEqual(dec.budget, 2)
+        self.assertEqual(dec.key, "vte001:verify-attempt-1")
+
+        # 2. At budget -> exhausted=True
+        item_at_budget = {
+            "id6": "vte001",
+            runner_shared.VERIFICATION_RETRY_COUNT_KEY: 2,
+        }
+        dec_ex = runner_shared.verification_retry_decision(
+            item_at_budget,
+            state,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            "unverified",
+            attempt_no=3,
+        )
+        self.assertFalse(dec_ex.retry)
+        self.assertTrue(dec_ex.exhausted)
+        self.assertEqual(dec_ex.attempts, 2)
+
+        # 3. Budget 0 -> exhausted=True on first attempt
+        state_0 = {"options": {"retry_budget": 0}}
+        dec_0 = runner_shared.verification_retry_decision(
+            item,
+            state_0,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            "unverified",
+            attempt_no=1,
+        )
+        self.assertFalse(dec_0.retry)
+        self.assertTrue(dec_0.exhausted)
+        self.assertEqual(dec_0.attempts, 0)
+        self.assertEqual(dec_0.budget, 0)
+
+        # 4. Global fix-it cap reached -> exhausted=True with cap attached
+        item_capped = {
+            "id6": "vte001",
+            "setid": "setA",
+            runner_shared.TURN_RETRY_COUNT_KEY: 20,
+        }
+        state_capped = {
+            "queue": [item_capped],
+            "options": {
+                "retry_budget": 2,
+                "fix_it_caps": {
+                    "per_artifact": 20,
+                    "per_set_floor": 30,
+                    "per_set_per_member": 30,
+                    "per_run_floor": 50,
+                    "per_run_per_artifact": 50,
+                },
+            },
+        }
+        dec_cap = runner_shared.verification_retry_decision(
+            item_capped,
+            state_capped,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            "unverified",
+            attempt_no=1,
+        )
+        self.assertFalse(dec_cap.retry)
+        self.assertTrue(dec_cap.exhausted)
+        self.assertIsNotNone(dec_cap.cap)
+        self.assertTrue(dec_cap.cap.reached)
+        self.assertIn("global fix-it cap reached", dec_cap.reason)
+
+    def test_verifier_transport_refusal_text(self) -> None:
+        code, reason, remedy = runner_shared.verifier_transport_refusal_text(
+            "/opt/tools/bin/agy missing", exit_code=1
+        )
+        self.assertEqual(code, runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR)
+        self.assertNotIn("/opt/tools/bin/agy", reason)
+        self.assertIn("<path> missing", reason)
+        self.assertIn("exit code 1", reason)
+        self.assertIn("PRESERVED", remedy)
+        self.assertIn("re-run", remedy)
+        self.assertIn("do NOT re-run the plan from scratch", remedy)
+
+    def test_cross_driver_object_identity(self) -> None:
+        self.assertIs(
+            oc_runipd.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+        )
+        self.assertIs(
+            agy_runipd.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+            runner_shared.VERIFY_REFUSAL_CODE_TRANSPORT_ERROR,
+        )
+        self.assertIs(
+            oc_runipd.verifier_transport_refusal_text,
+            runner_shared.verifier_transport_refusal_text,
+        )
+        self.assertIs(
+            agy_runipd.verifier_transport_refusal_text,
+            runner_shared.verifier_transport_refusal_text,
+        )
+
 
 class VerificationSendbackEndToEndTests(unittest.TestCase):
     """V-02..V-05: End-to-end drive of execute_item on both oc and agy hosts."""
@@ -212,6 +345,7 @@ class VerificationSendbackEndToEndTests(unittest.TestCase):
         retry_budget: int = 2,
         write_nothing: bool = False,
         pre_write_file: dict | None = None,
+        verifier_action: Any = None,
     ):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -237,7 +371,10 @@ class VerificationSendbackEndToEndTests(unittest.TestCase):
             return real_finalize(*a, **k)
 
         fake_run = _fake_run_with_change_and_verifier(
-            run_dir, v_outcome, write_nothing=write_nothing
+            run_dir,
+            v_outcome,
+            write_nothing=write_nothing,
+            verifier_action=verifier_action,
         )
 
         with (
@@ -364,6 +501,136 @@ class VerificationSendbackEndToEndTests(unittest.TestCase):
                 )
                 self.assertNotEqual(item.get("verification_status"), "verified")
 
+    def test_verifier_transport_error_spawn_exception_remands_on_both_hosts(
+        self,
+    ) -> None:
+        """E-03 (e): spawn exceptions (FileNotFoundError, HostSpawnError) remand to queued on both hosts."""
+        exceptions_to_test = [
+            ("file_not_found", FileNotFoundError("/opt/tools/bin/missing_binary")),
+            (
+                "host_spawn_error",
+                runner_shared.HostSpawnError(
+                    "cannot spawn host binary: /usr/bin/missing"
+                ),
+            ),
+        ]
+        for exc_label, exc in exceptions_to_test:
+            for label, mod, spawn in _HOSTS:
+                with self.subTest(host=label, exc=exc_label):
+                    repo, plan, item, finalize_calls, events = self._execute(
+                        mod, spawn, None, retry_budget=2, verifier_action=exc
+                    )
+                    self.assertEqual(item["status"], "queued")
+                    self.assertTrue(item.get("recovery_next"))
+                    self.assertEqual(
+                        item.get(runner_shared.VERIFICATION_RETRY_COUNT_KEY), 1
+                    )
+                    self.assertEqual(
+                        finalize_calls, [], "finalize must not be called when remanded"
+                    )
+
+                    sent_back_events = [
+                        e for e in events if e.get("event") == "verification-sent-back"
+                    ]
+                    self.assertEqual(len(sent_back_events), 1)
+                    self.assertEqual(
+                        sent_back_events[0]["refusal_code"], "verifier-transport-error"
+                    )
+                    self.assertEqual(sent_back_events[0]["retry_attempts_used"], 1)
+                    self.assertEqual(sent_back_events[0]["retry_budget"], 2)
+
+                    attempts = item.get("attempts") or []
+                    self.assertTrue(len(attempts) >= 1)
+                    last_att = attempts[-1]
+                    self.assertIsNone(last_att.get("verify_exit_code"))
+                    self.assertIsNotNone(last_att.get("verify_spawn_error"))
+                    self.assertNotIn(
+                        "/opt/tools/bin", str(last_att.get("verify_spawn_error"))
+                    )
+                    self.assertNotIn(
+                        "/usr/bin", str(last_att.get("verify_spawn_error"))
+                    )
+                    refused = last_att.get(runner_shared.VERIFICATION_REFUSED_KEY)
+                    self.assertIsNotNone(refused)
+                    self.assertEqual(refused.get("code"), "verifier-transport-error")
+
+    def test_verifier_transport_error_nonzero_exit_remands_on_both_hosts(self) -> None:
+        """E-03 (e): nonzero exit without outcome file remands to queued on both hosts."""
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                repo, plan, item, finalize_calls, events = self._execute(
+                    mod, spawn, None, retry_budget=2, verifier_action=1
+                )
+                self.assertEqual(item["status"], "queued")
+                self.assertTrue(item.get("recovery_next"))
+                self.assertEqual(
+                    item.get(runner_shared.VERIFICATION_RETRY_COUNT_KEY), 1
+                )
+                self.assertEqual(
+                    finalize_calls, [], "finalize must not be called when remanded"
+                )
+
+                sent_back_events = [
+                    e for e in events if e.get("event") == "verification-sent-back"
+                ]
+                self.assertEqual(len(sent_back_events), 1)
+                self.assertEqual(
+                    sent_back_events[0]["refusal_code"], "verifier-transport-error"
+                )
+                self.assertEqual(sent_back_events[0]["retry_attempts_used"], 1)
+                self.assertEqual(sent_back_events[0]["retry_budget"], 2)
+
+                attempts = item.get("attempts") or []
+                self.assertTrue(len(attempts) >= 1)
+                last_att = attempts[-1]
+                self.assertEqual(last_att.get("verify_exit_code"), 1)
+                refused = last_att.get(runner_shared.VERIFICATION_REFUSED_KEY)
+                self.assertIsNotNone(refused)
+                self.assertEqual(refused.get("code"), "verifier-transport-error")
+
+    def test_verifier_transport_error_exhausts_at_budget_zero(self) -> None:
+        """E-03 (e): retry_budget 0 ends fail-verify with verifier-transport-error refusal recorded."""
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                repo, plan, item, finalize_calls, events = self._execute(
+                    mod, spawn, None, retry_budget=0, verifier_action=1
+                )
+                self.assertEqual(item["status"], "fail-verify")
+                self.assertFalse(item.get("recovery_next", False))
+                refusal = refusal_of_item(item)
+                self.assertIsNotNone(refusal)
+                self.assertEqual(refusal.code, "verifier-transport-error")
+                self.assertEqual(finalize_calls, [])
+                sent_back_events = [
+                    e for e in events if e.get("event") == "verification-sent-back"
+                ]
+                self.assertEqual(sent_back_events, [])
+
+    def test_zero_exit_no_outcome_regression_guard(self) -> None:
+        """E-03 (e): v_rc == 0 with no outcome file still records verification-never-recorded."""
+        for label, mod, spawn in _HOSTS:
+            with self.subTest(host=label):
+                repo, plan, item, finalize_calls, events = self._execute(
+                    mod, spawn, None, retry_budget=2, verifier_action=0
+                )
+                self.assertEqual(item["status"], "queued")
+                sent_back_events = [
+                    e for e in events if e.get("event") == "verification-sent-back"
+                ]
+                self.assertEqual(len(sent_back_events), 1)
+                self.assertEqual(
+                    sent_back_events[0]["refusal_code"],
+                    runner_shared.VERIFY_ABSENCE_NO_OUTCOME_FILE,
+                )
+                attempts = item.get("attempts") or []
+                self.assertTrue(len(attempts) >= 1)
+                last_att = attempts[-1]
+                self.assertEqual(last_att.get("verify_exit_code"), 0)
+                self.assertEqual(
+                    last_att.get("verify_absence"),
+                    runner_shared.VERIFY_ABSENCE_NO_OUTCOME_FILE,
+                )
+
 
 class RecoveryPromptNoticeTests(unittest.TestCase):
     """V-04: Test build_verification_refusal_notice, prompt formatting and lane containment."""
@@ -442,3 +709,68 @@ class RecoveryPromptNoticeTests(unittest.TestCase):
             summary["verification_refused"]["code"],
             runner_shared.VERIFY_REFUSAL_CODE_UNEVIDENCED,
         )
+
+    def test_recovery_prompt_delivery_verifier_transport_error(self) -> None:
+        """E-03 (d): build_verification_refusal_notice and build_prompt render verifier-transport-error with rule count == 1."""
+        lane_dir = Path("/tmp/lane_root")
+        run_dir = Path("/tmp/run_dir")
+        plan_path = Path("plan.ipd.md")
+        code, reason, remedy = runner_shared.verifier_transport_refusal_text(
+            "cannot spawn binary: /opt/tools/missing", exit_code=1
+        )
+        item = {
+            "id6": "vte123",
+            "position": 1,
+            "setid": "demo",
+            runner_shared.VERIFICATION_RETRY_COUNT_KEY: 1,
+            "attempts": [
+                {
+                    "attempt_number": 1,
+                    runner_shared.VERIFICATION_REFUSED_KEY: {
+                        "code": code,
+                        "reason": reason,
+                        "remedy": remedy,
+                        "verify_disp": "unverified",
+                        "attempt": 1,
+                        "budget": 2,
+                    },
+                }
+            ],
+        }
+        state = {
+            "run_id": "run-test",
+            "options": {"retry_budget": 2},
+        }
+
+        notice = runner_shared.build_verification_refusal_notice(item, recovery=True)
+        self.assertIn("verifier-transport-error", notice)
+        self.assertIn("attempt 1 of 2", notice)
+        self.assertNotIn("/opt/tools/missing", notice)
+
+        for labels in (runner_shared.OC_HOST_LABELS, runner_shared.AGY_HOST_LABELS):
+            with self.subTest(host=labels.command):
+                rec_prompt = runner_shared.build_prompt(
+                    item,
+                    state,
+                    run_dir,
+                    plan_path,
+                    recovery=True,
+                    lane_root=lane_dir,
+                    labels=labels,
+                )
+                self.assertIn(
+                    "## Verification failed on the prior attempt (verifier-transport-error)",
+                    rec_prompt,
+                )
+                self.assertIn(
+                    "This is verification correction attempt 1 of 2", rec_prompt
+                )
+                self.assertEqual(
+                    rec_prompt.count(runner_shared.FIX_IT_RULE_TEXT),
+                    1,
+                    "FIX_IT_RULE_TEXT must appear exactly once",
+                )
+                self.assertEqual(
+                    lane_containment.absolute_paths_outside_lane(rec_prompt, lane_dir),
+                    [],
+                )
