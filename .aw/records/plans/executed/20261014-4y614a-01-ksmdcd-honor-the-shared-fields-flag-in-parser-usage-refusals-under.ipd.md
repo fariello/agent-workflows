@@ -6,7 +6,7 @@
 - Scope: Add `cli._sniff_fields_from_raw_argv` next to `cli._sniff_mode_from_raw_argv` and pass `fields=_sniff_fields_from_raw_argv(raw_argv)` into `OutputContext(mode=OutputMode.AGENT, ...)` inside `cli._AwArgumentParser.error`, while keeping `OutputMode.JSON` unprojected. Remove the four `(leaf, "--fields"): "4y614a"` entries from `tests/test_shared_flag_honored.KNOWN_BROKEN` (making `test_known_broken_citations_resolve` tolerate an empty `KNOWN_BROKEN` once sibling items `aws1tg` and `jfdk7p` also land), and add behavioral regression coverage in `tests/test_shared_flag_honored.py` covering all 67 required-argument leaves, presence/absence non-vacuity, global-flag position, `--fields=`, repeated `--fields` last-flag-wins, bare `--` boundary, missing `--fields` value, unknown-command/`invalid choice`/unrecognized-option refusals, and `--json --fields` non-projection. EXCLUDES the nine handler-level `--fields` bypasses owned by `aws1tg` (`83ns86`) and the five `--json` parseability failures owned by `jfdk7p` (`pirm70`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_shared_flag_honored.py, .aw/records/plans/pending/20261014-4y614a-01-ksmdcd-honor-the-shared-fields-flag-in-parser-usage-refusals-under.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: agy/gemini-4-argon-high
 - Id: ksmdcd
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ksmdcd verified (set 4y614a, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed; readiness GO - PENDING HUMAN APPROVAL
 
