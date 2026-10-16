@@ -122,9 +122,9 @@ def global_id6s(repo_root) -> set:
     requires a conservative superset: refusing to mint an id6 that some document merely quotes costs
     one draw out of 36**6, while narrowing the collision set risks minting a genuine duplicate.
     The unbounded readers behind checking, status resolution, and dependency indexing were bounded
-    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` (deleted in
-    ``19313eed``; no live guard currently asserts this) pinned the superset behavior so this
-    cannot be mistaken for an exact census.
+    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` (restored in
+    backlog ``s8eaay``, plan ``ztx39t``) asserts the superset behavior so this cannot be mistaken for
+    an exact census.
 
     So do NOT "optimize" this onto a checker's reader, do not describe it to a user as "the id6s in
     use", and never reuse it to decide that a collision EXISTS. Over-collect for minting; parse
