@@ -630,9 +630,11 @@ def test_set_level_checks():
     assert not hasattr(agy_runipd, "check_verifier_state_authority")
 
     # (c) Vocabulary unchanged
-    assert len(rs.TERMINAL_STATES_CANONICAL) == 14
-    assert len(rs.TERMINAL_STATUS_ALIASES) == 10
-    assert len(runner_shutdown.KNOWN_ITEM_STATUSES) == 28
+    assert runner_shutdown.KNOWN_ITEM_STATUSES == (
+        rs.TERMINAL_STATES_CANONICAL
+        | set(rs.TERMINAL_STATUS_ALIASES)
+        | rs.IN_FLIGHT_QUEUE_STATUSES
+    )
 
     # (d) Ledger fence: neither child's changed files import run_engine or run_recovery, tested in clean subprocess
     import subprocess

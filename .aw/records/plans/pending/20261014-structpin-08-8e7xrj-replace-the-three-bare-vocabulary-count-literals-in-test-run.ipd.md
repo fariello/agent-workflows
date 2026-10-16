@@ -38,10 +38,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: replace the three bare count literals with the partition equality
 
-- [ ] E-01 REPLACE THE THREE BARE COUNT ASSERTIONS IN `tests/test_runwire_verifier_authority.py::test_set_level_checks` PART (c) WITH THE PARTITION EQUALITY `assert runner_shutdown.KNOWN_ITEM_STATUSES == (rs.TERMINAL_STATES_CANONICAL | set(rs.TERMINAL_STATUS_ALIASES) | rs.IN_FLIGHT_QUEUE_STATUSES)`. Locate `# (c) Vocabulary unchanged` inside `test_set_level_checks` by content (not by line offset) and replace the three statements `assert len(rs.TERMINAL_STATES_CANONICAL) == 14`, `assert len(rs.TERMINAL_STATUS_ALIASES) == 10`, and `assert len(runner_shutdown.KNOWN_ITEM_STATUSES) == 28` with that single set-equality statement under `# (c) Vocabulary unchanged`, written in the multi-line form `ruff format` produces (the one-line form is 145 characters, and the pinned `ruff` v0.4.4 pre-commit hook rewrites it on commit; plan-review probe): `assert runner_shutdown.KNOWN_ITEM_STATUSES == (` / `rs.TERMINAL_STATES_CANONICAL` / `| set(rs.TERMINAL_STATUS_ALIASES)` / `| rs.IN_FLIGHT_QUEUE_STATUSES` / `)`. Keep limbs (a), (b), (d), and (e) of `test_set_level_checks`, its docstring, and every other test in the file byte-identical. DO NOT substitute a different integer literal, a `>=` floor, or a hand-transcribed 28-string `frozenset`: the relational equality across the three runtime sub-vocabularies (`TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES`, `IN_FLIGHT_QUEUE_STATUSES`) is self-extending when a status is legitimately added, whereas a transcribed list would re-create the second-table rot `44c42h` PR-402 rejected. STOP CONDITION BEFORE EDITING: run the four cross-file carrying tests by name — `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set`, `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_status_aliases_map`, `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union`, and `tests/test_plan_holder_predicate.py` — and confirm every collected test passes with none skipped or deselected (17 at authoring and at review; the count is context, not the bar); if any is absent, skipped, or failing, DO NOT EDIT, mark E-01 `blocked`, and report, because the partition equality relies on those cross-file pins fixing the three constituent sets on the right-hand side.
+- [x] E-01 REPLACE THE THREE BARE COUNT ASSERTIONS IN `tests/test_runwire_verifier_authority.py::test_set_level_checks` PART (c) WITH THE PARTITION EQUALITY `assert runner_shutdown.KNOWN_ITEM_STATUSES == (rs.TERMINAL_STATES_CANONICAL | set(rs.TERMINAL_STATUS_ALIASES) | rs.IN_FLIGHT_QUEUE_STATUSES)`. Locate `# (c) Vocabulary unchanged` inside `test_set_level_checks` by content (not by line offset) and replace the three statements `assert len(rs.TERMINAL_STATES_CANONICAL) == 14`, `assert len(rs.TERMINAL_STATUS_ALIASES) == 10`, and `assert len(runner_shutdown.KNOWN_ITEM_STATUSES) == 28` with that single set-equality statement under `# (c) Vocabulary unchanged`, written in the multi-line form `ruff format` produces (the one-line form is 145 characters, and the pinned `ruff` v0.4.4 pre-commit hook rewrites it on commit; plan-review probe): `assert runner_shutdown.KNOWN_ITEM_STATUSES == (` / `rs.TERMINAL_STATES_CANONICAL` / `| set(rs.TERMINAL_STATUS_ALIASES)` / `| rs.IN_FLIGHT_QUEUE_STATUSES` / `)`. Keep limbs (a), (b), (d), and (e) of `test_set_level_checks`, its docstring, and every other test in the file byte-identical. DO NOT substitute a different integer literal, a `>=` floor, or a hand-transcribed 28-string `frozenset`: the relational equality across the three runtime sub-vocabularies (`TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES`, `IN_FLIGHT_QUEUE_STATUSES`) is self-extending when a status is legitimately added, whereas a transcribed list would re-create the second-table rot `44c42h` PR-402 rejected. STOP CONDITION BEFORE EDITING: run the four cross-file carrying tests by name — `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set`, `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_status_aliases_map`, `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union`, and `tests/test_plan_holder_predicate.py` — and confirm every collected test passes with none skipped or deselected (17 at authoring and at review; the count is context, not the bar); if any is absent, skipped, or failing, DO NOT EDIT, mark E-01 `blocked`, and report, because the partition equality relies on those cross-file pins fixing the three constituent sets on the right-hand side.
   - Depends on: none
   - Expected outcome: `rg -n "len\(" tests/test_runwire_verifier_authority.py` returns no match; `rg -n "len\(.*(TERMINAL_STATES|TERMINAL_STATUS_ALIASES|KNOWN_ITEM_STATUSES)" tests/` returns no hit that compares a vocabulary `len(...)` to a fixed integer literal (at review the only hit is the dynamic multiplier `expected_total = len(runner_shutdown.KNOWN_ITEM_STATUSES) * len(actions) * 2 * 2` in `tests/test_run_exit_aggregate.py`; any new hit is classified in evidence, not assumed); `ruff check --no-cache --select E4,E7,E9,F tests/test_runwire_verifier_authority.py` reports `All checks passed!` and `ruff format --diff tests/test_runwire_verifier_authority.py` shows no hunk inside `test_set_level_checks` (the two pre-existing hunks elsewhere, F-05, are not this plan's); `python3 -m pytest tests/test_runwire_verifier_authority.py -o addopts="" -q` passes with the same collected test count (15 at authoring); and in-memory mutation of `runner_shutdown.KNOWN_ITEM_STATUSES` (growth by an unknown token, shrink by `"running"`, and shrink by `"integration-deferred"`) turns `test_set_level_checks` RED naming the token in the set difference while a coordinated addition across `rs.TERMINAL_STATES_CANONICAL` and `runner_shutdown.KNOWN_ITEM_STATUSES` leaves `test_set_level_checks` GREEN.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -123,10 +123,132 @@ N/A with reason: replacing three count literals in one test with a relational se
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) STOP CONDITION, pasted BEFORE the edit: `python3 -m pytest "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set" "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_status_aliases_map" "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union" "tests/test_plan_holder_predicate.py" -o addopts="" -v` showing every collected test `PASSED` with zero skipped or deselected (17 at authoring; re-derive); if any is skipped, deselected, or failing, mark `blocked` and do not edit. (b) `rg -n "len\(" tests/test_runwire_verifier_authority.py` pasted after the edit showing no match (exit 1). (c) `git diff -- tests/test_runwire_verifier_authority.py` pasted in full, showing only the three `assert len(...) == <int>` lines under `# (c) Vocabulary unchanged` replaced by that single partition-equality statement (in its `ruff format` multi-line form, as committed after the pre-commit hook) and no other line changed, plus `ruff format --diff` showing no hunk inside `test_set_level_checks`. (d) `ruff check --no-cache --select E4,E7,E9,F tests/test_runwire_verifier_authority.py` pasted showing `All checks passed!`, and `python3 -m pytest tests/test_runwire_verifier_authority.py -o addopts="" -q` pasted BEFORE and AFTER with the same collected count (`15 passed` at authoring; re-derive). (e) IN-PROCESS MUTATION PROBES AFTER THE EDIT (the code path is `pytest.main` driving `tests/test_runwire_verifier_authority.py::test_set_level_checks` with module attributes rebound in a scratch script under gitignored `tmp/`, deleted afterwards): paste (i) uncoordinated growth of `runner_shutdown.KNOWN_ITEM_STATUSES` by `'probe-29th-status'` showing `1 failed` naming `'probe-29th-status'`; (ii) shrink of `runner_shutdown.KNOWN_ITEM_STATUSES` removing `'running'` showing `1 failed` naming `'running'`, and removing `'integration-deferred'` showing `1 failed` naming `'integration-deferred'`; and (iii) coordinated addition of `'probe-coordinated-status'` to both `runner_shared.TERMINAL_STATES_CANONICAL` and `runner_shutdown.KNOWN_ITEM_STATUSES` showing `1 passed`. (f) Bare `python3 -m pytest` summary lines before and after, with the failing-test set identical by name and the passed count not lower. (g) `git status --short` showing only `tests/test_runwire_verifier_authority.py` (and this plan) modified, with no scratch file left behind.
   - Observed evidence:
-  - Result: pending
+    (a) STOP CONDITION before the edit:
+    ```
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_08_queue_status_interrupted_reports_held PASSED [  5%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_unreadable_lock_reports_undeterminable PASSED [ 11%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_04_legacy_record_no_host_falls_through_to_same_machine PASSED [ 17%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_05_queue_status_queued_reports_held PASSED [ 23%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_12_unclassifiable_process_or_unparseable_pid_reports_undeterminable PASSED [ 29%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_02_lock_released_reports_not_held PASSED [ 35%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_pid_reader_unharmed_by_new_record_shape PASSED [ 41%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_03_foreign_machine_reports_undeterminable PASSED [ 47%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_01_lock_acquired_reports_holder PASSED [ 52%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_10_unrecognized_status_token_reports_undeterminable PASSED [ 58%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_09_remaining_in_flight_statuses_report_held PASSED [ 64%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_07_excluded_run_id_reports_not_held PASSED [ 70%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_06_queue_status_executed_and_legacy_alias_reports_not_held PASSED [ 76%]
+    tests/test_plan_holder_predicate.py::PlanHolderPredicateTests::test_11_unreadable_runs_tree_discovery_failure_reports_undeterminable PASSED [ 82%]
+    tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set PASSED [ 88%]
+    tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union PASSED [ 94%]
+    tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_status_aliases_map PASSED [100%]
+    ============================== 17 passed in 0.64s ==============================
+    ```
+    All 17 tests passed with zero skipped or deselected.
+
+    (b) `rg -n "len\(" tests/test_runwire_verifier_authority.py`:
+    ```
+    $ rg -n "len\(" tests/test_runwire_verifier_authority.py
+    [exit code 1, no match]
+    ```
+
+    (c) `git diff -- tests/test_runwire_verifier_authority.py`:
+    ```diff
+    diff --git a/tests/test_runwire_verifier_authority.py b/tests/test_runwire_verifier_authority.py
+    index bb6cf8551..60e145eb1 100644
+    --- a/tests/test_runwire_verifier_authority.py
+    +++ b/tests/test_runwire_verifier_authority.py
+    @@ -630,9 +630,11 @@ def test_set_level_checks():
+         assert not hasattr(agy_runipd, "check_verifier_state_authority")
+
+         # (c) Vocabulary unchanged
+    -    assert len(rs.TERMINAL_STATES_CANONICAL) == 14
+    -    assert len(rs.TERMINAL_STATUS_ALIASES) == 10
+    -    assert len(runner_shutdown.KNOWN_ITEM_STATUSES) == 28
+    +    assert runner_shutdown.KNOWN_ITEM_STATUSES == (
+    +        rs.TERMINAL_STATES_CANONICAL
+    +        | set(rs.TERMINAL_STATUS_ALIASES)
+    +        | rs.IN_FLIGHT_QUEUE_STATUSES
+    +    )
+
+         # (d) Ledger fence: neither child's changed files import run_engine or run_recovery, tested in clean subprocess
+         import subprocess
+    ```
+    `ruff format --diff tests/test_runwire_verifier_authority.py` shows no hunks in `test_set_level_checks` (zero hunks for the modified lines).
+
+    (d) `ruff check --no-cache --select E4,E7,E9,F tests/test_runwire_verifier_authority.py`:
+    ```
+    All checks passed!
+    ```
+    `python3 -m pytest tests/test_runwire_verifier_authority.py -o addopts="" -q`:
+    Before:
+    ```
+    ...............                                                          [100%]
+    15 passed in 4.13s
+    ```
+    After:
+    ```
+    ...............                                                          [100%]
+    15 passed in 3.06s
+    ```
+
+    (e) IN-PROCESS MUTATION PROBES AFTER THE EDIT:
+    Probe (i) Uncoordinated growth (`runner_shutdown.KNOWN_ITEM_STATUSES | {'probe-29th-status'}`):
+    ```
+    FAILED tests/test_runwire_verifier_authority.py::test_set_level_checks - AssertionError: assert frozenset({'a...-begin', ...}) == frozenset({'a...-begin', ...})
+      Extra items in the left set:
+      'probe-29th-status'
+    ============================== 1 failed in 0.23s ===============================
+    ```
+    Probe (ii-a) Shrink removing `'running'`:
+    ```
+    FAILED tests/test_runwire_verifier_authority.py::test_set_level_checks - AssertionError: assert frozenset({'a...-begin', ...}) == frozenset({'a...-begin', ...})
+      Extra items in the right set:
+      'running'
+    ============================== 1 failed in 0.17s ===============================
+    ```
+    Probe (ii-b) Shrink removing `'integration-deferred'`:
+    ```
+    FAILED tests/test_runwire_verifier_authority.py::test_set_level_checks - AssertionError: assert frozenset({'a...-begin', ...}) == frozenset({'a...-begin', ...})
+      Extra items in the right set:
+      'integration-deferred'
+    ============================== 1 failed in 0.10s ===============================
+    ```
+    Probe (iii) Coordinated addition (`'probe-coordinated-status'` added to both `TERMINAL_STATES_CANONICAL` and `KNOWN_ITEM_STATUSES`):
+    ```
+    tests/test_runwire_verifier_authority.py::test_set_level_checks PASSED   [100%]
+    ============================== 1 passed in 0.68s ===============================
+    ```
+
+    (f) Bare `python3 -m pytest` summary lines:
+    Before:
+    ```
+    702 passed in 26.38s
+    ```
+    After:
+    ```
+    702 passed in 21.40s
+    ```
+    `aw suite` summary lines:
+    Before:
+    ```
+    702 passed in 22.64s
+    ```
+    After:
+    ```
+    702 passed in 21.93s
+    ```
+
+    (g) `git status --short`:
+    ```
+     M tests/test_runwire_verifier_authority.py
+     M .aw/records/plans/pending/20261014-structpin-08-8e7xrj-replace-the-three-bare-vocabulary-count-literals-in-test-run.ipd.md
+    ```
+    No scratch file left behind.
+  - Result: pass
 
 ## Approval and execution gate
 
