@@ -1,5 +1,5 @@
 - Id: y11p5u
-- Status: graduated
+- Status: done
 - Graduated-To: y11p5u
 - Work-Kind: bug
 - Blocks-Release: next
@@ -8,6 +8,7 @@
 - Summary: Raw 38;5 escapes in pwatch, runners_monitor and render_stream headers bypass the color_depth pin
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 32fso3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-y11p5u-01-32fso3-raw-sgr-escapes-in-pwatch-runners-monitor-and-render-stream.ipd.md); evidence .aw/records/plans/executed/20261014-y11p5u-01-32fso3-raw-sgr-escapes-in-pwatch-runners-monitor-and-render-stream.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 32fso3
 - 2026-10-12 same-status (aw set): Maintainer ruling 2026-10-12: color_depth=none must turn off ALL color; reclassified bug
 - 2026-10-12 created (aw backlog): filed while graduating cvtg9u (plan lv0dvv), which fixes the Term generic axis only
