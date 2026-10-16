@@ -1952,7 +1952,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
 # second was LIFTED to `runner_shared.plan_kind_from_file` / `resolve_manifest_kind` - given to BOTH
 # hosts rather than kept here, because oc lacked it entirely and the two hosts therefore DISAGREED
 # about a correctness gate in oc's disfavor (`sy7uwh` OQ-03, resolved by the maintainer 2026-09-16).
-# `tests/test_rununify_record.py` was deleted in `19313eed`; no live guard currently asserts this fallback.
+# `tests/test_rununify_record.py` was deleted in `19313eed`; live guard: `tests/test_orchestrator_kind_derivation.py`.
 
 
 def expand_selectors(

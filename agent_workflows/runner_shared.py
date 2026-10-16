@@ -14067,9 +14067,9 @@ def _read_order(text: str) -> int | None:
 #
 # THE FAILURE MODE HERE IS SILENT AND TYPE-SHAPED, and `818uru`'s own test says so: a shared
 # constructor that DROPPED `kind` "would silently disable orchestrator detection" rather than crash.
-# That is why the guard for this section (`tests/test_rununify_record.py`, deleted in `19313eed`; no
-# live guard currently asserts this derivation) asserted the orchestrator DERIVATION end to end on both
-# hosts rather than merely that a field exists.
+# That is why the guard for this section (`tests/test_rununify_record.py`, deleted in `19313eed`; live
+# guard: `tests/test_orchestrator_kind_derivation.py`) asserted the orchestrator DERIVATION end to end on
+# both hosts rather than merely that a field exists.
 #
 # BOTH PINS WERE INVERTED, NOT DELETED, following this repo's precedent for a pinned decision a later
 # phase deliberately reverses:
@@ -14163,8 +14163,8 @@ class PlanRecord(NamedTuple):
     DO NOT DROP `kind` to "simplify" this. It is what `action_for` reads to detect an orchestrator,
     and losing it disables orchestrator detection SILENTLY and type-shapedly rather than crashing -
     the failure mode `818uru`'s pinned test warned about and the reason
-    `tests/test_rununify_record.py` (deleted in `19313eed`; no live guard currently asserts this)
-    asserted the derivation end to end.
+    `tests/test_rununify_record.py` (deleted in `19313eed`; live guard:
+    `tests/test_orchestrator_kind_derivation.py`) asserted the derivation end to end.
     """
 
     id6: str
