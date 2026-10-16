@@ -3068,9 +3068,9 @@ def evaluate_clean_base(
     `3i0aaz` E-03, amended by dirtygates `d7qoxv` E-03). The tracked/untracked SCOPE is identical on
     both paths - untracked content is reported once per run by
     `runner_shared.report_untracked_dirt_at_run_start` and refuses on NEITHER path - and `clean` /
-    `dirty_paths` are computed identically for both, which was asserted in
-    `tests/test_dirty_base_gate.py::test_the_tracked_scope_is_IDENTICAL_on_both_paths` (deleted in
-    `19313eed`; no live guard currently asserts this). What DOES differ is what the caller then
+    `dirty_paths` are computed identically for both, which is asserted in
+    `tests/test_clean_base_tracked_scope.py::test_clean_base_tracked_scope_identical_on_both_paths`.
+    What DOES differ is what the caller then
     does, and `CleanBaseResult.refuses` is where that lives: a dirty
     SHARED tree REFUSES, a dirty ISOLATED base is REPORTED and proceeds.
 
