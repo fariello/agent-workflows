@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives `cli.main` in-process across several `aw run`/`aw runs` leaves and both machine renderers, reaching `_emit_error` through three distinct emit paths (unknown target via `_emit_ledger_not_found`, explicit absent path, and empty ledger via the engine builder), asserting on the returned exit code and on the parsed payload's exact key set and values; then update the stale "deleted in `19313eed`; no live guard currently asserts this" remark in the `_emit_error` docstring to name the new module.
 - Scope-Paths: tests/test_run_cli_error_payload_keys.py, agent_workflows/run_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: e97wtz
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e97wtz verified (set n2fx9i, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: unknown-target payload key set
 
-- [ ] E-01 Create `tests/test_run_cli_error_payload_keys.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and creates a `tempfile.TemporaryDirectory` (cleaned in `tearDown`), a helper `_cli(*argv)` returning `(cli.main(list(argv)), stdout)` with stdout captured by `unittest.mock.patch("sys.stdout", new_callable=io.StringIO)` (no subprocess pipeline, so the code read is the command's own), and a helper `_payload(out, renderer)` that parses the whole text for `--json` and the last non-empty line for `--agent`. Add `test_unknown_target_payload_has_exactly_the_three_keys`: for each leaf in (`runs verify-ledger`, `runs show`, `runs status`, `run cancel`, `run start`) and each renderer in (`--agent`, `--json`), as `subTest`, invoke `<leaf> totalgibberish --dir <tmp> <renderer>` and assert `rc == run_cli.EXIT_INVALID_INVOCATION`, `set(payload) == {"ok", "error", "exit_code"}`, `payload["ok"] is False`, `payload["exit_code"] == rc`, `payload["error"]` is a non-empty `str` that does NOT start with `"error: "` (the prefix belongs to the human stream per `_emit_ledger_not_found` F-17), and contains `"ledger.jsonl"`. Accumulate per-row problems into one list and assert it is empty, so a drift between inline-routed and `_resolve_or_error`-routed leaves shows as one failure naming every affected leaf.
+- [x] E-01 Create `tests/test_run_cli_error_payload_keys.py` with a `unittest.TestCase` whose `setUp` calls `support.declare_execution_role(self)` and creates a `tempfile.TemporaryDirectory` (cleaned in `tearDown`), a helper `_cli(*argv)` returning `(cli.main(list(argv)), stdout)` with stdout captured by `unittest.mock.patch("sys.stdout", new_callable=io.StringIO)` (no subprocess pipeline, so the code read is the command's own), and a helper `_payload(out, renderer)` that parses the whole text for `--json` and the last non-empty line for `--agent`. Add `test_unknown_target_payload_has_exactly_the_three_keys`: for each leaf in (`runs verify-ledger`, `runs show`, `runs status`, `run cancel`, `run start`) and each renderer in (`--agent`, `--json`), as `subTest`, invoke `<leaf> totalgibberish --dir <tmp> <renderer>` and assert `rc == run_cli.EXIT_INVALID_INVOCATION`, `set(payload) == {"ok", "error", "exit_code"}`, `payload["ok"] is False`, `payload["exit_code"] == rc`, `payload["error"]` is a non-empty `str` that does NOT start with `"error: "` (the prefix belongs to the human stream per `_emit_ledger_not_found` F-17), and contains `"ledger.jsonl"`. Accumulate per-row problems into one list and assert it is empty, so a drift between inline-routed and `_resolve_or_error`-routed leaves shows as one failure naming every affected leaf.
   - Depends on: none
   - Expected outcome: the module exists and the test passes against current code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: other bare emit paths
 
-- [ ] E-02 In the same module add `test_explicit_absent_path_payload_has_exactly_the_three_keys` (`runs verify-ledger <tmp>/nowhere/ledger.jsonl --agent`: rc 2, exact key set, `error` contains `"not found"` and does NOT contain `"no driver run writes one"`) and `test_empty_ledger_payload_has_exactly_the_three_keys` (create an empty `<tmp>/ledger.jsonl` and pass that path as the positional target, i.e. `<leaf> <tmp>/ledger.jsonl --agent`; for each leaf in (`runs next`, `runs status`, `runs resume`, `run cancel`), as `subTest`: rc 2, exact key set, `payload["error"] == "ledger is empty"`, `payload["exit_code"] == rc`). Add `test_human_stream_is_not_json` (`runs status totalgibberish --dir <tmp>` with no renderer flag: rc 2, stdout starts with `"error: "`, and `json.loads` of the stdout raises `ValueError`), proving the key-set contract is renderer-gated rather than leaking into human output.
+- [x] E-02 In the same module add `test_explicit_absent_path_payload_has_exactly_the_three_keys` (`runs verify-ledger <tmp>/nowhere/ledger.jsonl --agent`: rc 2, exact key set, `error` contains `"not found"` and does NOT contain `"no driver run writes one"`) and `test_empty_ledger_payload_has_exactly_the_three_keys` (create an empty `<tmp>/ledger.jsonl` and pass that path as the positional target, i.e. `<leaf> <tmp>/ledger.jsonl --agent`; for each leaf in (`runs next`, `runs status`, `runs resume`, `run cancel`), as `subTest`: rc 2, exact key set, `payload["error"] == "ledger is empty"`, `payload["exit_code"] == rc`). Add `test_human_stream_is_not_json` (`runs status totalgibberish --dir <tmp>` with no renderer flag: rc 2, stdout starts with `"error: "`, and `json.loads` of the stdout raises `ValueError`), proving the key-set contract is renderer-gated rather than leaking into human output.
   - Depends on: E-01
   - Expected outcome: the three tests pass against current code.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stale remark
 
-- [ ] E-03 In `agent_workflows/run_cli.py`, edit the `_emit_error` docstring sentence "`tests/test_run_cli_ledger_message.py` (deleted in `19313eed`; no live guard currently asserts this) formerly pinned the unknown-target payload's key set exactly" so it states that `tests/test_run_cli_error_payload_keys.py` asserts the bare payload's key set exactly across leaves and both machine renderers. Docstring-only change; no behavior change.
+- [x] E-03 In `agent_workflows/run_cli.py`, edit the `_emit_error` docstring sentence "`tests/test_run_cli_ledger_message.py` (deleted in `19313eed`; no live guard currently asserts this) formerly pinned the unknown-target payload's key set exactly" so it states that `tests/test_run_cli_error_payload_keys.py` asserts the bare payload's key set exactly across leaves and both machine renderers. Docstring-only change; no behavior change.
   - Depends on: E-02
   - Expected outcome: the docstring names the live module and no longer claims the property is unguarded.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,18 +118,109 @@ Test function names below are non-binding POINTERS, not the bar: the bar is the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_run_cli_error_payload_keys.py` showing `test_unknown_target_payload_has_exactly_the_three_keys` PASSED; pasted output of the temporary `"detail": None` mutation run showing that test FAILED, followed by `git diff --stat agent_workflows/run_cli.py` after revert proving only the E-03 docstring change remains; plus `grep -nE "^\s*(import|from) (inspect|ast)\b|\.read_text\(|getsource" tests/test_run_cli_error_payload_keys.py` returning no match (P16: the module reads no production source).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    pytest -o addopts="" -v tests/test_run_cli_error_payload_keys.py:
+    ```
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys PASSED [ 25%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys PASSED [ 50%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_human_stream_is_not_json PASSED [ 75%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys PASSED [100%]
+
+    ============================== 4 passed in 1.99s ===============================
+    ```
+    Mutation run with "detail": None added to _emit_error payload:
+    ```
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_human_stream_is_not_json PASSED [ 25%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys FAILED [ 50%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys FAILED [ 75%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestRunCliErrorPayloadKeys.test_unknown_target_payload_has_exactly_the_three_keys _
+    ...
+    >                   self.assertEqual(set(payload), {"ok", "error", "exit_code"})
+    E                   AssertionError: Items in the first set but not the second:
+    E                   'detail'
+
+    tests/test_run_cli_error_payload_keys.py:89: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys
+    ========================= 3 failed, 1 passed in 0.66s ==========================
+    ```
+    git diff --stat agent_workflows/run_cli.py after revert:
+    ```
+     agent_workflows/run_cli.py | 6 +++---
+     1 file changed, 3 insertions(+), 3 deletions(-)
+    ```
+    grep -nE "^\s*(import|from) (inspect|ast)\b|\.read_text\(|getsource" tests/test_run_cli_error_payload_keys.py:
+    (empty, exit code 1)
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `-v` pytest output showing `test_explicit_absent_path_payload_has_exactly_the_three_keys`, `test_empty_ledger_payload_has_exactly_the_three_keys` and `test_human_stream_is_not_json` PASSED; pasted output of the temporary `"exit_code": 0` mutation showing `test_empty_ledger_payload_has_exactly_the_three_keys` FAILED, then reverted.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    pytest -o addopts="" -v tests/test_run_cli_error_payload_keys.py:
+    ```
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys PASSED [ 25%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys PASSED [ 50%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_human_stream_is_not_json PASSED [ 75%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys PASSED [100%]
+    ```
+    Mutation run with "exit_code": 0 in _emit_error payload:
+    ```
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_human_stream_is_not_json PASSED [ 25%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys FAILED [ 50%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys FAILED [ 75%]
+    tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestRunCliErrorPayloadKeys.test_empty_ledger_payload_has_exactly_the_three_keys _
+
+    self = <tests.test_run_cli_error_payload_keys.TestRunCliErrorPayloadKeys testMethod=test_empty_ledger_payload_has_exactly_the_three_keys>
+    ...
+    >               self.assertEqual(payload["exit_code"], rc)
+    E               AssertionError: 0 != 2
+
+    tests/test_run_cli_error_payload_keys.py:125: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_unknown_target_payload_has_exactly_the_three_keys
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_empty_ledger_payload_has_exactly_the_three_keys
+    FAILED tests/test_run_cli_error_payload_keys.py::TestRunCliErrorPayloadKeys::test_explicit_absent_path_payload_has_exactly_the_three_keys
+    ========================= 3 failed, 1 passed in 0.67s ==========================
+    ```
+    Reverted and confirmed clean.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff agent_workflows/run_cli.py` showing only docstring lines changed and naming `tests/test_run_cli_error_payload_keys.py`; AND the pasted summary line of a bare `python3 -m pytest` run with no new failures.
   - Observed evidence:
-  - Result: pending
+    git diff agent_workflows/run_cli.py:
+    ```diff
+    diff --git a/agent_workflows/run_cli.py b/agent_workflows/run_cli.py
+    index c70ba2f04..4eb6635b5 100644
+    --- a/agent_workflows/run_cli.py
+    +++ b/agent_workflows/run_cli.py
+    @@ -860,9 +860,9 @@ def _emit_error(
+         against one; `run_cli` imports `agent_schema` zero times. Converting them is a real gap on a
+         different contract, across every `_emit_machine`/`_emit_error` site, and doing it here would
+         silently change what every existing `aw run`/`aw runs --agent` consumer parses. So `extra`
+    -    EXTENDS the shape that exists, and `tests/test_run_cli_ledger_message.py` (deleted in
+    -    `19313eed`; no live guard currently asserts this) formerly pinned the unknown-target payload's key
+    -    set exactly, which is what kept this from drifting into a rewrite.
+    +    EXTENDS the shape that exists, and `tests/test_run_cli_error_payload_keys.py` asserts the bare
+    +    payload's key set exactly across leaves and both machine renderers, which is what keeps this from
+    +    drifting into a rewrite.
+         """
+         if _machine(args):
+             payload: Dict[str, Any] = {
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    702 passed in 23.04s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
