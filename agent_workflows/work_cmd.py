@@ -772,8 +772,8 @@ def run_commit(args: argparse.Namespace) -> int:
     if no_plan:
         # NAME THE SKIPPED PROTECTIONS. Deliberately phrased around the PROTECTIONS rather than
         # around the raw command, both because that is what the operator needs to know and because
-        # `tests/test_work_primitives.py` (deleted in `19313eed`; no live guard currently asserts
-        # this) proved this verb carries no forked commit path of its own.
+        # `tests/test_work_commit_routes_through_shared_helper.py` proves this
+        # verb carries no forked commit path of its own.
         print(
             "aw commit: no plan governs this commit (--no-plan), so two plan-derived protections "
             "are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is "
