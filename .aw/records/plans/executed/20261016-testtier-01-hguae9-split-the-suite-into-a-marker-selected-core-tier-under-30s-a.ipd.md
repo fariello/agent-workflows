@@ -5,8 +5,9 @@
 - Concern: Prompt `wazeo5` (Set `testtier`; the pruning follow-up is prompt `4ul37x`, Set `testprune`). Measured 2026-10-16 at main `eca2e2211` (research `7ry5kv`): the default `python3 -m pytest` runs 695 tests from 19 hand-picked `testpaths` modules in a median 20.9s on 6 workers, but covers only 28% of `agent_workflows/` lines (29309/93730) against 75% for the full suite (72507/93730), and reaches ZERO lines in 93 of 196 modules. That default is also every runner lane's merge gate (`suite_cache.SUITE_CHECK_ARGV` = bare `python3 -m pytest`), so regressions in about half the codebase reach `main` unseen. The full suite (`make test-all`) was 8794 tests, 565s at that commit, and nothing runs it before a push. The maintainer asked for a core default under 30s on 6 CPUs that broadly detects regressions, and a thorough tier run at most on push and at minimum before release.
 - Scope: Replace the `testpaths` file list with an explicit `core` marker that selects the default run across `tests/` ONLY when pytest falls back to `testpaths` (an explicit path or node id runs every non-slow test it names, exactly as today); choose core membership by measured coverage (every module and every declared `aw` leaf command executed by at least one core test, plus a few end-to-end smoke tests); add a wall-time budget guard; give `aw suite` a thorough mode; add a `pre-push` pre-commit stage running it; make CI's required job run core plus thorough; align `AGENTS.md` (repo-local section only), `CONTRIBUTING.md`, `RELEASING.md`, `Makefile`, `docs/row-level-test-evidence.md`, `docs/cli-human-guide.md` and release-review Section 8 on the same two commands. Deletes and skips NO test (pruning is prompt `4ul37x`, Set `testprune`).
 - Scope-Paths: pyproject.toml, conftest.py, Makefile, .pre-commit-config.yaml, .github/workflows/tests.yml, agent_workflows/suite_cache.py, agent_workflows/cli.py, tests/, AGENTS.md, CONTRIBUTING.md, RELEASING.md, docs/row-level-test-evidence.md, docs/cli-human-guide.md, .aw/system/workflows/release-review/08-final-ship-review.md, .aw/records/research/20261016-testtier-01-7ry5kv-test-tier-baseline.assessment.md, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-denczr-01-denczr-test-second-install-nochange-leaves-clean-status-a.backlog.md (recorded failing slow test for E-08); .aw/records/backlog/open/20261016-mo9oza-01-mo9oza-static-typecheck-gate-fails-with-3-mypy-errors-in.backlog.md (recorded failing slow test for E-08)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,9 +16,9 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hguae9
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: hguae9 verified (set testtier, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-denczr-01-denczr-test-second-install-nochange-leaves-clean-status-a.backlog.md: recorded failing slow test for E-08; out-of-scope .aw/records/backlog/open/20261016-mo9oza-01-mo9oza-static-typecheck-gate-fails-with-3-mypy-errors-in.backlog.md: recorded failing slow test for E-08]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
