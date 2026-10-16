@@ -118,8 +118,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `AW_HOME` containment during agent turns: tracked separately in open backlog item `s4pys7`.
   - Carrier: s4pys7
+  - Carrier-Evidence: .aw/records/backlog/done/20261012-s4pys7-01-s4pys7-agent-turn-aw-home-containment.backlog.md
 - `project_context` hard-coded `~/.config/agent-workflows` path ignoring `XDG_CONFIG_HOME` and `AW_CONFIG_DIR`: tracked separately in open backlog item `m9dobx`.
   - Carrier: m9dobx
+  - Carrier-Evidence: .aw/records/backlog/done/20261012-m9dobx-01-m9dobx-project-context-ignores-xdg.backlog.md
 - Treating a discarded user-config write as a step issue in `run_viewer.step_has_issue`: declined because the write was contained and discarded by the runner before touching operator state, so the artifact's on-disk state and the step's execution outcome are unaffected (see OQ-02).
   - Carrier-Declined: deliberate non-goal; contained and discarded writes do not invalidate the artifact or step outcome
 
