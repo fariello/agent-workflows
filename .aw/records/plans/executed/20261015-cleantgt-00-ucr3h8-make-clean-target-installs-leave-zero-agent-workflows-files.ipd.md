@@ -6,7 +6,7 @@
 - Scope: Orchestrate seven children in strict order: (01) one records-root accessor adopted by every records reader/writer; (02) one system-root accessor adopted by every system-bundle reader/writer; (03) recognize a clean-target project with no in-repo `.aw`, including from a worktree outside the repo; (04) put clean-target control state and isolated worktrees under `AW_HOME`; (05) make the installer write nothing into the target and restore the truthful consent text; (06) make uninstall remove the home trees, keeping records unless `--deep`; (07) prove zero target delta end to end through ordinary use on both presets, and amend spec `20260810-1447-01` plus CHANGELOG. Replaces the single plan `irjoga`, which is retired as superseded by this Set. This plan carries orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261015-cleantgt-00-ucr3h8-make-clean-target-installs-leave-zero-agent-workflows-files.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 4ec980a2c583c03acc9a8b58e37a26e96af8b656e2e88b0ed81afcfdce38dd3d
@@ -20,9 +20,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ucr3h8
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-16 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set cleantgt reached executed, so the runner (run run-20261016T172553Z-2947184) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: kfnfji, 4gn1ka, fnnwj3, qk0ew6, 3m8aix, xoy5yg, nwporz.
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-15 reviewed (aw set): plan-review: revisions applied (PR-001..PR-003)
 - 2026-10-15 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
@@ -36,6 +36,9 @@
 After this Set, a `completely-clean-target` or `local-only` install, and every ordinary `aw` command run afterwards, leaves `git -C <target> status --porcelain --ignored` empty and the target `HEAD` unchanged, with all agent-workflows system files, records, control state and worktrees under `AW_HOME/projects/<project_id>/`.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
