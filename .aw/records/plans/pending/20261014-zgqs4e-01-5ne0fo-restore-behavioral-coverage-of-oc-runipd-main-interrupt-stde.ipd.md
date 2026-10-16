@@ -35,17 +35,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Behavioral test of the interrupt exit notice
 
-- [ ] E-01 Create `tests/test_oc_runipd_main_interrupt.py` with a `unittest.TestCase` that calls the real `oc_runipd.main(["resume", "run-fake"])` with `run_queue` patched to raise `KeyboardInterrupt(<msg>)` (and `emit_shutdown_report`, `resolve_run_dir`, `load_state`, `locked_run`, `install_stop_triggers` patched exactly as the deleted test did, `resolve_run_dir` returning a nonexistent temp path so the summary-table branch is skipped), capturing `sys.stderr` AND `sys.stdout` (so nothing leaks into pytest output), with the temp path created via `tempfile.TemporaryDirectory()` cleaned up per test. Use `subTest` or three test methods. Three cases: (a) `"clean-up-and-terminate"` asserts exit 130 and stderr contains `"Interrupted; durable run state was preserved."`; (b) `"Terminated by SIGTERM"` asserts exit 143 and stderr contains `"Terminated by SIGTERM; durable run state was preserved."`; (c) `"just-terminate-no-cleanup"` asserts exit 130, stderr contains `"Terminated without clean up; worktree and lanes left in place."` and does NOT contain `"durable run state was preserved"`. Each case also asserts `emit_shutdown_report` was called once with `to_stderr=True`. Assert the notice by `assertIn` on the full sentence only; do NOT pin the following `runner_stop.stop_interrupt_hint` line or the full stderr bytes (that line is owned by `wqq8ua` and would make this test brittle to an unrelated wording change). No `inspect`/`ast`/source reading.
+- [x] E-01 Create `tests/test_oc_runipd_main_interrupt.py` with a `unittest.TestCase` that calls the real `oc_runipd.main(["resume", "run-fake"])` with `run_queue` patched to raise `KeyboardInterrupt(<msg>)` (and `emit_shutdown_report`, `resolve_run_dir`, `load_state`, `locked_run`, `install_stop_triggers` patched exactly as the deleted test did, `resolve_run_dir` returning a nonexistent temp path so the summary-table branch is skipped), capturing `sys.stderr` AND `sys.stdout` (so nothing leaks into pytest output), with the temp path created via `tempfile.TemporaryDirectory()` cleaned up per test. Use `subTest` or three test methods. Three cases: (a) `"clean-up-and-terminate"` asserts exit 130 and stderr contains `"Interrupted; durable run state was preserved."`; (b) `"Terminated by SIGTERM"` asserts exit 143 and stderr contains `"Terminated by SIGTERM; durable run state was preserved."`; (c) `"just-terminate-no-cleanup"` asserts exit 130, stderr contains `"Terminated without clean up; worktree and lanes left in place."` and does NOT contain `"durable run state was preserved"`. Each case also asserts `emit_shutdown_report` was called once with `to_stderr=True`. Assert the notice by `assertIn` on the full sentence only; do NOT pin the following `runner_stop.stop_interrupt_hint` line or the full stderr bytes (that line is owned by `wqq8ua` and would make this test brittle to an unrelated wording change). No `inspect`/`ast`/source reading.
   - Depends on: none
   - Expected outcome: the new module exists, contains only calls into `oc_runipd.main` and assertions on its return value, captured stderr and mock calls, and its three cases pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Repoint the stale comment
 
-- [ ] E-02 In `agent_workflows/oc_runipd.py` `main` (the `except KeyboardInterrupt as exc:` handler), edit only the comment block under "stopdisc (`wqq8ua`) E-03" that reads "which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted (deleted in `19313eed`; no live guard currently asserts this)" so it names `tests/test_oc_runipd_main_interrupt.py` as the live guard. No executable line changes.
+- [x] E-02 In `agent_workflows/oc_runipd.py` `main` (the `except KeyboardInterrupt as exc:` handler), edit only the comment block under "stopdisc (`wqq8ua`) E-03" that reads "which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted (deleted in `19313eed`; no live guard currently asserts this)" so it names `tests/test_oc_runipd_main_interrupt.py` as the live guard. No executable line changes.
   - Depends on: E-01
   - Expected outcome: `git diff agent_workflows/oc_runipd.py` shows only comment lines changed; the S-07 comment inside the `except KeyboardInterrupt` handler no longer contains "no live guard currently asserts this" (other occurrences of that phrase elsewhere in the file, for unrelated sites, are untouched).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,15 +108,85 @@ N/A: no spec governs this test or the comment; no behavior or user-facing docume
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -q tests/test_oc_runipd_main_interrupt.py` showing `3 passed`; pasted output of `rg -n "inspect|import ast|read_text|getsource" tests/test_oc_runipd_main_interrupt.py` showing no source-reading use; pasted failing output of the same pytest run after temporarily altering `"durable run state was preserved."` in `agent_workflows/oc_runipd.py` (then an empty `git diff --stat agent_workflows/oc_runipd.py`, run BEFORE E-02, showing the mutation reverted).
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -q tests/test_oc_runipd_main_interrupt.py`:
+    ```
+    ...                                                                      [100%]
+    3 passed in 0.34s
+    ```
+    `rg -n "inspect|import ast|read_text|getsource" tests/test_oc_runipd_main_interrupt.py`:
+    Exited with returncode 1 (no occurrences found).
+    Failing pytest output under temporary mutation of `"durable run state was preserved."` to `"MUTATED durable run state was preserved."`:
+    ```
+    .FF                                                                      [100%]
+    =================================== FAILURES ===================================
+    _ OcRunipdMainInterruptTests.test_clean_up_and_terminate_notice_and_exit_code __
 
-- [ ] V-02 validates E-02
+    self = <tests.test_oc_runipd_main_interrupt.OcRunipdMainInterruptTests testMethod=test_clean_up_and_terminate_notice_and_exit_code>
+
+        def test_clean_up_and_terminate_notice_and_exit_code(self):
+            """Interrupted run with clean-up exits 130 and notices durable state preserved."""
+            code, stderr, stdout, mock_emit = self._run_main_with_interrupt(
+                "clean-up-and-terminate"
+            )
+            self.assertEqual(code, 130)
+    >       self.assertIn("Interrupted; durable run state was preserved.", stderr)
+    E       AssertionError: 'Interrupted; durable run state was preserved.' not found in 'Interrupted; MUTATED durable run state was preserved.\nNext time, `aw oc run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw oc run stop --help` for the levels).\n'
+
+    tests/test_oc_runipd_main_interrupt.py:61: AssertionError
+    __ OcRunipdMainInterruptTests.test_terminated_by_sigterm_notice_and_exit_code __
+
+    self = <tests.test_oc_runipd_main_interrupt.OcRunipdMainInterruptTests testMethod=test_terminated_by_sigterm_notice_and_exit_code>
+
+        def test_terminated_by_sigterm_notice_and_exit_code(self):
+            """SIGTERM interrupt exits 143 and notices durable state preserved."""
+            code, stderr, stdout, mock_emit = self._run_main_with_interrupt(
+                "Terminated by SIGTERM"
+            )
+            self.assertEqual(code, 143)
+    >       self.assertIn(
+                "Terminated by SIGTERM; durable run state was preserved.", stderr
+            )
+    E       AssertionError: 'Terminated by SIGTERM; durable run state was preserved.' not found in 'Terminated by SIGTERM; MUTATED durable run state was preserved.\nNext time, `aw oc run stop <run-id> --after-call` requests a graceful stop from another terminal (see `aw oc run stop --help` for the levels).\n'
+
+    tests/test_oc_runipd_main_interrupt.py:70: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_oc_runipd_main_interrupt.py::OcRunipdMainInterruptTests::test_clean_up_and_terminate_notice_and_exit_code
+    FAILED tests/test_oc_runipd_main_interrupt.py::OcRunipdMainInterruptTests::test_terminated_by_sigterm_notice_and_exit_code
+    2 failed, 1 passed in 1.47s
+    ```
+    `git diff --stat agent_workflows/oc_runipd.py` run before E-02:
+    Exited 0 with empty output (mutation reverted clean).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff agent_workflows/oc_runipd.py` showing only `#` comment lines changed and naming `tests/test_oc_runipd_main_interrupt.py`; pasted bare `python3 -m pytest` summary line showing no failures.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/oc_runipd.py`:
+    ```diff
+    diff --git a/agent_workflows/oc_runipd.py b/agent_workflows/oc_runipd.py
+    index 7f9bd5845..8a04a7d5f 100755
+    --- a/agent_workflows/oc_runipd.py
+    +++ b/agent_workflows/oc_runipd.py
+    @@ -5737,8 +5737,7 @@ def main(argv: list[str] | None = None) -> int:
+             #
+             # AFTER THE BRANCH, NOT INSIDE EITHER, for two reasons. It is true on BOTH exits, and keeping
+             # it out of the branch bodies leaves each existing sentence byte-identical and contiguous,
+    -        # which is what `tests/test_interrupt_menu.py::RunnerMainOutputOnInterruptTests` asserted
+    -        # (deleted in `19313eed`; no live guard currently asserts this).
+    +        # which is what `tests/test_oc_runipd_main_interrupt.py` asserts.
+             #
+             # PHRASED AS WHAT IS AVAILABLE NEXT TIME, because this handler cannot know which R12 path or
+             # which ladder rung produced the exit, so naming a level would risk describing the wrong one.
+    ```
+    Bare `python3 -m pytest` summary:
+    ```
+    NOTE: 5 tests were deselected by -m/-k and did not run (this run's marker filter skips 'slow' and 'livecorpus'); run everything with: make test-all
+    695 passed in 39.51s
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
