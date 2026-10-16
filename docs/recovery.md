@@ -49,7 +49,8 @@ The final release-readiness review aggregates the gates into a GO or NO-GO verdi
 separately authorized actions (see `RELEASING.md` and the release-review workflow). The review
 runs the canonical leak scan and all IPD lint phases for real, checks generated workflow drift,
 documentation checks, workflow dispositions, capability freshness, benchmark invariants, the
-changelog and versioning, and the residual-risk sign-off, then emits the verdict.
+changelog and versioning, the workflow artifact manifest, and the residual-risk sign-off, then
+emits the verdict.
 
 Run the read-only report from the CLI:
 
@@ -67,8 +68,8 @@ The command never runs the full test suite itself and never invents human attest
 - `--agent` / `--json`: emits a canonical `aw.agent/v1` result record or structured JSON.
 
 Exit codes are `0` on `GO`, `1` on `NO-GO`, and `2` when the command cannot run (such as a
-non-project `--dir` or conflicting flags). Note that the `artifact_manifest` row is not yet
-computed from disk and currently defaults to passing (tracked in backlog item `3jkm7y`).
+non-project `--dir` or conflicting flags). The `artifact_manifest` row checks
+`.aw/system/workflows/index.md` presence and consistency on disk.
 
 ## Responsibility boundary
 

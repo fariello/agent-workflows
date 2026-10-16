@@ -602,17 +602,149 @@ def gate_changelog_versioning(repo_root: Optional[Path] = None) -> GateResult:
 
 
 def gate_artifact_manifest(
-    manifest_present: bool = True, consistent: bool = True
+    manifest_present: Optional[bool] = None,
+    consistent: Optional[bool] = None,
+    repo_root: Optional[Path] = None,
 ) -> GateResult:
     """The release artifact manifest is present and consistent."""
-    passed = bool(manifest_present) and bool(consistent)
+    if manifest_present is not None and consistent is not None:
+        passed = bool(manifest_present) and bool(consistent)
+        return GateResult(
+            name="artifact_manifest",
+            passed=passed,
+            detail="artifact manifest present and consistent"
+            if passed
+            else "artifact manifest missing or inconsistent",
+            evidence={
+                "present": bool(manifest_present),
+                "consistent": bool(consistent),
+            },
+        )
+
+    import re
+    from agent_workflows import agent_schema
+
+    root = repo_root or _repo_root()
+    manifest_rel = ".aw/system/workflows/index.md"
+    manifest_file = root / ".aw" / "system" / "workflows" / "index.md"
+
+    problems: List[str] = []
+    workflows_checked = 0
+
+    if not manifest_file.is_file():
+        comp_present = False
+        comp_consistent = False
+        problems.append(f"artifact manifest missing: {manifest_rel}")
+    else:
+        comp_present = True
+        try:
+            manifest_text = manifest_file.read_text(encoding="utf-8")
+            from agent_workflows import engine
+
+            workflows = engine.parse_manifest(manifest_file.parent)
+            workflows_checked = len(workflows)
+        except (SystemExit, Exception) as exc:
+            comp_consistent = False
+            msg = f"manifest parse failed: {type(exc).__name__}"
+            if isinstance(exc, SystemExit):
+                msg += f": {exc}"
+            problems.append(msg)
+        else:
+            seen_commands: set[str] = set()
+            for w in workflows:
+                if w.command in seen_commands:
+                    problems.append(f"duplicate command: {w.command}")
+                seen_commands.add(w.command)
+
+                for field_name, rel in (("body", w.body), ("lens", w.lens)):
+                    if field_name == "body" and not rel:
+                        problems.append(f"{w.command}: empty body path")
+                    elif rel:
+                        p = Path(rel)
+                        if p.is_absolute() or bool(p.drive) or ".." in p.parts:
+                            problems.append(
+                                f"{w.command}: invalid {field_name} path: {agent_schema.redact_home_paths(rel)}"
+                            )
+                        else:
+                            candidate = root / rel
+                            is_valid = False
+                            try:
+                                if (
+                                    candidate.is_file()
+                                    and candidate.resolve().is_relative_to(
+                                        root.resolve()
+                                    )
+                                ):
+                                    is_valid = True
+                            except (OSError, ValueError):
+                                is_valid = False
+                            if not is_valid:
+                                problems.append(
+                                    f"{w.command}: missing {field_name} file: {rel}"
+                                )
+
+            m_comment = re.search(
+                r"<!--\s*WORKFLOWS-VERSION:\s*([^\s>]+)\s*-->", manifest_text
+            )
+            m_line = re.search(r"(?m)^Version:\s*`([^`]+)`", manifest_text)
+            comment_v = m_comment.group(1) if m_comment else None
+            line_v = m_line.group(1) if m_line else None
+
+            if comment_v is not None and line_v is not None and comment_v != line_v:
+                problems.append(
+                    f"index.md version stamps disagree: comment={comment_v} vs line={line_v}"
+                )
+
+            unique_stamps = dict.fromkeys(
+                [v for v in (comment_v, line_v) if v is not None]
+            )
+            if unique_stamps:
+                version_file = root / ".aw" / "system" / "VERSION"
+                version_file_rel = ".aw/system/VERSION"
+                version_text: Optional[str] = None
+                if version_file.is_file():
+                    try:
+                        version_text = version_file.read_text(encoding="utf-8").strip()
+                    except Exception:
+                        version_text = None
+
+                for stamp_v in unique_stamps:
+                    if version_text is None:
+                        problems.append(
+                            f"{version_file_rel} missing but index.md carries version stamp {stamp_v}"
+                        )
+                    elif version_text != stamp_v:
+                        problems.append(
+                            f"version stamp mismatch: index.md has {stamp_v} but {version_file_rel} has {version_text}"
+                        )
+
+            comp_consistent = not problems
+
+    present_val = comp_present if manifest_present is None else bool(manifest_present)
+    consistent_val = (
+        (comp_consistent and present_val) if consistent is None else bool(consistent)
+    )
+    passed = present_val and consistent_val
+    detail = (
+        "artifact manifest present and consistent"
+        if passed
+        else (
+            f"artifact manifest missing or inconsistent ({len(problems)} problem(s))"
+            if problems
+            else "artifact manifest missing or inconsistent"
+        )
+    )
+
     return GateResult(
         name="artifact_manifest",
         passed=passed,
-        detail="artifact manifest present and consistent"
-        if passed
-        else "artifact manifest missing or inconsistent",
-        evidence={"present": manifest_present, "consistent": consistent},
+        detail=detail,
+        evidence={
+            "present": present_val,
+            "consistent": consistent_val,
+            "workflows_checked": workflows_checked,
+            "problems": problems,
+        },
     )
 
 
@@ -648,8 +780,8 @@ def build_report(
     undispositioned: Optional[Sequence[str]] = None,
     stale_claims: Optional[Sequence[str]] = None,
     threshold_policy: Optional[bt.ThresholdPolicy] = None,
-    manifest_present: bool = True,
-    manifest_consistent: bool = True,
+    manifest_present: Optional[bool] = None,
+    manifest_consistent: Optional[bool] = None,
     residual_risk_signed: bool = False,
     residual_risk_signer: str = "",
     repo_root: Optional[Path] = None,
@@ -675,7 +807,9 @@ def build_report(
             gate_capability_freshness(stale_claims, repo_root=repo_root),
             gate_benchmark_thresholds(threshold_policy),
             gate_changelog_versioning(repo_root),
-            gate_artifact_manifest(manifest_present, manifest_consistent),
+            gate_artifact_manifest(
+                manifest_present, manifest_consistent, repo_root=repo_root
+            ),
             gate_residual_risk(residual_risk_signed, residual_risk_signer),
         ]
     )

@@ -20,12 +20,15 @@ def setup_minimal_workflows_tree(repo_root: Path) -> Path:
     """Create minimal valid workflows tree satisfying disposition and capability checks."""
     wf_dir = repo_root / ".aw" / "system" / "workflows"
     wf_dir.mkdir(parents=True, exist_ok=True)
+    body_dir = wf_dir / "whatnext"
+    body_dir.mkdir(parents=True, exist_ok=True)
+    (body_dir / "whatnext.md").write_text("# whatnext\n", encoding="utf-8")
     (wf_dir / "index.md").write_text(
         "# Workflows\n"
         "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
         "| command | body | description |\n"
         "|---|---|---|\n"
-        "| whatnext | workflows/whatnext.md | Recommend next action |\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | Recommend next action |\n"
         "<!-- WORKFLOWS-MANIFEST:END -->\n",
         encoding="utf-8",
     )
@@ -533,3 +536,323 @@ def test_build_report_fails_on_capability_freshness(
     )
     assert rep.verdict == rr.VERDICT_NO_GO
     assert "capability_freshness" in rep.failing_gates()
+
+
+# ==================================================================================================
+# Artifact manifest gate arms (r1..r7)
+# ==================================================================================================
+
+
+def test_artifact_manifest_minimal_valid_tree_passes_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r1): minimal valid workflows tree passes artifact_manifest gate."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+
+    res = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res.name == "artifact_manifest"
+    assert res.passed is True
+    assert res.detail == "artifact manifest present and consistent"
+    assert res.evidence["present"] is True
+    assert res.evidence["consistent"] is True
+    assert res.evidence["workflows_checked"] == 1
+    assert res.evidence["problems"] == []
+
+    # Also passes when .aw/system/VERSION and matching stamps in index.md are present
+    vdir = tmp_path / ".aw" / "system"
+    vdir.mkdir(parents=True, exist_ok=True)
+    (vdir / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+    index_file = tmp_path / ".aw" / "system" / "workflows" / "index.md"
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-VERSION: 1.0.0 -->\n"
+        "Version: `1.0.0`\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | Recommend next action |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_v = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_v.passed is True
+    assert res_v.evidence["problems"] == []
+
+
+def test_artifact_manifest_missing_index_fails_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r2): missing index.md fails artifact_manifest gate."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+    (tmp_path / ".aw" / "system" / "workflows" / "index.md").unlink()
+
+    res = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res.passed is False
+    assert res.evidence["present"] is False
+    assert res.evidence["consistent"] is False
+    assert (
+        "artifact manifest missing: .aw/system/workflows/index.md"
+        in res.evidence["problems"]
+    )
+
+
+def test_artifact_manifest_missing_body_and_lens_fail_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r3): manifest row with missing body or lens fails gate while drift and disposition pass."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+
+    # Missing body file
+    (tmp_path / ".aw" / "system" / "workflows" / "whatnext" / "whatnext.md").unlink()
+    res = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res.passed is False
+    assert res.evidence["present"] is True
+    assert res.evidence["consistent"] is False
+    assert any(
+        "missing body file" in p and ".aw/system/workflows/whatnext/whatnext.md" in p
+        for p in res.evidence["problems"]
+    )
+
+    # drift and disposition pass on the exact same tree
+    assert rr.gate_generated_drift(repo_root=tmp_path).passed is True
+    assert rr.gate_workflow_disposition(repo_root=tmp_path).passed is True
+
+    # Recreate body, add a lens column with missing lens file
+    (tmp_path / ".aw" / "system" / "workflows" / "whatnext" / "whatnext.md").write_text(
+        "# whatnext\n", encoding="utf-8"
+    )
+    index_file = tmp_path / ".aw" / "system" / "workflows" / "index.md"
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | lens | description |\n"
+        "|---|---|---|---|\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | .aw/system/workflows/whatnext/lens.md | Recommend next action |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_lens = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_lens.passed is False
+    assert res_lens.evidence["present"] is True
+    assert res_lens.evidence["consistent"] is False
+    assert any(
+        "missing lens file" in p and ".aw/system/workflows/whatnext/lens.md" in p
+        for p in res_lens.evidence["problems"]
+    )
+
+
+def test_artifact_manifest_unparseable_and_duplicate_command_fail_without_raising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r4): missing markers, duplicate command, and invalid UTF-8 fail closed without raising."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+    index_file = tmp_path / ".aw" / "system" / "workflows" / "index.md"
+
+    # Missing markers -> engine.parse_manifest raises SystemExit, gate catches and fails
+    index_file.write_text(
+        "# Workflows without markers\n| command | body |\n", encoding="utf-8"
+    )
+    res_no_markers = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_no_markers.passed is False
+    assert res_no_markers.evidence["present"] is True
+    assert res_no_markers.evidence["consistent"] is False
+    assert any(
+        "manifest parse failed: SystemExit" in p
+        for p in res_no_markers.evidence["problems"]
+    )
+
+    # Duplicate whatnext rows
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | First |\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | Second |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_dup = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_dup.passed is False
+    assert res_dup.evidence["present"] is True
+    assert res_dup.evidence["consistent"] is False
+    assert "duplicate command: whatnext" in res_dup.evidence["problems"]
+
+    # Invalid UTF-8 bytes
+    index_file.write_bytes(
+        b"# Workflows\n\xff\xfe\n<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+    )
+    res_bad_utf8 = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_bad_utf8.passed is False
+    assert res_bad_utf8.evidence["present"] is True
+    assert res_bad_utf8.evidence["consistent"] is False
+    assert res_bad_utf8.evidence["problems"] == [
+        "manifest parse failed: UnicodeDecodeError"
+    ]
+    assert str(tmp_path) not in json.dumps(res_bad_utf8.evidence)
+
+
+def test_artifact_manifest_version_stamp_mismatch_fails_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r5): mismatch between index.md stamps and .aw/system/VERSION fails gate."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+    vdir = tmp_path / ".aw" / "system"
+    vdir.mkdir(parents=True, exist_ok=True)
+    (vdir / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+
+    index_file = tmp_path / ".aw" / "system" / "workflows" / "index.md"
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-VERSION: 2.0.0 -->\n"
+        "Version: `2.0.0`\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | Recommend next action |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res.passed is False
+    assert res.evidence["present"] is True
+    assert res.evidence["consistent"] is False
+    assert any(
+        "2.0.0" in p and ".aw/system/VERSION" in p for p in res.evidence["problems"]
+    )
+
+
+def test_artifact_manifest_rejects_escaping_and_parent_relative_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r3b): escaping paths, symlinks outside repo, and parent-relative paths are rejected."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    setup_minimal_workflows_tree(tmp_path)
+    index_file = tmp_path / ".aw" / "system" / "workflows" / "index.md"
+
+    # Escaping body with ..
+    outside_file = tmp_path.parent / "outside.md"
+    outside_file.write_text("# outside\n", encoding="utf-8")
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | ../outside.md | Escaping path |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_escape = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_escape.passed is False
+    assert res_escape.evidence["consistent"] is False
+    assert any("invalid body path" in p for p in res_escape.evidence["problems"])
+
+    # Symlink pointing outside repo
+    symlink_file = tmp_path / ".aw" / "system" / "workflows" / "symlink_body.md"
+    if symlink_file.exists() or symlink_file.is_symlink():
+        symlink_file.unlink()
+    symlink_file.symlink_to(outside_file)
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | .aw/system/workflows/symlink_body.md | Out of repo symlink |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_symlink = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_symlink.passed is False
+    assert res_symlink.evidence["consistent"] is False
+    assert any("missing body file" in p for p in res_symlink.evidence["problems"])
+
+    # Parent-relative path (workflows/whatnext.md present ONLY at index.md's parent)
+    parent_target = (
+        tmp_path / ".aw" / "system" / "workflows" / "workflows" / "whatnext.md"
+    )
+    parent_target.parent.mkdir(parents=True, exist_ok=True)
+    parent_target.write_text("# relative\n", encoding="utf-8")
+    index_file.write_text(
+        "# Workflows\n"
+        "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+        "| command | body | description |\n"
+        "|---|---|---|\n"
+        "| whatnext | workflows/whatnext.md | Only at parent |\n"
+        "<!-- WORKFLOWS-MANIFEST:END -->\n",
+        encoding="utf-8",
+    )
+    res_parent = rr.gate_artifact_manifest(repo_root=tmp_path)
+    assert res_parent.passed is False
+    assert res_parent.evidence["consistent"] is False
+    assert any(
+        "missing body file: workflows/whatnext.md" in p
+        for p in res_parent.evidence["problems"]
+    )
+
+
+def test_artifact_manifest_explicit_injection_bypasses_filesystem(
+    tmp_path: Path,
+) -> None:
+    """Arm (r6): explicit injection bypasses disk inspection even on empty tmp_path."""
+    res_tt = rr.gate_artifact_manifest(True, True, repo_root=tmp_path)
+    assert res_tt.passed is True
+    assert res_tt.detail == "artifact manifest present and consistent"
+    assert res_tt.evidence == {"present": True, "consistent": True}
+
+    res_ft = rr.gate_artifact_manifest(False, True, repo_root=tmp_path)
+    assert res_ft.passed is False
+    assert res_ft.detail == "artifact manifest missing or inconsistent"
+    assert res_ft.evidence == {"present": False, "consistent": True}
+
+    res_tf = rr.gate_artifact_manifest(True, False, repo_root=tmp_path)
+    assert res_tf.passed is False
+    assert res_tf.detail == "artifact manifest missing or inconsistent"
+    assert res_tf.evidence == {"present": True, "consistent": False}
+
+
+def test_build_report_fails_on_artifact_manifest_missing_and_inconsistent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arm (r7): build_report flips to NO-GO on missing or inconsistent artifact manifest."""
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    _setup_full_go_tree(tmp_path)
+
+    # Clean full GO tree -> VERDICT_GO
+    rep = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="qa",
+        repo_root=tmp_path,
+        run_subprocess_gates=False,
+    )
+    assert rep.verdict == rr.VERDICT_GO
+    assert rep.failing_gates() == []
+
+    # Unlink body file -> flips to NO-GO with failing_gates() == ["artifact_manifest"]
+    (tmp_path / ".aw" / "system" / "workflows" / "whatnext" / "whatnext.md").unlink()
+    rep_missing_body = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="qa",
+        repo_root=tmp_path,
+        run_subprocess_gates=False,
+    )
+    assert rep_missing_body.verdict == rr.VERDICT_NO_GO
+    assert rep_missing_body.failing_gates() == ["artifact_manifest"]
+
+    # Unlink index.md -> VERDICT_NO_GO with "artifact_manifest" in failing_gates()
+    (tmp_path / ".aw" / "system" / "workflows" / "index.md").unlink()
+    rep_missing_index = rr.build_report(
+        suite_passed=True,
+        residual_risk_signed=True,
+        residual_risk_signer="qa",
+        repo_root=tmp_path,
+        run_subprocess_gates=False,
+    )
+    assert rep_missing_index.verdict == rr.VERDICT_NO_GO
+    assert "artifact_manifest" in rep_missing_index.failing_gates()

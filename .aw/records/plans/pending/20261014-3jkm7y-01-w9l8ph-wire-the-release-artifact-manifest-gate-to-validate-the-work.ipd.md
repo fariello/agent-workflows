@@ -41,14 +41,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the inert `gate_artifact_manifest` gate and the live `.aw/system/workflows/index.md` manifest state at the executing HEAD before changing any code.
+- [x] E-01 Re-measure the inert `gate_artifact_manifest` gate and the live `.aw/system/workflows/index.md` manifest state at the executing HEAD before changing any code.
   - Depends on: none
   - Expected outcome: one pasted transcript proving, by driving the code: (a) `git grep -n -e gate_artifact_manifest -e manifest_present -e manifest_consistent -- '*.py' '.github' 'Makefile' '.pre-commit-config.yaml' ':!tests/'` matches only `agent_workflows/release_readiness.py`; (b) `release_readiness.gate_artifact_manifest()` with no arguments returns `passed=True` and `evidence == {"present": True, "consistent": True}`, and `release_readiness.build_report` over an empty `tmp_path` (`run_subprocess_gates=False`, `suite_passed=True`, `residual_risk_signed=True`, `residual_risk_signer="qa"`) reports `artifact_manifest` `passed=True` while `generated_drift`, `docs_checks`, `workflow_disposition`, `capability_freshness`, and `changelog_versioning` fail; (c) on the live repository root, `.aw/system/workflows/index.md` exists, `engine.parse_manifest(Path(".aw/system/workflows"))` parses N rows (N re-derived at execution HEAD; 63 at authoring is context, not the bar) with 0 duplicate commands and 0 `body` or `lens` paths missing at `repo_root / rel`, and both `<!-- WORKFLOWS-VERSION: ... -->` and `Version: \`...\`` stamps match `.aw/system/VERSION` (`1.2.1` at authoring). If the live tree is NOT clean, stop and report: wiring the gate would turn the live report NO-GO on a pre-existing defect, which needs its own fix first. If (b) already returns `passed=False` on an empty `tmp_path`, another plan has wired the gate; stop and reconcile rather than writing it twice.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire `gate_artifact_manifest` and `build_report` to disk
 
-- [ ] E-02 Make `release_readiness.gate_artifact_manifest` compute presence and consistency of `.aw/system/workflows/index.md` from `repo_root` when `manifest_present` or `consistent` is `None`, while preserving explicit boolean injection.
+- [x] E-02 Make `release_readiness.gate_artifact_manifest` compute presence and consistency of `.aw/system/workflows/index.md` from `repo_root` when `manifest_present` or `consistent` is `None`, while preserving explicit boolean injection.
   - Depends on: E-01
   - Expected outcome: signature `gate_artifact_manifest(manifest_present: Optional[bool] = None, consistent: Optional[bool] = None, repo_root: Optional[Path] = None) -> GateResult`. When BOTH `manifest_present is not None` and `consistent is not None`, bypass filesystem inspection and return `GateResult(name="artifact_manifest", passed=bool(manifest_present) and bool(consistent), detail="artifact manifest present and consistent" if (bool(manifest_present) and bool(consistent)) else "artifact manifest missing or inconsistent", evidence={"present": bool(manifest_present), "consistent": bool(consistent)})` so existing injection unit tests in `tests/test_release_readiness.py` behave identically without touching disk. When either parameter is `None`, inspect `root = repo_root or _repo_root()` against `manifest_rel = ".aw/system/workflows/index.md"` (`manifest_file = root / ".aw" / "system" / "workflows" / "index.md"`):
     1. If `not manifest_file.is_file()`, computed `comp_present` is `False`, computed `comp_consistent` is `False`, `workflows_checked` is `0`, and `problems` records `["artifact manifest missing: .aw/system/workflows/index.md"]`.
@@ -58,21 +58,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
        - for `field_name, rel` in `(("body", w.body), ("lens", w.lens))`: if `field_name == "body"` and not `rel`, append `f"{w.command}: empty body path"`; if `rel` is non-empty, reject absolute paths, drive-qualified paths, or `".."` segments in `Path(rel).parts` (`f"{w.command}: invalid {field_name} path: {agent_schema.redact_home_paths(rel)}"`, redacting because the value is manifest-supplied text that would otherwise reach `--agent` output), and resolve the path ONLY as repository-relative, `candidate = root / rel`, the same semantics the installer uses for `Workflow.body` (`engine` treats `body` as a repo-relative path); do NOT also try `manifest_file.parent / rel` (a second resolution base would accept paths that ship nowhere and was only needed by the old fixture E-04 fixes). Treat `candidate` as present only when `candidate.is_file()` AND `candidate.resolve()` is within `root.resolve()` (`Path.is_relative_to`), so a symlink pointing outside the repo is reported, appending `f"{w.command}: missing {field_name} file: {rel}"` when absent;
        - check optional version stamps in `manifest_file` (`r"<!--\s*WORKFLOWS-VERSION:\s*([^\s>]+)\s*-->"` and `r"(?m)^Version:\s*`([^`]+)`"`): if both stamps are present and disagree, append `f"index.md version stamps disagree: comment={comment_v} vs line={line_v}"`; if a stamp is present and `(root / ".aw" / "system" / "VERSION")` is missing or its stripped text disagrees with `stamp_v`, append a problem naming `stamp_v` and `.aw/system/VERSION`.
     4. Computed `comp_consistent` is `not problems` (and `False` whenever `comp_present` is `False`). Apply any non-`None` caller override (`present_val = comp_present if manifest_present is None else bool(manifest_present)`, `consistent_val = (comp_consistent and present_val) if consistent is None else bool(consistent)`), and return `GateResult(name="artifact_manifest", passed=present_val and consistent_val, detail="artifact manifest present and consistent" if (present_val and consistent_val) else "artifact manifest missing or inconsistent", evidence={"present": present_val, "consistent": consistent_val, "workflows_checked": workflows_checked, "problems": problems})`. Every path in `evidence` is repo-relative and no `evidence` string contains an absolute or home path (leak hygiene: `aw releases readiness --agent` renders `evidence` verbatim; `OSError` messages, unlike `SystemExit` and `UnicodeDecodeError` ones, embed the absolute file path, measured at review); `detail` for a computed failure names the problem count (`f"artifact manifest missing or inconsistent ({len(problems)} problem(s))"`), while the injected path keeps the exact pre-change `detail` strings.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Thread the `None` sentinels and `repo_root` through `release_readiness.build_report`.
+- [x] E-03 Thread the `None` sentinels and `repo_root` through `release_readiness.build_report`.
   - Depends on: E-02
   - Expected outcome: in `release_readiness.build_report`, change `manifest_present: Optional[bool] = None` and `manifest_consistent: Optional[bool] = None` (replacing the `True` defaults) and pass `repo_root=repo_root` in `gate_artifact_manifest(manifest_present, manifest_consistent, repo_root=repo_root)`. Keep parameter names, keyword-only calling convention, and positions unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep existing GO fixtures honest, add falsifiability tests, and sync docs
 
-- [ ] E-04 Extend `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree` so its declared `whatnext` workflow body file exists on disk, keeping all existing synthetic GO fixtures green without weakening any assertion.
+- [x] E-04 Extend `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree` so its declared `whatnext` workflow body file exists on disk, keeping all existing synthetic GO fixtures green without weakening any assertion.
   - Depends on: E-03
   - Expected outcome: in `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree`, create `(wf_dir / "whatnext" / "whatnext.md")` with non-empty markdown content (`"# whatnext\n"`) and write the `whatnext` row in `wf_dir / "index.md"` with `.aw/system/workflows/whatnext/whatnext.md` as its `body` column. Because `tests/test_release_readiness.py::_build_synthetic_root`, `tests/test_release_readiness_docs_gate.py::_setup_go_fixture`, `tests/test_release_readiness_producers.py::_setup_full_go_tree`, and `tests/test_releases_readiness_cli.py::_build_subprocess_go_tree` all delegate to `setup_minimal_workflows_tree`, every existing GO test across all four files exercises the live `gate_artifact_manifest` producer and passes with zero assertion changes, and `tests/test_release_readiness.py::test_allowlist_recorder_decision_path` passes unmodified (confirming `gate_artifact_manifest` spawns no subprocess).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add behavioral and falsifiability test arms in `tests/test_release_readiness_producers.py` for `gate_artifact_manifest` and `build_report`, shown RED against the pre-change module first.
+- [x] E-05 Add behavioral and falsifiability test arms in `tests/test_release_readiness_producers.py` for `gate_artifact_manifest` and `build_report`, shown RED against the pre-change module first.
   - Depends on: E-04
   - Expected outcome: add behavioral test arms in `tests/test_release_readiness_producers.py` (all over `tmp_path` with `GIT_CEILING_DIRECTORIES` set, never reading the live repo's `.aw/` tree and never inspecting source code via `inspect`, `ast`, or regex):
     - `(r1)` `test_artifact_manifest_minimal_valid_tree_passes_gate`: `gate_artifact_manifest(repo_root=tmp_path)` over `setup_minimal_workflows_tree(tmp_path)` passes with `present=True, consistent=True, workflows_checked=1, problems=[]`, and also passes when `.aw/system/VERSION` (`1.0.0`) and matching `<!-- WORKFLOWS-VERSION: 1.0.0 -->` / `Version: \`1.0.0\`` stamps in `index.md` are present;
@@ -83,12 +83,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     - `(r3b)` `test_artifact_manifest_rejects_escaping_and_parent_relative_paths`: a row whose `body` is `../outside.md` (file created outside `.aw`) or a symlink inside `.aw/system/workflows/` pointing at a file outside `tmp_path` fails with `consistent=False`; and a row whose body is `workflows/whatnext.md` with the file present ONLY at `index.md`'s parent fails (repository-relative resolution only);
     - `(r6)` `test_artifact_manifest_explicit_injection_bypasses_filesystem`: on an empty `tmp_path` with no `.aw` directory, explicit `(True, True)`, `(False, True)`, and `(True, False)` injections return the expected `passed` and `evidence == {"present": ..., "consistent": ...}` without touching disk;
     - `(r7)` `test_build_report_fails_on_artifact_manifest_missing_and_inconsistent`: over `_setup_full_go_tree(tmp_path)`, `build_report(..., run_subprocess_gates=False)` returns `VERDICT_GO` and `failing_gates() == []`; unlinking `.aw/system/workflows/whatnext/whatnext.md` flips `build_report` to `VERDICT_NO_GO` with `failing_gates() == ["artifact_manifest"]` (proving `artifact_manifest` catches what `generated_drift` and `workflow_disposition` miss); and unlinking `.aw/system/workflows/index.md` produces `VERDICT_NO_GO` with `"artifact_manifest" in rep.failing_gates()`. Show `(r7)` failing with `AssertionError` against the pre-E-02 `build_report`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Update `docs/recovery.md` and `CHANGELOG.md` to reflect that `artifact_manifest` is computed from disk, and run `docs_check`, the five release-readiness test files, and the full bare test suite.
+- [x] E-06 Update `docs/recovery.md` and `CHANGELOG.md` to reflect that `artifact_manifest` is computed from disk, and run `docs_check`, the five release-readiness test files, and the full bare test suite.
   - Depends on: E-05
   - Expected outcome: `docs/recovery.md` under `## Release readiness (decision only)` includes the workflow artifact manifest in the prose list of checked gates and replaces the sentence `"Note that the \`artifact_manifest\` row is not yet computed from disk and currently defaults to passing (tracked in backlog item \`3jkm7y\`)."` with a concise statement that `artifact_manifest` checks `.aw/system/workflows/index.md` presence and consistency on disk (using ASCII punctuation only, no em or en dashes per AGENTS.md). `docs_check.check_docs_dir(Path("docs"))` returns `[]`. `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py` passes with 0 failures and every new E-05 test name listed as passing, and bare `python3 -m pytest` passes with zero new failures compared by name against the execution-base baseline (no total-count bar: the suite size drifts). Add one `Fixed:` line under the CHANGELOG `Unreleased` section stating that `aw releases readiness` now checks the workflow manifest on disk instead of always passing `artifact_manifest` (ASCII punctuation only).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,35 +161,369 @@ No `.spec.md` governs `release_readiness`. User-facing documentation in `docs/re
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the execution HEAD sha and the full E-01 transcript (code paths: `release_readiness.gate_artifact_manifest`, `release_readiness.build_report`, `engine.parse_manifest`): (a) the `git grep` output matching only `agent_workflows/release_readiness.py`; (b) `gate_artifact_manifest()` with no arguments returning `passed=True` and `build_report` over an empty `tmp_path` (`run_subprocess_gates=False`) showing `artifact_manifest` `passed=True` while the other five filesystem gates fail; (c) the live repository check showing `.aw/system/workflows/index.md` present, the parsed row count as measured at execution HEAD, 0 duplicate commands, 0 missing `body`/`lens` files at `repo_root / rel`, and both version stamps equal to `.aw/system/VERSION`.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD: `dc9906d84978de44d507e7294d6db6ea5658ae98`
+    ```
+    $ git grep -n -e gate_artifact_manifest -e manifest_present -e manifest_consistent -- '*.py' '.github' 'Makefile' '.pre-commit-config.yaml' ':!tests/'
+    agent_workflows/release_readiness.py:604:def gate_artifact_manifest(
+    agent_workflows/release_readiness.py:605:    manifest_present: bool = True, consistent: bool = True
+    agent_workflows/release_readiness.py:608:    passed = bool(manifest_present) and bool(consistent)
+    agent_workflows/release_readiness.py:615:        evidence={"present": manifest_present, "consistent": consistent},
+    agent_workflows/release_readiness.py:651:    manifest_present: bool = True,
+    agent_workflows/release_readiness.py:652:    manifest_consistent: bool = True,
+    agent_workflows/release_readiness.py:678:            gate_artifact_manifest(manifest_present, manifest_consistent),
+    agent_workflows/release_readiness.py:823:    "gate_artifact_manifest",
+    ```
+    ```
+    gate_artifact_manifest(): GateResult(name='artifact_manifest', passed=True, detail='artifact manifest present and consistent', evidence={'present': True, 'consistent': True})
+    empty tmp failing_gates: ['generated_drift', 'docs_checks', 'workflow_disposition', 'capability_freshness', 'changelog_versioning']
+    artifact_manifest in empty tmp: GateResult(name='artifact_manifest', passed=True, detail='artifact manifest present and consistent', evidence={'present': True, 'consistent': True})
+    manifest_file exists: True
+    parsed workflows count: 63
+    duplicate commands: set()
+    missing files: []
+    VERSION file: 1.2.1
+    comment stamp: 1.2.1
+    line stamp: 1.2.1
+    E-01 checks passed!
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunk for `release_readiness.gate_artifact_manifest` and a driven probe transcript (code path: `release_readiness.gate_artifact_manifest(repo_root=tmp)` created by E-02, plus `release_readiness.gate_artifact_manifest()` on the repository root) showing `passed`, `detail`, and `evidence` for: (1) explicit injection `(True, True)` and `(False, True)` on an empty `tmp_path` returning `evidence == {"present": ..., "consistent": ...}`; (2) missing `index.md` (`present=False, consistent=False`); (3) `index.md` with a missing `body` file (`present=True, consistent=False`); (4) `index.md` missing markers (`present=True, consistent=False`, no `SystemExit` raised); (5) `index.md` version stamp mismatch against `.aw/system/VERSION` (`present=True, consistent=False`); and (6) the live repository root (`present=True, consistent=True, workflows_checked` equal to the E-01 row count, `problems=[]`); (7) `index.md` with invalid UTF-8 (`problems == ["manifest parse failed: UnicodeDecodeError"]`); (8) a `../` body and an out-of-repo symlink body each reported. Confirm no absolute path appears in any printed evidence, and paste `aw releases readiness --agent --suite-passed --residual-risk-signer qa` on the repository root showing `artifact_manifest` absent from its `diagnostics` (the overall verdict may be NO-GO on unrelated gates: at review HEAD `2fcae08d5` it was NO-GO on `ipd_lint` and `capability_freshness`, owned by `r4a4ab` / `5gzno3`) (code path: `release_readiness.run_readiness` -> `build_report` -> `gate_artifact_manifest`, wired by E-03).
   - Observed evidence:
-  - Result: pending
+    `git diff` hunk for `release_readiness.gate_artifact_manifest`:
+    ```diff
+    @@ -602,17 +602,133 @@ def gate_changelog_versioning(repo_root: Optional[Path] = None) -> GateResult:
 
-- [ ] V-03 validates E-03
+
+     def gate_artifact_manifest(
+    -    manifest_present: bool = True, consistent: bool = True
+    +    manifest_present: Optional[bool] = None,
+    +    consistent: Optional[bool] = None,
+    +    repo_root: Optional[Path] = None,
+     ) -> GateResult:
+         """The release artifact manifest is present and consistent."""
+    -    passed = bool(manifest_present) and bool(consistent)
+    +    if manifest_present is not None and consistent is not None:
+    +        passed = bool(manifest_present) and bool(consistent)
+    +        return GateResult(
+    +            name="artifact_manifest",
+    +            passed=passed,
+    +            detail="artifact manifest present and consistent"
+    +            if passed
+    +            else "artifact manifest missing or inconsistent",
+    +            evidence={"present": bool(manifest_present), "consistent": bool(consistent)},
+    +        )
+    +
+    +    import re
+    +    from agent_workflows import agent_schema
+    +
+    +    root = repo_root or _repo_root()
+    +    manifest_rel = ".aw/system/workflows/index.md"
+    +    manifest_file = root / ".aw" / "system" / "workflows" / "index.md"
+    +
+    +    problems: List[str] = []
+    +    workflows_checked = 0
+    +
+    +    if not manifest_file.is_file():
+    +        comp_present = False
+    +        comp_consistent = False
+    +        problems.append(f"artifact manifest missing: {manifest_rel}")
+    +    else:
+    +        comp_present = True
+    +        try:
+    +            manifest_text = manifest_file.read_text(encoding="utf-8")
+    +            from agent_workflows import engine
+    +
+    +            workflows = engine.parse_manifest(manifest_file.parent)
+    +            workflows_checked = len(workflows)
+    +        except (SystemExit, Exception) as exc:
+    +            comp_consistent = False
+    +            msg = f"manifest parse failed: {type(exc).__name__}"
+    +            if isinstance(exc, SystemExit):
+    +                msg += f": {exc}"
+    +            problems.append(msg)
+    +        else:
+    +            seen_commands: set[str] = set()
+    +            for w in workflows:
+    +                if w.command in seen_commands:
+    +                    problems.append(f"duplicate command: {w.command}")
+    +                seen_commands.add(w.command)
+    +
+    +                for field_name, rel in (("body", w.body), ("lens", w.lens)):
+    +                    if field_name == "body" and not rel:
+    +                        problems.append(f"{w.command}: empty body path")
+    +                    elif rel:
+    +                        p = Path(rel)
+    +                        if p.is_absolute() or bool(p.drive) or ".." in p.parts:
+    +                            problems.append(
+    +                                f"{w.command}: invalid {field_name} path: {agent_schema.redact_home_paths(rel)}"
+    +                            )
+    +                        else:
+    +                            candidate = root / rel
+    +                            is_valid = False
+    +                            try:
+    +                                if candidate.is_file() and candidate.resolve().is_relative_to(root.resolve()):
+    +                                    is_valid = True
+    +                            except (OSError, ValueError):
+    +                                is_valid = False
+    +                            if not is_valid:
+    +                                problems.append(f"{w.command}: missing {field_name} file: {rel}")
+    +
+    +            m_comment = re.search(r"<!--\s*WORKFLOWS-VERSION:\s*([^\s>]+)\s*-->", manifest_text)
+    +            m_line = re.search(r"(?m)^Version:\s*`([^`]+)`", manifest_text)
+    +            comment_v = m_comment.group(1) if m_comment else None
+    +            line_v = m_line.group(1) if m_line else None
+    +
+    +            if comment_v is not None and line_v is not None and comment_v != line_v:
+    +                problems.append(
+    +                    f"index.md version stamps disagree: comment={comment_v} vs line={line_v}"
+    +                )
+    +
+    +            unique_stamps = dict.fromkeys([v for v in (comment_v, line_v) if v is not None])
+    +            if unique_stamps:
+    +                version_file = root / ".aw" / "system" / "VERSION"
+    +                version_file_rel = ".aw/system/VERSION"
+    +                version_text: Optional[str] = None
+    +                if version_file.is_file():
+    +                    try:
+    +                        version_text = version_file.read_text(encoding="utf-8").strip()
+    +                    except Exception:
+    +                        version_text = None
+    +
+    +                for stamp_v in unique_stamps:
+    +                    if version_text is None:
+    +                        problems.append(
+    +                            f"{version_file_rel} missing but index.md carries version stamp {stamp_v}"
+    +                        )
+    +                    elif version_text != stamp_v:
+    +                        problems.append(
+    +                            f"version stamp mismatch: index.md has {stamp_v} but {version_file_rel} has {version_text}"
+    +                        )
+    +
+    +            comp_consistent = not problems
+    +
+    +    present_val = comp_present if manifest_present is None else bool(manifest_present)
+    +    consistent_val = (comp_consistent and present_val) if consistent is None else bool(consistent)
+    +    passed = present_val and consistent_val
+    +    detail = (
+    +        "artifact manifest present and consistent"
+    +        if passed
+    +        else (
+    +            f"artifact manifest missing or inconsistent ({len(problems)} problem(s))"
+    +            if problems
+    +            else "artifact manifest missing or inconsistent"
+    +        )
+    +    )
+    +
+         return GateResult(
+             name="artifact_manifest",
+             passed=passed,
+    -        detail="artifact manifest present and consistent"
+    -        if passed
+    -        else "artifact manifest missing or inconsistent",
+    -        evidence={"present": manifest_present, "consistent": consistent},
+    +        detail=detail,
+    +        evidence={
+    +            "present": present_val,
+    +            "consistent": consistent_val,
+    +            "workflows_checked": workflows_checked,
+    +            "problems": problems,
+    +        },
+         )
+    ```
+    Driven probe transcript:
+    ```
+    === Probe 1: Explicit injection (True, True) and (False, True) on empty tmp ===
+    1a (True, True): GateResult(name='artifact_manifest', passed=True, detail='artifact manifest present and consistent', evidence={'present': True, 'consistent': True})
+    1b (False, True): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent', evidence={'present': False, 'consistent': True})
+
+    === Probe 2: Missing index.md ===
+    2 (missing index.md): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (1 problem(s))', evidence={'present': False, 'consistent': False, 'workflows_checked': 0, 'problems': ['artifact manifest missing: .aw/system/workflows/index.md']})
+
+    === Probe 3: index.md with missing body file ===
+    3 (missing body): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (1 problem(s))', evidence={'present': True, 'consistent': False, 'workflows_checked': 1, 'problems': ['whatnext: missing body file: .aw/system/workflows/whatnext/whatnext.md']})
+
+    === Probe 4: index.md missing markers ===
+    4 (missing markers): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (1 problem(s))', evidence={'present': True, 'consistent': False, 'workflows_checked': 0, 'problems': ['manifest parse failed: SystemExit: index.md is missing the manifest markers <!-- WORKFLOWS-MANIFEST:BEGIN --> / <!-- WORKFLOWS-MANIFEST:END -->.']})
+
+    === Probe 5: index.md version stamp mismatch against .aw/system/VERSION ===
+    5 (version mismatch): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (1 problem(s))', evidence={'present': True, 'consistent': False, 'workflows_checked': 1, 'problems': ['version stamp mismatch: index.md has 2.0.0 but .aw/system/VERSION has 1.0.0']})
+
+    === Probe 6: Live repository root ===
+    6 (live repo root): GateResult(name='artifact_manifest', passed=True, detail='artifact manifest present and consistent', evidence={'present': True, 'consistent': True, 'workflows_checked': 63, 'problems': []})
+
+    === Probe 7: index.md with invalid UTF-8 ===
+    7 (invalid UTF-8): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (1 problem(s))', evidence={'present': True, 'consistent': False, 'workflows_checked': 0, 'problems': ['manifest parse failed: UnicodeDecodeError']})
+
+    === Probe 8: ../ body and out-of-repo symlink body ===
+    8 (escaping + symlink): GateResult(name='artifact_manifest', passed=False, detail='artifact manifest missing or inconsistent (2 problem(s))', evidence={'present': True, 'consistent': False, 'workflows_checked': 2, 'problems': ['dotdot: invalid body path: ../outside.md', 'sym: missing body file: .aw/system/workflows/symlink.md']})
+
+    All 8 probes passed cleanly!
+    ```
+    CLI output on repository root:
+    ```
+    $ aw releases readiness --agent --suite-passed --residual-risk-signer qa
+    {"schema":"aw.agent/v1","kind":"result","cmd":"releases readiness","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff` hunk for `release_readiness.build_report` showing `manifest_present: Optional[bool] = None`, `manifest_consistent: Optional[bool] = None`, and `gate_artifact_manifest(manifest_present, manifest_consistent, repo_root=repo_root)`.
   - Observed evidence:
-  - Result: pending
+    `git diff` hunk for `release_readiness.build_report`:
+    ```diff
+    @@ -648,8 +764,8 @@ def build_report(
+         undispositioned: Optional[Sequence[str]] = None,
+         stale_claims: Optional[Sequence[str]] = None,
+         threshold_policy: Optional[bt.ThresholdPolicy] = None,
+    -    manifest_present: bool = True,
+    -    manifest_consistent: bool = True,
+    +    manifest_present: Optional[bool] = None,
+    +    manifest_consistent: Optional[bool] = None,
+         residual_risk_signed: bool = False,
+         residual_risk_signer: str = "",
+         repo_root: Optional[Path] = None,
+    @@ -675,7 +791,9 @@ def build_report(
+                 gate_capability_freshness(stale_claims, repo_root=repo_root),
+                 gate_benchmark_thresholds(threshold_policy),
+                 gate_changelog_versioning(repo_root),
+    -            gate_artifact_manifest(manifest_present, manifest_consistent),
+    +            gate_artifact_manifest(
+    +                manifest_present, manifest_consistent, repo_root=repo_root
+    +            ),
+                 gate_residual_risk(residual_risk_signed, residual_risk_signer),
+             ]
+         )
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` hunk for `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree` and the pytest output of `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_releases_readiness_cli.py` showing all existing tests in those three files pass without modifying any test assertion in them, including `test_allowlist_recorder_decision_path`.
   - Observed evidence:
-  - Result: pending
+    `git diff` hunk for `tests/test_release_readiness_producers.py::setup_minimal_workflows_tree`:
+    ```diff
+    @@ -20,6 +20,9 @@ def setup_minimal_workflows_tree(repo_root: Path) -> Path:
+         """Create minimal valid workflows tree satisfying disposition and capability checks."""
+         wf_dir = repo_root / ".aw" / "system" / "workflows"
+         wf_dir.mkdir(parents=True, exist_ok=True)
+    +    body_dir = wf_dir / "whatnext"
+    +    body_dir.mkdir(parents=True, exist_ok=True)
+    +    (body_dir / "whatnext.md").write_text("# whatnext\n", encoding="utf-8")
+         (wf_dir / "index.md").write_text(
+             "# Workflows\n"
+             "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+    @@ -26,5 +29,5 @@ def setup_minimal_workflows_tree(repo_root: Path) -> Path:
+             "|---|---|---|\n"
+    -        "| whatnext | workflows/whatnext.md | Recommend next action |\n"
+    +        "| whatnext | .aw/system/workflows/whatnext/whatnext.md | Recommend next action |\n"
+             "<!-- WORKFLOWS-MANIFEST:END -->\n",
+             encoding="utf-8",
+         )
+    ```
+    Pytest output:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_releases_readiness_cli.py
+    ......................................................                   [100%]
+    54 passed in 30.53s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste (1) the pre-E-02 RED run output showing `test_build_report_fails_on_artifact_manifest_missing_and_inconsistent` failing by `AssertionError` (`assert 'GO' == 'NO-GO'`) and the new `gate_artifact_manifest(repo_root=...)` arms failing against the pre-change module; (2) the post-E-05 GREEN `python3 -m pytest -o addopts="" -v tests/test_release_readiness_producers.py` output showing every test arm `(r1)`, `(r2)`, `(r3)`, `(r3b)`, `(r4)`, `(r5)`, `(r6)`, `(r7)` passing by name; and (3) `git grep -n -E 'getsource|import ast|ast\.parse|import inspect|read_text\(.*release_readiness' tests/test_release_readiness_producers.py` returning exit 1 (no matches).
   - Observed evidence:
-  - Result: pending
+    (1) Pre-change RED run output:
+    ```
+    tests/test_release_readiness_producers.py::test_build_report_fails_on_artifact_manifest_missing_and_inconsistent FAILED [100%]
+    >       assert rep_missing_body.verdict == rr.VERDICT_NO_GO
+    E       AssertionError: assert 'GO' == 'NO-GO'
+    E         - NO-GO
+    E         + GO
+    tests/test_release_readiness_producers.py:824: AssertionError
+    ```
+    and `gate_artifact_manifest(repo_root=tmp_path)` failing with `TypeError: gate_artifact_manifest() got an unexpected keyword argument 'repo_root'`.
+    (2) Post-change GREEN output for `python3 -m pytest -o addopts="" -v tests/test_release_readiness_producers.py`:
+    ```
+    tests/test_release_readiness_producers.py::test_artifact_manifest_missing_body_and_lens_fail_gate PASSED [  3%]
+    tests/test_release_readiness_producers.py::test_end_to_end_governance_report_contrast PASSED [  7%]
+    tests/test_release_readiness_producers.py::test_capability_supported_boolean_fails_gate PASSED [ 11%]
+    tests/test_release_readiness_producers.py::test_build_report_fails_on_generated_drift PASSED [ 15%]
+    tests/test_release_readiness_producers.py::test_drift_missing_generated_fails_gate PASSED [ 19%]
+    tests/test_release_readiness_producers.py::test_drift_zero_packages_passes_gate PASSED [ 23%]
+    tests/test_release_readiness_producers.py::test_explicit_injection_bypasses_filesystem PASSED [ 26%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_version_stamp_mismatch_fails_gate PASSED [ 30%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_rejects_escaping_and_parent_relative_paths PASSED [ 34%]
+    tests/test_release_readiness_producers.py::test_disposition_unassigned_command_fails_without_raising PASSED [ 38%]
+    tests/test_release_readiness_producers.py::test_build_report_fails_on_capability_freshness PASSED [ 42%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_minimal_valid_tree_passes_gate PASSED [ 46%]
+    tests/test_release_readiness_producers.py::test_build_report_fails_on_workflow_disposition PASSED [ 50%]
+    tests/test_release_readiness_producers.py::test_capability_empty_matrix_passes_gate PASSED [ 53%]
+    tests/test_release_readiness_producers.py::test_drift_missing_workflows_dir_fails_gate PASSED [ 57%]
+    tests/test_release_readiness_producers.py::test_disposition_minimal_valid_tree_passes_gate PASSED [ 61%]
+    tests/test_release_readiness_producers.py::test_drift_compiled_generated_passes_gate PASSED [ 65%]
+    tests/test_release_readiness_producers.py::test_disposition_missing_conformance_file_fails_gate PASSED [ 69%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_explicit_injection_bypasses_filesystem PASSED [ 73%]
+    tests/test_release_readiness_producers.py::test_disposition_missing_index_md_fails_without_raising PASSED [ 76%]
+    tests/test_release_readiness_producers.py::test_build_report_fails_on_artifact_manifest_missing_and_inconsistent PASSED [ 80%]
+    tests/test_release_readiness_producers.py::test_drift_changed_generated_fails_gate PASSED [ 84%]
+    tests/test_release_readiness_producers.py::test_disposition_missing_manifest_markers_fails_without_raising PASSED [ 88%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_unparseable_and_duplicate_command_fail_without_raising PASSED [ 92%]
+    tests/test_release_readiness_producers.py::test_capability_missing_matrix_fails_gate PASSED [ 96%]
+    tests/test_release_readiness_producers.py::test_artifact_manifest_missing_index_fails_gate PASSED [100%]
+    ============================== 26 passed in 1.47s ==============================
+    ```
+    (3) Source inspection grep:
+    `git grep -n -E 'getsource|import ast|ast\.parse|import inspect|read_text\(.*release_readiness' tests/test_release_readiness_producers.py` exited with code 1 (0 matches).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste (1) the `git diff` hunk for `docs/recovery.md`; (2) the output of `docs_check.check_docs_dir(Path("docs"))` returning `[]`; (3) the output of `python3 -m pytest -o addopts="" -q tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py` with 0 failed and each new E-05 test name present; (4) the execution-base bare `python3 -m pytest` summary line and failure list alongside the post-change bare `python3 -m pytest` summary line and failure list, showing zero new failures by name; and (5) the `CHANGELOG.md` diff.
   - Observed evidence:
-  - Result: pending
+    (1) `git diff` hunk for `docs/recovery.md`:
+    ```diff
+    @@ -49,7 +49,8 @@ The final release-readiness review aggregates the gates into a GO or NO-GO verdi
+     separately authorized actions (see `RELEASING.md` and the release-review workflow). The review
+     runs the canonical leak scan and all IPD lint phases for real, checks generated workflow drift,
+     documentation checks, workflow dispositions, capability freshness, benchmark invariants, the
+    -changelog and versioning, and the residual-risk sign-off, then emits the verdict.
+    +changelog and versioning, the workflow artifact manifest, and the residual-risk sign-off, then
+    +emits the verdict.
+
+     Run the read-only report from the CLI:
+
+    @@ -66,8 +67,8 @@ The command never runs the full test suite itself and never invents human attest
+     - `--agent` / `--json`: emits a canonical `aw.agent/v1` result record or structured JSON.
+
+     Exit codes are `0` on `GO`, `1` on `NO-GO`, and `2` when the command cannot run (such as a
+    -non-project `--dir` or conflicting flags). Note that the `artifact_manifest` row is not yet
+    -computed from disk and currently defaults to passing (tracked in backlog item `3jkm7y`).
+    +non-project `--dir` or conflicting flags). The `artifact_manifest` row checks
+    +`.aw/system/workflows/index.md` presence and consistency on disk.
+    ```
+    (2) `docs_check.check_docs_dir(Path("docs"))` returned `[]`.
+    (3) Targeted 5-file suite output:
+    ```
+    $ python3 -m pytest -o addopts="" -q tests/test_release_readiness.py tests/test_release_readiness_docs_gate.py tests/test_release_readiness_producers.py tests/test_releases_readiness_cli.py tests/test_release_readiness_child_pin.py
+    ........................................................................ [ 87%]
+    ..........                                                               [100%]
+    82 passed in 17.51s
+    ```
+    (4) Baseline bare `python3 -m pytest`: `707 passed in 39.57s`, 0 failures.
+    Post-change bare `python3 -m pytest`: `707 passed in 31.36s`, 0 failures.
+    Zero new failures by name.
+    (5) `CHANGELOG.md` diff:
+    ```diff
+    @@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by
+
+     - Added: aw run init command to initialize a new run ledger and write its header record from a workflow definition.
+     - Added: aw oc review and aw agy review now support re-reviewing a plan at reviewed, approved, or auto-approved behind an explicit confirmation (-y/--yes or typed phrase re-review), demoting to to-review at lane dispatch with approval withdrawn, and ending at reviewed awaiting fresh human approval.
+    + - Fixed: aw releases readiness now checks the workflow manifest on disk instead of always passing artifact_manifest.
+     - Fixed: the end-of-run open-item report now groups unclosed backlog items by cause with actionable next commands instead of generic failure phrasing, and items whose orchestrator retires now close automatically upon retirement.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
