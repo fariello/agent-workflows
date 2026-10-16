@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: run-once | Id: 4ul37x | Set: testprune | Status: pending | Created: 2026-10-15 | Author: opencode (its_direct/pt3-claude-opus-5.5-1m-us) | Targets: AI coding agent | Concerns: Prune, consolidate and speed up tests to a full retained suite under 2 minutes without losing regression detection (unified from 14z7sm and the opencode draft) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: run-once | Id: 4ul37x | Set: testprune | Status: executed | Created: 2026-10-15 | Author: opencode (its_direct/pt3-claude-opus-5.5-1m-us) | Targets: AI coding agent | Concerns: Prune, consolidate and speed up tests to a full retained suite under 2 minutes without losing regression detection (unified from 14z7sm and the opencode draft) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a principal test architect working in the `agent-workflows` repository. It is public and is the codebase under discussion: https://github.com/fariello/agent-workflows. Your task is to prune, consolidate, and speed up its test suite so the FULL retained suite runs in **under 2 minutes** on 6 xdist workers, while the suite still catches at least every regression it catches today.
 
 # Read first (do not trust this prompt's summary of them)
@@ -64,3 +64,5 @@ About 8,700 tests in about 510 modules; full run (`python3 -m pytest tests/ -m '
 - Every file changed, by path.
 
 Return your final report as a single DOWNLOADABLE markdown (`.md`) file.
+## Workflow history
+- 2026-10-16 executed (aw set): executed: produced Set testprune (orchestrator 8wfzb5, children qqrgv3 tv72xy 83nnyn c8bfp9 vgus66, to-review) and research offdhr; implementation awaits approval and plan hguae9
