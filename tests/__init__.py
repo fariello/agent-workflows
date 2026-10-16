@@ -35,6 +35,7 @@ if not os.environ.get("AW_HOME"):
 # preventing unintended external host subprocess spawns (e.g. opencode export)
 # when tests drive runner code without an injected launcher double.
 os.environ.setdefault("AW_IN_TEST_SESSION", "1")
+os.environ.setdefault("AW_PROJECT_CEILING", tempfile.gettempdir())
 
 # Network/credential guard: a test may create a repo with a real remote (e.g. an
 # https://github.com/... origin) and then reach code that probes it (git ls-remote /
