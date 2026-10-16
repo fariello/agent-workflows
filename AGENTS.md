@@ -11,6 +11,8 @@ When requested to run one of these workflows (e.g. "run release-review", "assess
 1. Locate the workflow's entry file under `.aw/system/workflows/` (referenced in `.aw/system/workflows/index.md`).
 2. Read and execute the instructions defined in that workflow file step-by-step.
 
+When the user says "use /askme", "/askme that question again", "ask that again using /askme", or invokes `/aw askme`, read and apply `.aw/system/workflows/askme/askme.md`. A request to ask a question again means rewrite the indicated question with full context; it does not mean scan unrelated records or repeat the wording.
+
 ### Writing prompts for another AI (research/handoff prompts)
 When asked to write a prompt to give to another AI (e.g. a research prompt for an LLM with web search), the prompt you produce MUST be upload-ready:
 1. It contains ONLY the prompt itself, addressed to that AI. Put NO instructions for the user inside it (no "copy this", no "paste below the line").
@@ -87,7 +89,7 @@ YOUR SHELL IS PERSISTENT: DO NOT RE-`cd` EVERY COMMAND. The shell session keeps 
 A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge whether a public artifact (tracked files, the built package, git history) contains maintainer or machine identifying info (home paths, usernames, hostnames, private repo names, session ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of `aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It emits a canonical `aw.agent/v1` `result` record with `{location, rule}` diagnostics on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo.
 
 ### Ask self-contained questions
-When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement. Compose the context as a compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the choices the tool already renders, and omit chronology/filenames/quotes unless essential.
+When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement. Compose the context as a compact, decision-ready synthesis: prefer short wording, but never omit information needed for an informed answer to meet a screen-size or word target, do NOT repeat or preview the choices the tool already renders, and omit chronology/filenames/quotes unless essential.
 
 ### Authoring and executing IPDs
 When you author or execute an Implementation Plan Document (IPD), do NOT hand-number ids or hand-place checklists: use the tools and follow the canonical spec. `aw ipd scaffold` writes a conformant skeleton, `aw ipd sync` assigns `E-*`/`V-*` ids + validation skeletons, and `aw ipd lint` deterministically checks structure/state. The EXACT structural contract (section order, the execution + validation checklists, the E/V bijection, states, metadata, and the lifecycle transaction) is described in `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`, `.aw/records/plans/README.md`, and `aw ipd --help`; the `ipd-lifecycle` workflow gates execution and the terminal transition. Completion rule: do NOT claim done or move a plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every validation item is verified with concrete evidence (tests run, actual output pasted).
@@ -98,7 +100,14 @@ AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, AND THE DISTINCTION IS
 
 A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT. Specs are living contracts, not immutable history: a plan that changes behavior a spec describes SHOULD carry the spec amendment in the same change, so the two never drift apart. The alternative was measured and is a dead end (plan `51vw4y` had to extend a spec-governed flag table with no spec-edit authority, leaving no route that did not either edit an approved spec or weaken a shipped contract test). Two obligations follow. FIRST, list every `.spec.md` file you will touch in `- Scope-Paths:`, because that is what makes the amendment visible: `aw oc run` / `aw agy run` announce declared spec edits BEFORE the run starts, and the finalize scope gate reconciles what you actually changed against what you declared. BOTH RUNNERS ALSO REPORT AT RUN END, beside the run summary, which specs the run declared and which it actually changed, INCLUDING a spec that was modified WITHOUT being declared; that end report names any item whose reconciliation refused or that never finalized rather than counting it clean, and a run whose spec-edit computation FAILS says so in one line instead of printing nothing, so silence means 'no declared spec edits' and never 'the announcer broke'. SECOND, say WHY in the plan's spec-sync section, since a spec edit changes the contract every other plan is reviewed against and is the highest-leverage change a run can make.
 <!-- aw:reporting -->
-## Concise reporting (user-facing prose)
+## Communication and concise reporting
+
+COMMUNICATION. Write in clear, concise, plain, precise, accurate, straightforward,
+jargon-free language. These requirements apply to every response, question, recommendation,
+progress update, plan, spec, research prompt, and other authored document, internal ones
+included. Explain technical terms and project names when introduced. Never use an
+identifier, filename, acronym, or link as a substitute for explaining the subject and its
+purpose.
 
 Report to the user concisely. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or
 `No.`. Use one sentence when one sentence is enough. Omit preambles, praise, restatement of
@@ -108,6 +117,10 @@ material outcomes, changed files, verification status, and blockers, and OMIT a 
 that is empty. Keep a routine final response at or below 100 words.
 While working, emit at most one short progress sentence, and only when it tells the user
 something they cannot already see.
+
+DECISIONS. The routine report word cap does not limit decision questions, recommendations,
+or explanations needed for understanding. Repeat relevant context when the reader needs
+it to answer or decide. Remove unnecessary wording, not necessary information.
 
 PRECEDENCE (this default is not the top rule). An explicit user request, or a controlling
 workflow that specifies a required report, OVERRIDES the default. When a workflow mandates a

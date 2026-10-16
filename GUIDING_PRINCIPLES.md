@@ -113,29 +113,19 @@ When user input is needed, ALWAYS prefer the interactive question tool if availa
 
 Within the question interface, provide clear, concise, self-contained context so the user can answer without rereading earlier messages or opening referenced files.
 
-Include things like:
+A question must contain the subject, relevant context, decision, practical consequences, and recommendation with its reason. Explain references and necessary technical terms. Prefer short wording, but never omit information needed for an informed answer to meet a screen-size or word-count target. The `askme` workflow applies these requirements to a current question, a question that needs rewriting, or unanswered questions in project records.
 
-- The relevant facts.
-- What changed or was discovered, if applicable.
-- The general reason a decision or clarification is needed.
-- Any constraint, dependency, consequence, or tradeoff essential to the answer.
-- Your recommendation and its main factual basis, when you have one.
+Do not repeat, preview, or separately summarize the choices that the interactive tool will display. The context should explain the situation; the tool options should present the possible answers. Necessary context belongs in the actual question interface, or in a complete chat question when that interface cannot carry it.
 
-Use your judgement. Use plain English. Prefer a compact synthesis. Do not include chronology, investigation details, quotations, filenames, or exhaustive evidence unless important to decision making.
-
-Do not repeat, preview, or separately summarize the choices that the interactive tool will display. The context should explain the situation; the tool options should present the possible answers.
-
-Keep the context short enough to fit comfortably on a terminal screen. If it is too long, reduce it to the minimum facts needed to make an informed choice. If additional detail is imperative, provide it in the chat (last resort) and say so clearly in the question tool's main text.
-
-The pre-flight self-check list that used to sit here (can the user answer without reopening other material, is every included fact necessary, is the reason for asking clear, have I avoided repeating the tool's choices) MOVED on 2026-09-09 into the `askme` memory kernel, which is where composition actually happens. It is not duplicated here (P8); read it there. It moved because a mandated re-read of this principle was measured to prevent nothing: it was performed on 2026-09-08 and the prompt composed immediately afterwards was still unintelligible to the maintainer, because a checklist stated one indirection away from the composition step does not get applied at the composition step.
-
-The `askme` workflow is the invocable entry point that applies this principle to a repository's open questions: it sorts them into what the repository can answer, what only the human can decide, and what can wait, then asks and records the answers. It references this principle rather than restating it (P8). It exists because this principle alone was measured insufficient: agents that have it loaded still finish work with the human's questions unasked, so `aw ipd lint` refuses a question marked blocking that is still open, and names that workflow as the remedy (see DECISIONS D151).
+The `askme` workflow is the invocable entry point that applies this procedure: it sorts questions into what the repository can answer, what only the human can decide, and what can wait, then asks and records the answers. Its pre-flight self-check list lives in its "Check before sending" section. `aw ipd lint` refuses a question marked blocking that is still open, and names that workflow as the remedy (see DECISIONS D151).
 
 ## 13. Style rules for prose apply to user-facing text, not internal artifacts
 
 Prose style rules whose whole purpose is to keep human-facing text from reading as machine-written apply ONLY to user-facing text you author: READMEs, the CHANGELOG, and documentation meant for end users. The specific rule here is the no em/en dash convention (use hyphens or parenthetical dashes), but the principle is general: the goal is that user-facing prose not feel auto-generated.
 
 These rules do NOT apply to internal or AI-facing artifacts: IPDs and plans, research findings and prompts, specs, walkthroughs, commit messages, and code comments. Spending effort to strip dashes (or otherwise groom the style) of those artifacts wastes time and tokens for no reader benefit, because no end user consumes them as polished prose. Deterministic tooling MUST reflect this scope: a gate that mechanically enforces a user-facing style rule must not fail an internal artifact for it (see P11; the IPD linter does not check dashes).
+
+The exception for internal-document style conventions does not exempt any text from clarity, precision, accuracy, plain language, or necessary context. Maintainers and reviewers must be able to understand internal plans, specifications, research prompts, and other records without decoding unexplained names or reconstructing prior conversations.
 
 When in doubt about whether an artifact is user-facing, ask who reads it as finished prose. If the answer is an end user, apply the style rule; if the answer is a maintainer, an executing agent, or a reviewer of internal process, do not.
 
