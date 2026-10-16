@@ -18,11 +18,15 @@ Validates:
 from __future__ import annotations
 
 import difflib
+import os
 import re
+import tempfile
 import unittest
 from typing import Any
 
+from agent_workflows import config as CFG
 from agent_workflows import render_stream, run_selection_policy
+from agent_workflows import term as T
 
 
 def _item(**overrides: Any) -> dict[str, Any]:
@@ -284,7 +288,48 @@ class ZeroDispatchOutcomeFalsifiableCoreTests(unittest.TestCase):
                 self.assertNotIn("NO WORK WAS PERFORMED", summary_text)
 
 
-class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
+class _DepthTestBase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved = {
+            k: os.environ.get(k)
+            for k in (
+                "NO_COLOR",
+                "FORCE_COLOR",
+                "TERM",
+                "COLORTERM",
+                "XDG_CONFIG_HOME",
+                "AW_HOME",
+                "AW_NO_REEXEC",
+            )
+        }
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(self._restore_env)
+        self.addCleanup(T.set_color_override, None)
+
+    def _restore_env(self) -> None:
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _capable_tty(self) -> None:
+        for k in ("NO_COLOR", "FORCE_COLOR", "COLORTERM"):
+            os.environ.pop(k, None)
+        os.environ["TERM"] = "xterm-256color"
+        T.set_color_override(None)
+        cfg = CFG.load()
+        if "color_depth" in cfg:
+            cfg.pop("color_depth")
+            CFG.save(cfg)
+
+    def _pin(self, value: str) -> None:
+        CFG.set_config_value("color_depth", value)
+
+
+class ZeroDispatchOutcomeRegressionFenceTests(_DepthTestBase):
     """E-05: Anti-regression fence and branch placement guard."""
 
     def test_regression_dependency_blocked_status_renders_blocked(self) -> None:
@@ -591,7 +636,10 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
         )
 
     def test_outcome_color_selection(self) -> None:
-        """E-03: NO WORK PERFORMED renders in yellow (SGR 33), bare word under Palette(False)."""
+        """Outcome word SGR color selection across ladder rungs and color depths (4po0sc, 5apgyn)."""
+        self._capable_tty()
+        self._pin("256")
+
         # NO WORK PERFORMED -> 33 (c_yellow)
         q_nowork = [_item(status="reviewed", needs_input=True, attempts=[])]
         r_nowork = render_stream.render_run_summary_table(
@@ -630,6 +678,20 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
             _extract_sgr_code(r_strand, render_stream.STRANDED_OUTCOME), "31"
         )
 
+        # FAILED -> 31 (c_red)
+        q_failed = [_item(status="failed", attempts=[{"number": 1}])]
+        r_failed = render_stream.render_run_summary_table(
+            _state(q_failed), pal=render_stream.Palette(True)
+        )
+        self.assertEqual(_extract_sgr_code(r_failed, "FAILED"), "31")
+
+        # INTERRUPTED -> 33 (c_yellow)
+        q_interrupted = [_item(status="interrupted", attempts=[{"number": 1}])]
+        r_interrupted = render_stream.render_run_summary_table(
+            _state(q_interrupted), pal=render_stream.Palette(True)
+        )
+        self.assertEqual(_extract_sgr_code(r_interrupted, "INTERRUPTED"), "33")
+
         # PARTIAL -> 33 (c_yellow)
         q_part = [
             _item(position=1, status="executed", attempts=[{"number": 1}]),
@@ -640,8 +702,64 @@ class ZeroDispatchOutcomeRegressionFenceTests(unittest.TestCase):
         )
         self.assertEqual(_extract_sgr_code(r_part, "PARTIAL"), "33")
 
+        # QUEUED -> 36 (c_cyan)
+        q_queued = [_item(status="queued", attempts=[])]
+        r_queued = render_stream.render_run_summary_table(
+            _state(q_queued), pal=render_stream.Palette(True)
+        )
+        self.assertEqual(_extract_sgr_code(r_queued, "QUEUED"), "36")
+
         # Nonsense word -> 36 (c_cyan, fallback else-branch)
         r_nonsense = render_stream.render_run_summary_table(
             _state([]), exit_reason="NOTHING TO DO", pal=render_stream.Palette(True)
         )
         self.assertEqual(_extract_sgr_code(r_nonsense, "NOTHING TO DO"), "36")
+
+        # 5apgyn E-02 (a) & (b): BLOCKED across all six queue status shapes at depth 256 and under Palette(False)
+        blocked_shapes = (
+            "blocked",
+            "dependency-blocked",
+            "fail-gate",
+            "fail-begin",
+            "fail-depend",
+            "not-run",
+        )
+        for st in blocked_shapes:
+            with self.subTest(status=st, depth="256"):
+                q_blk = [_item(status=st, attempts=[])]
+                r_blk = render_stream.render_run_summary_table(
+                    _state(q_blk), pal=render_stream.Palette(True)
+                )
+                sgr = _extract_sgr_code(r_blk, "BLOCKED")
+                self.assertEqual(sgr, "38;5;208")
+                self.assertNotEqual(sgr, "36")
+
+            with self.subTest(status=st, depth="palette_false"):
+                q_blk = [_item(status=st, attempts=[])]
+                r_blk_plain = render_stream.render_run_summary_table(
+                    _state(q_blk), pal=render_stream.Palette(False)
+                )
+                self.assertIn("Outcome: BLOCKED", r_blk_plain)
+                self.assertNotIn("\033[", r_blk_plain)
+
+        # 5apgyn E-02 (b2): depth pinned to 16 -> SGR 35 and no 38;5;208; pinned to none -> no escape
+        self._pin("16")
+        for st in blocked_shapes:
+            with self.subTest(status=st, depth="16"):
+                q_blk = [_item(status=st, attempts=[])]
+                r_blk_16 = render_stream.render_run_summary_table(
+                    _state(q_blk), pal=render_stream.Palette(True)
+                )
+                sgr_16 = _extract_sgr_code(r_blk_16, "BLOCKED")
+                self.assertEqual(sgr_16, "35")
+                self.assertNotIn("38;5;208", r_blk_16)
+
+        self._pin("none")
+        for st in blocked_shapes:
+            with self.subTest(status=st, depth="none"):
+                q_blk = [_item(status=st, attempts=[])]
+                r_blk_none = render_stream.render_run_summary_table(
+                    _state(q_blk), pal=render_stream.Palette(True)
+                )
+                self.assertIsNone(_extract_sgr_code(r_blk_none, "BLOCKED"))
+                self.assertIn("Outcome: BLOCKED", r_blk_none)

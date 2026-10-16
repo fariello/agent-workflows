@@ -1,5 +1,5 @@
 - Id: pyezbc
-- Status: graduated
+- Status: done
 - Graduated-To: pyezbc
 - Set: pyezbc
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Give the BLOCKED outcome word its own color instead of the cyan else-branch
 
 ## Workflow history
+- 2026-10-16 done (aw backlog): closed by aw agy run: IPD 5apgyn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261014-pyezbc-01-5apgyn-give-the-blocked-outcome-word-its-own-orange-208-color-inste.ipd.md); evidence .aw/records/plans/executed/20261014-pyezbc-01-5apgyn-give-the-blocked-outcome-word-its-own-orange-208-color-inste.ipd.md
 - 2026-10-14 graduated (aw backlog): graduated by run run-20261014T131029Z-4042525: 5apgyn
 - 2026-10-13 created (aw backlog): Give the BLOCKED outcome word its own color instead of the cyan else-branch
 
