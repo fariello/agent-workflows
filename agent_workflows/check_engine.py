@@ -612,6 +612,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-draft-ready-to-review": RuleSpec(
         "info", ASSURANCE_GUIDANCE, DET_HEURISTIC, "I-12"
     ),
+    "check.ipd-review-may-be-stale": RuleSpec(
+        "info", ASSURANCE_GUIDANCE, DET_DETERMINISTIC, ""
+    ),
     # lintreach Order 01 (`k9awrq`) E-02: the UMBRELLA code under which the whole `IPD-*` lint family
     # becomes reachable from the repo-wide sweep. Before this, `check_engine` called `ipd_lint.parse`
     # in three places but NEVER `lint_file`, so every `IPD-*` diagnostic was invisible to `aw check`
@@ -1615,6 +1618,14 @@ def check_content(
         try:
             drift.extend(
                 check_ipd_draft_ready(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # rereview Order 02 (ygngc2 E-02): flag a reviewed or approved plan whose review may be stale.
+        # Advisory only (info severity).
+        try:
+            drift.extend(
+                check_ipd_review_stale(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -3710,6 +3721,66 @@ def check_ipd_draft_ready(
                 ),
                 observed="Status: draft (authoring complete)",
                 required="Status: to-review",
+                recovery=recovery,
+            )
+        )
+    return drift
+
+
+_REVIEW_STALE_RULE = "check.ipd-review-may-be-stale"
+
+
+def check_ipd_review_stale(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Flag a reviewed, approved, or auto-approved plan whose review may be stale (rereview ygngc2).
+
+    Advisory only (info severity). Iterates pending-dir plans, bulk-resolves review staleness via
+    ``plan_readiness.review_staleness_index``, and emits one enriched drift diagnostic per stale plan
+    naming the reasons, question ids, review commit (short hash), and recovery command.
+    """
+    from agent_workflows.plan_readiness import review_staleness_index
+
+    pending_plans: List[Path] = []
+    path_map: Dict[str, Path] = {}
+    id_map: Dict[str, str] = {}
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            rel = p.as_posix()
+        path_map[rel] = p
+        id_map[rel] = _read_item_id(text) or p.stem
+        pending_plans.append(p)
+
+    if not pending_plans:
+        return []
+
+    stale_index = review_staleness_index(repo_root, pending_plans)
+    drift: List[_core.Drift] = []
+    for rel_posix, stale in sorted(stale_index.items()):
+        p = path_map.get(rel_posix)
+        loc = str(p) if p is not None else rel_posix
+        id6 = id_map.get(rel_posix) or "<id6>"
+        reasons_text = ", ".join(stale.reasons)
+        oq_text = f" ({', '.join(stale.question_ids)})" if stale.question_ids else ""
+        short_hash = stale.reviewed_commit[:8]
+        recovery = f"aw oc review {id6} --yes"
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    loc,
+                    _REVIEW_STALE_RULE,
+                    f"review may be stale: {reasons_text}{oq_text} since {short_hash}",
+                ),
+                observed=f"{reasons_text}{oq_text} since review {short_hash}",
+                required=f"re-review via {recovery} (advisory only)",
                 recovery=recovery,
             )
         )

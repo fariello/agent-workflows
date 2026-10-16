@@ -175,6 +175,7 @@ aw specs check [PATH]
 - If ANY included artifact is invalid, `valid` is `false` and the command exits nonzero; `items` may include valid records for diagnosis but the view is not authoritative.
 - The `--agent`/`--check` violation record stays the house `location<TAB>rule<TAB>detail` form; Phase 0 defines tab/newline/backslash escaping and STABLE rule identifiers for tests and agent remediation.
 - The full JSON schema (required/optional fields, types, null behavior, enum values, path normalization, id uniqueness, ordering, version semantics, error representation) is finalized in Phase 0.
+- Schema version 5 (AMENDED 2026-10-16 by plan ygngc2): each item in `items` gains `review_stale` (a list of reason strings, empty when not stale or for non-plan artifacts).
 
 ### 8.4 Structured gates
 
@@ -344,6 +345,7 @@ The prerequisites this spec relies on (`agent_workflows/artifact_core.py`, the `
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): AMENDED by plan ygngc2: Section 8.3 schema_version bumped 4 -> 5; each item in items gains review_stale
 - 2026-10-13 note (aw specs): AMENDED by plan 8cu5ml (4ep6mp-01): Section 8.8 amended to state --agent TSV form no longer exists, aw.agent/v1 JSON encoding keeps detail single-line without wire escaping, and tab/newline/CR/backslash escaping applies only to non-repr'd untrusted values on human single-line surfaces.
 - 2026-10-08 note (aw specs): AMENDED by plan qpw45x (llnvwj-01): Section 8.8 Markdown escaping bullet narrows to the five measured metacharacters (\, |, [, ], <) on detail_text with five deliberately unescaped (backtick, _, *, #, >) and --format markdown rendered color-free; A14 amended so table-breaking strings are rendered inert (escaped) rather than check violations per OQ-02.
 - 2026-10-07 note (aw specs): AMENDED by plan pl1lbb (tapqf2-01): Section 8.8 and F10 split the descriptive length bound into two measured classes: a 300-char one-line class (Summary, Gate-Summary, Title, Close-Evidence) and a 4300-char prose class (Scope, Concern, Question), resolving corpus drift where 77.2% of prose values exceeded 300 characters.

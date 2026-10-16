@@ -115,7 +115,7 @@ class ScanTests(unittest.TestCase):
             root = _mk_repo(Path(d))
             items, drift = att.scan(root)
             obj = json.loads(att.render_json(items, drift))
-            self.assertEqual(obj["schema_version"], 4)
+            self.assertEqual(obj["schema_version"], 5)
             self.assertEqual(obj["stranded_lanes"], [])
             self.assertTrue(obj["valid"])
             self.assertTrue(all("attention_class" in it for it in obj["items"]))
@@ -2159,7 +2159,7 @@ class StrandedLaneViewTests(unittest.TestCase):
             self.assertNotIn(self.ABSOLUTE_WORKTREE, json_text)
             self.assertNotIn("/home/", json_text)
             obj = json.loads(json_text)
-            self.assertEqual(obj["schema_version"], 4)
+            self.assertEqual(obj["schema_version"], 5)
             self.assertEqual(obj["mapping_version"], 1)
             self.assertFalse(obj["valid"])
             self.assertEqual(len(obj["stranded_lanes"]), 1)
@@ -3756,7 +3756,7 @@ class InboxFooterNudgeTests(unittest.TestCase):
                 "stranded_lanes",
             ],
         )
-        self.assertEqual(obj["schema_version"], 4)
+        self.assertEqual(obj["schema_version"], 5)
         self.assertNotIn("inbox", self._agent(["--check"]))
 
     def test_rendering_the_board_creates_nothing(self):

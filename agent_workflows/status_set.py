@@ -1259,6 +1259,42 @@ def _prepare_status_change(
                 message = f"demoted {old_status} -> {norm_status}: {reason}"
         else:
             message = getattr(args, "message", None) or default_message
+        if norm_status == "approved":
+            try:
+                from agent_workflows.plan_readiness import review_staleness_index
+
+                effective_root = (
+                    repo_root if repo_root is not None else _repo_root_of(rec.path)
+                )
+                stale_map = review_staleness_index(effective_root, [rec.path])
+                try:
+                    rel_posix = (
+                        rec.path.resolve()
+                        .relative_to(effective_root.resolve())
+                        .as_posix()
+                    )
+                except ValueError:
+                    rel_posix = rec.path.as_posix()
+                stale = stale_map.get(rel_posix)
+                if stale:
+                    plan_id = rec.id6 or rec.path.name
+                    reasons_text = ", ".join(stale.reasons)
+                    oq_text = (
+                        f" ({', '.join(stale.question_ids)})"
+                        if stale.question_ids
+                        else ""
+                    )
+                    short_hash = stale.reviewed_commit[:8]
+                    stale_warn = (
+                        f"review may be stale for {plan_id}: {reasons_text}{oq_text} since {short_hash}; "
+                        f"to re-review: aw oc review {plan_id} --yes"
+                    )
+                    if _demotion_warning:
+                        _demotion_warning = f"{_demotion_warning}\n{stale_warn}"
+                    else:
+                        _demotion_warning = stale_warn
+            except Exception:
+                pass
     else:
         message = getattr(args, "message", None) or default_message
     actor = getattr(args, "actor", None) or "aw set"

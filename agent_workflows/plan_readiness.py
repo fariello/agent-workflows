@@ -72,7 +72,9 @@ same plan, so they were replaced rather than added to (d7bnhc D1).
 
 from __future__ import annotations
 
+import dataclasses
 import re
+import subprocess
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
@@ -93,6 +95,7 @@ __all__ = [
     "RECHECK_TARGET_READINESS",
     "ConditionResult",
     "RecheckResult",
+    "ReviewStaleness",
     "approval_refusals",
     "classify_verdict",
     "extract_newest_history_entry",
@@ -105,6 +108,8 @@ __all__ = [
     "newest_verdict",
     "recheck_conditions",
     "recheck_readiness",
+    "review_staleness_from_texts",
+    "review_staleness_index",
 ]
 
 # ------------------------------------------------------------------------------------------------
@@ -1261,3 +1266,221 @@ def _prepend_history_entry(text: str, entry: str) -> str:
             lines[i:i] = ["## Workflow history", "", entry, ""]
             return "\n".join(lines)
     return "\n".join(lines + ["", "## Workflow history", "", entry, ""])
+
+
+# ------------------------------------------------------------------------------------------------
+# Review staleness advisory (Set rereview, plan ygngc2).
+# ------------------------------------------------------------------------------------------------
+
+
+_STATUS_RE = re.compile(r"(?m)^-[ \t]*Status:[ \t]*([a-z-]+)", re.IGNORECASE)
+
+
+@dataclasses.dataclass(frozen=True)
+class ReviewStaleness:
+    reasons: Tuple[str, ...]
+    reviewed_commit: str
+    question_ids: Tuple[str, ...] = ()
+
+
+def review_staleness_from_texts(
+    reviewed_text: str, current_text: str, reviewed_commit: str
+) -> Optional[ReviewStaleness]:
+    """Determine whether review may be stale by comparing reviewed blob to current text.
+
+    Pure. Evaluates:
+    (a) answered-blocking-question: any ### OQ-NN block that read `Blocking: yes` and `Status: open`
+        in reviewed_text and reads `Status: resolved` in current_text;
+    (b) substantive-edit: `ipd_lifecycle.frozen_region_digest` differs between reviewed and current.
+
+    Returns None when neither reason holds.
+    """
+    reviewed_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    for block in _open_question_blocks(reviewed_text):
+        m_head = _OQ_HEADING_RE.match(block[0].rstrip())
+        if not m_head:
+            continue
+        oq_id = m_head.group(1)
+        blk_val: Optional[str] = None
+        st_val: Optional[str] = None
+        for line in block[1:]:
+            m = _OQ_FIELD_RE.match(line.strip())
+            if not m:
+                continue
+            f = m.group(1).strip().lower()
+            v = m.group(2).strip().lower()
+            if f == "blocking" and blk_val is None:
+                blk_val = v
+            elif f == "status" and st_val is None:
+                st_val = v
+        reviewed_oqs[oq_id] = (blk_val, st_val)
+
+    current_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    for block in _open_question_blocks(current_text):
+        m_head = _OQ_HEADING_RE.match(block[0].rstrip())
+        if not m_head:
+            continue
+        oq_id = m_head.group(1)
+        blk_val = None
+        st_val = None
+        for line in block[1:]:
+            m = _OQ_FIELD_RE.match(line.strip())
+            if not m:
+                continue
+            f = m.group(1).strip().lower()
+            v = m.group(2).strip().lower()
+            if f == "blocking" and blk_val is None:
+                blk_val = v
+            elif f == "status" and st_val is None:
+                st_val = v
+        current_oqs[oq_id] = (blk_val, st_val)
+
+    answered_blocking_oqs: List[str] = []
+    for oq_id, (blk_val, st_val) in reviewed_oqs.items():
+        if blk_val == "yes" and st_val == "open":
+            cur_blk, cur_st = current_oqs.get(oq_id, (None, None))
+            if cur_st == "resolved":
+                answered_blocking_oqs.append(oq_id)
+
+    from agent_workflows import ipd_lifecycle as _lifecycle
+
+    substantive_edit = False
+    try:
+        if _lifecycle.frozen_region_digest(
+            reviewed_text
+        ) != _lifecycle.frozen_region_digest(current_text):
+            substantive_edit = True
+    except Exception:
+        pass
+
+    reasons: List[str] = []
+    if answered_blocking_oqs:
+        reasons.append("answered-blocking-question")
+    if substantive_edit:
+        reasons.append("substantive-edit")
+
+    if not reasons:
+        return None
+
+    return ReviewStaleness(
+        reasons=tuple(reasons),
+        reviewed_commit=reviewed_commit,
+        question_ids=tuple(answered_blocking_oqs),
+    )
+
+
+def review_staleness_index(
+    repo_root: Path | str, plan_paths: Sequence[Path | str]
+) -> Dict[str, ReviewStaleness]:
+    """Bulk-resolve review staleness for candidates among ``plan_paths``.
+
+    Filters ``plan_paths`` to plans whose metadata Status is reviewed, approved, or auto-approved.
+    Runs one git log call to locate the latest `plan-review:` commit per candidate path, and reads
+    all reviewed blobs in one `git cat-file --batch` call.
+
+    Returns a dict mapping repo-relative POSIX paths to ReviewStaleness.
+    Never raises: any git error or non-git environment yields an empty dict.
+    """
+    try:
+        repo_root_path = Path(repo_root).resolve()
+        candidate_map: Dict[str, Tuple[Path, str]] = {}
+        for raw_path in plan_paths:
+            p = Path(raw_path)
+            abs_path = (
+                p.resolve() if p.is_absolute() else (repo_root_path / p).resolve()
+            )
+            try:
+                rel_posix = abs_path.relative_to(repo_root_path).as_posix()
+            except ValueError:
+                rel_posix = p.as_posix()
+            try:
+                text = abs_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            m = _STATUS_RE.search(text)
+            status = m.group(1).strip().lower() if m else None
+            if status in ("reviewed", "approved", "auto-approved"):
+                candidate_map[rel_posix] = (abs_path, text)
+
+        if not candidate_map:
+            return {}
+
+        cmd = [
+            "git",
+            "log",
+            "--format=%x01%H%x00%s",
+            "--name-only",
+            "--",
+        ] + list(candidate_map.keys())
+        proc = subprocess.run(
+            cmd,
+            cwd=repo_root_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return {}
+
+        candidate_reviewed_commits: Dict[str, str] = {}
+        for section in proc.stdout.split("\x01")[1:]:
+            lines = section.splitlines()
+            if not lines:
+                continue
+            header = lines[0]
+            if "\x00" not in header:
+                continue
+            sha, subject = header.split("\x00", 1)
+            if not subject.startswith("plan-review:"):
+                continue
+            for f in lines[1:]:
+                f = f.strip()
+                if f in candidate_map and f not in candidate_reviewed_commits:
+                    candidate_reviewed_commits[f] = sha
+            if len(candidate_reviewed_commits) == len(candidate_map):
+                break
+
+        if not candidate_reviewed_commits:
+            return {}
+
+        batch_input_str = "".join(
+            f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
+        )
+        p = subprocess.Popen(
+            ["git", "cat-file", "--batch"],
+            cwd=repo_root_path,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout_bytes, _ = p.communicate(batch_input_str.encode("utf-8"))
+        if p.returncode != 0:
+            return {}
+
+        results: Dict[str, ReviewStaleness] = {}
+        stream = stdout_bytes
+        idx = 0
+        for rel, sha in candidate_reviewed_commits.items():
+            newline_pos = stream.find(b"\n", idx)
+            if newline_pos == -1:
+                break
+            header_line = stream[idx:newline_pos].decode("utf-8", errors="replace")
+            idx = newline_pos + 1
+            if header_line.endswith(" missing"):
+                continue
+            parts = header_line.split()
+            if len(parts) >= 3 and parts[1] == "blob":
+                size = int(parts[2])
+                blob_bytes = stream[idx : idx + size]
+                idx += size
+                if idx < len(stream) and stream[idx : idx + 1] == b"\n":
+                    idx += 1
+                reviewed_text = blob_bytes.decode("utf-8", errors="replace")
+                abs_p, current_text = candidate_map[rel]
+                stale = review_staleness_from_texts(reviewed_text, current_text, sha)
+                if stale is not None:
+                    results[rel] = stale
+        return results
+    except Exception:
+        return {}
