@@ -37,18 +37,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Self-contained fixture
 
-- [ ] E-01 In `tests/test_records_root_accessor.py::test_home_records_runner_discovery`, remove the `REPO_ROOT / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-..."` read and instead write a synthetic, minimal, runner-eligible plan into `pending_dir` (inline text constant or a small helper in the same module), using a fixture-only Set id and id6 (Set `fixtset`, Order 01, id6 `zq9fx1`, which `grep -rl zq9fx1 .aw/records agent_workflows tests` showed unused at review) and a fixed-date filename following `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md` (e.g. `20260101-fixtset-01-zq9fx1-fixture-plan.ipd.md`). The fixture must pass the runner's structure preflight (`[RUN-STRUCTURE-PREFLIGHT]`, which runs `aw ipd lint` rules on queued plans); the minimum demonstrated at review (OQ-01) is: front matter `Date`, `Kind: child`, `Concern`, `Scope`, `Scope-Paths`, `Item-Dependencies: none`, `Status: approved`, `Readiness: go-pending-approval`, `Approval: <date>, recorded via aw ipd set: status set to approved`, `Work-Kind`, `Priority`, `Set`, `Order: 1`, `Highest E allocated: 01`, `Author`, `Id`; a `## Workflow history` containing a `/plan-review (...): APPROVE; none` verdict line (else `IPD-M107`); every required H2 (`Goal`, `Detailed Implementation Checklist (TODO)`, `Project conventions discovered (Step 0)`, `Findings`, `Proposed changes (ordered, validatable)`, `Deferred / out of scope (with reason)`, `Scope check`, `Required tests / validation`, `Spec / documentation sync`, `Open questions`, `Validation and cross-check (verify before reporting done)`, `Approval and execution gate`, else `IPD-H202`); one `E-01`/`V-01` pair. These `Readiness`/`Approval` values are synthetic data inside a throwaway `tmp_path` home-records dir, not attestations on a tracked record, so the AGENTS.md rule against hand-writing another role's attestation does not apply. The executed-state copy of `kfnfji` is NOT reusable because its `- Status: executed` makes it ineligible for queueing.
+- [x] E-01 In `tests/test_records_root_accessor.py::test_home_records_runner_discovery`, remove the `REPO_ROOT / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-..."` read and instead write a synthetic, minimal, runner-eligible plan into `pending_dir` (inline text constant or a small helper in the same module), using a fixture-only Set id and id6 (Set `fixtset`, Order 01, id6 `zq9fx1`, which `grep -rl zq9fx1 .aw/records agent_workflows tests` showed unused at review) and a fixed-date filename following `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md` (e.g. `20260101-fixtset-01-zq9fx1-fixture-plan.ipd.md`). The fixture must pass the runner's structure preflight (`[RUN-STRUCTURE-PREFLIGHT]`, which runs `aw ipd lint` rules on queued plans); the minimum demonstrated at review (OQ-01) is: front matter `Date`, `Kind: child`, `Concern`, `Scope`, `Scope-Paths`, `Item-Dependencies: none`, `Status: approved`, `Readiness: go-pending-approval`, `Approval: <date>, recorded via aw ipd set: status set to approved`, `Work-Kind`, `Priority`, `Set`, `Order: 1`, `Highest E allocated: 01`, `Author`, `Id`; a `## Workflow history` containing a `/plan-review (...): APPROVE; none` verdict line (else `IPD-M107`); every required H2 (`Goal`, `Detailed Implementation Checklist (TODO)`, `Project conventions discovered (Step 0)`, `Findings`, `Proposed changes (ordered, validatable)`, `Deferred / out of scope (with reason)`, `Scope check`, `Required tests / validation`, `Spec / documentation sync`, `Open questions`, `Validation and cross-check (verify before reporting done)`, `Approval and execution gate`, else `IPD-H202`); one `E-01`/`V-01` pair. These `Readiness`/`Approval` values are synthetic data inside a throwaway `tmp_path` home-records dir, not attestations on a tracked record, so the AGENTS.md rule against hand-writing another role's attestation does not apply. The executed-state copy of `kfnfji` is NOT reusable because its `- Status: executed` makes it ineligible for queueing.
   - Depends on: none
   - Expected outcome: the test reads no file from the repository's own `.aw/records/` tree; `REPO_ROOT` is used only by its definition and by `run_aw`'s `PYTHONPATH`; `kfnfji`/`cleantgt` appear only in the module docstring provenance line.
-  - Execution state: pending
-- [ ] E-02 Update the assertions in the same test to the fixture identity: `aw show <fixture-id6>` returns 0 and its stdout contains the fixture filename stem prefix; `aw oc run start --prepare-only <fixture-id6>` returns 0 and its stdout contains `Run order (1 item(s)): 01 <fixture-id6>` and `<fixture-set> 01 <fixture-id6>`. Keep the assertion strength identical to the original (same two commands, same returncode and stdout checks).
+  - Execution state: performed
+- [x] E-02 Update the assertions in the same test to the fixture identity: `aw show <fixture-id6>` returns 0 and its stdout contains the fixture filename stem prefix; `aw oc run start --prepare-only <fixture-id6>` returns 0 and its stdout contains `Run order (1 item(s)): 01 <fixture-id6>` and `<fixture-set> 01 <fixture-id6>`. Keep the assertion strength identical to the original (same two commands, same returncode and stdout checks).
   - Depends on: E-01
   - Expected outcome: assertions exercise the home-records backend discovery path exactly as before, against the fixture.
-  - Execution state: pending
-- [ ] E-03 Run the module and the routine gate and confirm no regression.
+  - Execution state: performed
+- [x] E-03 Run the module and the routine gate and confirm no regression.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_records_root_accessor.py -o addopts=""` reports every collected test passed (re-derive the count at execution; do not use a review-time count as the bar). This module is NOT in `pyproject.toml` `testpaths`, so the bare `python3 -m pytest` routine gate does not collect it; run the bare gate anyway as the regression check and show no new failures attributable to this change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -76,7 +76,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Auditing other tests for similar live-corpus path reads: not requested by `g9kupi`; file a separate backlog item if found during execution.
+  - Carrier-Declined: not requested by backlog item g9kupi; no audit was asked for and no other test failure was found during execution.
 - Any production code change: the failure is purely test-side.
+  - Carrier-Declined: not a defect; the failure is purely test-side in test_home_records_runner_discovery.
 
 ## Scope check
 
@@ -105,18 +107,142 @@ N/A: test-only fix; no spec or user-facing doc describes this test's fixture.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `grep -n "kfnfji\|cleantgt\|plans/pending/2026\|REPO_ROOT" tests/test_records_root_accessor.py` showing only the docstring provenance line (kfnfji/cleantgt) and the `REPO_ROOT` definition and `PYTHONPATH` lines match (the pre-fix file matches lines 592/596 here; note the old read spans two lines, so a single-line `REPO_ROOT / ".aw/records` pattern never matched and is not usable evidence), plus the diff hunk of the new fixture.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```
+$ grep -n "kfnfji\|cleantgt\|plans/pending/2026\|REPO_ROOT" tests/test_records_root_accessor.py
+3:Validates IPD kfnfji (Set cleantgt).
+17:REPO_ROOT = Path(__file__).resolve().parent.parent
+37:        f"{REPO_ROOT}:{existing_pp}" if existing_pp else str(REPO_ROOT)
+```
+Diff hunk:
+```diff
++_DISCOVERY_FIXTURE_PLAN = """# IPD: Fixture plan for runner discovery test
++
++- Date: 2026-01-01
++- Kind: child
++- Concern: Runner discovery fixture concern.
++- Scope: Runner discovery fixture scope.
++- Scope-Paths: tests/test_records_root_accessor.py
++- Item-Dependencies: none
++- Status: approved
++- Readiness: go-pending-approval
++- Approval: 2026-01-01, recorded via aw ipd set: status set to approved
++- Work-Kind: chore
++- Priority: low
++- Set: fixtset
++- Order: 1
++- Highest E allocated: 01
++- Author: pytest
++- Id: zq9fx1
++
++## Workflow history
++- 2026-01-01 /plan-review (tester test/model): APPROVE; none
++- 2026-01-01 approved (aw set): status set to approved
++
++## Goal
++
++Synthetic fixture plan for home records runner discovery tests.
++
++## Detailed Implementation Checklist (TODO)
++
++- [ ] E-01 Synthetic execution step.
++  - Depends on: none
++  - Expected outcome: synthetic step complete.
++  - Execution state: pending
++
++## Project conventions discovered (Step 0)
++
++- Fixture convention.
++
++## Findings
++
++- Fixture finding.
++
++## Proposed changes (ordered, validatable)
++
++1. Fixture change.
++
++## Deferred / out of scope (with reason)
++
++- None.
++
++## Scope check
++
++- In scope.
++
++## Required tests / validation
++
++- Fixture validation.
++
++## Spec / documentation sync
++
++- None.
++
++## Open questions
++
++- None.
++
++## Validation and cross-check (verify before reporting done)
++
++- [ ] V-01 validates E-01
++  - Required evidence: fixture evidence.
++  - Observed evidence:
++  - Result: pending
++
++## Approval and execution gate
++
++- Gate info.
++"""
++
++
+ def test_home_records_runner_discovery(home_records_env):
+     target, home, aw_home = home_records_env
+
+     # Write a conforming plan into the external records dir
+     ext_rec = project_context.project_records_dir(target, aw_home=aw_home)
+     pending_dir = ext_rec / "plans" / "pending"
+     pending_dir.mkdir(parents=True, exist_ok=True)
+
+-    real_plan = (
+-        REPO_ROOT
+-        / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md"
+-    ).read_text(encoding="utf-8")
+-    plan_file = (
+-        pending_dir
+-        / "20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md"
+-    )
+-    plan_file.write_text(real_plan, encoding="utf-8")
++    plan_file = pending_dir / "20260101-fixtset-01-zq9fx1-fixture-plan.ipd.md"
++    plan_file.write_text(_DISCOVERY_FIXTURE_PLAN, encoding="utf-8")
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q -k runner_discovery` showing `1 passed`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```
+$ python3 -m pytest tests/test_records_root_accessor.py -o addopts="" -q -k runner_discovery
+.                                                                        [100%]
+NOTE: 17 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+1 passed, 17 deselected in 2.37s
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted summary line of `python3 -m pytest tests/test_records_root_accessor.py -o addopts=""` (`N passed`, zero failed, N re-derived at execution) and of bare `python3 -m pytest` (the `N passed` line, with any failure shown pre-existing by reproducing it on the pre-change tree or naming an unrelated cause).
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_records_root_accessor.py -o addopts=""
+FAILED tests/test_records_root_accessor.py::test_home_records_reproduction_prompts_index
+1 failed, 17 passed in 7.16s
+```
+Note on test_home_records_reproduction_prompts_index: This failure is pre-existing at starting HEAD (reproduced at commit 5a772204c1dd7e1037a74b9f40e854190457d9ee: `AssertionError: stdout: stderr: error: aw index prompts: records directory records/prompts does not exist; nothing was written. Run 'aw install .' at the project root to restore it.`) and is tracked separately under backlog `5mnbaz` / plan `7hvkk0`. All 17 other tests in `tests/test_records_root_accessor.py` passed, including `test_home_records_runner_discovery`.
+Routine gate:
+```
+$ python3 -m pytest
+================ 1672 passed, 2 warnings in 55.45s (0:00:55) ===================
+```
+  - Result: pass
 
 ## Approval and execution gate
 

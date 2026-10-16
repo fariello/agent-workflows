@@ -579,6 +579,85 @@ Test plan.
     assert "missing-tree" not in res_check.stdout
 
 
+_DISCOVERY_FIXTURE_PLAN = """# IPD: Fixture plan for runner discovery test
+
+- Date: 2026-01-01
+- Kind: child
+- Concern: Runner discovery fixture concern.
+- Scope: Runner discovery fixture scope.
+- Scope-Paths: tests/test_records_root_accessor.py
+- Item-Dependencies: none
+- Status: approved
+- Readiness: go-pending-approval
+- Approval: 2026-01-01, recorded via aw ipd set: status set to approved
+- Work-Kind: chore
+- Priority: low
+- Set: fixtset
+- Order: 1
+- Highest E allocated: 01
+- Author: pytest
+- Id: zq9fx1
+
+## Workflow history
+- 2026-01-01 /plan-review (tester test/model): APPROVE; none
+- 2026-01-01 approved (aw set): status set to approved
+
+## Goal
+
+Synthetic fixture plan for home records runner discovery tests.
+
+## Detailed Implementation Checklist (TODO)
+
+- [ ] E-01 Synthetic execution step.
+  - Depends on: none
+  - Expected outcome: synthetic step complete.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Fixture convention.
+
+## Findings
+
+- Fixture finding.
+
+## Proposed changes (ordered, validatable)
+
+1. Fixture change.
+
+## Deferred / out of scope (with reason)
+
+- None.
+
+## Scope check
+
+- In scope.
+
+## Required tests / validation
+
+- Fixture validation.
+
+## Spec / documentation sync
+
+- None.
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting done)
+
+- [ ] V-01 validates E-01
+  - Required evidence: fixture evidence.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Gate info.
+"""
+
+
 def test_home_records_runner_discovery(home_records_env):
     target, home, aw_home = home_records_env
 
@@ -587,19 +666,12 @@ def test_home_records_runner_discovery(home_records_env):
     pending_dir = ext_rec / "plans" / "pending"
     pending_dir.mkdir(parents=True, exist_ok=True)
 
-    real_plan = (
-        REPO_ROOT
-        / ".aw/records/plans/pending/20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md"
-    ).read_text(encoding="utf-8")
-    plan_file = (
-        pending_dir
-        / "20261015-cleantgt-01-kfnfji-route-every-records-reader-and-writer-through-one-records-ro.ipd.md"
-    )
-    plan_file.write_text(real_plan, encoding="utf-8")
+    plan_file = pending_dir / "20260101-fixtset-01-zq9fx1-fixture-plan.ipd.md"
+    plan_file.write_text(_DISCOVERY_FIXTURE_PLAN, encoding="utf-8")
 
-    # 1. aw show kfnfji
+    # 1. aw show zq9fx1
     res_show = run_aw(
-        ["show", "kfnfji", "--dir", str(target)],
+        ["show", "zq9fx1", "--dir", str(target)],
         cwd=target,
         home=home,
         aw_home=aw_home,
@@ -607,11 +679,11 @@ def test_home_records_runner_discovery(home_records_env):
     assert (
         res_show.returncode == 0
     ), f"show failed: {res_show.stdout}\n{res_show.stderr}"
-    assert "20261015-cleantgt-01-kfnfji" in res_show.stdout
+    assert "20260101-fixtset-01-zq9fx1" in res_show.stdout
 
-    # 2. aw oc run start --prepare-only kfnfji
+    # 2. aw oc run start --prepare-only zq9fx1
     res_prep = run_aw(
-        ["oc", "run", "start", "--prepare-only", "kfnfji"],
+        ["oc", "run", "start", "--prepare-only", "zq9fx1"],
         cwd=target,
         home=home,
         aw_home=aw_home,
@@ -619,5 +691,5 @@ def test_home_records_runner_discovery(home_records_env):
     assert (
         res_prep.returncode == 0
     ), f"prepare-only failed: {res_prep.stdout}\n{res_prep.stderr}"
-    assert "Run order (1 item(s)): 01 kfnfji" in res_prep.stdout
-    assert "cleantgt 01 kfnfji" in res_prep.stdout
+    assert "Run order (1 item(s)): 01 zq9fx1" in res_prep.stdout
+    assert "fixtset 01 zq9fx1" in res_prep.stdout
