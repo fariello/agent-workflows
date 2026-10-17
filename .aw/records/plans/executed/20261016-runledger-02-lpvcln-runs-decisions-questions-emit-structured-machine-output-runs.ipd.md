@@ -5,8 +5,9 @@
 - Concern: `aw runs decisions` and `aw runs questions` print raw markdown under `--agent`/`--json` (stdout is not parseable by `json.loads`), and `aw runs evidence` (machine `ledger` key and human header) plus `aw runs verify-ledger` (human `Ledger:` and `FAIL:` lines) print the absolute ledger path.
 - Scope: Give the two projection leaves a bare-JSON machine payload (same `_emit_machine` family as their `aw runs` siblings) while keeping human output and exit codes unchanged; route every ledger path these two ledger leaves print through `agent_schema.normalize_repo_path`, and the same-defect sibling sites in this file (`runs show` human `Ledger:` line and `_emit_not_a_ledger`'s machine `path`, review PR-001); add behavioral tests; update the live conformance sweep and exemption registry that currently pin the raw-markdown gap; add a CHANGELOG line.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_runs_machine_output_paths.py, tests/test_live_conformance_sweep.py, tests/conformance_matrix.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-kv7tj0-01-kv7tj0-aw-runs-not-a-ledger-refusal-the-error-message-tex.backlog.md (defect-report carrier the driver contract requires: files kv7tj0, the residual absolute path in the not-a-ledger error text found while executing E-07 record only, no code change)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: lpvcln
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: lpvcln verified (set runledger, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-kv7tj0-01-kv7tj0-aw-runs-not-a-ledger-refusal-the-error-message-tex.backlog.md: defect-report carrier the driver contract requires: files kv7tj0, the residual absolute path in the not-a-ledger error text found while executing E-07; record only, no code change]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-005)
 
@@ -36,45 +37,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Structured machine output for the projection leaves
 
-- [ ] E-01 In `agent_workflows/run_cli.py`, factor `_run_decisions` and `_run_questions` through one helper (for example `_emit_projection(args, kind, filename, empty_marker)`). Human mode for a PRESENT projection stays byte-identical (prints the markdown); a MISSING projection still prints the `no ... projection found for this run (<path>)` line, but with the repo-relative path instead of the absolute one (review PR-001), so the human line and the machine `path` agree. When `_machine(args)` is true: (a) projection present -> `_emit_machine(args, {"ok": True, "projection": "decisions"|"questions", "run_id": <target>, "path": <repo-relative path>, "empty": <bool>, "entry_ids": [<ids from "## " heading lines, with any " (SUPERSEDED)"/" [consultation_preferred]" suffix stripped>], "content": <markdown text>, "exit_code": <0|1>})`; (b) projection missing -> `_emit_error(args, "no <kind> projection found for this run (<repo-relative path>)", 2, extra={"projection": <kind>, "path": <repo-relative path>})`. The path is `agent_schema.normalize_repo_path(path, repo_root)` where `repo_root` is the same `resolve_verb_repo_root(args.dir)` `_projection_dir` uses. Exit codes stay 0 found / 1 empty / 2 missing.
+- [x] E-01 In `agent_workflows/run_cli.py`, factor `_run_decisions` and `_run_questions` through one helper (for example `_emit_projection(args, kind, filename, empty_marker)`). Human mode for a PRESENT projection stays byte-identical (prints the markdown); a MISSING projection still prints the `no ... projection found for this run (<path>)` line, but with the repo-relative path instead of the absolute one (review PR-001), so the human line and the machine `path` agree. When `_machine(args)` is true: (a) projection present -> `_emit_machine(args, {"ok": True, "projection": "decisions"|"questions", "run_id": <target>, "path": <repo-relative path>, "empty": <bool>, "entry_ids": [<ids from "## " heading lines, with any " (SUPERSEDED)"/" [consultation_preferred]" suffix stripped>], "content": <markdown text>, "exit_code": <0|1>})`; (b) projection missing -> `_emit_error(args, "no <kind> projection found for this run (<repo-relative path>)", 2, extra={"projection": <kind>, "path": <repo-relative path>})`. The path is `agent_schema.normalize_repo_path(path, repo_root)` where `repo_root` is the same `resolve_verb_repo_root(args.dir)` `_projection_dir` uses. Exit codes stay 0 found / 1 empty / 2 missing.
   - Depends on: E-04
   - Expected outcome: `aw runs decisions <id> --json` and `--agent` stdout parse with `json.loads` (agent: one compact line) into a dict whose `projection`, `empty`, `content` and `exit_code` agree with the projection file and the process exit code; human stdout for a present projection unchanged; the missing-projection line (human and machine) carries no absolute path; `tests/test_run_cli_human_redaction.py::test_projection_leaves_path_secret_redacted` still passes (the token survives `normalize_repo_path` and is scrubbed by `_redact_output`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Repo-relative ledger paths
 
-- [ ] E-02 In `run_cli._run_evidence`, compute `rel_ledger = agent_schema.normalize_repo_path(ledger_file, repo_dir)` once and use it for the machine payload `"ledger"` key (replacing `str(ledger_file)`) and the human header `Evidence for <ledger> (N items):`.
+- [x] E-02 In `run_cli._run_evidence`, compute `rel_ledger = agent_schema.normalize_repo_path(ledger_file, repo_dir)` once and use it for the machine payload `"ledger"` key (replacing `str(ledger_file)`) and the human header `Evidence for <ledger> (N items):`.
   - Depends on: E-04
   - Expected outcome: `aw runs evidence <id> --json`/`--agent` `ledger` is a non-absolute path ending in `ledger.jsonl`; human header contains no absolute path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `run_cli._run_verify_ledger`, use the same normalized relative path for the human `Ledger: ...` line and the human `FAIL: Ledger verification failed for ...` line. Machine payloads are unchanged (they carry no path today).
+- [x] E-03 In `run_cli._run_verify_ledger`, use the same normalized relative path for the human `Ledger: ...` line and the human `FAIL: Ledger verification failed for ...` line. Machine payloads are unchanged (they carry no path today).
   - Depends on: E-04
   - Expected outcome: `aw runs verify-ledger <id>` human stdout carries `Ledger: <relative path ending in ledger.jsonl>` and no occurrence of the absolute repo root.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 In `run_cli._run_show`, print the human `Ledger: ... (N records)` line with `agent_schema.normalize_repo_path(ledger_file, repo_dir)`; in `run_cli._emit_not_a_ledger`, emit `"path": agent_schema.normalize_repo_path(exc.path, <repo root>)` instead of `str(exc.path)` (resolve the root with `resolve_verb_repo_root(getattr(args, "dir", None))`, the same resolver every caller uses). Same defect class as F-2/F-3 in the same file, folded in at review (PR-001) instead of being left uncarried.
+- [x] E-07 In `run_cli._run_show`, print the human `Ledger: ... (N records)` line with `agent_schema.normalize_repo_path(ledger_file, repo_dir)`; in `run_cli._emit_not_a_ledger`, emit `"path": agent_schema.normalize_repo_path(exc.path, <repo root>)` instead of `str(exc.path)` (resolve the root with `resolve_verb_repo_root(getattr(args, "dir", None))`, the same resolver every caller uses). Same defect class as F-2/F-3 in the same file, folded in at review (PR-001) instead of being left uncarried.
   - Depends on: E-04
   - Expected outcome: `aw runs show <id>` human stdout carries no absolute repo root; a not-a-ledger refusal's machine `path` is non-absolute; every other key of the not-a-ledger payload and every exit code unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Tests, conformance registry, changelog
 
-- [ ] E-04 Add `tests/test_runs_machine_output_paths.py` (behavioral, subprocess-driven via `python -m agent_workflows` against a `tmp_path` repo seeded with `conformance_matrix.seed_ledger_fixture`): (a) for `decisions` and `questions` x `--json`/`--agent`, stdout parses as one JSON dict with `empty is True`, the fixture marker in `content`, `exit_code == returncode == 1`, and a non-absolute `path`; (b) after overwriting the decisions projection with `set_records.render_decisions([...one autonomous_decision record with decision_id "D-01"...])`, `--json` yields `empty is False`, `entry_ids == ["D-01"]`, returncode 0; (c) missing projection (unseeded run id) under `--json` yields `ok is False`, `exit_code == 2`, returncode 2, non-absolute `path`; (d) human output of `decisions` equals the projection file text; (e) `runs evidence --json`/`--agent` `ledger` is not absolute and endswith `ledger.jsonl`; (f) `runs evidence` and `runs verify-ledger` human stdout does not contain `str(tmp_path.resolve())` and verify-ledger contains a `Ledger: ` line ending in `ledger.jsonl`.
+- [x] E-04 Add `tests/test_runs_machine_output_paths.py` (behavioral, subprocess-driven via `python -m agent_workflows` against a `tmp_path` repo seeded with `conformance_matrix.seed_ledger_fixture`): (a) for `decisions` and `questions` x `--json`/`--agent`, stdout parses as one JSON dict with `empty is True`, the fixture marker in `content`, `exit_code == returncode == 1`, and a non-absolute `path`; (b) after overwriting the decisions projection with `set_records.render_decisions([...one autonomous_decision record with decision_id "D-01"...])`, `--json` yields `empty is False`, `entry_ids == ["D-01"]`, returncode 0; (c) missing projection (unseeded run id) under `--json` yields `ok is False`, `exit_code == 2`, returncode 2, non-absolute `path`; (d) human output of `decisions` equals the projection file text; (e) `runs evidence --json`/`--agent` `ledger` is not absolute and endswith `ledger.jsonl`; (f) `runs evidence` and `runs verify-ledger` human stdout does not contain `str(tmp_path.resolve())` and verify-ledger contains a `Ledger: ` line ending in `ledger.jsonl`.
   Also (g): `runs show` human stdout does not contain `str(tmp_path.resolve())` and its `Ledger: ` line ends in `ledger.jsonl (N records)`; (h) `runs show <path-to-a-non-ledger-jsonl-file-inside-tmp_path> --dir <tmp_path> --json` yields `not_a_ledger is True` and a non-absolute `path`. AUTHOR THIS MODULE FIRST, before E-01..E-03/E-07 touch `run_cli.py`, and run it once to capture the RED baseline (review PR-003).
   - Depends on: none
   - Expected outcome: before E-01..E-03/E-07, cases (a), (c), (e), (f), (g), (h) fail and (b)'s `--json` parse fails (raw markdown / absolute paths); after them, the whole module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update the gap pins: in `tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous`, replace the `PROJECTION_MARKERS` substring-only branch for agent/json with JSON parsing (assert dict, `empty is True`, marker in `content`), keeping the human marker assertion; in `tests/conformance_matrix.py` `EXEMPTION_REGISTRY`, change the `runs decisions` and `runs questions` entries from `not_runnable` "(gap hbok5d)" to `sanctioned_raw` with citation `docs/cli-output-contract.md Section 3.1` and the same bare-JSON `_emit_machine` reason text their `runs evidence`/`runs show` siblings carry, and fix the per-kind count comments (`# sanctioned_raw (N):`, `# not_runnable (N):`) to the new counts.
+- [x] E-05 Update the gap pins: in `tests/test_live_conformance_sweep.py::test_live_ledger_read_leaves_non_vacuous`, replace the `PROJECTION_MARKERS` substring-only branch for agent/json with JSON parsing (assert dict, `empty is True`, marker in `content`), keeping the human marker assertion; in `tests/conformance_matrix.py` `EXEMPTION_REGISTRY`, change the `runs decisions` and `runs questions` entries from `not_runnable` "(gap hbok5d)" to `sanctioned_raw` with citation `docs/cli-output-contract.md Section 3.1` and the same bare-JSON `_emit_machine` reason text their `runs evidence`/`runs show` siblings carry, and fix the per-kind count comments (`# sanctioned_raw (N):`, `# not_runnable (N):`) to the new counts.
   - Depends on: E-01
   - Expected outcome: `tests/test_live_conformance_sweep.py`, `tests/test_agent_surface_conformance.py` and `tests/test_command_surface_declarations.py` pass; no registry entry still cites hbok5d.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a `- Fixed:` line to the pending section of `CHANGELOG.md` (user-facing prose, no em/en dashes): `aw runs decisions` and `aw runs questions` now emit a JSON object under `--agent` and `--json`, and `aw runs evidence`, `aw runs verify-ledger` and `aw runs show` report the ledger as a repository-relative path.
+- [x] E-06 Add a `- Fixed:` line to the pending section of `CHANGELOG.md` (user-facing prose, no em/en dashes): `aw runs decisions` and `aw runs questions` now emit a JSON object under `--agent` and `--json`, and `aw runs evidence`, `aw runs verify-ledger` and `aw runs show` report the ledger as a repository-relative path.
   - Depends on: E-01, E-02, E-03, E-07
   - Expected outcome: one new CHANGELOG line, dash-free.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -141,40 +142,144 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted stdout of `aw runs decisions <fixture-run-id> --dir <scratch> --json` and `... --agent` (produced by `run_cli._run_decisions` after E-01) each piped through `python3 -c 'import json,sys; print(json.loads(sys.stdin.read()))'` without error, plus the exit code (1 for the empty fixture); and the human-mode stdout shown identical to the projection file.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ aw runs decisions run-abcdef1234 --dir <scratch> --json        (rc=1)
+    {
+      "content": "_No autonomous decisions recorded._\n",
+      "empty": true,
+      "entry_ids": [],
+      "exit_code": 1,
+      "ok": true,
+      "path": ".aw/workflow-artifacts/exec-set/run-abcdef1234/decisions.md",
+      "projection": "decisions",
+      "run_id": "run-abcdef1234"
+    }
+    -- json.loads: {'content': '_No autonomous decisions recorded._\n', 'empty': True, 'entry_ids': [], 'exit_code': 1, 'ok': True, 'path': '.aw/workflow-artifacts/exec-set/run-abcdef1234/decisions.md', 'projection': 'decisions', 'run_id': 'run-abcdef1234'}
+    $ aw runs decisions run-abcdef1234 --dir <scratch> --agent       (rc=1)
+    {"content":"_No autonomous decisions recorded._\n","empty":true,"entry_ids":[],"exit_code":1,"ok":true,"path":".aw/workflow-artifacts/exec-set/run-abcdef1234/decisions.md","projection":"decisions","run_id":"run-abcdef1234"}
+    -- json.loads: {'content': '_No autonomous decisions recorded._\n', 'empty': True, 'entry_ids': [], 'exit_code': 1, 'ok': True, 'path': '.aw/workflow-artifacts/exec-set/run-abcdef1234/decisions.md', 'projection': 'decisions', 'run_id': 'run-abcdef1234'}
+    $ aw runs decisions run-abcdef1234 --dir <scratch>               (rc=1)
+    _No autonomous decisions recorded._
+    $ diff <human stdout> <projection decisions.md> && echo IDENTICAL
+    IDENTICAL to projection file
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw runs evidence <fixture-run-id> --dir <scratch> --json` stdout (from `run_cli._run_evidence`) whose `ledger` value is relative and ends in `ledger.jsonl`, and human header without the scratch absolute path.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ aw runs evidence run-abcdef1234 --dir <scratch> --json
+    {
+      "all_valid": true,
+      "evidence": [],
+      "evidence_count": 0,
+      "ledger": ".aw/records/runs/run-abcdef1234/ledger.jsonl"
+    }
+    $ aw runs evidence run-abcdef1234 --dir <scratch>
+    Evidence for .aw/records/runs/run-abcdef1234/ledger.jsonl (0 items):
+      No captured evidence envelopes or tool events found.
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted human stdout of `aw runs verify-ledger <fixture-run-id> --dir <scratch>` (from `run_cli._run_verify_ledger`) showing a relative `Ledger:` line and no absolute scratch path.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ aw runs verify-ledger run-abcdef1234 --dir <scratch>           (rc=1)
+    Ledger: .aw/records/runs/run-abcdef1234/ledger.jsonl
+    Hash Chain: CLEAN (2 records verified)
+    Evidence Validity: CLEAN
+    Completion Predicates: UNSATISFIED
+    ...
+    Overall Status: FAIL
+    ```
+    No absolute scratch path in the output (the `FAIL: Ledger verification failed for` line uses the same normalized path; covered by the shared code path and the green suite).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the pasted RED run of `python3 -m pytest -o addopts="" -q tests/test_runs_machine_output_paths.py` taken BEFORE E-01..E-03/E-07 changed `run_cli.py` (showing cases (a), (c), (e), (f), (g), (h) failing), then the pasted GREEN run of the same command after them with zero failures. A note in place of the RED output is not acceptable.
   - Observed evidence:
-  - Result: pending
+    RED (before any run_cli.py change, `python3 -m pytest -o addopts="" -q -n 6 tests/test_runs_machine_output_paths.py`):
+    ```
+    FAILED tests/test_runs_machine_output_paths.py::test_verify_ledger_human_has_relative_ledger_line
+    FAILED tests/test_runs_machine_output_paths.py::test_not_a_ledger_machine_path_is_relative
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_missing_human_line_is_relative
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_missing_machine_error[decisions]
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_machine_output_parses_empty[decisions---json]
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_machine_output_parses_empty[questions---agent]
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_machine_output_parses_empty[decisions---agent]
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_missing_machine_error[questions]
+    FAILED tests/test_runs_machine_output_paths.py::test_evidence_human_has_no_absolute_root
+    FAILED tests/test_runs_machine_output_paths.py::test_evidence_machine_ledger_is_relative[--agent]
+    FAILED tests/test_runs_machine_output_paths.py::test_decisions_machine_output_lists_entry_ids
+    FAILED tests/test_runs_machine_output_paths.py::test_evidence_machine_ledger_is_relative[--json]
+    FAILED tests/test_runs_machine_output_paths.py::test_projection_machine_output_parses_empty[questions---json]
+    FAILED tests/test_runs_machine_output_paths.py::test_show_human_has_relative_ledger_line
+    14 failed, 2 passed in 14.88s
+    ```
+    (The 2 passing are case (d), human output equals the projection file, which was already true.)
+    GREEN (after E-01..E-03/E-07):
+    ```
+    ................                                                         [100%]
+    16 passed in 12.67s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the `git diff tests/conformance_matrix.py tests/test_live_conformance_sweep.py`; the pasted output of the full `## Required tests / validation` pytest command with zero failures; `grep -n hbok5d tests/conformance_matrix.py` returning nothing; the summary line of the routine gate `python3 -m pytest`; and the `aw sanitize --agent` result line.
   - Observed evidence:
-  - Result: pending
+    Diff (excerpt of `git diff b4acc832d HEAD -- tests/conformance_matrix.py tests/test_live_conformance_sweep.py`): `runs decisions` and `runs questions` moved from `not_runnable` "(gap hbok5d)" to `sanctioned_raw`, citation `docs/cli-output-contract.md Section 3.1`, reason identical to the `runs evidence`/`runs show` siblings; count comments now `# sanctioned_raw (13):` and `# not_runnable (9):` (confirmed by `Counter({'sanctioned_raw': 13, 'not_runnable': 9})` over `EXEMPTION_REGISTRY`); the live sweep's projection branch now `json.loads` the single `--agent` line and the `--json` stdout, asserts a dict, `empty is True`, and the marker in `content`, keeping the human marker assertion.
+    Required pytest command (`-n 6` added for wall time):
+    ```
+    282 passed in 316.18s (0:05:16)
+    ```
+    `grep -n hbok5d tests/conformance_matrix.py`: no output.
+    Routine gate `aw suite`:
+    ```
+    745 passed in 120.38s (0:02:00)
+    ```
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5362,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted human stdout of `aw runs show <fixture-run-id> --dir <scratch>` (from `run_cli._run_show`) with a relative `Ledger:` line, and pasted `--json` stdout of `aw runs show <non-ledger-file> --dir <scratch>` (from `run_cli._emit_not_a_ledger`) with `not_a_ledger: true` and a non-absolute `path`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ aw runs show run-abcdef1234 --dir <scratch>                     (rc=1)
+    Run: run-abcdef1234
+    Repository: scratch
+    HEAD: b4acc832d8df0ff3450e5546b78f50261a31f692
+    Ledger: .aw/records/runs/run-abcdef1234/ledger.jsonl (2 records)
+    ...
+    $ aw runs show <scratch>/.aw/records/runs/run-feedfeed00/events.jsonl --dir <scratch> --json   (rc=7)
+    {
+      "corrupted": false,
+      "error": "error: not a run ledger: <ABSOLUTE scratch path>/.aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: ...",
+      "exit_code": 7,
+      "not_a_ledger": true,
+      "ok": false,
+      "path": ".aw/records/runs/run-feedfeed00/events.jsonl"
+    }
+    ```
+    `path` is non-absolute as required. Note: the `error` message text (from `store.NotALedgerError.__str__`, outside this plan's scope) still embeds the absolute path; reported as a follow-up finding, not part of E-07's acceptance.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff CHANGELOG.md` showing the one new line, and a grep showing it contains no em or en dash.
   - Observed evidence:
-  - Result: pending
+    ```
+    +- Fixed: `aw runs decisions` and `aw runs questions` now emit a JSON object under `--agent` and `--json`, and `aw runs evidence`, `aw runs verify-ledger` and `aw runs show` report the ledger as a repository-relative path.
+    $ git diff CHANGELOG.md | grep '^+' | grep -P '[\x{2013}\x{2014}]' && echo DASH || echo "no em/en dash"
+    no em/en dash
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

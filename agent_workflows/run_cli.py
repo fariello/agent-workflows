@@ -147,34 +147,98 @@ def _projection_dir(args: argparse.Namespace):
     return set_records.run_artifacts_dir(Path(repo_root), workflow, run_id)
 
 
+_PROJECTION_ID_SUFFIXES = (" (SUPERSEDED)", " [consultation_preferred]")
+
+
+def _projection_entry_ids(text: str) -> List[str]:
+    """Entry ids from a rendered projection's `## <id>` headings, render-time suffixes stripped."""
+    ids: List[str] = []
+    for line in text.splitlines():
+        if not line.startswith("## "):
+            continue
+        entry = line[3:].strip()
+        stripped = True
+        while stripped:
+            stripped = False
+            for suffix in _PROJECTION_ID_SUFFIXES:
+                if entry.endswith(suffix):
+                    entry = entry[: -len(suffix)].rstrip()
+                    stripped = True
+        if entry:
+            ids.append(entry)
+    return ids
+
+
+def _emit_projection(
+    args: argparse.Namespace,
+    kind: str,
+    filename: str,
+    label: str,
+    empty_marker: str,
+) -> int:
+    """Shared body of `aw runs decisions|questions` (read-only). Exit 0 found / 1 empty / 2 missing.
+
+    Human mode prints the projection markdown verbatim. Machine mode (`--agent`/`--json`) emits ONE
+    bare JSON object through `_emit_machine`, the same bare-dict family as the other `aw runs`
+    leaves (hbok5d). Every path printed is repo-relative (`agent_schema.normalize_repo_path`).
+    """
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    path = _projection_dir(args) / filename
+    rel_path = agent_schema.normalize_repo_path(path, repo_root)
+    if not path.is_file():
+        message = "no {0} projection found for this run ({1})".format(label, rel_path)
+        if _machine(args):
+            return _emit_error(
+                args, message, 2, extra={"projection": kind, "path": rel_path}
+            )
+        _print_human(message)
+        return 2
+    text = path.read_text(encoding="utf-8")
+    empty = empty_marker in text
+    exit_code = 1 if empty else 0
+    if _machine(args):
+        _emit_machine(
+            args,
+            {
+                "ok": True,
+                "projection": kind,
+                "run_id": getattr(args, "target", None) or "",
+                "path": rel_path,
+                "empty": empty,
+                "entry_ids": _projection_entry_ids(text),
+                "content": text,
+                "exit_code": exit_code,
+            },
+        )
+    else:
+        _print_human(text, end="" if text.endswith("\n") else "\n")
+    return exit_code
+
+
 def _run_decisions(args: argparse.Namespace) -> int:
     """Print a Set run's recorded autonomous decisions (read-only). Exit 0 found / 1 none / 2 missing."""
     from agent_workflows import set_records
 
-    base = _projection_dir(args)
-    path = base / set_records.DECISIONS_FILE
-    if not path.is_file():
-        _print_human("no decisions projection found for this run ({0})".format(path))
-        return 2
-    text = path.read_text(encoding="utf-8")
-    _print_human(text, end="" if text.endswith("\n") else "\n")
-    return 1 if "_No autonomous decisions recorded._" in text else 0
+    return _emit_projection(
+        args,
+        "decisions",
+        set_records.DECISIONS_FILE,
+        "decisions",
+        "_No autonomous decisions recorded._",
+    )
 
 
 def _run_questions(args: argparse.Namespace) -> int:
     """Print a Set run's unresolved questions (read-only). Exit 0 open / 1 none / 2 missing."""
     from agent_workflows import set_records
 
-    base = _projection_dir(args)
-    path = base / set_records.OPEN_QUESTIONS_FILE
-    if not path.is_file():
-        _print_human(
-            "no open-questions projection found for this run ({0})".format(path)
-        )
-        return 2
-    text = path.read_text(encoding="utf-8")
-    _print_human(text, end="" if text.endswith("\n") else "\n")
-    return 1 if "_No unresolved questions._" in text else 0
+    return _emit_projection(
+        args,
+        "questions",
+        set_records.OPEN_QUESTIONS_FILE,
+        "open-questions",
+        "_No unresolved questions._",
+    )
 
 
 def _machine(args: argparse.Namespace) -> bool:
@@ -254,7 +318,9 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
                 "error": err_msg,
                 "corrupted": False,
                 "not_a_ledger": True,
-                "path": str(exc.path),
+                "path": agent_schema.normalize_repo_path(
+                    exc.path, resolve_verb_repo_root(getattr(args, "dir", None))
+                ),
                 "exit_code": EXIT_NOT_A_LEDGER,
             },
         )
@@ -607,7 +673,8 @@ def _run_show(args: argparse.Namespace) -> int:
             _print_human(f"Repository: {repo}")
         if head:
             _print_human(f"HEAD: {head}")
-        _print_human(f"Ledger: {ledger_file} ({len(records)} records)")
+        rel_ledger = agent_schema.normalize_repo_path(ledger_file, repo_dir)
+        _print_human(f"Ledger: {rel_ledger} ({len(records)} records)")
         _print_human(f"Steps Attempted: {len(step_attempts)}")
         _print_human(f"Verifier Decisions: {len(verifier_decisions)}")
         _print_human(f"Evidence Envelopes: {len(evidence_envelopes)}")
@@ -715,16 +782,17 @@ def _run_evidence(args: argparse.Namespace) -> int:
 
             evidence_records.append(rec_summary)
 
+    rel_ledger = agent_schema.normalize_repo_path(ledger_file, repo_dir)
     if machine:
         payload = {
-            "ledger": str(ledger_file),
+            "ledger": rel_ledger,
             "evidence_count": len(evidence_records),
             "all_valid": not any_invalid,
             "evidence": evidence_records,
         }
         _emit_machine(args, payload)
     else:
-        _print_human(f"Evidence for {ledger_file} ({len(evidence_records)} items):")
+        _print_human(f"Evidence for {rel_ledger} ({len(evidence_records)} items):")
         if not evidence_records:
             _print_human("  No captured evidence envelopes or tool events found.")
         for item in evidence_records:
@@ -798,7 +866,10 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
                 },
             )
         else:
-            _print_human(f"FAIL: Ledger verification failed for {ledger_file}")
+            _print_human(
+                "FAIL: Ledger verification failed for "
+                f"{agent_schema.normalize_repo_path(ledger_file, repo_dir)}"
+            )
             _print_human(f"  {err_details}")
         return EXIT_CORRUPTED_LEDGER
 
@@ -829,7 +900,9 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
         }
         _emit_machine(args, payload)
     else:
-        _print_human(f"Ledger: {ledger_file}")
+        _print_human(
+            f"Ledger: {agent_schema.normalize_repo_path(ledger_file, repo_dir)}"
+        )
         _print_human(f"Hash Chain: CLEAN ({chain_ver.count} records verified)")
         _print_human(f"Evidence Validity: {'CLEAN' if evidence_val.ok else 'INVALID'}")
         _print_human(
