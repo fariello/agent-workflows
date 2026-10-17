@@ -2073,3 +2073,9 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | `tests/test_releases_line_writers.py` | `keep` | Release line writer tests under izh17y preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_specs_metadata_duplicate_bullet.py` | `keep` | Specs metadata duplicate bullet tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_index_check_agent_records.py` | `keep` | Agent record index check tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_ipd_lifecycle_cli.py` | `keep` | Behavioral tests for lifecycle receipt invalidation, e/v continuation rewrites, and transition gates preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_ipd_lint.py` | `keep` | Core protected IPD linting rules and fence continuation tests preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_ipd_templates.py` | `keep` | Parity tests for child and orchestrator templates against generator preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_lifecycle_dirs.py` | `keep` | Consumer agreement tests for lifecycle subdirectories table under IPD d1lo52 preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_lifecycle_gate_coverage.py` | `keep` | Reported-not-silent lifecycle gate coverage tests under IPD 5xq2ng preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_scaffold_history_clock.py` | `keep` | Scaffold workflow history clock parity and timezone tests under IPD 9wcei0 preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
