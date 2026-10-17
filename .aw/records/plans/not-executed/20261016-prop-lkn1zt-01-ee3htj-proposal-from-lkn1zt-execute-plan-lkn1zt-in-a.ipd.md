@@ -6,7 +6,7 @@
 - Scope: TODO.
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
-- Status: draft
+- Status: not-executed
 - Work-Kind: followup
 - Priority: medium
 - Set: prop-lkn1zt
@@ -16,6 +16,7 @@
 - Id: ee3htj
 
 ## Workflow history
+- 2026-10-17 not-executed (aw set): Retired: the runner auto-scaffolded this stub from lkn1zt's proposal, which only restates lkn1zt's own instruction to run it in an attended session (aw work begin lkn1zt). No new work; lkn1zt stays pending.
 
 - 2026-10-17 draft (aw agy run model=Gemini-3.8-Flash-High): created.
 
