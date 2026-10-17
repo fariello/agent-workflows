@@ -3786,6 +3786,147 @@ class ResolvedVersionStampTests(unittest.TestCase):
         )
 
 
+class ResolvedIndexStampTests(unittest.TestCase):
+    """Regression (e9l2e0): the installed `index.md` version stamps follow the RESOLVED version.
+
+    `ResolvedVersionStampTests` above proves VERSION is derived from the resolver. `index.md` carries
+    two stamps of that SAME value (`<!-- WORKFLOWS-VERSION: ... -->` and `Version: \\`...\\``), which
+    `make version-file` keeps in lockstep with VERSION. An installer that derives VERSION but byte
+    copies `index.md` leaves the two disagreeing in every install from a dev checkout, and
+    `release_readiness.gate_artifact_manifest` then reports a false "version stamp mismatch" NO-GO.
+
+    The manifest row names the body by its aw-layout path (`.aw/system/workflows/...`), because the
+    gate resolves body paths against the aw-layout target; the legacy `.agents/workflows/...` row
+    would add an unrelated "missing body file" problem and the gate could never pass.
+    """
+
+    BAKED = "1.2.1"
+    TAG = "v7.3.0"
+    RESOLVED = "7.3.0"
+    MANIFEST_ROW = "| plan-review | .aw/system/workflows/plan-review/plan-review.md | - | Test workflow. |"
+    INDEX_REL = ".aw/system/workflows/index.md"
+
+    def _index_text(self, stamped: bool = True) -> str:
+        head = "# Workflows\n\n"
+        if stamped:
+            head += (
+                f"<!-- WORKFLOWS-VERSION: {self.BAKED} -->\n"
+                f"Version: `{self.BAKED}` (source of truth: `.aw/system/VERSION`). Scheme: semver.\n\n"
+            )
+        return (
+            head + f"{INS.MANIFEST_BEGIN}\n"
+            "| command | body | lens | description |\n"
+            "|---|---|---|---|\n"
+            f"{self.MANIFEST_ROW}\n"
+            f"{INS.MANIFEST_END}\n"
+        )
+
+    def _make_source(self, name: str, *, tagged: bool, stamped: bool = True) -> Path:
+        root = self.base / name
+        system = root / ".aw" / "system"
+        bundle = system / "workflows"
+        (bundle / "plan-review").mkdir(parents=True)
+        (bundle / "templates").mkdir(parents=True)
+        (bundle / "index.md").write_text(self._index_text(stamped), encoding="utf-8")
+        (bundle / "plan-review" / "plan-review.md").write_text(
+            "# plan-review body\n", encoding="utf-8"
+        )
+        (bundle / "templates" / "shim-README.md").write_text(
+            "# shims\n", encoding="utf-8"
+        )
+        (system / "VERSION").write_text(f"{self.BAKED}\n", encoding="utf-8")
+        if tagged:
+            init_repo(root)
+            git(root, "add", "-A")
+            git(root, "commit", "-q", "-m", "source")
+            git(root, "tag", self.TAG)
+        return root
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = self._make_source("source", tagged=True)
+        self.resolved_root = INS.resolve_source_root(self.source)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _source_index(self, root: Path) -> str:
+        return (root / ".aw" / "system" / "workflows" / "index.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_installed_index_stamps_equal_the_installed_version(self):
+        self.assertEqual(INS.read_version(self.resolved_root), self.RESOLVED)
+        target = init_repo(self.base / "target")
+        INS.install_into_repo(target, self.resolved_root, yes=True, no_color=True)
+        installed_version = (
+            (target / ".aw" / "system" / "VERSION").read_text(encoding="utf-8").strip()
+        )
+        index = (target / self.INDEX_REL).read_text(encoding="utf-8")
+        self.assertEqual(installed_version, self.RESOLVED)
+        self.assertIn(f"<!-- WORKFLOWS-VERSION: {self.RESOLVED} -->", index)
+        self.assertIn(f"Version: `{self.RESOLVED}`", index)
+        # Every other byte is the source's: substitute the baked stamps back and compare.
+        restored = index.replace(
+            f"<!-- WORKFLOWS-VERSION: {self.RESOLVED} -->",
+            f"<!-- WORKFLOWS-VERSION: {self.BAKED} -->",
+        ).replace(f"Version: `{self.RESOLVED}`", f"Version: `{self.BAKED}`")
+        self.assertEqual(restored, self._source_index(self.source))
+
+    def test_gate_artifact_manifest_passes_on_the_installed_target(self):
+        from agent_workflows import release_readiness
+
+        target = init_repo(self.base / "target_gate")
+        INS.install_into_repo(target, self.resolved_root, yes=True, no_color=True)
+        gate = release_readiness.gate_artifact_manifest(repo_root=target)
+        problems = gate.evidence.get("problems", [])
+        self.assertFalse(
+            [p for p in problems if "version stamp" in p],
+            f"installed index.md stamps disagree with VERSION: {problems}",
+        )
+        self.assertTrue(gate.passed, f"artifact_manifest gate failed: {problems}")
+
+    def test_a_second_install_leaves_index_unchanged(self):
+        target = init_repo(self.base / "target_twice")
+        INS.install_into_repo(target, self.resolved_root, yes=True, no_color=True)
+        first = (target / self.INDEX_REL).read_bytes()
+        result = INS.install_into_repo(
+            target, self.resolved_root, yes=True, no_color=True
+        )
+        self.assertEqual((target / self.INDEX_REL).read_bytes(), first)
+        index_lines = [
+            line
+            for line in result.get("installed", [])
+            if line.startswith(f"{self.INDEX_REL} ")
+        ]
+        self.assertEqual(
+            index_lines, [], f"index.md reported written again: {index_lines}"
+        )
+
+    def test_non_git_source_installs_index_byte_identical(self):
+        source = self._make_source("plain_source", tagged=False)
+        with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(self.base)}):
+            resolved = INS.resolve_source_root(source)
+            self.assertEqual(INS.read_version(resolved), self.BAKED)
+            target = init_repo(self.base / "target_plain")
+            INS.install_into_repo(target, resolved, yes=True, no_color=True)
+        self.assertEqual(
+            (target / self.INDEX_REL).read_bytes(),
+            (source / ".aw" / "system" / "workflows" / "index.md").read_bytes(),
+        )
+
+    def test_unstamped_index_installs_byte_identical(self):
+        source = self._make_source("unstamped_source", tagged=True, stamped=False)
+        resolved = INS.resolve_source_root(source)
+        target = init_repo(self.base / "target_unstamped")
+        INS.install_into_repo(target, resolved, yes=True, no_color=True)
+        self.assertEqual(
+            (target / self.INDEX_REL).read_bytes(),
+            (source / ".aw" / "system" / "workflows" / "index.md").read_bytes(),
+        )
+
+
 class TargetLayoutResolutionTests(unittest.TestCase):
     """Order 15 (awphysical-15-7cvh9t): which layout a target repo gets, and what install then writes.
 
