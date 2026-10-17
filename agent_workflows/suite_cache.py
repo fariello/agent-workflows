@@ -77,6 +77,8 @@ AW_SUITE_LOCK_DIR_ENV: str = "AW_SUITE_LOCK_DIR"
 AW_SUITE_SLOT_TIMEOUT_ENV: str = "AW_SUITE_SLOT_TIMEOUT"
 DEFAULT_AW_SUITE_SLOT_TIMEOUT: float = 3600.0
 AW_SUITE_SLOT_HELD_ENV: str = "AW_SUITE_SLOT_HELD"
+#: conftest's switch for the core-tier wall-time budget ("0" = warn only). See `build_suite_child_env`.
+AW_CORE_BUDGET_ENFORCE_ENV: str = "AW_CORE_BUDGET_ENFORCE"
 AW_SUITE_HEARTBEAT_SECONDS_ENV: str = "AW_SUITE_HEARTBEAT_SECONDS"
 DEFAULT_AW_SUITE_HEARTBEAT_SECONDS: float = 60.0
 
@@ -1144,6 +1146,13 @@ def build_suite_child_env(
     base["_AW_SUITE_CALLER_ADDOPTS"] = existing
     base["PYTEST_ADDOPTS"] = f"{existing} -n {workers}".strip()
     base[AW_SUITE_SLOT_HELD_ENV] = "1"
+    # backlog ytz6z4: a GATE asks "is this tree correct?", and the conftest core-tier WALL-TIME budget
+    # answers a different, load-dependent question. Enforced here it turned an all-green suite (745
+    # passed, zero failures) into exit 1 whenever peer drivers loaded the host, and the runner refused
+    # integration of correct work with no failing test to fix. Demote it to a warning for every
+    # suite this helper launches; bare `pytest`/`make test` still enforce it. An explicit caller
+    # value wins, so an operator can still opt back in.
+    base.setdefault(AW_CORE_BUDGET_ENFORCE_ENV, "0")
 
     existing_plugins = str(base.get("PYTEST_PLUGINS") or "").strip()
     base["_AW_SUITE_CALLER_PLUGINS"] = existing_plugins
@@ -1480,7 +1489,11 @@ def run_full_suite(
                 old_caller_plugins = os.environ.get("_AW_SUITE_CALLER_PLUGINS")
                 old_pp = os.environ.get("PYTHONPATH")
                 old_slot_held = os.environ.get(AW_SUITE_SLOT_HELD_ENV)
+                old_budget = os.environ.get(AW_CORE_BUDGET_ENFORCE_ENV)
                 try:
+                    os.environ[AW_CORE_BUDGET_ENFORCE_ENV] = child_env.get(
+                        AW_CORE_BUDGET_ENFORCE_ENV, "0"
+                    )
                     os.environ["PYTEST_ADDOPTS"] = child_env["PYTEST_ADDOPTS"]
                     os.environ["_AW_SUITE_CALLER_ADDOPTS"] = child_env.get(
                         "_AW_SUITE_CALLER_ADDOPTS", ""
@@ -1504,6 +1517,10 @@ def run_full_suite(
                     stdout = str(tool_event.stdout or "")
                     stderr = str(tool_event.stderr or "")
                 finally:
+                    if old_budget is None:
+                        os.environ.pop(AW_CORE_BUDGET_ENFORCE_ENV, None)
+                    else:
+                        os.environ[AW_CORE_BUDGET_ENFORCE_ENV] = old_budget
                     if old_slot_held is None:
                         os.environ.pop(AW_SUITE_SLOT_HELD_ENV, None)
                     else:
