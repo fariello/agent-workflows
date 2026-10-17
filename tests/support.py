@@ -280,9 +280,27 @@ def git(
 
 def init_repo(path: Path) -> Path:
     """Initialize a minimal git repo at path with a deterministic identity."""
-    from tests.repo_template import copy_template_repo
 
-    copy_template_repo(path)
+    path.mkdir(parents=True, exist_ok=True)
+    c_env = clean_git_env()
+    proc = git(path, "init", "-q", env=c_env)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"git init failed at {path} (exit {proc.returncode}): {proc.stderr.strip()}"
+        )
+    p_gitdir = git(path, "rev-parse", "--absolute-git-dir", env=c_env)
+    expected_gitdir = (path / ".git").resolve()
+    actual_gitdir = (
+        Path(p_gitdir.stdout.strip()).resolve() if p_gitdir.returncode == 0 else None
+    )
+    if p_gitdir.returncode != 0 or actual_gitdir != expected_gitdir:
+        raise RuntimeError(
+            f"git rev-parse --absolute-git-dir at {path} resolved to {actual_gitdir} "
+            f"(expected {expected_gitdir})"
+        )
+    git(path, "config", "--local", "user.email", "test@example.com", env=c_env)
+    git(path, "config", "--local", "user.name", "Test", env=c_env)
+    git(path, "config", "--local", "commit.gpgsign", "false", env=c_env)
     return path
 
 

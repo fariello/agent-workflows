@@ -217,6 +217,61 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             sys.stderr.write(f"\nWARNING: {msg}")
 
 
+def _load_slow_allowlist(rootpath: Path) -> dict[str, str]:
+    allowlist_path = rootpath / "tests" / "slow_allowlist.txt"
+    if not allowlist_path.exists():
+        return {}
+    allowed: dict[str, str] = {}
+    for line in allowlist_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t", 1)
+        node_id = parts[0].strip()
+        reason = parts[1].strip() if len(parts) > 1 else ""
+        allowed[node_id] = reason
+    return allowed
+
+
+@pytest.hookimpl
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter,
+    exitstatus: int,
+    config: pytest.Config,
+) -> None:
+    """Report tests whose call duration exceeded threshold and are not in slow_allowlist.txt (IPD c8bfp9 E-09)."""
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        return
+
+    threshold_env = os.environ.get("AW_SLOW_REPORT_SECONDS")
+    try:
+        threshold = float(threshold_env) if threshold_env else 2.0
+    except ValueError:
+        threshold = 2.0
+
+    rootpath = getattr(config, "rootpath", Path(config.rootdir))
+    allowlist = _load_slow_allowlist(rootpath)
+
+    unlisted: list[tuple[float, str]] = []
+    for dur, nodeid in _CORE_TEST_DURATIONS:
+        if dur > threshold and nodeid not in allowlist:
+            unlisted.append((dur, nodeid))
+
+    unlisted.sort(key=lambda x: x[0], reverse=True)
+
+    terminalreporter.section("SLOW TESTS REPORT", yellow=True)
+    if unlisted:
+        terminalreporter.write_line(
+            f"WARNING: {len(unlisted)} test(s) exceeded {threshold:g}s and are not listed in tests/slow_allowlist.txt:"
+        )
+        for dur, nodeid in unlisted:
+            terminalreporter.write_line(f"  {dur:6.2f}s  {nodeid}")
+    else:
+        terminalreporter.write_line(
+            f"0 unlisted slow tests (all tests > {threshold:g}s are documented in tests/slow_allowlist.txt)."
+        )
+
+
 # --------------------------------------------------------------------------------------
 # The test session is a COORDINATOR, never a managed worker lane (backlog `1uq1cu`).
 # --------------------------------------------------------------------------------------
