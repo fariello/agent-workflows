@@ -1,11 +1,13 @@
 - Id: aux1f6
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_analytics_taxonomy
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: t8j7mn
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_taxonomy
 
 Carries 29 candidate production keys for agent_workflows/run_analytics_taxonomy.py (416 exclusive lines): classify_command, classify_tool_call, ClassAccounting.format_report, _segment_head, ClassAccounting.to_dict, ... (29 keys).
