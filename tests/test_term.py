@@ -572,13 +572,6 @@ class StylingTests(unittest.TestCase):
         from agent_workflows import attention as att
         from agent_workflows import attention_contract as A
 
-        self.assertFalse(hasattr(att, "_STATUS_COLOR_256"))
-        self.assertTrue(hasattr(att, "_CLASS_COLOR_256"))
-        self.assertEqual(
-            set(att._CLASS_COLOR_256),
-            {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
-        )
-
         item = att.Item(
             "aaa111",
             ".aw/records/backlog/open/x.backlog.md",

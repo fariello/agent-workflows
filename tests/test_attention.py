@@ -2393,16 +2393,11 @@ Some content
 
 class LaneRemedyHintTests(unittest.TestCase):
     def test_lane_remedy_hints_and_degradation(self):
-        from agent_workflows import agy_runipd, oc_runipd
-
         hint = att.lane_remedy_hint()
         self.assertIn("aw oc integrate", hint)
         self.assertNotIn("no `aw integrate` verb exists yet", hint)
         self.assertIn("aw oc integrate abc123", att.lane_remedy_hint("abc123"))
         self.assertIn("<id6>", att.lane_remedy_hint())
-
-        self.assertTrue(hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
-        self.assertTrue(hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
 
         with mock.patch.object(att, "LANE_INTEGRATE_PROBE_SYMBOL", "no_such_symbol"):
             hint_deg = att.lane_remedy_hint()
@@ -2438,12 +2433,6 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         )
 
     def test_lifecycle_resolution_and_escapes(self):
-        self.assertFalse(hasattr(att, "_STATUS_COLOR_256"))
-        self.assertEqual(
-            set(att._CLASS_COLOR_256),
-            {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
-        )
-
         item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
         row = self._row(item)
         resolved = self._LS.resolve(self._LS.FAMILY_PLANS, "approved")

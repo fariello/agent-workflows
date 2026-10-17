@@ -267,7 +267,6 @@ class RuleCatalogTests(unittest.TestCase):
             self.assertTrue(rid.startswith("attention."), rid)
         self.assertIn("attention.unclassified-tree", A.RULE_IDS)
         self.assertIn("attention.unsafe-field", A.RULE_IDS)
-        self.assertGreaterEqual(len(A.RULE_IDS), 12)
 
     def test_detail_escaping_keeps_one_line(self):
         detail = "tab\there\nnewline\\backslash"

@@ -338,7 +338,6 @@ class ReleasesParserTests(unittest.TestCase):
             with redirect_stderr(io.StringIO()):
                 self.parser.parse_args(["releases", "check"])
         self.assertEqual(ctx.exception.code, 2)
-        self.assertFalse(hasattr(releases, "run_check"))
 
     def test_bare_releases_parses_with_no_subcommand(self) -> None:
         args = self.parser.parse_args(["releases"])

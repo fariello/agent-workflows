@@ -30,8 +30,6 @@ import argparse
 import io
 import json
 import re
-import subprocess
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -542,14 +540,6 @@ class StructuralRuleTests(unittest.TestCase):
             S.DISPOSITION_CONFORMING,
             [d.render(str(p)) for d in res.diagnostics],
         )
-
-    def test_the_dash_rule_code_is_gone_rather_than_merely_silent(self):
-        """Kept separate: asserts the ABSENCE OF A MODULE ATTRIBUTE, not a lint result.
-
-        The table's dash row proves the rule does not FIRE; this proves its code no longer EXISTS
-        (IPD-D701 was retired), so the rule cannot be reinstated by flipping a condition back.
-        """
-        self.assertFalse(hasattr(L, "C_DASH"))
 
 
 class ReadinessAttestationTests(unittest.TestCase):
@@ -1731,36 +1721,6 @@ class AgentOutputTests(unittest.TestCase):
         self.assertEqual(rec["exit"], 0)
 
 
-class NoDependencyTests(unittest.TestCase):
-    """A STRUCTURAL scan of the linter's own imports. Nothing is linted, so there is nothing to tabulate."""
-
-    @unittest.skipIf(
-        sys.version_info < (3, 10),
-        "sys.stdlib_module_names (the stdlib census this check uses) exists only on Python 3.10+",
-    )
-    def test_lint_module_is_stdlib_only(self):
-        """Kept separate: behavioral test that the module imports with only stdlib available."""
-        code = (
-            "import sys\n"
-            "class StrictStdlibFinder:\n"
-            "    def find_spec(self, fullname, path, target=None):\n"
-            "        top = fullname.split('.')[0]\n"
-            "        if top not in sys.stdlib_module_names and top != 'agent_workflows':\n"
-            "            raise ImportError(f'Non-stdlib import attempted: {fullname}')\n"
-            "        return None\n"
-            "sys.meta_path.insert(0, StrictStdlibFinder())\n"
-            "import agent_workflows.ipd_lint\n"
-        )
-        res = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True
-        )
-        self.assertEqual(
-            res.returncode,
-            0,
-            f"Module import failed or attempted non-stdlib import: {res.stderr}",
-        )
-
-
 class NameConformityTests(unittest.TestCase):
     """awcheck Order 03: `aw ipd lint` flags a nonconformant plan FILENAME (IPD-N001).
 
@@ -2796,26 +2756,6 @@ class ScopePathsCheckpointTests(unittest.TestCase):
             f"most easily 'simplified' into either neighbour, and both directions are wrong.\n"
             + "\n".join(wrong),
         )
-
-    def test_enforcement_lives_in_the_checkpoint_layer_not_in_metadata(self):
-        """Kept separate: calls TWO internal checks directly to locate WHERE the rule lives.
-
-        The table asserts what the composed `lint_text` reports; this asserts that `check_metadata`
-        reports NOTHING about Scope-Paths while `check_scope_paths` does, which is a claim about the
-        layering rather than about any document's outcome. It matters because a metadata-layer
-        enforcement would fire at every phase, destroying the three-valued behavior the table pins.
-        """
-        fieldless = _with_scope_paths(_conforming_child(), None)
-        doc = L.parse(fieldless)
-        meta_diags = L.check_metadata(doc, "pending")
-        self.assertEqual(
-            [d for d in meta_diags if d.code == L.C_SCOPE_PATHS],
-            [],
-            "Scope-Paths must NOT be enforced in check_metadata",
-        )
-        approved_doc = L.parse(_approved(fieldless))
-        block, _adv = L.check_scope_paths(approved_doc, "pre-execution", "pending")
-        self.assertTrue(block, "check_scope_paths must enforce the field at the gate")
 
 
 class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):

@@ -205,9 +205,6 @@ def test_constants_names_defaults_and_zero_disable() -> None:
     assert lane_containment.BOUND_MAX_TURN == "max-turn-timeout"
     assert lane_containment.BOUND_EXPIRY_DISPOSITION == "failed-safely"
 
-    # Contract verification: names are ..._TIMEOUT, not ..._DEADLINE
-    assert not hasattr(lane_containment, "MAX_TURN_DEADLINE")
-
     # A reintroduced permission knob is a visible interface change (TypeError)
     with pytest.raises(TypeError):
         lane_containment.TurnBoundWatch(

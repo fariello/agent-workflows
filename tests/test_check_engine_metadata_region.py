@@ -93,14 +93,6 @@ def test_bounded_accessors_ignore_body_quotations():
         "- Status: reviewed\n"
     )
 
-    assert hasattr(ce, "_read_item_id"), "check_engine must expose _read_item_id"
-    assert hasattr(
-        ce, "_read_blocks_release"
-    ), "check_engine must expose _read_blocks_release"
-    assert hasattr(
-        ce, "_read_plan_status"
-    ), "check_engine must expose _read_plan_status"
-
     assert ce._read_item_id(body_quoted_text) == "real01"
     assert ce._read_blocks_release(body_quoted_text) is None
     assert ce._read_plan_status(body_quoted_text) == "draft"

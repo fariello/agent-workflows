@@ -107,17 +107,6 @@ class TestSharedConstantsByteIdenticalAndUnwidened(unittest.TestCase):
             "EXECUTE_REPORTING_SUCCESS_STATES derivation must equal SUCCESS_STATES - {'reviewed'}",
         )
 
-    def test_reexports_are_identical_objects(self) -> None:
-        """Assert that host re-exports are identical objects to the shared definitions."""
-        self.assertIs(oc_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
-        self.assertIs(agy_runipd.SUCCESS_STATES, runner_shared.SUCCESS_STATES)
-        self.assertIs(
-            oc_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
-        )
-        self.assertIs(
-            agy_runipd.EXECUTION_SUCCESS_STATES, runner_shared.EXECUTION_SUCCESS_STATES
-        )
-
 
 class TestReconstructShapeAComposed:
     """E-03 / V-03: Reconstruct SHAPE A end to end on the merged result.

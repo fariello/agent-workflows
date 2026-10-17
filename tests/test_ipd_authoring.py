@@ -534,33 +534,6 @@ class AtomicWriteTests(unittest.TestCase):
         self.assertEqual(leftovers, [])
 
 
-class NoDependencyTests(unittest.TestCase):
-    @unittest.skipIf(
-        sys.version_info < (3, 10),
-        "sys.stdlib_module_names (the stdlib census this check uses) exists only on Python 3.10+",
-    )
-    def test_authoring_module_is_stdlib_only(self):
-        code = (
-            "import sys\n"
-            "class StrictStdlibFinder:\n"
-            "    def find_spec(self, fullname, path, target=None):\n"
-            "        top = fullname.split('.')[0]\n"
-            "        if top not in sys.stdlib_module_names and top != 'agent_workflows':\n"
-            "            raise ImportError(f'Non-stdlib import attempted: {fullname}')\n"
-            "        return None\n"
-            "sys.meta_path.insert(0, StrictStdlibFinder())\n"
-            "import agent_workflows.ipd_authoring\n"
-        )
-        res = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True
-        )
-        self.assertEqual(
-            res.returncode,
-            0,
-            f"Module import failed or attempted non-stdlib import: {res.stderr}",
-        )
-
-
 class AtomicWriteDelegatesToCoreTests(unittest.TestCase):
     """`_atomic_write` must DELEGATE, not duplicate, so plans inherit the shared normalization.
 

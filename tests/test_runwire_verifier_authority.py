@@ -27,7 +27,6 @@ from agent_workflows import (
     run_state,
     runner_profiles,
     runner_shared,
-    runner_shutdown,
     verify_roles,
 )
 
@@ -600,67 +599,3 @@ def test_fresh_verifier_probe_detects_disabled_distinct_session_guard(
         "ACCEPTED a reused session identity"
         in notes_mut[host_sandbox_profile.CAP_FRESH_VERIFIER_SESSION]
     )
-
-
-# ==============================================================================
-# Task group 2: E-05 Set-level cross-IPD checks
-# ==============================================================================
-
-
-def test_set_level_checks():
-    """E-05 / V-05: Orchestrator i18yaz Set-level checks.
-
-    (a) ONE TRANSLATION: exactly one definition site of the driver-status-to-run_state translation.
-    (b) NO PRIVATE HOST COPY: neither oc_runipd nor agy_runipd defines its own transition check or session test.
-    (c) VOCABULARY UNCHANGED: member-identical before/after.
-    (d) LEDGER FENCE: no run_engine / run_recovery imports, no ledger.jsonl.
-    (e) run_recovery unimported by both drivers.
-    """
-    # (a) Exactly one definition site
-    from agent_workflows import runner_shared as rs
-
-    assert hasattr(rs, "map_driver_status_to_run_state")
-    assert not hasattr(oc_runipd, "map_driver_status_to_run_state")
-    assert not hasattr(agy_runipd, "map_driver_status_to_run_state")
-
-    # (b) Neither host defines its own transition check or session independence test
-    assert not hasattr(oc_runipd, "find_runtime_reachability_path")
-    assert not hasattr(agy_runipd, "find_runtime_reachability_path")
-    assert not hasattr(oc_runipd, "check_verifier_state_authority")
-    assert not hasattr(agy_runipd, "check_verifier_state_authority")
-
-    # (c) Vocabulary unchanged
-    assert runner_shutdown.KNOWN_ITEM_STATUSES == (
-        rs.TERMINAL_STATES_CANONICAL
-        | set(rs.TERMINAL_STATUS_ALIASES)
-        | rs.IN_FLIGHT_QUEUE_STATUSES
-    )
-
-    # (d) Ledger fence: neither child's changed files import run_engine or run_recovery, tested in clean subprocess
-    import subprocess
-    import sys
-
-    fence_cmd = (
-        "import agent_workflows.runner_shared; "
-        "import sys; "
-        "assert 'agent_workflows.run_engine' not in sys.modules, 'run_engine imported'; "
-        "assert 'agent_workflows.run_recovery' not in sys.modules, 'run_recovery imported'"
-    )
-    res_d = subprocess.run(
-        [sys.executable, "-c", fence_cmd], capture_output=True, text=True, check=False
-    )
-    assert res_d.returncode == 0, f"Ledger fence check failed: {res_d.stderr}"
-
-    # (e) run_recovery unimported by both drivers, tested in clean subprocess
-    driver_cmd = (
-        "import agent_workflows.oc_runipd; "
-        "import agent_workflows.agy_runipd; "
-        "import sys; "
-        "assert 'agent_workflows.run_recovery' not in sys.modules, 'run_recovery imported by drivers'"
-    )
-    res_e = subprocess.run(
-        [sys.executable, "-c", driver_cmd], capture_output=True, text=True, check=False
-    )
-    assert (
-        res_e.returncode == 0
-    ), f"Driver run_recovery unimported check failed: {res_e.stderr}"

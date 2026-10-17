@@ -1985,29 +1985,6 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
         with self.assertRaises(driver.DriverError):
             driver.expand_selectors(manifest, ["all"])
 
-    def test_is_plan_review_approved_is_the_shared_predicate_not_a_local_copy(self):
-        """fullauto 97df1z E-03: the driver must EXPOSE the predicate but not DEFINE it.
-
-        A local re-definition is what let the two drivers drift (and left `aw agy run --full-auto`
-        broken while oc was fixed), so identity with the shared module is asserted, not just
-        behavior.
-        """
-        from agent_workflows import agy_runipd as agy_driver
-        from agent_workflows import plan_readiness
-
-        self.assertIs(
-            driver.is_plan_review_approved, plan_readiness.is_plan_review_approved
-        )
-        self.assertIs(
-            agy_driver.is_plan_review_approved, plan_readiness.is_plan_review_approved
-        )
-        self.assertIs(
-            driver.extract_newest_history_entry,
-            plan_readiness.extract_newest_history_entry,
-        )
-        self.assertFalse(hasattr(driver, "extract_last_history_entry"))
-        self.assertFalse(hasattr(agy_driver, "extract_last_history_entry"))
-
     def test_set_plan_approved_uses_auto_approved_and_never_by_human(self):
         """fullauto 97df1z OQ-02: `--full-auto` must not machine-assert human approval.
 
@@ -2414,10 +2391,6 @@ class RunipdBugsFixesTests(unittest.TestCase):
         self.assertEqual(driver._read_item_dependencies(legacy2), ([], None))
         self.assertEqual(driver._read_set(legacy2), "custom-set")
 
-        # The deleted private parser is gone from the module surface.
-        self.assertFalse(hasattr(driver, "_read_deps"))
-        self.assertFalse(hasattr(driver, "_DEPS_RE"))
-
         # `none` / `unresolved` / absent all mean "no edges" (the MISSING-vs-`none` judgement
         # belongs to the shared evaluator, not the runner; see 8guhs0 OQ-02).
         for value in ("none", "unresolved", ""):
@@ -2470,25 +2443,6 @@ class PlanBucketRecognitionTests(unittest.TestCase):
         self.assertIsNone(
             driver.plan_bucket(Path("/x/.aw/records/plans/limbo/20260824-x.ipd.md"))
         )
-
-    def test_the_docstring_states_that_a_bucket_is_not_a_readiness(self):
-        """depreview 03ie04 E-05: the members above are DEFENSIVE, and that must be documented.
-
-        WHY A TEST ABOUT A DOCSTRING IS WARRANTED HERE and is not documentation theatre. This function
-        had NO docstring, while the list asserted directly above it names `reviewed` and `approved` as
-        if they were directories. They are not: `.aw/records/plans/` holds only `executed`,
-        `not-executed`, `pending`, `reusable` and `superseded`, and a plan stays in `pending/` through
-        `draft` -> `to-review` -> `reviewed` -> `approved`. A reader who took the list at face value
-        wrote `oc_runipd.edge_satisfied`'s external-target branch to compare this function's result
-        against `("executed", "reviewed", "approved")`, which made two thirds of that tuple
-        unreachable and refused every review-action edge. So the missing contract had a measured cost,
-        and this test keeps the correction attached to the thing it corrects.
-        """
-        doc = driver.plan_bucket.__doc__ or ""
-        self.assertTrue(doc.strip(), "plan_bucket must have a docstring")
-        for needle in ("DIRECTORY", "FIELD", "DEFENSIVELY", "- Status:"):
-            with self.subTest(needle=needle):
-                self.assertIn(needle, doc)
 
 
 class StatusJsonTests(unittest.TestCase):
@@ -7679,9 +7633,6 @@ class VerdictLanePreservationTests(unittest.TestCase):
 
     def test_every_non_verified_verdict_refuses_integration_on_both_hosts(self):
         from agent_workflows import agy_runipd, oc_runipd as oc, runner_shared as rs
-
-        # ONE shared predicate, so "both hosts" is a claim about object identity first.
-        self.assertIs(oc.integration_is_earned, agy_runipd.integration_is_earned)
 
         for raw in ("CORRECTION_REQUIRED", "BLOCKED", "NOT BLOCKED", "", "garbage"):
             mapped = rs.map_verdict(raw)

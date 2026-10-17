@@ -174,7 +174,11 @@ class ProvenanceTests(unittest.TestCase):
             set(Provenance),
         )
         self.assertEqual(schema.PRESENT_PROVENANCE & schema.ABSENT_PROVENANCE, set())
-        self.assertEqual(len(schema.ABSENT_PROVENANCE), 3)
+        # Spec 25kzda Section 4.5 enumerates the three absent provenance states.
+        self.assertEqual(
+            schema.ABSENT_PROVENANCE,
+            {Provenance.MISSING, Provenance.NOT_APPLICABLE, Provenance.UNAVAILABLE},
+        )
 
         a, b, c = missing(), unavailable(), not_applicable()
         self.assertNotEqual(a.provenance, b.provenance)

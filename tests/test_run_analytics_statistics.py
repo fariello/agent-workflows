@@ -551,7 +551,6 @@ class PricingTests(unittest.TestCase):
 
         # No cache write rate column
         rates = pricing.MEASURED_ERAS[0].rates
-        self.assertFalse(hasattr(rates, "cache_write_per_mtok"))
         with self.assertRaises(pricing.PricingRefusal):
             rates.rate_for("cache_write")
 

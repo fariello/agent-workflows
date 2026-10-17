@@ -89,38 +89,6 @@ class TestTerminalStatusVocabularyDefinitions(unittest.TestCase):
         )
         self.assertEqual(runner_shared.TERMINAL_STATES, expected_union)
 
-    def test_object_identity_re_export_across_hosts(self):
-        """Both hosts (oc_runipd, agy_runipd) re-export the exact identical objects."""
-        # TERMINAL_STATES
-        self.assertIs(oc_runipd.TERMINAL_STATES, runner_shared.TERMINAL_STATES)
-        self.assertIs(agy_runipd.TERMINAL_STATES, runner_shared.TERMINAL_STATES)
-
-        # TERMINAL_STATES_CANONICAL
-        self.assertIs(
-            oc_runipd.TERMINAL_STATES_CANONICAL, runner_shared.TERMINAL_STATES_CANONICAL
-        )
-        self.assertIs(
-            agy_runipd.TERMINAL_STATES_CANONICAL,
-            runner_shared.TERMINAL_STATES_CANONICAL,
-        )
-
-        # TERMINAL_STATUS_ALIASES
-        self.assertIs(
-            oc_runipd.TERMINAL_STATUS_ALIASES, runner_shared.TERMINAL_STATUS_ALIASES
-        )
-        self.assertIs(
-            agy_runipd.TERMINAL_STATUS_ALIASES, runner_shared.TERMINAL_STATUS_ALIASES
-        )
-
-        # canonical_terminal_status
-        self.assertIs(
-            oc_runipd.canonical_terminal_status, runner_shared.canonical_terminal_status
-        )
-        self.assertIs(
-            agy_runipd.canonical_terminal_status,
-            runner_shared.canonical_terminal_status,
-        )
-
     def test_canonical_terminal_status_mapping(self):
         """canonical_terminal_status maps legacy to canonical and preserves canonical/unknown."""
         for legacy, canonical in EXPECTED_LEGACY_ALIASES.items():

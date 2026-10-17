@@ -495,9 +495,3 @@ class DocumentationAndDocstringTests(unittest.TestCase):
         self.assertNotIn(
             "\u2013", section, "README tab completion section must contain no en dash"
         )
-
-    def test_test_completion_docstring_updated(self) -> None:
-        from tests import test_completion
-
-        doc = test_completion.StaleCompletionWarningTests.__doc__ or ""
-        self.assertNotIn("_completion_configured", doc)

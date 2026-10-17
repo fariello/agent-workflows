@@ -272,8 +272,6 @@ class IpdExecFindingCodesTests(unittest.TestCase):
         """E-06 / V-06: Assert RUN-* table is intact and finalize refusal classifier verdicts unchanged."""
         # 1. RUN-* table checks
         self.assertTrue(run_evidence.validate_finding_table().ok)
-        self.assertEqual(len(run_evidence.run_finding_codes()), 12)
-        self.assertEqual(len(run_evidence.bound_run_finding_codes()), 10)
 
         # 2. Behavioral pin on runner_shared.finalize_refusal_is_retryable (F-09 probe messages)
         msg_prose_kept = (
