@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: research | Id: ng0ga4 | Set: plainlang | Status: pending | Created: 2026-09-20 | Author: opencode (its_direct/pt3-claude-opus-5-1m-us) | Targets: a frontier model with web search | Concerns: Whether written instructions can make an LLM write plain language for a human reader, and what empirical evidence exists . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: research | Id: ng0ga4 | Set: plainlang | Status: executed | Created: 2026-09-20 | Author: opencode (its_direct/pt3-claude-opus-5-1m-us) | Targets: a frontier model with web search | Concerns: Whether written instructions can make an LLM write plain language for a human reader, and what empirical evidence exists . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 # Research request: can written instructions make an LLM write plain language, and what does the evidence say?
 
 You are being asked to research a specific, practical problem and to return a written report. The
@@ -270,3 +270,5 @@ write *less* than the current four words plus something structural elsewhere, re
   `agent_workflows/reporting_contract.py`, `.aw/system/workflows/askme/askme.md`, and `AGENTS.md`.
 
 Return the report as a downloadable `.md` file.
+## Workflow history
+- 2026-10-17 executed (aw set): Answered: four research reports adopted (8tcq84, o7v25q, ky28a9, ne3jy6), reconciled; findings drove the 2026-10-17 communication-rule rewrite (7591a72cf) and experiment gigsfc.
