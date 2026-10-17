@@ -6,7 +6,7 @@
 - Scope: IN: `placement_switch.execute_placement_switch(repo_path, new_policy, *, aw_home=None, fault_injection=None) -> SwitchResult`, `resume_placement_switch(repo_path, *, aw_home=None)`, `rollback_placement_switch(repo_path, *, aw_home=None)`, `placement_switch_status(repo_path, *, aw_home=None)`; a journal and lock under `<AW_HOME>/placement-switches/<project_id>/` (outside `<AW_HOME>/projects/<id>/`, so neither retirement side removes it); a final receipt under the NEW side's `state/durable/migrations/placement_switch_receipt.json`; `PlacementSwitchError`. OUT: CLI flags and messages (Order 05).
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_placement_switch_execute.py
 - Item-Dependencies: executed:xvlemm, executed:gjylny
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 6u755v
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6u755v verified (set cfgreloc, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 
