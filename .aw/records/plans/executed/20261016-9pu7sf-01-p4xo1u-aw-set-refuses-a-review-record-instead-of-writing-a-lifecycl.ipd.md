@@ -6,7 +6,7 @@
 - Scope: Make the status setter (`status_set.run_set_command`) refuse, at exit 2 and before any write, every selector that resolves to a record inside a non-lifecycle record tree (today only `reviews`), naming `reviews` as a type with no status lifecycle, on the untyped verb and on every type-scoped spelling, dry-run or not. Add behavioral tests, correct the `artifact_types` module docstring that names this bug as outstanding, and add a CHANGELOG `Fixed:` line.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_types.py, tests/test_set_refuses_review_record.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: p4xo1u
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p4xo1u verified (set 9pu7sf, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-10-16 to-review (opencode): authored review-ready plan graduating backlog 9pu7sf.
