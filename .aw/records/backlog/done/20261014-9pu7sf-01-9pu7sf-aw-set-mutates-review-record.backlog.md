@@ -1,5 +1,5 @@
 - Id: 9pu7sf
-- Status: graduated
+- Status: done
 - Graduated-To: 9pu7sf
 - Blocks-Release: next
 - Set: 9pu7sf
@@ -8,6 +8,7 @@
 - Summary: aw set <status> on a .review.md record classifies it as type other and writes a Status line and workflow history into a review, which has no lifecycle
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD p4xo1u executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-9pu7sf-01-p4xo1u-aw-set-refuses-a-review-record-instead-of-writing-a-lifecycl.ipd.md); evidence .aw/records/plans/executed/20261016-9pu7sf-01-p4xo1u-aw-set-refuses-a-review-record-instead-of-writing-a-lifecycl.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: p4xo1u
 - 2026-10-15 created (aw backlog): aw set <status> on a .review.md record classifies it as type other and writes a Status line and workflow history into a review, which has no lifecycle
 

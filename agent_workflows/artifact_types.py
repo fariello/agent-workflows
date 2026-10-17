@@ -18,8 +18,8 @@ ONE DELIBERATE BEHAVIOR CHANGE, per the maintainer's UNION ruling (2026-09-01, s
 carries. It was previously rejected (`aw check reviews` exited 2 with "unknown artifact type"). It is
 deliberately NOT a `TYPE_BACKENDS` key and has no status lifecycle, so it stays out of
 `selectors.KNOWN_PRIMARY_TYPES` (guarded for both `TYPE_BACKENDS` and `KNOWN_PRIMARY_TYPES` by
-`tests/test_reviews_type_noun_surface.py`), while `aw set` does not yet refuse a review path
-(backlog `9pu7sf`).
+`tests/test_reviews_type_noun_surface.py`), and `aw set` refuses a review path at exit 2
+(`status_set.run_set_command`, backlog `9pu7sf`, guarded by `tests/test_set_refuses_review_record.py`).
 """
 
 from __future__ import annotations

@@ -208,6 +208,22 @@ def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
     return None
 
 
+def _non_lifecycle_record_type(path: Path, repo_root: Path) -> str | None:
+    """Return owning type name when path resolves inside any non-primary record dir, else None."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    for t in _sel.NON_PRIMARY_RECORD_DIRS:
+        for d in _sel.record_dirs(repo_root, t):
+            try:
+                if resolved.is_relative_to(d.resolve()):
+                    return t
+            except (ValueError, OSError):
+                continue
+    return None
+
+
 def read_artifact_record(
     path: Path, repo_root: Path, default_type: str | None = None
 ) -> ArtifactRecord | None:
@@ -2995,6 +3011,17 @@ def run_set_command(
             else:
                 term.status("fail", f"No artifact matched '{tok}'.")
             return 2
+
+        for m in matches:
+            t = _non_lifecycle_record_type(m.path, repo_root)
+            if t:
+                term.status(
+                    "fail",
+                    f"Selector '{tok}' resolved to a {t} record ({m.path}); "
+                    f"{t} records have no status lifecycle, so aw set cannot change them. "
+                    "Refusing before making changes.",
+                )
+                return 2
 
         # IPD laykok E-07: kind-aware ambiguity for the MUTATING `set` verb. A setid legitimately
         # transitions a whole Set (act on all, no --force); a UNIQUE-id collision (id6/path/stem)
