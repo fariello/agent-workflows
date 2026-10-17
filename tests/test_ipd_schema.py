@@ -433,6 +433,12 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "OPTIONAL reconciled out-of-scope metadata field (IPD psgyzw E-03); records reconciled paths at finalize",
         ),
+        (
+            "Attended",
+            "META_ATTENDED",
+            False,
+            "OPTIONAL: `required` means a human must be present; absent means the plan may run unattended",
+        ),
     )
 
     def test_every_recognized_field_has_the_requiredness_the_schema_promises(self):

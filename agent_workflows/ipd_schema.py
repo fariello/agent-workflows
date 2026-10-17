@@ -347,6 +347,12 @@ META_COVERAGE_FINGERPRINT = "Coverage-Fingerprint"
 META_COVERAGE_CHECKED = "Coverage-Checked"
 COVERAGE_VALUES: FrozenSet[str] = frozenset(("pass", "fail"))
 META_SCOPE_EXCEEDED = "Scope-Exceeded"
+# `- Attended: required` marks a plan that needs a human present while it runs (e.g. it asks the
+# maintainer live questions). The runners NEVER dispatch such a plan: its queue entry is held as
+# needs-input with the remedy to run it by hand (`aw work begin <id6>`). Recognized but OPTIONAL;
+# absent means the plan may run unattended. Any value other than `required` is refused by lint.
+META_ATTENDED = "Attended"
+ATTENDED_REQUIRED = "required"
 
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
@@ -369,6 +375,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_COVERAGE_FINGERPRINT,
         META_COVERAGE_CHECKED,
         META_SCOPE_EXCEEDED,
+        META_ATTENDED,
     )
 )
 
@@ -382,6 +389,14 @@ APPROVAL_STATUSES: FrozenSet[str] = frozenset(("approved",))
 # `auto-approved` is a sibling ready-to-execute tier (D65); it records an automated clear, NOT human
 # approval, so it does NOT require the human `Approval` field.
 READY_TO_EXECUTE: FrozenSet[str] = frozenset(("approved", "auto-approved"))
+
+
+def plan_requires_attended(text: str) -> bool:
+    """True when the plan's metadata block carries `- Attended: required` (case-insensitive value)."""
+    head = (text or "").split("\n## ", 1)[0]  # metadata block precedes the first H2
+    m = re.search(r"(?m)^- Attended:\s*(\S+)\s*$", head)
+    return bool(m) and m.group(1).strip().lower() == ATTENDED_REQUIRED
+
 
 _META_LINE_RE = re.compile(r"^- (?P<field>[A-Za-z][A-Za-z /-]*?):\s?(?P<value>.*)$")
 
@@ -472,6 +487,14 @@ def validate_metadata(
     status = fields.get("Status")
     if status is not None and status not in RECOGNIZED_STATUS:
         errors.append(MetaError("Status", "unrecognized readiness status"))
+
+    attended = fields.get(META_ATTENDED)
+    if attended is not None and attended.strip().lower() != ATTENDED_REQUIRED:
+        errors.append(
+            MetaError(
+                META_ATTENDED, f"invalid value (only '{ATTENDED_REQUIRED}' is accepted)"
+            )
+        )
 
     # Readiness (fullauto 97df1z): OPTIONAL, so absence is silent; but a PRESENT value outside the
     # closed enum is an error, reported by `ipd_lint.check_metadata` as IPD-M104. This enum check

@@ -22666,6 +22666,45 @@ NON_TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(
 TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(("executed",))
 
 
+#: Refusal code for a plan marked `- Attended: required` (see `ipd_schema.META_ATTENDED`).
+ATTENDED_REQUIRED_CODE: str = "attended-session-required"
+
+
+def hold_attended_plan(q_entry: dict[str, Any], plan_path: Path | None) -> bool:
+    """Never dispatch an EXECUTE of a plan that declares `- Attended: required`.
+
+    Such a plan needs a human present while it runs (it asks the maintainer live questions), and a
+    runner turn cannot ask. Dispatching it anyway was measured to burn a turn that does the read-only
+    first step, marks everything else blocked, and files a "run this attended" proposal stub (`lkn1zt`
+    -> `ee3htj`, 2026-10-17). So the entry is frozen `not-run` with `needs_input` and a refusal naming
+    the attended route, at queue build, for zero tokens. A REVIEW of the plan is unaffected.
+    Returns True when the entry was held.
+    """
+    if q_entry.get("action") != "execute" or plan_path is None:
+        return False
+    from agent_workflows import ipd_schema as _schema
+
+    try:
+        text = Path(plan_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if not _schema.plan_requires_attended(text):
+        return False
+    id6 = str(q_entry.get("id6") or "")
+    q_entry["status"] = "not-run"
+    q_entry[NEEDS_INPUT_KEY] = True
+    record_refusal(
+        q_entry,
+        code=ATTENDED_REQUIRED_CODE,
+        reason=(
+            f"plan {id6} declares `- Attended: required`: it needs a human present while it runs, "
+            "so no runner turn was spent on it"
+        ),
+        remedy=f"run it by hand in an attended session: aw work begin {id6}",
+    )
+    return True
+
+
 def initial_queue_status(status: str | None, *, action: str | None = None) -> str:
     """The status a queue entry is BORN with, given the plan's `- Status:`. SHARED BY BOTH HOSTS.
 
@@ -24179,10 +24218,16 @@ PROPOSAL_KEY: str = "proposal"
 PROPOSAL_KIND_GATE_CHANGE: str = "gate-change"
 PROPOSAL_KIND_TOOL_DEFECT: str = "tool-defect"
 PROPOSAL_KIND_DIFFERENT_APPROACH: str = "different-approach"
+#: "This plan cannot be done without a human present." Filed as NO new record: the runner marks the
+#: proposing plan `- Attended: required` instead, so later runs hold it at queue build (see
+#: `hold_attended_plan`). Filing a scaffold stub that only restates "run it attended" was measured to
+#: be noise (`ee3htj`, retired 2026-10-17).
+PROPOSAL_KIND_NEEDS_ATTENDED: str = "needs-attended"
 PROPOSAL_KINDS: tuple[str, ...] = (
     PROPOSAL_KIND_GATE_CHANGE,
     PROPOSAL_KIND_TOOL_DEFECT,
     PROPOSAL_KIND_DIFFERENT_APPROACH,
+    PROPOSAL_KIND_NEEDS_ATTENDED,
 )
 
 PROPOSAL_SIZE_SMALL: str = "small"
@@ -24220,7 +24265,7 @@ def proposal_schema_literal() -> str:
     """The proposal field as it appears inside the execute prompt's outcome-JSON literal."""
     return (
         f'  "{PROPOSAL_KEY}": {{\n'
-        f'    "kind": "gate-change|tool-defect|different-approach",\n'
+        f'    "kind": "gate-change|tool-defect|different-approach|needs-attended",\n'
         f'    "blocked_by": "what refused or failed, verbatim",\n'
         f'    "why": "why the cause cannot be fixed within scope",\n'
         f'    "proposed_change": "what should change",\n'
@@ -32794,6 +32839,10 @@ alternatives, rationale, confidence, scope, reversibility, and validation, then 
 If no reasonable approach exists, record a DEFERRED question with the work completed,
 work blocked, dependency effect, exact preserved state, and recommended human action.
 Continue every independent part of this IPD despite a deferred question.
+If the IPD itself says it needs a human present while it runs (for example it must ask the
+maintainer live questions), do only what it allows without one, then record a `proposal` with
+kind `needs-attended` and size `small`. The runner marks the plan for an attended session; do
+not propose a new plan for that.
 
 Maximize safe forward progress. A local failure or unanswered question is not permission
 to abandon independent work. Do not weaken checks, fabricate evidence, broaden approved
@@ -33292,6 +33341,7 @@ def initialize_run_core(
             }
             if id6 in rereview_ids:
                 q_entry["rereview"] = True
+            hold_attended_plan(q_entry, p_path)
             queue.append(q_entry)
         else:
             # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
@@ -39379,7 +39429,13 @@ def execute_item_core(
                 item[NEEDS_INPUT_KEY] = True
                 attempt[NEEDS_INPUT_KEY] = True
 
-                if filing_res.filed:
+                if filing_res.filed and filing_res.kind == PROPOSAL_KIND_NEEDS_ATTENDED:
+                    p_reason = (
+                        f"plan {item['id6']} needs a human present while it runs; the runner "
+                        f"marked it `Attended: required`, so later runs skip it: {filing_res.blocked_by}"
+                    )
+                    p_remedy = f"run it by hand in an attended session: aw work begin {item['id6']}"
+                elif filing_res.filed:
                     p_reason = (
                         f"the agent proposed a {filing_res.size} {filing_res.kind} change: "
                         f"{filing_res.blocked_by}"
@@ -39399,7 +39455,11 @@ def execute_item_core(
                     )
                 record_refusal(
                     item,
-                    code=GATE_ANSWER_NEEDS_HUMAN_CODE,
+                    code=(
+                        ATTENDED_REQUIRED_CODE
+                        if filing_res.kind == PROPOSAL_KIND_NEEDS_ATTENDED
+                        else GATE_ANSWER_NEEDS_HUMAN_CODE
+                    ),
                     reason=p_reason,
                     remedy=p_remedy,
                 )
@@ -44909,6 +44969,33 @@ class ProposalFilingResult(NamedTuple):
         return self.reason
 
 
+def mark_plan_attended(text: str, *, why: str = "") -> str:
+    """Return plan TEXT carrying `- Attended: required` plus a dated workflow-history line.
+
+    Pure and idempotent: a plan already marked is returned unchanged. The field is inserted at the
+    END of the metadata block (before the first H2), the conventional place for an added field.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    if _schema.plan_requires_attended(text):
+        return text
+    head, sep, rest = text.partition("\n## ")
+    head = (
+        head.rstrip("\n")
+        + f"\n- {_schema.META_ATTENDED}: {_schema.ATTENDED_REQUIRED}\n"
+    )
+    out = head + ("\n## " + rest if sep else "")
+    reason = re.sub(r"\s+", " ", why).strip()[:300]
+    line = (
+        f"- {utc_now()[:10]} attended (aw run): marked `Attended: required` from the agent's "
+        f"needs-attended proposal" + (f": {reason}" if reason else "") + "\n"
+    )
+    m = re.search(r"(?m)^## Workflow history[ \t]*\n(?:[ \t]*\n)?", out)
+    if m:
+        out = out[: m.end()] + line + out[m.end() :]
+    return out
+
+
 def perform_coordinator_proposal_file(
     run_dir: Path,
     state: Mapping[str, Any],
@@ -45094,7 +45181,39 @@ def perform_coordinator_proposal_file(
                 new_record_rel: str = ""
                 clean_summary = re.sub(r"[\r\n]+", " ", proposed_change).strip()[:24]
 
-                if size == "small":
+                if kind == PROPOSAL_KIND_NEEDS_ATTENDED:
+                    # Mark the PROPOSING plan rather than filing a new record (see
+                    # `PROPOSAL_KIND_NEEDS_ATTENDED`). The plan is resolved in the coordinator
+                    # checkout, i.e. on main's tip, so the edit lands where later runs read it.
+                    try:
+                        target = resolve_plan_path(
+                            coord.path, str(item.get("configured_file") or ""), item_id6
+                        )
+                    except DriverError as exc:
+                        return _write_fallback_record(
+                            f"needs-attended: the proposing plan could not be resolved: {exc}"
+                        )
+                    target_text = target.read_text(encoding="utf-8")
+                    marked = mark_plan_attended(target_text, why=why or blocked_by)
+                    record_id6 = item_id6
+                    new_record_rel = str(target.relative_to(coord.path)).replace(
+                        "\\", "/"
+                    )
+                    if marked == target_text:
+                        # Already marked: nothing to commit, and nothing new for a human to read.
+                        return ProposalFilingResult(
+                            filed=True,
+                            record_id6=record_id6,
+                            record_path=new_record_rel,
+                            size=size,
+                            kind=kind,
+                            blocked_by=blocked_by,
+                        )
+                    target.write_text(marked, encoding="utf-8")
+                    commit_msg = (
+                        f"plan({item_id6}): mark Attended: required (agent proposal)"
+                    )
+                elif size == "small":
                     setid = f"prop-{item_id6}"
                     title = f"Proposal from {item_id6}: {clean_summary}"
                     effective_labels = host_labels or (

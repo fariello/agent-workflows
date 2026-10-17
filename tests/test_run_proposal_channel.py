@@ -952,3 +952,154 @@ def test_three_item_continuation_e03(tmp_path: Path, runner_name: str) -> None:
     )
     assert len(bl_files) == 1
     assert "compiler bug in tool" in bl_files[0].read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("runner_name", ["oc", "agy"])
+def test_needs_attended_proposal_marks_plan_and_files_no_stub(
+    tmp_path: Path, runner_name: str
+) -> None:
+    """A `needs-attended` proposal marks the proposing plan `Attended: required` on main and files
+    no new plan or backlog item (regression: `lkn1zt` -> scaffold stub `ee3htj`)."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "att001")
+    fake_bin = _make_fake_agent_script(tmp_path)
+
+    run_dir = repo / ".aw" / "records" / "runs" / f"run-att-{runner_name}"
+    for sub in ("outcomes", "prompts"):
+        (run_dir / sub).mkdir(parents=True, exist_ok=True)
+
+    outcome_payload = {
+        "disposition": "blocked",
+        "defect_report": {"state": "none-found", "findings": []},
+        "proposal": {
+            "kind": "needs-attended",
+            "blocked_by": "plan says: needs a human answering live prompts",
+            "why": "an unattended turn cannot answer the maintainer's questions",
+            "proposed_change": "run it in an attended session",
+            "paths": [str(plan_file.relative_to(repo))],
+            "size": "small",
+        },
+        "pushed": False,
+    }
+    item: dict[str, Any] = {
+        "id6": "att001",
+        "setid": "testset",
+        "position": 1,
+        "action": "execute",
+        "status": "queued",
+        "configured_file": str(plan_file),
+        "attempts": [],
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": f"run-att-{runner_name}",
+        "queue": [item],
+        "options": {
+            "no_verify": True,
+            "validate": False,
+            "self_finalize": False,
+            "output_mode": "quiet",
+        },
+    }
+    if runner_name == "oc":
+        state["options"]["opencode"] = str(fake_bin)
+        driver_module = oc_runipd
+    else:
+        state["options"]["agy"] = str(fake_bin)
+        driver_module = agy_runipd
+
+    with mock.patch.dict(
+        os.environ, {"FAKE_PAYLOAD_JSON": json.dumps(outcome_payload)}
+    ), coordinator_role():
+        driver_module.execute_item(run_dir, state, item, recovery=False)
+
+    assert item.get(runner_shared.NEEDS_INPUT_KEY) is True
+    refusal = item.get("refusal") or {}
+    assert refusal.get("code") == runner_shared.ATTENDED_REQUIRED_CODE
+    assert "aw work begin att001" in refusal.get("remedy", "")
+
+    # The proposing plan on main now carries the marker (committed, not just written).
+    on_main = subprocess.run(
+        ["git", "show", f"main:{plan_file.relative_to(repo).as_posix()}"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "- Attended: required" in on_main
+
+    # No stub plan and no backlog item were filed.
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    assert not list(pending.glob("*-prop-att001-*.ipd.md"))
+    backlog_open = repo / ".aw" / "records" / "backlog" / "open"
+    assert not list(backlog_open.glob("*.backlog.md"))
+
+
+def test_attended_plan_is_held_at_queue_build(tmp_path: Path) -> None:
+    """An `Attended: required` plan is frozen not-run with needs_input and spends no turn."""
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "att002")
+    text = plan_file.read_text(encoding="utf-8").replace(
+        "- Scope-Paths: README.md\n", "- Scope-Paths: README.md\n- Attended: required\n"
+    )
+    plan_file.write_text(text, encoding="utf-8")
+
+    entry: dict[str, Any] = {"id6": "att002", "action": "execute", "status": "queued"}
+    assert runner_shared.hold_attended_plan(entry, plan_file) is True
+    assert entry["status"] == "not-run"
+    assert entry[runner_shared.NEEDS_INPUT_KEY] is True
+    assert entry["refusal"]["code"] == runner_shared.ATTENDED_REQUIRED_CODE
+
+    review: dict[str, Any] = {"id6": "att002", "action": "review", "status": "queued"}
+    assert runner_shared.hold_attended_plan(review, plan_file) is False
+    assert review["status"] == "queued"
+
+    plain = _create_plan_file(repo, "att003", order=2)
+    entry3: dict[str, Any] = {"id6": "att003", "action": "execute", "status": "queued"}
+    assert runner_shared.hold_attended_plan(entry3, plain) is False
+    assert entry3["status"] == "queued"
+
+
+@pytest.mark.parametrize("runner_name", ["oc", "agy"])
+def test_attended_plan_not_dispatched_at_queue_freeze(
+    tmp_path: Path, runner_name: str
+) -> None:
+    """End to end through the driver's own queue freeze (`start --prepare-only`): the attended
+    plan is frozen not-run with needs_input and the attended remedy; a plain sibling still queues."""
+    from tests.test_freeze_time_refusal import _init_repo, _write_plan
+
+    repo = _init_repo(tmp_path)
+    att = _write_plan(repo, "att004", order=1)
+    att.write_text(
+        att.read_text(encoding="utf-8").replace(
+            "- Id: att004\n", "- Id: att004\n- Attended: required\n"
+        ),
+        encoding="utf-8",
+    )
+    _write_plan(repo, "pln005", order=2)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "plans"], cwd=repo, check=True)
+
+    module = oc_runipd if runner_name == "oc" else agy_runipd
+    args = module.build_parser().parse_args(
+        ["start", "att004", "pln005", "--prepare-only", "--repo", str(repo)]
+    )
+    run_dir = Path(module.initialize_run(args))
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    by_id = {e["id6"]: e for e in state["queue"]}
+    assert by_id["att004"]["status"] == "not-run"
+    assert by_id["att004"][runner_shared.NEEDS_INPUT_KEY] is True
+    assert by_id["att004"]["refusal"]["code"] == runner_shared.ATTENDED_REQUIRED_CODE
+    assert by_id["pln005"]["status"] == "queued"
+
+
+def test_attended_field_value_is_linted() -> None:
+    """`- Attended:` accepts only `required`; any other value is a metadata error, absence is silent."""
+    from agent_workflows import ipd_schema
+
+    ok = ipd_schema.validate_metadata({"Attended": "required"})
+    assert not [e for e in ok if e.field == "Attended"]
+    bad = ipd_schema.validate_metadata({"Attended": "maybe"})
+    assert [e for e in bad if e.field == "Attended"]
+    none = ipd_schema.validate_metadata({})
+    assert not [e for e in none if e.field == "Attended"]

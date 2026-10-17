@@ -149,6 +149,8 @@ Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Sect
 
 Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priority`, and `Work-Kind` are recognized fields that are NOT in the always-required set; their requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check. The reserved sentinel `grandfathered` provides audit-tracked exemption for pre-cutoff records.
 
+Optional field: `Attended` (amended 2026-10-17, direct fix, no plan). `- Attended: required` declares that the plan needs a human present while it runs (for example it asks the maintainer live questions). It is the only accepted value; any other value is a metadata error (`IPD-M104`) and absence means the plan may run unattended. `aw oc run` / `aw agy run` never dispatch an execute of such a plan: the queue entry is frozen `not-run` with `needs_input` and refusal code `attended-session-required` naming `aw work begin <id6>`. A runner turn that discovers the need records a `proposal` of kind `needs-attended`, and the runner adds the field to the plan instead of filing a new record. Validated as a recognized metadata field (`META_RECOGNIZED`).
+
 Optional post-execution field: `Scope-Exceeded` (amended 2026-10-09, plan `psgyzw`, Set `fixfirst`, Order 06). Recorded automatically by `aw ipd finalize` when out-of-scope changed paths are reconciled with scope reasons. Syntax: `- Scope-Exceeded: <path> (<reason>); ...`. Multiple entries are separated by semicolons. Validated as a recognized metadata field (`META_RECOGNIZED`).
 
 Conditional fields:
@@ -835,6 +837,7 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
+- 2026-10-17 note (aw specs): Section 4.4 amended (direct fix, no plan): optional field Attended: required, held at queue build by both runners; proposal kind needs-attended marks it.
 - 2026-10-15 note (aw specs): Section 4.5 amended (scoperewrite yrq57q E-04): recommend optional status-agnostic glob spelling for .aw/records/ Scope-Paths entries (D170)
 - 2026-10-09 note (aw specs): Section 4.4 amended (fixfirst psgyzw E-04): document optional post-execution field - Scope-Exceeded: with syntax `<path> (<reason>); ...`, recorded on finalize when out-of-scope changed paths are reconciled.
 - 2026-10-07 note (aw specs): Section 4.4 and Section 10 amended (rdyreq fhinri E-08): record IPD-M113 requiring non-empty - Readiness: at reviewed and ready-to-execute status (approved, auto-approved) at every checkpoint

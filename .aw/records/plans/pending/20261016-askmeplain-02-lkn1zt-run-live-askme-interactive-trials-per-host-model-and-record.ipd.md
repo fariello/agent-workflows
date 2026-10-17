@@ -17,8 +17,10 @@
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lkn1zt
 - Approval: 2026-10-16, recorded via aw ipd set: status set to approved
+- Attended: required
 
 ## Workflow history
+- 2026-10-17 attended (opencode its_direct/pt3-claude-opus-5.5-1m-us): marked `Attended: required` at the maintainer's direction: its own execution gate says E-04..E-06 need the maintainer answering /askme prompts live
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008
 - 2026-10-16 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored review-ready from backlog jymlaw and research y0vcm9 "Actual questions produced by agents".
