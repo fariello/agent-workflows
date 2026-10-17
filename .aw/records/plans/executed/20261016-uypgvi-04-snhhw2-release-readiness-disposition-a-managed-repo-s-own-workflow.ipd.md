@@ -6,7 +6,7 @@
 - Scope: IN: (1) `migration_inventory.build_inventory` and `migration_inventory.check_completeness` gain an opt-in repo-local mode in which a manifest COMMAND absent from `_COMMAND_FAMILY` is collected into a new `InventoryResult.repo_local` list instead of raising, and is exempt from the "has NO disposition" completeness finding; the default (opt-in off) is byte-for-byte today's fail-closed behavior; (2) `release_readiness.gate_workflow_disposition` enables that mode exactly when the repository is NOT this toolkit's source checkout (`engine.is_source_checkout(root)` is False), and reports the repo-local commands by name in `detail` and `evidence["repo_local"]`; (3) behavioral tests in a new module plus the one existing test that pins the old managed-tree failure; (4) `docs/recovery.md` and `CHANGELOG.md`. OUT: giving repo-local workflows a fabricated family or disposition row (OQ-02); any change to `_COMMAND_FAMILY`, `_FAMILY_DEFAULTS`, catalog (`assess-*`/`advise-*`) handling, or the Order-14 ownership fence; the not-applicable state and absent-`index.md` behavior (owned by `4bw2u5`); release-review workflow bodies and `RELEASING.md` (owned by `kmmoca`); the installer and `index.md` version stamps (owned by `e9l2e0`).
 - Scope-Paths: agent_workflows/migration_inventory.py, agent_workflows/release_readiness.py, tests/test_release_readiness_repo_local_workflows.py, tests/test_release_readiness_producers.py, docs/recovery.md, CHANGELOG.md
 - Item-Dependencies: executed:4bw2u5
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: snhhw2
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: snhhw2 verified (set uypgvi, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 
