@@ -90,6 +90,7 @@ Duplicate carrier: pending plan `gbnrdf` (Set `denczr`, `- Blocks-Release: next`
   - Carrier-Declined: install-history record under durable state; backlog item is scoped to project.json
 - The `install_wizard.persist_project_policy` newline fix: carried by plan `gbnrdf` (Set `denczr`), a declared prerequisite; making the same edit here would duplicate it.
   - Carrier: gbnrdf
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-denczr-01-gbnrdf-make-the-install-wizard-write-project-json-and-local-json-wi.ipd.md
 - A shared JSON-write helper consolidating all writers: refactor beyond this bug's scope.
   - Carrier-Declined: architectural refactoring beyond this bug's focused scope
 
