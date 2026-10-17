@@ -6,7 +6,7 @@
 - Scope: IN: make `persist_project_policy` write both `project.json` and `local.json` with a trailing newline, matching `sync_cutovers_on_install`'s format; add a fast, non-slow regression test showing a repeated `persist_project_policy` plus `sync_cutovers_on_install` round leaves `project.json` byte-identical. OUT: changing the JSON layout (key order, indent) or any other installer writer; the install-history snapshot writer in `install_history.py` (not part of the committed diff measured below); the existing slow test's assertions (they are correct and are the acceptance check).
 - Scope-Paths: agent_workflows/install_wizard.py, tests/test_reinstall_preserves_config.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: gbnrdf
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gbnrdf verified (set denczr, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (review record `.aw/records/reviews/20261017-denczr-01-gbnrdf-make-the-install-wizard-write-project-json-and-local-json-wi.review.md`)
 
@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the writer
 
-- [ ] E-01 In `agent_workflows/install_wizard.py` function `persist_project_policy`, after `json.dump(proj_schema.to_dict(), f, indent=2)` (the `.tmp_project.json` write) add `f.write("\n")`, and do the same after `json.dump(local_schema.to_dict(), f, indent=2)` (the `.tmp_local.json` write). This matches the `json.dump(data, f, indent=2)` then `f.write("\n")` pattern already used in `config.sync_cutovers_on_install`. Change nothing else in the function. This item runs AFTER E-02 on purpose: E-02's test is written and run red against the unmodified writer first, so no temporary revert of this fix is ever needed.
+- [x] E-01 In `agent_workflows/install_wizard.py` function `persist_project_policy`, after `json.dump(proj_schema.to_dict(), f, indent=2)` (the `.tmp_project.json` write) add `f.write("\n")`, and do the same after `json.dump(local_schema.to_dict(), f, indent=2)` (the `.tmp_local.json` write). This matches the `json.dump(data, f, indent=2)` then `f.write("\n")` pattern already used in `config.sync_cutovers_on_install`. Change nothing else in the function. This item runs AFTER E-02 on purpose: E-02's test is written and run red against the unmodified writer first, so no temporary revert of this fix is ever needed.
   - Depends on: E-02
   - Expected outcome: both files written by `persist_project_policy` end in exactly one `\n`, and their JSON content is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression coverage
 
-- [ ] E-02 Add a test to `tests/test_reinstall_preserves_config.py` class `TestPersistProjectPolicyPreservation` (not marked slow, so it runs in the core tier). The test uses the class's `_init_repo` helper and a `private-target` `ProjectPolicy` with a temp `aw_home`, as the existing tests do. It calls `persist_project_policy(str(repo), policy, replace_config=False)` once, which runs the cutover stamp internally, and reads the bytes of `.aw/config/project.json` and `.aw/config/local.json`. Then it calls the function again with the same policy and asserts: (a) the bytes of both files are unchanged; (b) both files end with `b"\n"` and not `b"\n\n"`. Assertions are on the bytes written to disk; the test does not read source code. Write it BEFORE E-01, run it once against the unmodified `install_wizard.py`, and keep the failing output for V-02.
+- [x] E-02 Add a test to `tests/test_reinstall_preserves_config.py` class `TestPersistProjectPolicyPreservation` (not marked slow, so it runs in the core tier). The test uses the class's `_init_repo` helper and a `private-target` `ProjectPolicy` with a temp `aw_home`, as the existing tests do. It calls `persist_project_policy(str(repo), policy, replace_config=False)` once, which runs the cutover stamp internally, and reads the bytes of `.aw/config/project.json` and `.aw/config/local.json`. Then it calls the function again with the same policy and asserts: (a) the bytes of both files are unchanged; (b) both files end with `b"\n"` and not `b"\n\n"`. Assertions are on the bytes written to disk; the test does not read source code. Write it BEFORE E-01, run it once against the unmodified `install_wizard.py`, and keep the failing output for V-02.
   - Depends on: none
   - Expected outcome: the new test fails before E-01 (the second-round `project.json` bytes lose the trailing newline, measured at review) and passes after it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the acceptance test and the surrounding suites: `python3 -m pytest -o addopts="" -q tests/test_install_report_truth.py` (slow module, includes the failing test from backlog `denczr`), `python3 -m pytest -o addopts="" -q tests/test_reinstall_preserves_config.py`, and the routine gate `python3 -m pytest`.
+- [x] E-03 Run the acceptance test and the surrounding suites: `python3 -m pytest -o addopts="" -q tests/test_install_report_truth.py` (slow module, includes the failing test from backlog `denczr`), `python3 -m pytest -o addopts="" -q tests/test_reinstall_preserves_config.py`, and the routine gate `python3 -m pytest`.
   - Depends on: E-01, E-02
   - Expected outcome: all three runs pass with E-01 applied, with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -109,20 +109,145 @@ None. The root cause and fix come from reproducing the bug in this repository (F
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- agent_workflows/install_wizard.py` showing exactly two added `f.write("\n")` lines, one after each `json.dump` in `persist_project_policy`, and no other change.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
+index bd43e0e39..78bbb384d 100644
+--- a/agent_workflows/install_wizard.py
++++ b/agent_workflows/install_wizard.py
+@@ -1381,6 +1381,7 @@ def persist_project_policy(
+     tmp_proj = config_dir / ".tmp_project.json"
+     with open(tmp_proj, "w", encoding="utf-8") as f:
+         json.dump(proj_schema.to_dict(), f, indent=2)
++        f.write("\n")
+     os.replace(tmp_proj, proj_json)
 
-- [ ] V-02 validates E-02
+     # 2. Write machine-local binding
+@@ -1480,6 +1481,7 @@ def persist_project_policy(
+     tmp_local = local_json.parent / ".tmp_local.json"
+     with open(tmp_local, "w", encoding="utf-8") as f:
+         json.dump(local_schema.to_dict(), f, indent=2)
++        f.write("\n")
+     os.replace(tmp_local, local_json)
+
+     # 3. Synchronize cutover dates into project.json
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- tests/test_reinstall_preserves_config.py` showing the new test, which calls `persist_project_policy` twice and asserts byte equality and a single trailing `\n` for both files. Paste the actual failing output of the new test run against the unmodified `install_wizard.py` (before E-01), showing the byte-equality or trailing-newline assertion failing. Then paste the actual output of `python3 -m pytest -o addopts="" -q tests/test_reinstall_preserves_config.py` after E-01 with its `N passed` summary and zero failures.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/tests/test_reinstall_preserves_config.py b/tests/test_reinstall_preserves_config.py
+index 5c080aa98..7f9ee5f58 100644
+--- a/tests/test_reinstall_preserves_config.py
++++ b/tests/test_reinstall_preserves_config.py
+@@ -271,6 +271,40 @@ class TestPersistProjectPolicyPreservation(unittest.TestCase):
 
-- [ ] V-03 validates E-03
+             self.assertEqual(res_local.get("companion_dir"), "/saved/companion/dir")
+
++    def test_reinstall_leaves_config_byte_identical_with_trailing_newline(self):
++        with tempfile.TemporaryDirectory() as td:
++            tpath = Path(td)
++            aw_home = tpath / "aw_home"
++            aw_home.mkdir()
++            repo = tpath / "repo"
++            repo.mkdir()
++            self._init_repo(repo)
++
++            policy = ProjectPolicy(
++                preset=Preset.PRIVATE_TARGET.value,
++                role=ProjectRole.TARGET.value,
++                aw_home=str(aw_home),
++            )
++            persist_project_policy(str(repo), policy, replace_config=False)
++
++            proj_file = repo / ".aw" / "config" / "project.json"
++            local_file = repo / ".aw" / "config" / "local.json"
++
++            proj_bytes_first = proj_file.read_bytes()
++            local_bytes_first = local_file.read_bytes()
++
++            persist_project_policy(str(repo), policy, replace_config=False)
++
++            proj_bytes_second = proj_file.read_bytes()
++            local_bytes_second = local_file.read_bytes()
++
++            self.assertEqual(proj_bytes_second, proj_bytes_first)
++            self.assertEqual(local_bytes_second, local_bytes_first)
++            self.assertTrue(proj_bytes_second.endswith(b"\n"))
++            self.assertFalse(proj_bytes_second.endswith(b"\n\n"))
++            self.assertTrue(local_bytes_second.endswith(b"\n"))
++            self.assertFalse(local_bytes_second.endswith(b"\n\n"))
++
+
+ class TestResolveExistingPolicyAndNoninteractive(unittest.TestCase):
+     """Verify resolve_existing_policy, resolve_policy_noninteractive, and enabled_hosts precedence."""
+```
+
+Failing output before E-01:
+```
+tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation::test_reinstall_leaves_config_byte_identical_with_trailing_newline FAILED [100%]
+
+=================================== FAILURES ===================================
+_ TestPersistProjectPolicyPreservation.test_reinstall_leaves_config_byte_identical_with_trailing_newline _
+
+self = <tests.test_reinstall_preserves_config.TestPersistProjectPolicyPreservation testMethod=test_reinstall_leaves_config_byte_identical_with_trailing_newline>
+
+    def test_reinstall_leaves_config_byte_identical_with_trailing_newline(self):
+...
+>           self.assertEqual(proj_bytes_second, proj_bytes_first)
+E           AssertionError: b'{\n[1028 chars]26-10-17",\n    "spec_requirement_ids": "2026-10-17"\n  }\n}' != b'{\n[1028 chars]26-10-17",\n    "spec_requirement_ids": "2026-10-17"\n  }\n}\n'
+
+tests/test_reinstall_preserves_config.py:301: AssertionError
+============================== 1 failed in 0.26s ===============================
+```
+
+Passing output after E-01:
+```
+................                                                         [100%]
+============================== SLOW TESTS REPORT ===============================
+0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+17 passed in 15.99s
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the actual output of `python3 -m pytest -o addopts="" -v tests/test_install_report_truth.py` showing `test_second_install_nochange_leaves_clean_status_and_no_false_lines` PASSED and zero failed. Paste the `N passed` summary line of a bare `python3 -m pytest` and `echo "exit=$?"` showing 0. Paste `git diff --cached --name-only` at commit time listing only `agent_workflows/install_wizard.py`, `tests/test_reinstall_preserves_config.py`, and, if that commit also carries this plan's checklist updates, this plan file; any other path is a fail.
   - Observed evidence:
-  - Result: pending
+```
+Actual output of `python3 -m pytest -o addopts="" -v --runxfail tests/test_install_report_truth.py`:
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python3-bin>
+cachedir: .pytest_cache
+Using --randomly-seed=2957913653
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_install_report_truth.py::TestInstallReportTruth::test_decline_path_in_prompt_and_run_commit PASSED [ 33%]
+tests/test_install_report_truth.py::TestInstallReportTruth::test_second_install_nochange_leaves_clean_status_and_no_false_lines PASSED [ 66%]
+tests/test_install_report_truth.py::TestInstallReportTruth::test_fresh_install_staging_advisories_and_closing_report PASSED [100%]
+============================== SLOW TESTS REPORT ===============================
+
+0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+============================== 3 passed in 7.53s ===============================
+
+(Without --runxfail, pytest -o addopts="" -v tests/test_install_report_truth.py reports 2 passed, 1 xpassed in 8.18s and exit code 0, due to quarantine xfail mark in test_install_report_truth.py).
+
+Bare python3 -m pytest; echo "exit=$?":
+810 passed in 28.58s
+exit=0
+
+git diff --cached --name-only at commit time:
+agent_workflows/install_wizard.py
+tests/test_reinstall_preserves_config.py
+.aw/records/plans/pending/20261017-denczr-01-gbnrdf-make-the-install-wizard-write-project-json-and-local-json-wi.ipd.md
+```
+  - Result: pass
 
 ## Approval and execution gate
 
