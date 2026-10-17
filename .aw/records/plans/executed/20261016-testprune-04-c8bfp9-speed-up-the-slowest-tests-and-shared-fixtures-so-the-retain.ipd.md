@@ -5,8 +5,9 @@
 - Concern: Prompt `4ul37x` (Set `testprune`) SPEED UP section and its headline target: the FULL retained suite (`python3 -m pytest tests/ -m ''`) under 120s wall on 6 xdist workers. Baseline (research `7ry5kv` section "Slowest full-suite tests", main `eca2e2211`; the scratch log it came from is machine-local and not an artifact): 565.28s wall; the slowest 30 tests alone sum to 617.6s of worker time; the two slowest are `tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[doctor]` at 118.10s and `tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_heavy_leaves[doctor]` at 64.25s, so the worst single test alone nearly equals the whole target and pins one worker's tail. Measured at authoring in this worktree: `aw partition -t plans -s approved --json` takes 28.1s to 30.7s when run with cwd at the repository (it walks this repository's full `.aw/records/` tree) but 0.40s in a minimal git repo with an empty `.aw/records/plans/`; `aw status` takes 9.8s at the repository; `aw doctor --agent` takes 0.62s in the minimal repo. So most of the heavy-leaf cost is the size of THIS repository's records corpus, which the exit-code, `--json`, `--fields`, `--agent` and NO_COLOR contracts do not depend on.
 - Scope: After `83nnyn` has consolidated, (1) point conformance sweeps that do not assert on this repository's records at a seeded, session-built fixture project instead of `REPO_ROOT`; (2) replace subprocess `aw` invocations with in-process `agent_workflows.cli.main([...])` where the process boundary is not under test, keeping a small, named set of true subprocess smoke tests; (3) build installed-project and temp-repo templates once per session and copy per test; (4) replace real sleeps and wall-clock waits with injected clocks or shortened timeouts through existing parameters; (5) split remaining long tests so `--dist=worksteal` can balance; (6) record a justification for every test still over 2s. Never weakens an assertion; `livecorpus` tests stay and are sped up only by caching, never by narrowing their corpus.
 - Scope-Paths: tests/, conftest.py, pyproject.toml, .gitignore, .aw/records/research/*testprune*
+- Scope-Exceeded: .aw/records/backlog/open/20261017-96lj37-01-96lj37-testcleantargetconfighome-test-case-l-hardcodes-35.backlog.md (Defect found during test execution recorded as backlog item per agent execution contract defect reporting requirements)
 - Item-Dependencies: executed:83nnyn
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,9 +16,9 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: c8bfp9
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: c8bfp9 verified (set testprune, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261017-96lj37-01-96lj37-testcleantargetconfighome-test-case-l-hardcodes-35.backlog.md: Defect found during test execution recorded as backlog item per agent execution contract defect reporting requirements; in-scope-unmodified .gitignore: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified pyproject.toml: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011, PR-012
