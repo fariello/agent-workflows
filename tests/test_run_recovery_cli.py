@@ -58,7 +58,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
-from agent_workflows import cli, run_engine, run_evidence, run_recovery, run_state
+from agent_workflows import (
+    agent_schema,
+    cli,
+    run_engine,
+    run_evidence,
+    run_recovery,
+    run_state,
+)
 from agent_workflows import run_cli
 from agent_workflows import run_ledger_schema as schema
 from agent_workflows import run_ledger_store as ledger_store
@@ -2989,9 +2996,9 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
         all, so it would still see only a bare failure. The `exit_code` is checked against the
         RETURNED code so the payload cannot claim one thing while the process does another.
 
-        DELIBERATELY NOT an `aw.agent/v1` conformance check: these payloads are bare dicts and are
-        not records of that schema, which is a real gap on a different contract and not this one. So
-        this asserts the EXISTING keys survive and the new ones are additions.
+        Under `--agent`, exit-2 refusals are now `aw.agent/v1` error records carrying the legacy keys
+        and `next`, while `--json` keeps the bare dict shape. This asserts the existing keys survive
+        and the new ones are additions.
         """
         for extra in ("--agent", "--json"):
             with self.subTest(renderer=extra):
@@ -3024,11 +3031,14 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
                     "the pre-existing payload shape is EXTENDED, never replaced: consumers key off "
                     "these three today",
                 )
+                if extra == "--agent":
+                    self.assertEqual(agent_schema.validate_agent_record(payload), [])
+                    self.assertEqual(payload["next"], f"aw runs {self.run_id}")
                 self.assertNotIn(
                     "\x1b[", out, "machine streams are documented ANSI-free"
                 )
 
-    def test_an_unknown_target_keeps_the_bare_machine_shape(self) -> None:
+    def test_an_unknown_target_carries_no_suggestion_keys(self) -> None:
         """The negative half of the payload claim: no suggestion means no suggestion KEYS either.
 
         Separate because it is what keeps the new fields from becoming unconditional noise. A
@@ -3040,12 +3050,13 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
         )
         payload = json.loads(out.strip().splitlines()[-1])
         self.assertEqual(run_cli.EXIT_INVALID_INVOCATION, rc)
-        self.assertEqual(
+        self.assertEqual(agent_schema.validate_agent_record(payload), [])
+        self.assertLessEqual(
             {"ok", "error", "exit_code"},
             set(payload),
-            "an unresolvable target's payload must stay exactly as it was: adding empty suggestion "
-            "keys would make their presence meaningless as a signal",
         )
+        self.assertNotIn("target_kind", payload)
+        self.assertNotIn("suggested_commands", payload)
         self.assertNotIn("aw runs repair", payload["error"])
 
     def test_the_three_way_classification_names_all_three_answers(self) -> None:

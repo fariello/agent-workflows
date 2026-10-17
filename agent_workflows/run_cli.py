@@ -302,6 +302,43 @@ def _emit_machine(args: argparse.Namespace, payload: Any) -> None:
         print(json.dumps(sanitized, sort_keys=True, indent=2, ensure_ascii=False))
 
 
+def _agent_cmd(args: argparse.Namespace) -> str:
+    """Return the command string for an agent record ('runs <leaf>', 'run <leaf>', or 'run')."""
+    runs_cmd = getattr(args, "runs_command", None)
+    if runs_cmd:
+        return f"runs {runs_cmd}"
+    run_cmd = getattr(args, "run_command", None)
+    if run_cmd:
+        return f"run {run_cmd}"
+    return "run"
+
+
+def _sanitize_agent_value(val: Any) -> Any:
+    """Recursively redact home paths and strip ANSI escapes in string values."""
+    if isinstance(val, str):
+        cleaned = agent_schema.redact_home_paths(val)
+        return agent_schema._ANSI_ESCAPE_RE.sub("", cleaned)
+    if isinstance(val, list):
+        return [_sanitize_agent_value(item) for item in val]
+    if isinstance(val, tuple):
+        return tuple(_sanitize_agent_value(item) for item in val)
+    if isinstance(val, dict):
+        return {k: _sanitize_agent_value(v) for k, v in val.items()}
+    return val
+
+
+def _emit_agent_record(args: argparse.Namespace, rec: Dict[str, Any]) -> None:
+    """Emit a validated aw.agent/v1 record to stdout with redaction, ANSI stripping, and --fields."""
+    rec = _redact_output(rec)
+    rec = _sanitize_agent_value(rec)
+    fields = getattr(args, "fields", None)
+    if fields:
+        if isinstance(fields, str):
+            fields = [f.strip() for f in fields.split(",") if f.strip()]
+        rec = agent_schema.filter_record_fields(rec, fields)
+    sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+
+
 def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -> int:
     """Report a WRONG-FORMAT target and return `EXIT_NOT_A_LEDGER`.
 
@@ -625,12 +662,9 @@ def _run_show(args: argparse.Namespace) -> int:
             _print_human(err_msg)
         return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
-        err_msg = f"error: failed to read ledger: {exc}"
-        if machine:
-            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
-        else:
-            _print_human(err_msg)
-        return 2
+        return _emit_error(
+            args, f"failed to read ledger: {exc}", EXIT_INVALID_INVOCATION
+        )
 
     evaluation = evidence.evaluate_completion(records)
 
@@ -734,12 +768,9 @@ def _run_evidence(args: argparse.Namespace) -> int:
             _print_human(err_msg)
         return EXIT_CORRUPTED_LEDGER
     except Exception as exc:
-        err_msg = f"error: failed to read ledger: {exc}"
-        if machine:
-            _emit_machine(args, {"ok": False, "error": err_msg, "exit_code": 2})
-        else:
-            _print_human(err_msg)
-        return 2
+        return _emit_error(
+            args, f"failed to read ledger: {exc}", EXIT_INVALID_INVOCATION
+        )
 
     evidence_records: List[Dict[str, Any]] = []
     any_invalid = False
@@ -951,15 +982,38 @@ def _emit_error(
     having to parse it out of an English sentence, which is the half of this surface where a
     human-only signpost does the most damage: an automated consumer cannot read prose at all.
 
-    DELIBERATELY NOT AN `aw.agent/v1` RECORD (F-16). This module's machine payloads are bare dicts
-    (`ok`/`error`/`exit_code`) and `agent_schema.validate_agent_record` reports three violations
-    against one; `run_cli` imports `agent_schema` zero times. Converting them is a real gap on a
-    different contract, across every `_emit_machine`/`_emit_error` site, and doing it here would
-    silently change what every existing `aw run`/`aw runs --agent` consumer parses. So `extra`
-    EXTENDS the shape that exists, and `tests/test_run_cli_error_payload_keys.py` asserts the bare
-    payload's key set exactly across leaves and both machine renderers, which is what keeps this from
-    drifting into a rewrite.
+    For the exit-2 (`EXIT_INVALID_INVOCATION`) refusal class under `--agent`, this emits a validated
+    `aw.agent/v1` `kind: "error"` record (`outcome: "cannot-run"`, `exit: 2`, `verified: false`,
+    `complete: false`, `cmd` naming the leaf, and a `next` recovery command) that retains the legacy
+    `ok`/`error`/`exit_code` keys and honors `--fields`. `--json` refusals and non-2 refusals (exit 1
+    and 3 to 7) keep the bare JSON shape, carried by backlog `p7bvku`.
+    `tests/test_run_cli_error_payload_keys.py` guards this split across leaves and renderers.
     """
+    if (
+        getattr(args, "agent", False) or getattr(args, "as_agent", False)
+    ) and exit_code == EXIT_INVALID_INVOCATION:
+        suggested = (extra or {}).get("suggested_commands") if extra else None
+        next_cmd = (
+            suggested[0]
+            if suggested and isinstance(suggested, (list, tuple)) and len(suggested) > 0
+            else f"aw {_agent_cmd(args)} --help"
+        )
+        rec: Dict[str, Any] = {
+            **(extra or {}),
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "error",
+            "cmd": _agent_cmd(args),
+            "exit": 2,
+            "outcome": "cannot-run",
+            "verified": False,
+            "complete": False,
+            "error": message,
+            "ok": False,
+            "exit_code": 2,
+            "next": next_cmd,
+        }
+        _emit_agent_record(args, rec)
+        return exit_code
     if _machine(args):
         payload: Dict[str, Any] = {
             "ok": False,
