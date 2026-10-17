@@ -639,11 +639,6 @@ class ProfileDispatchTests(unittest.TestCase):
                 "semi-hardened", HostSandboxCapabilities(supports_os_sandbox=True)
             )
 
-    def test_module_publishes_its_guarantees(self):
-        doc = (hsp.__doc__ or "").lower()
-        for token in ("read-only", "driver", "linux", "git common", "void"):
-            self.assertIn(token, doc, f"published guarantees must mention {token!r}")
-
 
 class DiscoveryThenExecutionTests(unittest.TestCase):
     """E-07: read-only discovery, then write execution."""

@@ -2123,3 +2123,48 @@ def test_edge_satisfied_refusal_does_not_assert_queue_absence(tmp_path: Path):
         "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed']"
         == reason
     )
+
+
+def test_edge_satisfied_allows_reviewed_or_approved_target_for_review_action(
+    tmp_path: Path,
+):
+    """Behavioral test for edge_satisfied review relaxation (replacing docstring pin):
+    A review-action item accepts a target plan in pending/ with status 'reviewed' or 'approved'.
+    """
+    from agent_workflows import runner_shared
+
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    target_plan = pending / "20260929-8mohre-01-5o1jye-target.ipd.md"
+
+    edge = runner_shared.parse_dependency_token("executed:5o1jye")
+    assert edge is not None
+    review_item = {
+        "action": "review",
+        "id6": "dep001",
+        "dependencies": ["executed:5o1jye"],
+    }
+    exec_item = {
+        "action": "execute",
+        "id6": "dep002",
+        "dependencies": ["executed:5o1jye"],
+    }
+    state = {"repo": str(tmp_path), "queue": [review_item]}
+    by_id = {"dep001": review_item}
+
+    for status in ("reviewed", "approved"):
+        target_plan.write_text(
+            f"---\n- Id: 5o1jye\n- Status: {status}\n---\n# Target\n"
+        )
+        ok, reason = runner_shared.edge_satisfied(edge, review_item, state, by_id)
+        assert ok is True
+        assert reason == ""
+
+        exec_ok, exec_reason = runner_shared.edge_satisfied(
+            edge, exec_item, state, by_id
+        )
+        assert exec_ok is False
+        assert (
+            f"target 5o1jye is '{status}' (directory 'pending'), needs one of ['executed']"
+            in exec_reason
+        )
