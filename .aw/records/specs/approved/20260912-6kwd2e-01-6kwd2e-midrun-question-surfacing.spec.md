@@ -9,6 +9,7 @@
 
 ## Workflow history
 
+- 2026-10-17 note (aw specs): AMENDED 2026-10-17 (maintainer-directed): added R9 (answering while the run is live: per-run questions/answers inbox, one shared answer writer, checkpoint consumption, same-session resume, aw runs answer, terminal surfaces, unattended runs still accept answers) and R10 (notification and chat channels: adapter interface, user-level secrets, sanitized and terse outbound text, sender verification, one runner-attached receiver per channel identity, Telegram stdlib two-way, generic webhook/command hook, aw notify setup, Signal deferred) with criteria A42-A55; Goal 6 and the remote-surface non-goal amended to match. Sources: findings xjsc9k; reports kdg4uz, cpcn9k, 49sv63, js5p5k answering prompt bao493.
 - 2026-10-16 note (aw specs): Relocation note (er11a0): rules cited as askme Step 1 (three-way sort), Step 3/Step 4 (record before the next question, durable recording) and Step 5 (runner branch) now live in 'Establish facts before asking', 'Ask and wait', 'Record project decisions' and 'Explicitly noninteractive runs' sections; askme.md line citations predate the rewrite.
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
@@ -154,7 +155,8 @@ an attention surface and a resume path is the bulk of this spec. A reader must n
 3. The human answers asynchronously and is never a queue dependency.
 4. A parked item's work is never destroyed and never merged.
 5. The number of prompts the human faces is proportional to DISTINCT questions, not to items.
-6. A question is discoverable WHILE the run is still going, not only after it ends.
+6. A question is discoverable WHILE the run is still going, not only after it ends, and can be ANSWERED
+   while it is still going, from a second terminal or a configured chat channel (R9, R10).
 7. Only questions that are genuinely the human's to decide are escalated at all.
 
 ## 2. Non-goals
@@ -162,8 +164,9 @@ an attention surface and a resume path is the bulk of this spec. A reader must n
 - A live mid-turn interactive prompt. Refused, per 0.3.
 - Relaxing `question: deny`. Not required by this design, and left in place.
 - Answering a question on the human's behalf under automation. R7 forbids it.
-- A remote or web answering surface. The answer carrier is a file in the run directory; a richer surface
-  may be built later on the same carrier.
+- A remote or web answering surface HOSTED BY `aw`. The answer carrier is a file in the run directory
+  (R9.1); chat channels (R10) reach it by OUTBOUND polling only, so no `aw` component listens on a
+  network port. Amended 2026-10-17: the original non-goal read "a remote or web answering surface".
 - Changing what `/plan-review` considers a NO-GO. R6 changes only whether the question SURFACED first.
 
 ## 3. Requirements
@@ -431,6 +434,123 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
   than a permission-gated tool, this asymmetry does not affect the design. Stated explicitly so a future
   reader does not "fix" it by relaxing a permission.
 
+### R9. Answering WHILE the run is live (amended 2026-10-17)
+
+WHY THIS AMENDMENT EXISTS. As first approved, a parked question reached the human only through an answer
+file at the drain (R5) and a projection (R4a.1). The maintainer's ruling (2026-10-17): questions must not
+merely "sit on the file system somewhere"; a human who IS available must be able to answer WHILE the run
+is still running, and ideally from wherever they are, not only at a terminal after the run drains. Design
+research: findings `xjsc9k` (one inbox, many adapters) and research reports `kdg4uz` (gpt61med), `cpcn9k`
+(gemini38flashhigh), `49sv63` (gemini4argonmed) and `js5p5k` (opus55high) answering prompt `bao493`. All
+four agree on every verdict (ship Telegram on the standard library; do not ship Signal). `kdg4uz` is the
+best-sourced and its Telegram reference design is adopted; `49sv63` supplies the process model (R10.6:
+runner-attached poller, no OS service) and the inbox file schemas (R9.1); `cpcn9k`'s sample code was found
+unsafe and is not used. `js5p5k` independently confirms R9/R10 and adds the `ack` hook and opaque cursor
+in R10.1. NOTHING IN R1-R8 IS WEAKENED: the worker still never prompts (R2.3), `question: deny` stays
+(non-goal), and unattended runs still never ask at a terminal (R7). R9 adds a carrier for ANSWERS and the
+points at which a live driver consumes them.
+
+- **R9.1 THE INBOX IS THE ONE ANSWER CARRIER.** For every parked question the driver MUST write
+  `<run_dir>/questions/<question_id>.json` at the moment the item parks (this is the R4a.1 projection,
+  made per-question and machine-readable). Every answering surface MUST write
+  `<run_dir>/answers/<question_id>.json` and MUST NOT talk to the driver any other way. The answer record
+  carries: `question_id`, `answer` (text), `choice` (option index or null), `actor` (`human`), `channel`
+  (`terminal`, `cli`, `telegram`, ...), `sender` (the channel's verified identity, or the OS user for
+  `cli`/`terminal`), `artifact_hash` (copied from the question, R5.6), and `answered_at`. Rationale:
+  adapters become interchangeable and the `actor == "human"` rule (R5.4) is enforced in ONE reader.
+- **R9.2 ONE SHARED ANSWER WRITER.** All adapters MUST write through one function that: takes a lock on
+  the question, refuses if an answer already exists (FIRST ANSWER WINS; a second answer is reported as
+  "already answered" and recorded, never applied), writes atomically (temp file in the same directory,
+  fsync, rename), refuses an answer to a question id that does not exist in `questions/`, and records the
+  `human_answer` ledger entry (R5.4). No adapter may write `answers/` itself.
+- **R9.3 CHECKPOINT CONSUMPTION.** The driver MUST scan `answers/` at every dispatch checkpoint (the same
+  points it reads `runner_stop.poll_stop`), not only at the drain. An answered parked item MUST be
+  re-queued AHEAD of every not-yet-started item, because its lane holds real work against a base that
+  goes stale (0.35). Pickup latency is therefore bounded by the duration of the item in flight.
+- **R9.4 SAME-SESSION RESUME.** A re-queued answered item MUST resume the SAME agent session with the
+  answer as the next message, through the host's own launcher (`runner_shared.resume_via_launcher`, the
+  mechanism the fix-it send-backs already use), so the agent keeps its context and an answer costs a
+  short turn. When the session cannot be resumed, fall back to a fresh turn on the SAME preserved lane
+  with the answer in the prompt (R5.5). Either way R5.6 (staleness) is checked first.
+- **R9.4a NO NEW INTERACTIVITY IN THE TURN.** R9 MUST NOT hold a turn open waiting for an answer, MUST NOT
+  relax `question: deny`, and MUST NOT add a mid-turn prompt. Every reason in 0.3 still holds.
+- **R9.5 `aw runs answer` (THE REFERENCE ADAPTER).** A CLI verb `aw runs answer [<run-id>]` MUST list the
+  open questions of one run (or of every live run when omitted), and answer them interactively in its
+  OWN process: one question at a time, free text or a numbered option, each answer written through R9.2
+  BEFORE the next question is shown (R1.7's rule). Non-interactive form:
+  `aw runs answer <run-id> <question_id> --answer TEXT` (or `--choice N`). `--agent`/`--json` emit the
+  canonical result record. It works against a LIVE run (the 4-hour-gap case of A10c) and a finished one.
+  It is the adapter every other channel is tested against.
+- **R9.6 TERMINAL SURFACES.** R4a.3 (statusline count) and R4a.4/R4a.5 (one bell, TTY only) are unchanged
+  and are the in-terminal notification. Additionally, the statusline line MUST name the command that
+  answers (`aw runs answer <run-id>`), so a human seeing the count knows what to type in a second
+  terminal. An in-run hotkey that opens a prompt inside the streaming terminal is OUT OF SCOPE (it would
+  live beside the SIGINT menu, the most wedge-prone code in the runners).
+- **R9.7 UNATTENDED RUNS STILL ACCEPT ANSWERS.** `--unattended` means nobody is at the RUN'S terminal;
+  it does not mean nobody may answer. Under `--unattended` the driver MUST still write the inbox, notify
+  (R10), and consume answers at checkpoints (R9.3). What R7 forbids, terminal prompting and synthesized
+  answers, stays forbidden.
+
+### R10. Notification and chat channels (amended 2026-10-17)
+
+- **R10.1 ADAPTER INTERFACE.** A channel is a module implementing one shape: `capabilities()` (notify,
+  answer, buttons, max text length), `send(question, mode) -> receipt`, `receive(cursor, deadline) ->
+  (events, cursor)` (answer-capable channels only; the cursor is opaque to the core and persisted by
+  the core only after the batch is handled), `verify(event) -> sender|None`, `ack(event, outcome)` with
+  outcome `recorded`/`already`/`rejected` (so the human always sees what happened to a reply), and
+  `health()`. Notify-only channels implement `send` and `health`. Routing (channel message id or option
+  token -> run, question, option, artifact hash) is owned by the core's user-level registry, never by an
+  adapter, and the core deduplicates inbound events by (channel, event id). A channel never writes
+  `answers/` (R9.2); the core hands verified events to the shared writer.
+- **R10.2 OPT-IN, USER-LEVEL CONFIG, NO TRACKED SECRETS.** Channels are off unless configured. Channel
+  configuration and secrets (bot tokens, topic names, chat ids) MUST live at user level (under `AW_HOME`,
+  file mode 0600 on POSIX and a user-only ACL on Windows) or in environment variables, and MUST NEVER be
+  read from or written to tracked project config. A repository MAY set a tracked policy that FORBIDS
+  channels or forces terse mode; it may not enable a channel or carry a secret.
+- **R10.3 SANITIZED OUTBOUND TEXT.** Every byte sent off the machine MUST pass the package leak sanitizer
+  (`leak_sanitizer`, as used by `aw sanitize`) first, and MUST be truncated to the channel's limit after
+  sanitizing.
+- **R10.4 TERSE MODE.** Every channel MUST support a terse mode that sends only "run <run-id>: N
+  question(s) waiting; answer with aw runs answer <run-id>", with no question content and no buttons.
+  Terse is the DEFAULT for a newly configured channel until the user opts into content.
+- **R10.5 SENDER VERIFICATION.** An answer-capable channel MUST accept an answer only from configured
+  identities (for Telegram: the numeric user id AND the private chat id), MUST record the sender in the
+  answer, and MUST drop and log (never apply) anything else.
+- **R10.6 ONE RECEIVER PER CHANNEL IDENTITY, ATTACHED TO A LIVE RUNNER.** Channels whose receive side
+  forbids concurrent consumers (Telegram `getUpdates` returns 409 Conflict) MUST run exactly one receive
+  loop per channel identity per machine, guarded by a user-level lock (`filelock`). The loop runs as a
+  thread of a LIVE runner (or of a foreground `aw notify listen`), never as an installed OS service
+  (no launchd, systemd unit or Windows service): the first live runner to take the lock serves every live
+  run on the machine, routing each event through a user-level registry of open channel messages
+  (channel message id -> run directory, question id, option tokens, artifact hash); other runners only
+  send, and take the lock over if its holder exits. A runner MUST drain the channel once at start and at
+  resume, so an answer sent while no runner was live (Telegram holds unconfirmed updates for 24 hours) is
+  still collected. On 409 the loop MUST stop and report rather than retry in a loop. A channel failure
+  (network, 401, 429) MUST be recorded as an event and MUST NOT fail the run; the inbox and
+  `aw runs answer` remain available.
+- **R10.7 NOTIFY ONCE PER PARK.** A channel MUST be notified once per newly parked question (or once per
+  park batch in terse mode), MUST NOT re-notify on every checkpoint, and MUST send a short "answered via
+  <channel>" acknowledgement when an answer is consumed.
+- **R10.8 SHIPPED CHANNELS.** (a) **Telegram**, two-way: standard library only (`urllib`; the
+  third-party libraries require Python >= 3.10 and the package floor is 3.9, per `kdg4uz`), long polling
+  with `getUpdates` (no webhook; refuse to start if `getWebhookInfo` reports one), plain text with no
+  parse mode, inline buttons whose `callback_data` is a random token mapped locally to
+  (run, question, option, artifact hash) and treated as untrusted, free text accepted ONLY as a reply to
+  a known question message, every callback acknowledged (including "already answered"), offset persisted
+  only after the event is written or rejected, backoff with jitter honoring `retry_after`. (b) **Generic
+  webhook / command hook**, notify-only: POST a JSON body to a configured URL, or run a configured
+  command with the JSON on stdin; this covers ntfy, Microsoft Teams Workflows and Google Chat incoming
+  webhooks without a dedicated adapter each.
+- **R10.9 SETUP COMMAND.** `aw notify setup telegram` MUST: show what leaves the machine and that
+  Telegram can read bot chats (they are not end-to-end encrypted); read the token with hidden input;
+  verify it (`getMe`, `getWebhookInfo`); pair by asking the user to send a one-time phrase to the bot and
+  confirming the detected ids locally; send a test question with buttons and require a button press and
+  a reply; then save. `aw notify test` and `aw notify status` report channel health.
+- **R10.10 SIGNAL IS DEFERRED.** Signal is NOT a shipped channel. Both research reports found the only
+  workable route (`signal-cli`, Java 25, a registered or linked number, releases that stop working after
+  about three months) too heavy and fragile, and automated use of a personal account carries
+  terms-of-service risk. It is tracked as a backlog item; it may later be reachable through R10.8(b).
+
 ## 4. Testable acceptance criteria
 
 - **A1** (R1.1, R1.2) A queue of artifacts carrying open questions produces a pre-flight batch containing
@@ -539,6 +659,42 @@ CLASSIFICATION (R2.5) is broken, not evidence that the human owes 74 decisions.
   not introduced anywhere in the new code (grep for a fresh `isatty` in the sweep and drain paths). Added at
   review: R7.1 had no criterion, and a forked presence check is exactly how one host would come to prompt
   when the other does not.
+
+- **A42** (R9.1, R9.2) Two adapters answering the same question concurrently produce exactly ONE
+  applied answer; the second is reported "already answered"; an answer to an unknown question id is
+  refused; a non-`human` actor is refused (A11 reused through the writer).
+- **A43** (R9.3) In a 3-item run where item 1 parks, an answer written to `answers/` while item 2 runs is
+  consumed at the next checkpoint and item 1 resumes BEFORE item 3 starts. Assert the dispatch order.
+- **A44** (R9.4) The resumed turn reuses the recorded session id through the host launcher and its
+  prompt contains the answer; with the session unavailable, a fresh turn runs on the SAME preserved lane.
+- **A45** (R9.5) `aw runs answer <run-id>` against a LIVE run lists the parked question and writes the
+  answer; the non-interactive form exits 0 and writes the same record; `--agent` emits an `aw.agent/v1`
+  result.
+- **A46** (R9.6) The statusline of a run with a parked question names `aw runs answer <run-id>`.
+- **A47** (R9.7) Under `--unattended` with a TTY: no prompt, the inbox is written, and an answer written
+  by `aw runs answer` is consumed at the next checkpoint.
+- **A48** (R10.2) A channel secret placed in tracked project config is ignored with a warning; the user
+  config file is created 0600 on POSIX.
+- **A49** (R10.3, R10.4) A question containing an absolute home path is sent with the path redacted; in
+  terse mode the payload contains no question text.
+- **A50** (R10.5) A Telegram update from an unconfigured user id or a group chat is dropped, logged, and
+  never written to `answers/`.
+- **A51** (R10.6) Two runners configured with the same bot identity: only the lock holder polls; when it
+  exits the other takes over; a 409 stops the loop with a report; an answer sent while no runner was live
+  is collected by the start-up drain; a channel 401 or network error is an event, not a run failure.
+- **A52** (R10.8a) Against a fake Telegram API: a button press maps its token to the right question; a
+  free-text message that is not a reply to a known question message is not applied; the offset is not
+  advanced past an event whose answer write failed; every callback is acknowledged.
+- **A53** (R10.8b) The webhook channel POSTs the sanitized JSON body; the command hook receives it on
+  stdin; neither writes `answers/`.
+- **A54** (R10.9) `aw notify setup telegram` against a fake API pairs, runs the button and reply test,
+  and saves only on success.
+- **A55** (R10.7) Two checkpoints with the same parked question send ONE notification; consuming its
+  answer sends one acknowledgement.
+
+REQUIREMENT COVERAGE FOR THE 2026-10-17 AMENDMENT: R9.1-R9.7 map to A42-A47; R10.1 is exercised by every
+channel criterion; R10.2-R10.9 map to A48-A55; R10.10 is a scope statement carried by a backlog item and
+needs no criterion. R9.4a is covered by A3 (unchanged: the worker exits normally).
 
 REQUIREMENT COVERAGE, checked at review: every `R*` above maps to at least one `A*`, and every `A*` names
 at least one `R*`. A40 and A41 were added to close R1.5 and R7.1, which had none.
