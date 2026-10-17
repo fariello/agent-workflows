@@ -6,17 +6,19 @@
 - Scope: Restore ONE behavioral test module at its original path, `tests/test_migration_complex.py`, mined from `19313eed^:tests/test_migration_complex.py`, marked `core` so the routine gate reaches it; adapt the ONE recovered test broken by the later `kmmoca` change (`authorize_release` now requires a `readiness_report`, commit `a6c676874`); and extend it where the deleted file reached a key without asserting its result (`run_fix_bar`/`disposition_all` return value, `rollback` return value, `OperatorDatum.to_dict` via `build_artifact()["data"]`, and the `authorize_release` readiness refusal branches). It drives all 40 keys named in `x62jok`/`b1mx2w`: `fix_bar`, `IssueLedger.add`, `IssueLedger.disposition_all`, `IssueLedger.undispositioned`, `IssueLedger.personas_covered`, `ReleaseReviewCoordinator.__post_init__`, `ReleaseReviewCoordinator.enter_stage`, `ReleaseReviewCoordinator.stages_entered`, `ReleaseReviewCoordinator.run_fix_bar`, `ReleaseReviewCoordinator.integrate_fixes`, `ReleaseReviewCoordinator.authorize_release`, `ReleaseReviewCoordinator.can_finalize`, `detect_mode_drift`, `DiffInspection.out_of_scope_paths`, `DiffInspection.failed_checks`, `DiffInspection.is_clean`, `VerifyExecutionCoordinator.verify`, `VerifyExecutionCoordinator.can_mark_executed`, `VerifyExecutionCoordinator.mark_executed`, `AssessAllCoordinator.lanes`, `AssessAllCoordinator.eligibility`, `AssessAllCoordinator.assert_lanes_read_only`, `AssessAllCoordinator.claim_synthesis_writer`, `AssessAllCoordinator.synthesize`, `SetupRepoStateMachine.preflight`, `SetupRepoStateMachine.apply_change`, `SetupRepoStateMachine.rollback`, `OperatorDatum.__post_init__`, `OperatorDatum.is_labeled_unavailable`, `OperatorDatum.is_operator_owned`, `OperatorDatum.to_dict`, `RiskAwarePackage.add_datum`, `RiskAwarePackage.unavailable_data`, `RiskAwarePackage.consent_gate`, `RiskAwarePackage.assert_supportable_claim`, `RiskAwarePackage.build_artifact`, `build_incident_package`, `build_migrate_package`, `build_benchmark_package`, `assert_commands_in_manifest`. EXCLUDES any change to `agent_workflows/migration_complex.py` or any other production file; EXCLUDES asserting contracts of the non-`migration_complex` keys the same deleted file also reached (`run_gates.evaluate_gate`, `run_gates.GateDecision.is_approved`, `run_freeze.diff_requirements`, `run_state.is_legal_edge`, `orchestrate_isolation.analyze_concurrency_eligibility`, `verify_roles.check_role_action`, `verify_roles.check_self_verification`), which other `trimgap` items own; EXCLUDES core-marking or editing `tests/test_release_review_readiness.py`, which is a separate file with its own tier decision.
 - Scope-Paths: tests/test_migration_complex.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: x62jok
 - Set: trimgap
 - Order: 8
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode
 - Id: pdemar
 
 ## Workflow history
+- 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-17 to-review (opencode): authored from backlog `x62jok`. Recovered the deleted module from `19313eed^`, ran it unchanged against HEAD `30f327577` (29 passed, 1 failed in 1.82s: the consent-gate table, because `authorize_release` now demands a readiness report), re-ran it with only that test's release surface given a minimal clean `ReleaseReadinessReport` (30 passed in 0.62s), and measured every added expected value below by direct call (Findings F-02 to F-04) before writing it.
 - 2026-10-17 draft (opencode): created.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restored behavioral test module
 
-- [ ] E-01 Create `tests/test_migration_complex.py` from `git show 19313eed^:tests/test_migration_complex.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `x62jok`, findings `b1mx2w`, plan `pdemar`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). No subprocess, no filesystem writes: the only tree read is `assert_commands_in_manifest(SOURCE_WORKFLOWS)` over the in-repo workflows.
+- [ ] E-01 Create `tests/test_migration_complex.py` from `git show 19313eed^:tests/test_migration_complex.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `x62jok`, findings `b1mx2w`, plan `pdemar`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). No subprocess, no filesystem writes: the only tree read is `assert_commands_in_manifest(SOURCE_WORKFLOWS)` over the in-repo workflows. Disposition rule if a recovered test OTHER than the one E-02 adapts fails at execution HEAD (none did at authoring, F-02, nor at review, F-06): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
-  - Expected outcome: the file exists and is collected by a bare `python3 -m pytest` (it carries the `core` marker); 29 of its 30 recovered tests pass before E-02.
+  - Expected outcome: the file exists and is selected by a bare `python3 -m pytest` (it carries the `core` marker); every recovered test passes except the consent-gate table E-02 adapts (one failure at authoring and review, re-derived at execution).
   - Execution state: pending
 
 - [ ] E-02 Adapt `TheHumanConsentGate.test_no_handler_clears_either_gate_except_an_explicit_approval` to the `kmmoca` signature: add `from agent_workflows import release_readiness as RR` and a module-level helper returning `RR.ReleaseReadinessReport(gates=(RR.GateResult(name="full_suite", passed=True, detail="ok"),))`, and pass it as `readiness_report=` on the `authorize_release` surface ONLY (the `consent_gate` surface takes no such argument and must keep its recovered kwargs). Do not relax any row: headless must still raise naming `needs_input`, reject naming `rejected`, abort naming `aborted`, and approve must return `status == "approved"` with `is_approved` True. Add one sentence to the class docstring saying the clean report isolates the HUMAN gate from the readiness gates, which E-03 covers.
@@ -41,14 +43,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: all 30 recovered tests pass.
   - Execution state: pending
 
-- [ ] E-03 ADD a table-driven test class `ReleaseReadinessRefusals` covering the `authorize_release` readiness branches with `input_handler` returning `"approve"` and `interactive=True` on a fresh `ReleaseReviewCoordinator(mode=RELEASE_MODE_FULL)` per row, each row a list of `RR.GateResult` plus `waived_standing_gates`, and the expected outcome: no report (`readiness_report=None`) raises `ReleaseAuthorityError` containing `no Section 9 readiness report supplied`; waiving `full_suite` raises containing `cannot be waived`; a failing applicable `full_suite` raises containing `hard gate failure(s): full_suite`; a NOT-applicable `full_suite` raises containing `hard gate failure(s): full_suite`; `full_suite` passing plus failing `residual_risk` raises containing `residual_risk gate is unsigned`; `full_suite` passing plus failing `ipd_lint` unwaived raises containing `unwaived standing gate failure(s): ipd_lint`; the same with `waived_standing_gates=("ipd_lint",)` returns a decision with `status == "approved"`; `full_suite` passing plus a NOT-applicable `leak_scan` returns `status == "approved"`. The approval rows are what make the refusal rows non-vacuous; say so in the failure message.
+- [ ] E-03 ADD a table-driven test class `ReleaseReadinessRefusals` covering the `authorize_release` readiness branches with `input_handler` returning `"approve"` and `interactive=True` on a fresh `ReleaseReviewCoordinator(mode=RELEASE_MODE_FULL)` per row, each row a list of `RR.GateResult` plus `waived_standing_gates`, and the expected outcome: no report (`readiness_report=None`) raises `ReleaseAuthorityError` containing `no Section 9 readiness report supplied`; waiving `full_suite` raises containing `cannot be waived`; a failing applicable `full_suite` raises containing `hard gate failure(s): full_suite`; a NOT-applicable `full_suite` raises containing `hard gate failure(s): full_suite`; `full_suite` passing plus a NOT-applicable `residual_risk` raises containing `hard gate failure(s): residual_risk` (both are `READINESS_INPUT_REQUIRED_GATES`, so absence of the attestation input is a hard failure, F-06); `full_suite` passing plus failing `residual_risk` raises containing `residual_risk gate is unsigned`; `full_suite` passing plus failing `ipd_lint` unwaived raises containing `unwaived standing gate failure(s): ipd_lint`; the same with `waived_standing_gates=("ipd_lint",)` returns a decision with `status == "approved"`; `full_suite` passing plus a NOT-applicable `leak_scan` returns `status == "approved"`. The approval rows are what make the refusal rows non-vacuous; say so in the failure message.
   - Depends on: E-02
   - Expected outcome: all rows pass.
   - Execution state: pending
 
-- [ ] E-04 ADD result assertions where the recovered file reaches a key without checking its return value: in a new `ReturnedValuesAreTheState` class, (a) after adding two findings (`low`/not integrity and `high`/integrity) to a full-mode coordinator's ledger, `run_fix_bar()` returns a list equal to `c.ledger.findings` whose dispositions are `DISPOSITION_FIX_NOW` and `DISPOSITION_ESCALATE` respectively; (b) after `preflight()` and approving changes `c1` then `c2`, `rollback()` returns `("c2", "c1")` and equals `tuple(sm.rolled_back)`; (c) a migrate package with `OperatorDatum(key="prod_schema", provenance=PROVENANCE_UNAVAILABLE)` builds an artifact whose `data` equals `[{"key": "prod_schema", "provenance": "operator-data-unavailable", "value": None}]` and whose `operator_data_unavailable` equals `["prod_schema"]`. Use the module's own constants (`MC.PROVENANCE_UNAVAILABLE`, `MC.DISPOSITION_*`) for the inputs and the literal strings for the emitted `provenance` value, so a rename of the emitted value fails.
+- [ ] E-04 ADD result assertions where the recovered file reaches a key without checking its return value: in a new `ReturnedValuesAreTheState` class, (a) after adding two findings (`low`/not integrity and `high`/integrity) to a full-mode coordinator's ledger, `run_fix_bar()` returns a list equal to `c.ledger.findings` whose dispositions are the literal strings `"fix-now"` and `"escalate"` respectively (literals, as the recovered Fix Bar table already uses, so a rename of the emitted value fails); (b) after `preflight()` and approving changes `c1` then `c2`, `rollback()` returns `("c2", "c1")` and equals `tuple(sm.rolled_back)`; (c) a migrate package with `OperatorDatum(key="prod_schema", provenance=PROVENANCE_UNAVAILABLE)` builds an artifact whose `data` equals `[{"key": "prod_schema", "provenance": "operator-data-unavailable", "value": None}]` and whose `operator_data_unavailable` equals `["prod_schema"]`. Use the module's own constants (`MC.PROVENANCE_UNAVAILABLE`) for INPUTS and literal strings for every EMITTED value (dispositions, `provenance`), so a rename of an emitted value fails. Item (c) is the one that matters most: `OperatorDatum.to_dict` mutated to `return None` SURVIVES the recovered file (F-06), and (c) is what kills it.
   - Depends on: E-01
   - Expected outcome: all added assertions pass.
+  - Execution state: pending
+
+### Task group 2: proof that every key is guarded
+
+- [ ] E-05 Run the full 40-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/migration_complex.py::*`, apply that row's assigned operator (`return-none`, `return-false`, `negate-return`, `raise`) as a scratch edit to `agent_workflows/migration_complex.py` at the top of the key's body, run `python3 -m pytest tests/test_migration_complex.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script outside Scope-Paths in a gitignored scratch location (for example `.aw/state/`) and do not commit it. Then run the reach command in Required tests. A survivor is a defect in this plan's deliverable: add the missing assertion to `tests/test_migration_complex.py` and re-sweep that key; do not mark this item performed with a survivor outstanding.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: every one of the 40 keys is KILLED by its assigned operator (at review, against the recovered file plus the E-02 adaptation, 39 were killed and `OperatorDatum.to_dict@return-none` survived, F-06; E-04(c) closes it); `git diff agent_workflows/` is empty afterwards.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -66,6 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | `git show 19313eed^:tests/test_migration_complex.py` copied to a scratch test path and run with `-o addopts=""` at HEAD `30f327577`, then deleted | `1 failed, 29 passed in 1.82s`. The failure is `TheHumanConsentGate.test_no_handler_clears_either_gate_except_an_explicit_approval`: every `authorize_release` row raised `release refused: no Section 9 readiness report supplied`. `rg` dates the requirement to commit `a6c676874` (`work(kmmoca)`), after the trim. |
 | F-03 | the same scratch copy with only the `authorize_release` kwargs given a one-gate clean `ReleaseReadinessReport`, run with `--cov=agent_workflows.migration_complex --cov-report=term-missing`, then deleted | `30 passed in 0.62s`, coverage 89%. Remaining misses are in non-key helpers (`ReadinessVerification.to_dict`, `PersonaFinding.to_dict`, `IssueLedger.to_dict`, `last_verification`, `verify_readiness`, `finish`, `SetupChange.to_dict`, `DiffInspection.to_dict`, `CorrectiveArtifact.to_dict`), unreachable defensive raises (`run_fix_bar`, `integrate_fixes`, `assert_lanes_read_only` error lines), and the `authorize_release` readiness branches E-03 adds. Every key body executes. |
 | F-04 | direct calls at HEAD `30f327577` | With an approving handler: a clean report returns `approved`; headless, reject and abort raise `release refused: no explicit human release authority (needs_input|rejected|aborted)`; waiving `full_suite` raises `gate 'full_suite' cannot be waived; ...`; failing or not-applicable `full_suite` raises `release refused: hard gate failure(s): full_suite`; failing `residual_risk` raises `release refused: residual_risk gate is unsigned in readiness report`; unwaived failing `ipd_lint` raises `release refused: unwaived standing gate failure(s): ipd_lint`; waived `ipd_lint` and not-applicable `leak_scan` each return `approved`. `OperatorDatum.to_dict` returns `{"key", "provenance", "value"}`; `rollback` returns `tuple(reversed(applied_changes))`; `MC.PROVENANCE_UNAVAILABLE` is `operator-data-unavailable`; a `low`/non-integrity plus `high`/integrity ledger dispositions to `fix-now`, `escalate`. |
+| F-06 | plan review, HEAD `beb36ea1e`: recovered file plus the E-02 adaptation as a scratch test, then a scratch sweep applying each `b1mx2w` row's assigned operator to `agent_workflows/migration_complex.py` (restored after each key; `git diff agent_workflows/` empty afterwards); plus direct calls | Recovered file unchanged: `1 failed, 29 passed`; with the E-02 adaptation: `30 passed in 1.40s`. Sweep: 39 of 40 KILLED; `SURVIVED OperatorDatum.to_dict@return-none \| 30 passed in 0.55s`. Direct calls: a NOT-applicable `residual_risk` with passing `full_suite` raises `release refused: hard gate failure(s): residual_risk`; an empty report and a report with only a NOT-applicable `leak_scan` each return `approved` (not asserted: an empty report is out of this item's key contract). The E-04 (a) to (c) expected values reproduce exactly (`True ['fix-now', 'escalate']`; `('c2', 'c1') ('c2', 'c1')`; `[{'key': 'prod_schema', 'provenance': 'operator-data-unavailable', 'value': None}] ['prod_schema']`). |
 | F-05 | `python3 -m pytest --collect-only -q` (bare, core tier) piped to `rg -c test_release_review_readiness` | No match: the surviving readiness test file is not in the routine selection, so its `authorize_release` assertions do not guard the merge gate. |
 
 ## Proposed changes (ordered, validatable)
@@ -74,6 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. E-02 adapts the one test broken by the `kmmoca` signature change without weakening any row.
 3. E-03 covers the `authorize_release` readiness refusal and approval branches.
 4. E-04 asserts the returned values of `run_fix_bar`, `rollback` and `OperatorDatum.to_dict`.
+5. E-05 proves the Goal by sweeping every key with its assigned mutation operator.
 
 ## Deferred / out of scope (with reason)
 
@@ -87,14 +98,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none. One test file is the only path declared and the only path changed. No production code changes.
-- Under-scope: none. All 40 keys from F-01 are driven by E-01 to E-04 (F-03 shows every key body executed by the recovered file; E-03 and E-04 add assertions on results the recovered file left unchecked).
+- Under-scope: none. All 40 keys from F-01 are driven by E-01 to E-04 (F-03 shows every key body executed by the recovered file; E-03 and E-04 add assertions on results the recovered file left unchecked), and E-05 demonstrates each is guarded (F-06).
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_migration_complex.py -o addopts="" -v` passes, with the per-test list pasted.
 - Bare `python3 -m pytest` passes with the new module included, with the summary line pasted.
 - Reach: `python3 -m pytest tests/test_migration_complex.py -o addopts="" --cov=agent_workflows.migration_complex --cov-report=term-missing` shows the bodies of all 40 keys executed; paste the output.
-- Mutation spot-check: scratch, uncommitted edits to `agent_workflows/migration_complex.py`, one per V-item as listed there, each run against the new module with the failure pasted, then reverted with `git diff agent_workflows/` shown empty.
+- Mutation spot-checks: scratch, uncommitted edits to `agent_workflows/migration_complex.py`, one per V-item as listed there, each run against the new module with the failure pasted, then reverted with `git diff agent_workflows/` shown empty.
+- Mutation sweep (E-05): all 40 keys with their `b1mx2w` assigned operators, one KILLED/SURVIVED line per key pasted.
 
 ## Spec / documentation sync
 
@@ -121,7 +133,7 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git status --short` showing only `tests/test_migration_complex.py` added; paste `python3 -m pytest --collect-only -q | rg -c test_migration_complex` showing a nonzero count under the bare (core) selection; paste the bare `python3 -m pytest` summary line showing it passed.
+  - Required evidence: paste `git status --short` showing only `tests/test_migration_complex.py` added; paste the `tests/test_migration_complex.py: N` line from bare `python3 -m pytest --collect-only -q` (the core selection prints one `path: N` line per file, so `rg -c` would print 1, not N), with N matching the per-test list of the Required tests `-v` run; paste the bare `python3 -m pytest` summary line showing it passed. If the run prints `CORE TIER BUDGET EXCEEDED`, paste that too and the same run's line without the module, and report it rather than un-marking tests (a pre-existing overrun is tracked separately, backlog `o58dro`).
   - Observed evidence:
   - Result: pending
 
@@ -136,7 +148,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `-v` output listing every `ReturnedValuesAreTheState` test as PASSED; paste the failures produced by scratch-mutating `SetupRepoStateMachine.rollback` to `return None`, `OperatorDatum.to_dict` to `return {}`, and `fix_bar` to negate its return, each reverted afterwards; paste the coverage `term-missing` output for `agent_workflows/migration_complex.py` showing all 40 keys' bodies executed; paste a final empty `git diff agent_workflows/`.
+  - Required evidence: paste the `-v` output listing every `ReturnedValuesAreTheState` test as PASSED; paste the failures produced by scratch-mutating `SetupRepoStateMachine.rollback` to `return None`, `OperatorDatum.to_dict` to `return None` (its `b1mx2w` operator, which the recovered file alone does not kill) and to `return {}`, and `IssueLedger.disposition_all`'s emitted disposition literal (for example `DISPOSITION_ESCALATE` temporarily reassigned to `"escalated"`), each reverted afterwards, with a `ReturnedValuesAreTheState` test among the failures in each case.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste the sweep output, one line per key naming the key, its operator, KILLED or SURVIVED, and the pytest summary line, covering all 40 `b1mx2w` keys with zero SURVIVED; paste the coverage `term-missing` output for `agent_workflows/migration_complex.py` from the Required tests reach command, with every listed miss outside the 40 key bodies; paste a final empty `git diff agent_workflows/` and `git status --short` showing no sweep script staged or tracked.
   - Observed evidence:
   - Result: pending
 
@@ -145,4 +162,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Commit only `tests/test_migration_complex.py` through `aw commit <plan> -- tests/test_migration_complex.py`; never push. Mutation spot-checks are scratch edits to `agent_workflows/migration_complex.py` that must be reverted before commit and must not appear in the diff. Move the plan to `executed/` only after `aw ipd lint --phase pre-transition` conforms and every V-item carries pasted evidence with `Result: pass`.
+Execute only after explicit human approval (`Status: approved`).
+
+Execution contract:
+
+- Open questions: all resolved (OQ-01, OQ-02).
+- Scope fence: `tests/test_migration_complex.py` is the only declared path. An out-of-scope edit (for example a gated `bug` backlog item filed under the E-01 disposition rule) is made and then justified at finalize (`--scope-reason`), not a reason to stop. Mutation spot-checks and the E-05 sweep are scratch edits to `agent_workflows/migration_complex.py` that must be reverted before commit and must be absent from the diff; any sweep script lives in a gitignored scratch location and is never committed.
+- Honesty: you MUST paste the actual runner output for every test, coverage and mutation claim; never claim a result you did not run.
+- Commit: commit only through `aw commit pdemar -- tests/test_migration_complex.py` (plus any justified out-of-scope path), verify `git diff --cached --name-only` lists only your paths, and never push.
+- Lifecycle: the plan reaches `executed/` only after `aw ipd lint --phase pre-transition` conforms and every V-item carries pasted evidence with `Result: pass`. Under `aw oc run` / `aw agy run` the runner performs the finalize transition; a hand executor runs `aw ipd finalize pdemar` instead. Never hand-`git mv` the plan.
