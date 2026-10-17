@@ -61,6 +61,14 @@ HISTORICAL_EXEMPTIONS: dict[tuple[str, str], str] = {
         "announces 'THESE DEFECTS ARE NO LONGER PINNED BY A TEST' and documents that "
         "the suite was retired on 2026-09-18 (commit d4dd6b88)."
     ),
+    (
+        "CONTRIBUTING.md",
+        "tests/test_foo.py",
+    ): ("Illustrative synthetic example of running an explicit test path."),
+    (
+        "AGENTS.md",
+        "tests/test_foo.py",
+    ): ("Illustrative synthetic example of running an explicit test path."),
 }
 
 TEST_CITATION_PATTERN = re.compile(r"\b(tests/test_[a-zA-Z0-9_]+\.py)\b")

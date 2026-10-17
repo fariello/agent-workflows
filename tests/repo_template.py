@@ -49,14 +49,6 @@ def get_template_repo() -> Path:
         capture_output=True,
     )
 
-    # minimal .aw/records tree
-    records_dir = repo_dir / ".aw" / "records"
-    (records_dir / "plans" / "pending").mkdir(parents=True, exist_ok=True)
-    (records_dir / "plans" / "executed").mkdir(parents=True, exist_ok=True)
-    (records_dir / "specs" / "approved").mkdir(parents=True, exist_ok=True)
-    (records_dir / "backlog" / "open").mkdir(parents=True, exist_ok=True)
-    (records_dir / "research").mkdir(parents=True, exist_ok=True)
-
     _TEMPLATE_DIR = repo_dir
     return _TEMPLATE_DIR
 
