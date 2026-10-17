@@ -478,6 +478,12 @@ def gate_workflow_disposition(
     When ``undispositioned`` is None (the default), computes the undispositioned
     set from :func:`migration_inventory.build_inventory` against ``.aw/system/workflows``.
     Explicit injection (including an empty sequence) bypasses filesystem inspection.
+
+    In the toolkit's own source checkout (``engine.is_source_checkout`` is True),
+    every manifest command must carry a reviewed family in the toolkit catalog
+    (fail-closed). In a managed repository, rows outside the toolkit catalog are
+    dispositioned as repo-local, reported by name in detail and evidence, and do
+    not fail readiness (backlog ufawpb).
     """
     if undispositioned is not None:
         undone = [str(f) for f in undispositioned]
@@ -512,30 +518,44 @@ def gate_workflow_disposition(
         )
 
     try:
-        from agent_workflows import migration_inventory
+        from agent_workflows import engine, migration_inventory
 
+        allow_repo_local = not engine.is_source_checkout(root)
         try:
-            result = migration_inventory.build_inventory(wf_dir)
+            result = migration_inventory.build_inventory(
+                wf_dir, allow_repo_local=allow_repo_local
+            )
         except migration_inventory.InventoryError as err:
             undone = [str(err)]
             return GateResult(
                 name="workflow_disposition",
                 passed=False,
                 detail=f"{len(undone)} undispositioned",
-                evidence={"undispositioned": undone},
+                evidence={"undispositioned": undone, "repo_local": []},
             )
 
         undone = [str(f) for f in result.findings]
+        repo_local = sorted(result.repo_local)
         passed = not undone
+        if passed:
+            if repo_local:
+                detail = (
+                    f"all workflows dispositioned; {len(repo_local)} repo-local "
+                    f"workflow(s) outside the toolkit catalog: {', '.join(repo_local)}"
+                )
+            else:
+                detail = "all workflows dispositioned"
+        else:
+            detail = f"{len(undone)} undispositioned"
+
         return GateResult(
             name="workflow_disposition",
             passed=passed,
-            detail="all workflows dispositioned"
-            if passed
-            else f"{len(undone)} undispositioned",
+            detail=detail,
             evidence={
                 "undispositioned": undone,
                 "dispositions": len(result.dispositions),
+                "repo_local": repo_local,
             },
         )
     except (SystemExit, Exception) as exc:

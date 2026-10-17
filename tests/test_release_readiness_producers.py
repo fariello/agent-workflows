@@ -221,9 +221,13 @@ def test_disposition_missing_conformance_file_fails_gate(
 def test_disposition_unassigned_command_fails_without_raising(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Arm (h): manifest row with unassigned command fails (InventoryError) without raising."""
+    """Arm (h): manifest row with unassigned command in source checkout fails (InventoryError) without raising (ufawpb)."""
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     setup_minimal_workflows_tree(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "agent-workflows"\n', encoding="utf-8"
+    )
+    (tmp_path / ".aw" / "system" / "VERSION").write_text("1.0.0\n", encoding="utf-8")
     index_md = tmp_path / ".aw" / "system" / "workflows" / "index.md"
     index_md.write_text(
         "# Workflows\n"
