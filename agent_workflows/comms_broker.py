@@ -616,6 +616,8 @@ def scan_once(
         if not out_file.exists():
             _write_ack(acks_dir, msg_id, broker_id, outcome, now)
 
+    return eligible_msg_ids
+
 
 def _resolve_comms_dir(repo_root: Path) -> Path:
     from agent_workflows.project_context import project_records_dir

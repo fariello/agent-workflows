@@ -112,11 +112,11 @@ E-01 classify -> E-02..E-06 and E-09 subsystem batches (runner identity; removed
 ## Deferred / out of scope (with reason)
 
 - Consolidating duplicate, marginal or combinatorial tests, including docs/prose tests flagged in E-04.
-  - Carrier: 83nnyn (Set `testprune` Order 03).
+  - Carrier: 83nnyn
 - Tautology and mock-only tests (prompt category 4).
-  - Carrier: 83nnyn, which owns marginal and duplicate tests measured by `qqrgv3`'s unique line and arc data.
+  - Carrier: 83nnyn
 - Mutation spot-check of the deleted tests.
-  - Carrier: vgus66 (Set `testprune` Order 05), which samples at least 20 deletions from this plan's recorded table and every deletion that cites a defect id.
+  - Carrier: vgus66
 
 ## Scope check
 

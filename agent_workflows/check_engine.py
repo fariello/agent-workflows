@@ -3005,16 +3005,20 @@ def _identity_rename_hint(
             resolved = path.resolve()
         except OSError:
             resolved = path
-        curr = resolved if resolved.is_dir() else resolved.parent
-        repo_root = curr
-        for parent in [curr, *curr.parents]:
-            if (
-                (parent / ".git").exists()
-                or (parent / ".aw").exists()
-                or (parent / ".agents").exists()
-            ):
-                repo_root = parent
-                break
+        from agent_workflows import project_context
+
+        repo_root = project_context.record_owner_root(resolved)
+        if repo_root is None:
+            curr = resolved if resolved.is_dir() else resolved.parent
+            repo_root = curr
+            for parent in [curr, *curr.parents]:
+                if (
+                    (parent / ".git").exists()
+                    or (parent / ".aw").exists()
+                    or (parent / ".agents").exists()
+                ):
+                    repo_root = parent
+                    break
         from agent_workflows import selectors as _sel
 
         candidates = (

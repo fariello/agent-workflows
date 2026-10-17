@@ -149,9 +149,16 @@ def repo_root_of(path) -> Path:
     Exists so a caller holding only a TREE root (``research_cmd`` is handed a ``research_root``, not a
     repo root) can still reach the repository-wide mint set. Same marker set and shape as
     ``status_set._repo_root_of`` / ``specs._repo_root_of``.
+    Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6).
     """
 
     p = Path(path).resolve()
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(p)
+    if owner is not None:
+        return owner
+
     for anc in [p] + list(p.parents):
         if (
             (anc / ".aw").is_dir()

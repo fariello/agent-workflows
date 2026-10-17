@@ -25,6 +25,12 @@ from agent_workflows import artifact_types as at, cli, runner_shared, selectors
 @pytest.fixture
 def repo_with_review(tmp_path: Path) -> tuple[Path, Path]:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True
+    )
     reviews_dir = tmp_path / ".aw" / "records" / "reviews"
     reviews_dir.mkdir(parents=True, exist_ok=True)
     review_path = reviews_dir / "20260929-demo-01-ab12cd-x.review.md"

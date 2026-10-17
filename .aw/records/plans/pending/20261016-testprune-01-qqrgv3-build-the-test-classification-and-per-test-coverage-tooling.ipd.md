@@ -102,9 +102,9 @@ E-01 plugin -> E-02 runner -> E-03 analyzer (measurement); E-04 pin scan and E-0
 ## Deferred / out of scope (with reason)
 
 - Deleting, consolidating, or speeding up any test.
-  - Carrier: tv72xy, 83nnyn, c8bfp9 (Set `testprune` Orders 02 to 04).
+  - Carrier: tv72xy, 83nnyn, c8bfp9
 - Mutation spot-check, flake check, and before/after parity proof.
-  - Carrier: vgus66 (Set `testprune` Order 05), which reuses `percov_analyze --compare` from E-03.
+  - Carrier: vgus66
 - Replacing `tools/replay_coverage_diff.py` with the new plugin.
   - Carrier-Declined: it serves the executed deleted-test replay audit and still works for its purpose; merging tools is refactoring with no measured defect.
 

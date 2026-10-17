@@ -197,3 +197,61 @@ def test_budget_exceeded_enforce_zero_warns(temp_project: Path) -> None:
     assert "CORE TIER BUDGET EXCEEDED" in combined
     assert "WARNING:" in combined
     assert "test_core_one" in combined
+
+
+def _gate_env(**overrides: str) -> dict[str, str]:
+    env = _clean_env(AW_CORE_BUDGET_SECONDS="0.01", AW_TEST_CPU_COUNT="12")
+    env.pop("AW_CORE_BUDGET_ENFORCE", None)
+    env.pop("AW_SUITE_SLOT_HELD", None)
+    env.update(overrides)
+    return env
+
+
+@pytest.mark.parametrize(
+    "via_run_id", [False, True], ids=["subprocess", "run-evidence"]
+)
+def test_gate_suite_passes_an_all_green_over_budget_tree(
+    temp_project: Path, via_run_id: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """backlog ytz6z4: the runner's gate suite must not turn a load-dependent wall-time overrun into red.
+
+    Both launch paths of `run_full_suite` are driven (the plain subprocess path and the run-evidence
+    capture path a runner uses), against a project whose only test passes but blows the core budget.
+    The toy project runs with `-n 0`: its minimal conftest has no xdist relay of the core-filter flag
+    (the real `tests/deselect_notice.py` has one), so under workers its budget hook would never fire.
+    """
+    from agent_workflows import suite_cache
+
+    for k, v in _gate_env().items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("AW_CORE_BUDGET_ENFORCE", raising=False)
+    monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+    run_id = None
+    if via_run_id:
+        run_id = "run-20261017T000000Z-1"
+        monkeypatch.chdir(temp_project)
+    res = suite_cache.run_full_suite(
+        temp_project,
+        argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+        use_cache=False,
+        run_id=run_id,
+    )
+    assert res.passed, res.reason
+    assert res.exit_code == 0
+    assert "AW_CORE_BUDGET_ENFORCE" not in os.environ
+
+
+def test_gate_suite_honors_explicit_enforce(
+    temp_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An operator who explicitly sets AW_CORE_BUDGET_ENFORCE=1 still gets enforcement at the gate."""
+    from agent_workflows import suite_cache
+
+    res = suite_cache.run_full_suite(
+        temp_project,
+        argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+        use_cache=False,
+        env=_gate_env(AW_CORE_BUDGET_ENFORCE="1"),
+    )
+    assert not res.passed
+    assert res.exit_code == 1

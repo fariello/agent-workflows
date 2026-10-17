@@ -279,10 +279,20 @@ def test_live_ledger_read_leaves_non_vacuous(leaf: str, live_ledger_dir: Path) -
         assert (
             marker in res_human.stdout
         ), f"Marker {marker!r} missing from human stdout"
+        # Machine modes emit ONE JSON object carrying the projection text (hbok5d).
+        agent_lines = [ln.strip() for ln in res_agent.stdout.splitlines() if ln.strip()]
         assert (
-            marker in res_agent.stdout
-        ), f"Marker {marker!r} missing from agent stdout"
-        assert marker in res_json.stdout, f"Marker {marker!r} missing from json stdout"
+            len(agent_lines) == 1
+        ), f"leaf={leaf!r} --agent must emit one line: {res_agent.stdout!r}"
+        for mode, raw in (("agent", agent_lines[0]), ("json", res_json.stdout.strip())):
+            parsed = json.loads(raw)
+            assert isinstance(
+                parsed, dict
+            ), f"leaf={leaf!r} --{mode} did not parse as JSON dict"
+            assert parsed.get("empty") is True, f"leaf={leaf!r} --{mode}: {parsed!r}"
+            assert marker in parsed.get(
+                "content", ""
+            ), f"Marker {marker!r} missing from {mode} content"
     else:
         # Six ledger readers: json stdout parses as one JSON object
         data_json = json.loads(res_json.stdout.strip())

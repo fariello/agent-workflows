@@ -85,6 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261016-g9kupi-01-4v8s0m-decouple-test-home-records-runner-discovery-from-the-live-re.ipd.md
 - Walker reverse-mapping and `tests/test_clean_target_recognition.py`: separate items.
   - Carrier: ki6t17, a48b4m
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-cleantgt-08-ki6t17-reverse-map-record-files-under-aw-home-to-their-owning-repos.ipd.md
 
 ## Scope check
 
