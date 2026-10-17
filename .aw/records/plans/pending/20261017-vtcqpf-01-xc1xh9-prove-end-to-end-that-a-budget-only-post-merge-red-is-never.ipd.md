@@ -5,20 +5,22 @@
 - Concern: Backlog `vtcqpf` reports that when the core-tier wall-time budget in the root `conftest.py` is overrun under host load, the post-merge revalidation refuses an all-green merged tree as combined-red and names no failing test, so a verified lane is sent back to its agent for a fix turn with nothing to fix and then refused terminally. The production fix is already split across authored carriers (`44nfmd` names a budget-only red in suite reports; `sa629y` records a budget-only post-merge red as unmeasured so it defers), but no carrier proves the OPERATOR-VISIBLE outcome the backlog item describes on either host: that a budget-only red driven through a host's `execute_item` never fires the combined-red send-back, ends `merge-retry` with a reason naming the budget, and integrates on the deferred re-attempt once the suite is green.
 - Scope: One new behavioral test module that drives `oc_runipd.execute_item` and `agy_runipd.execute_item` end to end (real `runner_shared.make_integration_validation_runner`, real merge materialization, real `record_integration_refusal`, real combined-red send-back loop) with only the suite checker and the agent launcher stubbed, plus the deferred re-attempt through each host's `retry_deferred_integrations`, and a measured-red control proving the send-back path still fires for a real failing test. It does NOT edit production code, the 30s budget, the conftest guard, the suite reason text, the send-back wording, or the CHANGELOG (all carried by `44nfmd` and `sa629y`).
 - Scope-Paths: tests/test_budget_only_combined_red_e2e.py
-- Item-Dependencies: executed:44nfmd, state:backlog:done:o58dro
-- Status: to-review
+- Item-Dependencies: executed:44nfmd, executed:sa629y
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: vtcqpf
 - Blocks-Release: next
 - Set: vtcqpf
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xc1xh9
 
 ## Workflow history
 
+- 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-vtcqpf-01-xc1xh9-prove-end-to-end-that-a-budget-only-post-merge-red-is-never.review.md`)
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-17 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog vtcqpf with Step 0 evidence; review-ready.
 
@@ -32,33 +34,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fixture and prerequisite check
 
-- [ ] E-01 Confirm the prerequisites landed, then build the fixture. First (read-only) confirm that plan `sa629y` (backlog `o58dro`) is in `.aw/records/plans/executed/` and that `runner_shared.SuiteCheckResult` now carries its budget-only fact (expected name `budget_only`, per `sa629y` E-01); if the executed design used a different field name or carrier, use THAT and record the name in V-01; if no budget-only fact reaches `SuiteCheckResult` at all, set this item and every later item `blocked` and report that the prerequisite did not ship as designed (do not add one here: production code is outside `- Scope-Paths:`). Then create `tests/test_budget_only_combined_red_e2e.py` (NOT `core`-marked: it drives `execute_item` on git fixtures for two hosts and belongs in the explicit-path and thorough tiers). Add a fixture helper with the shape of `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests._setup_driver_fixture` (git repo on `main` with `commit.gpgsign false`, `.gitignore` for `.aw/state/`, `.aw/worktrees/`, `.aw/records/runs/`, the plan from `tests.test_oc_runipd._CONFORMING_PLAN` with `Scope-Paths: clash.txt`, a run dir with `outcomes/`, `prompts/`, `sessions/`, options `self_finalize`, `isolate_worktree`, `no_audit`, `no_verify`, `retry_budget: 2`, `on_integration_blocked: "defer"`, and `integration_retry_limit` passed per test), calling `support.declare_execution_role` in `setUp`. Add a fake launcher in the shape of that file's `fake_launcher(state_arg, rd, itm, *args, **kwargs)` that commits `clash.txt` in `kwargs["work_dir"]`, writes the executed outcome JSON, records every call's `kwargs.get("log_suffix")`, and returns session `"ses1"`; patch it on `run_opencode` for `oc_runipd` and on `run_agy_turn` for `agy_runipd`. Add a path-discriminating `run_suite_check` stub patched on the host module, as `tests/test_deferred_reattempt_revalidation.py` discriminates: a call whose path is the primary repo returns a passing `SuiteCheckResult`; a call whose path is under `<run_dir>/revalidation/` returns whatever the test configured through a mutable holder, so a test can switch it between turns. Patch `runner_shared.start_suite_baseline` to return `(None, None)` so no real `aw suite` subprocess launches.
+- [ ] E-01 Confirm the prerequisites landed (read-only, no file written). Confirm that plan `sa629y` (backlog `o58dro`) is in `.aw/records/plans/executed/`, that `runner_shared.SuiteCheckResult` carries its budget-only fact (expected name `budget_only`, per `sa629y` E-01), and that `make_integration_validation_runner` does not store a budget-only measurement in the per-run tree cache (`sa629y` E-02, review finding PR-001 of that plan). If the executed design used a different field name or carrier, use THAT and record the name in V-01. If no budget-only fact reaches `SuiteCheckResult` at all, set this item and every later item `blocked` and report that the prerequisite did not ship as designed (do not add one here: production code is outside `- Scope-Paths:`).
   - Depends on: none
+  - Expected outcome: the field name to use is recorded, or the plan is blocked with the reason.
+  - Execution state: pending
+
+- [ ] E-06 Create `tests/test_budget_only_combined_red_e2e.py` (NOT `core`-marked: it drives `execute_item` on git fixtures for two hosts and belongs in the explicit-path and thorough tiers). Add a fixture helper with the shape of `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests._setup_driver_fixture` (git repo on `main` with `commit.gpgsign false`, `.gitignore` for `.aw/state/`, `.aw/worktrees/`, `.aw/records/runs/`, the plan from `tests.test_oc_runipd._CONFORMING_PLAN` with `Scope-Paths: clash.txt`, a run dir with `outcomes/`, `prompts/`, `sessions/`, options `self_finalize`, `isolate_worktree`, `no_audit`, `no_verify`, `retry_budget: 2`, `on_integration_blocked: "defer"`, and `integration_retry_limit` passed per test), calling `support.declare_execution_role` in `setUp`. Add a fake launcher in the shape of that file's `fake_launcher(state_arg, rd, itm, *args, **kwargs)` that commits `clash.txt` in `kwargs["work_dir"]`, writes the executed outcome JSON, records every call's `kwargs.get("log_suffix")`, and returns session `"ses1"`; patch it on `run_opencode` for `oc_runipd` and on `run_agy_turn` for `agy_runipd`. Add a path-discriminating `run_suite_check` stub patched on the host module, as `tests/test_deferred_reattempt_revalidation.py` discriminates: a call whose path is the primary repo returns a passing `SuiteCheckResult`; a call whose path is under `<run_dir>/revalidation/` returns whatever the test configured through a mutable holder, so a test can switch it between turns. Patch `runner_shared.start_suite_baseline` to return `(None, None)` so no real `aw suite` subprocess launches. Review prototyped exactly this fixture (reusing `DriverHookAndSuiteFixItTests._setup_driver_fixture`) on both hosts (F-5): the real gate, ladder, send-back loop and `retry_deferred_integrations` are all reached.
+  - Depends on: E-01
   - Expected outcome: a fixture that runs the REAL `make_integration_validation_runner`, merge materialization, `record_integration_refusal` and combined-red send-back loop, with only the suite verdict and the agent turn scripted.
   - Execution state: pending
 
 ### Task group 2: the budget-only outcome on both hosts
 
-- [ ] E-02 Add `test_budget_only_red_defers_and_is_never_sent_back` over `oc_runipd` and `agy_runipd` (`subTest` per host). Configure the revalidation result as the budget-only shape: `passing=False`, `exit_code=1`, `failures=()`, `summary="745 passed"`, the budget-only fact True (E-01's field), and a `reason` naming the core-tier wall-time budget. Call `driver_mod.execute_item(run_dir, state, item, recovery=False)` with `integration_retry_limit: 10`. Assert, on observable state only: `item["status"] == runner_shared.INTEGRATION_DEFERRED_STATUS`; `item.get(runner_shared.COMBINED_RED_RETRY_COUNT_KEY, 0) == 0`; the launcher ran exactly once and never with `log_suffix == "combined-red"`; no `combined-red-sent-back` event in `run_dir / "events.jsonl"`; `item[runner_shared.REVALIDATION_CACHE_KEY]["measured"] is False`; `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED` and `item["integration_ladder"]["deferrable"] is True`; `"budget"` appears in `item["integration_deferral"]` and `"no test ids recorded"` does not. Then switch the revalidation result to passing, call `driver_mod.retry_deferred_integrations(run_dir, state)`, and assert `item["status"] == "executed"`, that `git log main --name-only` in the fixture repo lists `clash.txt`, and that the launcher call count is still 1 (the verified lane integrated without another agent turn).
-  - Depends on: E-01
+- [ ] E-02 Add `test_budget_only_red_defers_and_is_never_sent_back` over `oc_runipd` and `agy_runipd` (`subTest` per host). Configure the revalidation result as the budget-only shape: `passing=False`, `exit_code=1`, `failures=()`, `summary="745 passed"`, the budget-only fact True (E-01's field), and a `reason` naming the core-tier wall-time budget. Call `driver_mod.execute_item(run_dir, state, item, recovery=False)` with `integration_retry_limit: 10`. Assert, on observable state only: `item["status"] == runner_shared.INTEGRATION_DEFERRED_STATUS`; `item.get(runner_shared.COMBINED_RED_RETRY_COUNT_KEY, 0) == 0`; the launcher ran exactly once and never with `log_suffix == "combined-red"`; no `combined-red-sent-back` event in `run_dir / "events.jsonl"`; `item[runner_shared.REVALIDATION_CACHE_KEY]["measured"] is False`; `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED` and `item["integration_ladder"]["deferrable"] is True`; `"budget"` appears in `item["integration_deferral"]` and `"no test ids recorded"` does not. Then switch the revalidation result to passing, call `driver_mod.retry_deferred_integrations(run_dir, state)` WITHOUT touching `state[runner_shared.REVALIDATION_CACHE_KEY]`, and assert that the revalidation stub was called again on the retry (count its calls under `<run_dir>/revalidation/`: at least 2 in total), `item["status"] == "executed"`, that `git log main --name-only` in the fixture repo lists `clash.txt`, and that the launcher call count is still 1 (the verified lane integrated without another agent turn). The re-measure assertion is load-bearing: the per-run revalidation cache is keyed on the merged tree, an unchanged main rebuilds the same tree, and review measured (F-6) that a cached unmeasured reading is served on the retry so the item stays `merge-retry`; only `sa629y`'s cache exclusion lets the retry integrate. Do NOT clear the cache in the test to make it pass, and do NOT assert on stderr text: the execute-path console line still prints the gate's raw combined-red reason for an unmeasured refusal (F-7, filed as backlog `geajrj`).
+  - Depends on: E-06
   - Expected outcome: both host variants pass; the vtcqpf symptom (combined-red, empty ids, fix turn) is absent and the work integrates on re-attempt.
   - Execution state: pending
 
 - [ ] E-03 Add `test_budget_only_red_exhausted_budget_does_not_claim_a_red_suite` over both hosts: the same budget-only revalidation result with `integration_retry_limit: 0`, so the first refusal is terminal. Assert `item["status"] == runner_shared.INTEGRATION_BLOCKED_STATUS`, `item.get(runner_shared.COMBINED_RED_RETRY_COUNT_KEY, 0) == 0`, the launcher ran once, and `item["integration_ladder"]["verdict"]` does not contain `"it was RED"` (the combined-red sentence of `runner_shared.terminal_refusal_verdict`, "the post-merge revalidation MEASURED the merged tree and it was RED") while it does contain `"could not MEASURE"` (the unmeasured wording of `runner_shared.decide_integration_deferral`), so even the terminal report does not assert a failing suite that never failed.
-  - Depends on: E-01
+  - Depends on: E-06
   - Expected outcome: both host variants pass; an exhausted budget-only refusal is terminal but honestly worded.
   - Execution state: pending
 
 ### Task group 3: control and run
 
 - [ ] E-04 Add the control `test_measured_red_with_failing_id_is_still_sent_back` over both hosts, proving the fixture really reaches the send-back loop so E-02's absence-of-send-back assertion is not vacuous: the first revalidation result is a real red (`passing=False`, `exit_code=1`, `failures=("FAILED tests/test_foo.py::test_failing_case - boom",)`, budget-only fact False); the launcher's `combined-red` call commits a fix and switches the revalidation result to passing for the next measurement. Assert `item.get(runner_shared.COMBINED_RED_RETRY_COUNT_KEY) == 1`, a `combined-red-sent-back` event exists, the prompt file delivered on the combined-red call contains `tests/test_foo.py::test_failing_case`, and `item["status"] == "executed"`. Read the prompt path the way `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests.test_v03_e03_combined_red_sendback_and_warning_on_out_of_scope` does (`args[1]` for `oc_runipd`, `args[0]` for `agy_runipd`).
-  - Depends on: E-01
+  - Depends on: E-06
   - Expected outcome: both host variants pass, so the module demonstrably distinguishes a budget-only red from a measured red.
   - Execution state: pending
 
 - [ ] E-05 Run the new module explicitly (`python3 -m pytest -o addopts="" -v tests/test_budget_only_combined_red_e2e.py`), the neighbouring contracts unchanged (`python3 -m pytest tests/test_hook_and_suite_fix_it.py tests/test_deferred_reattempt_revalidation.py`), the bare core tier `python3 -m pytest`, and `aw sanitize --agent`. If an E-02 or E-03 assertion fails because the runner really does send back or mislabel a budget-only red, do NOT weaken the test and do NOT edit production code under this plan: set the failing item `blocked`, paste the failing output, and report it as a live regression of `o58dro`/`vtcqpf` needing a corrective plan.
-  - Depends on: E-02, E-03, E-04
-  - Expected outcome: three tests, each over two hosts, pass; existing modules pass unchanged; core tier green; sanitizer pass.
+  - Depends on: E-02, E-03, E-04, E-06
+  - Expected outcome: every test in the new module passes for both hosts; existing modules pass unchanged; core tier green; sanitizer pass.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -79,19 +86,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-1 | `vtcqpf` is one of five filings of the same defect, filed during run item `tgfxin` before the runner-side demotion landed | commit `7cfc74e80` (file `vtcqpf`, 2026-10-16 20:45) precedes `8b798b0b8` (ytz6z4 demotion, 21:20); siblings `ytz6z4` (done), `48hjbx` (graduated to `44nfmd`), `m8d13e` (graduated to `t54fet`), `o58dro` (graduated to `sa629y` on its lane) |
 | F-2 | The production fixes are already designed and must not be written a third time | `44nfmd` (budget-only `reason` in `suite_cache.run_full_suite`, send-back wording, load-aware guard); `sa629y` (`SuiteCheckResult.budget_only`, budget-only red recorded `measured=False` so it routes to `merge-unchecked`); both edit `agent_workflows/runner_shared.py` |
 | F-3 | No carrier proves the operator-visible outcome `vtcqpf` describes on the host entry points: `sa629y` tests the factory and `record_integration_refusal` in isolation, `t54fet` tests the seams under the DEFAULT demotion (where no budget-only red arises), and the existing unmeasured send-back test stubs the whole validation-runner factory | `sa629y` E-04/E-05; `t54fet` E-02..E-04; `tests/test_hook_and_suite_fix_it.py::test_v03_e03_unmeasured_revalidation_negative_not_sent_back` patches `make_integration_validation_runner` |
-| F-4 | `sa629y` is authored on lane branch `aw/lane/o58dro` (commit `abca17e7d`) and is not yet on this tree's `main`, so an `executed:sa629y` edge lints as dangling here | `aw ipd lint --phase review-finalize` on this plan with `executed:sa629y`: "check.ipd-dependency-dangling: executed:sa629y: no ipd artifact has id6 sa629y" |
+| F-4 | (SUPERSEDED at review) At authoring, `sa629y` existed only on a lane branch, so `executed:sa629y` linted as dangling. It is now on `main` (integrated by `4af5e66b1`, `- Status: reviewed`), and `aw ipd lint --phase review-finalize` with `- Item-Dependencies: executed:44nfmd, executed:sa629y` is `clean` with no dependency finding; `aw check all` raises none for this plan either | review run at HEAD `4af5e66b1` |
+| F-5 | (review) A prototype of E-06's fixture on both hosts (`_setup_driver_fixture`, path-discriminating `run_suite_check`, `start_suite_baseline` patched, launcher on `run_opencode`/`run_agy_turn`) with an UNMEASURED stand-in revalidation (the suite stub raised, since `budget_only` does not exist yet): `limit 10` -> `merge-retry`, ladder `merge-unchecked`, `deferrable True`, `measured False`, combined-red count 0, launcher called once with no `combined-red` suffix; `limit 0` -> `fail-merge`, verdict contains `could not MEASURE` and not `it was RED`; measured red with a failing id -> combined-red count 1, launcher suffixes `['', 'combined-red']`, `executed`, `clash.txt` on main. So E-02 to E-04 are reachable and their assertions hold for the unmeasured path today. | scratch pytest module under gitignored `tmp/`, `7 passed`; removed after |
+| F-6 | (review) In that prototype the deferred re-attempt did NOT integrate: after switching the stub to green, `retry_deferred_integrations` left the item `merge-retry` and `clash.txt` absent from main on both hosts, because the cached unmeasured reading for the unchanged merged tree was served; clearing `state["post_merge_revalidation"]` before the retry made both hosts integrate (`executed`, landed). `sa629y` (reviewed) now excludes a budget-only measurement from that cache, which is what makes E-02's re-attempt half pass. | same prototype, `CLEAR=0` vs `CLEAR=1` |
+| F-7 | (review) The operator's stderr line on the first attempt reads `NOT integrated to main (merge-retry): ... integration gate did not pass (integration_failed_combined_red) ... (per-lane-green + combined-red)` even though the recorded ladder is `merge-unchecked`, because `runner_shared.execute_item_core` prints the raw gate `integ_reason` rather than the reclassified one. Out of this plan's test-only scope; filed as backlog `geajrj` (bug, `Blocks-Release: next`). | prototype stderr; `execute_item_core` "finalized on lane {lane_branch} but NOT " print |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: confirm the prerequisite fact exists; build the host-level fixture with only the suite verdict and agent turn scripted.
+1. E-01: confirm the prerequisite fact and cache exclusion exist. E-06: build the host-level fixture with only the suite verdict and agent turn scripted.
 2. E-02 and E-03: the budget-only outcome on both hosts, deferral plus re-attempt, and an honest terminal verdict on an exhausted budget.
 3. E-04: measured-red control proving the send-back path is reachable in the fixture.
 4. E-05: run the module, neighbours, core tier, and sanitizer.
 
 ## Deferred / out of scope (with reason)
 
-- Classifying a budget-only post-merge red as unmeasured (the production fix of this defect): designed in `sa629y`, graduated from the duplicate backlog item `o58dro`.
-  - Carrier: o58dro
+- Classifying a budget-only post-merge red as unmeasured, and excluding it from the revalidation cache so a re-attempt re-measures (the production fix of this defect): designed in `sa629y`, graduated from the duplicate backlog item `o58dro`.
+  - Carrier: sa629y
+- The execute-path console line printing the raw combined-red gate reason for a refusal recorded as `merge-unchecked` (F-7): a production change outside this test-only plan.
+  - Carrier: geajrj
 - Naming a budget-only red in the suite `reason`, replacing "no test ids recorded" in the send-back text, and the load-aware conftest guard: designed in `44nfmd`.
   - Carrier: 44nfmd
 - Seam regression tests under the default demotion: designed in `t54fet`.
@@ -100,11 +112,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none; one new test module, no production edit.
-- Under-scope: none; both hosts, deferral, re-attempt, exhausted-budget wording, and a non-vacuity control are covered, and every production surface is carried by `sa629y` or `44nfmd`.
+- Under-scope: none; both hosts, deferral, re-attempt (with a real re-measure), exhausted-budget wording, and a non-vacuity control are covered, and every production surface is carried by `sa629y`, `44nfmd` or `geajrj`.
 
 ## Required tests / validation
 
-- New `tests/test_budget_only_combined_red_e2e.py` (three tests over two hosts); unchanged `tests/test_hook_and_suite_fix_it.py` and `tests/test_deferred_reattempt_revalidation.py`; the bare core tier `python3 -m pytest`; `aw sanitize --agent`. Actual runner output must be pasted in each `V-*`.
+- New `tests/test_budget_only_combined_red_e2e.py` (E-02 to E-04, each over both hosts); unchanged `tests/test_hook_and_suite_fix_it.py` and `tests/test_deferred_reattempt_revalidation.py`; the bare core tier `python3 -m pytest`; `aw sanitize --agent`. Actual runner output must be pasted in each `V-*`.
 
 ## Spec / documentation sync
 
@@ -112,18 +124,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-### OQ-01: Why gate on `state:backlog:done:o58dro` rather than `executed:sa629y`?
+### OQ-01: Gate on `state:backlog:done:o58dro` or on `executed:sa629y`?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: `sa629y` exists only on lane branch `aw/lane/o58dro` and is not yet on this tree's `main`, so `executed:sa629y` is refused as dangling by `aw ipd lint` (F-4). Backlog `o58dro` is on `main` and reaches `done` only once its carrier executes (close-legitimacy rule, AGENTS.md "Release gates"), so `state:backlog:done:o58dro` is satisfied when `sa629y` executes. E-01 additionally re-checks that `sa629y` itself is executed and its fact shipped before any test is written.
+- Owner: plan author
+- Resolution or deferral rationale: `executed:sa629y`. The authoring-time reason for the backlog proxy (the edge linted as dangling) no longer holds: `sa629y` is on `main` and the edge lints clean (F-4). The direct edge is also more precise: `o58dro` reaching `done` is a separate human or runner act after `sa629y` executes (a graduated item does not auto-close), so the proxy could hold this plan back after its real prerequisite shipped, or depend on an unrelated close. E-01 still re-checks that `sa629y` shipped the field and the cache exclusion before any test is written.
 
 ### OQ-02: Should this graduation write the fix itself instead of tests?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: No. The fix is already designed in `sa629y` and `44nfmd`, both in `agent_workflows/runner_shared.py` (F-2); a third production change would collide with them and duplicate their detector. What no carrier covers is proof of the user-visible outcome at the host entry points (F-3), so that is this plan's whole scope.
 
 ## Validation and cross-check (verify before reporting done)
@@ -131,11 +143,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted `ls .aw/records/plans/executed/ | grep sa629y` output and `rg -n "budget_only" agent_workflows/runner_shared.py` output showing the field on `SuiteCheckResult` (or the substitute name recorded); pasted `git diff --stat` showing `tests/test_budget_only_combined_red_e2e.py` as the only changed path.
+  - Required evidence: pasted `ls .aw/records/plans/executed/ | grep sa629y` output and `rg -n "budget_only" agent_workflows/runner_shared.py` output showing the field on `SuiteCheckResult` and the cache guard in `make_integration_validation_runner` (or the substitute name recorded).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_budget_only_combined_red_e2e.py -k budget_only_red_defers` showing PASSED (both host subtests) (code paths: `<host>.execute_item` -> `runner_shared.execute_item_core` -> `make_integration_validation_runner` -> `record_integration_refusal`; then `<host>.retry_deferred_integrations`).
+  - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_budget_only_combined_red_e2e.py -k budget_only_red_defers` showing PASSED (both host subtests), and the test body's re-measure assertion on the revalidation stub's call count (code paths: `<host>.execute_item` -> `runner_shared.execute_item_core` -> `make_integration_validation_runner` -> `record_integration_refusal`; then `<host>.retry_deferred_integrations`).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -150,10 +162,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: pasted tail of the full new-module run with its `passed` line and zero failed; pasted tail of `python3 -m pytest tests/test_hook_and_suite_fix_it.py tests/test_deferred_reattempt_revalidation.py` (N passed, zero failed); pasted tail of bare `python3 -m pytest` (N passed, zero failed); the `aw sanitize --agent` result record with status pass.
   - Observed evidence:
   - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: pasted `git diff --stat` showing `tests/test_budget_only_combined_red_e2e.py` as the only changed path, and pasted `grep -n "start_suite_baseline\|run_opencode\|run_agy_turn\|revalidation" tests/test_budget_only_combined_red_e2e.py` showing the baseline patch, both launcher patch targets and the path-discriminating stub; `grep -c "pytest.mark.core"` on the module returning 0.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`- Status: approved`) and after `44nfmd` is executed and backlog `o58dro` is `done` (`- Item-Dependencies: executed:44nfmd, state:backlog:done:o58dro`). Follow the execution contract in AGENTS.md: commit only `tests/test_budget_only_combined_red_e2e.py` through `aw commit xc1xh9 -- tests/test_budget_only_combined_red_e2e.py`, never push, paste actual test output into each `V-*`. Edit no production code under this plan; a failing outcome assertion is a reported regression, not something to fix here. Under `aw oc run` / `aw agy run` the runner owns finalize; executed by hand, move the plan to `.aw/records/plans/executed/` only through `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms.
+Execute only after explicit human approval (`- Status: approved`) and after `44nfmd` and `sa629y` are executed (`- Item-Dependencies: executed:44nfmd, executed:sa629y`). Execution contract:
+
+- Open questions: OQ-01 and OQ-02 are resolved; nothing blocks execution.
+- Scope fence: `- Scope-Paths:` declares the one file this plan edits. An edit outside it is made and then justified with `--scope-reason` at finalize; but a failing E-02/E-03 outcome assertion is a live regression to report (E-05), never a reason to edit production code here.
+- Honesty: paste ACTUAL runner output in each `V-*`; never claim a pass you did not run.
+- Commits: path-scoped via `aw commit xc1xh9 -- tests/test_budget_only_combined_red_e2e.py`; never `git add -A`, never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner owns finalize, so leave the plan in `pending/`. Executed by hand (`aw work begin xc1xh9`), finish with `aw ipd finalize xc1xh9 --actor <agent/model> --message <summary> --apply` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms; never `git mv` the plan to `executed/`.
