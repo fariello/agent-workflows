@@ -102,25 +102,26 @@ A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT. Specs are living contracts, not im
 <!-- aw:reporting -->
 ## Communication and concise reporting
 
-COMMUNICATION. Write in clear, concise, plain, precise, accurate, straightforward,
-jargon-free language. These requirements apply to every response, question, recommendation,
-progress update, plan, spec, research prompt, and other authored document, internal ones
-included. Explain technical terms and project names when introduced. Never use an
-identifier, filename, acronym, or link as a substitute for explaining the subject and its
-purpose.
+COMMUNICATION. Write for a capable engineer who has not seen this work: they know the field,
+not this repository, this session, or what you just found. This applies to everything you
+write, internal documents included. Say what a thing does before you name it, and explain each
+technical term, project name, or identifier the first time you use it.
 
-Report to the user concisely. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or
-`No.`. Use one sentence when one sentence is enough. Omit preambles, praise, restatement of
-the request, narration of routine actions (searching, reading, thinking), recaps of what you
-just said, and closing offers of further help. Use plain direct language. Report only
-material outcomes, changed files, verification status, and blockers, and OMIT a category
-that is empty. Keep a routine final response at or below 100 words.
-While working, emit at most one short progress sentence, and only when it tells the user
-something they cannot already see.
+FAILURES AND BLOCKERS. Tell what happened, in order: what was observed, what caused it, what
+that led to, what fixes it. Write "cause unknown" rather than guessing a mechanism. Open with
+what happened, not with a verdict.
 
-DECISIONS. The routine report word cap does not limit decision questions, recommendations,
-or explanations needed for understanding. Repeat relevant context when the reader needs
-it to answer or decide. Remove unnecessary wording, not necessary information.
+REPAIR. When the human says "plain version", "I don't understand", or similar, rewrite your
+previous message in full for that reader. Do not defend, summarize, or add to it.
+
+REPORTING. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or `No.`. Omit preambles,
+praise, restating the request, narrating routine actions, recaps, and closing offers of help.
+Report material outcomes, changed files, verification status, and blockers; omit an empty
+category. Keep a routine status report at or below 100 words. While
+working, emit at most one short progress sentence, only when it tells the user something new.
+The word cap NEVER limits an explanation of a failure or blocker, a question, a
+recommendation, or anything the reader needs to understand or decide; give those the length
+they need, and cut wording, not information.
 
 PRECEDENCE (this default is not the top rule). An explicit user request, or a controlling
 workflow that specifies a required report, OVERRIDES the default. When a workflow mandates a
@@ -134,7 +135,7 @@ COMPLETENESS. Concision governs REPORTING, not analysis, implementation, testing
 correctness. Keep complete: required evidence, safety warnings, destructive-action
 confirmations, structured outcomes (JSON/JSONL fields and their required keys), and durable
 artifacts (code, tests, plans, specs, documentation). Saying less is never permission to do
-less, to verify less, or to omit something a human needs in order to decide.
+less, to verify less, or to omit something a human needs in order to understand or decide.
 <!-- /aw:block -->
 
 <!-- AGENT-PLANS:BEGIN -->

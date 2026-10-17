@@ -250,6 +250,9 @@ _COMMAND_FAMILY: Dict[str, str] = {
     # than deferring them. Filing it with the optional-interaction commands would erase the distinction
     # that makes it worth having.
     "askme": "askme",
+    # plain: rewrite the previous message for a reader who has not seen the work. Grouped with askme
+    # because both exist only to reach a human in plain language, and neither has a runner form.
+    "plain": "askme",
 }
 
 # Per-family disposition defaults (execution mode, skill, orchestration, evidence) reflecting the

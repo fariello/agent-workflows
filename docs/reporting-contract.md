@@ -22,17 +22,28 @@ cannot drift.
 
 ## What the default asks for
 
-Clear, concise, plain, precise, accurate, straightforward, jargon-free language across every
-response, question, recommendation, progress update, plan, specification, and research prompt.
-Explain technical terms and project names when introduced, and never use an identifier, filename,
-acronym, or link as a substitute for explaining the subject and its purpose.
+Write for a capable engineer who has not seen the work: someone who knows the field but not this
+repository, this session, or what the agent just found. Say what a thing does before naming it, and
+explain each technical term, project name, or identifier the first time it appears.
 
-For routine reporting: lead with the outcome, answer a yes/no question with `Yes.` or `No.`, use
-one sentence when one sentence is enough, drop preambles and recaps and closing offers, report
-only material outcomes plus changed files plus verification status plus blockers, and keep a
-routine final response short. Progress chatter is at most one short sentence, and only when it
-tells the user something they cannot already see. The routine word cap does not limit decision
-questions, recommendations, or explanations needed to understand.
+Explain a failure or a blocker as the steps that happened, in order: what was observed, what caused
+it, what that led to, and what fixes it. When the cause is not verified, say so rather than stating a
+mechanism. Open with what happened, not with a verdict.
+
+When the user says "plain version" or "I don't understand", the agent rewrites its previous message
+in full for that reader, without defending or adding to it. The `/plain` command does the same.
+
+For routine status reports: lead with the outcome, answer a yes/no question with `Yes.` or `No.`,
+drop preambles, narration, recaps and closing offers, report only material outcomes, changed files,
+verification status and blockers, and keep the report short. The word cap never limits an
+explanation of a failure or blocker, a question, a recommendation, or anything the reader needs to
+understand or decide.
+
+Why it reads this way: research answering prompt `ng0ga4` (reports `8tcq84`, `o7v25q`, `ky28a9`,
+`ne3jy6`, 2026-10-17) found that a list of style adjectives does not change how an agent writes, that
+a named reader and a concrete order for explanations are the most useful rules, that the word cap must
+explicitly exempt explanations, and that the user's own "plain version" correction is the one remedy
+observed to work. None of the four found evidence that any written rule is sufficient on its own.
 
 ## What overrides it
 

@@ -1223,9 +1223,9 @@ def shim_body(
         else workflow.body
     )
 
-    if command == "askme":
+    if command in ("askme", "plain"):
         alias_notice = (
-            "<!-- Supported alias: `/askme` and `/aw askme` are equivalent; "
+            f"<!-- Supported alias: `/{command}` and `/aw {command}` are equivalent; "
             "this alias is retained as a supported command. -->\n\n"
         )
     else:
