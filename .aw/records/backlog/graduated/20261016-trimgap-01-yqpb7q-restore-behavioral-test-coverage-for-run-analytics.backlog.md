@@ -1,11 +1,13 @@
 - Id: yqpb7q
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_analytics_telemetry
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: 8bhcd3
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_telemetry
 
 Carries 24 candidate production keys for agent_workflows/run_analytics_telemetry.py (151 exclusive lines): _parse_accelerator_csv, SystemResourceProbeAdapter._run_bounded, build_event, ResourceSampler.tick, _validate_accelerators, ... (24 keys).
