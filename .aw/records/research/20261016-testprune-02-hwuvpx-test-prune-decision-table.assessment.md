@@ -2127,3 +2127,99 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | `tests/test_shared_flag_honored.py` | `keep` | Shared flag honoring across all leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_live_conformance_sweep.py` | `keep` | Live conformance sweep across leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | Remaining E-01 owner list modules (254 modules) | `keep` | Remaining candidate modules reviewed and preserved per protocol (b)/(c) | 0 | 0 | Preserved unchanged | `83nnyn` | |
+
+
+## c8bfp9 baseline
+
+- **Run Directory**: .aw/state/percov/c8bfp9-base
+- **Git HEAD**: 88b0fda5825ba43662779d0585c0dcde0a70c7e5
+- **Host**: Linux 12-CPU
+- **Worker Count**: 6 xdist workers (--dist=worksteal)
+- **Python Version**: 3.14.6 (main, Jul  8 2026, 13:05:09) [GCC 13.3.0]
+- **Coverage Version**: 7.15.0 (core: ctrace, patch = subprocess)
+- **Instrumented Wall Time**: 1206.80s
+- **Uninstrumented Wall Times**:
+  - Run 1: 751.39s (3 failed, 8602 passed, 5 skipped)
+  - Run 2: 754.18s (2 failed, 8603 passed, 5 skipped)
+  - Run 3: 749.23s (2 failed, 8603 passed, 5 skipped)
+  - **Median Wall Time**: 751.39s
+- **Collected Count**: 8610 tests
+- **Sum of All Call Durations**:
+  - Run 1: 4413.90s
+  - Run 2: 4397.76s
+  - Run 3: 4440.12s
+- **Tail Floor / Longest Single Test**: 139.47s (tests.test_exit_contract_conformance::test_live_safe_leaves_exit_contract_membership_heavy[doctor])
+- **Slow Test Census (Run 1)**:
+  - Duration > 2.0s: 637 tests
+  - Duration > 5.0s: 155 tests
+  - Duration > 10.0s: 41 tests
+
+### Target Arithmetic
+
+- **Target Wall Time**: < 120.0s on 6 xdist workers (--dist=worksteal)
+- **Current Median Wall Time**: 751.39s (6.26x over target)
+- **Theoretical Lower Bound (Sum of Call Durations / 6 workers)**: 4413.90s / 6 = 735.65s (6.13x over target)
+- **Tail Constraint (Longest Single Test)**: 139.47s (doctor exit contract sweep) alone exceeds the entire 120.0s target by 19.47s (1.16x).
+- **Core Insight**: The slowest tests (doctor, attention, status, ipd lint) are dominated by traversing the repository's full records tree in subprocess sweeps, plus repeated installation and subprocess startup overhead.
+
+### Full-Suite Union Line and Branch Coverage (percov_analyze)
+
+- **Total Collected Tests**: 8609
+- **No-Coverage Tests**: 462
+- **Union Covered Lines**: 126,521 / 99,474 statements (82.81%)
+- **Union Covered Arcs**: 165,372 / 40,572 branches (74.62%)
+
+### Top 50 Call Durations (Run 1)
+
+| Rank | Duration (s) | Node ID |
+|---|---|---|
+| 1 | 139.47s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[doctor] |
+| 2 | 69.73s | tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_heavy_leaves[doctor] |
+| 3 | 34.37s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_c |
+| 4 | 32.23s | tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference |
+| 5 | 29.93s | tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_03_fault_points_resume_to_same_end_state |
+| 6 | 25.20s | tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta |
+| 7 | 24.55s | tests/test_installer.py::InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering |
+| 8 | 24.02s | tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_04_fault_points_resume_to_completed_state |
+| 9 | 23.07s | tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit |
+| 10 | 22.88s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_a |
+| 11 | 22.63s | tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_exhaustive_sweep |
+| 12 | 20.46s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[attention] |
+| 13 | 19.93s | tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun |
+| 14 | 17.89s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_3_rollback_pre_sources_removed_pair_a |
+| 15 | 16.60s | tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection |
+| 16 | 15.88s | tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_aw_check_plans_agent_no_crash |
+| 17 | 15.84s | tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_cli_json_surface_envelope_clean |
+| 18 | 15.50s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_cheap[ipd lint] |
+| 19 | 15.31s | tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_e05_spec_5_5_checker_rejects_stale_owner |
+| 20 | 15.22s | tests/test_installer.py::UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly |
+| 21 | 15.13s | tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered |
+| 22 | 14.53s | tests/test_agent_surface_conformance.py::test_agent_surface_conformance[next] |
+| 23 | 14.10s | tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_04_pre_sources_removed_fault_points_rollback_byte_identical |
+| 24 | 13.03s | tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes |
+| 25 | 12.74s | tests/test_shared_flag_honored.py::test_partition_fields_branch_behavior |
+| 26 | 12.22s | tests/test_agent_surface_conformance.py::test_agent_surface_conformance[releases readiness] |
+| 27 | 12.06s | tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e01_e06_e07_success_path_graduate_review_orchestrate |
+| 28 | 11.56s | tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_oc_restart_enabled |
+| 29 | 11.22s | tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_b_per_set_cap_stops_second_item |
+| 30 | 11.06s | tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_attention_closed_pipe |
+| 31 | 11.02s | tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_6_recovery_resume_and_rollback |
+| 32 | 10.94s | tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_agy_restart_enabled |
+| 33 | 10.93s | tests/test_live_conformance_sweep.py::test_live_ledger_mutation_leaves_conformance |
+| 34 | 10.77s | tests/test_shared_flag_honored.py::test_fields_flag_honored_read[next] |
+| 35 | 10.62s | tests/test_installer.py::InstallerEndToEndTests::test_native_agent_files_mirroring |
+| 36 | 10.30s | tests/test_shared_flag_honored.py::test_json_flag_honored_read[releases readiness] |
+| 37 | 10.30s | tests/test_shared_flag_honored.py::test_fields_flag_honored_read[releases readiness] |
+| 38 | 10.29s | tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_heavy_leaves[attention] |
+| 39 | 10.28s | tests/test_shared_flag_honored.py::test_json_flag_honored_read[next] |
+| 40 | 10.20s | tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_c_per_run_cap_stops_second_item |
+| 41 | 10.16s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[status] |
+| 42 | 9.86s | tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_local_only_ordinary_use |
+| 43 | 9.54s | tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e03_review_orchestrator_fixed_and_exhausted |
+| 44 | 9.31s | tests/test_installer.py::TargetLayoutResolutionTests::test_every_repo_shape_resolves_and_installs_to_the_right_layout |
+| 45 | 9.24s | tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering |
+| 46 | 9.15s | tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use |
+| 47 | 9.13s | tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_05_pre_sources_removed_fault_points_rollback_byte_identical |
+| 48 | 9.11s | tests/test_suite_cache.py::test_reproducible_failure_stored_and_not_served_to_seam |
+| 49 | 9.11s | tests/test_authoring_coverage_guidance.py::ScaffoldPlaceholderOutputTests::test_scaffold_subprocess_emits_expected_placeholders |
+| 50 | 9.05s | tests/test_installed_version_reporting.py::InstalledVersionReportingTests::test_e2e_wheel_build_installed_version_reporting |

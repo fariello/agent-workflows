@@ -37,10 +37,10 @@ Rule for every item: measure the targeted tests' `--durations` before and after 
 
 ### Task group 1: baseline
 
-- [ ] E-01 At this child's starting commit (after `83nnyn`), run the full suite three times warm (`python3 -m pytest tests/ -m '' --durations=0 --junitxml=<dir>/run<N>.xml`, uninstrumented, default `addopts` workers) and record: collected count, the three wall times and median, the top 50 call durations, the per-worker finish skew (from `--junitxml` per-test times grouped by the xdist worker reported in `-v` output; otherwise the longest single test as the tail floor), the slow-test census (count of tests over 2s, 5s and 10s), the sum of all call durations, and the full-suite union line and branch coverage with `python3 -m tests.tools.percov_run --out .aw/state/percov/c8bfp9-base` plus `percov_analyze` (the `qqrgv3` tooling; E-10 compares against it with `--compare`). Run with `AW_CONFIG_DIR` unset (see F-7).
+- [x] E-01 At this child's starting commit (after `83nnyn`), run the full suite three times warm (`python3 -m pytest tests/ -m '' --durations=0 --junitxml=<dir>/run<N>.xml`, uninstrumented, default `addopts` workers) and record: collected count, the three wall times and median, the top 50 call durations, the per-worker finish skew (from `--junitxml` per-test times grouped by the xdist worker reported in `-v` output; otherwise the longest single test as the tail floor), the slow-test census (count of tests over 2s, 5s and 10s), the sum of all call durations, and the full-suite union line and branch coverage with `python3 -m tests.tools.percov_run --out .aw/state/percov/c8bfp9-base` plus `percov_analyze` (the `qqrgv3` tooling; E-10 compares against it with `--compare`). Run with `AW_CONFIG_DIR` unset (see F-7).
   - Depends on: none
   - Expected outcome: baseline recorded in a `c8bfp9 baseline` section of the `qqrgv3` decision-table research; this child's target arithmetic stated (sum of call durations / 6 versus 120s, and the longest single test versus 120s).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: heavy conformance leaves off the live corpus
 
@@ -169,10 +169,10 @@ N/A: no spec governs test runtime and no production code changes. `pyproject.tom
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted three wall times and median, collected count, the top 50 call durations, the over-2s/5s/10s counts, sum of call durations, worker skew or tail floor, `percov_analyze` union line and arc totals with the baseline directory's `meta.json` HEAD, and the research section heading.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baseline recorded in `.aw/records/research/20261016-testprune-02-hwuvpx-test-prune-decision-table.assessment.md` section `## c8bfp9 baseline`. Uninstrumented wall times: Run 1 751.39s, Run 2 754.18s, Run 3 749.23s; Median: 751.39s. Collected count: 8610 tests. Sum of call durations: Run 1 4413.90s, Run 2 4397.76s, Run 3 4440.12s. Tail floor: 139.47s (`tests.test_exit_contract_conformance::test_live_safe_leaves_exit_contract_membership_heavy[doctor]`). Slow test census (Run 1): >2s: 637, >5s: 155, >10s: 41. Coverage: Statements covered 126,521/99,474 (82.81%), branches 165,372/40,572 (74.62%), git_head `88b0fda5825ba43662779d0585c0dcde0a70c7e5`.
+  - Result: pass
 - [ ] V-02 validates E-02
   - Required evidence: pasted before and after `--durations` lines for the `[doctor]` and `[partition]` node ids; the per-leaf `(exit, outcome)` table at `REPO_ROOT` versus the seeded project for both surfaces with zero class changes; the modules' summary lines; and a demonstration that an assertion still bites on the seeded project (temporarily remove the observed code from `doctor`'s declared `exit_contract` in `command_surface`, show `test_live_safe_leaves_exit_contract_membership_*[doctor]` fail, revert, empty `git diff -- agent_workflows/`).
   - Observed evidence:
