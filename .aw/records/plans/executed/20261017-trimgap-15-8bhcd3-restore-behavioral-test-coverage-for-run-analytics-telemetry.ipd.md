@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_run_analytics_telemetry.py` from `19313eed^` minus its code-pinning parts (the unused `ast` helpers `_code_identifiers`/`_imported_modules`/`_FORBIDDEN_CODE_IDENTIFIERS`, and three tests that assert on the module docstring text or on this test file's own source, F-03), replace the fragment-assembled maintainer-handle canary with a neutral one (F-04), add `pytestmark = pytest.mark.core` so the bare core-tier gate selects it, and append residual tests for the branches of the 24 keys the restored file still leaves unexecuted (F-05). The 24 keys: `_parse_accelerator_csv`, `SystemResourceProbeAdapter._run_bounded`, `build_event`, `ResourceSampler.tick`, `_validate_accelerators`, `FakeResourceProbeAdapter._count`, `FakeResourceProbeAdapter.cpu`, `FakeResourceProbeAdapter.load`, `FakeResourceProbeAdapter.memory`, `FakeResourceProbeAdapter.process`, `ProbeOutcome.to_dict`, `FakeResourceProbeAdapter.accelerators`, `FakeResourceProbeAdapter.tool_versions`, `ResourceSampler.__enter__`, `ResourceSampler._run`, `TelemetryCollector.__enter__`, `TelemetryCollector._note`, `TelemetryCollector.sample`, `_as_int`, `ResourceSampler.__exit__`, `ResourceSampler.running`, `TelemetryCollector.__exit__`, `TelemetryCollector.note_skipped_sample`, `FakeResourceProbeAdapter.__init__`. EXCLUDES any change to `agent_workflows/run_analytics_telemetry.py` or any other production file; EXCLUDES restoring `tests/test_run_analytics_packaging.py` (F-06); EXCLUDES driving the non-key missed lines of `_validate_scalar`, `_validate_number_map`, `node_identity_input` and the `SystemResourceProbeAdapter` procfs readers (F-05).
 - Scope-Paths: tests/test_run_analytics_telemetry.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: 8bhcd3
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8bhcd3 verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
