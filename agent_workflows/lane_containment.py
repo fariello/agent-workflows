@@ -3271,6 +3271,10 @@ REVIEW_HOST_ERROR = RETENTION_REVIEW_HOST_ERROR
 REVIEW_TURN_EXITED = RETENTION_REVIEW_TURN_EXITED
 REVIEW_TURN_FAILED = RETENTION_REVIEW_TURN_FAILED
 
+#: Added 2026-10-17 by qchan-02 (epsti7) E-02: question parking retention code.
+RETENTION_AWAITING_HUMAN = "awaiting-human"
+
+
 #: RETIRED AS A REFUSAL REASON by the 2026-09-18 amendment to spec R5.5 (`laneign` `5w8g8j`), and kept
 #: DEFINED rather than deleted for two reasons: historical run records already carry the literal in
 #: their `retention_reasons`, so a reader decoding them needs the name to stay meaningful, and removing

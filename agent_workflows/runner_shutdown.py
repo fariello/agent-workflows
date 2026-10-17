@@ -99,6 +99,7 @@ KNOWN_ITEM_STATUSES = frozenset(
         # or a run holding one would read as "an undefined state" and refuse its own resume.
         "integration-deferred",
         "merge-retry",
+        "awaiting-human",
     }
 )
 

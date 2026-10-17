@@ -426,6 +426,13 @@ tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_back
 tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_backlog_production_ready_set_graduated	Repository diagnostics and check engine evaluation across fixture
 tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_spec_production_ready_set_implementing	Repository diagnostics and check engine evaluation across fixture
 tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_spec_production_unready_child_fail_gate	Repository diagnostics and check engine evaluation across fixture
+tests/test_question_parking.py::test_drain_exit_codes_and_summary_a8_a38_v04[agy]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_drain_exit_codes_and_summary_a8_a38_v04[oc]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_execute_turn_parking_and_nongating	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_review_sweep_lane_parking_and_refusal_e06_v06[agy]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_review_sweep_lane_parking_and_refusal_e06_v06[oc]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_ten_item_queue_continuation_a4_a7_v03[agy]	Subprocess CLI execution and isolated worktree integration boundary
+tests/test_question_parking.py::test_ten_item_queue_continuation_a4_a7_v03[oc]	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_e_one_site_both_hosts	Integration boundary validation under multi-process environment
 tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_f_non_fatal_when_no_receipt	Integration boundary validation under multi-process environment
 tests/test_record_owner_root.py::test_install_writes_back_pointer_without_target_delta	Full repo install/uninstall filesystem fixture tree lifecycle
@@ -522,6 +529,10 @@ tests/test_run_finding_reachability.py::TestRunFindingReachability::test_validat
 tests/test_run_init.py::test_case_b_follow_on_sequence	Integration boundary validation under multi-process environment
 tests/test_run_init.py::test_case_d_refusals_leave_filesystem_unchanged	Real OS process signal, broken pipe, or timeout boundary
 tests/test_run_init.py::test_case_i_dag_execution_without_workflow_flag	Integration boundary validation under multi-process environment
+tests/test_run_proposal_channel.py::test_material_proposal_creates_backlog_item_on_main[agy]	Integration boundary validation under multi-process environment
+tests/test_run_proposal_channel.py::test_material_proposal_creates_backlog_item_on_main[oc]	Integration boundary validation under multi-process environment
+tests/test_run_proposal_channel.py::test_three_item_continuation_e03[agy]	Integration boundary validation under multi-process environment
+tests/test_run_proposal_channel.py::test_three_item_continuation_e03[oc]	Integration boundary validation under multi-process environment
 tests/test_run_recovery_cli.py::TestRunCliSubcommands::test_every_invocation_exits_in_its_class_and_says_why	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e01_pre_run_linter_drift	Full repo install/uninstall filesystem fixture tree lifecycle
 tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_agy_restart_disabled	Integration boundary validation under multi-process environment

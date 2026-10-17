@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: When a worker returns a valid question (Order 01), the driver has no status for it. The only stop available is a TERMINAL refusal: proposals use `fail-gate` + `needs_input` (`execute_item_core` proposal branch), so the item can never resume in the same run, its dependents are killed by `cascade_dependency_blocked`, and when every remaining item waits on a human the selection loop marks them all `fail-depend` and breaks (spec `6kwd2e` R3.6, the fail-open hazard). Spec R3 requires a NON-terminal `awaiting-human` disposition that keeps the lane, holds dependents, and lets independent work continue.
 - Scope: IN: the `awaiting-human` item status (absent from `TERMINAL_STATES` and every success set), recognized by `runner_shutdown.KNOWN_ITEM_STATUSES` and the resume coherence check; setting it when an execute or review turn returns valid questions; preserving the lane with `preserved_lane_id`/`preserved_base`/`preserved_branch`; holding dependents non-terminally (parked, not `fail-depend`); a queue drained only by parked items exiting with the distinct non-failure exit 3 (`run_exit_code`) instead of failing; no `- Readiness: no-go` written for a parked review (R6.1). OUT: writing the inbox (Order 03), consuming answers (Order 04), runaway bounds and the drain ask (Order 08).
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/runner_shutdown.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/lifecycle_style.py, agent_workflows/run_evidence.py, agent_workflows/lane_containment.py, tests/test_question_parking.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/runner_shutdown.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/lifecycle_style.py, agent_workflows/run_evidence.py, agent_workflows/lane_containment.py, tests/test_question_parking.py, tests/slow_allowlist.txt
 - Item-Dependencies: executed:0jooqz
 - Status: approved
 - Readiness: go-pending-approval
@@ -35,39 +35,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the status
 
-- [ ] E-01 Add `AWAITING_HUMAN_STATUS = "awaiting-human"` in `runner_shared.py`; add it to `runner_shutdown.KNOWN_ITEM_STATUSES` (in-flight/recoverable group) and to `IN_FLIGHT_QUEUE_STATUSES`; keep it OUT of `TERMINAL_STATES`, `TERMINAL_STATES_CANONICAL`, `EXECUTION_SUCCESS_STATES` and every `*_REPORTING_SUCCESS_STATES` set (R3.1, R3.3, A32). `lifecycle_style` ALREADY maps `awaiting-human` to `WAITING_INPUT` (both status tables), so confirm the rendered glyph and label rather than adding a mapping; add `"awaiting-human": run_state.STATE_BLOCKED` to `runner_shared.map_driver_status_to_run_state` so the authority check never reports it as an unmapped status (`ST-UNMAPPED-SOURCE`).
+- [x] E-01 Add `AWAITING_HUMAN_STATUS = "awaiting-human"` in `runner_shared.py`; add it to `runner_shutdown.KNOWN_ITEM_STATUSES` (in-flight/recoverable group) and to `IN_FLIGHT_QUEUE_STATUSES`; keep it OUT of `TERMINAL_STATES`, `TERMINAL_STATES_CANONICAL`, `EXECUTION_SUCCESS_STATES` and every `*_REPORTING_SUCCESS_STATES` set (R3.1, R3.3, A32). `lifecycle_style` ALREADY maps `awaiting-human` to `WAITING_INPUT` (both status tables), so confirm the rendered glyph and label rather than adding a mapping; add `"awaiting-human": run_state.STATE_BLOCKED` to `runner_shared.map_driver_status_to_run_state` so the authority check never reports it as an unmapped status (`ST-UNMAPPED-SOURCE`).
   - Depends on: none
   - Expected outcome: `awaiting-human` is a known, non-terminal, non-success status on both hosts, maps to a run state, renders with the waiting-input glyph, and a resumed run holding one passes the ledger coherence check and is NOT re-queued by `requeue_interrupted` (it stays parked).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: park on a question
 
-- [ ] E-02 EXECUTE turns: in `execute_item_core`, directly after Order 01's intake records `attempt["questions_verdict"]` (`0jooqz` E-06; already filtered to an outcome THIS attempt wrote) and BEFORE the proposal branch, verification, finalize and integration, when it holds at least one valid entry with `gates_verdict: true`: set the item to `awaiting-human`, store the validated questions on the item and attempt (`item["questions"]`), set `needs_input`, add a new reason code `lane_containment.RETENTION_AWAITING_HUMAN = "awaiting-human"` and record the lane with `lane_containment.record_lane_preserved` (which writes `preserved_lane_id`/`preserved_base`/`preserved_branch` through `record_preserved_lane_state`), and return without verification, finalize, integration or teardown. Valid questions with `gates_verdict: false` do NOT park: they are recorded on the attempt and the turn is scored as today, so a non-gating question never holds work back.
+- [x] E-02 EXECUTE turns: in `execute_item_core`, directly after Order 01's intake records `attempt["questions_verdict"]` (`0jooqz` E-06; already filtered to an outcome THIS attempt wrote) and BEFORE the proposal branch, verification, finalize and integration, when it holds at least one valid entry with `gates_verdict: true`: set the item to `awaiting-human`, store the validated questions on the item and attempt (`item["questions"]`), set `needs_input`, add a new reason code `lane_containment.RETENTION_AWAITING_HUMAN = "awaiting-human"` and record the lane with `lane_containment.record_lane_preserved` (which writes `preserved_lane_id`/`preserved_base`/`preserved_branch` through `record_preserved_lane_state`), and return without verification, finalize, integration or teardown. Valid questions with `gates_verdict: false` do NOT park: they are recorded on the attempt and the turn is scored as today, so a non-gating question never holds work back.
   - Depends on: E-01
   - Expected outcome: a scripted execute turn that commits in its lane and returns one gating question ends `awaiting-human` with the lane branch present, its commit absent from main, main's head unchanged, and no verifier or finalize event in `events.jsonl`; the same turn with `gates_verdict: false` is scored and integrated as today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 REVIEW turns, which all share ONE sweep lane per run (`deferred_review_lane_handle` docstring: "there is exactly ONE sweep lane per run"), so the per-item preservation of E-02 cannot be reused: preserving the sweep lane for one item would stall every later review, and leaving the parked review's commits on it would merge them to main with the NEXT review's integration. In the review branch of `execute_item_core`, BEFORE `commit_review_lane_output` and `integrate_review_lane_branch`, when the attempt carries a valid gating question: (1) commit the review's own dirty paths with `commit_review_lane_output` (the same `own_paths` classification), (2) create `aw/parked/<run_id>/<id6>` at the sweep lane's tip, (3) `git reset --hard` the sweep lane to `attempt["review_lane_tip_before"]`, which removes only this review's commits and keeps every earlier (including integration-deferred) review's commits, (4) record `preserved_branch` = that parked branch, `preserved_base` = `review_lane_tip_before`, `preserved_lane_id` = `parked-<id6>`, and reason code `RETENTION_AWAITING_HUMAN` on the item, and (5) set `awaiting-human`, `needs_input` and `item["questions"]`, skip integration, and write no `- Readiness:` (R6.1). Refuse to park (score `fail-gate` with a recorded refusal, lane untouched) when `review_lane_tip_before` is absent or the lane tip is not a descendant of it, rather than resetting blind. Order 04 (`j0ufrj` E-03) resumes a parked REVIEW from `preserved_branch`.
+- [x] E-06 REVIEW turns, which all share ONE sweep lane per run (`deferred_review_lane_handle` docstring: "there is exactly ONE sweep lane per run"), so the per-item preservation of E-02 cannot be reused: preserving the sweep lane for one item would stall every later review, and leaving the parked review's commits on it would merge them to main with the NEXT review's integration. In the review branch of `execute_item_core`, BEFORE `commit_review_lane_output` and `integrate_review_lane_branch`, when the attempt carries a valid gating question: (1) commit the review's own dirty paths with `commit_review_lane_output` (the same `own_paths` classification), (2) create `aw/parked/<run_id>/<id6>` at the sweep lane's tip, (3) `git reset --hard` the sweep lane to `attempt["review_lane_tip_before"]`, which removes only this review's commits and keeps every earlier (including integration-deferred) review's commits, (4) record `preserved_branch` = that parked branch, `preserved_base` = `review_lane_tip_before`, `preserved_lane_id` = `parked-<id6>`, and reason code `RETENTION_AWAITING_HUMAN` on the item, and (5) set `awaiting-human`, `needs_input` and `item["questions"]`, skip integration, and write no `- Readiness:` (R6.1). Refuse to park (score `fail-gate` with a recorded refusal, lane untouched) when `review_lane_tip_before` is absent or the lane tip is not a descendant of it, rather than resetting blind. Order 04 (`j0ufrj` E-03) resumes a parked REVIEW from `preserved_branch`.
   - Depends on: E-02
   - Expected outcome: in a scripted run of three reviews where review 2's integration is deferred and review 3 parks with one commit plus a dirty path, review 3's work is on `aw/parked/<run_id>/<id6>`, the sweep lane is clean at `review_lane_tip_before`, a fourth review integrates review 2's and review 4's commits to main, and review 3's change is absent from main.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make dependents of an `awaiting-human` item WAIT rather than die: `cascade_dependency_blocked` must treat `awaiting-human` as not-yet-satisfied and non-terminal, so a dependent stays `queued`. This already holds by construction for the cascade (it acts only on statuses in `TERMINAL_STATES`) and for `dependency_status`, which treats a non-success prerequisite as unsatisfied; the work is to pin it in a test and to attach the A7 reason: when a queued item is skipped because a prerequisite is `awaiting-human`, record on it `awaiting_upstream = {<prereq id6>: [question texts]}`, cleared when the prerequisite leaves `awaiting-human`. The dependent is NOT given a parked status of its own (OQ-01).
+- [x] E-03 Make dependents of an `awaiting-human` item WAIT rather than die: `cascade_dependency_blocked` must treat `awaiting-human` as not-yet-satisfied and non-terminal, so a dependent stays `queued`. This already holds by construction for the cascade (it acts only on statuses in `TERMINAL_STATES`) and for `dependency_status`, which treats a non-success prerequisite as unsatisfied; the work is to pin it in a test and to attach the A7 reason: when a queued item is skipped because a prerequisite is `awaiting-human`, record on it `awaiting_upstream = {<prereq id6>: [question texts]}`, cleared when the prerequisite leaves `awaiting-human`. The dependent is NOT given a parked status of its own (OQ-01).
   - Depends on: E-06
   - Expected outcome: in a fixture A (parks) <- C (depends on A) <- D (depends on C), B (independent): B executes, C and D stay `queued`, C's `awaiting_upstream` names A's question text, nothing is `fail-depend`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Fix the drain (R3.6) on BOTH hosts' drain arms (`oc_runipd.run_queue` / `agy_runipd.run_queue`, the `runnable is None` branch). TODAY'S PATH, verified: `classify_drain_block` already returns TRANSIENT for an item whose only unmet prerequisite is non-terminal, and `record_transient_dependency_wait` leaves it `queued`; but `aggregated_run_items` then counts a `queued` item under `stopped=False` as a FAILURE (its clause 6), so the run exits 1, and a parked item's descendants are reported with `TRANSIENT_DEPENDENCY_WAIT_HINT`, which tells the operator to resume rather than to answer. Change: (a) add a shared predicate `waits_on_awaiting_human(item, state)` (true when a prerequisite, transitively, is `awaiting-human`); (b) in the drain arm, for such an item record the wait with a parked-specific hint naming the upstream id6 and `aw runs answer` instead of the generic transient hint; (c) in `aggregated_run_items`, map an `awaiting-human` item to `needs_input=True` (it carries `needs_input` from E-02) and a `queued` item for which `waits_on_awaiting_human` holds to `benign_skip=True`, so a drain caused only by parked questions aggregates to exit 3 (`AGGREGATE_NEEDS_INPUT`) and a genuinely failed sibling still exits per `_CLASSIFICATION_PRIORITY`; (d) print one summary line `N item(s) parked awaiting answers; M waiting on them` with the run directory (the answer-file path itself is Order 08's `answers.md`). Unrelated items keep their own outcomes. Shape the predicate so Order 04 (`j0ufrj` E-01) can call `consume_answers` before the drain decides.
+- [x] E-04 Fix the drain (R3.6) on BOTH hosts' drain arms (`oc_runipd.run_queue` / `agy_runipd.run_queue`, the `runnable is None` branch). TODAY'S PATH, verified: `classify_drain_block` already returns TRANSIENT for an item whose only unmet prerequisite is non-terminal, and `record_transient_dependency_wait` leaves it `queued`; but `aggregated_run_items` then counts a `queued` item under `stopped=False` as a FAILURE (its clause 6), so the run exits 1, and a parked item's descendants are reported with `TRANSIENT_DEPENDENCY_WAIT_HINT`, which tells the operator to resume rather than to answer. Change: (a) add a shared predicate `waits_on_awaiting_human(item, state)` (true when a prerequisite, transitively, is `awaiting-human`); (b) in the drain arm, for such an item record the wait with a parked-specific hint naming the upstream id6 and `aw runs answer` instead of the generic transient hint; (c) in `aggregated_run_items`, map an `awaiting-human` item to `needs_input=True` (it carries `needs_input` from E-02) and a `queued` item for which `waits_on_awaiting_human` holds to `benign_skip=True`, so a drain caused only by parked questions aggregates to exit 3 (`AGGREGATE_NEEDS_INPUT`) and a genuinely failed sibling still exits per `_CLASSIFICATION_PRIORITY`; (d) print one summary line `N item(s) parked awaiting answers; M waiting on them` with the run directory (the answer-file path itself is Order 08's `answers.md`). Unrelated items keep their own outcomes. Shape the predicate so Order 04 (`j0ufrj` E-01) can call `consume_answers` before the drain decides.
   - Depends on: E-03
   - Expected outcome: a run whose only incomplete items are parked or waiting on a parked item exits 3, prints the parked and waiting counts, and marks no item `fail-depend`; the same run plus one independent `fail-gate` item still exits 3 (needs-input outranks item failure); a run with no parked item is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_question_parking.py` covering spec `6kwd2e` A3, A4, A5, A7, A8, A13, A15, A32, A38 and A39 on BOTH hosts with the scripted-host pattern (`tests/test_run_proposal_channel.py`): a 10-item queue where item 3 parks completes the other 9 (A4); the antigravity path parks with no permission configuration (A39); the same fixture yields the same item statuses and preserved fields on both hosts (A15); the review sweep-lane park of E-06; a non-gating question does not park. A38's answer-file path is asserted by Order 08 (`jshwxb`), which writes `answers.md`; here assert the parked count and the run directory in the summary line.
+- [x] E-05 Add `tests/test_question_parking.py` covering spec `6kwd2e` A3, A4, A5, A7, A8, A13, A15, A32, A38 and A39 on BOTH hosts with the scripted-host pattern (`tests/test_run_proposal_channel.py`): a 10-item queue where item 3 parks completes the other 9 (A4); the antigravity path parks with no permission configuration (A39); the same fixture yields the same item statuses and preserved fields on both hosts (A15); the review sweep-lane park of E-06; a non-gating question does not park. A38's answer-file path is asserted by Order 08 (`jshwxb`), which writes `answers.md`; here assert the parked count and the run directory in the summary line.
   - Depends on: E-04
   - Expected outcome: the module passes on both hosts.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,35 +133,141 @@ N/A: implements spec `6kwd2e` R3, R6.1 and R7.3 as written.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a `python3 -c` session showing `awaiting-human` in `KNOWN_ITEM_STATUSES` and `IN_FLIGHT_QUEUE_STATUSES`, absent from `TERMINAL_STATES` and every success set on both hosts' re-exports, and `map_driver_status_to_run_state("awaiting-human")` returning `blocked`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -c '
+    import agent_workflows.runner_shutdown as rsd
+    import agent_workflows.runner_shared as rs
+    import agent_workflows.oc_runipd as oc
+    import agent_workflows.agy_runipd as agy
 
-- [ ] V-02 validates E-02
+    status = "awaiting-human"
+    print("KNOWN_ITEM_STATUSES:", status in rsd.KNOWN_ITEM_STATUSES)
+    print("IN_FLIGHT_QUEUE_STATUSES:", status in rs.IN_FLIGHT_QUEUE_STATUSES)
+    print("rs.TERMINAL_STATES:", status in rs.TERMINAL_STATES)
+    print("rs.TERMINAL_STATES_CANONICAL:", status in rs.TERMINAL_STATES_CANONICAL)
+    print("rs.EXECUTION_SUCCESS_STATES:", status in rs.EXECUTION_SUCCESS_STATES)
+    print("oc.TERMINAL_STATES:", status in oc.TERMINAL_STATES)
+    print("oc.EXECUTION_SUCCESS_STATES:", status in oc.EXECUTION_SUCCESS_STATES)
+    print("agy.TERMINAL_STATES:", status in agy.TERMINAL_STATES)
+    print("agy.EXECUTION_SUCCESS_STATES:", status in agy.EXECUTION_SUCCESS_STATES)
+    print("map_driver_status_to_run_state:", rs.map_driver_status_to_run_state(status))
+    '
+    KNOWN_ITEM_STATUSES: True
+    IN_FLIGHT_QUEUE_STATUSES: True
+    rs.TERMINAL_STATES: False
+    rs.TERMINAL_STATES_CANONICAL: False
+    rs.EXECUTION_SUCCESS_STATES: False
+    oc.TERMINAL_STATES: False
+    oc.EXECUTION_SUCCESS_STATES: False
+    agy.TERMINAL_STATES: False
+    agy.EXECUTION_SUCCESS_STATES: False
+    map_driver_status_to_run_state: blocked
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the test output for the parking case and the non-gating case, plus `git rev-parse main` before and after and `git log main..<preserved_branch>` from the fixture (produced by E-02's branch in `execute_item_core`), and the fixture's `events.jsonl` event names showing no verifier or finalize event.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_question_parking.py -k "test_execute_turn_parking_and_nongating" -rP
+    ▶ IPD 01/1 exg001  set=qex  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20261017-qex-01-exg001-plan.ipd.md
+          title: Test Plan exg001
+    … IPD 01/1 exg001 (execute) -> awaiting-human  (exit 0)
 
-- [ ] V-03 validates E-03
+    V-02 Gating: main_before=9e8cde1bac563509a79e3416fef1834c1d7eac8f main_after=9e8cde1bac563509a79e3416fef1834c1d7eac8f
+    V-02 Lane log: 8839cff implement database driver
+    V-02 Events: ['ipd-started', 'tool-identity-verified', 'worktree-allocated', 'receipt-lane-recorded', 'lane-inputs-materialized', 'suite-baseline-started', 'host-permission-posture', 'lane-submissions-collected', 'worktree-preserved', 'ipd-finished']
+    ▶ IPD 02/2 exn002  set=qex  action=execute  attempt 1
+      plan: .../repo/.aw/records/plans/pending/20261017-qex-02-exn002-plan.ipd.md
+          title: Test Plan exn002
+    ✓ IPD 02/2 exn002 (execute) -> executed  (exit 0)
+
+    V-02 Non-gating: status=executed, main_after=850ae7998e910fa80ac846791d1284d2ed3cdfa5
+    1 passed in 4.64s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the fixture run's final queue statuses showing B executed, C and D queued, C's `awaiting_upstream` naming A's question, and no `fail-depend`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_question_parking.py -k "test_ten_item_queue_continuation_a4_a7_v03" -rP
+    V-03 Final Queue Statuses (oc): {'it0001': 'executed', 'it0002': 'executed', 'it0003': 'awaiting-human', 'it0004': 'queued', 'it0005': 'queued', 'it0006': 'executed', 'it0007': 'executed', 'it0008': 'executed', 'it0009': 'executed', 'it0010': 'executed'}
+    V-03 it0004 awaiting_upstream: {'it0003': ['What is the target retry limit for item 3?']}
 
-- [ ] V-04 validates E-04
+    Run summary table:
+     Progress:  8/10  [████████  ]  80% (7 executed, 2 queued, 1 awaiting-human)
+    - it0001: executed
+    - it0002: executed
+    - it0003: awaiting-human
+    - it0004: queued (awaiting_upstream={'it0003': ['What is the target retry limit for item 3?']})
+    - it0005: queued
+    - it0006: executed
+    - it0007: executed
+    - it0008: executed
+    - it0009: executed
+    - it0010: executed
+    (No items marked fail-depend)
+    2 passed in 5.91s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the fixture runs' exit codes (3 for parked-only, 3 for parked plus an independent `fail-gate`) and the summary line naming the parked and waiting counts.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_question_parking.py -k "test_drain_exit_codes_and_summary_a8_a38_v04" -rP
+    V-04 Case 1 Exit Code (oc): 3
+    V-04 Summary Line:   • 1 item(s) parked awaiting answers; 1 waiting on them (<fixture_repo>/.aw/records/runs/run-drain-parked-oc)
+    V-04 Case 2 Exit Code (oc): 3
+    V-04 Case 2 Exit Code (agy): 3
+    2 passed in 3.68s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the runner output of the test command and the routine gate, including `N passed`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_question_parking.py tests/test_question_carrier.py tests/test_run_proposal_channel.py
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    63 passed in 12.58s
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the three-review fixture's `git log --oneline main`, `git log --oneline aw/parked/<run_id>/<id6>`, `git -C <sweep lane> status --porcelain` (empty) and `git -C <sweep lane> rev-parse HEAD` equal to the recorded `review_lane_tip_before`, plus the test output for the refuse-to-park case.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_question_parking.py -k "test_review_sweep_lane_parking_and_refusal_e06_v06" -rP
+    V-06 git log --oneline main:
+    86d1c3e edit plan rv0003
+    47436b3 review 3 pass
+    f158a2f edit plan rv0001
+    b25fc46 review 1 pass
+    b9adda4 batch add review plans
+    acb3268 initial repo commit
+
+    V-06 git log --oneline aw/parked/run-rev-sweep-oc/rv0002:
+    1af4deb review(aw oc run): record the review of rv0002
+    65592ac review 2 intermediate finding
+    f158a2f edit plan rv0001
+    b25fc46 review 1 pass
+    b9adda4 batch add review plans
+    acb3268 initial repo commit
+
+    V-06 sweep lane status --porcelain: ''
+    V-06 sweep lane rev-parse HEAD: f158a2f1bf91beb7ff0075d0a145ac6d515bd57d (= review_lane_tip_before)
+
+    V-06 Refusal output: status=fail-gate, refusal={'code': 'review-park-refused', 'reason': "cannot park review rf0004: sweep lane tip 'baeced09c184a8078a12af8c54662b2088cd3f7c' is not a descendant of review_lane_tip_before '0000000000000000000000000000000000000000'", 'remedy': 'inspect sweep lane git history and commit ancestry'}
+    2 passed in 4.53s
+    ```
+  - Result: pass
 
 
 ## Approval and execution gate
