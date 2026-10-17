@@ -6,7 +6,7 @@
 - Scope: IN: restore `tests/test_compat_migration_rollback.py` from `19313eed^` at its canonical (currently free) path, with three adjustments: its temp-repo fixture uses the repository's hermetic git helpers, the one silent `skipTest` escape becomes a hard failure, and one constant-pinning arm is dropped; add one falsifiable arm for `CompatSurface.validate`'s rejection branches; then prove with the repository's mutation probe that the restored file kills mutants of the named keys. No production code changes. OUT: `tests/test_lifecycle_fixtures.py` (the second file the item names) because it guards `agent_workflows/lifecycle_fixtures.py`, which sibling backlog item `lzn56i` owns (see Deferred).
 - Scope-Paths: tests/test_compat_migration_rollback.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: r20rid
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: r20rid verified (set 2mcirl, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-2mcirl-01-r20rid-restore-behavioral-test-coverage-for-compat-migration.review.md`)
