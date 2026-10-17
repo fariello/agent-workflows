@@ -1,11 +1,13 @@
 - Id: q86fxm
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Residual rollup of remaining uncited trim-deleted test audit gaps across 45 modules
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: 5e7czd, 78g6ic, 9gjvrq, ivap17, kn7xtw, vqr3xq, y4bt1c, ya63p5, zhoul7
 - 2026-10-17 created (aw backlog): Residual rollup of remaining uncited trim-deleted test audit gaps across 45 modules
 
 Carries the 45 residual uncited trim audit gap groups (ranks 16 through 60) spanning 169 items (135 production keys across 44 modules and 34 missing test names from tests/test_run_summary_table.py covering render_stream.py), totaling 1,183 exclusive lines.
