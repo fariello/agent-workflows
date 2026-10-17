@@ -6,7 +6,7 @@
 - Scope: IN: restore `tests/test_compat_migration_rollback.py` from `19313eed^` at its canonical (currently free) path, with three adjustments: its temp-repo fixture uses the repository's hermetic git helpers, the one silent `skipTest` escape becomes a hard failure, and one constant-pinning arm is dropped; add one falsifiable arm for `CompatSurface.validate`'s rejection branches; then prove with the repository's mutation probe that the restored file kills mutants of the named keys. No production code changes. OUT: `tests/test_lifecycle_fixtures.py` (the second file the item names) because it guards `agent_workflows/lifecycle_fixtures.py`, which sibling backlog item `lzn56i` owns (see Deferred).
 - Scope-Paths: tests/test_compat_migration_rollback.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: r20rid
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: r20rid verified (set 2mcirl, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-2mcirl-01-r20rid-restore-behavioral-test-coverage-for-compat-migration.review.md`)
@@ -35,44 +35,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the deleted module
 
-- [ ] E-01 Restore `tests/test_compat_migration_rollback.py` from `git show 19313eed^:tests/test_compat_migration_rollback.py`, then make its shared fixture hermetic: add `from tests import support` (the import form `tests/test_migrate_layout_cli.py` uses), in `_RepoFixture.setUp` replace the raw `subprocess.run(["git", "init", ...])` with `support.init_repo(Path(self.target_repo))`, and in BOTH seeding tests of `RollbackTests` (`test_rollback_reverses_records_move_without_record_loss` and `test_recover_interrupted_migration_completes_it`, each running one `git add -A` and one `git commit`, four calls in total) pass `env=support.clean_git_env()` (keep `check=True`), dropping the inline `-c user.email=... -c user.name=...` since `init_repo` sets a local identity. Keep `AW_HOME` pointed at the temp dir and restored in `tearDown`, exactly as the deleted fixture does. Update the module docstring to name this plan (`r20rid`) and backlog `2mcirl` in place of the old Order 17 wording. Do NOT add `pytestmark = pytest.mark.slow` (the restored arms run in about 6 s serially, F-03) and do not add `pytest.mark.core` (OQ-01).
+- [x] E-01 Restore `tests/test_compat_migration_rollback.py` from `git show 19313eed^:tests/test_compat_migration_rollback.py`, then make its shared fixture hermetic: add `from tests import support` (the import form `tests/test_migrate_layout_cli.py` uses), in `_RepoFixture.setUp` replace the raw `subprocess.run(["git", "init", ...])` with `support.init_repo(Path(self.target_repo))`, and in BOTH seeding tests of `RollbackTests` (`test_rollback_reverses_records_move_without_record_loss` and `test_recover_interrupted_migration_completes_it`, each running one `git add -A` and one `git commit`, four calls in total) pass `env=support.clean_git_env()` (keep `check=True`), dropping the inline `-c user.email=... -c user.name=...` since `init_repo` sets a local identity. Keep `AW_HOME` pointed at the temp dir and restored in `tearDown`, exactly as the deleted fixture does. Update the module docstring to name this plan (`r20rid`) and backlog `2mcirl` in place of the old Order 17 wording. Do NOT add `pytestmark = pytest.mark.slow` (the restored arms run in about 6 s serially, F-03) and do not add `pytest.mark.core` (OQ-01).
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -q tests/test_compat_migration_rollback.py` reports every collected test passing with 0 failed and 0 errors. The repo-level `tests.git_config_guard` plugin (loaded by the root `conftest.py` `pytest_plugins`) fails any test that alters the checkout's identity keys, so a clean run is the proof that the outer `.git/config` was not touched (`git status` cannot show `.git/config` and is not that proof).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Remove the two places where the restored module swallows a migration-engine exception. (a) In `RollbackTests.test_rollback_reverses_records_move_without_record_loss`, remove the `try: mgr.execute_migration(...) except Exception as exc: self.skipTest(...)` wrapper (and its `# pragma: no cover` comment) so an exception from `MigrationManager.execute_migration` fails the test. A skip there turns a broken migration engine into a green run, which is the exact silent-loss mode this restoration exists to close; F-03 measured that the call succeeds at HEAD, so no skip is needed. (b) In `RollbackTests.test_recover_interrupted_migration_completes_it`, replace the `try: mgr.execute_migration(..., fault_injection="kill-after-switch-before-receipt") except Exception: pass` with `with self.assertRaises(MigrationError):` around the same call (import `MigrationError` from `agent_workflows.layout_migration`). The bare `except Exception: pass` accepts any failure, including a crash before the switch write, as an "interruption"; asserting the injected `MigrationError` proves the fault fired where intended (F-09 demonstrates it raises `MigrationError`).
+- [x] E-02 Remove the two places where the restored module swallows a migration-engine exception. (a) In `RollbackTests.test_rollback_reverses_records_move_without_record_loss`, remove the `try: mgr.execute_migration(...) except Exception as exc: self.skipTest(...)` wrapper (and its `# pragma: no cover` comment) so an exception from `MigrationManager.execute_migration` fails the test. A skip there turns a broken migration engine into a green run, which is the exact silent-loss mode this restoration exists to close; F-03 measured that the call succeeds at HEAD, so no skip is needed. (b) In `RollbackTests.test_recover_interrupted_migration_completes_it`, replace the `try: mgr.execute_migration(..., fault_injection="kill-after-switch-before-receipt") except Exception: pass` with `with self.assertRaises(MigrationError):` around the same call (import `MigrationError` from `agent_workflows.layout_migration`). The bare `except Exception: pass` accepts any failure, including a crash before the switch write, as an "interruption"; asserting the injected `MigrationError` proves the fault fired where intended (F-09 demonstrates it raises `MigrationError`).
   - Depends on: E-01
   - Expected outcome: The narrowed run reports `test_rollback_reverses_records_move_without_record_loss` PASSED (not SKIPPED), `-rs` output lists no skipped test in the module, and `test_recover_interrupted_migration_completes_it` still passes with the `assertRaises(MigrationError)` in place.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Drop `MigrationPreviewTests.test_all_install_states_are_reachable_names`. It calls no code and asserts only that the constant `cm.INSTALL_STATES` equals a hand-written set of five other constants, which pins a declaration rather than behavior (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Four of the five states are already asserted behaviorally by `detect_state` arms in `MigrationPreviewTests` (`STATE_LEGACY` in `test_legacy_state_detected`, `STATE_CURRENT` in `test_current_state_after_apply_and_idempotent_rerun`, `STATE_DRIFTED` in `test_drift_detected_backed_up_and_regenerated`, `STATE_CUSTOMIZED` in `test_human_owned_file_is_preserved_never_overwritten`). `STATE_PARTIAL` is NOT: the dropped arm is the only place the restored file names it, and `CompatMigrator.detect_state`'s `return STATE_PARTIAL` branch is among the lines F-03's coverage run left unexecuted. So, in the same edit, add to `RollbackTests.test_recover_interrupted_migration_completes_it`: immediately after the interrupted `execute_migration`, `self.assertEqual(cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL)`, and after `recover_interrupted()`, `self.assertNotEqual(cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL)` (F-09 demonstrates `partial` then `current`). Keep `test_surface_exit_codes_preserved`: it is the golden test the contract row `exit-codes` names by string (`compat_migration._CONTRACT_ROWS`), so removing it would make `test_every_row_names_a_golden_test_that_exists` fail.
+- [x] E-03 Drop `MigrationPreviewTests.test_all_install_states_are_reachable_names`. It calls no code and asserts only that the constant `cm.INSTALL_STATES` equals a hand-written set of five other constants, which pins a declaration rather than behavior (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"). Four of the five states are already asserted behaviorally by `detect_state` arms in `MigrationPreviewTests` (`STATE_LEGACY` in `test_legacy_state_detected`, `STATE_CURRENT` in `test_current_state_after_apply_and_idempotent_rerun`, `STATE_DRIFTED` in `test_drift_detected_backed_up_and_regenerated`, `STATE_CUSTOMIZED` in `test_human_owned_file_is_preserved_never_overwritten`). `STATE_PARTIAL` is NOT: the dropped arm is the only place the restored file names it, and `CompatMigrator.detect_state`'s `return STATE_PARTIAL` branch is among the lines F-03's coverage run left unexecuted. So, in the same edit, add to `RollbackTests.test_recover_interrupted_migration_completes_it`: immediately after the interrupted `execute_migration`, `self.assertEqual(cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL)`, and after `recover_interrupted()`, `self.assertNotEqual(cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL)` (F-09 demonstrates `partial` then `current`). Keep `test_surface_exit_codes_preserved`: it is the golden test the contract row `exit-codes` names by string (`compat_migration._CONTRACT_ROWS`), so removing it would make `test_every_row_names_a_golden_test_that_exists` fail.
   - Depends on: E-02
   - Expected outcome: `test_all_install_states_are_reachable_names` is absent from the module, every collected test passes (40 at authoring: 41 restored minus this one; context, not the bar), and the recover arm asserts the `partial` state before recovery and a non-`partial` state after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the one uncovered falsifiable branch
 
-- [ ] E-04 Add `ContractGoldenTests.test_validate_rejects_bad_vocabulary`: build one `cm.CompatSurface` with `surface=""`, `owner="not-an-owner"`, `status="not-a-status"`, and empty `version_boundary`, `migration` and `test`; assert `row.validate()` returns six problems that respectively contain `empty surface`, `bad owner 'not-an-owner'`, `bad status 'not-a-status'`, `empty version_boundary`, `empty migration` and `empty test`; then assert `cm.check_contract({**cm.build_contract(), "exit-codes": <a valid exit-codes row with owner="not-an-owner">})` is not `ok` and has a finding containing `surface 'exit-codes': bad owner`. Build the second row with `dataclasses.replace(cm.build_contract()["exit-codes"], owner="not-an-owner")` (`CompatSurface` is a `@dataclass(frozen=True)`, so `replace` is the supported way to derive a variant). These six branches are the rejection path F-03 measured as unexecuted by the restored file; without this arm a mutant making `validate` always return `[]` survives the whole module (F-10: 0 failures). Other lines F-03 left unexecuted (for example `build_contract`'s duplicate-row raise) are defensive and stay out of scope. Because `tools/mutation_probe.py` has no "return empty list" operator, demonstrate this arm's falsifiability for that mutant with a throwaway script under the gitignored scratch dir (never under `tests/`) that loads the module and runs it with `unittest.mock.patch.object(cm.CompatSurface, "validate", lambda self: [])`, the same method F-10 used.
+- [x] E-04 Add `ContractGoldenTests.test_validate_rejects_bad_vocabulary`: build one `cm.CompatSurface` with `surface=""`, `owner="not-an-owner"`, `status="not-a-status"`, and empty `version_boundary`, `migration` and `test`; assert `row.validate()` returns six problems that respectively contain `empty surface`, `bad owner 'not-an-owner'`, `bad status 'not-a-status'`, `empty version_boundary`, `empty migration` and `empty test`; then assert `cm.check_contract({**cm.build_contract(), "exit-codes": <a valid exit-codes row with owner="not-an-owner">})` is not `ok` and has a finding containing `surface 'exit-codes': bad owner`. Build the second row with `dataclasses.replace(cm.build_contract()["exit-codes"], owner="not-an-owner")` (`CompatSurface` is a `@dataclass(frozen=True)`, so `replace` is the supported way to derive a variant). These six branches are the rejection path F-03 measured as unexecuted by the restored file; without this arm a mutant making `validate` always return `[]` survives the whole module (F-10: 0 failures). Other lines F-03 left unexecuted (for example `build_contract`'s duplicate-row raise) are defensive and stay out of scope. Because `tools/mutation_probe.py` has no "return empty list" operator, demonstrate this arm's falsifiability for that mutant with a throwaway script under the gitignored scratch dir (never under `tests/`) that loads the module and runs it with `unittest.mock.patch.object(cm.CompatSurface, "validate", lambda self: [])`, the same method F-10 used.
   - Depends on: E-03
   - Expected outcome: The new test passes and every collected test in the module passes (41 at authoring; context, not the bar). Under the `validate -> []` patch the scratch run reports `test_validate_rejects_bad_vocabulary` failing (at least 1 failure), where F-10 measured 0 without it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove reach and kill, then commit
 
-- [ ] E-05 Measure reach. Pick `<scratch>`, a directory under the gitignored `tmp/` (the root `.coverage` file is NOT gitignored, so keep the data file in scratch). Run `COVERAGE_FILE=<scratch>/.coverage python3 -m coverage run --include='agent_workflows/compat_migration.py' -m pytest -o addopts="" -q -p no:cacheprovider tests/test_compat_migration_rollback.py`, then `COVERAGE_FILE=<scratch>/.coverage python3 -m coverage json -o <scratch>/cov.json`. Extract the 36 keys with `grep -o 'compat_migration.py::[A-Za-z0-9_.]*' .aw/records/research/20261016-trimcarry-01-b1mx2w-rollup-reach.findings.md | sort -u` (the character class must include digits, or `_sha256_bytes`/`_sha256_path` truncate to `_sha` and the count reads 35). With a throwaway script in `<scratch>` (never committed, never under `tests/`), look each qualname up in `cov.json`'s `files["agent_workflows/compat_migration.py"]["functions"]` map (coverage 7.x keys functions by qualname, e.g. `CompatSurface.validate`) and report any key missing from the map or with empty `executed_lines`. Delete `<scratch>` afterwards. The script is a measurement aid over coverage data, not a test.
+- [x] E-05 Measure reach. Pick `<scratch>`, a directory under the gitignored `tmp/` (the root `.coverage` file is NOT gitignored, so keep the data file in scratch). Run `COVERAGE_FILE=<scratch>/.coverage python3 -m coverage run --include='agent_workflows/compat_migration.py' -m pytest -o addopts="" -q -p no:cacheprovider tests/test_compat_migration_rollback.py`, then `COVERAGE_FILE=<scratch>/.coverage python3 -m coverage json -o <scratch>/cov.json`. Extract the 36 keys with `grep -o 'compat_migration.py::[A-Za-z0-9_.]*' .aw/records/research/20261016-trimcarry-01-b1mx2w-rollup-reach.findings.md | sort -u` (the character class must include digits, or `_sha256_bytes`/`_sha256_path` truncate to `_sha` and the count reads 35). With a throwaway script in `<scratch>` (never committed, never under `tests/`), look each qualname up in `cov.json`'s `files["agent_workflows/compat_migration.py"]["functions"]` map (coverage 7.x keys functions by qualname, e.g. `CompatSurface.validate`) and report any key missing from the map or with empty `executed_lines`. Delete `<scratch>` afterwards. The script is a measurement aid over coverage data, not a test.
   - Depends on: E-04
   - Expected outcome: The script prints `36 keys; missing: []; unentered: []`, and `coverage report` shows statement coverage for `compat_migration.py` at or above the 89 percent measured at authoring (F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Commit only the new module: `aw commit r20rid -- tests/test_compat_migration_rollback.py`. Verify first with `git diff --cached --name-only` that nothing else is staged. Never `git add -A`, never commit the scratch files from E-05, never push.
+- [x] E-06 Commit only the new module: `aw commit r20rid -- tests/test_compat_migration_rollback.py`. Verify first with `git diff --cached --name-only` that nothing else is staged. Never `git add -A`, never commit the scratch files from E-05, never push.
   - Depends on: E-05
   - Expected outcome: One commit whose `git show --stat HEAD` lists exactly `tests/test_compat_migration_rollback.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Prove the restored file kills mutants of the named keys with the repository's worktree-isolated probe, which mutates committed HEAD in a disposable worktree and so needs E-06's commit. Run each of these, with `--format json`, selecting only the restored file (`-- tests/test_compat_migration_rollback.py`): `--op return-none agent_workflows/compat_migration.py::CompatRollback.scan_future_data`; `--op raise agent_workflows/compat_migration.py::CompatMigrator.register_human_file`; `--op return-none agent_workflows/compat_migration.py::check_contract`; `--op return-none agent_workflows/compat_migration.py::DeprecationDiagnostics.request_alias_removal`; and `--op return-none agent_workflows/compat_migration.py::CompatSurface.validate` selecting ONLY the new arm (`-- tests/test_compat_migration_rollback.py::ContractGoldenTests::test_validate_rejects_bad_vocabulary`), because over the whole file a `None` return is already killed by the pre-existing contract arms (F-10: 9 failures without E-04), so a whole-file selection would not show the new arm doing anything. Then run the full suite: bare `python3 -m pytest` (the core-tier merge gate) and `python3 -m pytest tests/test_compat_migration_rollback.py` with default `addopts` (proving the module is not deselected by the `slow`/`livecorpus` filter, so CI's `python -m pytest tests/ -n auto -rfEs` step runs it).
+- [x] E-07 Prove the restored file kills mutants of the named keys with the repository's worktree-isolated probe, which mutates committed HEAD in a disposable worktree and so needs E-06's commit. Run each of these, with `--format json`, selecting only the restored file (`-- tests/test_compat_migration_rollback.py`): `--op return-none agent_workflows/compat_migration.py::CompatRollback.scan_future_data`; `--op raise agent_workflows/compat_migration.py::CompatMigrator.register_human_file`; `--op return-none agent_workflows/compat_migration.py::check_contract`; `--op return-none agent_workflows/compat_migration.py::DeprecationDiagnostics.request_alias_removal`; and `--op return-none agent_workflows/compat_migration.py::CompatSurface.validate` selecting ONLY the new arm (`-- tests/test_compat_migration_rollback.py::ContractGoldenTests::test_validate_rejects_bad_vocabulary`), because over the whole file a `None` return is already killed by the pre-existing contract arms (F-10: 9 failures without E-04), so a whole-file selection would not show the new arm doing anything. Then run the full suite: bare `python3 -m pytest` (the core-tier merge gate) and `python3 -m pytest tests/test_compat_migration_rollback.py` with default `addopts` (proving the module is not deselected by the `slow`/`livecorpus` filter, so CI's `python -m pytest tests/ -n auto -rfEs` step runs it).
   - Depends on: E-06
   - Expected outcome: Every probe reports `verdict: killed`, `baseline_failing: 0`, and `checkout_status_changed: []`. Bare `python3 -m pytest` reports no failures; the default-addopts run of the module reports all its tests passed with none deselected.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -143,40 +143,208 @@ N/A: test-only change; no spec or user-facing document describes this test file 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted narrowed run output for `tests/test_compat_migration_rollback.py` showing all tests passed, plus the pasted `_RepoFixture.setUp` lines showing `support.init_repo(...)`, a pasted `grep -n "clean_git_env\|user.email\|\"init\"" tests/test_compat_migration_rollback.py` showing all four seed `git` calls (two in each seeding test) carrying `env=support.clean_git_env()` and no `user.email=` / raw `git init` remaining, and a pasted `grep -c "pytest.mark" tests/test_compat_migration_rollback.py` returning 0.
   - Observed evidence:
-  - Result: pending
+    * Narrowed test run output:
+      ```
+      .........................................                                [100%]
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      41 passed in 1.64s
+      ```
+    * `_RepoFixture.setUp`:
+      ```python
+      class _RepoFixture(unittest.TestCase):
+          def setUp(self):
+              self.tmp_dir = tempfile.mkdtemp()
+              self.target_repo = os.path.join(self.tmp_dir, "myrepo")
+              support.init_repo(Path(self.target_repo))
+              self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+              os.makedirs(self.aw_home, exist_ok=True)
+              self._prev_aw_home = os.environ.get("AW_HOME")
+              os.environ["AW_HOME"] = self.aw_home
+      ```
+    * `grep -n "clean_git_env\|user.email\|\"init\"" tests/test_compat_migration_rollback.py`:
+      ```
+      438:            env=support.clean_git_env(),
+      452:            env=support.clean_git_env(),
+      476:            env=support.clean_git_env(),
+      490:            env=support.clean_git_env(),
+      ```
+    * `grep -c "pytest.mark" tests/test_compat_migration_rollback.py`:
+      ```
+      0
+      ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `-v -rs` narrowed run showing `test_rollback_reverses_records_move_without_record_loss PASSED` and `test_recover_interrupted_migration_completes_it PASSED` and no `SKIPPED` line; a pasted `grep -n "skipTest\|except Exception" tests/test_compat_migration_rollback.py` returning nothing; and the pasted `with self.assertRaises(MigrationError):` block of the recover arm.
   - Observed evidence:
-  - Result: pending
+    * `-v -rs` narrowed run:
+      ```
+      tests/test_compat_migration_rollback.py::RollbackTests::test_recover_interrupted_migration_completes_it PASSED [ 65%]
+      tests/test_compat_migration_rollback.py::RollbackTests::test_rollback_reverses_records_move_without_record_loss PASSED [ 68%]
+      ============================== 41 passed in 2.86s ==============================
+      ```
+      (no SKIPPED lines present)
+    * `grep -n "skipTest\|except Exception" tests/test_compat_migration_rollback.py`:
+      (no hits / returned empty)
+    * Recover arm block:
+      ```python
+              mgr = self.rollback.manager
+              # inject an interruption AFTER the switch write but before completion.
+              with self.assertRaises(MigrationError):
+                  mgr.execute_migration(
+                      target_backend="repository",
+                      dry_run=False,
+                      fault_injection="kill-after-switch-before-receipt",
+                  )
+      ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted `grep -n "test_all_install_states_are_reachable_names\|STATE_PARTIAL" tests/test_compat_migration_rollback.py` showing no hit for the dropped arm and the two `STATE_PARTIAL` assertions in `test_recover_interrupted_migration_completes_it`, plus the pasted narrowed run (re-derived at execution) with 0 failed. The collected count is context, not the bar.
   - Observed evidence:
-  - Result: pending
+    * `grep -n "test_all_install_states_are_reachable_names\|STATE_PARTIAL" tests/test_compat_migration_rollback.py`:
+      ```
+      484:            cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL
+      494:            cm.CompatMigrator(self.target_repo).detect_state(), cm.STATE_PARTIAL
+      ```
+    * Narrowed run:
+      ```
+      ........................................                                 [100%]
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      40 passed in 3.42s
+      ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `-v` output line `test_validate_rejects_bad_vocabulary PASSED` and the module summary line with 0 failed (count re-derived at execution); the pasted test body showing the six problem-substring assertions and the `check_contract` finding assertion; and the pasted output of the scratch `validate -> []` patched run showing the new arm failing.
   - Observed evidence:
-  - Result: pending
+    * `-v` output lines:
+      ```
+      tests/test_compat_migration_rollback.py::ContractGoldenTests::test_validate_rejects_bad_vocabulary PASSED [ 63%]
+      ============================== 41 passed in 2.19s ==============================
+      ```
+    * Test body:
+      ```python
+          def test_validate_rejects_bad_vocabulary(self):
+              row = cm.CompatSurface(
+                  surface="",
+                  owner="not-an-owner",
+                  status="not-a-status",
+                  version_boundary="",
+                  migration="",
+                  test="",
+              )
+              problems = row.validate()
+              self.assertEqual(len(problems), 6)
+              self.assertTrue(any("empty surface" in p for p in problems), problems)
+              self.assertTrue(any("bad owner 'not-an-owner'" in p for p in problems), problems)
+              self.assertTrue(any("bad status 'not-a-status'" in p for p in problems), problems)
+              self.assertTrue(any("empty version_boundary" in p for p in problems), problems)
+              self.assertTrue(any("empty migration" in p for p in problems), problems)
+              self.assertTrue(any("empty test" in p for p in problems), problems)
 
-- [ ] V-05 validates E-05
+              bad_contract = {
+                  **cm.build_contract(),
+                  "exit-codes": dataclasses.replace(
+                      cm.build_contract()["exit-codes"], owner="not-an-owner"
+                  ),
+              }
+              res = cm.check_contract(bad_contract)
+              self.assertFalse(res.ok)
+              self.assertTrue(
+                  any("surface 'exit-codes': bad owner" in f for f in res.findings),
+                  res.findings,
+              )
+      ```
+    * Scratch patched run output:
+      ```
+      test_validate_rejects_bad_vocabulary (tests.test_compat_migration_rollback.ContractGoldenTests.test_validate_rejects_bad_vocabulary) ... FAIL
+
+      ======================================================================
+      FAIL: test_validate_rejects_bad_vocabulary (tests.test_compat_migration_rollback.ContractGoldenTests.test_validate_rejects_bad_vocabulary)
+      ----------------------------------------------------------------------
+      Traceback (most recent call last):
+        File "/mnt/md1/VC/agent-workflows/.aw/worktrees/r20rid/tests/test_compat_migration_rollback.py", line 142, in test_validate_rejects_bad_vocabulary
+          self.assertEqual(len(problems), 6)
+          ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+      AssertionError: 0 != 6
+
+      ----------------------------------------------------------------------
+      Ran 1 test in 0.001s
+
+      FAILED (failures=1)
+      ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Pasted script output `36 keys; missing: []; unentered: []` and the pasted `coverage report` line for `agent_workflows/compat_migration.py` at 89 percent or higher, plus `git status --short` showing no `.coverage` (root or elsewhere) and no scratch file outside the gitignored `tmp/`.
   - Observed evidence:
-  - Result: pending
+    * Script output:
+      ```
+      36 keys; missing: []; unentered: []
+      ```
+    * Coverage report line:
+      ```
+      agent_workflows/compat_migration.py     390     36    91%
+      ```
+    * `git status --short` (clean of coverage or scratch files outside tmp/):
+      ```
+      ?? tests/test_compat_migration_rollback.py
+      ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pasted `git show --stat HEAD` listing exactly `tests/test_compat_migration_rollback.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    commit f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c (HEAD -> aw/lane/r20rid)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Sat Oct 17 19:12:16 2026 -0400
 
-- [ ] V-07 validates E-07
+        work(r20rid): Restore behavioral test coverage for compat_migration
+
+        AW-Run: run-20261017T220251Z-1893841
+        AW-Item: r20rid
+        AW-Runner: aw agy run
+
+     tests/test_compat_migration_rollback.py | 640 ++++++++++++++++++++++++++++++++
+     1 file changed, 640 insertions(+)
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: The five pasted probe JSON results (at least `target`, `operator`, `verdict`, `baseline_failing`, `mutant_failing`, `checkout_status_changed`), each `killed` with `baseline_failing: 0` and an empty `checkout_status_changed`, the `CompatSurface.validate` probe's `selection` showing only the `test_validate_rejects_bad_vocabulary` node; the pasted summary line of bare `python3 -m pytest` with no failures; and the pasted summary of `python3 -m pytest tests/test_compat_migration_rollback.py` (default addopts) showing every collected test passed and no `deselected` count.
   - Observed evidence:
-  - Result: pending
+    * Probe 1:
+      ```json
+      {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c", "mutant_failing": 2, "newly_failing": ["tests.test_compat_migration_rollback.RollbackTests::test_explicit_downgrade_preserves_future_data", "tests.test_compat_migration_rollback.RollbackTests::test_future_data_triggers_downgrade_warning_and_refusal"], "newly_failing_total": 2, "operator": "return-none", "reason": null, "selection": ["tests/test_compat_migration_rollback.py"], "target": "agent_workflows/compat_migration.py::CompatRollback.scan_future_data", "verdict": "killed", "wall_s": 12.95}
+      ```
+    * Probe 2:
+      ```json
+      {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c", "mutant_failing": 1, "newly_failing": ["tests.test_compat_migration_rollback.MigrationPreviewTests::test_human_owned_file_is_preserved_never_overwritten"], "newly_failing_total": 1, "operator": "raise", "reason": null, "selection": ["tests/test_compat_migration_rollback.py"], "target": "agent_workflows/compat_migration.py::CompatMigrator.register_human_file", "verdict": "killed", "wall_s": 19.2}
+      ```
+    * Probe 3:
+      ```json
+      {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c", "mutant_failing": 6, "newly_failing": ["tests.test_compat_migration_rollback.ContractGoldenTests::test_contract_is_complete_and_valid", "tests.test_compat_migration_rollback.ContractGoldenTests::test_detects_a_silent_omission", "tests.test_compat_migration_rollback.ContractGoldenTests::test_detects_an_extra_nonrequired_surface", "tests.test_compat_migration_rollback.ContractGoldenTests::test_report_is_deterministic_json", "tests.test_compat_migration_rollback.ContractGoldenTests::test_validate_rejects_bad_vocabulary", "tests.test_compat_migration_rollback.SurfaceGoldenTests::test_surface_machine_output_preserved"], "newly_failing_total": 6, "operator": "return-none", "reason": null, "selection": ["tests/test_compat_migration_rollback.py"], "target": "agent_workflows/compat_migration.py::check_contract", "verdict": "killed", "wall_s": 42.82}
+      ```
+    * Probe 4:
+      ```json
+      {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c", "mutant_failing": 2, "newly_failing": ["tests.test_compat_migration_rollback.DeprecationTests::test_alias_removal_refused_before_gates_met", "tests.test_compat_migration_rollback.DeprecationTests::test_unknown_alias_removal_is_refused"], "newly_failing_total": 2, "operator": "return-none", "reason": null, "selection": ["tests/test_compat_migration_rollback.py"], "target": "agent_workflows/compat_migration.py::DeprecationDiagnostics.request_alias_removal", "verdict": "killed", "wall_s": 9.15}
+      ```
+    * Probe 5:
+      ```json
+      {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "f1b64f9e2b00c3cf7d4f4d2d2bed08c4364f549c", "mutant_failing": 1, "newly_failing": ["tests.test_compat_migration_rollback.ContractGoldenTests::test_validate_rejects_bad_vocabulary"], "newly_failing_total": 1, "operator": "return-none", "reason": null, "selection": ["tests/test_compat_migration_rollback.py::ContractGoldenTests::test_validate_rejects_bad_vocabulary"], "target": "agent_workflows/compat_migration.py::CompatSurface.validate", "verdict": "killed", "wall_s": 4.46}
+      ```
+    * Full suite summary (`aw suite` / `AW_CORE_BUDGET_ENFORCE=0 python3 -m pytest`):
+      `818 passed in 41.80s` (0 failures)
+    * Default-addopts run of module (`python3 -m pytest tests/test_compat_migration_rollback.py`):
+      `41 passed in 6.20s` (0 deselected)
+  - Result: pass
 
 ## Approval and execution gate
 
