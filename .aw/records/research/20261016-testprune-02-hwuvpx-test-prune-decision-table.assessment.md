@@ -2052,3 +2052,24 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | `tests/test_run_summary_visible_width.py` | `keep` | Zero-width character visible column width rectangularity preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_runner_safety_probe_memo.py` | `keep` | Runner safety probe memoization contracts under IPD 8hhd7t preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_runs_flag_position_parity.py` | `keep` | Parser position parity for runs family flags under IPD zwv1sa preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_group_verb_policy.py::test_group_setid_refusal` (9 cases) | `consolidate` | Collapsed 9-case parametrized matrix across GROUP_TYPES into single accumulate test | 0 | 0 | `tests/test_group_verb_policy.py::test_group_setid_refusal` | `83nnyn` | |
+| `tests/test_group_verb_policy.py::test_group_setid_warning` (9 cases) | `consolidate` | Collapsed 9-case parametrized matrix across GROUP_TYPES into single accumulate test | 0 | 0 | `tests/test_group_verb_policy.py::test_group_setid_warning` | `83nnyn` | |
+| `tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit` (9 cases) | `consolidate` | Collapsed 9-case parametrized matrix across GROUP_TYPES into single accumulate test | 0 | 0 | `tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit` | `83nnyn` | |
+| `tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max` (9 cases) | `consolidate` | Collapsed 9-case parametrized matrix across GROUP_TYPES into single accumulate test | 0 | 0 | `tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max` | `83nnyn` | |
+| `tests/test_status_set.py` | `keep` | Core protected status transition gate tests preserved unchanged with individual refusal codes asserted as string literals | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_backlog.py` | `keep` | Core protected backlog state transition and gate tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_research_index.py` | `keep` | Core protected research index and manifest integrity tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_attention.py` | `keep` | Attention matrix and inbox waiting probe tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_attention_blind_spot.py` | `keep` | Blind spot detection tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_attention_degraded_item.py` | `keep` | Degraded item classification tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_backlog_close_host_label.py` | `keep` | Backlog close host label formatting tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_backlog_gate_follows_status.py` | `keep` | Backlog gate follows status tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_backlog_history_dedup_parity.py` | `keep` | Backlog history dedup parity tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_backlog_transition_authority.py` | `keep` | Backlog transition authority tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_history_date_clock_sidecar.py` | `keep` | History date clock sidecar tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_history_label_parity.py` | `keep` | History label parity tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_history_write_order.py` | `keep` | History write order tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_prompts_attention.py` | `keep` | Prompts attention tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_releases_line_writers.py` | `keep` | Release line writer tests under izh17y preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_specs_metadata_duplicate_bullet.py` | `keep` | Specs metadata duplicate bullet tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_index_check_agent_records.py` | `keep` | Agent record index check tests preserved unchanged | 0 | 0 | Preserved unchanged | `83nnyn` | |
