@@ -6,9 +6,10 @@
 - Scope: Orchestration only: sequence the eleven children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261017-qchan-00-wpv9r7-let-runner-turns-ask-the-maintainer-and-take-answers-while-t.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 38eba791cd1032a939ae453dec2b67bf7897abd8cfd8c85614d3fb0db92bdbeb
+- Coverage-Fingerprint: b85cde20cc6e36c802f6da7579ba305f415cf0e130917abec4213e846fe312cd
 - Coverage-Checked: 2026-10-17 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
@@ -20,6 +21,9 @@
 - Id: wpv9r7
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
+- 2026-10-17 coverage pass (aw oc run): fingerprint b85cde20cc6e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-10-17 coverage fail (aw oc run): fingerprint f631d4a35384, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 to-review (aw set): authored review-ready: orchestrates spec 6kwd2e (amended 2026-10-17) across 11 children; coverage pass
 
 - 2026-10-17 coverage pass (aw oc run): fingerprint 38eba791cd10, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -125,7 +129,7 @@ Order 01 has no prerequisite. Orders 05, 06 and 07 depend only on 03 and can run
 
 ## Cross-IPD validation
 
-- Every acceptance criterion A1-A55 of spec `6kwd2e` is asserted by a test in exactly the child whose requirements it maps to (A1-A2, A14, A16, A18, A27-A28, A40-A41 in `4kkcex`; A3-A5, A7-A8, A13, A32, A39 in `epsti7`; A6, A12, A43-A44 in `j0ufrj`; A9-A10, A17, A20-A26, A33-A35 in `jshwxb`; A10a-A10b, A19, A29-A31 in `0jooqz`; A10c, A45 in `8u071n`; A10d-A10h, A46 in `y1vjzp`; A11, A42 in `mtmqlm`; A15 (host parity) is asserted on both hosts by `epsti7`, `j0ufrj`, `4kkcex` and `jshwxb`, each of whose test modules runs every case against `aw oc run` and `aw agy run`; A36-A37 in `j0ufrj`; A38 in `epsti7`; A47 in `4kkcex`; A48-A49, A53, A55 in `txl556`; A50-A52 in `qrup8m`; A54 in `mrlblc`). Each child's V-items require the test output; the final child `mrlblc` runs the full routine gate after the last merge.
+- Every acceptance criterion A1-A55 of spec `6kwd2e` is asserted by a test in exactly the child whose requirements it maps to (A1-A2, A14, A16, A18, A27-A28, A40-A41 in `4kkcex`; A3-A5, A7-A8, A13, A32, A39 in `epsti7`; A6, A12, A43-A44 in `j0ufrj`; A9-A10, A17, A20-A26, A33-A35 in `jshwxb`; A10a-A10b, A19, A29-A31 in `0jooqz` (A30, the missing-input versus question carrier separation, in its E-05); A10c, A45 in `8u071n`; A10d-A10h, A46 in `y1vjzp`; A11, A42 in `mtmqlm` (its E-04); A15 (host parity) is asserted on both hosts by `epsti7`, `j0ufrj`, `4kkcex` and `jshwxb`, each of whose test modules runs every case against `aw oc run` and `aw agy run`; A36-A37 in `j0ufrj`; A38 in `epsti7`; A47 in `4kkcex`; A48-A49, A53, A55 in `txl556`; A50-A52 in `qrup8m`; A54 in `mrlblc`). Each child's V-items require the test output of its own module and of the routine gate. `mrlblc` has the greatest dependency depth (7) and so dispatches last in a runner queue and in table order, but no child is guaranteed to run after every other child's merge (Orders 05, 06 and 08 are shallower and may finish later under parallel lanes); post-merge revalidation is the runner's merge-and-revalidate gate on each child, not work of this plan.
 
 ## Deferred / out of scope (with reason)
 
@@ -143,7 +147,7 @@ Order 01 has no prerequisite. Orders 05, 06 and 07 depend only on 03 and can run
 
 ## Required tests / validation
 
-This plan runs no tests. Each child runs its own module and the routine gate; `mrlblc` runs the routine gate last.
+This plan runs no tests. Each child runs its own module and the routine gate, and the runner revalidates after each merge (see Cross-IPD validation).
 
 ## Open questions
 

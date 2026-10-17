@@ -55,7 +55,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_question_carrier.py`: validator cases (E-01), fingerprint determinism and host parity (E-02, called through `oc_runipd` and `agy_runipd` re-exports), prompt contents on both hosts (E-03), the A10a/A10b/A31 contract (a scripted worker that records a `D-*` row and no question is NOT parked; one that returns a gating question IS; the prompt names the askme sort that decides between them), and the review-turn read (E-04) using the scripted-host pattern of `tests/test_run_proposal_channel.py`.
+- [ ] E-05 Add `tests/test_question_carrier.py`: validator cases (E-01), fingerprint determinism and host parity (E-02, called through `oc_runipd` and `agy_runipd` re-exports), prompt contents on both hosts (E-03), the A10a/A10b/A31 contract (a scripted worker that records a `D-*` row and no question is NOT parked; one that returns a gating question IS; the prompt names the askme sort that decides between them), the review-turn read (E-04) using the scripted-host pattern of `tests/test_run_proposal_channel.py`, and the A30 carrier separation (R2.4): a scripted worker that prints an `AW_MISSING_INPUT` line (`lane_containment.format_missing_input_token`) and writes no `questions` field yields NO parked question and is handled by the existing missing-input path, while a valid `questions[]` entry whose text contains `AW_MISSING_INPUT:` is a question and is NOT read as a missing-input report.
   - Depends on: E-04
   - Expected outcome: the module passes and each test asserts on returned values, rendered prompt text, or driver-visible state.
   - Execution state: pending
@@ -131,7 +131,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the runner output of `python3 -m pytest -o addopts="" -q tests/test_question_carrier.py` and of the routine gate, including the `N passed` lines.
+  - Required evidence: paste the runner output of `python3 -m pytest -o addopts="" -q tests/test_question_carrier.py` and of the routine gate, including the `N passed` lines, plus `-v` lines naming the A30 carrier-separation cases (both directions) as passed.
   - Observed evidence:
   - Result: pending
 
