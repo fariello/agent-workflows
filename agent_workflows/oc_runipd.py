@@ -4932,6 +4932,7 @@ LAUNCH IDENTITY (model / variant / agent):
     # until E-07 normalized it. `--full-auto` is included in the table, so it is NO LONGER declared
     # by hand here; its help text and `BooleanOptionalAction` moved into `RUN_POLICY_FLAGS` unchanged.
     runner_shared.register_run_policy_flags(start)
+    runner_shared.add_run_label_flags(start)
     start.add_argument(
         "--validate",
         "--verify",

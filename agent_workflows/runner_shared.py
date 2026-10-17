@@ -1145,6 +1145,58 @@ def save_state(
         write_report(run_dir, state)
 
 
+def add_run_label_flags(sub_parser: argparse.ArgumentParser) -> None:
+    """Register ``--label`` and ``--review-variant`` on a runner's ``start`` parser (both hosts).
+
+    Pure ANNOTATIONS for analysis: they are frozen into ``state.json`` ``options`` and change no
+    runner behavior. ``--label`` names a run (or a set of runs forming one experiment arm) so
+    ``aw runs query`` can select it; ``--review-variant`` names the review procedure under test
+    (for example ``single-12`` or ``grouped-6``). Start-only: a resumed run keeps the labels it was
+    started with, so they are not registered on ``resume``.
+    """
+
+    sub_parser.add_argument(
+        "--label",
+        default=None,
+        metavar="TEXT",
+        help="Annotate this run for analysis (recorded in state.json options.label; no behavior change).",
+    )
+    sub_parser.add_argument(
+        "--review-variant",
+        dest="review_variant",
+        default=None,
+        metavar="NAME",
+        help="Name the review variant under test (recorded in options.review_variant; no behavior change).",
+    )
+
+
+def run_start_git_record(repo: Path) -> dict[str, Any]:
+    """The repository's git commit and dirtiness at run start, plus the toolkit's own version.
+
+    ``commit`` is the full HEAD hash (``None`` on an unborn HEAD or outside git); ``dirty`` is True
+    when ``git status --porcelain`` lists any tracked change or untracked file (``None`` when git
+    could not answer). ``aw_version`` is ``agent_workflows.__version__``, whose ``+g<hash>`` suffix
+    names the toolkit commit when it runs from a development checkout. Never raises.
+    """
+
+    commit: str | None = None
+    dirty: bool | None = None
+    try:
+        rc, out, _err = _run_git(repo, ["rev-parse", "HEAD"], timeout=20)
+        if rc == 0 and out.strip():
+            commit = out.strip()
+        rc, out, _err = _run_git(repo, ["status", "--porcelain"], timeout=60)
+        if rc == 0:
+            dirty = bool(out.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        from agent_workflows import __version__ as aw_version
+    except Exception:  # pragma: no cover - defensive
+        aw_version = ""
+    return {"commit": commit, "dirty": dirty, "aw_version": str(aw_version or "")}
+
+
 def add_output_mode_flags(
     sub_parser: argparse.ArgumentParser,
     *,
@@ -33496,6 +33548,9 @@ def initialize_run_core(
         "session_id": initial_session,
         "set_sessions": set_sessions,
         "session_turn_counts": {},
+        # Run-start provenance for analysis (`aw runs query experiment`): target-repo commit and
+        # dirtiness, and the toolkit version (with its `+g<commit>` suffix when present).
+        "git": run_start_git_record(repo),
         # Spec 25kzda 5.2 descriptor fields recorded:
         # - host: cli_host
         # - observed_at: timestamp from utc_now()
@@ -33525,6 +33580,9 @@ def initialize_run_core(
             "isolate_plan": isolate_plan,
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
             "action": requested_action,
+            # Analysis-only annotations (`add_run_label_flags`); no runner behavior reads them.
+            "label": getattr(args, "label", None),
+            "review_variant": getattr(args, "review_variant", None),
             # `repo=repo` is load-bearing: this is the ONLY `resolve_retry_budget` call whose RESULT
             # is kept, so it is the only one that can put spec 5.5's repository-policy tier into
             # durable run state. Drop it and a repository's `run.retry_budget` is silently ignored

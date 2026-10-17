@@ -1218,6 +1218,20 @@ def _render_dashboard_html(
 ) -> str:
     """runsdash (`97i0ao`): the drill-down dashboard over every analyzed run's session logs."""
 
+    return _render_dashboard_and_facts(
+        repo, run_dirs, generated_label=generated_label, window=window
+    )[0]
+
+
+def _render_dashboard_and_facts(
+    repo: Path,
+    run_dirs: Any,
+    *,
+    generated_label: str,
+    window: dict[str, Any] | None = None,
+) -> tuple[str, str]:
+    """The dashboard HTML and the session/attempt facts JSONL, from ONE pass over the session logs."""
+
     import datetime as _dt
 
     from agent_workflows import run_dashboard as dash_mod
@@ -1233,7 +1247,7 @@ def _render_dashboard_html(
         generated_label=generated_label,
         generated_at=_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
-    return dash_mod.render_dashboard(payload)
+    return dash_mod.render_dashboard(payload), dash_mod.attempt_facts_jsonl(rows, info)
 
 
 def _bundle_documents(
@@ -1256,13 +1270,20 @@ def _bundle_documents(
     classic = _render_report_html(
         repo, generated_label=generated_label, run_ids=run_ids
     )
+    from agent_workflows import run_dashboard as dash_mod
+
+    docs: dict[str, str] = {CLASSIC_REPORT_FILENAME: classic}
     try:
-        index = _render_dashboard_html(
+        index, facts = _render_dashboard_and_facts(
             repo, run_dirs, generated_label=generated_label, window=window
         )
+        # The attempt-grain facts `aw runs query attempts|tools|experiment` reads, from the SAME
+        # pass that built the dashboard, so the two can never disagree.
+        docs[dash_mod.ATTEMPT_FACTS_FILENAME] = facts
     except Exception:
         index = classic
-    return {report_mod.INDEX_FILENAME: index, CLASSIC_REPORT_FILENAME: classic}
+    docs[report_mod.INDEX_FILENAME] = index
+    return docs
 
 
 def _publish_snapshot(

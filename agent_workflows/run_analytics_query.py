@@ -44,6 +44,7 @@ an outcome becomes an exit code. The mapping is total and lives in :meth:`QueryR
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -99,6 +100,10 @@ VIEWS: tuple[str, ...] = (
     "data-quality",
     "cache-status",
     "explain",
+    # Attempt grain (`run_analytics_attempts`), read from the bundle's attempts.jsonl.
+    "attempts",
+    "tools",
+    "experiment",
 )
 
 VIEW_HELP: dict[str, str] = {
@@ -112,6 +117,9 @@ VIEW_HELP: dict[str, str] = {
     "data-quality": "Missingness, conservation violations, and quality flags by run.",
     "cache-status": "Per-run cache verdicts and reason codes, plus totals.",
     "explain": "Provenance for a taxonomy rule (--taxonomy) or a price era (--price).",
+    "attempts": "Per-attempt token composition and shares, cost shares, steps, context, redos; groupable.",
+    "tools": "Tool calls and output bytes per tool, shell command families, files read most often.",
+    "experiment": "One row per plan id6 x review variant x model: cost or tokens, steps, wall, redos, outcome.",
 }
 
 
@@ -668,8 +676,21 @@ def view_schema() -> QueryResult:
             "pricing_schema_version": pricing_mod.PRICING_SCHEMA_VERSION,
             "statistics_version": stats_mod.STATISTICS_VERSION,
             "findings_schema_version": findings_mod.FINDINGS_SCHEMA_VERSION,
+            "attempt_grain": _attempt_vocabulary(),
         },
     )
+
+
+def _attempt_vocabulary() -> dict[str, Any]:
+    from agent_workflows import run_analytics_attempts as attempts_mod
+
+    return {
+        "views": list(attempts_mod.ATTEMPT_VIEWS),
+        "filter_fields": list(attempts_mod.ATTEMPT_FILTER_FIELDS),
+        "group_by_fields": list(attempts_mod.ATTEMPT_GROUP_FIELDS),
+        "metrics": list(attempts_mod.ATTEMPT_METRICS),
+        "stats": list(attempts_mod.ATTEMPT_STATS),
+    }
 
 
 def view_metrics(
@@ -1243,6 +1264,19 @@ def run_query(
     if name not in VIEWS:
         raise _refuse_field("view", VIEWS)
 
+    from agent_workflows import run_analytics_attempts as attempts_mod
+
+    if name in attempts_mod.ATTEMPT_VIEWS:
+        return _attempt_view(
+            name,
+            repo=repo,
+            filters=filters,
+            group_by=group_by,
+            metric=metric,
+            stat=stat,
+            limit=limit,
+        )
+
     parsed_filters = parse_filters(filters)
     fields = parse_group_by(group_by)
     row_limit = _parse_limit(limit)
@@ -1285,3 +1319,95 @@ def run_query(
     # Unreachable: `name` was validated against VIEWS above and every member is handled. Kept as a
     # loud failure rather than a silent `None` in case a view is added to the tuple and not here.
     raise QueryError(f"view {name!r} is declared but not implemented")
+
+
+def _attempt_view(
+    name: str,
+    *,
+    repo: Path | str | None,
+    filters: Iterable[str] | None,
+    group_by: str | Sequence[str] | None,
+    metric: str | None,
+    stat: str | None,
+    limit: Any,
+) -> QueryResult:
+    """Answer an attempt-grain view over the latest bundle's ``attempts.jsonl``.
+
+    The attempt grain has its OWN allowlists (``run_analytics_attempts.ATTEMPT_*``): its rows are
+    sessions, whose fields differ from a run's. ``--metric`` accepts a comma-separated list here.
+    """
+
+    from agent_workflows import run_analytics_attempts as attempts_mod
+
+    try:
+        parsed = attempts_mod.parse_attempt_filters(filters)
+        fields = attempts_mod.parse_attempt_group(group_by)
+        stat_name = attempts_mod.parse_attempt_stat(stat)
+        metrics = attempts_mod.parse_attempt_metrics(metric)
+    except attempts_mod.AttemptQueryError as exc:
+        raise QueryError(str(exc)) from None
+    row_limit = _parse_limit(limit)
+    rows, info = attempts_mod.load_attempt_rows(repo)
+    if not rows and not info:
+        raise QueryError(
+            "no attempt facts are published yet; run `aw runs analyze` first "
+            "(it writes attempts.jsonl beside the dashboard)"
+        )
+    caveats: list[str] = [
+        "attempt grain: one row per agent session; by default only main sessions (one per queue "
+        "attempt). Use --filter phase=verifier or --filter role=<role> for the others.",
+    ]
+    if info.get("window"):
+        caveats.append(
+            "the published bundle covers only a date window: "
+            + json.dumps(info["window"], sort_keys=True)
+        )
+    if name == "attempts":
+        out, payload = attempts_mod.view_attempts(
+            rows, filters=parsed, group_by=fields, metrics=metrics, stat=stat_name
+        )
+        payload.update({"metrics": list(metrics), "stat": stat_name})
+        caveats.append(
+            "cost shares are APPORTIONED (recorded cost split by token count x the dated rate); "
+            "sessions with no recorded cost (all Antigravity) carry tokens only"
+        )
+        hint = " ".join(
+            [f"--filter {k}={v}" for k, v in parsed.items()]
+            + ([f"--group-by {','.join(fields)}"] if fields else [])
+        )
+    elif name == "tools":
+        out, payload = attempts_mod.view_tools(rows, filters=parsed, top=row_limit)
+        hint = " ".join(f"--filter {k}={v}" for k, v in parsed.items())
+        return QueryResult(
+            view=name,
+            rows=tuple(out),
+            total=len(out),
+            emitted=len(out),
+            payload=payload,
+            caveats=tuple(caveats),
+        )
+    else:
+        out, payload = attempts_mod.view_experiment(
+            rows, filters=parsed, group_by=fields
+        )
+        caveats.append(
+            "outcome is the final disposition per item; the plan Readiness value is not recorded"
+        )
+        hint = " ".join(
+            [f"--filter {k}={v}" for k, v in parsed.items()]
+            + ([f"--group-by {','.join(fields)}"] if fields else [])
+        )
+    payload["runs_in_bundle"] = info.get("runs")
+    emitted, total, n_emitted, omitted, next_command = _bound(
+        out, view=name, limit=row_limit, next_hint=(hint + " ") if hint else ""
+    )
+    return QueryResult(
+        view=name,
+        rows=emitted,
+        total=total,
+        emitted=n_emitted,
+        omitted=omitted,
+        payload=payload,
+        caveats=tuple(caveats),
+        next_command=next_command,
+    )

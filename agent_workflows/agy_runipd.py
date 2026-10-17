@@ -4072,6 +4072,7 @@ RED-CI GATE:
     # opting IN. Two hosts disagreeing about whether execution is opt-in or opt-out is the divergence
     # the `rununify` Set exists to remove, and this one defaulted to the LESS safe direction.
     runner_shared.register_run_policy_flags(start)
+    runner_shared.add_run_label_flags(start)
     start.add_argument(
         "--agent",
         "--as-agent",

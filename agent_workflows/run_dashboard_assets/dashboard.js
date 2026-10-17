@@ -8,6 +8,7 @@
   const N = RAW.n || 0;
   const TOOL_NAMES = RAW.tool_names || [];
   const TOOL_CAT = RAW.tool_categories || {};
+  const MAPS = RAW.maps || {};
   const CATS = ['read', 'edit', 'write', 'shell', 'search', 'todo', 'wait', 'subagent', 'web', 'other'];
   const SHELL = ['test', 'git', 'aw', 'inspect', 'python', 'lint', 'other'];
   const SHELL_LABEL = { test: 'tests', git: 'git', aw: 'aw CLI', inspect: 'inspect (cat/ls/rg...)', python: 'python', lint: 'lint', other: 'other' };
@@ -33,12 +34,18 @@
       r._tools[nm] = sp[j + 1];
       if (sp[j + 2]) r._terr[nm] = sp[j + 2];
     }
+    r._maps = {};
+    for (const mk in MAPS) {
+      const mp = MAPS[mk], sp2 = (mp.rows && mp.rows[i]) || [], o = {};
+      for (let j = 0; j + 1 < sp2.length; j += 2) { const nm = mp.names[sp2[j]]; if (nm !== undefined) o[nm] = sp2[j + 1]; }
+      r._maps[mk] = o;
+    }
     r.stage = r.role === 'main' ? (r.action || 'unknown') : r.role;
     r.restart = r.recovery ? 'recovery' : (r.attempt > 1 ? 'retry' : 'first attempt');
     r.week = weekOf(r.date);
     r.month = r.date ? r.date.slice(0, 7) : '';
     r.sessions = 1;
-    ['set', 'id6', 'kind', 'model', 'host', 'agent', 'disposition', 'verification', 'item_status', 'action', 'role'].forEach((k) => {
+    ['set', 'id6', 'kind', 'model', 'host', 'agent', 'phase', 'label', 'review_variant', 'code_commit', 'repo_commit', 'session_origin', 'step_bucket', 'model_source', 'disposition', 'verification', 'item_status', 'action', 'role'].forEach((k) => {
       if (r[k] === null || r[k] === undefined || r[k] === '') r[k] = '(none)';
     });
     ROWS.push(r);
@@ -49,6 +56,14 @@
     stage: { label: 'Stage', help: 'review / execute turn, or the verify, gate-answer and defect re-ask sessions around it' },
     agent: { label: 'Agent', help: 'host and model together, e.g. "oc / claude-opus"; the unit to compare agents by' },
     model: { label: 'Model' },
+    model_source: { label: 'Model source', help: 'where the model id came from: the attempt, the run options, the host export, or unrecorded' },
+    phase: { label: 'Phase', help: 'review, execute, plan, verifier (any verifier session) or recovery (recovery attempts and corrective sessions)' },
+    session_origin: { label: 'Session origin', help: 'new: first use of that host session in the run; reused: already used by an earlier queue item; continued: reused by the same item' },
+    step_bucket: { label: 'Steps (bucket of 25)' },
+    label: { label: 'Run label' },
+    review_variant: { label: 'Review variant' },
+    code_commit: { label: 'Toolkit commit' },
+    repo_commit: { label: 'Repo commit at start' },
     host: { label: 'Host' },
     outcome: { label: 'Outcome', help: 'success / partial / failed, collapsed from the driver disposition or verifier verdict' },
     restart: { label: 'Attempt type', help: 'first attempt, a retry (attempt 2+), or a recovery turn' },
@@ -65,8 +80,8 @@
     date: { label: 'Day' },
     run: { label: 'Run' },
   };
-  const FACETS = ['stage', 'agent', 'host', 'model', 'outcome', 'restart', 'disposition', 'set', 'token_source'];
-  const GROUPABLE = ['agent', 'model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
+  const FACETS = ['phase', 'stage', 'agent', 'label', 'review_variant', 'session_origin', 'host', 'model', 'outcome', 'restart', 'disposition', 'set', 'token_source'];
+  const GROUPABLE = ['agent', 'phase', 'session_origin', 'step_bucket', 'label', 'review_variant', 'code_commit', 'repo_commit', 'model_source', 'model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
 
   // ---------------------------------------------------------------- metrics
   const HAS_TOK = (r) => r.token_source !== 'none';
@@ -108,6 +123,16 @@
   metric('cost_output', 'Cost of output tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
   metric('cost_cache_read', 'Cost of cached tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
   ratio('usd_per_mtok', 'Cost per million tokens', 'usd', 'cost', 'total_tokens', (r) => r.cost !== null && r.cost !== undefined && HAS_TOK(r), 'Cost and time', 1e6);
+  const HAS_CTX = (r) => r.context_first !== null && r.context_first !== undefined;
+  metric('context_first', 'Context at first step', 'tok', HAS_CTX, 'Steps and context');
+  metric('context_last', 'Context at last step', 'tok', HAS_CTX, 'Steps and context');
+  metric('context_max', 'Largest context', 'tok', HAS_CTX, 'Steps and context');
+  ratio('cost_per_step', 'Cost per LLM step', 'usd', 'cost', 'steps', (r) => r.cost !== null && r.cost !== undefined && HAS_LOG(r), 'Steps and context');
+  metric('tool_output_bytes', 'Tool output bytes', 'bytes', HAS_LOG, 'Activity');
+  metric('redo_total', 'Redos (retries + refusals + re-asks)', 'num', () => true, 'Redos');
+  metric('turn_retries', 'Turn retries', 'num', () => true, 'Redos');
+  metric('refusals', 'Refusals (begin, finalize, clean-base, reintegration, red CI)', 'num', () => true, 'Redos');
+  metric('reasks', 'Re-asks (defect re-asks, review corrections)', 'num', () => true, 'Redos');
   metric('wall', 'Wall time', 'dur', (r) => r.wall !== null && r.wall !== undefined, 'Cost and time');
   metric('tool_seconds', 'Time inside tools', 'dur', HAS_LOG, 'Cost and time');
   metric('steps', 'LLM steps (turns)', 'num', HAS_LOG, 'Activity');
@@ -149,6 +174,11 @@
         if (a < 3600) return Math.floor(v / 60) + 'm ' + String(Math.round(v % 60)).padStart(2, '0') + 's';
         return Math.floor(v / 3600) + 'h ' + String(Math.round((v % 3600) / 60)).padStart(2, '0') + 'm';
       }
+      case 'bytes':
+        if (a >= 1073741824) return (v / 1073741824).toFixed(2) + ' GB';
+        if (a >= 1048576) return (v / 1048576).toFixed(1) + ' MB';
+        if (a >= 1024) return (v / 1024).toFixed(1) + ' kB';
+        return Math.round(v) + ' B';
       case 'pct': return (v * 100).toFixed(a < 0.1 ? 1 : 0) + '%';
       case 'num2': return v.toFixed(2);
       default:
@@ -232,7 +262,8 @@
 
   // ---------------------------------------------------------------- units of analysis
   const SUMS = ['input', 'output', 'reasoning', 'cache_read', 'cache_write', 'fresh_tokens', 'total_tokens', 'steps',
-    'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'sessions']
+    'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'sessions', 'tool_output_bytes',
+    'turn_retries', 'refusals', 'reasks', 'redo_total']
     .concat(CATS.map((c) => 't_' + c)).concat(SHELL.map((c) => 'sh_' + c));
   const GRAINS = {
     session: 'Session (one agent conversation)',
@@ -265,6 +296,9 @@
       for (const t in r._tools) o._tools[t] = (o._tools[t] || 0) + r._tools[t];
       for (const t in r._terr) o._terr[t] = (o._terr[t] || 0) + r._terr[t];
     });
+    o._maps = {};
+    list.forEach((r) => { for (const mk in (r._maps || {})) { const t = (o._maps[mk] = o._maps[mk] || {}); for (const nm in r._maps[mk]) t[nm] = (t[nm] || 0) + r._maps[mk][nm]; } });
+    o.context_max = list.reduce((m, r) => (HAS_CTX(r) && (m === null || r.context_max > m) ? r.context_max : m), null);
     o.cost = cost; o.wall = wall;
     for (const pk in parts) o[pk] = parts[pk]; o.start = start; o.has_log = anyLog; o.token_source = src;
     o.attempt = maxAtt;
@@ -302,6 +336,7 @@
     tl: { by: 'model', norm: true },
     rk: { by: 'model' },
     tk: { by: 'agent', stats: ['sum', 'mean', 'median'], view: 'tokens' },
+    ex: { by: 'model', top: 15 },
     tb: { sort: 'start', dir: -1, page: 0 },
   };
   let S = clone(DEFAULT);
@@ -312,7 +347,7 @@
       if (!h) return;
       const o = JSON.parse(h);
       S = Object.assign(clone(DEFAULT), o);
-      ['cmp', 'tr', 'sc', 'tl', 'rk', 'tb', 'tk'].forEach((k) => { S[k] = Object.assign(clone(DEFAULT[k]), o[k] || {}); });
+      ['cmp', 'tr', 'sc', 'tl', 'rk', 'tb', 'tk', 'ex'].forEach((k) => { S[k] = Object.assign(clone(DEFAULT[k]), o[k] || {}); });
       S.f = o.f || {};
     } catch (e) { S = clone(DEFAULT); }
   }
@@ -613,6 +648,7 @@
   const TABS = [
     ['overview', 'Overview'],
     ['tokens', 'Tokens and cost'],
+    ['experiment', 'Review cost'],
     ['compare', 'Compare'],
     ['waste', 'Retries and failures'],
     ['trend', 'Trends'],
@@ -945,6 +981,12 @@
       kp.appendChild(k);
     });
     MAIN.appendChild(kp);
+    const totTok = agg(rows, 'total_tokens', 'sum').v || 0;
+    const totSplit = agg(rows.filter(HAS_SPLIT), 'cost', 'sum').v || 0;
+    const shares = h('p', { class: 'hint' });
+    shares.innerHTML = '<b>Share of tokens:</b> ' + ['input', 'cache_read', 'cache_write', 'output', 'reasoning'].map((k) => esc(MET[k].label.split(' (')[0]) + ' ' + fmt(totTok ? (agg(rows, k, 'sum').v || 0) / totTok : null, 'pct')).join(', ') +
+      (totSplit ? '. <b>Share of cost:</b> input ' + fmt((agg(rows, 'cost_input', 'sum').v || 0) / totSplit, 'pct') + ', cached ' + fmt((agg(rows, 'cost_cache_read', 'sum').v || 0) / totSplit, 'pct') + ', output ' + fmt((agg(rows, 'cost_output', 'sum').v || 0) / totSplit, 'pct') : '') + '.';
+    MAIN.appendChild(shares);
 
     const p = panel('Tokens and cost, by component', 'Each token kind on its own: <b>in + out</b> (input plus output), <b>input</b> (uncached prompt tokens), <b>output</b>, <b>cached</b> (cache reads) and <b>cache writes</b>. ' +
       '<b>Total</b> cost is what the host recorded. Hosts record one cost per step, not per token kind, so the per-kind costs are <b>apportioned</b>: the recorded cost is split by token count times the rate in effect that day, and the parts add up exactly to the recorded cost. Rows with no recorded cost (all Antigravity sessions) have no cost split. Click a row to filter to it.');
@@ -1002,6 +1044,93 @@
       MAIN.appendChild(g);
     }
   };
+
+  // ---------------------------------------------------------------- review cost / experiment
+  function sumMap(rows, mk) {
+    const t = {};
+    rows.forEach((r) => { const m = (r._maps && r._maps[mk]) || (mk === 'tools' ? r._tools : null) || {}; for (const k in m) t[k] = (t[k] || 0) + m[k]; });
+    return t;
+  }
+  function topTable(title, hint, counts, unitFmt, n) {
+    const p = panel(title, hint);
+    const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, n);
+    const top = counts[names[0]] || 1;
+    const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+    let s = '<thead><tr><th>Name</th><th class="num">Count</th><th class="num">Share</th></tr></thead><tbody>';
+    names.forEach((k) => {
+      s += '<tr><td class="mono">' + esc(trunc(k, 90)) + '</td><td class="num cellbar"><div class="b" style="width:' + ((counts[k] / top) * 100).toFixed(1) + '%"></div><span>' + esc(fmt(counts[k], unitFmt)) + '</span></td><td class="num">' + fmt(counts[k] / total, 'pct') + '</td></tr>';
+    });
+    if (!names.length) s += '<tr><td colspan="3" class="empty">Nothing recorded for this selection.</td></tr>';
+    const t = h('table', { class: 't' });
+    t.innerHTML = s + '</tbody>';
+    const w = h('div', { class: 'tablewrap' });
+    w.appendChild(t);
+    p.appendChild(w);
+    return p;
+  }
+  VIEWS.experiment = function () {
+    const c = S.ex;
+    const rows = CUR;
+    const p0 = panel('Review cost: steps times context', 'Each model step re-sends the whole conversation, which the host bills mostly as cached tokens, so an attempt costs roughly its <b>number of steps</b> times its <b>context size</b>. Filter <b>Phase</b> to <i>review</i> in the sidebar to focus on reviews.');
+    const row = h('div', { class: 'row' });
+    row.appendChild(sel('Split by', c.by, dimOpts(), (v) => { c.by = v; render(); }));
+    row.appendChild(sel('Top names', String(c.top), [['10', '10'], ['15', '15'], ['30', '30'], ['60', '60']], (v) => { c.top = +v; render(); }));
+    p0.appendChild(row);
+    const kp = h('div', { class: 'kpis' });
+    [['Median steps', fmt(agg(rows, 'steps', 'median').v, 'num'), 'p90 ' + fmt(agg(rows, 'steps', 'p90').v, 'num')],
+      ['Context at first step', fmt(agg(rows, 'context_first', 'median').v, 'tok'), 'median'],
+      ['Context at last step', fmt(agg(rows, 'context_last', 'median').v, 'tok'), 'median; largest p90 ' + fmt(agg(rows, 'context_max', 'p90').v, 'tok')],
+      ['Median cost', fmt(agg(rows, 'cost', 'median').v, 'usd'), fmt(agg(rows, 'cost_per_step', 'sum').v, 'usd') + ' per step overall'],
+      ['Tool output', fmt(agg(rows, 'tool_output_bytes', 'sum').v, 'bytes'), 'median ' + fmt(agg(rows, 'tool_output_bytes', 'median').v, 'bytes') + ' per row'],
+      ['Redos', fmt(agg(rows, 'redo_total', 'sum').v, 'num'), fmt(agg(rows, 'turn_retries', 'sum').v, 'num') + ' retries, ' + fmt(agg(rows, 'refusals', 'sum').v, 'num') + ' refusals, ' + fmt(agg(rows, 'reasks', 'sum').v, 'num') + ' re-asks']]
+      .forEach((it) => { const k = h('div', { class: 'kpi' }); k.innerHTML = '<div class="k">' + esc(it[0]) + '</div><div class="v">' + esc(it[1]) + '</div><div class="s">' + esc(it[2]) + '</div>'; kp.appendChild(k); });
+    p0.appendChild(kp);
+    MAIN.appendChild(p0);
+
+    const g = h('div', { class: 'grid2' });
+    const p1 = panel('Cost by number of steps', 'Median cost per row in buckets of 25 model steps. Groups under ' + stats_min() + ' rows show no box.');
+    const gs = [];
+    topGroups(rows, 'step_bucket', 0, (a, b) => a.localeCompare(b)).forEach((list, key) => { const d = distOf(list, 'cost', 'median'); d.key = key; if (d.n < stats_min()) { d.v = null; } gs.push(d); });
+    p1.appendChild(h('div', { class: 'chart' }, hbars(gs, 'cost', 'median', false, 'step_bucket')));
+    g.appendChild(p1);
+    const p2 = panel('New versus reused host session', 'Whether an attempt\'s host session was new to the run or already used by an earlier queue item, and what it started with.');
+    const so = [];
+    topGroups(rows, 'session_origin', 6).forEach((list, key) => so.push({ key: key, rows: list }));
+    let st = '<thead><tr><th>Session</th><th class="num">Rows</th><th class="num">First-step context</th><th class="num">Steps</th><th class="num">Cost</th></tr></thead><tbody>';
+    so.forEach((x) => {
+      const few = x.rows.length < stats_min();
+      const md = (k, f) => (few ? '-' : fmt(agg(x.rows, k, 'median').v, f));
+      st += '<tr class="click" data-f="session_origin" data-v="' + esc(x.key) + '"><td>' + esc(x.key) + '</td><td class="num">' + x.rows.length + '</td><td class="num">' + md('context_first', 'tok') + '</td><td class="num">' + md('steps', 'num') + '</td><td class="num">' + md('cost', 'usd') + '</td></tr>';
+    });
+    const t2 = h('table', { class: 't' }); t2.innerHTML = st + '</tbody>';
+    const w2 = h('div', { class: 'tablewrap' }); w2.appendChild(t2);
+    p2.appendChild(w2);
+    p2.appendChild(h('p', { class: 'hint' }, 'Medians per row.'));
+    g.appendChild(p2);
+    MAIN.appendChild(g);
+
+    const p3 = panel('By ' + (DIMS[c.by] ? DIMS[c.by].label.toLowerCase() : c.by), 'Median per row, with redo totals. Click a row to filter to it.');
+    let s3 = '<thead><tr><th>' + esc(DIMS[c.by] ? DIMS[c.by].label : c.by) + '</th><th class="num">Rows</th><th class="num">Cost</th><th class="num">Tokens</th><th class="num">Steps</th><th class="num">First ctx</th><th class="num">Last ctx</th><th class="num">Wall</th><th class="num">Redos</th><th class="num">Success</th></tr></thead><tbody>';
+    topGroups(rows, c.by, 40).forEach((list, key) => {
+      const known = list.filter((r) => r.outcome !== 'unknown');
+      const few = list.length < stats_min();
+      const md = (k, f) => (few ? '-' : fmt(agg(list, k, 'median').v, f));
+      s3 += '<tr class="click" data-f="' + esc(c.by) + '" data-v="' + esc(key) + '"><td>' + esc(trunc(key, 44)) + '</td><td class="num">' + list.length + '</td><td class="num">' + md('cost', 'usd') + '</td><td class="num">' + md('total_tokens', 'tok') + '</td><td class="num">' + md('steps', 'num') + '</td><td class="num">' + md('context_first', 'tok') + '</td><td class="num">' + md('context_last', 'tok') + '</td><td class="num">' + md('wall', 'dur') + '</td><td class="num">' + fmt(agg(list, 'redo_total', 'sum').v, 'num') + '</td><td class="num">' + (known.length ? fmt(share(known, (r) => r.outcome === 'success'), 'pct') : '-') + '</td></tr>';
+    });
+    const t3 = h('table', { class: 't' }); t3.innerHTML = s3 + '</tbody>';
+    const w3 = h('div', { class: 'tablewrap' }); w3.appendChild(t3);
+    p3.appendChild(w3);
+    p3.appendChild(h('p', { class: 'hint' }, 'Medians are withheld (shown as -) for groups under ' + stats_min() + ' rows.'));
+    MAIN.appendChild(p3);
+
+    const g2 = h('div', { class: 'grid2' });
+    const tb = sumMap(rows, 'tool_bytes');
+    g2.appendChild(topTable('Tool output bytes, by tool', 'Bytes of tool output returned into the conversation. Every byte is re-sent on each later step.', tb, 'bytes', c.top));
+    g2.appendChild(topTable('Shell command families', 'Program (and subcommand for git, aw, gh, make...) of each shell command. Arguments are not kept.', sumMap(rows, 'families'), 'num', c.top));
+    MAIN.appendChild(g2);
+    MAIN.appendChild(topTable('Files read most often', 'Read-tool calls per file, repository-relative. Paths outside the repository keep only their last two parts.', sumMap(rows, 'read_counts'), 'num', c.top));
+  };
+  function stats_min() { return 12; }
 
   VIEWS.compare = function () {
     const c = S.cmp;

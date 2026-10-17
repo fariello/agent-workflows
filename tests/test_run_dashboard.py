@@ -427,17 +427,17 @@ class AnalyzePublishesDashboardTests(unittest.TestCase):
         self.assertEqual(data["n"], 4)
 
     def test_dashboard_failure_falls_back_to_classic(self) -> None:
-        orig = analytics_cli._render_dashboard_html
+        from unittest import mock
 
-        def boom(*a, **k):
-            raise RuntimeError("x")
+        from agent_workflows import run_dashboard
 
-        analytics_cli._render_dashboard_html = boom
-        try:
+        # A dashboard failure (here: the session collector raising) must never cost the sweep.
+        with mock.patch.object(
+            run_dashboard, "collect_rows", side_effect=RuntimeError("x")
+        ):
             docs = analytics_cli._bundle_documents(self.repo, [], generated_label="t")
-        finally:
-            analytics_cli._render_dashboard_html = orig
         self.assertEqual(docs["index.html"], docs["report.html"])
+        self.assertNotIn(run_dashboard.ATTEMPT_FACTS_FILENAME, docs)
 
 
 class TestUnifiedToolExtractionRouting(unittest.TestCase):
@@ -585,9 +585,9 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
         for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
             self.assertEqual(dash.tool_category(name), "subagent")
 
-    def test_dashboard_schema_version_is_6(self) -> None:
-        """E-03 (0yvidi): DASHBOARD_SCHEMA_VERSION is 6."""
-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 6)
+    def test_dashboard_schema_version_is_8(self) -> None:
+        """E-03 (0yvidi), bumped to 8 for the review-cost session facts (context, tool bytes, families)."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 8)
 
     def test_dashboard_conflict_and_info_only_shapes_e10(self) -> None:
         """E-10 (n8we3u): session_stats counts tools/categories/commands correctly for CONFLICT and INFO-ONLY."""

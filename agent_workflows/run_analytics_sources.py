@@ -126,7 +126,14 @@ OPTIONAL_STATE_KEYS: frozenset[str] = frozenset(
     }
 )
 
-KNOWN_STATE_KEYS: frozenset[str] = CORE_STATE_KEYS | OPTIONAL_STATE_KEYS
+#: Keys a NEWER driver adds that are recognized, so they raise no `unknown-state-keys` warning, but
+#: whose absence is not reported either (every run before they existed lacks them by construction).
+#: `git`: run-start provenance from 2026-10-17 (`runner_shared.run_start_git_record`).
+RECOGNIZED_STATE_KEYS: frozenset[str] = frozenset({"git"})
+
+KNOWN_STATE_KEYS: frozenset[str] = (
+    CORE_STATE_KEYS | OPTIONAL_STATE_KEYS | RECOGNIZED_STATE_KEYS
+)
 
 #: Driver basename -> generation label. The basename is the ONLY discriminator that works; see the
 #: module docstring for the ``schema_version`` measurement that rules out the obvious alternative.

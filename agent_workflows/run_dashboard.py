@@ -55,7 +55,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 6
+DASHBOARD_SCHEMA_VERSION = 8
 ASSETS_DIRNAME = "run_dashboard_assets"
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"
@@ -183,7 +183,188 @@ def _empty_stats() -> dict[str, Any]:
         "files_edited": 0,
         "result_status": None,
         "error_messages": 0,
+        # Schema 7 (review-cost analysis): context size per model step, tool OUTPUT bytes, shell
+        # command families, files read by path, and the host session id.
+        "context_first": None,
+        "context_last": None,
+        "context_max": None,
+        "tool_bytes": {},
+        "tool_output_bytes": 0,
+        "families": {},
+        "read_counts": {},
+        "host_session": None,
     }
+
+
+#: Leading words of a shell segment that are wrappers, not the command being run.
+_SHELL_WRAPPERS = frozenset(
+    {"sudo", "env", "time", "nice", "nohup", "command", "exec", "xargs"}
+)
+#: Programs whose FAMILY includes their subcommand, so `git log` and `git diff` stay distinct.
+_SUBCOMMAND_PROGRAMS = frozenset(
+    {
+        "git",
+        "gh",
+        "make",
+        "npm",
+        "pnpm",
+        "yarn",
+        "uv",
+        "pip",
+        "pip3",
+        "cargo",
+        "go",
+        "docker",
+        "opencode",
+    }
+)
+_HEREDOC_RE = re.compile(
+    r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?[^\n]*\n.*?\n\s*\1\s*(?=\n|$)", re.S
+)
+_QUOTED_RE = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+#: Shell keywords that start a compound command; the family is the command INSIDE it.
+_SHELL_KEYWORDS = frozenset(
+    {
+        "for",
+        "while",
+        "until",
+        "if",
+        "then",
+        "else",
+        "elif",
+        "fi",
+        "do",
+        "done",
+        "case",
+        "esac",
+        "in",
+        "function",
+    }
+)
+_PROGRAM_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.+-]*$")
+
+
+def _strip_shell_payload(command: str) -> str:
+    """Remove heredoc BODIES and quoted strings, which are data rather than commands.
+
+    A ``python3 - <<'EOF' ... EOF`` body would otherwise split into hundreds of "commands"
+    (``import``, ``def``, ``print``) at every newline. The heredoc's own line is kept (its program
+    is the command), and quoted text is replaced by a placeholder so separators inside quotes do
+    not split the line.
+    """
+
+    text = _HEREDOC_RE.sub(lambda m: m.group(0).split("\n", 1)[0], command)
+    return _QUOTED_RE.sub("Q", text)
+
+
+_SEGMENT_SPLIT_RE = re.compile(r"\|\||&&|;|\||\n")
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def command_families(command: str) -> list[str]:
+    """The command FAMILIES in one shell command line, one per pipeline/list segment.
+
+    A family is the program's base name, plus its subcommand for multi-verb tools (``git log``,
+    ``gh pr``) and up to two words for the aw CLI (``aw ipd lint``, also reached as
+    ``python3 -m agent_workflows ipd lint``). ``python3 -m pytest`` is ``pytest``. Wrappers (``env``,
+    ``sudo``, ``timeout N``, ``VAR=value``) and a leading ``cd <dir>`` segment are skipped, so the
+    family names what actually ran. Arguments are never kept: no paths, no patterns, no text.
+    """
+
+    out: list[str] = []
+    for segment in _SEGMENT_SPLIT_RE.split(_strip_shell_payload(command or "")):
+        words = segment.strip().split()
+        i = 0
+        while i < len(words):
+            w = words[i]
+            if w in ("for", "case", "select") and i + 1 < len(words):
+                # `for VAR in LIST`: the loop header is not a command; the body segment is.
+                i = len(words)
+                break
+            if w == "[" or w == "[[" or w == "test":
+                i = len(words)
+                break
+            if (
+                _ENV_ASSIGN_RE.match(w)
+                or w in _SHELL_WRAPPERS
+                or w in _SHELL_KEYWORDS
+                or w in ("(", "{", "!", "}", ")")
+            ):
+                i += 1
+            elif w == "timeout":
+                i += 2 if i + 1 < len(words) and not words[i + 1].startswith("-") else 1
+            else:
+                break
+        words = [w.strip("()") for w in words[i:] if w.strip("()")]
+        if not words:
+            continue
+        prog = words[0].rsplit("/", 1)[-1]
+        if not _PROGRAM_RE.match(prog) or prog[0] == "-":
+            continue
+        if prog in ("cd", "pushd", "popd", "true", "echo", "printf", "export", "set"):
+            if prog == "cd":
+                continue
+            out.append(prog)
+            continue
+        # Subcommand words are the LEADING non-flag words only, so a flag's value (`-m <message>`)
+        # is never mistaken for a subcommand. `git -C <dir>` / `-c <k=v>` are skipped explicitly.
+        tail = words[1:]
+        if prog == "git":
+            while len(tail) >= 2 and tail[0] in ("-C", "-c"):
+                tail = tail[2:]
+        rest = []
+        for w in tail:
+            if w.startswith("-"):
+                break
+            rest.append(w)
+        if prog.startswith("python"):
+            if len(words) > 2 and words[1] == "-m":
+                mod = words[2]
+                if mod == "agent_workflows":
+                    prog, rest = "aw", []
+                    for w in words[3:]:
+                        if w.startswith("-"):
+                            break
+                        rest.append(w)
+                else:
+                    out.append(mod)
+                    continue
+            else:
+                out.append("python")
+                continue
+        if prog in ("aw", "agent-workflows"):
+            sub = [w for w in rest[:2] if re.match(r"^[a-z][a-z0-9-]*$", w)]
+            out.append(" ".join(["aw"] + sub))
+        elif (
+            prog in _SUBCOMMAND_PROGRAMS
+            and rest
+            and re.match(r"^[a-z][a-z0-9-]*$", rest[0])
+        ):
+            out.append(prog + " " + rest[0])
+        else:
+            out.append(prog)
+    return out
+
+
+def _note_context(stats: dict[str, Any], context: float) -> None:
+    """Record one model step's CONTEXT size: new input + cache read + cache write for that step."""
+
+    if stats["context_first"] is None:
+        stats["context_first"] = context
+    stats["context_last"] = context
+    if stats["context_max"] is None or context > stats["context_max"]:
+        stats["context_max"] = context
+
+
+def _output_bytes(value: Any) -> int:
+    if value is None:
+        return 0
+    if not isinstance(value, str):
+        try:
+            value = json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            value = str(value)
+    return len(value.encode("utf-8", errors="replace"))
 
 
 def _bump(counter: dict[str, int], key: str, by: int = 1) -> None:
@@ -209,8 +390,12 @@ def _record_tool(
     path: str | None,
     read_paths: set,
     edit_paths: set,
+    output_bytes: int = 0,
 ) -> None:
     stats["tool_calls"] += 1
+    if output_bytes:
+        _bump(stats["tool_bytes"], name or "?", output_bytes)
+        stats["tool_output_bytes"] += output_bytes
     _bump(stats["tools"], name or "?")
     cat = tool_category(name)
     _bump(stats["categories"], cat)
@@ -220,9 +405,12 @@ def _record_tool(
     stats["tool_seconds"] += max(0.0, seconds)
     if cat == "shell" and command is not None:
         _bump(stats["commands"], command_kind(command))
+        for fam in command_families(command):
+            _bump(stats["families"], fam)
     if path:
         if cat == "read":
             read_paths.add(path)
+            _bump(stats["read_counts"], path)
         elif cat in ("edit", "write"):
             edit_paths.add(path)
 
@@ -268,6 +456,8 @@ def _oc_line(
     )
     ts = obj.get("timestamp")
     _note_ts(stats, _num(ts) / 1000.0 if isinstance(ts, (int, float)) else None)
+    if stats["host_session"] is None and obj.get("sessionID"):
+        stats["host_session"] = str(obj.get("sessionID"))
     if kind == "step_finish":
         stats["steps"] += 1
         toks: Mapping[str, Any] | None = (
@@ -280,10 +470,12 @@ def _oc_line(
             stats["reasoning"] += _num(toks.get("reasoning"))
             cache = toks.get("cache")
             if isinstance(cache, Mapping):
-                stats["cache_read"] += _num(cache.get("read"))
-                stats["cache_write"] += _num(cache.get("write"))
+                c_read, c_write = _num(cache.get("read")), _num(cache.get("write"))
             else:
-                stats["cache_read"] += _num(cache)
+                c_read, c_write = _num(cache), 0.0
+            stats["cache_read"] += c_read
+            stats["cache_write"] += c_write
+            _note_context(stats, _num(toks.get("input")) + c_read + c_write)
         if isinstance(part.get("cost"), (int, float)) and not isinstance(
             part.get("cost"), bool
         ):
@@ -292,6 +484,7 @@ def _oc_line(
     elif kind == "tool_use":
         tc = tool_call_from_event(obj)
         if tc is not None:
+            st = part.get("state") if isinstance(part.get("state"), Mapping) else {}
             _record_tool(
                 stats,
                 tc.tool,
@@ -301,6 +494,8 @@ def _oc_line(
                 path=tc.path,
                 read_paths=read_paths,
                 edit_paths=edit_paths,
+                output_bytes=_output_bytes(st.get("output"))
+                + _output_bytes(st.get("error")),
             )
     elif kind == "error":
         stats["error_messages"] += 1
@@ -317,6 +512,12 @@ def _agy_line(
         stats["result_status"] = res.get("status")
         return
     su = obj.get("step_update")
+    if stats["host_session"] is None:
+        conv = obj.get("conversation_id") or (
+            su.get("conversation_id") if isinstance(su, Mapping) else None
+        )
+        if conv:
+            stats["host_session"] = str(conv)
     if not isinstance(su, Mapping):
         return
     state = su.get("state")
@@ -336,9 +537,16 @@ def _agy_line(
             stats["output"] += _num(usage.get("output_tokens"))
             stats["reasoning"] += _num(usage.get("thinking_tokens"))
             stats["cache_read"] += _num(usage.get("cache_read_tokens"))
+            _note_context(
+                stats,
+                _num(usage.get("input_tokens")) + _num(usage.get("cache_read_tokens")),
+            )
     elif stype == "tool":
         tc = tool_call_from_event(obj)
         if tc is not None:
+            info = (
+                su.get("tool_info") if isinstance(su.get("tool_info"), Mapping) else {}
+            )
             _record_tool(
                 stats,
                 tc.tool,
@@ -348,6 +556,7 @@ def _agy_line(
                 path=tc.path,
                 read_paths=read_paths,
                 edit_paths=edit_paths,
+                output_bytes=_output_bytes(info.get("output")),
             )
     elif stype == "subagent":
         tc = tool_call_from_event(obj)
@@ -445,7 +654,7 @@ def _default_cache_path(repo: Path | str | None) -> Path | None:
 # --- rows ------------------------------------------------------------------------------------------
 
 _SESSION_NAME_RE = re.compile(
-    r"^(?P<pos>\d+)-(?P<id6>[a-z0-9]{6})-(?:(?P<vpre>verify)-)?attempt-(?P<att>\d+)(?:-(?P<role>[a-z-]+))?\.jsonl$"
+    r"^(?P<pos>\d+)-(?P<id6>[a-z0-9]{6})-(?:(?P<vpre>verify)-)?attempt-(?P<att>\d+)(?:-(?P<role>[a-z][a-z0-9-]*))?\.jsonl$"
 )
 
 _SUCCESS = {"executed", "reviewed", "approved", "substantially-complete"}
@@ -628,6 +837,267 @@ def split_cost(
     return {k: cost * w / total for k, w in weights.items()}, "apportioned"
 
 
+#: Width of one step-count bucket ("0-24", "25-49", ...). 25 is the width the review-cost
+#: analysis asks for; past 200 steps every attempt shares one open-ended bucket.
+STEP_BUCKET_WIDTH = 25
+STEP_BUCKET_CAP = 200
+
+
+def step_bucket(steps: Any) -> str:
+    """The step-count bucket label for an attempt with ``steps`` model steps."""
+
+    n = int(_num(steps))
+    if n >= STEP_BUCKET_CAP:
+        return "{0}+".format(STEP_BUCKET_CAP)
+    lo = (n // STEP_BUCKET_WIDTH) * STEP_BUCKET_WIDTH
+    return "{0:03d}-{1:03d}".format(lo, lo + STEP_BUCKET_WIDTH - 1)
+
+
+#: Session roles that are corrective turns around an attempt rather than the attempt itself.
+_RECOVERY_ROLES = frozenset(
+    {"gate-answer", "defect-reask", "merge-conflict", "combined-red"}
+)
+_VERIFIER_ROLES = frozenset({"verify", "carrier-verification"})
+
+
+def phase_of(action: str, role: str, recovery: bool) -> str:
+    """The cost PHASE of one session row: review, execute, verifier or recovery (or the action).
+
+    ``verifier`` is any verifier-family session; ``recovery`` is a recovery attempt or a corrective
+    session around a turn (gate answer, defect re-ask, merge-conflict or combined-red repair, a
+    review-orchestrator correction). Otherwise the queue action (``review``, ``execute``, ``plan``).
+    """
+
+    if role in _VERIFIER_ROLES:
+        return "verifier"
+    if (
+        recovery
+        or role in _RECOVERY_ROLES
+        or role.startswith("review-orchestrator-correction")
+        or action.endswith("-correction")
+    ):
+        return "recovery"
+    return action or "unknown"
+
+
+_PLUS_G_RE = re.compile(r"\+g([0-9a-f]{7,40})")
+
+
+def _run_context(run_dir: Path, state: Mapping[str, Any]) -> dict[str, Any]:
+    """Run-level labels: experiment label and variant, and the commit the run's code came from.
+
+    ``code_commit`` is the toolkit commit, read from ``state.git.aw_version`` (recorded at run start
+    from 2026-10-17) or else from the first telemetry event's ``tool_versions.agent_workflows``
+    (``...+g<hash>``). ``repo_commit`` is the target repository's HEAD at run start, from
+    ``state.git.commit`` or else the first attempt's ``starting_head``. Absent values stay empty and
+    read ``(not recorded)`` in the dashboard; nothing is guessed.
+    """
+
+    opts = state.get("options") if isinstance(state.get("options"), Mapping) else {}
+    git = state.get("git") if isinstance(state.get("git"), Mapping) else {}
+    version = str(git.get("aw_version") or "")
+    if not version:
+        tel = run_dir / "telemetry"
+        if tel.is_dir():
+            for f in sorted(tel.glob("*.jsonl")):
+                try:
+                    with open(f, "r", encoding="utf-8", errors="replace") as handle:
+                        first = handle.readline()
+                    tv = json.loads(first).get("tool_versions") or {}
+                    version = str(tv.get("agent_workflows") or "")
+                except (OSError, ValueError, AttributeError):
+                    version = ""
+                if version:
+                    break
+    m = _PLUS_G_RE.search(version)
+    repo_commit = str(git.get("commit") or "")
+    if not repo_commit:
+        for item in state.get("queue") or []:
+            for att in (
+                (item.get("attempts") or []) if isinstance(item, Mapping) else []
+            ):
+                if isinstance(att, Mapping) and att.get("starting_head"):
+                    repo_commit = str(att["starting_head"])
+                    break
+            if repo_commit:
+                break
+    dirty = git.get("dirty")
+    return {
+        "label": str(opts.get("label") or ""),
+        "review_variant": str(opts.get("review_variant") or ""),
+        "code_commit": m.group(1)[:12] if m else "",
+        "aw_version": version,
+        "repo_commit": repo_commit[:12],
+        "repo_dirty": "" if dirty is None else ("dirty" if dirty else "clean"),
+    }
+
+
+_WORKTREE_RE = re.compile(r"/\.aw/worktrees/[^/]+/")
+
+
+def normalize_read_path(path: str, repo: Path | str | None) -> str:
+    """A file path as a REPO-RELATIVE label, so the same file reads the same across worktrees.
+
+    Runner turns execute inside ``.aw/worktrees/<lane>/``, so one repository file appears under many
+    absolute prefixes; everything up to and including the lane directory is dropped. A path inside
+    ``repo`` is made relative to it. A path outside both keeps only its last two components under an
+    ``(outside)/`` prefix, so no home directory or machine path is carried into the analysis.
+    """
+
+    text = str(path or "").replace("\\", "/")
+    m = _WORKTREE_RE.search(text)
+    if m:
+        return text[m.end() :]
+    if repo is not None:
+        root = str(Path(repo)).replace("\\", "/").rstrip("/") + "/"
+        if text.startswith(root):
+            return text[len(root) :]
+    if not text.startswith("/") and not re.match(r"^[A-Za-z]:/", text):
+        return text
+    if repo is not None:
+        # The same checkout reached through another mount or a symlinked home path: match on the
+        # repository's directory NAME, so `/other/mount/<name>/x.py` reads as `x.py`.
+        marker = "/" + Path(repo).name + "/"
+        at = text.rfind(marker)
+        if at >= 0 and Path(repo).name:
+            return text[at + len(marker) :]
+    tail = [p for p in text.split("/") if p][-2:]
+    return "(outside)/" + "/".join(tail)
+
+
+_RETRY_KEY_RE = re.compile(r"^(?P<id6>[a-z0-9]{6}):attempt-(?P<n>\d+)$")
+_REFUSAL_EVENTS = (
+    "ipd-finalize-refused",
+    "ipd-begin-refused",
+    "clean-base-refused",
+    "ipd-reintegration-refused",
+    "red-ci-refused",
+)
+
+
+def _redo_events(run_dir: Path) -> list[dict[str, Any]]:
+    """The run's redo-relevant events: turn retries and begin/finalize/clean-base refusals."""
+
+    out: list[dict[str, Any]] = []
+    try:
+        handle = open(run_dir / "events.jsonl", "r", encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    with handle:
+        for line in handle:
+            if (
+                '"ipd-turn-retry"' not in line
+                and "-refused" not in line
+                and '"review-orchestrator-correction"' not in line
+            ):
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            name = ev.get("event") if isinstance(ev, Mapping) else None
+            if (
+                name in ("ipd-turn-retry", "review-orchestrator-correction")
+                or name in _REFUSAL_EVENTS
+            ):
+                out.append(ev)
+    return out
+
+
+def _attach_redo_counts(
+    rows: list[dict[str, Any]], events: Sequence[Mapping[str, Any]]
+) -> None:
+    """Count turn retries, refusals and re-asks onto each MAIN row (one per queue attempt).
+
+    A turn retry names its attempt in ``idempotency_key`` (``<id6>:attempt-<n>``). Refusal events
+    carry only ``id6`` and a time, so each goes to the latest attempt of that item that STARTED at or
+    before the event (the attempt it interrupted); one before every attempt goes to the first.
+    Re-asks are the attempt's own ``defect_reasked`` flag (or its separate defect re-ask session),
+    plus each ``review-orchestrator-correction`` event, which re-asks a reviewer to redo its turn.
+    """
+
+    mains: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        r.setdefault("turn_retries", 0)
+        r.setdefault("refusals", 0)
+        r.setdefault("reasks", 0)
+        if r.get("role") == "main":
+            mains.setdefault(str(r.get("id6") or ""), []).append(r)
+    for lst in mains.values():
+        lst.sort(key=lambda r: (r.get("start") or 0, r.get("attempt") or 0))
+    for r in rows:
+        if r.get("role") == "defect-reask":
+            for m in mains.get(str(r.get("id6") or ""), []):
+                if m.get("attempt") == r.get("attempt"):
+                    m["reasks"] += 1
+                    break
+    for ev in events:
+        id6 = str(ev.get("id6") or "")
+        cands = mains.get(id6) or []
+        if not cands:
+            continue
+        if ev.get("event") == "review-orchestrator-correction":
+            # A correction re-asks the reviewer to redo its turn; it names its attempt.
+            n = ev.get("attempt")
+            target = (
+                next((c for c in cands if c.get("attempt") == n), None) or cands[-1]
+            )
+            target["reasks"] += 1
+            continue
+        if ev.get("event") == "ipd-turn-retry":
+            mk = _RETRY_KEY_RE.match(str(ev.get("idempotency_key") or ""))
+            n = int(mk.group("n")) if mk else None
+            target = (
+                next((c for c in cands if c.get("attempt") == n), None) or cands[-1]
+            )
+            target["turn_retries"] += 1
+            continue
+        at = _iso_ts(ev.get("at"))
+        target = cands[0]
+        if at is not None:
+            for c in cands:
+                if c.get("start") is not None and c["start"] <= at:
+                    target = c
+        target["refusals"] += 1
+    for r in rows:
+        r["redo_total"] = int(r["turn_retries"]) + int(r["refusals"]) + int(r["reasks"])
+
+
+def _attach_session_origin(rows: list[dict[str, Any]]) -> None:
+    """Mark each row's host session as new to the run, or already used, and by whom.
+
+    ``new``: the first row in the run using that host session. ``reused``: the session was already
+    used by an EARLIER row for a DIFFERENT queue item (the review sweep's shared session).
+    ``continued``: already used only by an earlier row for the SAME item (a retry or a corrective
+    session continuing its own turn). ``unknown``: the log carried no session id.
+    """
+
+    by_run: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        by_run.setdefault(str(r.get("run") or ""), []).append(r)
+    for lst in by_run.values():
+        lst.sort(
+            key=lambda r: (
+                r.get("start") if r.get("start") is not None else float("inf")
+            )
+        )
+        seen: dict[str, set[str]] = {}
+        for r in lst:
+            sid = r.get("host_session")
+            if not sid:
+                r["session_origin"] = "unknown"
+                continue
+            users = seen.setdefault(str(sid), set())
+            item = str(r.get("id6") or "")
+            if not users:
+                r["session_origin"] = "new"
+            elif users - {item}:
+                r["session_origin"] = "reused"
+            else:
+                r["session_origin"] = "continued"
+            users.add(item)
+
+
 def _row_from_stats(
     base: Mapping[str, Any],
     stats: Mapping[str, Any],
@@ -707,6 +1177,18 @@ def _row_from_stats(
             "token_source": source,
             "tools": dict(stats.get("tools") or {}),
             "tool_err": dict(stats.get("tool_err") or {}),
+            # Schema 7: steps-and-context, tool output volume, command families, files read.
+            "context_first": stats.get("context_first"),
+            "context_last": stats.get("context_last"),
+            "context_max": stats.get("context_max"),
+            "step_bucket": step_bucket(stats.get("steps", 0))
+            if stats.get("steps")
+            else "0",
+            "tool_output_bytes": int(stats.get("tool_output_bytes") or 0),
+            "tool_bytes": dict(stats.get("tool_bytes") or {}),
+            "families": dict(stats.get("families") or {}),
+            "read_counts": dict(stats.get("read_counts") or {}),
+            "host_session": stats.get("host_session"),
         }
     )
     for c in CATEGORY_ORDER:
@@ -768,6 +1250,8 @@ def collect_rows(
 
         run_id = str(state.get("run_id") or run_dir.name)
         run_start = _iso_ts(state.get("created_at"))
+        run_ctx = _run_context(run_dir, state)
+        first_row = len(rows)
         queue = state.get("queue") if isinstance(state.get("queue"), list) else []
         by_item_attempt: dict[tuple[str, int], dict[str, Any]] = {}
         by_item_attempt_att: dict[tuple[str, int], Mapping[str, Any]] = {}
@@ -806,6 +1290,8 @@ def collect_rows(
                     "model_source": main_model_source,
                     "exit_code": att.get("exit_code"),
                     "run_start": run_start,
+                    "defect_reasked": bool(att.get("defect_reasked")),
+                    **run_ctx,
                 }
                 by_item_attempt[(id6, number)] = base
                 by_item_attempt_att[(id6, number)] = att
@@ -887,6 +1373,8 @@ def collect_rows(
                     "model_source": synth_source,
                     "exit_code": None,
                     "run_start": run_start,
+                    "defect_reasked": False,
+                    **run_ctx,
                 }
             else:
                 base = dict(base)
@@ -904,6 +1392,25 @@ def collect_rows(
             )
             row["has_log"] = True
             rows.append(row)
+        run_rows = rows[first_row:]
+        for r in run_rows:
+            if r.get("read_counts"):
+                norm: dict[str, int] = {}
+                for k, v in r["read_counts"].items():
+                    nk = normalize_read_path(k, repo)
+                    norm[nk] = norm.get(nk, 0) + int(v)
+                r["read_counts"] = norm
+            r["phase"] = phase_of(
+                str(r.get("action") or ""),
+                str(r.get("role") or ""),
+                bool(r.get("recovery")),
+            )
+        _attach_redo_counts(run_rows, _redo_events(run_dir))
+        for r in run_rows:
+            if r.get("role") == "main" and r.get("defect_reasked") and not r["reasks"]:
+                r["reasks"] = 1
+                r["redo_total"] += 1
+        _attach_session_origin(run_rows)
     cache.save(live)
     for r in rows:
         ts = r.get("start") or r.get("run_start")
@@ -946,6 +1453,22 @@ COLUMNS: tuple[str, ...] = (
         "model",
         "model_source",
         "agent",
+        "phase",
+        "label",
+        "review_variant",
+        "code_commit",
+        "repo_commit",
+        "repo_dirty",
+        "session_origin",
+        "step_bucket",
+        "context_first",
+        "context_last",
+        "context_max",
+        "tool_output_bytes",
+        "turn_retries",
+        "refusals",
+        "reasks",
+        "redo_total",
         "date",
         "start",
         "wall",
@@ -988,6 +1511,10 @@ def build_payload(
     tool_names: list[str] = []
     tool_index: dict[str, int] = {}
     tools_sparse: list[list[int]] = []
+    # Per-row name->count maps shipped as [name_index, value, ...] against one name table each.
+    sparse_maps: dict[str, tuple[list[str], dict[str, int], list[list[Any]]]] = {
+        k: ([], {}, []) for k in ("tool_bytes", "families", "read_counts")
+    }
     for r in rows:
         for c in COLUMNS:
             v = r.get(c)
@@ -1006,6 +1533,15 @@ def build_payload(
                 tool_names.append(name)
             sparse.extend((tool_index[name], int(n), int(errs.get(name, 0))))
         tools_sparse.append(sparse)
+        for key, store in sparse_maps.items():
+            names, index, out = store
+            row_sparse: list[Any] = []
+            for name, n in sorted((r.get(key) or {}).items()):
+                if name not in index:
+                    index[name] = len(names)
+                    names.append(name)
+                row_sparse.extend((index[name], int(n)))
+            out.append(row_sparse)
     return {
         "schema": DASHBOARD_SCHEMA_VERSION,
         "generated_label": generated_label,
@@ -1016,7 +1552,114 @@ def build_payload(
         "tool_names": tool_names,
         "tool_categories": {n: tool_category(n) for n in tool_names},
         "tools": tools_sparse,
+        "maps": {
+            k: {"names": names, "rows": out}
+            for k, (names, _i, out) in sparse_maps.items()
+        },
     }
+
+
+#: The per-session columns persisted to the bundle's ``attempts.jsonl`` for ``aw runs query``.
+ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
+    "run",
+    "set",
+    "id6",
+    "kind",
+    "action",
+    "role",
+    "phase",
+    "attempt",
+    "attempts_total",
+    "recovery",
+    "disposition",
+    "outcome",
+    "verification",
+    "item_status",
+    "host",
+    "model",
+    "model_source",
+    "agent",
+    "label",
+    "review_variant",
+    "code_commit",
+    "aw_version",
+    "repo_commit",
+    "repo_dirty",
+    "host_session",
+    "session_origin",
+    "step_bucket",
+    "date",
+    "start",
+    "wall",
+    "cost",
+    "cost_input",
+    "cost_output",
+    "cost_cache_read",
+    "cost_split",
+    "input",
+    "output",
+    "reasoning",
+    "cache_read",
+    "cache_write",
+    "fresh_tokens",
+    "total_tokens",
+    "steps",
+    "context_first",
+    "context_last",
+    "context_max",
+    "tool_calls",
+    "tool_errors",
+    "tool_output_bytes",
+    "files_read",
+    "files_edited",
+    "turn_retries",
+    "refusals",
+    "reasks",
+    "redo_total",
+    "token_source",
+    "has_log",
+)
+ATTEMPT_FACT_MAPS: tuple[str, ...] = ("tools", "tool_bytes", "families", "read_counts")
+ATTEMPT_FACTS_FILENAME = "attempts.jsonl"
+ATTEMPT_FACTS_SCHEMA_VERSION = 1
+
+
+def attempt_facts_jsonl(
+    rows: Sequence[Mapping[str, Any]], info: Mapping[str, Any]
+) -> str:
+    """The session/attempt-grain facts as JSONL: one header line, then one line per session row.
+
+    The header carries the schema version and the sweep's ``info`` (run count and any date window)
+    so a reader can say what population it is answering about.
+    """
+
+    lines = [
+        json.dumps(
+            {
+                "record": "header",
+                "schema": ATTEMPT_FACTS_SCHEMA_VERSION,
+                "info": dict(info),
+            },
+            sort_keys=True,
+        )
+    ]
+    for r in rows:
+        out: dict[str, Any] = {"record": "row"}
+        for k in ATTEMPT_FACT_FIELDS:
+            v = r.get(k)
+            if isinstance(v, float):
+                v = (
+                    round(v, 6)
+                    if k.startswith("cost")
+                    else (int(v) if v.is_integer() else round(v, 3))
+                )
+            out[k] = v
+        for k in ATTEMPT_FACT_MAPS:
+            out[k] = {name: int(n) for name, n in sorted((r.get(k) or {}).items())}
+        if r.get("model_source") in (None, ""):
+            out["model_source"] = "none"
+        lines.append(json.dumps(out, sort_keys=True, separators=(",", ":")))
+    return "\n".join(lines) + "\n"
 
 
 def _asset(name: str) -> str:

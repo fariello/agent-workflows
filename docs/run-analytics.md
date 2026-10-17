@@ -110,6 +110,64 @@ to the recorded total. Sessions with no recorded cost (all Antigravity sessions 
 rather than an invented one. Cache writes and reasoning tokens have no known price, so they are counted
 but never priced. Each session row also carries these values in the CSV download.
 
+## Review cost: per-attempt analysis
+
+Every `aw runs analyze` also publishes `attempts.jsonl` beside the dashboard: one row per agent
+session, built from the session logs. Three `aw runs query` views read it, and the dashboard's
+**Review cost** tab shows the same figures. Run `aw runs analyze` first; until it has run, these
+views say so and exit 2.
+
+By default the views count only each queue attempt's MAIN session. Add `--filter phase=verifier`,
+`--filter phase=recovery` or `--filter role=<role>` to see the others.
+
+| Question | Command |
+| --- | --- |
+| How a phase's tokens split, with token and cost shares | `aw runs query attempts --filter role=main --group-by phase --stat sum` |
+| Composition, steps and context for reviews | `aw runs query attempts --filter action=review --metric input,cache_read,cache_write,output,reasoning,steps,context_first,context_last,context_max` |
+| Cost against step count | `aw runs query attempts --filter action=review --group-by step_bucket --metric cost,steps` |
+| New versus reused host session | `aw runs query attempts --filter action=review --group-by session_origin --metric context_first,cost,steps` |
+| Tool calls, output bytes, shell commands, files read | `aw runs query tools --filter action=review` |
+| By toolkit commit or run label | `aw runs query attempts --group-by code_commit` (or `label`, `review_variant`, `repo_commit`) |
+| Model, and where the model id came from | `aw runs query attempts --group-by phase,model_source --metric steps --stat count` |
+| Redo counts per model | `aw runs query attempts --group-by model --metric redo_total,turn_retries,refusals,reasks --stat sum` |
+| Experiment comparison | `aw runs query experiment --filter label=<label>` |
+
+What the fields mean:
+
+- **Context** at a step is new input plus cache reads plus cache writes for that step.
+  `context_first`, `context_last` and `context_max` are taken over an attempt's model steps.
+- **step_bucket** groups attempts by model steps in buckets of 25 (`000-024`, `025-049`, ... `200+`).
+- **session_origin** is `new` when the attempt's host session was first used in the run, `reused`
+  when an earlier queue item already used it, `continued` when only the same item used it before
+  (a retry), and `unknown` when the log carried no session id.
+- **phase** is `review`, `execute` or `plan` for a main turn, `verifier` for any verifier session,
+  and `recovery` for recovery attempts and corrective sessions (gate answers, defect re-asks,
+  merge-conflict and red-CI repairs, review-orchestrator corrections).
+- **Redos** count turn retries, refusals (begin, finalize, clean base, reintegration, red CI) and
+  re-asks (defect re-asks and review-orchestrator corrections), each attached to the attempt it
+  interrupted.
+- **Command families** are the program of each shell command, plus its subcommand for multi-verb
+  tools (`git log`, `aw ipd lint`). Heredoc bodies and quoted text are ignored, and no arguments
+  are kept.
+- **Files read** are counted per path, made relative to the repository so the same file reads the
+  same in every worktree. A path outside the repository keeps only its last two parts.
+- **Experiment** gives one row per plan, review variant and model. Each row covers every attempt
+  of that plan, and the verifier sessions that checked them. Where no cost was recorded it reports
+  tokens. The outcome is the final disposition (`reviewed`, `approved`, `fail-gate`); the plan's
+  Readiness value is not recorded by the runners.
+
+A group smaller than the shared minimum sample (12) keeps its counts and totals, but its medians and
+percentiles are withheld and the row says so.
+
+### Labeling runs for an experiment
+
+`aw oc run` and `aw agy run` accept `--label TEXT` and `--review-variant NAME` on `start`. Both are
+recorded in `state.json` under `options` and change nothing about how the run behaves. Every run
+started from this version also records a `git` block: the repository's full HEAD commit at run start,
+whether the working tree was dirty, and the toolkit version. Older runs have none of these. For an
+older run, the toolkit commit is read from its telemetry where available, and the repository commit
+from its first attempt.
+
 ## The agent surface
 
 `aw runs query` exists so an agent never has to parse the report HTML. Add `--agent` for
