@@ -198,11 +198,12 @@ include = [
 # Bare `python3 -m pytest` runs the core behavioral regression tier in under 30s
 # (the runner merge gate; an explicit path runs everything non-slow it names).
 # Thorough tier: `make test-all` or `aw suite --thorough` (pre-push, CI, release).
-# Wall-time budget: 30s (leaves ~10s margin for broadening; enforced on >=12 CPUs / 6 workers; escape with AW_CORE_BUDGET_ENFORCE=0).
+# Wall-time budget: 30s (leaves ~10s margin for broadening; enforced on >=12 CPUs / 6 workers; not enforced when the 1-minute load average exceeds the CPU count; escape with AW_CORE_BUDGET_ENFORCE=0).
 testpaths = ["tests"]
 markers = [
     # Core tier: fast behavioral regression test run by bare pytest in under 30s
     # (wall-time budget: 30s, leaving ~10s margin for broadening; enforced on >=12 CPUs / 6 workers;
+    # not enforced when the 1-minute load average exceeds the CPU count;
     # escape with AW_CORE_BUDGET_ENFORCE=0). Author-assigned; see CONTRIBUTING.
     "core: fast behavioral regression test run by a bare `pytest`; author-assigned; see CONTRIBUTING",
     "slow: heavy subprocess/integration tests (spawn the CLI, install into temp repos). Deselected by default for a fast per-run suite; run them with `make test-all` / `-m ''`.",

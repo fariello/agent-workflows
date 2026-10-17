@@ -688,3 +688,124 @@ def test_suite_thorough_explain_differs_and_narrowed_selection_refused(
     res_refuse = _run_aw_suite(repo, "--thorough", "-k", "some_test")
     assert res_refuse.returncode == 2
     assert suite_cache.SUITE_REFUSAL_MESSAGE in res_refuse.stderr
+
+
+def test_is_budget_only_failure_banner_exit_1_no_failures() -> None:
+    assert suite_cache.is_budget_only_failure(
+        exit_code=1,
+        stdout="================================ CORE TIER BUDGET EXCEEDED ================================\n",
+        stderr="",
+        failures=(),
+    )
+
+
+def test_is_budget_only_failure_with_failing_test_line() -> None:
+    assert not suite_cache.is_budget_only_failure(
+        exit_code=1,
+        stdout="================================ CORE TIER BUDGET EXCEEDED ================================\n",
+        stderr="FAILED tests/x.py::t - AssertionError",
+        failures=("FAILED tests/x.py::t",),
+    )
+
+
+def test_is_budget_only_failure_exit_0() -> None:
+    assert not suite_cache.is_budget_only_failure(
+        exit_code=0,
+        stdout="================================ CORE TIER BUDGET EXCEEDED ================================\n",
+        stderr="",
+        failures=(),
+    )
+
+
+def test_is_budget_only_failure_with_not_enforced_marker() -> None:
+    banner_with_marker = (
+        "================================ CORE TIER BUDGET EXCEEDED ================================\n"
+        "Core tier budget not enforced: AW_CORE_BUDGET_ENFORCE=0\n"
+    )
+    assert not suite_cache.is_budget_only_failure(
+        exit_code=1,
+        stdout=banner_with_marker,
+        stderr="",
+        failures=(),
+    )
+
+
+def test_is_budget_only_failure_exit_2_with_banner() -> None:
+    assert not suite_cache.is_budget_only_failure(
+        exit_code=2,
+        stdout="================================ CORE TIER BUDGET EXCEEDED ================================\n",
+        stderr="",
+        failures=(),
+    )
+
+
+def _make_budget_temp_project(tmp_path: Path, *, failing: bool = False) -> Path:
+    from tests.test_core_tier_selection import CONFTEST_HOOKS
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[tool.pytest.ini_options]\n"
+        'testpaths = ["tests"]\n'
+        'markers = ["core: core tests"]\n',
+        encoding="utf-8",
+    )
+    conftest = tmp_path / "conftest.py"
+    conftest.write_text(CONFTEST_HOOKS, encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    test_file = tests_dir / "test_demo.py"
+    body = (
+        "import pytest\n"
+        "import time\n"
+        "@pytest.mark.core\n"
+        "def test_core_one():\n"
+        "    time.sleep(0.05)\n"
+        "    assert False\n"
+        if failing
+        else (
+            "import pytest\n"
+            "import time\n"
+            "@pytest.mark.core\n"
+            "def test_core_one():\n"
+            "    time.sleep(0.05)\n"
+        )
+    )
+    test_file.write_text(body, encoding="utf-8")
+    return tmp_path
+
+
+def test_run_full_suite_budget_only_failure_names_budget_in_reason(
+    tmp_path: Path,
+) -> None:
+    from tests.test_core_tier_selection import _gate_env
+
+    project = _make_budget_temp_project(tmp_path / "proj_budget")
+    env = _gate_env(AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1")
+    res = suite_cache.run_full_suite(
+        project,
+        argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+        use_cache=False,
+        env=env,
+    )
+    assert not res.passed
+    assert res.exit_code == 1
+    assert res.failures == ()
+    assert "wall-time budget" in res.reason
+
+
+def test_run_full_suite_budget_control_with_failing_test(tmp_path: Path) -> None:
+    from tests.test_core_tier_selection import _gate_env
+
+    project = _make_budget_temp_project(tmp_path / "proj_control", failing=True)
+    env = _gate_env(AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1")
+    res = suite_cache.run_full_suite(
+        project,
+        argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+        use_cache=False,
+        env=env,
+    )
+    assert not res.passed
+    assert res.exit_code != 0
+    assert len(res.failures) > 0
+    assert "wall-time budget" not in res.reason

@@ -202,15 +202,54 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             f"  {idx + 1:2d}. {dur:6.2f}s  {nodeid}"
             for idx, (dur, nodeid) in enumerate(slowest)
         )
+        cpu_count = int(os.environ.get("AW_TEST_CPU_COUNT", str(os.cpu_count() or 1)))
+        enforce = os.environ.get("AW_CORE_BUDGET_ENFORCE") != "0"
+
+        load_avg: float | None = None
+        env_load = os.environ.get("AW_TEST_LOADAVG")
+        if env_load is not None:
+            try:
+                load_avg = float(env_load)
+            except ValueError:
+                load_avg = None
+        else:
+            try:
+                load_avg = os.getloadavg()[0]
+            except (OSError, AttributeError):
+                load_avg = None
+
+        if load_avg is not None:
+            load_line = (
+                f"Host 1-minute load average: {load_avg:.2f} on {cpu_count} CPUs"
+            )
+        else:
+            load_line = f"Host 1-minute load average: unknown on {cpu_count} CPUs"
+
+        not_enforced_reason: str | None = None
+        if not enforce:
+            not_enforced_reason = "AW_CORE_BUDGET_ENFORCE=0"
+        elif cpu_count < 12:
+            not_enforced_reason = "fewer than 12 CPUs"
+        elif load_avg is not None and load_avg > cpu_count:
+            not_enforced_reason = (
+                "host oversubscribed (1-minute load average above the CPU count)"
+            )
+
+        not_enforced_line = (
+            f"Core tier budget not enforced: {not_enforced_reason}\n"
+            if not_enforced_reason
+            else ""
+        )
+
         msg = (
             f"\n================================ CORE TIER BUDGET EXCEEDED ================================\n"
             f"Core tier wall time: {elapsed:.2f}s exceeded budget of {budget:.2f}s.\n"
+            f"{load_line}\n"
+            f"{not_enforced_line}"
             f"Top 10 slowest core tests:\n{slowest_lines}\n"
             f"===========================================================================================\n"
         )
-        cpu_count = int(os.environ.get("AW_TEST_CPU_COUNT", str(os.cpu_count() or 1)))
-        enforce = os.environ.get("AW_CORE_BUDGET_ENFORCE") != "0"
-        if cpu_count >= 12 and enforce:
+        if not_enforced_reason is None:
             sys.stderr.write(msg)
             session.exitstatus = 1
         else:

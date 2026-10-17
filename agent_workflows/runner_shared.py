@@ -30394,6 +30394,19 @@ def revalidation_was_unmeasured(item: Mapping[str, Any]) -> bool:
     return record.get("measured") is False
 
 
+def combined_red_failure_lines(revalidation: Mapping[str, Any]) -> str:
+    """Format failing test lines for a combined-red send-back prompt."""
+    base_comp = revalidation.get("baseline_comparison") or {}
+    new_ids = base_comp.get("new_ids")
+    failures = new_ids if new_ids else (revalidation.get("failures") or [])
+    if failures:
+        return "\n".join(f"- {f}" for f in failures)
+    reason = str(revalidation.get("reason") or "").strip()
+    if not reason:
+        reason = "(no reason recorded)"
+    return f"no failing test id was recorded; the recorded revalidation reason was: {reason}"
+
+
 SPEC_REVIEW_REFUSAL_CODE: str = "spec-review-refused"
 
 
@@ -43653,16 +43666,7 @@ def execute_item_core(
                             )
 
                             pre_rev = item.get(REVALIDATION_CACHE_KEY) or {}
-                            base_comp = pre_rev.get("baseline_comparison") or {}
-                            new_ids = base_comp.get("new_ids")
-                            failures = (
-                                new_ids if new_ids else (pre_rev.get("failures") or [])
-                            )
-                            fail_lines = (
-                                "\n".join(f"- {f}" for f in failures)
-                                if failures
-                                else "no test ids recorded"
-                            )
+                            fail_lines = combined_red_failure_lines(pre_rev)
                             merged_files = (
                                 pre_rev.get("merged_files")
                                 or pre_rev.get("files")

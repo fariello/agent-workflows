@@ -142,6 +142,32 @@ def extract_failing_node_ids(failures: Sequence[str]) -> Tuple[str, ...]:
     return tuple(seen)
 
 
+CORE_BUDGET_BANNER: str = "CORE TIER BUDGET EXCEEDED"
+CORE_BUDGET_NOT_ENFORCED_MARKER: str = "Core tier budget not enforced:"
+
+
+def is_budget_only_failure(
+    exit_code: int,
+    stdout: str,
+    stderr: str,
+    failures: Sequence[str],
+) -> bool:
+    """Return True if exit_code is 1, failures is empty, banner is present, and not-enforced marker is absent."""
+    if exit_code != 1:
+        return False
+    if failures:
+        return False
+    out = stdout or ""
+    err = stderr or ""
+    banner_present = (CORE_BUDGET_BANNER in out) or (CORE_BUDGET_BANNER in err)
+    if not banner_present:
+        return False
+    marker_present = (CORE_BUDGET_NOT_ENFORCED_MARKER in out) or (
+        CORE_BUDGET_NOT_ENFORCED_MARKER in err
+    )
+    return not marker_present
+
+
 class SuiteKey:
     """Result of `suite_key(checkout, argv)`.
 
@@ -1581,6 +1607,11 @@ def run_full_suite(
             reason = (
                 f"suite could not be executed in {checkout_path} (exit 127); "
                 "treated as a failure (fail-closed)"
+            )
+        elif is_budget_only_failure(exit_code, stdout, stderr, failures):
+            reason = (
+                f"suite FAILED with exit {exit_code} in {checkout_path} "
+                f"ONLY on the core-tier wall-time budget (no test failed; {summary or 'no summary line parsed'})"
             )
         else:
             reason = (

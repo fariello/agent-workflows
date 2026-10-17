@@ -144,7 +144,7 @@ layout migration, pypi_links) or the workflow tools (`scan_secrets.py`, `run_che
 make test
 ```
 
-`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. Running an explicit path (e.g. `python3 -m pytest tests/test_foo.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
+`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. The budget is not enforced when the 1-minute load average exceeds the CPU count, and the budget banner prints the measured load. Running an explicit path (e.g. `python3 -m pytest tests/test_foo.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
 
 
 If you need the guaranteed no-dependency serial runner (for a minimal environment, or to
