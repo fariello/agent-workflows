@@ -1,11 +1,13 @@
 - Id: fdyjv6
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for migration_compact
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053744Z-500206: syzi9i
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for migration_compact
 
 Carries 24 candidate production keys for agent_workflows/migration_compact.py (210 exclusive lines): evaluate_promotion_gate, build_metric_summary, TypedContract.validate, build_compact_package, generate_compact_projection, ... (24 keys).
