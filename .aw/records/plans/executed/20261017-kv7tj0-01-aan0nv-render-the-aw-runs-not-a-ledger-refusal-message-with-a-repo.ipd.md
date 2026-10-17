@@ -6,7 +6,7 @@
 - Scope: Change only the CLI-layer rendering in `run_cli._emit_not_a_ledger` so the message is composed from the repo-relative path plus `exc.detail`, in both human and machine modes; leave `NotALedgerError` (store layer, which has no repo root) unchanged. Add behavioral regression tests driving the real CLI.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_runs_machine_output_paths.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: aan0nv
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: aan0nv verified (set kv7tj0, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-kv7tj0-01-aan0nv-render-the-aw-runs-not-a-ledger-refusal-message-with-a-repo.review.md`)
 
@@ -35,21 +35,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: CLI-layer message rendering
 
-- [ ] E-01 In `agent_workflows/run_cli.py` `_emit_not_a_ledger`, compute the repo-relative path ONCE as `rel = agent_schema.normalize_repo_path(exc.path, resolve_verb_repo_root(getattr(args, "dir", None)))`, build the message as `f"error: not a run ledger: {rel} is not a run ledger file"` followed by `f": {exc.detail}"` only when `exc.detail` is non-empty (mirroring the shape `NotALedgerError.__init__` produces, so only the path spelling changes), and use that same `rel` for the existing machine `path` key. Do NOT use `str(exc)` anywhere in this function. Do NOT change `run_ledger_store.NotALedgerError`, its `detail` text, the exit code `EXIT_NOT_A_LEDGER`, the `corrupted: False` / `not_a_ledger: True` keys, or any of the four call sites (`_run_show`, `_run_evidence`, `_run_verify_ledger`, and `_build_engine`, which serves the `aw run` lifecycle verbs such as `_run_start` and `_run_finalize`), which all already funnel through this one emitter. Update the docstring to state that the message is rendered from the repo-relative path because the store-level message carries the absolute path (backlog `kv7tj0`). This item runs AFTER E-02 and E-03 on purpose: those tests are authored and run red against the unmodified `run_cli.py` first, so V-02 and V-03 can paste the failing run.
+- [x] E-01 In `agent_workflows/run_cli.py` `_emit_not_a_ledger`, compute the repo-relative path ONCE as `rel = agent_schema.normalize_repo_path(exc.path, resolve_verb_repo_root(getattr(args, "dir", None)))`, build the message as `f"error: not a run ledger: {rel} is not a run ledger file"` followed by `f": {exc.detail}"` only when `exc.detail` is non-empty (mirroring the shape `NotALedgerError.__init__` produces, so only the path spelling changes), and use that same `rel` for the existing machine `path` key. Do NOT use `str(exc)` anywhere in this function. Do NOT change `run_ledger_store.NotALedgerError`, its `detail` text, the exit code `EXIT_NOT_A_LEDGER`, the `corrupted: False` / `not_a_ledger: True` keys, or any of the four call sites (`_run_show`, `_run_evidence`, `_run_verify_ledger`, and `_build_engine`, which serves the `aw run` lifecycle verbs such as `_run_start` and `_run_finalize`), which all already funnel through this one emitter. Update the docstring to state that the message is rendered from the repo-relative path because the store-level message carries the absolute path (backlog `kv7tj0`). This item runs AFTER E-02 and E-03 on purpose: those tests are authored and run red against the unmodified `run_cli.py` first, so V-02 and V-03 can paste the failing run.
   - Depends on: E-02, E-03
   - Expected outcome: `_emit_not_a_ledger` no longer interpolates `exc`; the machine `error` value and the human stdout line are the same text (measured at review: `_print_human` prints the lowercase `error:` prefix verbatim), reading `error: not a run ledger: .aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields ...`, and the `path` key is unchanged in value.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral regression tests
 
-- [ ] E-02 In `tests/test_runs_machine_output_paths.py`, extend the not-a-ledger section (h): parametrize the existing `test_not_a_ledger_machine_path_is_relative` over `--json` and `--agent` (parsing with the file's `_parse_machine(res.stdout, mode)`, which also enforces the one-line `--agent` shape), keep its existing `path` assertions, and add assertions, via the real CLI subprocess against the `tmp_path` repo, that `str(repo.resolve())` does NOT appear in `data["error"]`, that `data["error"]` starts with `error: not a run ledger: ` and contains `data["path"]` verbatim, that the word `corrupt` does not appear in `data["error"]`, and that the exit code is 7. Factor the foreign-file seeding into a small local helper so this test and E-03's share it. Run it against the unmodified `run_cli.py` before E-01 and keep the failing output for V-02.
+- [x] E-02 In `tests/test_runs_machine_output_paths.py`, extend the not-a-ledger section (h): parametrize the existing `test_not_a_ledger_machine_path_is_relative` over `--json` and `--agent` (parsing with the file's `_parse_machine(res.stdout, mode)`, which also enforces the one-line `--agent` shape), keep its existing `path` assertions, and add assertions, via the real CLI subprocess against the `tmp_path` repo, that `str(repo.resolve())` does NOT appear in `data["error"]`, that `data["error"]` starts with `error: not a run ledger: ` and contains `data["path"]` verbatim, that the word `corrupt` does not appear in `data["error"]`, and that the exit code is 7. Factor the foreign-file seeding into a small local helper so this test and E-03's share it. Run it against the unmodified `run_cli.py` before E-01 and keep the failing output for V-02.
   - Depends on: none
   - Expected outcome: machine-mode regression tests that fail on the pre-change code (absolute path in `error`, measured at review in both modes) and pass after E-01.
-  - Execution state: pending
-- [ ] E-03 In the same file, add `test_not_a_ledger_human_line_is_relative`: run `aw runs show <foreign events.jsonl> --dir <repo>` with no machine flag and assert exit 7, that stdout contains `not a run ledger`, that `str(repo.resolve())` is NOT in stdout, that stdout contains the repo-relative `.aw/records/runs/run-feedfeed00/events.jsonl`, and that `corrupt` is not in stdout. Run it against the unmodified `run_cli.py` before E-01 and keep the failing output for V-03.
+  - Execution state: performed
+- [x] E-03 In the same file, add `test_not_a_ledger_human_line_is_relative`: run `aw runs show <foreign events.jsonl> --dir <repo>` with no machine flag and assert exit 7, that stdout contains `not a run ledger`, that `str(repo.resolve())` is NOT in stdout, that stdout contains the repo-relative `.aw/records/runs/run-feedfeed00/events.jsonl`, and that `corrupt` is not in stdout. Run it against the unmodified `run_cli.py` before E-01 and keep the failing output for V-03.
   - Depends on: none
   - Expected outcome: a human-mode regression test that fails before E-01 and passes after it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -113,18 +113,127 @@ N/A: no spec documents the wording of the not-a-ledger message; the exit code, k
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff agent_workflows/run_cli.py` showing `_emit_not_a_ledger` composing the message from `normalize_repo_path(...)` and `exc.detail` with no `{exc}` interpolation, and pasted stdout of `python3 -m agent_workflows runs show <tmp repo>/.aw/records/runs/run-feedfeed00/events.jsonl --dir <tmp repo> --json` (code path: `run_cli` show reader -> `RunLedgerStore.read_records` -> `NotALedgerError` -> `_emit_not_a_ledger`, created by E-01) whose `error` value contains the repo-relative path and no absolute prefix, with exit code 7.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    `git diff agent_workflows/run_cli.py`:
+    ```diff
+    diff --git a/agent_workflows/run_cli.py b/agent_workflows/run_cli.py
+    index c961d88ff..b90f57369 100644
+    --- a/agent_workflows/run_cli.py
+    +++ b/agent_workflows/run_cli.py
+    @@ -345,8 +345,15 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
+         Kept separate from every corruption path on purpose: the message must not contain the word
+         corrupt, and machine consumers get `corrupted: false` plus an explicit `not_a_ledger: true` so a
+         healthy foreign file is never mistaken for a damaged ledger (`e6b9kt`).
+    +
+    +    The message is rendered from the repo-relative path because the store-level message carries
+    +    the absolute path (backlog `kv7tj0`).
+    +    """
+    +    rel = agent_schema.normalize_repo_path(
+    +        exc.path, resolve_verb_repo_root(getattr(args, "dir", None))
+    +    )
+    +    detail_suffix = f": {exc.detail}" if exc.detail else ""
+    +    err_msg = f"error: not a run ledger: {rel} is not a run ledger file{detail_suffix}"
+         if _machine(args):
+             _emit_machine(
+                 args,
+    @@ -354,9 +361,7 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
+                     "error": err_msg,
+                     "corrupted": False,
+                     "not_a_ledger": True,
+    -                "path": agent_schema.normalize_repo_path(
+    -                    exc.path, resolve_verb_repo_root(getattr(args, "dir", None))
+    -                ),
+    +                "path": rel,
+                     "exit_code": EXIT_NOT_A_LEDGER,
+                 },
+             )
+    ```
+
+    `python3 -m agent_workflows runs show <tmp repo>/.aw/records/runs/run-feedfeed00/events.jsonl --dir <tmp repo> --json` (exit code 7):
+    ```
+    exit_code: 7
+    stdout:
+    {
+      "corrupted": false,
+      "error": "error: not a run ledger: .aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact",
+      "exit_code": 7,
+      "not_a_ledger": true,
+      "ok": false,
+      "path": ".aw/records/runs/run-feedfeed00/events.jsonl"
+    }
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output of the E-02 machine-mode tests FAILING on the unmodified `run_cli.py` (absolute path found in `error`) and the same tests PASSING after E-01, with the `N passed` summary line for `tests/test_runs_machine_output_paths.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Failing output on unmodified `run_cli.py`:
+    ```
+    ______________ test_not_a_ledger_machine_path_is_relative[--json] ______________
+    ...
+    >       assert str(repo.resolve()) not in data["error"]
+    E       AssertionError: assert '/tmp/pytest...achine_path0' not in 'error: not ...looks intact'
+    E
+    E         '/tmp/pytest-of-gfa...edger_machine_path0' is contained here:
+    E           error: not a run ledger: /tmp/pytest-of-<user>/pytest-19414/popen-gw4/test_not_a_ledger_machine_path0/.aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact
+
+    _____________ test_not_a_ledger_machine_path_is_relative[--agent] ______________
+    ...
+    >       assert str(repo.resolve()) not in data["error"]
+    E       AssertionError: assert '/tmp/pytest...achine_path0' not in 'error: not ...looks intact'
+    E
+    E         '/tmp/pytest-of-gfa...edger_machine_path0' is contained here:
+    E           error: not a run ledger: /tmp/pytest-of-<user>/pytest-19414/popen-gw5/test_not_a_ledger_machine_path0/.aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact
+    ```
+
+    Passing output after E-01:
+    ```
+    tests/test_runs_machine_output_paths.py::test_not_a_ledger_machine_path_is_relative[--json] PASSED
+    tests/test_runs_machine_output_paths.py::test_not_a_ledger_machine_path_is_relative[--agent] PASSED
+    ```
+
+    Summary line for `tests/test_runs_machine_output_paths.py`:
+    ```
+    18 passed in 16.81s
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output of `test_not_a_ledger_human_line_is_relative` failing before E-01 and passing after, plus pasted passing output (`N passed`) of `python3 -m pytest tests/test_run_recovery_cli.py -o addopts="" -q` and of the routine gate `python3 -m pytest` (with `echo "exit=$?"`), and the pasted `aw sanitize --agent` result record showing no finding located in `agent_workflows/run_cli.py` or `tests/test_runs_machine_output_paths.py`.
   - Observed evidence:
-  - Result: pending
+    Failing output on unmodified `run_cli.py`:
+    ```
+    ___________________ test_not_a_ledger_human_line_is_relative ___________________
+    ...
+    >       assert str(repo.resolve()) not in res.stdout
+    E       AssertionError: assert '/tmp/pytest...uman_line_i0' not in 'error: not ...oks intact\n'
+    E
+    E         '/tmp/pytest-of-gfa...edger_human_line_i0' is contained here:
+    E           error: not a run ledger: /tmp/pytest-of-<user>/pytest-19414/popen-gw3/test_not_a_ledger_human_line_i0/.aw/records/runs/run-feedfeed00/events.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact
+    ```
+
+    Passing output after E-01:
+    ```
+    tests/test_runs_machine_output_paths.py::test_not_a_ledger_human_line_is_relative PASSED
+    ```
+
+    Passing output of `python3 -m pytest tests/test_run_recovery_cli.py -o addopts="" -q`:
+    ```
+    ......................................................                   [100%]
+    54 passed in 12.14s
+    ```
+
+    Passing output of routine gate `python3 -m pytest; echo "exit=$?"`:
+    ```
+    862 passed in 118.84s (0:01:58)
+    exit=0
+    ```
+
+    `aw sanitize --agent` result record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5866,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

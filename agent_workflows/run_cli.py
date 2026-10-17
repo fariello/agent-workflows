@@ -345,8 +345,15 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
     Kept separate from every corruption path on purpose: the message must not contain the word
     corrupt, and machine consumers get `corrupted: false` plus an explicit `not_a_ledger: true` so a
     healthy foreign file is never mistaken for a damaged ledger (`e6b9kt`).
+
+    The message is rendered from the repo-relative path because the store-level message carries
+    the absolute path (backlog `kv7tj0`).
     """
-    err_msg = f"error: not a run ledger: {exc}"
+    rel = agent_schema.normalize_repo_path(
+        exc.path, resolve_verb_repo_root(getattr(args, "dir", None))
+    )
+    detail_suffix = f": {exc.detail}" if exc.detail else ""
+    err_msg = f"error: not a run ledger: {rel} is not a run ledger file{detail_suffix}"
     if _machine(args):
         _emit_machine(
             args,
@@ -355,9 +362,7 @@ def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -
                 "error": err_msg,
                 "corrupted": False,
                 "not_a_ledger": True,
-                "path": agent_schema.normalize_repo_path(
-                    exc.path, resolve_verb_repo_root(getattr(args, "dir", None))
-                ),
+                "path": rel,
                 "exit_code": EXIT_NOT_A_LEDGER,
             },
         )

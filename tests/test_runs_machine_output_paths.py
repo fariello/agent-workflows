@@ -179,17 +179,37 @@ def test_show_human_has_relative_ledger_line(repo: Path) -> None:
 # ---- (h) not-a-ledger refusal machine path ------------------------------------------------------
 
 
-def test_not_a_ledger_machine_path_is_relative(repo: Path) -> None:
+def _seed_foreign_event_log(repo: Path) -> Path:
     foreign = repo / ".aw" / "records" / "runs" / "run-feedfeed00" / "events.jsonl"
     foreign.parent.mkdir(parents=True, exist_ok=True)
     foreign.write_text(
         json.dumps({"at": "2026-10-16T00:00:00Z", "event": "run_start"}) + "\n",
         encoding="utf-8",
     )
-    res = run_cli(["runs", "show", str(foreign), "--dir", str(repo), "--json"])
+    return foreign
+
+
+@pytest.mark.parametrize("mode", ["--json", "--agent"])
+def test_not_a_ledger_machine_path_is_relative(repo: Path, mode: str) -> None:
+    foreign = _seed_foreign_event_log(repo)
+    res = run_cli(["runs", "show", str(foreign), "--dir", str(repo), mode])
     assert res.returncode == 7, res.stdout + res.stderr
-    data = _parse_machine(res.stdout, "--json")
+    data = _parse_machine(res.stdout, mode)
     assert data["not_a_ledger"] is True
     assert data["corrupted"] is False
     _assert_relative(data["path"], repo)
     assert data["path"].endswith("events.jsonl")
+    assert str(repo.resolve()) not in data["error"]
+    assert data["error"].startswith("error: not a run ledger: ")
+    assert data["path"] in data["error"]
+    assert "corrupt" not in data["error"].lower()
+
+
+def test_not_a_ledger_human_line_is_relative(repo: Path) -> None:
+    foreign = _seed_foreign_event_log(repo)
+    res = run_cli(["runs", "show", str(foreign), "--dir", str(repo)])
+    assert res.returncode == 7, res.stdout + res.stderr
+    assert "not a run ledger" in res.stdout
+    assert str(repo.resolve()) not in res.stdout
+    assert ".aw/records/runs/run-feedfeed00/events.jsonl" in res.stdout
+    assert "corrupt" not in res.stdout.lower()
