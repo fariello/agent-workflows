@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set
 
-from agent_workflows import engine, platform_lock
+from agent_workflows import engine, platform_lock, storage
 from agent_workflows.install_wizard import (
     ProjectPolicy,
     config_placement_switch,
@@ -58,6 +58,18 @@ __all__ = [
     "rollback_placement_switch",
     "placement_switch_status",
     "render_plan",
+]
+
+COMPANION_RECORD_IGNORE_PATTERNS = [
+    "records/*/untracked/",
+    "records/history.jsonl",
+    "records/runs/",
+    "records/plans/INDEX.json",
+    "records/plans/INDEX.md",
+    "records/research/INDEX.json",
+    "records/research/INDEX.md",
+    "records/prompts/INDEX.json",
+    "records/prompts/INDEX.md",
 ]
 
 
@@ -241,6 +253,9 @@ class SwitchResult:
     retire_actions: List[str]
     receipt_path: Path
     unplanned_leftovers: List[str] = field(default_factory=list)
+    companion_dir: Optional[Path] = None
+    companion_action: Optional[str] = None
+    staged: Optional[Dict[str, List[str]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -257,6 +272,9 @@ class SwitchResult:
             "retire_actions": list(self.retire_actions),
             "receipt_path": str(self.receipt_path),
             "unplanned_leftovers": list(self.unplanned_leftovers),
+            "companion_dir": str(self.companion_dir) if self.companion_dir else None,
+            "companion_action": self.companion_action,
+            "staged": dict(self.staged) if self.staged is not None else None,
         }
 
 
@@ -424,6 +442,7 @@ def plan_placement_switch(
     new_policy: ProjectPolicy,
     *,
     aw_home: Optional[str | Path] = None,
+    allow_companion: bool = False,
 ) -> SwitchPlan:
     """Pure planner for cross-placement preset switches (spec Section 8.1).
 
@@ -817,7 +836,7 @@ def plan_placement_switch(
                 blockers.append(SwitchBlocker(bid, msg))
                 blocker_messages[bid] = msg
 
-        if is_companion_switch:
+        if is_companion_switch and not allow_companion:
             add_blocker(
                 "companion-unsupported",
                 "Companion placement switches are planned but the executor does not "
@@ -1687,6 +1706,32 @@ def _run_git_cmd(
     return res
 
 
+def _ensure_companion_gitignore(companion_dir: Path, journal: Dict[str, Any]) -> None:
+    comp_gi = companion_dir / ".gitignore"
+    if not comp_gi.exists():
+        journal["created_companion_gitignore"] = True
+        comp_gi.write_text(
+            "\n".join(COMPANION_RECORD_IGNORE_PATTERNS) + "\n", encoding="utf-8"
+        )
+        return
+
+    if "prior_companion_gitignore_bytes" not in journal and not journal.get(
+        "created_companion_gitignore"
+    ):
+        journal["prior_companion_gitignore_bytes"] = comp_gi.read_bytes().decode(
+            "utf-8", errors="surrogateescape"
+        )
+
+    curr_text = comp_gi.read_text(encoding="utf-8")
+    missing = [pat for pat in COMPANION_RECORD_IGNORE_PATTERNS if pat not in curr_text]
+    if missing:
+        new_text = curr_text
+        if new_text and not new_text.endswith("\n"):
+            new_text += "\n"
+        new_text += "\n".join(missing) + "\n"
+        comp_gi.write_text(new_text, encoding="utf-8")
+
+
 def _cleanup_lock(
     lock_file: Path,
     lock_handle: Optional[Any],
@@ -1768,6 +1813,89 @@ def _perform_rollback(
             check=False,
         )
 
+    # Undo config_retrack (AFTER step 2)
+    if plan.config_retrack is not None:
+        _run_git_cmd(
+            repo, ["reset", "-q", "--", ".aw/config/project.json"], check=False
+        )
+
+    # Restore companion identity and target attachment record
+    if plan.companion_dir is not None:
+        comp_ident_p = plan.companion_dir / ".aw" / "companion_identity.json"
+        if journal.get("prior_companion_identity_bytes") is not None:
+            comp_ident_p.parent.mkdir(parents=True, exist_ok=True)
+            comp_ident_p.write_text(
+                journal["prior_companion_identity_bytes"], encoding="utf-8"
+            )
+        else:
+            if comp_ident_p.is_file() or comp_ident_p.is_symlink():
+                try:
+                    comp_ident_p.unlink()
+                except OSError:
+                    pass
+
+    target_attach_p = repo / ".aw" / "state" / "durable" / "companion_attachment.json"
+    if journal.get("prior_attachment_record_bytes") is not None:
+        target_attach_p.parent.mkdir(parents=True, exist_ok=True)
+        target_attach_p.write_text(
+            journal["prior_attachment_record_bytes"], encoding="utf-8"
+        )
+    else:
+        if target_attach_p.is_file() or target_attach_p.is_symlink():
+            try:
+                target_attach_p.unlink()
+            except OSError:
+                pass
+
+    # Unstage every journaled companion path
+    comp_staged = journal.get("staged", {}).get("companion", [])
+    if plan.companion_dir is not None and comp_staged and plan.companion_dir.is_dir():
+        _run_git_cmd(
+            plan.companion_dir,
+            ["rm", "-q", "--cached", "--ignore-unmatch", "--"] + comp_staged,
+            check=False,
+        )
+
+    # Restore companion .gitignore
+    if plan.companion_dir is not None and plan.companion_dir.is_dir():
+        comp_gi = plan.companion_dir / ".gitignore"
+        existed_before_attach = journal.get("companion_existed_before_attach", {}).get(
+            ".gitignore"
+        )
+        if journal.get("created_companion_gitignore") or existed_before_attach is False:
+            if comp_gi.is_file() or comp_gi.is_symlink():
+                try:
+                    comp_gi.unlink()
+                except OSError:
+                    pass
+        elif journal.get("prior_companion_gitignore_bytes") is not None:
+            comp_gi.write_text(
+                journal["prior_companion_gitignore_bytes"], encoding="utf-8"
+            )
+
+    # Remove companion directories journaled absent before attach
+    if plan.companion_dir is not None and plan.companion_dir.is_dir():
+        existed_map = journal.get("companion_existed_before_attach", {})
+        for rel_d in (
+            ".aw/state/durable",
+            ".aw/state",
+            ".aw/config",
+            ".aw/records",
+            ".aw",
+        ):
+            should_check = False
+            if rel_d == ".aw/state":
+                should_check = not existed_map.get(".aw/state/durable", True)
+            else:
+                should_check = existed_map.get(rel_d) is False
+            if should_check:
+                d_p = plan.companion_dir / rel_d
+                if d_p.is_dir():
+                    try:
+                        d_p.rmdir()
+                    except OSError:
+                        pass
+
     item_states = journal.get("item_states", {})
     for it in plan.items:
         if it.kind == "move" and it.destination is not None:
@@ -1810,6 +1938,27 @@ def _perform_rollback(
                 d.rmdir()
             except OSError:
                 pass
+
+    # Delete companion directory only when created_companion
+    if journal.get("created_companion") and plan.companion_dir is not None:
+        comp = plan.companion_dir
+        if comp.is_dir():
+            entries = [p for p in comp.iterdir() if p.name != ".git"]
+            has_commits = False
+            if (comp / ".git").is_dir():
+                res = subprocess.run(
+                    ["git", "rev-parse", "--verify", "HEAD"],
+                    cwd=str(comp),
+                    capture_output=True,
+                    text=True,
+                )
+                if res.returncode == 0:
+                    has_commits = True
+            if entries or has_commits:
+                raise PlacementSwitchError(
+                    f"Companion directory {comp} contains foreign files or commits; refusing to delete."
+                )
+            shutil.rmtree(comp)
 
     # 4. Delete the control dir
     shutil.rmtree(control_dir, ignore_errors=True)
@@ -1927,6 +2076,13 @@ def _run_transaction(
 
     # Phase: planned -> copy
     if phase == "planned":
+        if plan.companion_create and plan.companion_dir is not None:
+            if not journal.get("created_companion"):
+                plan.companion_dir.mkdir(parents=True, exist_ok=True)
+                _run_git_cmd(plan.companion_dir, ["init", "-q"])
+                journal["created_companion"] = True
+                _write_atomic_json(journal_file, journal)
+
         for it in plan.items:
             if it.kind == "move":
                 src = it.source
@@ -2015,48 +2171,110 @@ def _run_transaction(
                 if fault_injection == "mid-verify" and verified_count == 1:
                     raise PlacementSwitchError("Fault injected: mid-verify")
 
-        staged_paths = []
-        if plan.direction == "to-target":
+        staged_target: list[str] = []
+        staged_companion: list[str] = []
+        repo_res = repo.resolve()
+        companion_res = (
+            plan.companion_dir.resolve() if plan.companion_dir is not None else None
+        )
+
+        dest_rels_target: list[str] = []
+        dest_rels_comp: list[str] = []
+
+        for it in plan.items:
+            if it.kind == "move" and it.destination is not None:
+                try:
+                    d_res = it.destination.resolve()
+                    if it.dest_git == "target":
+                        dest_rels_target.append(d_res.relative_to(repo_res).as_posix())
+                    elif it.dest_git == "companion" and companion_res is not None:
+                        dest_rels_comp.append(
+                            d_res.relative_to(companion_res).as_posix()
+                        )
+                except (ValueError, OSError):
+                    pass
+
+        # Target staging
+        if dest_rels_target:
             created_gi = engine._ensure_aw_gitignore(repo)
             if created_gi:
                 journal["created_aw_gitignore"] = True
                 _run_git_cmd(repo, ["add", "--", ".aw/.gitignore"], check=False)
 
-            repo_res = repo.resolve()
-            dest_rels = []
-            for it in plan.items:
-                if it.kind == "move" and it.destination is not None:
-                    try:
-                        d_res = it.destination.resolve()
-                        if repo_res in d_res.parents or d_res == repo_res:
-                            dest_rels.append(d_res.relative_to(repo_res).as_posix())
-                    except (ValueError, OSError):
-                        pass
-
-            if dest_rels:
-                res_ci = subprocess.run(
-                    ["git", "check-ignore", "--stdin", "-n", "-v", "--non-matching"],
-                    cwd=str(repo),
-                    input="\n".join(dest_rels) + "\n",
-                    capture_output=True,
-                    text=True,
-                    check=False,
+            res_ci = subprocess.run(
+                ["git", "check-ignore", "--stdin", "-n", "-v", "--non-matching"],
+                cwd=str(repo),
+                input="\n".join(dest_rels_target) + "\n",
+                capture_output=True,
+                text=True,
+                check=False,
+                env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"),
+            )
+            target_non_ignored = [
+                line[3:]
+                for line in res_ci.stdout.splitlines()
+                if line.startswith("::\t")
+            ]
+            if target_non_ignored:
+                _run_git_cmd(
+                    repo,
+                    ["add", "--pathspec-from-file=-"],
+                    input_str="\n".join(target_non_ignored) + "\n",
+                    check=True,
                 )
-                non_ignored = [
-                    line[3:]
-                    for line in res_ci.stdout.splitlines()
-                    if line.startswith("::\t")
-                ]
-                if non_ignored:
+            staged_target = sorted(target_non_ignored)
+
+        # Companion staging
+        if dest_rels_comp and plan.companion_dir is not None:
+            _ensure_companion_gitignore(plan.companion_dir, journal)
+            res_ci_comp = subprocess.run(
+                ["git", "check-ignore", "--stdin", "-n", "-v", "--non-matching"],
+                cwd=str(plan.companion_dir),
+                input="\n".join(dest_rels_comp) + "\n",
+                capture_output=True,
+                text=True,
+                check=False,
+                env=dict(os.environ, GIT_OPTIONAL_LOCKS="0"),
+            )
+            comp_non_ignored = [
+                line[3:]
+                for line in res_ci_comp.stdout.splitlines()
+                if line.startswith("::\t")
+            ]
+            if fault_injection == "mid-companion-stage":
+                if comp_non_ignored:
                     _run_git_cmd(
-                        repo,
-                        ["add", "--pathspec-from-file=-"],
-                        input_str="\n".join(non_ignored) + "\n",
+                        plan.companion_dir,
+                        ["add", "--", comp_non_ignored[0]],
                         check=True,
                     )
-                staged_paths = sorted(non_ignored)
+                    staged_companion = [comp_non_ignored[0]]
+                    journal["staged"] = {
+                        "target": staged_target,
+                        "companion": staged_companion,
+                    }
+                    journal["staged_paths"] = staged_target
+                    _write_atomic_json(journal_file, journal)
+                    raise PlacementSwitchError("Fault injected: mid-companion-stage")
+                elif plan.companion_action is not None:
+                    raise PlacementSwitchError("Fault injected: mid-companion-stage")
 
-        journal["staged_paths"] = staged_paths
+            if comp_non_ignored:
+                _run_git_cmd(
+                    plan.companion_dir,
+                    ["add", "--pathspec-from-file=-"],
+                    input_str="\n".join(comp_non_ignored) + "\n",
+                    check=True,
+                )
+            staged_companion = sorted(comp_non_ignored)
+        elif fault_injection == "mid-companion-stage":
+            raise PlacementSwitchError("Fault injected: mid-companion-stage")
+
+        journal["staged"] = {
+            "target": staged_target,
+            "companion": staged_companion,
+        }
+        journal["staged_paths"] = staged_target
         journal["phase"] = "verified"
         _write_atomic_json(journal_file, journal)
         phase = "verified"
@@ -2208,33 +2426,110 @@ def _run_transaction(
                     k: v for k, v in raw_local.items() if k not in known_local_keys
                 }
 
-        companion_dir = getattr(new_policy, "companion_dir", None) or existing_companion
+        if plan.companion_action == "attach":
+            comp_dir_val = str(plan.companion_dir) if plan.companion_dir else None
+        elif plan.companion_action == "detach":
+            comp_dir_val = None
+        else:
+            comp_dir_val = (
+                getattr(new_policy, "companion_dir", None) or existing_companion
+            )
+
         new_local_schema = LocalBindingSchema(
             schema_version=2,
             project_id=plan.project_id,
             human_slug=existing_slug,
             common_dir=existing_common,
             worktree_path=existing_worktree,
-            companion_dir=companion_dir,
+            companion_dir=comp_dir_val,
             runtime_overrides=existing_overrides if existing_overrides else None,
             local_aliases=existing_aliases if existing_aliases else None,
             unknown_fields=existing_local_unknown if existing_local_unknown else None,
         )
         _write_atomic_json(new_local_file, new_local_schema.to_dict())
 
-        # 3. Remove old config files
-        tracked_files = _get_tracked_files(repo)
-        for cand in ("project.json", "local.json", "config.json", "policy.json"):
-            cand_path = plan.from_config_dir / cand
-            if cand_path.exists() or cand_path.is_symlink():
-                try:
-                    rel = cand_path.resolve().relative_to(repo.resolve()).as_posix()
-                    if rel in tracked_files:
-                        _run_git_cmd(repo, ["rm", "-q", "-f", "--", rel], check=False)
-                    else:
+        # 3. Remove old config files (skipped for in-place)
+        if plan.direction != "in-place":
+            tracked_files = _get_tracked_files(repo)
+            for cand in ("project.json", "local.json", "config.json", "policy.json"):
+                cand_path = plan.from_config_dir / cand
+                if cand_path.exists() or cand_path.is_symlink():
+                    try:
+                        rel = cand_path.resolve().relative_to(repo.resolve()).as_posix()
+                        if rel in tracked_files:
+                            _run_git_cmd(
+                                repo, ["rm", "-q", "-f", "--", rel], check=False
+                            )
+                        else:
+                            cand_path.unlink()
+                    except (ValueError, OSError):
                         cand_path.unlink()
-                except (ValueError, OSError):
-                    cand_path.unlink()
+
+        # Companion attach / detach
+        if plan.companion_action == "attach":
+            if plan.companion_dir is None:
+                raise PlacementSwitchError(
+                    "Companion directory required for companion attach."
+                )
+            comp_ident_p = plan.companion_dir / ".aw" / "companion_identity.json"
+            target_attach_p = (
+                repo / ".aw" / "state" / "durable" / "companion_attachment.json"
+            )
+            journal["attach_started"] = True
+            journal["prior_companion_identity_bytes"] = (
+                comp_ident_p.read_text(encoding="utf-8")
+                if comp_ident_p.is_file()
+                else None
+            )
+            journal["prior_attachment_record_bytes"] = (
+                target_attach_p.read_text(encoding="utf-8")
+                if target_attach_p.is_file()
+                else None
+            )
+            journal["companion_existed_before_attach"] = {
+                ".aw": (plan.companion_dir / ".aw").exists(),
+                ".aw/config": (plan.companion_dir / ".aw" / "config").exists(),
+                ".aw/state/durable": (
+                    plan.companion_dir / ".aw" / "state" / "durable"
+                ).exists(),
+                ".aw/records": (plan.companion_dir / ".aw" / "records").exists(),
+                ".gitignore": (plan.companion_dir / ".gitignore").exists(),
+            }
+            _write_atomic_json(journal_file, journal)
+
+            try:
+                storage.attach_companion(
+                    repo,
+                    plan.companion_dir,
+                    aw_home=str(eff_aw_home),
+                )
+            except Exception as exc:
+                _perform_rollback(repo, eff_aw_home, control_dir, journal, plan)
+                raise PlacementSwitchError(str(exc)) from exc
+
+        elif plan.companion_action == "detach":
+            target_attach_p = (
+                repo / ".aw" / "state" / "durable" / "companion_attachment.json"
+            )
+            journal["prior_attachment_record_bytes"] = (
+                target_attach_p.read_text(encoding="utf-8")
+                if target_attach_p.is_file()
+                else None
+            )
+            _write_atomic_json(journal_file, journal)
+            storage.detach_companion(repo, aw_home=str(eff_aw_home))
+
+        if plan.config_retrack == "untrack":
+            _run_git_cmd(
+                repo,
+                ["rm", "-q", "--cached", "--", ".aw/config/project.json"],
+                check=False,
+            )
+        elif plan.config_retrack == "track":
+            _run_git_cmd(repo, ["add", "--", ".aw/config/project.json"], check=False)
+
+        if fault_injection == "after-attach":
+            raise PlacementSwitchError("Fault injected: after-attach")
 
         journal["phase"] = "switched"
         _write_atomic_json(journal_file, journal)
@@ -2245,19 +2540,57 @@ def _run_transaction(
 
         # Invariant assertion
         resolved_dir = project_config_dir(repo, aw_home=eff_aw_home)
-        if resolved_dir.resolve() != plan.to_config_dir.resolve():
+        curr_ctx = resolve_project_context(target_repo=str(repo), aw_home=eff_aw_home)
+        new_ctx = resolve_project_context(
+            target_repo=str(repo),
+            delivery_mode=new_policy.delivery_mode,
+            records_backend=new_policy.records_backend,
+            preset=new_policy.preset,
+            role=new_policy.role,
+            companion_dir=new_policy.companion_dir,
+            aw_home=eff_aw_home,
+        )
+        expected_records = Path(new_ctx.physical_classes["records"]).resolve()
+        actual_records = Path(curr_ctx.physical_classes["records"]).resolve()
+
+        if (
+            resolved_dir.resolve() != plan.to_config_dir.resolve()
+            or actual_records != expected_records
+            or curr_ctx.preset != plan.to_preset
+        ):
             _perform_rollback(repo, eff_aw_home, control_dir, journal, plan)
             raise PlacementSwitchError(
-                f"Authority flip invariant violated: expected config dir {plan.to_config_dir}, got {resolved_dir}"
+                f"Authority flip invariant violated: expected config dir {plan.to_config_dir} (got {resolved_dir}), "
+                f"expected records {expected_records} (got {actual_records}), "
+                f"expected preset {plan.to_preset} (got {curr_ctx.preset})"
             )
 
     # Phase: switched -> sources-removed
     if phase == "switched":
         resolved_dir = project_config_dir(repo, aw_home=eff_aw_home)
-        if resolved_dir.resolve() != plan.to_config_dir.resolve():
+        curr_ctx = resolve_project_context(target_repo=str(repo), aw_home=eff_aw_home)
+        new_ctx = resolve_project_context(
+            target_repo=str(repo),
+            delivery_mode=new_policy.delivery_mode,
+            records_backend=new_policy.records_backend,
+            preset=new_policy.preset,
+            role=new_policy.role,
+            companion_dir=new_policy.companion_dir,
+            aw_home=eff_aw_home,
+        )
+        expected_records = Path(new_ctx.physical_classes["records"]).resolve()
+        actual_records = Path(curr_ctx.physical_classes["records"]).resolve()
+
+        if (
+            resolved_dir.resolve() != plan.to_config_dir.resolve()
+            or actual_records != expected_records
+            or curr_ctx.preset != plan.to_preset
+        ):
             _perform_rollback(repo, eff_aw_home, control_dir, journal, plan)
             raise PlacementSwitchError(
-                f"Authority flip invariant violated: expected config dir {plan.to_config_dir}, got {resolved_dir}"
+                f"Authority flip invariant violated: expected config dir {plan.to_config_dir} (got {resolved_dir}), "
+                f"expected records {expected_records} (got {actual_records}), "
+                f"expected preset {plan.to_preset} (got {curr_ctx.preset})"
             )
         journal["phase"] = "sources-removed"
         _write_atomic_json(journal_file, journal)
@@ -2265,8 +2598,12 @@ def _run_transaction(
 
     # Phase: sources-removed
     if phase == "sources-removed":
-        tracked_in_tree_rels = []
-        tracked_files = _get_tracked_files(repo)
+        tracked_target_rels: list[str] = []
+        tracked_comp_rels: list[str] = []
+        repo_res = repo.resolve()
+        comp_res = (
+            plan.companion_dir.resolve() if plan.companion_dir is not None else None
+        )
 
         for it in plan.items:
             if it.kind == "move":
@@ -2277,10 +2614,21 @@ def _run_transaction(
                 if src.exists() or src.is_symlink():
                     if fault_injection == "mid-source-removal":
                         try:
-                            rel = src.resolve().relative_to(repo.resolve()).as_posix()
-                            if rel in tracked_files or it.tracked:
+                            if it.source_git == "target" and it.tracked:
+                                rel = src.resolve().relative_to(repo_res).as_posix()
                                 _run_git_cmd(
                                     repo, ["rm", "-q", "-f", "--", rel], check=False
+                                )
+                            elif (
+                                it.source_git == "companion"
+                                and it.tracked
+                                and plan.companion_dir is not None
+                            ):
+                                rel = src.resolve().relative_to(comp_res).as_posix()
+                                _run_git_cmd(
+                                    plan.companion_dir,
+                                    ["rm", "-q", "-f", "--", rel],
+                                    check=False,
                                 )
                             else:
                                 src.unlink()
@@ -2292,18 +2640,31 @@ def _run_transaction(
                         raise PlacementSwitchError("Fault injected: mid-source-removal")
 
                     try:
-                        rel = src.resolve().relative_to(repo.resolve()).as_posix()
-                        if rel in tracked_files or it.tracked:
-                            tracked_in_tree_rels.append(rel)
+                        if it.source_git == "target" and it.tracked:
+                            rel = src.resolve().relative_to(repo_res).as_posix()
+                            tracked_target_rels.append(rel)
+                        elif (
+                            it.source_git == "companion"
+                            and it.tracked
+                            and plan.companion_dir is not None
+                        ):
+                            rel = src.resolve().relative_to(comp_res).as_posix()
+                            tracked_comp_rels.append(rel)
                         else:
                             src.unlink()
                     except (ValueError, OSError):
                         src.unlink()
                     item_states.setdefault(src_key, {})["removed"] = True
 
-        if tracked_in_tree_rels:
+        if tracked_target_rels:
             _run_git_cmd(
-                repo, ["rm", "-q", "-f", "--"] + tracked_in_tree_rels, check=False
+                repo, ["rm", "-q", "-f", "--"] + tracked_target_rels, check=False
+            )
+        if tracked_comp_rels and plan.companion_dir is not None:
+            _run_git_cmd(
+                plan.companion_dir,
+                ["rm", "-q", "-f", "--"] + tracked_comp_rels,
+                check=False,
             )
 
         # Discard items sources
@@ -2341,10 +2702,21 @@ def _run_transaction(
                             pass
                     if not is_in_retired:
                         try:
-                            rel = src.resolve().relative_to(repo.resolve()).as_posix()
-                            if rel in tracked_files or it.tracked:
+                            if it.source_git == "target" and it.tracked:
+                                rel = src.resolve().relative_to(repo_res).as_posix()
                                 _run_git_cmd(
                                     repo, ["rm", "-q", "-f", "--", rel], check=False
+                                )
+                            elif (
+                                it.source_git == "companion"
+                                and it.tracked
+                                and plan.companion_dir is not None
+                            ):
+                                rel = src.resolve().relative_to(comp_res).as_posix()
+                                _run_git_cmd(
+                                    plan.companion_dir,
+                                    ["rm", "-q", "-f", "--", rel],
+                                    check=False,
                                 )
                             else:
                                 src.unlink()
@@ -2363,7 +2735,9 @@ def _run_transaction(
         _write_atomic_json(journal_file, journal)
 
         # Leftovers check
-        if plan.direction == "to-home":
+        if plan.companion_action == "detach" and plan.companion_dir is not None:
+            old_records_root = plan.companion_dir / "records"
+        elif plan.direction == "to-home":
             old_records_root = plan.from_config_dir.parent / "records"
         else:
             old_records_root = eff_aw_home / "projects" / plan.project_id / "records"
@@ -2374,24 +2748,36 @@ def _run_transaction(
             for p in old_records_root.rglob("*"):
                 if p.is_file() and p.resolve() not in plan_sources:
                     try:
-                        rel = p.resolve().relative_to(repo.resolve()).as_posix()
+                        if (
+                            plan.companion_action == "detach"
+                            and plan.companion_dir is not None
+                        ):
+                            rel = p.resolve().relative_to(comp_res).as_posix()
+                        else:
+                            rel = p.resolve().relative_to(repo.resolve()).as_posix()
                     except ValueError:
                         rel = str(p)
                     unplanned_leftovers.append(rel)
 
-        preserve = (
-            {".aw/records"}
-            if (plan.retire_side == "target" and unplanned_leftovers)
-            else ()
-        )
-        retire_actions = retire_footprint(
-            repo,
-            plan.retire_side,
-            preserve=preserve,
-            aw_home=eff_aw_home,
-        )
-        journal["retire_actions"] = retire_actions
         journal["unplanned_leftovers"] = unplanned_leftovers
+
+        if plan.retire_side is None:
+            retire_actions = []
+        else:
+            preserve = set()
+            if plan.retire_side == "target" and unplanned_leftovers:
+                preserve.add(".aw/records")
+            if plan.companion_action == "attach":
+                preserve.add(".aw/state/durable/companion_attachment.json")
+
+            retire_actions = retire_footprint(
+                repo,
+                plan.retire_side,
+                preserve=preserve,
+                aw_home=eff_aw_home,
+            )
+            journal["retire_actions"] = retire_actions
+
         journal["phase"] = "retired"
         _write_atomic_json(journal_file, journal)
         phase = "retired"
@@ -2411,6 +2797,7 @@ def _run_transaction(
         receipt_path = new_durable / "migrations" / "placement_switch_receipt.json"
 
         staged_paths = journal.get("staged_paths", [])
+        staged_map = journal.get("staged", {"target": staged_paths, "companion": []})
         unplanned_leftovers = journal.get("unplanned_leftovers", [])
         retire_actions = journal.get("retire_actions", [])
         item_counts = {
@@ -2429,9 +2816,12 @@ def _run_transaction(
             "to_config_dir": str(plan.to_config_dir),
             "direction": plan.direction,
             "retire_side": plan.retire_side,
+            "companion_dir": str(plan.companion_dir) if plan.companion_dir else None,
+            "companion_action": plan.companion_action,
             "item_counts": item_counts,
             "staged_path_count": len(staged_paths),
             "staged_paths": staged_paths,
+            "staged": staged_map,
             "unplanned_leftovers": unplanned_leftovers,
             "retire_actions": retire_actions,
         }
@@ -2453,6 +2843,9 @@ def _run_transaction(
             retire_actions=retire_actions,
             receipt_path=receipt_path,
             unplanned_leftovers=unplanned_leftovers,
+            companion_dir=plan.companion_dir,
+            companion_action=plan.companion_action,
+            staged=staged_map,
         )
 
     raise PlacementSwitchError(f"Unknown placement switch phase: {phase!r}")
@@ -2881,11 +3274,14 @@ def execute_placement_switch(
     *,
     aw_home: Optional[str | Path] = None,
     fault_injection: Optional[str] = None,
+    allow_companion: bool = False,
 ) -> SwitchResult:
     """Execute a placement switch transaction (spec Section 8.1)."""
     valid_faults = {
         "after-copy",
         "mid-verify",
+        "mid-companion-stage",
+        "after-attach",
         "after-switch",
         "mid-source-removal",
         "before-retire",
@@ -2917,7 +3313,9 @@ def execute_placement_switch(
                 "Resume it with resume_placement_switch or roll it back with rollback_placement_switch."
             )
 
-        plan = plan_placement_switch(repo, new_policy, aw_home=eff_aw_home)
+        plan = plan_placement_switch(
+            repo, new_policy, aw_home=eff_aw_home, allow_companion=allow_companion
+        )
         if plan.blockers:
             msgs = [f"- {b}: {plan.blocker_messages.get(b, '')}" for b in plan.blockers]
             raise PlacementSwitchError("Placement switch blocked:\n" + "\n".join(msgs))
@@ -2960,9 +3358,12 @@ def execute_placement_switch(
             "new_policy": new_policy_dict,
             "item_states": item_states,
             "created_directories": [],
+            "created_companion": False,
+            "created_companion_gitignore": False,
             "created_aw_gitignore": False,
             "saved_config_files": saved_files,
             "new_config_paths": [],
+            "staged": {"target": [], "companion": []},
             "staged_paths": [],
             "retire_started": False,
             "retire_actions": [],
@@ -3267,6 +3668,9 @@ def placement_switch_status(
 
     plan = journal.get("plan", {})
     item_states = journal.get("item_states", {})
+    staged = journal.get("staged")
+    if staged is None:
+        staged = {"target": journal.get("staged_paths", []), "companion": []}
     return {
         "transaction_id": journal.get("transaction_id"),
         "mode": journal.get("mode", "placement"),
@@ -3284,6 +3688,13 @@ def placement_switch_status(
         "staged_paths": journal.get("staged_paths", []),
         "created_directories": journal.get("created_directories", []),
         "created_aw_gitignore": journal.get("created_aw_gitignore", False),
+        "companion_dir": plan.get("companion_dir"),
+        "companion_action": plan.get("companion_action"),
+        "staged": staged,
+        "created_companion": journal.get("created_companion", False),
+        "created_companion_gitignore": journal.get(
+            "created_companion_gitignore", False
+        ),
     }
 
 
