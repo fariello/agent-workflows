@@ -40,7 +40,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 | Category | Locations | Git Policy | Managing Tool |
 |---|---|---|---|
 | **Source** | `agent_workflows/`, `tools/`, `.aw/system/workflows/`, `tests/` | Tracked | Developers / git |
-| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/research/INDEX.*` | Tracked | `aw install`, `aw index plans`, `aw index research`, `make version-file` |
+| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/research/INDEX.*`, `AGENTS.md` (managed region) | Tracked | `aw install`, `aw index plans`, `aw index research`, `make version-file`, `python3 -m tools.regen_agents_block` |
 | **Records** | `.aw/records/` (`plans/`, `specs/`, `research/`, `backlog/`, `comms/`, `prompts/`) | Tracked (or companion-routed) | `aw ipd`, `aw backlog`, `aw research`, `aw specs` |
 | **Config** | `.aw/config/config.json`, `.aw/config/local-leaks-allowlist.toml` | Tracked | `aw config`, `aw sanitize --configure` |
 | **Local Config** | `.aw/config/local.json`, `~/.config/agent-workflows/` | Gitignored | `aw config`, user edits |
@@ -50,6 +50,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 
 Never hand-edit generated files. Use the owning CLI verb:
 
+- **Managed AGENTS.md block (`<!-- aw:block -->` region) and its section hashes**: `python3 -m tools.regen_agents_block` after any change to the generator (`engine.agents_pointer_prose`, `reporting_contract`); never edit the region by hand or script it directly.
 - **Command Shims (`.opencode/commands/`, `.claude/commands/`)**: `aw install .` or `python3 install-workflows.py`.
 - **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw index plans`. GENERATED,
   GITIGNORED, LOCAL: not committed, absent in a fresh clone until you generate it, and absent in a new
