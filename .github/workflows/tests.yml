@@ -87,7 +87,6 @@ jobs:
       # Advisory step running slow-marked tests: currently advisory because of known pre-existing
       # slow failures tracked by backlog items:
       # - denczr: test_second_install_nochange_leaves_clean_status_and_no_false_lines
-      # - mo9oza: TypecheckGateTests.test_typecheck_gate_clean_exit
       # Flip condition: remove continue-on-error once -m slow reports 0 failed on the ubuntu leg,
       # i.e. once every owning item is done.
       - name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)

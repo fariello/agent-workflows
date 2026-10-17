@@ -35,29 +35,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure
 
-- [ ] E-01 Re-measure the type gate and its slow regression test at the executing HEAD.
+- [x] E-01 Re-measure the type gate and its slow regression test at the executing HEAD.
   - Depends on: none
   - Expected outcome: a pasted transcript of (a) `git rev-parse HEAD`; (b) `python3 -m mypy --version` and `python3 -c "import filelock; print(filelock.__version__)"` (the pinned environment named in the `pyproject.toml` `[tool.mypy]` comment, "mypy 2.3.1, filelock >=4"); (c) `python3 -m mypy agent_workflows > /tmp/mypy.out 2>&1; echo rc=$?; tail -3 /tmp/mypy.out` showing `rc=0` and a last line `Success: no issues found in N source files` (the exit code is captured separately because piping into `tail` would mask it; an `[annotation-unchecked]` note line above it is expected and is not an error); (d) `python3 -m pytest -o addopts="" -m slow tests/test_typecheck_gate.py` reporting `1 passed` (the slow test is `TypecheckGateTests::test_typecheck_gate_clean_exit`); (e) `git show --stat b4acc832d -- agent_workflows/comms_broker.py agent_workflows/engine.py agent_workflows/ipd_authoring.py` naming the three files. If (c) reports any error, STOP: mark E-01 `failed`, record the errors, and do not perform E-02/E-03 (a new regression needs its own item, not a widened scope here).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: records
 
-- [ ] E-02 Remove the `mo9oza` bullet from the slow-step advisory comment in `.github/workflows/tests.yml`.
+- [x] E-02 Remove the `mo9oza` bullet from the slow-step advisory comment in `.github/workflows/tests.yml`.
   - Depends on: E-01
   - Expected outcome: the comment block above `- name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)` no longer contains the line `# - mo9oza: TypecheckGateTests.test_typecheck_gate_clean_exit`; the `denczr` bullet, the flip-condition text and `continue-on-error: true` are unchanged; the file still parses as YAML.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add one `Fixed:` bullet to `CHANGELOG.md`.
+- [x] E-03 Add one `Fixed:` bullet to `CHANGELOG.md`.
   - Depends on: E-01
   - Expected outcome: one bullet in the topmost section `## 2.0.0 (pending)`, beside the other current `Fixed:` bullets, stating that the static type check (`make typecheck`, CI "static type gate") passes again after three mypy errors in the comms broker, the installer engine and IPD authoring were fixed; no em or en dashes in the added text.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: validation
 
-- [ ] E-04 Run the closing validation.
+- [x] E-04 Run the closing validation.
   - Depends on: E-02, E-03
   - Expected outcome: (1) `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/tests.yml'))"` exits 0; (2) `git grep -n mo9oza -- .github/` prints nothing; (3) `git diff -U0 -- CHANGELOG.md | grep '^+' | grep -c -P '[\x{2013}\x{2014}]'` prints `0`; (4) `python3 -m agent_workflows sanitize --agent` reports `"outcome": "clean"`; (5) bare `python3 -m pytest` passes (summary line pasted); (6) `git diff --name-only <pre-execution HEAD>` lists only `.github/workflows/tests.yml`, `CHANGELOG.md` and this plan (at its pending or executed path).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -119,25 +119,96 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the E-01 transcript: HEAD sha, mypy and filelock versions, the mypy tail ending `Success: no issues found in N source files`, the slow-test line `1 passed`, and the `git show --stat b4acc832d` file list naming all three modules.
   - Observed evidence:
-  - Result: pending
+    HEAD sha:
+    a3e21ca502521ac98e6a885a2fc98190cbec5b34
 
-- [ ] V-02 validates E-02
+    mypy and filelock versions:
+    mypy 2.3.1 (compiled: yes)
+    4.0.9
+
+    mypy tail:
+    rc=0
+    agent_workflows/cli.py:994: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+    Success: no issues found in 197 source files
+
+    slow-test line:
+    ======================= 1 passed, 2 deselected in 19.21s =======================
+
+    git show --stat b4acc832d:
+    commit b4acc832d8df0ff3450e5546b78f50261a31f692
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 16 20:28:03 2026 -0400
+
+        fix(ci): fix mypy errors, plan uncarried obligations, and git fixture identity in tests
+
+        AW-Runner: aw commit
+
+     agent_workflows/comms_broker.py  | 2 ++
+     agent_workflows/engine.py        | 2 +-
+     agent_workflows/ipd_authoring.py | 2 +-
+     3 files changed, 4 insertions(+), 2 deletions(-)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- .github/workflows/tests.yml` showing exactly one removed line (the `mo9oza` bullet) and no change to `continue-on-error: true` or the `denczr` bullet.
   - Observed evidence:
-  - Result: pending
+    diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+    index 8879703f0..bb7b40e9c 100644
+    --- a/.github/workflows/tests.yml
+    +++ b/.github/workflows/tests.yml
+    @@ -87,7 +87,6 @@ jobs:
+           # Advisory step running slow-marked tests: currently advisory because of known pre-existing
+           # slow failures tracked by backlog items:
+           # - denczr: test_second_install_nochange_leaves_clean_status_and_no_false_lines
+    -      # - mo9oza: TypecheckGateTests.test_typecheck_gate_clean_exit
+           # Flip condition: remove continue-on-error once -m slow reports 0 failed on the ubuntu leg,
+           # i.e. once every owning item is done.
+           - name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- CHANGELOG.md` showing one added `Fixed:` bullet under `## 2.0.0 (pending)`.
   - Observed evidence:
-  - Result: pending
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 29eccf4b6..7f9331755 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 
-- [ ] V-04 validates E-04
+     - Added: `aw runs analyze --since WHEN --until WHEN` publishes a report covering only runs started in that window, and the dashboard gains quick date ranges (last 7, 30 or 90 days, latest month).
+     - Added: a **Tokens and cost** dashboard tab showing in + out, input, output, cached and cache-write tokens separately, each with count, total, average, median and p90, plus their costs, overall and split by agent (host and model) or any other dimension.
+    +- Fixed: static type checking (`make typecheck`, CI "static type gate") passes again after three mypy errors in the comms broker, the installer engine and IPD authoring were fixed.
+     - Fixed: `aw install --records-backend <new>` on an installed repository no longer silently leaves existing records where no reader looks: it refuses when records would be orphaned, and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves them.
+     - Fixed: `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows.
+     - Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the YAML parse exit code, the empty `git grep -n mo9oza -- .github/` output, the dash-scan count 0, the sanitize `"outcome": "clean"` line, the bare `python3 -m pytest` summary line, and the `git diff --name-only` list.
   - Observed evidence:
-  - Result: pending
+    YAML parse exit code:
+    yaml_rc=0
+
+    Empty git grep -n mo9oza -- .github/:
+    exit 1 (no output)
+
+    Dash-scan count:
+    0
+
+    Sanitize agent check:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5856,"findings":0,"evidence":["leak-scan"],"next":null}
+
+    Pytest summary line:
+    753 passed in 32.19s / 753 passed in 62.40s (0:01:02)
+
+    git diff --name-only a3e21ca502521ac98e6a885a2fc98190cbec5b34:
+    .aw/records/plans/pending/20261017-mo9oza-01-fv2u4t-verify-the-mypy-gate-fix-for-comms-broker-engine-and-ipd-aut.ipd.md
+    .github/workflows/tests.yml
+    CHANGELOG.md
+  - Result: pass
 
 ## Approval and execution gate
 
