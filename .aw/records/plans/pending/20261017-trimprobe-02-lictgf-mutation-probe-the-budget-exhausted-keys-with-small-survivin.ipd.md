@@ -6,7 +6,8 @@
 - Scope: IN: survivor probe (plus a file-level fallback and a positive control where the rules below require them) for every `P2` key in `## Probe queue` order, under a 10,800s cumulative cap; write the `P2` rows of `## Budget probe results`. OUT: `P3` (Order 03 `f4pbs5`), `P4` (Order 04 `pr6lo9`), filing (Order 05 `b83dpg`), any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: executed:g00ljy
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: lrnh5f
@@ -17,6 +18,7 @@
 - Id: lictgf
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-17 to-review (opencode): authored review-ready child of Set `trimprobe` graduating backlog `lrnh5f`.
 - 2026-10-17 draft (opencode): created.
@@ -31,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Selections
 
-- [ ] E-01 Record `git rev-parse HEAD` and the Order 01 HEAD from `## Inputs`, and paste `git diff --stat <Order 01 HEAD> HEAD -- agent_workflows tests | tail -1`. Re-derive each `P2` key's reaching node ids at THIS HEAD (the Order 01 scratch is not in this lane): run `python3 tools/replay_coverage_diff.py baseline --out .aw/state/trimprobe-lictgf/base -- -m "not slow and not livecorpus" <the union of the P2 keys' Surviving test files from ## Probe queue>` and paste its stdout, then map each key's contexts to node ids with the same longest-existing-file-prefix rule Order 01 used. A `P2` key absent from this narrowed baseline is NOT concluded unreached (the union is narrower than `tests/`); its node-id selection is empty and it goes straight to the file-level step of E-02.
+- [ ] E-01 Record `git rev-parse HEAD` and the Order 01 HEAD from `## Inputs`, and paste `git diff --stat <Order 01 HEAD> HEAD -- agent_workflows tests | tail -1`. Re-derive each `P2` key's reaching node ids at THIS HEAD (the Order 01 scratch is not in this lane): run `python3 tools/replay_coverage_diff.py baseline --out .aw/state/trimprobe-lictgf/base -- -m "not slow and not livecorpus" <the union of the P2 keys' Surviving test files from ## Probe queue>` and paste its stdout, then map each key's contexts to node ids with the same longest-existing-file-prefix rule Order 01 used. A `P2` key absent from this narrowed baseline, or present with `subprocess_only: true` (no test contexts), is NOT concluded unreached or subprocess-only (the union is narrower than `tests/`); its node-id selection is empty and it goes straight to the file-level step of E-02.
   - Depends on: none
   - Expected outcome: every `P2` key has a node-id selection (possibly empty) and its committed surviving-file selection.
   - Execution state: pending
 
 ### Task group 2: Probes
 
-- [ ] E-02 For each `P2` key in queue order, and only while the cumulative `wall_s` of this plan's probes is at most 10,800s (do not START a key past the cap; every unstarted key gets `budget-exhausted` with the cumulative time): (1) PREFLIGHT the node-id selection with `python3 -m pytest -o addopts= -q --collect-only -p no:randomly -m "not slow and not livecorpus" <node ids>` and record the collected count; pass every selection as EXPLICIT arguments (never an `@argfile`, which collected almost nothing and yielded a false `survived` at authoring, `g00ljy` F-04). (2) SURVIVOR: `python3 tools/mutation_probe.py <key> --op <queue operator> --format json -- [-n 6 when the count exceeds 100] -m "not slow and not livecorpus" <node ids>`. (3) FALLBACK: when the node-id survivor is `survived` or the node-id selection is empty, preflight and re-run the survivor with the key's committed `Surviving test files` instead, since a narrowed selection can omit a test that reaches the key only in a subprocess; the file-level result decides. (4) CONTROL, only when the deciding survivor is `survived` and the queue names a control file: `python3 tools/mutation_probe.py <key> --op <operator> --format json --extra-test 19313eed:<control file> -- <control file>`; with control file `none` the key is `unprovable` with reason `no deleted reaching file`. (5) MAP with the `rf1xxr` E-02 rule: survivor `killed` -> `guarded`; survivor `survived` with control `killed` -> `unguarded`; survivor `killed-by-import` -> one retry with an untried operator from `tools.mutation_probe.OPERATORS` that `apply_operator` accepts, recording both, else `unprovable`; survivor `invalid`/`error`/`timeout`, or control `survived`/`invalid`/`killed-by-import`/`error`/`timeout` -> `unprovable` with the reason. Save every JSON under `.aw/state/trimprobe-lictgf/` and record any non-empty `checkout_status_changed` and `extra_tests_overwrote` in the row. A key's `wall_s` is the sum of all its probe runs.
+- [ ] E-02 For each `P2` key in queue order, and only while the cumulative `wall_s` of this plan's probes is at most 10,800s (do not START a key past the cap; every unstarted key gets `budget-exhausted` with the cumulative time): (1) PREFLIGHT the node-id selection with `python3 -m pytest -o addopts= -q --collect-only -p no:randomly -m "not slow and not livecorpus" <node ids>` and append `key`, selection kind (`node-ids` or `files`), exit code and collected count to `.aw/state/trimprobe-lictgf/preflight.tsv`; pass every selection as EXPLICIT arguments (never an `@argfile`, which collected almost nothing and yielded a false `survived` at authoring, `g00ljy` F-04). A selection is usable only when its preflight exits 0 with at least one test collected: when ANY single argument is unresolvable pytest prints `ERROR: not found: <arg>` and exits 4 even though it reports the other items as collected, and the probe run with the same arguments then runs nothing and yields a false `survived` (Findings F-04). On a nonzero exit, drop every argument named in a `not found` line, list them in the row's Reason as `unresolved: <n>`, and re-preflight; if none remain the node-id selection is empty. The file-level fallback is preflighted under the same rule, and a key whose file-level selection is also unusable is `unprovable` with reason `empty selection`. (2) SURVIVOR: `python3 tools/mutation_probe.py <key> --op <queue operator> --format json -- [-n 6 when the count exceeds 100] -m "not slow and not livecorpus" <node ids>`. (3) FALLBACK: when the node-id survivor is `survived` or the node-id selection is empty, preflight and re-run the survivor with the key's committed `Surviving test files` instead, since a narrowed selection can omit a test that reaches the key only in a subprocess; the file-level result decides. (4) CONTROL, only when the deciding survivor is `survived` and the queue names a control file: `python3 tools/mutation_probe.py <key> --op <operator> --format json --extra-test 19313eed:<control file> -- <control file>`; with control file `none` the key is `unprovable` with reason `no deleted reaching file`. (5) MAP with the `rf1xxr` E-02 rule: survivor `killed` -> `guarded`; survivor `survived` with control `killed` -> `unguarded`; survivor `killed-by-import` -> one retry with an untried operator from `tools.mutation_probe.OPERATORS` that `apply_operator` accepts, recording both, else `unprovable`; survivor `invalid`/`error`/`timeout`, or control `survived`/`invalid`/`killed-by-import`/`error`/`timeout` -> `unprovable` with the reason. Save every JSON under `.aw/state/trimprobe-lictgf/` and record any non-empty `checkout_status_changed` and `extra_tests_overwrote` in the row. A key's `wall_s` is the sum of all its probe runs.
   - Depends on: E-01
   - Expected outcome: each started key has a final verdict; `git status --short` and `git worktree list` are unchanged across the batch.
   - Execution state: pending
@@ -64,6 +66,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | `g00ljy` F-03 (authoring calibration, HEAD `476c7b7bd`) | A 60-test file-level probe took 24.92s; a 963-test probe at `-n 6` took 459.68s. Most `P2` keys have well under 250 collected tests, so the partition fits the cap with room for fallbacks and controls. |
 | F-02 | `g00ljy` F-04 | An `@argfile` selection produced a false `survived` in 5.77s; explicit arguments produced `killed` (118 newly failing). Hence the explicit-argument rule and preflight. |
 | F-03 | `rf1xxr` `## Rollup mutation results` row for `check_engine.py::check_system_layout` | A real `unguarded` result: survivor `survived`, control `killed` (11). This is the shape that becomes a restore item in Order 05. |
+| F-04 | Review demonstration at HEAD `9ecf555b8`: `python3 -m pytest -o addopts= -q --collect-only -p no:randomly tests/test_check_engine.py::NameGrammarTests::test_each_filename_shape_is_judged_the_same_way_in_both_modes tests/test_check_engine.py::test_does_not_exist_zz`, then the same two arguments run the way `tools.mutation_probe.probe` runs its baseline (`--continue-on-collection-errors --junitxml ...`) | Collect-only printed `ERROR: not found: ...::test_does_not_exist_zz` and `1 test collected`, exit 4; the run printed `no tests ran`, exit 4, and its junit file held `tests="0"`. One stale node id therefore empties the whole selection and `probe` (which compares failing sets only) reports `survived`. A collected count alone would not catch this, so the preflight must also require exit 0. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,6 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - Each probe JSON's `head` equals `git rev-parse HEAD`.
+- Every deciding run's preflight exited 0 with at least one test collected (`preflight.tsv`).
 - Row count equals the `P2` count in `## Probe queue`.
 - `git status --short` unchanged by probes.
 
@@ -110,7 +114,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste a scratch script's summary over `.aw/state/trimprobe-lictgf/*.json` listing, per key, every run's `verdict`, `head`, collected count and `wall_s`; confirm no deciding run had a preflight count of 0; paste the cumulative `wall_s`; paste `git status --short` and `git worktree list` before and after the batch showing them unchanged.
+  - Required evidence: paste a scratch script's summary over `.aw/state/trimprobe-lictgf/*.json` joined with `.aw/state/trimprobe-lictgf/preflight.tsv` listing, per key, every run's selection kind, `verdict`, `head`, preflight exit and collected count, and `wall_s`; confirm from that join that every run whose verdict enters the doc was preceded by a preflight with exit 0 and a collected count of at least 1, and paste the total count of `unresolved` node ids dropped (or `0`); paste the cumulative `wall_s`; paste `git status --short` and `git worktree list` before and after the batch showing them unchanged.
   - Observed evidence:
   - Result: pending
 
