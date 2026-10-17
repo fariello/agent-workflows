@@ -118,6 +118,109 @@ def _is_finished_plan(it: _att.Item, repo_root: Path) -> bool:
     return st in runner_shared.set_retirement_terminal_statuses()
 
 
+def is_edge_satisfied_on_disk(
+    repo_root: Path,
+    edge: Any,
+    consumer_action: str = "execute",
+) -> Tuple[bool, str]:
+    """Check if a declared ItemDependency edge is satisfied against current disk state."""
+    from agent_workflows import runner_shared
+
+    state = {"repo": repo_root, "queue": []}
+    consumer_item = {"action": consumer_action}
+    try:
+        satisfied, reason = runner_shared.edge_satisfied(edge, consumer_item, state, {})
+        return bool(satisfied), reason
+    except Exception as exc:
+        tok = getattr(edge, "canonical", lambda: str(edge))()
+        return False, f"{tok}: {exc}"
+
+
+def expand_candidates_with_dependencies(
+    repo_root: Path,
+    candidates: Sequence[_att.Item],
+    artifact_type: str = "plans",
+    statuses: Sequence[str] = (),
+    action: Optional[str] = None,
+    include_active: bool = False,
+    run_map: Optional[Dict[str, str]] = None,
+) -> List[_att.Item]:
+    """Expand candidates with declared prerequisites that are not yet executed on disk.
+
+    For plans, pulls in prerequisite Sets (or individual plans) that can satisfy declared
+    Item-Dependencies edges.
+    """
+    from agent_workflows import runner_shared
+
+    terminal_statuses = runner_shared.set_retirement_terminal_statuses()
+    all_items, _ = _att.scan(repo_root, type_filters=(artifact_type,))
+    by_id = {it.id: it for it in all_items if it.id}
+
+    selection: List[_att.Item] = list(candidates)
+    in_selection_ids: Set[str] = {it.id for it in selection if it.id}
+    visited_ids: Set[str] = set()
+    frontier: List[str] = [it.id for it in selection if it.id]
+
+    while frontier:
+        cid = frontier.pop(0)
+        if cid in visited_ids:
+            continue
+        visited_ids.add(cid)
+
+        it = by_id.get(cid)
+        if not it:
+            continue
+
+        for tok in it.item_dependencies or ():
+            edge = runner_shared.parse_dependency_token(tok)
+            if edge is None:
+                continue
+
+            sat_disk, _ = is_edge_satisfied_on_disk(
+                repo_root, edge, consumer_action=action or "execute"
+            )
+            if sat_disk:
+                continue
+
+            tgt_id = getattr(edge, "id6", "")
+            if not tgt_id or tgt_id not in by_id:
+                continue
+
+            tgt_it = by_id[tgt_id]
+            if _is_finished_plan(tgt_it, repo_root):
+                continue
+
+            tgt_p = repo_root / tgt_it.path
+            sid = None
+            if tgt_p.exists():
+                try:
+                    sid = _selectors._read_setid(tgt_p.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            to_add: List[_att.Item] = []
+            if sid:
+                mem = runner_shared.read_set_membership(repo_root, sid)
+                for m in mem.members:
+                    if (m.status or "").lower() in terminal_statuses:
+                        continue
+                    if m.id6 in by_id and m.id6 not in in_selection_ids:
+                        m_it = by_id[m.id6]
+                        if not _is_finished_plan(m_it, repo_root):
+                            to_add.append(m_it)
+            else:
+                if tgt_id not in in_selection_ids:
+                    to_add.append(tgt_it)
+
+            for item in to_add:
+                if item.id not in in_selection_ids:
+                    in_selection_ids.add(item.id)
+                    selection.append(item)
+                    frontier.append(item.id)
+
+    return selection
+
+
 def apply_max_count(
     candidates: List[_att.Item],
     max_count: Optional[int],
@@ -216,8 +319,15 @@ def classify_sets(
             continue
 
         orch_status = (membership.orchestrator.status or "").lower()
-        if orch_status in terminal_statuses:
-            continue
+        is_orch_terminal = orch_status in terminal_statuses
+        if is_orch_terminal:
+            set_unfinished_in_candidates = any(
+                m.id6 in pre_max_ids
+                and (m.status or "").lower() not in terminal_statuses
+                for m in membership.members
+            )
+            if not set_unfinished_in_candidates:
+                continue
 
         orch_action = _run_selection_policy.action_for_status("ipd", orch_status)
         batch_action = action_flag
@@ -254,7 +364,13 @@ def classify_sets(
         runnable: List[str] = []
         blocked: List[BlockedMember] = []
 
+        if is_orch_terminal:
+            finished.append(membership.orchestrator.id6)
+
         for m in membership.members:
+            if is_orch_terminal and m.id6 == membership.orchestrator.id6:
+                continue
+
             m_status = (m.status or "").lower()
             if m_status in terminal_statuses:
                 finished.append(m.id6)
@@ -337,7 +453,7 @@ def classify_sets(
                         fix=f"wait for active run to finish {m.id6}",
                     )
                 )
-            else:
+            elif not is_orch_terminal:
                 blocked.append(
                     BlockedMember(
                         id6=m.id6,
@@ -347,58 +463,59 @@ def classify_sets(
                     )
                 )
 
-        orch_p = membership.orchestrator.path
-        if not orch_p.exists():
-            orch_p = repo_root / orch_p
-        orch_text = orch_p.read_text(encoding="utf-8") if orch_p.exists() else ""
+        if not is_orch_terminal:
+            orch_p = membership.orchestrator.path
+            if not orch_p.exists():
+                orch_p = repo_root / orch_p
+            orch_text = orch_p.read_text(encoding="utf-8") if orch_p.exists() else ""
 
-        if len(membership.children) == 0:
-            if not any(
-                b.id6 == membership.orchestrator.id6
-                and b.cause == "orchestrator-cannot-retire"
-                for b in blocked
-            ):
-                blocked.append(
-                    BlockedMember(
-                        id6=membership.orchestrator.id6,
-                        status=membership.orchestrator.status,
-                        cause="orchestrator-cannot-retire",
-                        fix=f"add a child plan to Set {setid}",
+            if len(membership.children) == 0:
+                if not any(
+                    b.id6 == membership.orchestrator.id6
+                    and b.cause == "orchestrator-cannot-retire"
+                    for b in blocked
+                ):
+                    blocked.append(
+                        BlockedMember(
+                            id6=membership.orchestrator.id6,
+                            status=membership.orchestrator.status,
+                            cause="orchestrator-cannot-retire",
+                            fix=f"add a child plan to Set {setid}",
+                        )
                     )
+            else:
+                unauthored, parsed = runner_shared.find_unauthored_child_rows(
+                    orch_text, membership
                 )
-        else:
-            unauthored, parsed = runner_shared.find_unauthored_child_rows(
-                orch_text, membership
-            )
-            if not parsed:
-                if not any(
-                    b.id6 == membership.orchestrator.id6
-                    and b.cause == "orchestrator-cannot-retire"
-                    for b in blocked
-                ):
-                    blocked.append(
-                        BlockedMember(
-                            id6=membership.orchestrator.id6,
-                            status=membership.orchestrator.status,
-                            cause="orchestrator-cannot-retire",
-                            fix=f"fix child table in orchestrator {membership.orchestrator.id6}",
+                if not parsed:
+                    if not any(
+                        b.id6 == membership.orchestrator.id6
+                        and b.cause == "orchestrator-cannot-retire"
+                        for b in blocked
+                    ):
+                        blocked.append(
+                            BlockedMember(
+                                id6=membership.orchestrator.id6,
+                                status=membership.orchestrator.status,
+                                cause="orchestrator-cannot-retire",
+                                fix=f"fix child table in orchestrator {membership.orchestrator.id6}",
+                            )
                         )
-                    )
-            elif unauthored:
-                tokens_str = ", ".join(unauthored)
-                if not any(
-                    b.id6 == membership.orchestrator.id6
-                    and b.cause == "orchestrator-cannot-retire"
-                    for b in blocked
-                ):
-                    blocked.append(
-                        BlockedMember(
-                            id6=membership.orchestrator.id6,
-                            status=membership.orchestrator.status,
-                            cause="orchestrator-cannot-retire",
-                            fix=f"author the missing child for row {tokens_str}",
+                elif unauthored:
+                    tokens_str = ", ".join(unauthored)
+                    if not any(
+                        b.id6 == membership.orchestrator.id6
+                        and b.cause == "orchestrator-cannot-retire"
+                        for b in blocked
+                    ):
+                        blocked.append(
+                            BlockedMember(
+                                id6=membership.orchestrator.id6,
+                                status=membership.orchestrator.status,
+                                cause="orchestrator-cannot-retire",
+                                fix=f"author the missing child for row {tokens_str}",
+                            )
                         )
-                    )
 
         is_completeable = len(blocked) == 0
         classifications[setid] = SetClassification(
@@ -408,6 +525,102 @@ def classify_sets(
             runnable=runnable,
             blocked=blocked,
             is_completeable=is_completeable,
+        )
+
+    # Iterative dependency verification across all runnable candidates
+    cand_by_id = {it.id: it for it in pre_max_candidates if it.id}
+    members_by_id: Dict[str, Tuple[str, Any]] = {}
+    member_edges: Dict[str, List[Any]] = {}
+
+    for setid, cs in classifications.items():
+        membership = runner_shared.read_set_membership(repo_root, setid)
+        for m in membership.members:
+            if m.id6 in cs.runnable:
+                members_by_id[m.id6] = (setid, m)
+                deps: List[str] = []
+                if (
+                    m.id6 in cand_by_id
+                    and cand_by_id[m.id6].item_dependencies is not None
+                ):
+                    deps = list(cand_by_id[m.id6].item_dependencies or ())
+                elif m.path:
+                    mp = m.path if m.path.is_absolute() else (repo_root / m.path)
+                    if mp.exists():
+                        try:
+                            raw_deps, _ = runner_shared._read_item_dependencies(
+                                mp.read_text(encoding="utf-8")
+                            )
+                            deps = raw_deps or []
+                        except Exception:
+                            pass
+                parsed_edges: List[Any] = []
+                for tok in deps:
+                    edge = runner_shared.parse_dependency_token(tok)
+                    if edge is not None:
+                        parsed_edges.append(edge)
+                member_edges[m.id6] = parsed_edges
+
+    active_runnable_ids: Set[str] = {
+        mid for cs in classifications.values() for mid in cs.runnable
+    }
+    unsatisfied_targets: Dict[str, List[str]] = {}
+
+    changed = True
+    while changed:
+        changed = False
+        for mid in list(active_runnable_ids):
+            edges = member_edges.get(mid, [])
+            for edge in edges:
+                sat_disk, _ = is_edge_satisfied_on_disk(
+                    repo_root, edge, consumer_action=action_flag or "execute"
+                )
+                if sat_disk:
+                    continue
+
+                target_id = getattr(edge, "id6", "")
+                can_satisfy = False
+                if edge.kind == "executed" or (
+                    edge.kind == "state" and getattr(edge, "target_type", "") == "ipd"
+                ):
+                    if target_id and target_id in active_runnable_ids:
+                        can_satisfy = True
+
+                if not can_satisfy:
+                    active_runnable_ids.remove(mid)
+                    changed = True
+                    if target_id:
+                        unsatisfied_targets.setdefault(mid, []).append(target_id)
+                    break
+
+    for setid, cs in list(classifications.items()):
+        new_runnable = list(cs.runnable)
+        new_blocked = list(cs.blocked)
+        for mid in list(new_runnable):
+            if mid not in active_runnable_ids:
+                new_runnable.remove(mid)
+                m_info = members_by_id.get(mid)
+                m_status = m_info[1].status if m_info else "approved"
+                targets = unsatisfied_targets.get(mid, [])
+                if targets:
+                    targets_str = ", ".join(sorted(set(targets)))
+                    fix_clause = f"run with --with-dependencies, or execute prerequisite {targets_str} first"
+                else:
+                    fix_clause = "satisfy declared item-dependencies before scheduling"
+                new_blocked.append(
+                    BlockedMember(
+                        id6=mid,
+                        status=m_status,
+                        cause="unsatisfied-dependency",
+                        fix=fix_clause,
+                    )
+                )
+        classifications[setid] = SetClassification(
+            setid=cs.setid,
+            orchestrator_id=cs.orchestrator_id,
+            finished=cs.finished,
+            runnable=new_runnable,
+            blocked=new_blocked,
+            is_completeable=len(new_blocked) == 0,
         )
 
     return classifications
@@ -423,9 +636,14 @@ def render_set_block(
     if is_warning:
         label = term.colorize("warning:", "yellow", "bold")
         orch_bold = term.colorize(cs.orchestrator_id, "bold")
-        lines.append(
-            f"{label} Set '{cs.setid}' cannot finish in this batch; held back orchestrator {orch_bold}."
-        )
+        if cs.orchestrator_id in cs.finished:
+            lines.append(
+                f"{label} Set '{cs.setid}' cannot finish in this batch; orchestrator {orch_bold} is already executed."
+            )
+        else:
+            lines.append(
+                f"{label} Set '{cs.setid}' cannot finish in this batch; held back orchestrator {orch_bold}."
+            )
     else:
         label = term.colorize("error:", "red", "bold")
         lines.append(
@@ -447,10 +665,18 @@ def render_set_block(
     max_excl = [b for b in cs.blocked if b.cause == "excluded-by-max"]
     orch_ret = [b for b in cs.blocked if b.cause == "orchestrator-cannot-retire"]
     running = [b for b in cs.blocked if b.cause == "already-running"]
+    unsatisfied = [b for b in cs.blocked if b.cause == "unsatisfied-dependency"]
     other = [
         b
         for b in cs.blocked
-        if b not in to_review + reviewed + not_sel + max_excl + orch_ret + running
+        if b
+        not in to_review
+        + reviewed
+        + not_sel
+        + max_excl
+        + orch_ret
+        + running
+        + unsatisfied
     ]
 
     fix_clauses: List[str] = []
@@ -493,6 +719,11 @@ def render_set_block(
         ids_str = " ".join(b.id6 for b in running)
         fix_clauses.append(f"wait for active run to finish {ids_str}")
 
+    if unsatisfied:
+        for b in unsatisfied:
+            if b.fix not in fix_clauses:
+                fix_clauses.append(b.fix)
+
     if other:
         for b in other:
             fix_clauses.append(b.fix)
@@ -504,11 +735,16 @@ def render_set_block(
         has_runnable_children = any(cid != cs.orchestrator_id for cid in cs.runnable)
         if has_runnable_children:
             flag_cyan = term.colorize("--allow-partial-sets", "cyan")
-            orch_bold = term.colorize(cs.orchestrator_id, "bold")
-            partial_clause = (
-                f"or rerun with {flag_cyan} to run the ready plans now and leave the\n"
-                f"           orchestrator {orch_bold} for a later batch."
-            )
+            if cs.orchestrator_id in cs.finished:
+                partial_clause = (
+                    f"or rerun with {flag_cyan} to run the ready plans now."
+                )
+            else:
+                orch_bold = term.colorize(cs.orchestrator_id, "bold")
+                partial_clause = (
+                    f"or rerun with {flag_cyan} to run the ready plans now and leave the\n"
+                    f"           orchestrator {orch_bold} for a later batch."
+                )
             if base_fix:
                 full_fix = f"{base_fix};\n           {partial_clause}"
             else:
@@ -1083,6 +1319,18 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 2
+
+        with_dependencies = bool(getattr(args, "with_dependencies", False))
+        if with_dependencies:
+            raw_candidates = expand_candidates_with_dependencies(
+                repo_root=repo_root,
+                candidates=raw_candidates,
+                artifact_type=artifact_type,
+                statuses=statuses,
+                action=action_flag,
+                include_active=include_active,
+                run_map=run_map,
+            )
 
         pre_max_candidates = apply_max_count(raw_candidates, None, effective_order_by)
         candidates = apply_max_count(pre_max_candidates, max_count, effective_order_by)

@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import agent_schema
-from agent_workflows import cli
+from agent_workflows import agent_schema, cli
 
 
 def make_fixture_plan(
@@ -934,3 +933,322 @@ def test_partition_set_with_active_child_blocks_batch(
     assert "achl02" in captured_inc.out
     assert "achl03" in captured_inc.out
     assert "aorch0" in captured_inc.out
+
+
+def test_partition_unsatisfied_cross_set_dependency_refusal(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """When a plan has an unsatisfied cross-set dependency, partition refuses by default (exit 2)."""
+    repo = tmp_path / "repo_dep_refusal"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    # Set Prereq: Orchestrator + 1 child, status approved (in pending)
+    table_p = (("01", "pchl01", "Prereq Child"),)
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "setp",
+        "Set P",
+        0,
+        "porch0",
+        "Set P Orchestrator",
+        child_orders=table_p,
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setp",
+        "Set P",
+        1,
+        "pchl01",
+        "Set P Child",
+    )
+
+    # Set Consumer: Orchestrator + 2 children. Child 1 has no deps, Child 2 depends on pchl01
+    table_c = (
+        ("01", "cuch01", "Consumer Child 1"),
+        ("02", "cuch02", "Consumer Child 2"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "setc",
+        "Set C",
+        0,
+        "corch0",
+        "Set C Orchestrator",
+        child_orders=table_c,
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setc",
+        "Set C",
+        1,
+        "cuch01",
+        "Consumer Child 1",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setc",
+        "Set C",
+        2,
+        "cuch02",
+        "Consumer Child 2",
+        item_dependencies="executed:pchl01",
+    )
+
+    # Only Set C is selected. pchl01 is approved on disk but not executed, and not in selection.
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setc",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert (
+        "error: Set 'setc' cannot finish in this batch, so nothing was scheduled."
+        in captured.err
+    )
+    assert "cuch02 (approved, unsatisfied dependency)" in captured.err
+    assert (
+        "run with --with-dependencies, or execute prerequisite pchl01 first"
+        in captured.err
+    )
+
+    # With --allow-partial-sets: ready child cuch01 runs, cuch02 is dropped, orchestrator corch0 is held back
+    code_partial = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setc",
+            "--allow-partial-sets",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_partial == 0
+    captured_part = capsys.readouterr()
+    assert (
+        "warning: Set 'setc' cannot finish in this batch; held back orchestrator corch0."
+        in captured_part.err
+    )
+    assert "cuch02 (approved, unsatisfied dependency)" in captured_part.err
+    assert "cuch01" in captured_part.out
+    assert "cuch02" not in captured_part.out
+    assert "corch0" not in captured_part.out
+
+    # With --with-dependencies: Set P is pulled in, both sets complete and are partitioned
+    code_with_deps = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setc",
+            "--with-dependencies",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_with_deps == 0
+    captured_deps = capsys.readouterr()
+    assert "cuch01" in captured_deps.out
+    assert "cuch02" in captured_deps.out
+    assert "pchl01" in captured_deps.out
+    assert "corch0" in captured_deps.out
+    assert "porch0" in captured_deps.out
+
+
+def test_partition_prerequisite_already_executed_on_disk(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """When a plan's prerequisite is already executed on disk, the edge is satisfied and partition succeeds."""
+    repo = tmp_path / "repo_prereq_exec"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    # Prereq child is executed on disk
+    make_fixture_plan(
+        repo,
+        "executed",
+        "20261010",
+        "child",
+        "executed",
+        "setp",
+        "Set P",
+        1,
+        "pchl01",
+        "Prereq Child Executed",
+    )
+
+    # Set C has child depending on pchl01
+    table_c = (("01", "cuch01", "Consumer Child 1"),)
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "setc",
+        "Set C",
+        0,
+        "corch0",
+        "Set C Orchestrator",
+        child_orders=table_c,
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setc",
+        "Set C",
+        1,
+        "cuch01",
+        "Consumer Child 1",
+        item_dependencies="executed:pchl01",
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setc",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "cuch01" in captured.out
+    assert "corch0" in captured.out
+
+
+def test_partition_set_with_executed_orchestrator_and_unsatisfied_child(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A Set whose orchestrator is already executed still refuses when a child has an unsatisfied dependency."""
+    repo = tmp_path / "repo_exec_orch"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    # Orchestrator is in executed/
+    table = (
+        ("01", "xchl01", "Child 1"),
+        ("02", "xchl02", "Child 2"),
+    )
+    make_fixture_plan(
+        repo,
+        "executed",
+        "20261010",
+        "orchestrator",
+        "executed",
+        "setx",
+        "Set X",
+        0,
+        "xorch0",
+        "Set X Orchestrator",
+        child_orders=table,
+    )
+    make_fixture_plan(
+        repo,
+        "executed",
+        "20261010",
+        "child",
+        "executed",
+        "setx",
+        "Set X",
+        1,
+        "xchl01",
+        "Child 1 Executed",
+    )
+    # Child 2 is pending and requires missing prerequisite
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setx",
+        "Set X",
+        2,
+        "xchl02",
+        "Child 2 Pending",
+        item_dependencies="executed:mis001",
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setx",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 2
+    captured = capsys.readouterr()
+    assert (
+        "error: Set 'setx' cannot finish in this batch, so nothing was scheduled."
+        in captured.err
+    )
+    assert "xchl02 (approved, unsatisfied dependency)" in captured.err
+
+    # With --allow-partial-sets, warning notes orchestrator is already executed, child is dropped
+    code_part = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setx",
+            "--allow-partial-sets",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_part == 0
+    captured_part = capsys.readouterr()
+    assert (
+        "warning: Set 'setx' cannot finish in this batch; orchestrator xorch0 is already executed."
+        in captured_part.err
+    )
+    assert "xchl02 (approved, unsatisfied dependency)" in captured_part.err

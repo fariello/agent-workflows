@@ -4711,6 +4711,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Schedule the ready plans of a Set that cannot finish in this batch. The Set's orchestrator is never scheduled until every child can run.",
     )
     p_partition.add_argument(
+        "--with-dependencies",
+        dest="with_dependencies",
+        action="store_true",
+        default=False,
+        help="Pull declared dependencies into the candidate selection before partitioning.",
+    )
+    p_partition.add_argument(
         "--include-active",
         dest="include_active",
         action="store_true",
