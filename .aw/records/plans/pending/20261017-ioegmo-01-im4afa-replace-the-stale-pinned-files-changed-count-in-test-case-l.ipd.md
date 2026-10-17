@@ -6,7 +6,8 @@
 - Scope: Replace the literal count with an assertion derived from the installer's own observable outputs, so the test still proves that the commit contains exactly what the install wrote and nothing else, without pinning a payload size.
 - Scope-Paths: tests/test_clean_target_config_home.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
 - Work-Kind: bug
 - Priority: high
 - From-Backlog: ioegmo
@@ -18,7 +19,7 @@
 - Id: im4afa
 
 ## Workflow history
-
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, open, OQ-02 blocking), PR-002 (MEDIUM, open)
 - 2026-10-17 draft (opencode): created.
 - 2026-10-17 to-review (opencode): authored from backlog ioegmo; reproduced the failure in the lane (363 actual vs 358 pinned).
 
@@ -102,6 +103,14 @@ N/A: test-only change; no spec or user-facing doc describes the installed file c
 - Status: resolved
 - Owner: executor
 - Resolution or deferral rationale: Resolved by procedure rather than assumption: E-01 measures it, and E-02 either uses it directly or applies only an explained, coded adjustment. If E-01 shows no principled oracle exists, the fallback is still pin-free: assert the commit set equals the set of non-ignored files present in the target after install minus the pre-existing `README.md` (computed via `git ls-files` + filesystem walk excluding `.git`), which still detects a swept-in foreign file.
+
+### OQ-02: Retire this plan as superseded, or rescope it?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: OPEN (raised by /plan-review 2026-10-17). The premise is false at HEAD: commit 84cba788c already removed the `"358 files changed"` literal and replaced it with derived assertions (install-commit path set equals `git ls-files` minus `README.md`, non-empty, contains `AGENTS.md` and `.aw/.gitignore`, clean `git status --porcelain`), so E-02 has nothing to replace and V-02's diff demand cannot be met. Sibling plan `3nczai` (Set `6i9viq`, same defect, reviewed this sweep) was rescoped to verify that landed fix and prove its sensitivity. Recommended: retire this plan to `superseded/` (superseded by 84cba788c and `3nczai`) and close backlog `ioegmo` with `aw backlog set done ioegmo --evidence <executed 3nczai plan path>` once `3nczai` executes, which carries the `Blocks-Release: next` gate via the SATISFIED route. Alternative: rescope this plan to switch the oracle to the installer's `.created-files.json` record; the review measured that record is NOT an exact oracle (see the review record), so that alternative needs its own design.
 
 ## Validation and cross-check (verify before reporting done)
 
