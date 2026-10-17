@@ -98,6 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Load-aware enforcement for bare `python3 -m pytest`, a budget-only reason in `suite_cache`, and replacing the "no test ids recorded" send-back text: already designed in pending plan `44nfmd`; duplicating it here would put two plans on the same lines of `conftest.py`, `suite_cache.py` and `runner_shared.py`.
   - Carrier: 44nfmd
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.ipd.md
 - Adding `AW_CORE_BUDGET_ENFORCE` to `suite_cache.SUITE_KEY_ENV_VARS` so an explicit-enforce caller is never served a PASS cached under the default demotion: the budget is a load-dependent property and not a property of the tree, which is the ruling `ytz6z4` shipped, so serving that PASS is consistent with the gate's question; the only explicit-enforce test (`test_gate_suite_honors_explicit_enforce`) uses `use_cache=False`.
   - Carrier-Declined: not a defect under the `ytz6z4` ruling; nothing is left unfixed for `m8d13e`.
 - Changing the 30s budget value or core membership: deliberate design of executed plan `hguae9`; this bug is about load, not the budget value.

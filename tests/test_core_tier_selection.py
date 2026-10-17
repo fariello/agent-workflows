@@ -70,15 +70,45 @@ def pytest_sessionfinish(session, exitstatus):
         durations.sort(key=lambda x: x[0], reverse=True)
         slowest = durations[:10]
         slowest_lines = "\\n".join(f"  {idx + 1:2d}. {dur:6.2f}s  {nodeid}" for idx, (dur, nodeid) in enumerate(slowest))
+        cpu_count = int(os.environ.get("AW_TEST_CPU_COUNT", str(os.cpu_count() or 1)))
+        enforce = os.environ.get("AW_CORE_BUDGET_ENFORCE") != "0"
+        load_avg = None
+        env_load = os.environ.get("AW_TEST_LOADAVG")
+        if env_load is not None:
+            try:
+                load_avg = float(env_load)
+            except ValueError:
+                load_avg = None
+        else:
+            try:
+                load_avg = os.getloadavg()[0]
+            except (OSError, AttributeError):
+                load_avg = None
+        if load_avg is not None:
+            load_line = f"Host 1-minute load average: {load_avg:.2f} on {cpu_count} CPUs"
+        else:
+            load_line = f"Host 1-minute load average: unknown on {cpu_count} CPUs"
+        not_enforced_reason = None
+        if not enforce:
+            not_enforced_reason = "AW_CORE_BUDGET_ENFORCE=0"
+        elif cpu_count < 12:
+            not_enforced_reason = "fewer than 12 CPUs"
+        elif load_avg is not None and load_avg > cpu_count:
+            not_enforced_reason = "host oversubscribed (1-minute load average above the CPU count)"
+        not_enforced_line = (
+            f"Core tier budget not enforced: {not_enforced_reason}\\n"
+            if not_enforced_reason
+            else ""
+        )
         msg = (
             f"\\n================================ CORE TIER BUDGET EXCEEDED ================================\\n"
             f"Core tier wall time: {elapsed:.2f}s exceeded budget of {budget:.2f}s.\\n"
+            f"{load_line}\\n"
+            f"{not_enforced_line}"
             f"Top 10 slowest core tests:\\n{slowest_lines}\\n"
             f"===========================================================================================\\n"
         )
-        cpu_count = int(os.environ.get("AW_TEST_CPU_COUNT", str(os.cpu_count() or 1)))
-        enforce = os.environ.get("AW_CORE_BUDGET_ENFORCE") != "0"
-        if cpu_count >= 12 and enforce:
+        if not_enforced_reason is None:
             sys.stderr.write(msg)
             session.exitstatus = 1
         else:
@@ -117,6 +147,7 @@ def _clean_env(**overrides: str) -> dict[str, str]:
     env = dict(os.environ)
     env.pop("PYTEST_XDIST_WORKER", None)
     env.pop("AW_TEST_TIER", None)
+    env["AW_TEST_LOADAVG"] = "0"
     env.update(overrides)
     return env
 
@@ -197,6 +228,70 @@ def test_budget_exceeded_enforce_zero_warns(temp_project: Path) -> None:
     assert "CORE TIER BUDGET EXCEEDED" in combined
     assert "WARNING:" in combined
     assert "test_core_one" in combined
+
+
+def test_budget_exceeded_high_load_warns_and_demotes(temp_project: Path) -> None:
+    env = _clean_env(
+        AW_CORE_BUDGET_SECONDS="0.01",
+        AW_CORE_BUDGET_ENFORCE="1",
+        AW_TEST_CPU_COUNT="12",
+        AW_TEST_LOADAVG="30",
+    )
+    res = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts="],
+        cwd=temp_project,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode == 0
+    combined = res.stdout + res.stderr
+    assert "WARNING:" in combined
+    assert "CORE TIER BUDGET EXCEEDED" in combined
+    assert "load average: 30.00" in combined
+    assert "Core tier budget not enforced:" in combined
+
+
+def test_budget_exceeded_low_load_fails(temp_project: Path) -> None:
+    env = _clean_env(
+        AW_CORE_BUDGET_SECONDS="0.01",
+        AW_CORE_BUDGET_ENFORCE="1",
+        AW_TEST_CPU_COUNT="12",
+        AW_TEST_LOADAVG="2",
+    )
+    res = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts="],
+        cwd=temp_project,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    combined = res.stdout + res.stderr
+    assert "CORE TIER BUDGET EXCEEDED" in combined
+    assert "load average: 2.00" in combined
+    assert "Core tier budget not enforced:" not in combined
+
+
+def test_budget_exceeded_unparseable_load_fails(temp_project: Path) -> None:
+    env = _clean_env(
+        AW_CORE_BUDGET_SECONDS="0.01",
+        AW_CORE_BUDGET_ENFORCE="1",
+        AW_TEST_CPU_COUNT="12",
+        AW_TEST_LOADAVG="not-a-number",
+    )
+    res = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts="],
+        cwd=temp_project,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    combined = res.stdout + res.stderr
+    assert "CORE TIER BUDGET EXCEEDED" in combined
+    assert "load average: unknown" in combined
+    assert "Core tier budget not enforced:" not in combined
 
 
 def _gate_env(**overrides: str) -> dict[str, str]:
