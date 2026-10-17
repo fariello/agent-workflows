@@ -6,7 +6,8 @@
 - Scope: IN: create the Set `trimprobe` findings doc; run one full `tests/` coverage baseline at HEAD; for each of the 319 keys record its reach class, a valid mutation operator, its reaching test node ids count, its surviving test files, an estimated probe cost, and its assigned partition (Order 02, Order 03, Order 04, or a no-probe final verdict); commit the doc. OUT: any mutation probe (Orders 02 to 04); filing (Order 05); any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: lrnh5f
@@ -17,13 +18,14 @@
 - Id: g00ljy
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-17 to-review (opencode): authored review-ready child of Set `trimprobe` graduating backlog `lrnh5f`.
 - 2026-10-17 draft (opencode): created.
 
 ## Goal
 
-A committed, HEAD-current probe queue for all 319 keys, partitioned so each probe plan fits under its own 10,800s cap, so no key ends `budget-exhausted` for lack of planning a second time.
+A committed, HEAD-current probe queue for all 319 keys, partitioned so `P2`'s estimated survivor cost is at most 7,200s (leaving headroom under Order 02's 10,800s cap for fallbacks and controls) and `P3`'s estimated cost is measured and reported against Order 03's cap, so no key ends `budget-exhausted` for lack of planning a second time, and any residual overflow risk is visible in the doc before Orders 02 and 03 run.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -43,12 +45,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Classification and partition
 
-- [ ] E-03 With a scratch script under `.aw/state/trimprobe-g00ljy/` (paste its source under `## Method`), classify every key in this order: `key-gone` when `tools.replay_coverage_diff.extract_functions` finds no span for the qualname in the HEAD module (final verdict, no probe); OPERATOR CHECK: when `tools.mutation_probe.apply_operator(<HEAD source>, <qualname>, <operator>)` returns `None`, replace the operator with the first entry of `tools.mutation_probe.OPERATORS` it accepts and record both, and if none is accepted the key is final `unprovable` with reason `no applicable operator`; `unguarded-unreached` when the key is absent from `baseline.json` (final verdict; Reason cell "unreached by the non-slow selection at <E-01 HEAD>", since `slow`/`livecorpus` are excluded, `8dyt88` `## Method`); `subprocess-only` when `subprocess_only` is true (partition `P4`); otherwise `reached`. For every key record its CONTROL FILE as below. For each `reached` key derive its NODE-ID selection by mapping every context (`tests.<module>[.<Class>].<test>`) to `tests/<module>.py[::<Class>]::<test>` with the longest-existing-file-prefix rule of `tools.mutation_probe._node_id_to_selector`, its collected item count `N` from `collect.txt`, its surviving test files, its CONTROL FILE (the deleted file with the most exclusive lines in the key's `hpjj44` `## Derived properties` `Reaching Test Files` cell, read with `git show 19313eed^:<path>` to confirm it exists there; `none` when no row or no such blob), and `est_s = 10 + 0.48 * N` (calibration at authoring HEAD `476c7b7bd`, `-n 6`: a 60-test selection probed in 24.92s and a 963-test selection in 459.68s, Findings F-03). Sort `reached` keys by `(N, key)` ascending and assign `P2` while the cumulative `est_s` is at most 7,200s and `P3` for the rest.
+- [ ] E-03 With a scratch script under `.aw/state/trimprobe-g00ljy/` (paste its source under `## Method`), classify every key in this order: `key-gone` when the module file is absent at HEAD or `tools.replay_coverage_diff.extract_functions` finds no span for the qualname in the HEAD module (final verdict, no probe); OPERATOR CHECK: when `tools.mutation_probe.apply_operator(<HEAD source>, <qualname>, <operator>)` returns `None`, replace the operator with the first entry of `tools.mutation_probe.OPERATORS` it accepts and record both, and if none is accepted the key is final `unprovable` with reason `no applicable operator`; `unguarded-unreached` when the key is absent from `baseline.json` (final verdict; Reason cell "unreached by the non-slow selection at <E-01 HEAD>", since `slow`/`livecorpus` are excluded, `8dyt88` `## Method`); `subprocess-only` when `subprocess_only` is true (partition `P4`); otherwise `reached`. For every key record its CONTROL FILE as below. For each `reached` key derive its NODE-ID selection by mapping every context (`tests.<module>[.<Class>].<test>`) to `tests/<module>.py[::<Class>]::<test>` with the longest-existing-file-prefix rule of `tools.mutation_probe._node_id_to_selector` (pass `"<module part>::<test>"` and the repo root, splitting the context at its last dot), its collected item count `N` (the number of `collect.txt` lines equal to a selector or equal to it followed by a `[...]` parametrize suffix, summed over its selectors; count and list any context that matches zero collected lines as UNMAPPED), its surviving test files (the distinct file parts of its selectors), its CONTROL FILE (the deleted file with the most exclusive lines in the key's `hpjj44` `## Derived properties` `Reaching Test Files` cell, ties broken by path ascending, read with `git show 19313eed^:<path>` to confirm it exists there; `none` when no row or no such blob), and `est_s = 10 + 0.48 * N` (calibration at authoring HEAD `476c7b7bd`, `-n 6`: a 60-test selection probed in 24.92s and a 963-test selection in 459.68s, Findings F-03). Sort `reached` keys by `(N, key)` ascending and assign `P2` while the cumulative `est_s` is at most 7,200s; the first key that would push it past 7,200s and every key after it is `P3`. Then sum `P3`'s `est_s`: when it exceeds 7,200s (the same fallback headroom `P2` keeps), write a `### Capacity warning` under `## Probe queue` naming the summed value and, as a bullet list (not table rows), the `P3` keys past the 7,200s mark in queue order, since those are the keys Order 03 is most likely to leave `budget-exhausted`; do not repartition (a further probe plan is a human scope decision). At authoring, from the `86f0d88d` contexts, this rule gave `P2` 259 keys at 7,106s and `P3` 33 keys at 8,103s (review measurement; re-derive at HEAD).
   - Depends on: E-02
   - Expected outcome: every key has exactly one of `key-gone`, `unprovable`, `unguarded-unreached`, `P2`, `P3`, `P4`.
   - Execution state: pending
 
-- [ ] E-04 Write `## Probe queue`: one row per key with columns `Key`, `Operator`, `Operator note`, `Reach class`, `N`, `est_s`, `Surviving test files`, `Control file`, `Partition or final verdict`, in partition order then queue order, plus a summary table of counts per partition and per final verdict that sums to 319 and the summed `est_s` of `P2` and `P3`. The node-id selections are NOT committed (they are re-derived by Orders 02 and 03 at their own HEAD); the surviving files and control files ARE committed because Orders 02 to 04 need them in an isolated worktree (the file-level fallback and the positive control). Run `aw research index`, then commit only the doc with `aw commit <this plan> -- <doc path>`.
+- [ ] E-04 Write `## Probe queue`: one row per key with columns `Key`, `Operator`, `Operator note`, `Reach class`, `N`, `est_s`, `Surviving test files`, `Control file`, `Partition or final verdict`, in partition order then queue order, then the E-03 `### Capacity warning` when one applies, plus a summary table of counts per partition and per final verdict that sums to 319 and the summed `est_s` of `P2` and `P3`. The node-id selections are NOT committed (they are re-derived by Orders 02 and 03 at their own HEAD); the surviving files and control files ARE committed because Orders 02 to 04 need them in an isolated worktree (the file-level fallback and the positive control). Run `aw research index`, then commit only the doc with `aw commit <this plan> -- <doc path>`.
   - Depends on: E-03
   - Expected outcome: the table has 319 rows; counts sum to 319; one path-scoped commit.
   - Execution state: pending
@@ -123,12 +125,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the classification script's printed counts per class and partition (summing to 319), the list of keys whose operator was replaced (or `none`), and the cumulative `est_s` at the `P2`/`P3` boundary showing `P2` at most 7,200s.
+  - Required evidence: paste the classification script's printed counts per class and partition (summing to 319), the list of keys whose operator was replaced (or `none`), the UNMAPPED context count (and list, or `none`), the cumulative `est_s` at the `P2`/`P3` boundary showing `P2` at most 7,200s, the summed `P3` `est_s`, and either the `### Capacity warning` text or a statement that `P3` is at most 7,200s.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `rg -c '^\| \`agent_workflows/' <doc>` scoped to `## Probe queue` showing 319; paste the summary table; paste the `aw commit` output and `git show --stat HEAD` listing only the doc.
+  - Required evidence: paste `sed -n '/^## Probe queue/,/^## [^P]/p' <doc> | rg -c '^\| \`agent_workflows/'` showing 319 (the doc has no other `## ` section after `## Probe queue` at this Order, so the range is that section); paste the summary table; paste the `aw commit` output and `git show --stat HEAD` listing only the doc.
   - Observed evidence:
   - Result: pending
 
