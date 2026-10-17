@@ -1250,10 +1250,30 @@ def persist_project_policy(
     ):
         companion_dir_to_write = existing_companion
 
+    # Determine common_dir back-pointer for home-stored config (IPD ki6t17, backlog 4uw2a6)
+    from agent_workflows.project_context import _canonical_path, checkout_main_root
+
+    common_dir_to_write = (
+        existing_common if not replace_config and local_json.exists() else None
+    )
+    try:
+        Path(_canonical_path(local_json)).relative_to(Path(_canonical_path(repo_path)))
+        is_outside_repo = False
+    except ValueError:
+        is_outside_repo = True
+
+    if is_outside_repo and not common_dir_to_write:
+        main_root = checkout_main_root(repo_path)
+        if main_root is not None:
+            cand_common = main_root / ".git"
+            if cand_common.is_dir():
+                common_dir_to_write = _canonical_path(cand_common)
+
     if replace_config or not local_json.exists():
         local_schema = LocalBindingSchema(
             schema_version=2,
             project_id=ctx.project_id,
+            common_dir=common_dir_to_write,
             companion_dir=policy.companion_dir,
         )
     else:
@@ -1261,7 +1281,7 @@ def persist_project_policy(
             schema_version=2,
             project_id=ctx.project_id,
             human_slug=existing_slug,
-            common_dir=existing_common,
+            common_dir=common_dir_to_write,
             worktree_path=existing_worktree,
             companion_dir=companion_dir_to_write,
             runtime_overrides=existing_overrides if existing_overrides else None,

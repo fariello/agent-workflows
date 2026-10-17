@@ -2339,6 +2339,26 @@ def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
     ]
 
 
+def _plan_repo_root(path: Path) -> Path:
+    """Find the owning repo root for a plan file, routing through record_owner_root (IPD ki6t17, 4uw2a6)."""
+    try:
+        resolved = path.resolve()
+    except Exception:
+        resolved = path
+
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(resolved)
+    if owner is not None:
+        return owner
+
+    default_root = resolved.parent
+    for anc in resolved.parents:
+        if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+            return anc
+    return default_root
+
+
 def _review_stale_advisory(
     doc: ParsedDoc, path: Optional[Path], checkpoint: str
 ) -> List[Diagnostic]:
@@ -2350,6 +2370,11 @@ def _review_stale_advisory(
     try:
         resolved_path = path.resolve()
     except Exception:
+        return []
+
+    from agent_workflows import project_context
+
+    if project_context.record_owner_root(resolved_path) is not None:
         return []
 
     repo_root: Optional[Path] = None
@@ -2423,13 +2448,7 @@ def lint_file(
         try:
             from agent_workflows import check_engine as _ce
 
-            # Derive the repo root by walking up to the dir that contains `.aw` (or `.agents`), so a
-            # plan under `<root>/.aw/records/plans/pending/...` resolves to `<root>`, not its parent.
-            repo_root = path.resolve().parent
-            for anc in path.resolve().parents:
-                if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                    repo_root = anc
-                    break
+            repo_root = _plan_repo_root(path)
             resolution_rules = {
                 S.RULE_IPD_DEP_DANGLING,
                 S.RULE_IPD_DEP_AMBIGUOUS,
@@ -2507,11 +2526,7 @@ def _merge_orchestrator_readiness(
     try:
         from agent_workflows import orchestrator_readiness as _orch_readiness
 
-        repo_root = path.resolve().parent
-        for anc in path.resolve().parents:
-            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                repo_root = anc
-                break
+        repo_root = _plan_repo_root(path)
 
         active_membership = membership
         if active_membership is None and membership_cache is not None:
@@ -2586,11 +2601,7 @@ def _merge_setid_length_advisory(
     try:
         from agent_workflows import config as _config
 
-        repo_root = path.resolve().parent
-        for anc in path.resolve().parents:
-            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                repo_root = anc
-                break
+        repo_root = _plan_repo_root(path)
         policy = _config.get_setid_policy(repo_root)
         if policy.tier_for(setid) != "warning":
             # None -> conformant; "error" -> already reported as IPD-M109 by the schema.
@@ -2661,11 +2672,7 @@ def _merge_review_escalation(
     try:
         from agent_workflows import check_engine as _ce
 
-        repo_root = path.resolve().parent
-        for anc in path.resolve().parents:
-            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                repo_root = anc
-                break
+        repo_root = _plan_repo_root(path)
         extra = [
             Diagnostic(0, 1, d.rule, d.detail)
             for d in _ce.evaluate_review_finding_escalation(
@@ -2739,11 +2746,7 @@ def _merge_durable_carrier(
     try:
         from agent_workflows import check_engine as _ce
 
-        repo_root = path.resolve().parent
-        for anc in path.resolve().parents:
-            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                repo_root = anc
-                break
+        repo_root = _plan_repo_root(path)
         blocking: List[Diagnostic] = []
         advisory: List[Diagnostic] = []
         for d in _ce.evaluate_durable_carrier(
@@ -3175,11 +3178,7 @@ def run_lint(args: argparse.Namespace) -> int:
             try:
                 from agent_workflows import orchestrator_readiness as _orch_readiness
 
-                repo_root = paths[0].resolve().parent
-                for anc in paths[0].resolve().parents:
-                    if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-                        repo_root = anc
-                        break
+                repo_root = _plan_repo_root(paths[0])
                 membership_cache = _orch_readiness.resolve_all_set_memberships(
                     repo_root
                 )

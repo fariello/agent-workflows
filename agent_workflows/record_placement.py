@@ -118,11 +118,19 @@ def resolve_creation_path(
 
 
 def _find_repo_root(path: Path) -> Path:
-    """Walk parents of `path` to find the enclosing repo root."""
+    """Walk parents of `path` to find the enclosing repo root.
+    Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6)."""
     try:
         resolved = path.resolve()
     except OSError:
         resolved = path
+
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(resolved)
+    if owner is not None:
+        return owner
+
     curr = resolved if resolved.is_dir() else resolved.parent
     for p in [curr, *curr.parents]:
         if (p / ".git").exists() or (p / ".aw").exists() or (p / ".agents").exists():

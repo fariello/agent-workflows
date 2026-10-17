@@ -57,6 +57,8 @@ AMENDED 2026-10-12 (cleancfg p425hv): for `clean-delta` the installer writes `co
 
 AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15): for `clean-delta` the installer and every reader route `system` and `records` to `AW_HOME/projects/<project-id>/`, write no host adapter or setup file into the target, stage and commit nothing, and the acceptance bar is `git status --porcelain --ignored` empty with HEAD unchanged after install and ordinary use.
 
+AMENDED 2026-10-16 (cleantgt ki6t17, backlog 4uw2a6): a record path under `AW_HOME/projects/<project-id>/records/` maps to its owning repository by `project_context.record_owner_root`, candidates are cwd, the home `config/local.json` `common_dir`, and `registry.json` `target_paths`, every candidate is accepted only when the records-root accessor maps it back to the same records root, and install writes `common_dir` into the HOME `local.json` only.
+
 The resolver returns each physical class separately: `system`, `config_project`, `config_local`, `state_durable`, `state_runtime`, and `records`. The four short root names remain human-facing group names only; they are not permission to collapse the six physical classes.
 
 ### 4.1 Exact ownership and filenames
