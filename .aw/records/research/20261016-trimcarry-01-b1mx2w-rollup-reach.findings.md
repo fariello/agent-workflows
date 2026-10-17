@@ -2126,3 +2126,161 @@ Accounting and classification for each of the 136 test names present in `19313ee
 | `tests/test_run_summary_table.py` | `test_the_recovery_section_prints_NO_absolute_path` | `passed` | `gap` | Recreated re-diff row for tests/test_run_summary_table.py lists 10 exclusive lines across 5 functions (verdict pass, 34 tests); not covered by surviving tests. |
 | `tests/test_run_summary_table.py` | `test_the_rendered_progress_line_excludes_pre_executed_members` | `passed` | `gap` | Recreated re-diff row for tests/test_run_summary_table.py lists 10 exclusive lines across 5 functions (verdict pass, 34 tests); not covered by surviving tests. |
 | `tests/test_run_summary_table.py` | `test_the_stranded_word_is_the_same_one_the_cross_tree_view_uses` | `passed` | `gap` | Recreated re-diff row for tests/test_run_summary_table.py lists 10 exclusive lines across 5 functions (verdict pass, 34 tests); not covered by surviving tests. |
+
+## Filing plan
+
+Grouped filing plan for every remaining gap from the uncited trim-deleted test audit rollup (Set `trimcarry`, Order 06 `z2xs98`). Groups are ranked with regressions first (0 regressions observed), then by covered exclusive line count descending. The top 15 groups are filed individually under `--set trimgap`; all remaining groups (ranks 16 through 60) are rolled into a single residual rollup backlog item.
+
+| Group | Module | Keys or Names Covered | Counts | Exclusive Lines | Remedy Shape | Dedupe Judgement | Work-Kind | Priority | Justification | Action |
+|---|---|---|---|---:|---|---|---|---|---|---|
+| 1 | `multiple (budget-exhausted)` | 319 budget-exhausted candidate keys | 319 keys | 1954 | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 2 | `agent_workflows/run_analytics_cli.py` | 1 key (`run_analyze`) + 75 test names from `tests/test_run_analytics_cli.py` | 76 (1 key, 75 names) | 449 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 3 | `agent_workflows/compat_migration.py` | `CompatRollback.scan_future_data`, `CompatRollback.rollback`, `CompatRollback.assess`, ... (36 keys) | 36 keys | 446 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 4 | `agent_workflows/run_analytics_taxonomy.py` | `classify_command`, `classify_tool_call`, `ClassAccounting.format_report`, ... (29 keys) | 29 keys | 416 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 5 | `agent_workflows/run_packet.py` | `StepPacket.to_dict`, `StepOutcomeEnvelope.to_dict`, `_compute_packet_digest`, ... (10 keys) | 10 keys | 396 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 6 | `agent_workflows/run_analytics_submit.py` | `open_url`, `_redact_url`, `_refusal_result`, ... (14 keys) | 14 keys | 311 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 7 | `agent_workflows/run_analytics_export.py` | `build_manifest`, `_bundle_readme`, `_sha256_file`, ... (10 keys) | 10 keys | 291 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 8 | `agent_workflows/migration_complex.py` | `SetupRepoStateMachine.apply_change`, `IssueLedger.disposition_all`, `ReleaseReviewCoordinator.__post_init__`, ... (40 keys) | 40 keys | 265 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 9 | `agent_workflows/engine.py` | `create_dependency_gate_hook`, `is_stale_shim_customized`, `_wire_optin_precommit_hook`, ... (12 keys) | 12 keys | 264 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 10 | `agent_workflows/lifecycle_fixtures.py` | `run_downgrade_warning`, `run_customized_file`, `run_multi_host_discovery`, ... (21 keys) | 21 keys | 244 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 11 | `agent_workflows/migration_compact.py` | `evaluate_promotion_gate`, `build_metric_summary`, `TypedContract.validate`, ... (24 keys) | 24 keys | 210 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 12 | `agent_workflows/migration_inventory.py` | `_harness_ir`, `HarnessRegistry.catalog_rows`, `plan_rollup`, ... (25 keys) | 25 keys | 189 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 13 | `agent_workflows/clean_delta.py` | `convert_legacy_adapters`, `uninstall_adapters`, `detect_adapter_drift`, ... (9 keys) | 9 keys | 160 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 14 | `agent_workflows/run_gates.py` | `execute_gated_action`, `GateDecision.is_approved`, `evaluate_gate` | 3 keys | 157 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 15 | `agent_workflows/run_analytics_telemetry.py` | `_parse_accelerator_csv`, `SystemResourceProbeAdapter._run_bounded`, `build_event`, ... (24 keys) | 24 keys | 151 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 16 | `agent_workflows/run_analytics_wizard.py` | `apply_choices`, `read_settings`, `plan_deletion`, ... (10 keys) | 10 keys | 145 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 17 | `agent_workflows/ipd_set_executor.py` | `disposition_pass`, `build_lanes`, `routing_config_from_mapping`, ... (13 keys) | 13 keys | 133 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 18 | `agent_workflows/check_engine.py` | `check_system_layout`, `evaluate_ipd_dependencies`, `evaluate_review_decision_escalation`, ... (5 keys) | 5 keys | 124 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 19 | `agent_workflows/run_analytics_report.py` | `_publish_flat`, `verify_bundle`, `prune_snapshots`, ... (5 keys) | 5 keys | 74 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 20 | `agent_workflows/set_lifecycle.py` | `derive_progress`, `stale_evidence_seqs_after_integration`, `make_invalidation_records`, ... (5 keys) | 5 keys | 71 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 21 | `agent_workflows/run_analytics_findings.py` | `format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison` | 3 keys | 68 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 22 | `agent_workflows/benchmark_manifest.py` | `manifest_from_dict`, `validate_manifest`, `validate_ceilings_dict`, ... (8 keys) | 8 keys | 64 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 23 | `agent_workflows/storage.py` | `move_companion`, `get_git_commit_boundaries`, `load_local_attachment_record`, ... (4 keys) | 4 keys | 55 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 24 | `agent_workflows/host_launchers.py` | `plan_launch`, `verify_fresh`, `enforce_model_binding`, ... (4 keys) | 4 keys | 47 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 25 | `agent_workflows/benchmark_protocol.py` | `assert_frozen`, `freeze_protocol`, `validate_protocol`, ... (7 keys) | 7 keys | 45 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 26 | `agent_workflows/layout_migration.py` | `is_stale_tool_litter`, `_apply_grammar_facet`, `_grammar_facet_for` | 3 keys | 42 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 27 | `agent_workflows/benchmark_corpus.py` | `hash_tree`, `materialize_task`, `is_ground_truth_accessible`, ... (8 keys) | 8 keys | 36 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 28 | `agent_workflows/worktree_lease.py` | `LeaseTable.claim`, `assert_worker_scope`, `LeaseTable.release`, ... (7 keys) | 7 keys | 29 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 29 | `agent_workflows/host_adapters.py` | `SkillPackage.to_dict`, `resolve_role_target`, `SkillPackage.resource_paths`, ... (4 keys) | 4 keys | 22 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 30 | `agent_workflows/agy_sessions.py` | `parse_args`, `main` | 2 keys | 21 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 31 | `agent_workflows/ipd_set_plan.py` | `_run_resume_report`, `run_execute_set`, `_resolve_repo_and_plans` | 3 keys | 21 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 32 | `agent_workflows/term.py` | `Term.format_diagnostic`, `Term.diagnostic`, `Term.title`, ... (8 keys) | 8 keys | 16 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 33 | `agent_workflows/agy_verifier.py` | `AgySessionDouble.invoke`, `finalize_run` | 2 keys | 15 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 34 | `agent_workflows/run_analytics_sources.py` | `inventory_corpus`, `CorpusInventory.generation_counts` | 2 keys | 14 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 35 | `agent_workflows/set_state.py` | `derive_set_state` | 1 keys | 13 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 36 | `agent_workflows/attention.py` | `_colorize_tree_segment` | 1 keys | 12 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 37 | `agent_workflows/record_history.py` | `_synthetic_key`, `read_renames_for` | 2 keys | 11 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 38 | `agent_workflows/agy_view.py` | `main` | 1 keys | 10 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 39 | `agent_workflows/run_analytics_config.py` | `clamp_interval` | 1 keys | 10 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 40 | `agent_workflows/render_stream.py` | 34 test names from `tests/test_run_summary_table.py` | 34 names | 10 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 41 | `agent_workflows/set_records.py` | `write_local_projections` | 1 keys | 9 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 42 | `agent_workflows/result_types.py` | `Diagnostic.from_drift`, `CommandResult.has_findings`, `CommandResult.is_error` | 3 keys | 9 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 43 | `agent_workflows/host_runner.py` | `validate_terminal_envelope` | 1 keys | 7 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 44 | `agent_workflows/run_state.py` | `is_legal_edge` | 1 keys | 7 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 45 | `agent_workflows/cli.py` | `_nv_resolve_types`, `_rewrite_help_token`, `_run_noun_verb` | 3 keys | 6 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 46 | `agent_workflows/research_cmd.py` | `plan_set_priority` | 1 keys | 5 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 47 | `agent_workflows/benchmark_scorer.py` | `intended_verdict`, `is_critical_class` | 2 keys | 5 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 48 | `agent_workflows/agy_run.py` | `main` | 1 keys | 4 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 49 | `agent_workflows/runner_shared.py` | `gate_answer_needs_human_remedy` | 1 keys | 4 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 50 | `agent_workflows/run_analytics_privacy.py` | `redact_text._replace` | 1 keys | 3 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 51 | `agent_workflows/hooks/ipd_dependency_statement_gate.py` | `check._on_staged_file` | 1 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 52 | `agent_workflows/research_refs.py` | `plan_reference_rewrites` | 1 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 53 | `agent_workflows/review_findings.py` | `ReviewDocument.current_decisions` | 1 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 54 | `agent_workflows/runner_stop.py` | `reset_signal_ladder` | 1 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 55 | `agent_workflows/selectors.py` | `Resolution.is_unique` | 1 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 56 | `agent_workflows/comms.py` | `is_ack_valid`, `is_envelope_header_valid` | 2 keys | 2 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 57 | `agent_workflows/artifact_refs.py` | `_rp_type_facet` | 1 keys | 1 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 58 | `agent_workflows/doctor.py` | `_version_drift` | 1 keys | 1 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 59 | `agent_workflows/plan_readiness.py` | `RecheckResult.holding` | 1 keys | 1 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 60 | `agent_workflows/run_engine.py` | `RunEngine.run_state` | 1 keys | 1 | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+
+## Filed items
+
+Filed backlog items for the top 15 groups and the residual rollup item under `--set trimgap`:
+
+| Item Id | File Path | Scope | Work-Kind | Priority | Summary |
+|---|---|---|---|---|---|
+| `lrnh5f` | `.aw/records/backlog/open/20261016-trimgap-01-lrnh5f-probe-then-restore-behavioral-test-coverage-for-31.backlog.md` | Group 1 (multiple: budget-exhausted) | `chore` | `low` | Probe then restore behavioral test coverage for 319 budget-exhausted rollup keys |
+| `n6h5eg` | `.aw/records/backlog/open/20261016-trimgap-01-n6h5eg-restore-behavioral-test-coverage-for-run-analytics.backlog.md` | Group 2 (agent_workflows/run_analytics_cli.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_cli |
+| `2mcirl` | `.aw/records/backlog/open/20261016-trimgap-01-2mcirl-restore-behavioral-test-coverage-for-compat-migrat.backlog.md` | Group 3 (agent_workflows/compat_migration.py) | `chore` | `low` | Restore behavioral test coverage for compat_migration |
+| `aux1f6` | `.aw/records/backlog/open/20261016-trimgap-01-aux1f6-restore-behavioral-test-coverage-for-run-analytics.backlog.md` | Group 4 (agent_workflows/run_analytics_taxonomy.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_taxonomy |
+| `aq04yg` | `.aw/records/backlog/open/20261016-trimgap-01-aq04yg-restore-behavioral-test-coverage-for-run-packet.backlog.md` | Group 5 (agent_workflows/run_packet.py) | `chore` | `low` | Restore behavioral test coverage for run_packet |
+| `gjmiuw` | `.aw/records/backlog/open/20261016-trimgap-01-gjmiuw-restore-behavioral-test-coverage-for-run-analytics.backlog.md` | Group 6 (agent_workflows/run_analytics_submit.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_submit |
+| `liybkg` | `.aw/records/backlog/open/20261016-trimgap-01-liybkg-restore-behavioral-test-coverage-for-run-analytics.backlog.md` | Group 7 (agent_workflows/run_analytics_export.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_export |
+| `x62jok` | `.aw/records/backlog/open/20261016-trimgap-01-x62jok-restore-behavioral-test-coverage-for-migration-com.backlog.md` | Group 8 (agent_workflows/migration_complex.py) | `chore` | `low` | Restore behavioral test coverage for migration_complex |
+| `7df9md` | `.aw/records/backlog/open/20261016-trimgap-01-7df9md-restore-behavioral-test-coverage-for-engine.backlog.md` | Group 9 (agent_workflows/engine.py) | `chore` | `low` | Restore behavioral test coverage for engine |
+| `lzn56i` | `.aw/records/backlog/open/20261016-trimgap-01-lzn56i-restore-behavioral-test-coverage-for-lifecycle-fix.backlog.md` | Group 10 (agent_workflows/lifecycle_fixtures.py) | `chore` | `low` | Restore behavioral test coverage for lifecycle_fixtures |
+| `fdyjv6` | `.aw/records/backlog/open/20261016-trimgap-01-fdyjv6-restore-behavioral-test-coverage-for-migration-com.backlog.md` | Group 11 (agent_workflows/migration_compact.py) | `chore` | `low` | Restore behavioral test coverage for migration_compact |
+| `igefrj` | `.aw/records/backlog/open/20261016-trimgap-01-igefrj-restore-behavioral-test-coverage-for-migration-inv.backlog.md` | Group 12 (agent_workflows/migration_inventory.py) | `chore` | `low` | Restore behavioral test coverage for migration_inventory |
+| `otc788` | `.aw/records/backlog/open/20261016-trimgap-01-otc788-restore-behavioral-test-coverage-for-clean-delta.backlog.md` | Group 13 (agent_workflows/clean_delta.py) | `chore` | `low` | Restore behavioral test coverage for clean_delta |
+| `ziuj5c` | `.aw/records/backlog/open/20261016-trimgap-01-ziuj5c-restore-behavioral-test-coverage-for-run-gates.backlog.md` | Group 14 (agent_workflows/run_gates.py) | `chore` | `low` | Restore behavioral test coverage for run_gates |
+| `yqpb7q` | `.aw/records/backlog/open/20261016-trimgap-01-yqpb7q-restore-behavioral-test-coverage-for-run-analytics.backlog.md` | Group 15 (agent_workflows/run_analytics_telemetry.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_telemetry |
+| `q86fxm` | `.aw/records/backlog/open/20261016-trimgap-01-q86fxm-residual-rollup-of-remaining-uncited-trim-deleted.backlog.md` | Residual Rollup (Groups 16-60) | `chore` | `low` | Residual rollup of remaining uncited trim-deleted test audit gaps across 45 modules |
+
+No group was filed as `bug` because zero regressions or user-visible broken behaviors were observed across the Set; all items represent absent behavioral test coverage or deferred mutation probing (chore with low priority by default). Consequently, no item carries `- Blocks-Release: next`.
+
+## Reconciliation
+
+Set-wide reconciliation accounting for every one of the 770 outcomes rolled into backlog `9qvfie` (1 `unprovable` + 764 `triaged-not-mutated` + 1 `replay-env-limited` + 4 `recreated` files).
+
+### (a) 770-Outcome Reconciliation Table
+
+| 9qvfie Outcome Class | Sub-Category / Verdict | Count | Set trimcarry Resolution & Terminal Status | Carrier or Carrier-Free Disposition |
+|---|---|---:|---|---|
+| `unprovable` (1) | `PROP-02` (`compute_aggregate_metrics`) | 1 | Settled in Order 01 (`24h56i`) V-03 via narrowed mutation probe (`killed`, 4 newly failing tests in restored module, wall_s: 4.6s); final verdict `guarded` | Carrier-free (`guarded`) |
+| `replay-env-limited` (1) | `tests/test_run_evidence_completion.py` | 1 | Restored in Order 02 (`x9z0ve`) with id6 spec lookup and contract updates; 84 tests pass bare and fast suite | Carrier-free (restored in tree) |
+| `triaged-not-mutated` keys (747) | `pin-retired` | 5 | Classified in `hpjj44` / `b1mx2w`; code-structure tests forbidden by P16 / AGENTS.md | Carrier-free (`pin-retired`) |
+| | `key-gone` | 0 | Subject functions still present at HEAD | Carrier-free (`key-gone`) |
+| | `guarded` | 30 | Mutation probe killed by surviving test suite in Order 05 (`rf1xxr`) | Carrier-free (`guarded`) |
+| | `budget-exhausted` | 319 | Unprobed keys stopped after cumulative wall time reached 10,800s cap in Order 05 (`rf1xxr`) | Backlog item `lrnh5f` (Group 1) |
+| | `run_analytics_cli` key (`run_analyze`) | 1 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 4 excl lines) | Backlog item `n6h5eg` (Group 2) |
+| | `compat_migration` keys | 36 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 446 excl lines) | Backlog item `2mcirl` (Group 3) |
+| | `run_analytics_taxonomy` keys | 29 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 416 excl lines) | Backlog item `aux1f6` (Group 4) |
+| | `run_packet` keys | 10 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 396 excl lines) | Backlog item `aq04yg` (Group 5) |
+| | `run_analytics_submit` keys | 14 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 311 excl lines) | Backlog item `gjmiuw` (Group 6) |
+| | `run_analytics_export` keys | 10 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 291 excl lines) | Backlog item `liybkg` (Group 7) |
+| | `migration_complex` keys | 40 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 265 excl lines) | Backlog item `x62jok` (Group 8) |
+| | `engine` keys | 12 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 264 excl lines) | Backlog item `7df9md` (Group 9) |
+| | `lifecycle_fixtures` keys | 21 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 244 excl lines) | Backlog item `lzn56i` (Group 10) |
+| | `migration_compact` keys | 24 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 210 excl lines) | Backlog item `fdyjv6` (Group 11) |
+| | `migration_inventory` keys | 25 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 189 excl lines) | Backlog item `igefrj` (Group 12) |
+| | `clean_delta` keys | 9 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 160 excl lines) | Backlog item `otc788` (Group 13) |
+| | `run_gates` keys | 3 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 157 excl lines) | Backlog item `ziuj5c` (Group 14) |
+| | `run_analytics_telemetry` keys | 24 | Unreached at baseline HEAD (verdict `unguarded-unreached`, 151 excl lines) | Backlog item `yqpb7q` (Group 15) |
+| | Residual key modules (44 modules) | 135 | Unreached at baseline HEAD (verdicts `unguarded-unreached` [129], `unguarded` [2], `property-unidentifiable` [3], `unprovable` [1]; 1,173 excl lines) | Residual backlog item `q86fxm` (Groups 16-60) |
+| `triaged-not-mutated` pass-shared files (17) | `shared-confirmed` | 17 | Measured in Order 03 (`8dyt88`) `## Pass-shared re-diff`: 0 exclusive lines reached; covered by surviving tests. Declined with partition reason. [Human review requested] | Carrier-free (`shared-confirmed`) |
+| `recreated` files with missing names (4) | 4 files holding 136 missing test names | 4 | Evaluated in Order 04 (`we3kkb`) `## Recreated missing names`: 10 `deliberately-removed`, 13 `moved`, 1 `retired-pin`, 3 `intended-change` (27 carrier-free); 75 `gap` names in `tests/test_run_analytics_cli.py` carried by `n6h5eg`; 34 `gap` names in `tests/test_run_summary_table.py` carried by `q86fxm` | Carried across `n6h5eg`, `q86fxm`, and carrier-free classifications |
+| **Total Rollup Outcomes** | - | **770** | **Sum of all 770 outcomes accounted for across Set trimcarry** | **Reconciles exactly: 1 + 1 + 747 + 17 + 4 = 770** |
+
+### (b) Resolution of all filed backlog item IDs
+
+Every filed backlog item ID resolves cleanly via `aw find backlog <id6>`:
+
+- `lrnh5f`: `.aw/records/backlog/open/20261016-trimgap-01-lrnh5f-probe-then-restore-behavioral-test-coverage-for-31.backlog.md`
+- `n6h5eg`: `.aw/records/backlog/open/20261016-trimgap-01-n6h5eg-restore-behavioral-test-coverage-for-run-analytics.backlog.md`
+- `2mcirl`: `.aw/records/backlog/open/20261016-trimgap-01-2mcirl-restore-behavioral-test-coverage-for-compat-migrat.backlog.md`
+- `aux1f6`: `.aw/records/backlog/open/20261016-trimgap-01-aux1f6-restore-behavioral-test-coverage-for-run-analytics.backlog.md`
+- `aq04yg`: `.aw/records/backlog/open/20261016-trimgap-01-aq04yg-restore-behavioral-test-coverage-for-run-packet.backlog.md`
+- `gjmiuw`: `.aw/records/backlog/open/20261016-trimgap-01-gjmiuw-restore-behavioral-test-coverage-for-run-analytics.backlog.md`
+- `liybkg`: `.aw/records/backlog/open/20261016-trimgap-01-liybkg-restore-behavioral-test-coverage-for-run-analytics.backlog.md`
+- `x62jok`: `.aw/records/backlog/open/20261016-trimgap-01-x62jok-restore-behavioral-test-coverage-for-migration-com.backlog.md`
+- `7df9md`: `.aw/records/backlog/open/20261016-trimgap-01-7df9md-restore-behavioral-test-coverage-for-engine.backlog.md`
+- `lzn56i`: `.aw/records/backlog/open/20261016-trimgap-01-lzn56i-restore-behavioral-test-coverage-for-lifecycle-fix.backlog.md`
+- `fdyjv6`: `.aw/records/backlog/open/20261016-trimgap-01-fdyjv6-restore-behavioral-test-coverage-for-migration-com.backlog.md`
+- `igefrj`: `.aw/records/backlog/open/20261016-trimgap-01-igefrj-restore-behavioral-test-coverage-for-migration-inv.backlog.md`
+- `otc788`: `.aw/records/backlog/open/20261016-trimgap-01-otc788-restore-behavioral-test-coverage-for-clean-delta.backlog.md`
+- `ziuj5c`: `.aw/records/backlog/open/20261016-trimgap-01-ziuj5c-restore-behavioral-test-coverage-for-run-gates.backlog.md`
+- `yqpb7q`: `.aw/records/backlog/open/20261016-trimgap-01-yqpb7q-restore-behavioral-test-coverage-for-run-analytics.backlog.md`
+- `q86fxm`: `.aw/records/backlog/open/20261016-trimgap-01-q86fxm-residual-rollup-of-remaining-uncited-trim-deleted.backlog.md`
+
+### (c) Set trimcarry Code and Test Footprint
+
+Command: `git log --name-only --format= -E --grep '(24h56i|x9z0ve|8dyt88|we3kkb|rf1xxr|z2xs98)' -- agent_workflows tests tools | sort -u`
+
+Output:
+```
+tests/test_benchmark_runners_reports.py
+tests/test_run_evidence_completion.py
+```
+
+The Set's code and test footprint contains exactly the two restored test modules, confirming zero unwanted edits to production code or existing tests.
