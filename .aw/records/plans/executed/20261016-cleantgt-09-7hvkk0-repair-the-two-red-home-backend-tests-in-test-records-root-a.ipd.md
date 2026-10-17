@@ -6,7 +6,7 @@
 - Scope: IN: make `test_home_records_reproduction_prompts_index` materialize the home-backed `records/prompts` directory (as `aw install` does) before asserting the write lands under `AW_HOME`, and add a sibling test pinning the fbdxmh refusal for the absent-directory case on a home-backed project (exit 2, nothing created in the target or under `AW_HOME`, no traceback). The OTHER half of backlog 5mnbaz, decoupling `test_home_records_runner_discovery` from the live `.aw/records/` corpus, is OWNED by the already-approved plan `4v8s0m` (Set g9kupi, backlog g9kupi, same defect, same test), and is NOT duplicated here (review PR-001). The two plans are independent and may execute in either order; this plan's module-level bar tolerates exactly the known runner-discovery failure while `4v8s0m` is unexecuted (E-01, E-05). OUT: any change to `agent_workflows/` (production behavior is correct); `test_home_records_runner_discovery` (owned by `4v8s0m`); the `home_records_env` fixture shape used by the other tests in the module; ki6t17's walkers.
 - Scope-Paths: tests/test_records_root_accessor.py
 - Item-Dependencies: executed:kfnfji, executed:fbdxmh
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7hvkk0
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 7hvkk0 verified (set cleantgt, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-005)
 
