@@ -6,7 +6,7 @@
 - Scope: Using `qqrgv3`'s `tests/tools/pinscan.py` output (re-run at execution), classify every candidate by reading (true pin or false positive, with category); for each true pin choose DELETE (assertion or whole test), CONVERT (replace with a behavioral assertion that exercises the same contract), or KEEP (documented contract, or architecture freeze with a written compelling reason); execute in subsystem batches; record every deleted node id with category and one-line reason in the `qqrgv3` decision-table research record. Tests citing a backlog id6, plan id6 or incident lose only the pin assertion and keep their behavioral body; whole-test deletion applies only to tests whose sole assertions are pins. No production behavior change (at most a citing comment in `agent_workflows/worktree_lease.py`, only if a cited test is renamed).
 - Scope-Paths: tests/, .aw/records/research/, agent_workflows/worktree_lease.py
 - Item-Dependencies: executed:qqrgv3
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,9 +15,9 @@
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tv72xy
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tv72xy verified (set testprune, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/worktree_lease.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
