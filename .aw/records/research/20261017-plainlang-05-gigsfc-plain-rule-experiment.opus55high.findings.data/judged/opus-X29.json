@@ -1,0 +1,1 @@
+{"understand": 4, "act": 4, "unexplained_terms": 2, "facts_covered": [0, 1, 2, 3], "false_claims": ["says the command without --prepare-only was shown to work, but only the --prepare-only form was checked", "says the tool should report 'no item has the ID ufawp'; the reference fix is a near-match 'did you mean ufawpb' message"]}

@@ -1,0 +1,7 @@
+The statusline counted a temporary failure state, even though both items ultimately completed successfully.
+
+During execution, the runner temporarily changes an item’s self-reported success to `fail-gate` until verification and integration succeed. The live counter treats that temporary state as a failure.
+
+Your screenshot was taken at 22:40:24, while the second item was still being retried. It completed successfully at 22:40:51. Both items ended as executed and verified.
+
+The display bug is that the counter presents a provisional state as a completed failure. It should distinguish pending verification from a final failure.

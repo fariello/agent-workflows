@@ -1,0 +1,9 @@
+**There was no real failure. The status display counted a temporary label as a failure.** One batch of work (run `run-20261016T221501Z-3469718`) had two work items, `24h56i` and `x9z0ve`. Both finished. Both were executed and verified.
+
+**How "1 fail" came to be shown, step by step:**
+1. The program that runs the items (the runner) does not trust an item's own report that it succeeded. It waits until verification and integration have both passed. Until then it gives the item the status `fail-gate`. This label means "not yet confirmed," not "failed."
+2. The status line (a short summary display of the queue) gets its counts from a function called `compute_queue_tally`. That function counts every status that starts with "fail" as a failure, so `fail-gate` gets counted as one.
+3. Item `x9z0ve` got the `fail-gate` label at 22:36:02 and was then retried. You took your screenshot at 22:40:24, when the item still had that label, so the status line showed "1 fail."
+4. The item was confirmed at 22:40:50, 26 seconds after your screenshot.
+
+**Suggested fix:** change `compute_queue_tally` so it counts `fail-gate` as pending, not failed. Should I make that change?

@@ -797,10 +797,14 @@ def raise_if_records_root_switch(
     repo_path: str | Path,
     policy: ProjectPolicy,
     existing_policy: Optional[ProjectPolicy] = None,
+    *,
+    allow_records_switch: bool = False,
 ) -> None:
     """Raise RecordsRootSwitchRequired when `records_root_switch` reports a hit."""
     switch = records_root_switch(repo_path, policy, existing_policy=existing_policy)
     if switch is None:
+        return
+    if allow_records_switch and switch.reason == "records":
         return
     from agent_workflows.project_context import resolve_project_context
 
@@ -808,19 +812,20 @@ def raise_if_records_root_switch(
         target_repo=str(repo_path), aw_home=policy.aw_home
     ).records_backend
     new = policy.records_backend
-    lead = (
-        f"Changing the records backend from {old} ({switch.current_root}) "
-        f"to {new} ({switch.target_root}) would leave {switch.record_files} record files"
-    )
     if switch.reason == "companion":
+        lead = (
+            f"Changing the records backend from {old} ({switch.current_root}) "
+            f"to {new} ({switch.target_root}) would leave {switch.record_files} record files"
+        )
         message = (
             f"{lead} behind and involves a companion repository, "
             "which is not supported yet (backlog n9vd2h)."
         )
     else:
         message = (
-            f"{lead} in {switch.current_root} where no reader looks. "
-            "Moving records between backends is not supported by reinstall yet (backlog wbz75c)."
+            f"Changing the records backend from {old} ({switch.current_root}) "
+            f"to {new} ({switch.target_root}) moves {switch.record_files} record files. "
+            f"Preview with --relocate --dry-run, then rerun with --relocate."
         )
     raise RecordsRootSwitchRequired(
         message,
@@ -845,6 +850,7 @@ def resolve_policy_noninteractive(
     assume_yes: bool = False,
     *,
     allow_placement_switch: bool = False,
+    allow_records_switch: bool = False,
 ) -> ProjectPolicy:
     """Resolve policy for noninteractive execution (spec Section 11.3 & E-05)."""
     if existing_policy is not None:
@@ -909,7 +915,12 @@ def resolve_policy_noninteractive(
                 target_preset=pol.preset,
                 reason=switch.reason,
             )
-        raise_if_records_root_switch(repo_path, pol, existing_policy=existing_policy)
+        raise_if_records_root_switch(
+            repo_path,
+            pol,
+            existing_policy=existing_policy,
+            allow_records_switch=allow_records_switch,
+        )
         return pol
 
     # First install noninteractive resolution
@@ -985,6 +996,7 @@ def collect_policy_interactive(
     explicit_hosts: Optional[List[str]] = None,
     *,
     allow_placement_switch: bool = False,
+    allow_records_switch: bool = False,
 ) -> ProjectPolicy:
     """Collect policy interactively with preset-first subflows and pre-write plan preview (E-01..E-06)."""
     if existing_policy is None:
@@ -1008,6 +1020,7 @@ def collect_policy_interactive(
             explicit_hosts=explicit_hosts,
             assume_yes=assume_yes,
             allow_placement_switch=allow_placement_switch,
+            allow_records_switch=allow_records_switch,
         )
 
     # Interactive Update Checkpoint (spec Section 11.2 & E-06)

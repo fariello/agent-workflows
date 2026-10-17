@@ -1,0 +1,1 @@
+{"understand": 5, "act": 4, "unexplained_terms": 2, "facts_covered": [0, 1, 2, 3], "false_claims": ["Claims `aw oc run --action plan 7rs77x ufawpb` (without --prepare-only) 'queues both items'; only the --prepare-only form was verified to queue them, and without that flag the command may actually run instead of just queuing"]}

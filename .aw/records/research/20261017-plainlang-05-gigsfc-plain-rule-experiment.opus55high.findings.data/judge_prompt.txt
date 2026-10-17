@@ -1,0 +1,21 @@
+You are grading one message an engineer wrote to a colleague about a problem. Grade it as the
+colleague: a capable software engineer who has NOT seen this investigation and does not know this
+repository or its tools. Be strict and literal.
+
+REFERENCE FACTS (the truth; the message was written from these):
+{facts}
+
+THE MESSAGE:
+<<<
+{msg}
+>>>
+
+Score each item, then output ONLY one line of JSON, nothing else:
+{{"understand": <1-5: could you, knowing nothing of this repo, understand what happened and why? 1=no idea, 3=partly, 5=fully>,
+ "act": <1-5: do you know what to do next and why?>,
+ "unexplained_terms": <integer: count of distinct terms, identifiers, flags or tool names the message uses WITHOUT explaining what they are or do, that you would need to understand it>,
+ "facts_covered": [<indexes (0-based) of REQUIRED facts the message conveys correctly>],
+ "false_claims": [<short strings: any statement that contradicts the reference facts or invents a mechanism not in them>]}}
+
+REQUIRED FACTS (indexed):
+{required}

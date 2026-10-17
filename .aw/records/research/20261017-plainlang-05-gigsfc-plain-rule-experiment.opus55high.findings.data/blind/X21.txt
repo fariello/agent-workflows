@@ -1,0 +1,19 @@
+You typed a 5-character id, but `aw` only accepts the full 6-character id for backlog items. The item's id is `ufawpb` and you typed `ufawp`. The error message then gave the wrong reason. Backlog items are valid targets for `--action plan`, and running `--action plan` on an open backlog item turns it into a plan.
+
+**What happened, in order:**
+
+1. `aw oc run` resolves each argument you pass (a "selector") through `expand_selectors`. For anything that isn't an IPD plan, such as a backlog item, it only accepts an exact match on the id6. The id6 is the 6-character id in the record's filename. `ufawp` isn't an exact id6, so nothing matched.
+2. With no match, the code calls `describe_unresolved_plan_selector` to build the error message. That function looks the selector up again with every match type allowed. The last match type it tries is a substring match against filenames. `ufawp` is a substring of `20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md`, so it found your backlog item.
+3. Because the error path found a match that the main lookup had refused, it reported "is a backlog item, not an IPD plan." That reads as if backlog items aren't allowed. What actually failed was the incomplete id.
+
+**Fix for you now:** use the full id. I checked with a dry run that only queues the work (`--prepare-only`), and both items were queued with action plan:
+
+```
+aw oc run --action plan 7rs77x ufawpb
+```
+
+**Fix for the tool (not done; your call):** pick one or both.
+- Make `describe_unresolved_plan_selector` say that a partial match was found and that an exact id6 is required, e.g. "did you mean `ufawpb`?".
+- Let `expand_selectors` accept a unique id6 prefix for non-plan items.
+
+The first only changes the message. The second changes which inputs are accepted.

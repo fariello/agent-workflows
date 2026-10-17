@@ -1,0 +1,3 @@
+7hvkk0 failed because post-merge verification exceeded the 30-second time limit: all 745 tests passed in 47.14 seconds, but the timing check forced exit code 1. Both retries were exhausted. The base commit also exceeded the limit, suggesting a timing problem independent of this change; four concurrent runners and high host load likely contributed.
+
+Wait for the owning run to finish; integration is blocked while it remains live. Then retry verification with less contention. If permitted, disable timing enforcement with `AW_CORE_BUDGET_ENFORCE=0`. The work and follow-up bug ytz6z4 remain only on branch `aw/lane/7hvkk0`.

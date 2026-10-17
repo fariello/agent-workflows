@@ -18,6 +18,7 @@
 - Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 amended (qqrgv3): synced percov_run and percov_analyze tooling commands in E-01
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010, PR-011, PR-012

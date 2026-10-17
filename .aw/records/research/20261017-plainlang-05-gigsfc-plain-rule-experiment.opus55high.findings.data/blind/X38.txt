@@ -1,0 +1,12 @@
+Neither item failed. The "1 fail" was a temporary label on item `x9z0ve`, and the statusline (the live one-line progress summary the runner prints) counted that temporary label as a failure.
+
+**Final state.** In run `run-20261016T221501Z-3469718`, items `24h56i` and `x9z0ve` both finished with status `executed` and verification `verified`.
+
+**What happened, in order:**
+
+1. **The runner marks every finished item as failed until it is checked.** When an item reports itself as done, the runner doesn't trust that report yet. A rule against faked results (`outcome_precedence_disposition` in `execute_item_core`) stores the item as `fail-gate` until verification and integration have both passed. The log shows this happening for both items: `24h56i` at 22:26:09 and `x9z0ve` at 22:36:02.
+2. **`x9z0ve` took longer to clear that state.** At 22:36:32 it was sent back for a retry because its output didn't match its spec. It was finalized at 22:40:50 and marked `executed` at 22:40:51.
+3. **The screenshot fell inside that window.** It was taken at 22:40:24, while `x9z0ve` was still `fail-gate`. By then `24h56i` had cleared, which fits the "1 ok" shown.
+4. **The counter can't tell a temporary label from a real failure.** `render_stream.compute_queue_tally` counts an item as failed if its status starts with `"fail"` (or contains `"error"`, or is a terminal state). `fail-gate` starts with `"fail"`, so it was counted.
+
+**Fix (not yet made):** change `compute_queue_tally` so it doesn't count `fail-gate` as a failure. For example, show it as "verifying" and only count failures once an item has reached its final result. Tell me if you want that change and a regression test for it.

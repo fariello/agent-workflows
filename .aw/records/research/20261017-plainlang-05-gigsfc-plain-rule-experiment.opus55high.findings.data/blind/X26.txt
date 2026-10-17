@@ -1,0 +1,7 @@
+Item `7hvkk0` failed integration because the merged suite exceeded a time budget, not because any test failed. All 745 tests passed in 47.14 seconds, but `conftest.py` forces exit code 1 above 30 seconds when the configured CPU count is at least 12. Integration treated that exit as a failed gate and exhausted both retries.
+
+The unchanged base also passed all 745 tests but exited 1 after 68.31 seconds. Four runner drivers were active; host load was 33.95 on 12 CPUs. Contention may explain the timing, but that cause is unconfirmed.
+
+Wait for the owning run to finish before retrying integration: the earlier attempt was refused with `lane-owned-by-live-process`. The changes remain on `aw/lane/7hvkk0`. Retry with less concurrency; if the budget still blocks integration, explicitly set `AW_CORE_BUDGET_ENFORCE=0` for the retry or fix the budget policy.
+
+The lane agent filed bug `ytz6z4`, marked to block the next release, but it exists only on that lane branch. Preserve it when integrating.

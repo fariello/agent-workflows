@@ -1,0 +1,13 @@
+The error reported a type mismatch, but backlog items are valid targets for the `--action plan` option, which turns open backlog items into plans.
+
+You entered the five-character identifier `ufawp`; the correct identifier is the six-character `ufawpb`. Selecting a backlog item requires its exact six-character identifier. After selection failed, the fallback used to report errors matched a filename containing the shorter text and incorrectly reported a type mismatch.
+
+Use the corrected identifier in this command:
+
+```sh
+aw oc run --action plan 7rs77x ufawpb
+```
+
+Here, `aw oc run` invokes the operation; the original message does not explain those command names. The targets are the item identified by `7rs77x` and the backlog item identified by `ufawpb`.
+
+Verification with the preparation-only option, `--prepare-only`, confirmed that both items queue with the plan-creation action, `plan`.

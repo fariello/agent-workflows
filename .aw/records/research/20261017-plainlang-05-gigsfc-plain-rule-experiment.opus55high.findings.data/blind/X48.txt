@@ -1,0 +1,15 @@
+You typed `ufawp` (5 characters), but the backlog item's ID is `ufawpb` (6 characters). Run this instead:
+
+```
+aw oc run --action plan 7rs77x ufawpb
+```
+
+I tested it with `--prepare-only`, which sets up the run without starting it. Both items were queued with action `plan`.
+
+**Why the error was confusing:** it says `ufawp` is "a backlog item, not an IPD plan", which sounds like backlog items aren't allowed. They are: running `--action plan` on an open backlog item turns it into a plan. The real problem was the partial ID.
+
+Here is what happened in the code:
+- `expand_selectors` (the function that turns your arguments into items) accepts a non-plan item only when you give its exact 6-character ID. `ufawp` didn't match exactly, so it fell through to the error path.
+- The error path, `describe_unresolved_plan_selector`, searches again with looser rules, including any part of a filename. `ufawp` appears in `20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md`, so it found the backlog item and reported its type as if the type were the problem.
+
+**Recommended fix:** when the error path finds an item only by a partial filename match, the message should say something like "no exact match for `ufawp`; did you mean `ufawpb`?" It should not blame the item's type.

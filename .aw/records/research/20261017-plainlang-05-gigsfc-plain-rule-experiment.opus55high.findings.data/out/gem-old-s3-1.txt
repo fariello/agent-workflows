@@ -1,0 +1,6 @@
+The command failed because `ufawp` is a 5-character prefix instead of the full 6-character item identifier `ufawpb`.
+
+Target resolution requires an exact 6-character identifier to match backlog items. Because the identifier was short, resolution failed and fell back to an error-reporting routine. That routine matched the backlog filename by substring and generated a misleading error message. Backlog items are valid targets for `--action plan`.
+
+Use the full 6-character identifier instead:
+`aw oc run --action plan 7rs77x ufawpb`

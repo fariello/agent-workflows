@@ -1,0 +1,3 @@
+The statusline counted a temporary verification state as a failure. Before verification and integration finish, the runner provisionally marks an “executed” result as “fail-gate” to prevent unverified success claims; the statusline treats that label as a failure.
+
+Your screenshot was taken at 22:40:24, before the retried item finished successfully at 22:40:51. Both items ultimately completed with verified results. The “1 fail” reflected that provisional state, not a final failure.

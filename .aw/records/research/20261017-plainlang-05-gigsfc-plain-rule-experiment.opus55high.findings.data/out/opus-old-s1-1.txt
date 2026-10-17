@@ -1,0 +1,12 @@
+Plan 7hvkk0 ("repair the two red home-backend tests") did not fail because of a broken test. All 745 tests passed. The suite still exited with code 1 because of a timing check, and the run treated that exit code as a failure.
+
+**Why it happened**
+- `conftest.py`, the shared test setup file, marks the test session as failed when the core tests take longer than `AW_CORE_BUDGET_SECONDS` (30 seconds by default). The check applies only on machines with 12 or more CPUs, and you can turn it off with `AW_CORE_BUDGET_ENFORCE=0`.
+- The merged code took 47.14 s. The unchanged base commit took 68.31 s and also exited with code 1, so this plan did not cause the slowdown.
+- The host was overloaded: load average 33.95 on 12 CPUs, with 4 runs going at once. The check was measuring machine load, not code quality.
+- After the merge, the run re-tested the merged code, saw the failing exit code, and sent the plan back twice. Both retries were used up, so it stopped with `fail-merge`. The agent working on the plan diagnosed it correctly as "not-mine" (not caused by its change), but that did not stop the retries.
+
+**What to do**
+1. Wait until run 849133 has finished. The integrate command refused earlier with `lane-owned-by-live-process` because the run still owned the plan's work branch.
+2. Re-check and merge the preserved branch `aw/lane/7hvkk0`. Either run it on a quiet machine or set `AW_CORE_BUDGET_ENFORCE=0`. That merge also brings in backlog item ytz6z4, which currently exists only on that branch.
+3. Decide on the timing check itself. Backlog item ytz6z4 is filed as a bug that blocks the next release. As things stand, any night with several runs at once can fail plans that are actually green. Two options: disable the check during overnight runs, or base the limit on how busy the machine is.

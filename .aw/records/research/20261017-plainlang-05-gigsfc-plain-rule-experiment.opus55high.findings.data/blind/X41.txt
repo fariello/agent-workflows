@@ -1,0 +1,7 @@
+The statusline counted a temporary failure state before the item finished successfully.
+
+The runner temporarily marks an item `fail-gate` when it reports itself executed, pending verification and integration. The live counter treats that provisional state as a failure.
+
+Your screenshot was taken at 22:40:24, while item `x9z0ve` was still being processed after a retry. It finished successfully at 22:40:51. Both items ultimately ended as executed and verified.
+
+The display needs to distinguish provisional states from final failures so unfinished verification does not appear as a failed result.

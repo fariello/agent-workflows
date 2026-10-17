@@ -149,7 +149,7 @@ aw storage status       # check storage backend attachment and durability
 
 #### Changing presets later
 
-Switching a repository between target-placed and home-placed configuration requires an explicit opt-in flag. Switching into or out of `public-target-private-companion` is supported across target, companion, and home backends by passing `--companion-dir <path>`. You can preview the moves and retired files with dry-run before applying:
+Switching a repository between target-placed and home-placed configuration requires an explicit opt-in flag. Switching into or out of `public-target-private-companion` is supported across target, companion, and home backends by passing `--companion-dir <path>`. Changing the records backend (`--records-backend <new>`) on an installed repository uses the same `--relocate` flags to safely migrate records. You can preview the moves and retired files with dry-run before applying:
 
 ```bash
 aw install <repo> --preset <new> --relocate --dry-run   # preview planned changes

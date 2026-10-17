@@ -1,0 +1,20 @@
+**7hvkk0 was marked fail-merge because the test run took too long, not because any test failed.** All 745 tests passed. The merge checks still saw a failing exit code, so they called the merged code broken.
+
+**Why the run "failed"**
+- The test setup file (`conftest.py`) has a time limit. It marks the whole run as failed (exit code 1) when the core tests take longer than 30 seconds on a machine with 12 or more CPUs.
+- After the merge, the core tests took 47 seconds. The unmerged starting code also failed this way, taking 68 seconds. So the plan's changes did not cause the failure.
+- The machine was overloaded. Four overnight runs were going at once, and the load average was 34 on 12 CPUs, roughly three times what the machine can handle.
+- After the merge, the checks found the code "red" (failing) and sent the work back twice for fixes. Both attempts were used up.
+- The coding agent working on this plan said correctly that the failure was "not mine": nothing it could fix in the code would help.
+
+**Current state**
+- The work is saved on branch `aw/lane/7hvkk0`.
+- The agent filed a bug about the time limit (backlog item ytz6z4, marked as blocking the next release). That item exists only on this branch, so it will be lost unless the branch is merged.
+- The merge command refused to run because the overnight run (849133) still owns this work.
+
+**What to do**
+1. Wait for run 849133 to finish, or stop it.
+2. Run the merge again either on a quiet machine or with `AW_CORE_BUDGET_ENFORCE=0`, which turns off the time limit. Then merge the branch so ytz6z4 comes with it.
+3. Decide on the long-term fix tracked by ytz6z4. Options are to stop the time limit from failing runs on a busy machine, or to have the merge check treat a failure that the starting code also has as "not new."
+
+**One thing to check:** the starting code also passed all 745 tests. That means the "two red tests" this plan was meant to fix were either not failing at the start or are not in this test suite. Confirm the plan actually did what it was meant to do before merging.

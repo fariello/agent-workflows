@@ -1,0 +1,1 @@
+{"understand":5,"act":4,"unexplained_terms":1,"facts_covered":[0,1,2,3,4,5],"false_claims":["A load average of 34 on 12 CPUs means roughly three times what the machine can handle.","The baseline result proves the plan's changes did not cause the failure.","Nothing the coding agent could fix in code would help.","Backlog item ytz6z4 will be lost unless the branch is merged."]}

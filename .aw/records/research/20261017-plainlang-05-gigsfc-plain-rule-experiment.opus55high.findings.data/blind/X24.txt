@@ -1,0 +1,31 @@
+**7hvkk0 was not merged because a test-timing check turned the suite's exit code red. No test failed, and the lane agent's fix was not checked against any real failure.** Its work is saved on branch `aw/lane/7hvkk0`.
+
+**What happened, in order:**
+
+1. After merging the lane's change (a lane is the isolated branch where an agent does one plan's work), the runner re-ran the test suite on the merged code. The result was `745 passed in 47.14s` with exit code 1. No test id failed.
+2. The exit code 1 comes from `conftest.py`. When the session ends, its `pytest_sessionfinish` hook forces exit status 1 if both of these are true:
+   - the "core" test tier took longer than `AW_CORE_BUDGET_SECONDS` (default 30s)
+   - `AW_TEST_CPU_COUNT` is 12 or more
+
+   You can turn the check off by setting `AW_CORE_BUDGET_ENFORCE=0`.
+3. The machine was heavily overloaded. Load average was 33.95 on 12 CPUs, with four runner processes going at once (runs 849133, 851514, 870713, 878067). So 47s against a 30s budget most likely reflects machine load, not the change.
+4. The unchanged base commit fails the same way: `745 passed in 68.31s`, exit 1. Main itself would have been "red" under these conditions.
+5. The merge gate treats any nonzero exit as red. It sent the work back to the lane agent twice, which used up the retry limit (2/2). The agent correctly answered "not-mine" both times: all tests passed, and the nonzero exit came only from the timing check. With no retries left, the item was marked `fail-merge`. Its `verification_status` is null because verification never got past this gate.
+6. The lane agent filed backlog item `ytz6z4` (kind: bug, blocks the next release) about the timing check. That item exists only on the lane branch, not on main.
+7. I tried to integrate the lane by hand. The integrate command refused with `lane-owned-by-live-process`, because run 849133 is still running and owns the lane.
+
+**What to do:**
+
+1. Wait for run 849133 to finish, or stop it.
+2. Re-run integration for `7hvkk0` in one of two ways:
+   - with `AW_CORE_BUDGET_ENFORCE=0`, or
+   - on a quiet machine, so the core tier stays under 30s.
+
+   Either way, the merged tree should then be judged only on real test results.
+3. Make sure `ytz6z4` reaches main. It comes along if you integrate the lane. Otherwise, take that commit on its own, or it will be lost with the branch.
+4. Fix the cause, which is what `ytz6z4` tracks. As written, the timing check fails any overloaded or overnight multi-run host, including the base commit. Options:
+   - don't enforce it in runner gates
+   - count only real test failures when deciding the merge gate's result
+   - raise the budget or scale it with machine load
+
+   Until one of these lands, other overnight plans can fail-merge the same way.

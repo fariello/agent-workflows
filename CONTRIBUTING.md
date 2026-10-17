@@ -174,6 +174,40 @@ python3 -m pytest -p tests.tools.leaf_probe
 
 This plugin instruments in-process and subprocess command dispatches and reports total driven leaves against `command_surface.get_declared_leaves()`.
 
+### Per-test coverage and classification tooling
+
+To measure per-test dynamic line and branch coverage across the test suite with subprocess context propagation:
+
+```bash
+python3 -m tests.tools.percov_run --out .aw/state/percov/<label>
+```
+
+Subprocess attribution relies on `patch = subprocess` in coverage configuration and `tests.tools.covctx_plugin`. Output directories under `.aw/state/` are scratch and not committed. Runtime is about 1.3 to 2x an uninstrumented full run.
+
+To analyze per-test unique lines, unique arcs, and subset relationships:
+
+```bash
+python3 -m tests.tools.percov_analyze .aw/state/percov/<label>
+```
+
+To compare current coverage against a baseline directory and detect lost lines or branches:
+
+```bash
+python3 -m tests.tools.percov_analyze .aw/state/percov/<label> --compare .aw/state/percov/baseline
+```
+
+To scan test modules for structure-pin candidate patterns:
+
+```bash
+python3 -m tests.tools.pinscan
+```
+
+To classify tests and modules into keep, consolidate, speed-up, or delete candidates:
+
+```bash
+python3 -m tests.tools.classify .aw/state/percov/<label>
+```
+
 The suite covers the installer/CLI (fresh install, idempotent re-run, prune of
 stale/legacy shims, legacy-layout migration, dry-run, the catalog-row collapse and the
 `assess-all` prefix exception, `install`/`setup`/`uninstall`/`list`/`status`, `--version`),

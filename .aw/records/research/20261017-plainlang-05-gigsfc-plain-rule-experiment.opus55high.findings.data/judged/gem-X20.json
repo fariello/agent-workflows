@@ -1,0 +1,1 @@
+{"understand": 3, "act": 1, "unexplained_terms": 0, "facts_covered": [0], "false_claims": ["the displayed failure was a provisional status during an in-progress retry", "the runner downgrades in-progress tasks to fail-gate", "the second item was still retrying when the screenshot was taken"]}

@@ -1,0 +1,16 @@
+The selector `ufawp` was one character short. The backlog item's ID is `ufawpb`. Run this instead:
+
+```
+aw oc run --action plan 7rs77x ufawpb
+```
+
+I checked this with `--prepare-only`, which queues the work without running it. It queued both items with action `plan`. Backlog items are valid targets here: running `--action plan` on an open backlog item turns it into a plan.
+
+**What happened, in order:**
+
+1. Every record has a 6-character ID called an id6, which appears in its filename. This item's file is `.aw/records/backlog/open/20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md`, so its id6 is `ufawpb`. You typed 5 characters, `ufawp`.
+2. `expand_selectors` turns your arguments into records. For anything that isn't a plan (such as a backlog item), it only accepts an exact id6 match. `ufawp` didn't match exactly, so it treated the argument as an unresolved plan selector and passed it to `describe_unresolved_plan_selector` to build an error message.
+3. That error helper searches again without the exact-id6 restriction. Its last fallback is "any filename containing this string," and `ufawp` appears in the backlog filename, so it found the item.
+4. It then reported the item as "a backlog item, not an IPD plan" (IPD plan = an existing plan record). That suggests backlog items can't be used with `--action plan`. They can. The real problem was the incomplete ID.
+
+**Recommendation:** fix the error message. When the fallback search finds a non-plan item that the main lookup would have accepted with the full id6, the message should say something like "did you mean `ufawpb`?" rather than "not an IPD plan." Another option is to have the main lookup accept an unambiguous prefix. I haven't changed anything yet. Tell me which fix you want.

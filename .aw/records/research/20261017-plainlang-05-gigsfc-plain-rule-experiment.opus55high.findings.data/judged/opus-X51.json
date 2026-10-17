@@ -1,0 +1,1 @@
+{"understand": 4, "act": 4, "unexplained_terms": 3, "facts_covered": [0, 1, 2, 3], "false_claims": ["it says the command without --prepare-only queues both items, but only the --prepare-only form was verified to do that"]}

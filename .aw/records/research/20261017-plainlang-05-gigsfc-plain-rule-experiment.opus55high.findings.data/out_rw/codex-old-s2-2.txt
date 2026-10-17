@@ -1,0 +1,3 @@
+At 22:40:24, your screenshot showed “1 fail” in the live status display. The display counted a temporary state as a failure while the item was still waiting for its result to be checked and its work to be integrated. This temporary state, called “fail-gate,” prevents an item from being accepted as successful based only on its own success report.
+
+The pending item finished successfully at 22:40:51. Both items ultimately completed and passed verification—the checks of their results. The “1 fail” was a misleading live count, not a final failure.

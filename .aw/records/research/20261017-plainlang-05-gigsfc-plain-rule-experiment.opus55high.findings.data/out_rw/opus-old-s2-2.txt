@@ -1,0 +1,15 @@
+**Nothing actually failed.** The run with ID `run-20261016T221501Z-3469718` had two work items, `24h56i` and `x9z0ve`. Both ran to completion and passed verification.
+
+**Why the display showed "1 fail":**
+
+1. The runner is the tool that executes the items. When an agent reports that it has finished an item, the runner doesn't accept that report right away. The rule exists to catch agents that claim success when they didn't succeed.
+2. Until an independent verification step confirms the work, the runner gives the item a temporary status called `fail-gate`.
+3. The statusline, a summary bar that shows how many items are in each state, counts any status that starts with "fail" as a failure. So it counted the temporary `fail-gate` status as a failure as well.
+
+**Timeline for `x9z0ve`:**
+
+- 22:36:32: it was sent back for a retry.
+- 22:40:24: your screenshot was taken. The item was still in the temporary `fail-gate` state, so the statusline showed "1 fail".
+- 22:40:50: it was finalized, 26 seconds after the screenshot.
+
+**The defect and fix:** The statusline should show items in this state as "awaiting verification," not as failed. To fix it, change `render_stream.compute_queue_tally`, the function that builds the statusline counts, so that it counts `fail-gate` in its own category.

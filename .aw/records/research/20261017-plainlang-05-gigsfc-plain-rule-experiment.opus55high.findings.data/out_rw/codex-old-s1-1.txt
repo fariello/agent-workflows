@@ -1,0 +1,9 @@
+During testing of the merged version for the work identified as `7hvkk0`, all 745 tests passed in 47.14 seconds. This exceeded the 30-second time limit, so the check that enforces that limit returned exit code 1, indicating failure. Both merge retries were exhausted.
+
+The unchanged base version also returned exit code 1, taking 68.31 seconds. Heavy host load and four concurrently running test processes indicate competition for host resources.
+
+Wait for the run that currently owns this work to stop. Integration currently refuses to proceed with `lane-owned-by-live-process`, a message indicating that a live process still owns the lane.
+
+Then rerun verification and integration under lower load, or explicitly disable the timing check by setting the environment variable `AW_CORE_BUDGET_ENFORCE=0`.
+
+The work is preserved at `aw/lane/7hvkk0`. The bug report identified as `ytz6z4` exists only there.

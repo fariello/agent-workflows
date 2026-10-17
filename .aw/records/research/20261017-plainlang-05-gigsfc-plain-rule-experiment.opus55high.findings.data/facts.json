@@ -1,0 +1,24 @@
+{
+ "s1": {"required": [
+   "all 745 tests passed / no test failed",
+   "the failure came from a wall-time (30 second) limit on the test run, not from a failing test",
+   "the machine was heavily loaded / several runs at once made it slow",
+   "the work is preserved on a branch (aw/lane/7hvkk0) and was not merged",
+   "it cannot be integrated until the owning run finishes (refused while the run is live)",
+   "what to do next: wait for the run to end, then integrate the preserved branch, and/or disable or fix the time limit for gate runs"],
+  "false_traps": ["claims a test actually failed", "claims the agent's code change caused the failure", "claims work was lost or discarded"]},
+ "s2": {"required": [
+   "nothing actually failed: both items finished as executed and verified",
+   "the counter counts an item as failed while it is still being verified/merged",
+   "the runner temporarily marks an item as fail-gate (not trusting the agent's own 'executed' claim) until verification and merge succeed",
+   "the screenshot was taken while x9z0ve was still in that verify/merge window (22:40:24, before it finished at 22:40:51)",
+   "the fix: don't count the in-progress item's provisional status as a failure"],
+  "false_traps": ["claims an item really failed", "claims a bug in verification itself", "claims the run is broken"]},
+ "s3": {"required": [
+   "the user typed 5 characters (ufawp) but the id is 6 (ufawpb)",
+   "backlog items are valid for --action plan, so the 'not an IPD plan' message is misleading",
+   "the error-message code matched by filename substring, which is looser than the real lookup",
+   "the fix for the user: use the full id ufawpb",
+   "the fix for the tool: report it as a near match / 'did you mean ufawpb'"],
+  "false_traps": ["claims backlog items cannot be planned", "claims prefixes are accepted"]}
+}

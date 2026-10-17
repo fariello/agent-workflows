@@ -1,0 +1,20 @@
+The change plan to repair two failing backend tests, item `7hvkk0`, failed to merge into the main branch (status `fail-merge`, verification status null) because post-merge validation timed out under host CPU contention despite all tests passing.
+
+What was observed:
+In the automated batch run `run-20261017T001059Z-849133`, the test driver executed 745 tests with zero failures in 47.14 seconds, but exited with status code 1. The baseline test suite at the target base commit also passed all 745 tests in 68.31 seconds and exited with status code 1.
+
+What caused it:
+The test session completion hook `pytest_sessionfinish` in the test configuration file `conftest.py` sets the exit status to 1 whenever core test runtime exceeds the limit defined by the environment variable `AW_CORE_BUDGET_SECONDS` (default 30.0 seconds) on systems where the CPU count variable `AW_TEST_CPU_COUNT` is 12 or more. Four runner processes were executing concurrently on the host, producing a 12-CPU load average of 33.95 that slowed test execution past the 30.0-second limit.
+
+What that led to:
+The post-merge gate revalidation marked the combined tree as failing with status `gate-combined-red`, spent both retry attempts, and marked item `7hvkk0` as `fail-merge`. The branch integration tool, command `integrate`, refused manual integration because an active process lock, `lane-owned-by-live-process`, holds the isolated work branch `aw/lane/7hvkk0`.
+
+What fixes it:
+1. Wait for the active runner processes in execution run `run-20261017T001059Z-849133` to finish so the process lock clears.
+2. Disable runtime budget enforcement by setting the environment variable `AW_CORE_BUDGET_ENFORCE="0"` (or retry when host load subsides).
+3. Re-run integration on the preserved work branch `aw/lane/7hvkk0`.
+
+Blocker:
+The branch cannot be integrated while active background runner processes hold the process lock (`lane-owned-by-live-process`).
+
+A tracking bug, `ytz6z4`, was filed on work branch `aw/lane/7hvkk0` to track the core tier budget failure.

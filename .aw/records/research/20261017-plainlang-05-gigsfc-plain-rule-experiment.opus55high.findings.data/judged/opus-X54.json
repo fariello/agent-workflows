@@ -1,0 +1,1 @@
+{"understand": 4, "act": 2, "unexplained_terms": 2, "facts_covered": [0, 1, 2, 3], "false_claims": ["says the runner gives all running items a provisional fail-gate status, but the reference says it downgrades only an item's self-recorded 'executed' outcome, and keeps it until both verification and integration (merge) succeed, not verification alone"]}

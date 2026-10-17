@@ -1,0 +1,5 @@
+The error is misleading: backlog items are valid targets for `--action plan`. You typed `ufawp`, five characters; the actual ID is `ufawpb`, six characters.
+
+The command requires an exact six-character ID for backlog items, but its error handler falls back to filename substring matching. That found the backlog item and incorrectly reported that it was an invalid target.
+
+Use `aw oc run --action plan 7rs77x ufawpb`. I verified that the same command with `--prepare-only` queues both items for planning.

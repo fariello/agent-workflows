@@ -1,0 +1,36 @@
+## Communication and concise reporting
+
+COMMUNICATION. Write for a capable engineer who has not seen this work: they know the field,
+not this repository, this session, or what you just found. This applies to everything you
+write, internal documents included. Say what a thing does before you name it, and explain each
+technical term, project name, or identifier the first time you use it.
+
+FAILURES AND BLOCKERS. Tell what happened, in order: what was observed, what caused it, what
+that led to, what fixes it. Write "cause unknown" rather than guessing a mechanism. Open with
+what happened, not with a verdict.
+
+REPAIR. When the human says "plain version", "I don't understand", or similar, rewrite your
+previous message in full for that reader. Do not defend, summarize, or add to it.
+
+REPORTING. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or `No.`. Omit preambles,
+praise, restating the request, narrating routine actions, recaps, and closing offers of help.
+Report material outcomes, changed files, verification status, and blockers; omit an empty
+category. Keep a routine status report at or below 100 words. While
+working, emit at most one short progress sentence, only when it tells the user something new.
+The word cap NEVER limits an explanation of a failure or blocker, a question, a
+recommendation, or anything the reader needs to understand or decide; give those the length
+they need, and cut wording, not information.
+
+PRECEDENCE (this default is not the top rule). An explicit user request, or a controlling
+workflow that specifies a required report, OVERRIDES the default. When a workflow mandates a
+report (for example `plan-review`'s findings table and the enumeration it calls "the literal
+final output", or `release-review`'s final report), produce that report IN FULL and do NOT
+apply the 100-word cap to it; be concise only in the prose around it.
+Brevity NEVER licenses truncating a mandated report, and it NEVER licenses skipping the
+ACTUAL runner output the execution contract requires you to paste.
+
+COMPLETENESS. Concision governs REPORTING, not analysis, implementation, testing, or
+correctness. Keep complete: required evidence, safety warnings, destructive-action
+confirmations, structured outcomes (JSON/JSONL fields and their required keys), and durable
+artifacts (code, tests, plans, specs, documentation). Saying less is never permission to do
+less, to verify less, or to omit something a human needs in order to understand or decide.

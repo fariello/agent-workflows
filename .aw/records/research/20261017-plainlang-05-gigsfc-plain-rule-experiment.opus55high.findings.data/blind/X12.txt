@@ -1,0 +1,9 @@
+The command `aw oc run --action plan 7rs77x ufawp` failed with an error stating that target selector `ufawp` is a backlog item rather than an Implementation Plan Document (IPD) plan:
+`runipd: 'ufawp' is a backlog item (.aw/records/backlog/open/20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md), not an IPD plan.`
+
+What caused it: The target selector `ufawp` was five characters long instead of the full six-character identifier (`id6`), `ufawpb`. The target resolution function, `expand_selectors`, only matches non-plan artifacts by exact six-character identifier.
+
+What that led to: Because `ufawp` was not matched as a non-plan artifact, resolution fell through to the diagnostic reporting function, `describe_unresolved_plan_selector`. That function searches without filtering by artifact type and permits filename substring matching. It matched `ufawp` against the filename `.aw/records/backlog/open/20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md` and emitted the misleading error message. Backlog items are valid targets for the plan action.
+
+What fixes it: Run the command with the full six-character identifier `ufawpb`:
+`aw oc run --action plan 7rs77x ufawpb`

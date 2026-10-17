@@ -1,0 +1,15 @@
+**1. What was observed**
+A command failed and produced a misleading error message, even though items from the backlog (backlog items) are valid targets for the flag specifying the plan action (`--action plan`).
+
+**2. What caused it**
+The process for finding and matching targets (target resolution) requires an exact 6-character identifier to match backlog items. Instead of supplying the complete 6-character item identifier (`ufawpb`), a shortened 5-character prefix (`ufawp`) was provided.
+
+**3. What that led to**
+Because the identifier was short, target resolution failed and fell back to a routine responsible for reporting errors (the error-reporting routine). That routine matched the backlog filename by substring and generated the misleading error message.
+
+**4. What fixes it**
+Use the full 6-character identifier (`ufawpb`) instead of the prefix.
+
+Execute the command below using the command-line tool `aw` with subcommands `oc run` (what `aw` and `oc run` do is not explained in the original message), the flag specifying the plan action (`--action plan`), the argument `7rs77x` (what this identifier represents is not explained in the original message), and the full 6-character item identifier `ufawpb`:
+
+`aw oc run --action plan 7rs77x ufawpb`

@@ -1,0 +1,1 @@
+{"understand":5,"act":5,"unexplained_terms":0,"facts_covered":[0,1,2,3,4],"false_claims":["The retry was because the item didn't match the spec; the reference establishes only a spec-anchor-sent-back retry.","The temporary hold was shown as a failure for about 26 seconds; the timestamps establish only the time remaining after the screenshot, not the display duration."]}

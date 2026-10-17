@@ -1,0 +1,10 @@
+The command rejected a valid backlog target because you typed `ufawp`, five characters of its six-character ID, `ufawpb`.
+
+The selector handling is inconsistent: it accepts backlog targets only by their exact six-character ID, but its error-reporting fallback also searches filenames by substring. That fallback found the backlog file and incorrectly reported “not an IPD plan.” Backlog items are valid targets for `--action plan`; that action graduates an open backlog item into a plan.
+
+Use:
+```sh
+aw oc run --action plan 7rs77x ufawpb
+```
+
+Verified with `--prepare-only`: the full ID queues both items with action `plan`. The code needs consistent matching and an accurate diagnostic.

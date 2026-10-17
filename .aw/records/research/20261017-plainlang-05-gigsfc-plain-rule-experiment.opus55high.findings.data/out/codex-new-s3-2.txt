@@ -1,0 +1,13 @@
+The command rejected a valid backlog target because its five-character selector hit inconsistent matching rules.
+
+You typed `ufawp`; the full six-character ID is `ufawpb`. The target resolver requires an exact six-character ID for backlog items. When that failed, the error-reporting code used broader filename matching, found the backlog item, and incorrectly reported “not an IPD plan.”
+
+Backlog items are valid targets for `--action plan`; that action graduates an open backlog item into a plan.
+
+Use:
+
+```bash
+aw oc run --action plan 7rs77x ufawpb
+```
+
+Verified with `--prepare-only`: both items queue for planning. The code needs consistent selector matching and an action-aware error message.

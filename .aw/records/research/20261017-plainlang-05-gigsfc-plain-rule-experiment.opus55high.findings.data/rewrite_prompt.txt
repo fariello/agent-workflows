@@ -1,0 +1,16 @@
+Rewrite the message below for a capable software engineer who has not seen this work: they know
+software in general but not this repository, its tools, or this investigation.
+
+Rules:
+- Say what each thing does before naming it. Explain every term, tool name, and identifier the
+  first time it appears, or remove it if the reader does not need it.
+- If it explains a failure, tell it as the steps that happened, in order: what was observed, what
+  caused it, what that led to, what fixes it.
+- Keep every fact, number, command, and recommendation in the original. Do not add any claim that
+  is not in the original. If the original does not explain something, do not invent an explanation;
+  leave it out or say it is not explained.
+- Output ONLY the rewritten message.
+
+=== MESSAGE ===
+{draft}
+=== END ===

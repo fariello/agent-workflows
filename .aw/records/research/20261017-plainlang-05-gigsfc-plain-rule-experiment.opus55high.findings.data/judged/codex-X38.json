@@ -1,0 +1,1 @@
+{"understand":5,"act":5,"unexplained_terms":0,"facts_covered":[0,1,2,3,4],"false_claims":["The runner marks every finished item as failed until it is checked; the reference describes downgrading a self-recorded executed outcome.","The retry occurred because the output did not match its spec; the reference establishes only a spec-anchor-sent-back retry."]}

@@ -1,0 +1,9 @@
+You typed a five-character ID, `ufawp`, but the backlog item's six-character ID is `ufawpb`. The error message pointed you the wrong way: backlog items are valid targets for `--action plan`.
+
+This command works and queues both items for planning:
+
+```
+aw oc run --action plan 7rs77x ufawpb
+```
+
+**Why the message was wrong:** the command accepts a non-plan item only when its six-character ID matches exactly. When that fails, the error helper searches again with looser rules, which include matching any part of a filename. `ufawp` is part of the backlog item's filename, so the helper reported "this is a backlog item, not a plan." The real message should have been "no item has the ID `ufawp`." That error helper should be fixed.

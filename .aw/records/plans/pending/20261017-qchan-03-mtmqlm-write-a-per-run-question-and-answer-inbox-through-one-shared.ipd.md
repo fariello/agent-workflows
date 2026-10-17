@@ -3,20 +3,22 @@
 - Date: 2026-10-17
 - Kind: child
 - Concern: A parked question (Order 02) lives only on the queue item inside `state.json`. Spec `6kwd2e` R9.1-R9.2 (amended 2026-10-17) make a per-run inbox the ONE answer carrier: `questions/<question_id>.json` written when an item parks, `answers/<question_id>.json` written by any adapter, and one shared writer that enforces first-answer-wins, atomicity, `actor == "human"` and the ledger record. Without it every later channel (CLI, terminal, Telegram) would write answers its own way.
-- Scope: IN: a new module `agent_workflows/question_inbox.py` with the question and answer file schemas, `write_question` (called by the driver at park time), `write_answer` (the only answer writer), `read_open_questions`, `read_answers`, run-scoped question ids (`<position>-<id6>-<worker question_id>`), the artifact content hash (R5.6), and the `human_answer` ledger entry; wiring `write_question` into the park branch. Also writes the `open-questions.md` projection at park time (R4a.1) from the same data. OUT: consuming answers (Order 04), the CLI (Order 05), channels (Orders 09-11).
+- Scope: IN: a new module `agent_workflows/question_inbox.py` with the question and answer file schemas, `write_question` (called by the driver at park time), `write_answer` (the only answer writer), `read_open_questions`, `read_answers`, run-scoped question ids (`<position>-<id6>-a<attempt>-<worker question_id>`), question status transitions (`open`/`answered`/`stale`) through one writer, the artifact content hash (R5.6), and the `human_answer` ledger entry; wiring `write_question` into the park branch. Also writes the `open-questions.md` projection at park time (R4a.1) from the same data. OUT: consuming answers (Order 04), the CLI (Order 05), channels (Orders 09-11).
 - Scope-Paths: agent_workflows/question_inbox.py, agent_workflows/runner_shared.py, agent_workflows/set_records.py, tests/test_question_inbox.py
 - Item-Dependencies: executed:epsti7
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - From-Spec: 6kwd2e
 - Set: qchan
 - Order: 3
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mtmqlm
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
@@ -31,26 +33,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the module
 
-- [ ] E-01 Create `agent_workflows/question_inbox.py` with `write_question(run_dir, item, question) -> Path` writing `questions/<qid>.json` (schema `aw.question/v1`: `question_id`, `run_id`, `artifact_id6`, `artifact_path`, `artifact_hash` = SHA-256 of the artifact file at park time, `fingerprint`, `gates_verdict`, `text`, `options`, `allow_free_text`, `evidence`, `action` (review/execute), `created_at`, `status: open`). Run-scoped `qid = f"{position:02d}-{id6}-{worker_qid}"`. Atomic write (temp in same dir, fsync, `os.replace`).
+- [ ] E-01 Create `agent_workflows/question_inbox.py` with `write_question(run_dir, item, question) -> Path` writing `questions/<qid>.json` (schema `aw.question/v1`: `question_id`, `run_id`, `artifact_id6`, `artifact_path`, `artifact_hash` = SHA-256 of the artifact file at park time, `fingerprint`, `gates_verdict`, `text`, `options`, `allow_free_text`, `evidence`, `action` (review/execute), `created_at`, `status: open`). Run-scoped `qid = f"{position:02d}-{id6}-a{attempt}-{worker_qid}"`, where `attempt` is the attempt number that raised it: a resumed turn (Order 04 E-04) that reuses a worker id such as `q1` must get a NEW question, not collide with the answered one. `write_question` REFUSES to replace an existing question file (create with `O_EXCL` semantics: write the temp file, then `os.link` it to the final name and unlink the temp, so an existing file raises instead of being overwritten). `artifact_path` is repo-relative and resolved with `runner_shared.queue_artifact_path(repo, item)` against the MAIN checkout (not the lane, whose copy the worker edits), and `artifact_hash` is `runner_shared.sha256_file` of that file, so Order 04 recomputes staleness from the same path the same way. Atomic write (temp in same dir, fsync, `os.replace` or `os.link`). Every function that takes a `qid` from outside (CLI, chat) validates it against `QID_RE = ^[0-9]{2,}-[a-z0-9]{6}-a[0-9]+-[A-Za-z0-9._-]{1,40}$` and checks the resolved path's parent is the run's `questions/` (or `answers/`) directory, refusing otherwise, so a channel-supplied id can never name a path outside the inbox.
   - Depends on: none
-  - Expected outcome: a written question file round-trips through `read_open_questions` and carries the artifact hash of the file as it was at park time.
+  - Expected outcome: a written question file round-trips through `read_open_questions` and carries the artifact hash of the main-checkout file as it was at park time; a second `write_question` for the same qid raises and leaves the first file unchanged; a qid of `../x` or one not matching `QID_RE` is refused.
   - Execution state: pending
 
-- [ ] E-02 Add `write_answer(run_dir, qid, *, answer, choice, channel, sender, actor) -> AnswerResult` as the ONLY answer writer (R9.2): refuse an unknown `qid`; refuse `actor != "human"`; refuse a `choice` outside the options and a free-text answer when `allow_free_text` is false; take a per-question `filelock`; if `answers/<qid>.json` exists return `already` and record the attempt in `answers/<qid>.rejected.jsonl` without changing the answer; otherwise write `aw.answer/v1` (`question_id`, `answer`, `choice`, `actor`, `channel`, `sender`, `artifact_hash` copied from the question, `answered_at`) atomically and append the `human_answer` ledger event to `events.jsonl`. Return `recorded`/`already`/`rejected` with a reason.
+- [ ] E-02 Add `write_answer(run_dir, qid, *, answer, choice, channel, sender, actor) -> AnswerResult` as the ONLY answer writer (R9.2): refuse a `qid` failing `QID_RE` or absent from `questions/`; refuse a question whose status is not `open` (answered or stale); refuse `actor != "human"` (the same rule `run_ledger_schema.validate_record` enforces as `RL-E051`; the test asserts both agree); refuse a `choice` outside the options and a free-text answer when `allow_free_text` is false; bound `answer` to 4000 characters and `channel`/`sender` to 200, rejecting control characters other than newline and tab, because the answer is later pasted into an agent prompt (Order 04) and a chat message (Order 10); take a per-question `filelock.FileLock` on `answers/<qid>.lock`; if `answers/<qid>.json` exists return `already` and record the attempt in `answers/<qid>.rejected.jsonl` without changing the answer; otherwise write `aw.answer/v1` (`question_id`, `answer`, `choice`, `actor`, `channel`, `sender`, `artifact_hash` copied from the question, `answered_at`) atomically, then append to `events.jsonl` (through `runner_shared.append_jsonl`) a `human_answer` event carrying the `run_ledger_schema` `human_answer` fields (`kind: human_answer`, `question_id`, `answer`, `actor: human`, `channel`, `sender`, `at`) and a `question_disposition` event with `disposition: answered_by_human` (R5.4; the value is a member of `run_ledger_schema.QUESTION_DISPOSITIONS`). These are run EVENTS, not hash-chained ledger records: no driver run writes `ledger.jsonl` (the `runner_shared` comment "NO driver run writes one"), and a runner run id such as `run-20261017T053655Z-482502` does not match `run_ledger_schema`'s `^run-[0-9a-f]{8,}$` grammar, so `validate_record` cannot be the acceptance test for the envelope. A rejected attempt (unknown qid excepted, which has no directory to write into) is appended to `answers/<qid>.rejected.jsonl` and as an `answer-rejected` event. After recording, refresh the `open-questions.md` projection (E-03's renderer) so an answered question stops being listed. Return `recorded`/`already`/`rejected` with a reason.
   - Depends on: E-01
-  - Expected outcome: two concurrent writers for one qid yield exactly one `recorded` and one `already`; unknown qid, non-human actor and out-of-range choice are `rejected`; the answer file never appears half-written.
+  - Expected outcome: two concurrent writers for one qid, in two THREADS and in two separate PROCESSES (adapters run as separate processes, e.g. the CLI beside the Telegram poller), yield exactly one `recorded` and one `already`; unknown qid, malformed qid, non-human actor, out-of-range choice, over-length answer and an answer to a `stale` question are `rejected`; the answer file never appears half-written; `events.jsonl` holds one `human_answer` and one `question_disposition` event per recorded answer.
+  - Execution state: pending
+
+- [ ] E-05 Add `set_question_status(run_dir, qid, status, *, reason) -> bool` as the ONLY writer of a question file's `status` after creation, accepting `answered` and `stale` from `open` and nothing else (a stale question is never reopened: re-asking it means writing a NEW question under a new attempt qid, so the stale answer stays on record), under the same per-question lock, atomically, with a `question-status` event. Order 04 (`j0ufrj` E-01, E-03) uses it to mark answers stale and questions answered, so no consumer rewrites a question file itself.
+  - Depends on: E-02
+  - Expected outcome: `open -> answered` and `open -> stale` succeed and are reflected by `read_open_questions`; an illegal transition (for example `answered -> open`) returns False and leaves the file unchanged.
   - Execution state: pending
 
 ### Task group 2: wire it at park time
 
-- [ ] E-03 In the park branch added by Order 02, call `write_question` for each valid question and store the returned run-scoped qids on the item. Then write `open-questions.md` from `read_open_questions` minus answered ones, replacing the unwired `set_records.write_local_projections` path for runner runs (R4a.1). Writing must not raise into the run loop: on an OSError record an event and keep the item parked.
-  - Depends on: E-02
-  - Expected outcome: a scripted run that parks one item leaves `questions/<qid>.json` and an `open-questions.md` listing it while the run is still advancing.
+- [ ] E-03 In BOTH park branches added by Order 02 (`epsti7` E-02 for execute, E-06 for review), call `write_question` for each valid GATING question (non-gating ones do not park and get no file) and store the returned run-scoped qids on the item. Then write `<run_dir>/open-questions.md` (`set_records.OPEN_QUESTIONS_FILE`) with `question_inbox.write_projection(run_dir)`, which REUSES the existing renderer `set_records.render_open_questions` by mapping each question file to a `question_raised`-shaped record (`question_id`, `context` = text, `affected_nodes` = [artifact id6], `timestamp`, `actor`) and each answer file to a `human_answer`-shaped record, then writes atomically under a run-level `questions/.projection.lock` so concurrent answer writers cannot drop each other's update. This is the R4a.1 writer for runner runs; `set_records.write_local_projections` stays as it is (it serves Set runs under `.aw/workflow-artifacts/`). Writing must not raise into the run loop: on an OSError record an event and keep the item parked.
+  - Depends on: E-05
+  - Expected outcome: a scripted run that parks one item leaves `questions/<qid>.json` and an `open-questions.md` whose `## <qid>` heading lists it while the run is still advancing; after `write_answer` records an answer the projection no longer lists it.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-04 Add `tests/test_question_inbox.py` (asserts spec `6kwd2e` A11 and A42): schema round-trip, hash capture, concurrent first-answer-wins with real threads, every refusal reason, atomicity (no partial file after a simulated crash between temp write and rename), the ledger event, and the park-time wiring through a scripted run.
+- [ ] E-04 Add `tests/test_question_inbox.py` (asserts spec `6kwd2e` A11 and A42): schema round-trip, hash capture, no-overwrite and qid validation, concurrent first-answer-wins with real threads AND two subprocesses, every refusal reason, status transitions (E-05), projection refresh after an answer, atomicity (no partial file after a simulated crash between temp write and rename), the ledger event, and the park-time wiring through a scripted run.
   - Depends on: E-03
   - Expected outcome: the module passes.
   - Execution state: pending
@@ -64,12 +71,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Findings
 
-- `set_records.write_local_projections` has no caller in the package (spec `6kwd2e` R4a.1 correction).
+- `set_records.write_local_projections` has no caller in the package (spec `6kwd2e` R4a.1 correction), and it writes under `.aw/workflow-artifacts/<workflow>/<run-id>`, not a runner run directory; `set_records.render_open_questions` renders from `question_raised` minus `question_disposition`/`human_answer` records.
+- `run_ledger_schema.validate_record` requires a full envelope (`seq`, `parent`, a `run-<hex>` run id); `RL-E051` is the `actor == "human"` rule. No driver run writes `ledger.jsonl`.
+- `runner_shared.append_jsonl` appends one line per write with fsync; runner run directories live under the gitignored `.aw/records/runs/`.
 - `aw runs questions` reads `open-questions.md`; writing it at park time makes the existing verb work mid-run.
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01 question writer. 2. E-02 answer writer. 3. E-03 park wiring and projection. 4. E-04 tests.
+1. E-01 question writer. 2. E-02 answer writer. 3. E-05 status writer. 4. E-03 park wiring and projection. 5. E-04 tests.
 
 ## Deferred / out of scope (with reason)
 
@@ -77,6 +86,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: j0ufrj
 - Pointing `aw runs questions` at the runner run directory if its current lookup misses it: Order 05.
   - Carrier: 8u071n
+- Writing a hash-chained `ledger.jsonl` record for runner runs: no driver run has a ledger today; this plan records the same fields as run events.
+  - Carrier-Declined: no runner ledger exists to append to; a runner ledger is a separate design, not part of spec `6kwd2e`
 
 ## Scope check
 
@@ -105,17 +116,17 @@ N/A: implements spec `6kwd2e` R9.1, R9.2, R4a.1 as amended 2026-10-17.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste a `python3 -c` session writing a question for a fixture artifact and printing the read-back record including `artifact_hash`, compared with `sha256sum` of the artifact.
+  - Required evidence: paste a `python3 -c` session writing a question for a fixture artifact and printing the read-back record including `artifact_hash`, compared with `sha256sum` of the artifact, then the refusal output for a second write of the same qid and for the qid `../x`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the test output for the concurrent-writers case (one `recorded`, one `already`) and each refusal reason.
+  - Required evidence: paste `-v` test output for the thread and subprocess concurrent-writers cases (one `recorded`, one `already` each) and each refusal reason, plus the two `events.jsonl` lines of one recorded answer.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `ls <run_dir>/questions` and the `open-questions.md` contents from a scripted run captured while a later item is still queued.
+  - Required evidence: paste `ls <run_dir>/questions` and the `open-questions.md` contents from a scripted run captured while a later item is still queued, then the same file after an answer is recorded.
   - Observed evidence:
   - Result: pending
 
@@ -123,6 +134,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the runner output of the test command and the routine gate, including `N passed`.
   - Observed evidence:
   - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste `-v` test output for `open -> answered`, `open -> stale` and the refused `answered -> open` transition, with the question file's `status` printed before and after the refused one.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 

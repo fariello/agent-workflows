@@ -1,0 +1,8 @@
+**There was no real failure. The statusline counted a temporary label as a failure.** Both items in run `run-20261016T221501Z-3469718`, `24h56i` and `x9z0ve`, finished as executed and verified.
+
+**Why it showed "1 fail":**
+- The runner doesn't trust an item's own report that it succeeded. Until verification and integration pass, it marks the item `fail-gate`. That label means "not yet confirmed," not "failed."
+- The statusline's counter (`compute_queue_tally`) counts any status starting with "fail" as a failure. So it counts `fail-gate` as a failure.
+- You took the screenshot at 22:40:24. At that point `x9z0ve` still had the `fail-gate` label: it was set at 22:36:02, then the item went through a retry. The item was confirmed at 22:40:50, 26 seconds after your screenshot.
+
+**Suggested fix:** have the counter show `fail-gate` as pending instead of failed. Should I make that change?
