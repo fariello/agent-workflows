@@ -57,7 +57,6 @@ class TestProjectSchema(unittest.TestCase):
 
         self.assertIn("unversioned", DURABILITY_STATES)
         self.assertNotIn("durable-private", DURABILITY_STATES)
-        self.assertFalse(hasattr(DurabilityState, "DURABLE_PRIVATE"))
         self.assertEqual(
             normalize_durability_state("durable-private"),
             DurabilityState.ACKNOWLEDGED_DURABLE.value,

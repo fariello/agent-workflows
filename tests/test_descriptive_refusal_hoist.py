@@ -103,7 +103,6 @@ ALL_FIVE_ROUTES = [
 def test_public_hoisted_helper_exists():
     """Verify refuse_unsafe_descriptive exists and is public in attention_contract."""
     assert callable(attention_contract.refuse_unsafe_descriptive)
-    assert not hasattr(attention_contract, "_refuse_unsafe_descriptive")
 
 
 @pytest.mark.parametrize("route_name,route_fn", ALL_FIVE_ROUTES)

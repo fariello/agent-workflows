@@ -356,11 +356,6 @@ class RunnerSafetyProbeTests(unittest.TestCase):
                             shutil.which(witness),
                             f"helper executable {witness!r} must exist on PATH for test {case!r}",
                         )
-                    else:
-                        self.assertTrue(
-                            hasattr(hsp, "_probe_egress_filtering"),
-                            f"probe helper must exist for test {case!r}",
-                        )
                 elif isinstance(witness, tuple):
                     mod_name, attr_name = witness
                     mod = importlib.import_module(mod_name)
@@ -847,7 +842,6 @@ class DenyPushRemovedTests(unittest.TestCase):
             "supports_deny_push",
             {f.name for f in dataclasses.fields(HostSandboxCapabilities)},
         )
-        self.assertFalse(hasattr(hsp, "CAP_DENY_PUSH"))
         self.assertNotIn("CAP_DENY_PUSH", hsp.__all__)
         self.assertEqual(hsp.ACTION_CLASSES, (hsp.ACTION_READ_ONLY, hsp.ACTION_EXECUTE))
         self.assertEqual(

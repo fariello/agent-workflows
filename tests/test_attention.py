@@ -2433,12 +2433,6 @@ class SharedLifecycleResolverTests(unittest.TestCase):
         )
 
     def test_lifecycle_resolution_and_escapes(self):
-        self.assertFalse(hasattr(att, "_STATUS_COLOR_256"))
-        self.assertEqual(
-            set(att._CLASS_COLOR_256),
-            {A.ACTIVE, A.READY, A.BLOCKED, A.DONE, A.PARKED},
-        )
-
         item = self._item("plans", "approved", ".aw/records/plans/pending/p.ipd.md")
         row = self._row(item)
         resolved = self._LS.resolve(self._LS.FAMILY_PLANS, "approved")

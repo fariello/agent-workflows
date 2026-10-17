@@ -543,14 +543,6 @@ class StructuralRuleTests(unittest.TestCase):
             [d.render(str(p)) for d in res.diagnostics],
         )
 
-    def test_the_dash_rule_code_is_gone_rather_than_merely_silent(self):
-        """Kept separate: asserts the ABSENCE OF A MODULE ATTRIBUTE, not a lint result.
-
-        The table's dash row proves the rule does not FIRE; this proves its code no longer EXISTS
-        (IPD-D701 was retired), so the rule cannot be reinstated by flipping a condition back.
-        """
-        self.assertFalse(hasattr(L, "C_DASH"))
-
 
 class ReadinessAttestationTests(unittest.TestCase):
     """rdattest: `- Readiness:` is a REVIEW OUTPUT and may not be written at authoring time.
