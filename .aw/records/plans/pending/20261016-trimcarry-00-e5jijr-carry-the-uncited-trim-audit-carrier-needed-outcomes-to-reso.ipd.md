@@ -103,7 +103,7 @@ Orders 01 and 02 are independent. Orders 04 and 05 both append to the same findi
 ## Deferred / out of scope (with reason)
 
 - Writing replacement tests or fixing regressions for the gaps Order 06 files: each filed item's own work.
-  - Carrier: z2xs98
+  - Carrier: lrnh5f, n6h5eg, 2mcirl, aux1f6, aq04yg, gjmiuw, liybkg, x62jok, 7df9md, lzn56i, fdyjv6, igefrj, otc788, ziuj5c, yqpb7q, q86fxm
 - `PROP-01` (`_run_migrate_layout`): carried by backlog `5slmvq` and its pending plan `1ue3kr`, not by `9qvfie`.
   - Carrier: 1ue3kr
   - Carrier-Evidence: .aw/records/plans/executed/20261016-5slmvq-01-1ue3kr-restore-behavioral-test-coverage-for-run-migrate-layout.ipd.md
