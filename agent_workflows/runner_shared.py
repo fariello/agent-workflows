@@ -22693,8 +22693,18 @@ def determine_action(
 #:
 #: NOTE: This set answers a DIFFERENT question from `TERMINAL_STATES` (which keys dependency cascade
 #: and retirement behavior) and must not be merged with it.
+#: Non-terminal disposition for an item awaiting human answers to emergent questions (spec 6kwd2e R3, qchan-02 epsti7).
+AWAITING_HUMAN_STATUS: str = "awaiting-human"
+
 IN_FLIGHT_QUEUE_STATUSES: frozenset[str] = frozenset(
-    ("queued", "running", "interrupted", "integration-deferred", "merge-retry")
+    (
+        "queued",
+        "running",
+        "interrupted",
+        "integration-deferred",
+        "merge-retry",
+        AWAITING_HUMAN_STATUS,
+    )
 )
 
 
@@ -23578,6 +23588,7 @@ def record_transient_dependency_wait(
     unsatisfied: Sequence[str],
     reasons: Mapping[str, str],
     append_jsonl: Callable[..., Any],
+    recovery_hint: str | None = None,
 ) -> None:
     """Record a TRANSIENT drain verdict WITHOUT writing a status. BOTH HOSTS.
 
@@ -23596,6 +23607,7 @@ def record_transient_dependency_wait(
     fabricated disposition spec R22 forbids. The unmet edges are carried inside this record instead.
     """
 
+    hint = recovery_hint or TRANSIENT_DEPENDENCY_WAIT_HINT
     item[TRANSIENT_DEPENDENCY_WAIT_KEY] = {
         "verdict": verdict.verdict,
         "detail": verdict.detail,
@@ -23605,7 +23617,7 @@ def record_transient_dependency_wait(
             for dep in unsatisfied
         },
         "blocking_statuses": dict(verdict.blocking),
-        "recovery": TRANSIENT_DEPENDENCY_WAIT_HINT,
+        "recovery": hint,
     }
     append_jsonl(
         run_dir / "events.jsonl",
@@ -23616,11 +23628,160 @@ def record_transient_dependency_wait(
             "dependencies": [str(dep) for dep in unsatisfied],
             "blocking_statuses": dict(verdict.blocking),
             "detail": verdict.detail,
-            "recovery": TRANSIENT_DEPENDENCY_WAIT_HINT,
+            "recovery": hint,
             # Stated explicitly so a reader of the stream never has to infer it from an absence.
             "status_written": False,
         },
     )
+
+
+def waits_on_awaiting_human(item: Mapping[str, Any], state: Any) -> bool:
+    """True when a prerequisite of `item`, transitively, is `awaiting-human` (spec 6kwd2e R3.6, qchan-02 epsti7 E-04)."""
+    if isinstance(state, Mapping) and "queue" in state:
+        queue = state.get("queue") or []
+    elif isinstance(state, Sequence):
+        queue = state
+    else:
+        queue = []
+    by_id = {
+        str(entry.get("id6")): entry
+        for entry in queue
+        if isinstance(entry, Mapping) and entry.get("id6")
+    }
+    visited: set[str] = set()
+    stack: list[str] = []
+
+    def _get_prereq_ids(entry: Mapping[str, Any]) -> list[str]:
+        pids: list[str] = []
+        for dep in entry.get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is not None and getattr(edge, "target_type", None) == "ipd":
+                t_id = str(getattr(edge, "id6", "") or "")
+                if t_id:
+                    pids.append(t_id)
+        return pids
+
+    for pid in _get_prereq_ids(item):
+        stack.append(pid)
+
+    while stack:
+        curr = stack.pop()
+        if curr in visited:
+            continue
+        visited.add(curr)
+        entry = by_id.get(curr)
+        if entry is None:
+            continue
+        if entry.get("status") == AWAITING_HUMAN_STATUS:
+            return True
+        for next_id in _get_prereq_ids(entry):
+            if next_id not in visited:
+                stack.append(next_id)
+
+    return False
+
+
+def find_awaiting_human_upstream(item: Mapping[str, Any], state: Any) -> list[str]:
+    """Return sorted list of id6s of all upstream prerequisites transitively awaiting-human."""
+    if isinstance(state, Mapping) and "queue" in state:
+        queue = state.get("queue") or []
+    elif isinstance(state, Sequence):
+        queue = state
+    else:
+        queue = []
+    by_id = {
+        str(entry.get("id6")): entry
+        for entry in queue
+        if isinstance(entry, Mapping) and entry.get("id6")
+    }
+    visited: set[str] = set()
+    stack: list[str] = []
+    awaiting_ids: set[str] = set()
+
+    def _get_prereq_ids(entry: Mapping[str, Any]) -> list[str]:
+        pids: list[str] = []
+        for dep in entry.get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is not None and getattr(edge, "target_type", None) == "ipd":
+                t_id = str(getattr(edge, "id6", "") or "")
+                if t_id:
+                    pids.append(t_id)
+        return pids
+
+    for pid in _get_prereq_ids(item):
+        stack.append(pid)
+
+    while stack:
+        curr = stack.pop()
+        if curr in visited:
+            continue
+        visited.add(curr)
+        entry = by_id.get(curr)
+        if entry is None:
+            continue
+        if entry.get("status") == AWAITING_HUMAN_STATUS:
+            awaiting_ids.add(curr)
+        for next_id in _get_prereq_ids(entry):
+            if next_id not in visited:
+                stack.append(next_id)
+
+    return sorted(awaiting_ids)
+
+
+def update_awaiting_upstream(state: dict[str, Any]) -> None:
+    """Record awaiting_upstream on queued items whose prerequisites are awaiting-human (spec 6kwd2e R3.5, qchan-02 epsti7 E-03).
+
+    Cleared when the prerequisite leaves awaiting-human.
+    """
+    queue = state.get("queue")
+    if not isinstance(queue, list):
+        return
+    by_id = {
+        str(entry.get("id6")): entry
+        for entry in queue
+        if isinstance(entry, Mapping) and entry.get("id6")
+    }
+    for item in queue:
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") != "queued":
+            item.pop("awaiting_upstream", None)
+            continue
+        upstream: dict[str, list[str]] = {}
+        for prereq_id6 in find_awaiting_human_upstream(item, state):
+            prereq = by_id.get(prereq_id6)
+            if prereq is not None and prereq.get("status") == AWAITING_HUMAN_STATUS:
+                q_list = prereq.get("questions") or []
+                texts = [
+                    str(q.get("text", ""))
+                    for q in q_list
+                    if isinstance(q, Mapping) and "text" in q
+                ]
+                upstream[prereq_id6] = texts
+        if upstream:
+            item["awaiting_upstream"] = upstream
+        else:
+            item.pop("awaiting_upstream", None)
+
+
+def report_parked_drain_summary(run_dir: Path, state: Mapping[str, Any]) -> None:
+    """Print the summary line when the queue is drained with parked items (spec 6kwd2e R7.3, qchan-02 epsti7 E-04)."""
+    queue = state.get("queue") or []
+    parked = [
+        it
+        for it in queue
+        if isinstance(it, Mapping) and it.get("status") == AWAITING_HUMAN_STATUS
+    ]
+    waiting = [
+        it
+        for it in queue
+        if isinstance(it, Mapping)
+        and it.get("status") == "queued"
+        and waits_on_awaiting_human(it, state)
+    ]
+    if parked:
+        msg = f"{len(parked)} item(s) parked awaiting answers; {len(waiting)} waiting on them ({run_dir})"
+        print(f"  • {msg}")
 
 
 def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
@@ -31782,20 +31943,28 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def aggregated_run_items(
-    queue: Sequence[Mapping[str, Any]], *, stopped: bool
+    queue: Sequence[Mapping[str, Any]],
+    *,
+    stopped: bool,
+    state: Mapping[str, Any] | None = None,
 ) -> tuple[Any, ...]:
     """Project queue entries onto run_evidence.AggregatedItem (mh60nd/q32qeg E-01).
 
     The mapping clauses are strictly ORDERED to enforce spec c4gd2h A1/A4:
     1. Malformed entry: AggregatedItem(item_id="<malformed>", contribution_hint=CONTRIBUTION_FAILURE, needs_input=False)
-    2. status == "queued" under stopped=True: benign_skip=True, needs_input=False
+    2. status == "queued" under stopped=True or waits_on_awaiting_human: benign_skip=True, needs_input=False
     3. status == "queued" under stopped=False: falls through to general rule below
     4. item_reached_success(entry) is True and not work_did_not_land(entry): verified=True
-    5. Gate predicate (bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
+    5. Gate predicate (status == awaiting-human or bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
     6. Failure default: contribution_hint=CONTRIBUTION_FAILURE
     """
     from agent_workflows import run_evidence
 
+    effective_state: Mapping[str, Any] = (
+        state
+        if (state is not None and isinstance(state, Mapping))
+        else {"queue": queue}
+    )
     items: list[run_evidence.AggregatedItem] = []
     for entry in queue:
         # Clause 1: A non-mapping entry
@@ -31812,9 +31981,11 @@ def aggregated_run_items(
         status = entry.get("status")
         item_id = str(entry.get("id6") or entry.get("id") or "")
 
-        # Clause 2: status == "queued" under stopped=True becomes benign_skip=True
+        # Clause 2: status == "queued" under stopped=True or waits_on_awaiting_human becomes benign_skip=True
         # and needs_input is NOT set (suppressed), even if the entry carries the flag.
-        if status == "queued" and stopped:
+        if status == "queued" and (
+            stopped or waits_on_awaiting_human(entry, effective_state)
+        ):
             items.append(
                 run_evidence.AggregatedItem(
                     item_id=item_id,
@@ -31835,8 +32006,10 @@ def aggregated_run_items(
                     needs_input=False,
                 )
             )
-        elif bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry):
-            # Clause 5: Human-gated item
+        elif (
+            status == AWAITING_HUMAN_STATUS or bool(entry.get(NEEDS_INPUT_KEY))
+        ) and not item_reached_success(entry):
+            # Clause 5: Human-gated item / awaiting-human
             items.append(
                 run_evidence.AggregatedItem(
                     item_id=item_id,
@@ -31857,12 +32030,17 @@ def aggregated_run_items(
     return tuple(items)
 
 
-def run_exit_code(queue: Sequence[Mapping[str, Any]], *, stopped: bool) -> int:
+def run_exit_code(
+    queue: Sequence[Mapping[str, Any]],
+    *,
+    stopped: bool,
+    state: Mapping[str, Any] | None = None,
+) -> int:
     """Return the spec 25kzda 5.6 aggregate run exit code for a queue (mh60nd/q32qeg E-02)."""
     from agent_workflows import run_evidence
 
     return run_evidence.aggregate_run_exit(
-        aggregated_run_items(queue, stopped=stopped)
+        aggregated_run_items(queue, stopped=stopped, state=state)
     ).exit_code
 
 
@@ -35544,6 +35722,7 @@ def map_driver_status_to_run_state(status: Any) -> str | None:
         "failed": _rs.STATE_FAILED,
         "fail-depend": _rs.STATE_BLOCKED,
         "interrupted": _rs.STATE_BLOCKED,
+        AWAITING_HUMAN_STATUS: _rs.STATE_BLOCKED,
     }
     return table.get(canonical)
 
@@ -39848,6 +40027,8 @@ def execute_item_core(
                     "questions": list(q_verdict.questions),
                     "violations": list(q_verdict.violations),
                 }
+                if q_verdict.is_valid:
+                    attempt["questions"] = list(q_verdict.questions)
                 if q_verdict.is_malformed:
                     append_jsonl(
                         run_dir / "events.jsonl",
@@ -39867,6 +40048,75 @@ def execute_item_core(
                         ),
                         file=sys.stderr,
                     )
+
+        # qchan-02 (epsti7) E-02: Execute turn question parking
+        q_v_exec = attempt.get("questions_verdict") or {}
+        if q_v_exec.get("verdict") == QUESTIONS_VERDICT_VALID:
+            attempt["questions"] = list(q_v_exec.get("questions", []))
+            gating_questions = [
+                q
+                for q in q_v_exec.get("questions", [])
+                if isinstance(q, Mapping) and q.get("gates_verdict") is True
+            ]
+            if not is_review and not is_production and gating_questions:
+                disposition = AWAITING_HUMAN_STATUS
+                attempt["disposition"] = AWAITING_HUMAN_STATUS
+                item["status"] = AWAITING_HUMAN_STATUS
+                item["questions"] = list(q_v_exec.get("questions", []))
+                item[NEEDS_INPUT_KEY] = True
+                attempt[NEEDS_INPUT_KEY] = True
+
+                if wt_handle is not None:
+                    lane_containment.record_lane_preserved(
+                        run_dir=run_dir,
+                        item=item,
+                        handle=wt_handle,
+                        reason=(
+                            f"IPD {item['id6']} has {len(gating_questions)} gating question(s) "
+                            "awaiting human answer; lane preserved"
+                        ),
+                        reason_codes=(lane_containment.RETENTION_AWAITING_HUMAN,),
+                    )
+
+                defect_verdict = validate_defect_report(outcome)
+                defect_rec = defect_report_record(
+                    defect_verdict,
+                    reasked=False,
+                    reask_reason="parking awaiting human decision",
+                )
+                attempt["defect_report"] = defect_rec
+                item["defect_report"] = defect_rec
+
+                update_awaiting_upstream(state)
+                save_state(run_dir, state)
+
+                reached_success = False
+                finish_resolved = resolve_item_lifecycle(disposition)
+                finish = (
+                    pal.lifecycle_glyph(finish_resolved, width=2)
+                    + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                    + pal(f" ({action})", "dim")
+                    + " -> "
+                    + pal.lifecycle(finish_resolved, disposition)
+                    + pal(f"  (exit {exit_code})", "dim")
+                )
+                print(finish)
+                print()
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finished",
+                        "id6": item["id6"],
+                        "action": action,
+                        "attempt": attempt_no,
+                        "exit_code": exit_code,
+                        "status": disposition,
+                        "session_id": session_id,
+                        "verification_status": None,
+                    },
+                )
+                return
 
         # fixfirst-02 (tha7a6) E-03: Proposal channel check
         if not is_review and not is_production:
@@ -41334,6 +41584,184 @@ def execute_item_core(
                 id6=item["id6"],
                 allowed_paths=extra_allowed,
             ).allowed
+
+            # qchan-02 (epsti7) E-06: Review sweep-lane park check BEFORE commit_review_lane_output and integrate_review_lane_branch
+            q_v_review = attempt.get("questions_verdict") or {}
+            review_gating_questions = (
+                [
+                    q
+                    for q in q_v_review.get("questions", [])
+                    if isinstance(q, Mapping) and q.get("gates_verdict") is True
+                ]
+                if q_v_review.get("verdict") == QUESTIONS_VERDICT_VALID
+                else []
+            )
+
+            if review_gating_questions:
+                base_tip = attempt.get("review_lane_tip_before")
+                _rc_tip, current_tip_out, _ = _run_git(wt_path, ["rev-parse", "HEAD"])
+                current_tip = current_tip_out.strip() if _rc_tip == 0 else ""
+
+                is_descendant = False
+                if base_tip and current_tip:
+                    _rc_anc, _, _ = _run_git(
+                        wt_path, ["merge-base", "--is-ancestor", base_tip, current_tip]
+                    )
+                    if _rc_anc == 0:
+                        is_descendant = True
+
+                if not base_tip or not is_descendant:
+                    # Refuse to park: score fail-gate with recorded refusal, lane untouched
+                    record_refusal(
+                        item,
+                        code="review-park-refused",
+                        reason=(
+                            f"cannot park review {item['id6']}: sweep lane tip {current_tip!r} is not a "
+                            f"descendant of review_lane_tip_before {base_tip!r}"
+                        ),
+                        remedy="inspect sweep lane git history and commit ancestry",
+                    )
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    save_state(run_dir, state)
+
+                    finish_resolved = resolve_item_lifecycle(disposition)
+                    finish = (
+                        pal.lifecycle_glyph(finish_resolved, width=2)
+                        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                        + pal(f" ({action})", "dim")
+                        + " -> "
+                        + pal.lifecycle(finish_resolved, disposition)
+                        + pal(f"  (exit {exit_code})", "dim")
+                    )
+                    print(finish)
+                    print()
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-finished",
+                            "id6": item["id6"],
+                            "action": action,
+                            "attempt": attempt_no,
+                            "exit_code": exit_code,
+                            "status": disposition,
+                            "session_id": session_id,
+                            "verification_status": None,
+                        },
+                    )
+                    return
+
+                # (1) Commit review's own dirty paths with commit_review_lane_output
+                rev_commit, rev_paths = commit_review_lane_output(
+                    repo,
+                    wt_handle,
+                    item["id6"],
+                    host_label=host_labels.command,
+                    run_id=str(state.get("run_id") or "") or None,
+                    own_paths=own_paths,
+                )
+                if rev_commit:
+                    attempt["review_lane_commit"] = rev_commit
+                    attempt["review_lane_committed_paths"] = list(rev_paths)
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "review-lane-output-committed",
+                            "id6": item["id6"],
+                            "attempt": attempt_no,
+                            "commit": rev_commit,
+                            "paths": list(rev_paths),
+                        },
+                    )
+
+                # (2) Create aw/parked/<run_id>/<id6> at the sweep lane's tip
+                _rc_tip_after, tip_after_out, _ = _run_git(
+                    wt_path, ["rev-parse", "HEAD"]
+                )
+                tip_after_commit = (
+                    tip_after_out.strip() if _rc_tip_after == 0 else current_tip
+                )
+                run_id_val = str(state.get("run_id") or "")
+                parked_branch = f"aw/parked/{run_id_val}/{item['id6']}"
+                _run_git(wt_path, ["branch", "-f", parked_branch, tip_after_commit])
+
+                # (3) git reset --hard to review_lane_tip_before
+                _run_git(wt_path, ["reset", "--hard", base_tip])
+
+                # (4) Record preserved fields on item and attempt
+                item["preserved_branch"] = parked_branch
+                item["preserved_base"] = base_tip
+                item["preserved_lane_id"] = f"parked-{item['id6']}"
+                item["preserved_reason"] = (
+                    f"review {item['id6']} has {len(review_gating_questions)} gating question(s) "
+                    f"awaiting human answer; parked branch {parked_branch}"
+                )
+                item["preserved_retention_reasons"] = [
+                    lane_containment.RETENTION_AWAITING_HUMAN
+                ]
+                attempt["preserved_branch"] = parked_branch
+                attempt["preserved_base"] = base_tip
+                attempt["preserved_lane_id"] = f"parked-{item['id6']}"
+
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": lane_containment.LANE_PRESERVED_EVENT,
+                        "id6": item.get("id6"),
+                        "worktree": str(wt_path),
+                        "branch": parked_branch,
+                        "lane_id": f"parked-{item['id6']}",
+                        "base_commit": base_tip,
+                        "status": AWAITING_HUMAN_STATUS,
+                        "reason": item["preserved_reason"],
+                        "retention_reasons": [
+                            lane_containment.RETENTION_AWAITING_HUMAN
+                        ],
+                    },
+                )
+
+                # (5) Set awaiting-human, needs_input, item["questions"], write no Readiness
+                disposition = AWAITING_HUMAN_STATUS
+                attempt["disposition"] = AWAITING_HUMAN_STATUS
+                item["status"] = AWAITING_HUMAN_STATUS
+                item[NEEDS_INPUT_KEY] = True
+                attempt[NEEDS_INPUT_KEY] = True
+                item["questions"] = list(q_v_review.get("questions", []))
+                attempt["questions"] = list(q_v_review.get("questions", []))
+
+                update_awaiting_upstream(state)
+                save_state(run_dir, state)
+
+                finish_resolved = resolve_item_lifecycle(disposition)
+                finish = (
+                    pal.lifecycle_glyph(finish_resolved, width=2)
+                    + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                    + pal(f" ({action})", "dim")
+                    + " -> "
+                    + pal.lifecycle(finish_resolved, disposition)
+                    + pal(f"  (exit {exit_code})", "dim")
+                )
+                print(finish)
+                print()
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finished",
+                        "id6": item["id6"],
+                        "action": action,
+                        "attempt": attempt_no,
+                        "exit_code": exit_code,
+                        "status": disposition,
+                        "session_id": session_id,
+                        "verification_status": None,
+                    },
+                )
+                return
 
             review_commit, review_committed_paths = commit_review_lane_output(
                 repo,

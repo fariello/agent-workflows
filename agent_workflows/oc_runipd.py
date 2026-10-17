@@ -674,6 +674,11 @@ from agent_workflows.runner_shared import (
     validate_questions as validate_questions,
     question_fingerprint as question_fingerprint,
     questions_schema_literal as questions_schema_literal,
+    AWAITING_HUMAN_STATUS as AWAITING_HUMAN_STATUS,
+    waits_on_awaiting_human as waits_on_awaiting_human,
+    find_awaiting_human_upstream as find_awaiting_human_upstream,
+    update_awaiting_upstream as update_awaiting_upstream,
+    report_parked_drain_summary as report_parked_drain_summary,
 )
 from agent_workflows.runner_shared import (
     _ORDER_RE as _ORDER_RE,
@@ -4136,6 +4141,7 @@ def run_queue(
             save_state(run_dir, state)
             state = load_state(run_dir)
             register_signal_report(run_dir, state)
+        runner_shared.update_awaiting_upstream(state)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued and not runner_shared.deferred_integration_items(state):
             # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 request on the last set
@@ -4263,6 +4269,14 @@ def run_queue(
                     # a bare `resume` re-queues an `interrupted` prerequisite through
                     # `requeue_interrupted`. The record is still written: an unlabelled item with no
                     # event would be indistinguishable from one never reached.
+                    if runner_shared.waits_on_awaiting_human(item, state):
+                        upstream_ids = runner_shared.find_awaiting_human_upstream(
+                            item, state
+                        )
+                        up_str = ", ".join(upstream_ids) or "upstream"
+                        parked_hint = f"item left queued: prerequisite {up_str} is parked awaiting answers; answer with 'aw runs answer'"
+                    else:
+                        parked_hint = None
                     record_transient_dependency_wait(
                         run_dir,
                         item,
@@ -4270,6 +4284,7 @@ def run_queue(
                         unsatisfied=missing,
                         reasons=why,
                         append_jsonl=append_jsonl,
+                        recovery_hint=parked_hint,
                     )
                     continue
                 item["status"] = "fail-depend"
@@ -4300,6 +4315,7 @@ def run_queue(
                     },
                 )
             save_state(run_dir, state)
+            runner_shared.report_parked_drain_summary(run_dir, state)
             break
         recovery = bool(runnable.pop("recovery_next", False))
         update_execution_order(state, runnable)
@@ -4633,6 +4649,7 @@ def run_queue(
     return runner_shared.run_exit_code(
         state["queue"],
         stopped=wind_down is not None or stopped_at_checkpoint,
+        state=state,
     )
 
 
