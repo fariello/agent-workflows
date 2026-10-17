@@ -74,7 +74,9 @@ Replacement choice: `tests/test_core_tier_selection.py` exists and its module do
 ## Deferred / out of scope (with reason)
 
 - The `conftest.py` docstring and the `check_engine` / `lost_guard_census` placeholder sets: illustrative code comments and deliberate placeholder allowlists, not runnable user instructions; the backlog item names only the two documents.
+  - Carrier-Declined: illustrative code comments and deliberate placeholder allowlists; out of scope per backlog item
 - The executed plan `hguae9` that originally introduced the sentence: executed plans are immutable records.
+  - Carrier-Declined: executed plans are immutable historical records; not modifiable
 
 ## Scope check
 

@@ -74,7 +74,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Changing installer behavior or payload: the install is correct; only the test is stale.
+  - Carrier-Declined: installer behavior is correct; only the test is stale
 - Auditing other tests for different pinned payload counts (e.g. installed-item counts not phrased as "files changed"): not evidenced by this item; file a separate backlog item if found during execution.
+  - Carrier-Declined: not evidenced by this item; will file a separate backlog item if found during execution
 
 ## Scope check
 

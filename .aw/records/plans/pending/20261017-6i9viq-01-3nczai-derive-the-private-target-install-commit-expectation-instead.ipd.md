@@ -69,7 +69,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Backlog `ioegmo` describes the same defect. Closing or de-duplicating it is a backlog decision for the maintainer and is outside this plan's scope fence; this plan's fix would satisfy it, which a reviewer may cite as evidence when closing it.
+  - Carrier-Declined: duplicate backlog item ioegmo is tracked separately and graduated to plan im4afa
 - No installer or payload change: the installer behavior is correct; only the test is wrong.
+  - Carrier-Declined: installer behavior is correct; only the test assertion is changed
 
 ## Scope check
 

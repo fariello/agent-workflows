@@ -74,7 +74,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Changing `NotALedgerError.__str__` itself: the store has no repo root (F-05) and other callers may legitimately want the full path in a traceback.
+  - Carrier-Declined: store layer has no repo root; callers may legitimately want full path in tracebacks
 - Other `aw runs` error messages that may embed paths (for example `LedgerCorruption` text rendered by `_emit_error`): not named by backlog `kv7tj0`; if found during execution, file a new backlog item rather than broadening scope.
+  - Carrier-Declined: not named by backlog kv7tj0; out of scope for this focused fix
 
 ## Scope check
 

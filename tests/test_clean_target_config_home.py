@@ -563,15 +563,36 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.assertTrue((target / ".agent-workflows-installer-backups").is_dir())
 
         self.assertIn("Git: changes staged; commit offered below", res.stdout)
-        stat = subprocess.run(
-            ["git", "show", "--stat", "--format=", "HEAD"],
+        commit_paths = set(
+            subprocess.run(
+                ["git", "show", "--name-only", "--format=", "HEAD"],
+                cwd=str(target),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.splitlines()
+        )
+        tracked_paths = set(
+            subprocess.run(
+                ["git", "ls-files"],
+                cwd=str(target),
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.splitlines()
+        ) - {"README.md"}
+        self.assertEqual(commit_paths, tracked_paths)
+        self.assertTrue(len(commit_paths) > 0)
+        self.assertIn("AGENTS.md", commit_paths)
+        self.assertIn(".aw/.gitignore", commit_paths)
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
             cwd=str(target),
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
-        tail = stat.splitlines()[-1] if stat.splitlines() else ""
-        self.assertIn("358 files changed", tail)
+        self.assertEqual(status, "")
 
     def test_case_m_clean_target_reinstall_and_rollback(self) -> None:
         """Case (m): clean-delta reinstall is a no-op on target, and rollback removes home files leaving target empty."""

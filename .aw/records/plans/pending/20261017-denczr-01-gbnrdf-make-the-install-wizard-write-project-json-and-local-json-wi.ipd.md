@@ -76,7 +76,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - `install_history.py` writes its snapshot with `json.dump(snapshot, f, indent=2)` and no trailing newline. That file did not appear in the reinstall diff (F2), so it does not cause this bug. Changing it is a style fix outside this plan's scope.
+  - Carrier-Declined: style-only fix outside scope; does not cause spurious reinstall diff
 - The installer reports `[overwrite]` for a byte-identical rewrite (F5). That is wording only, and no test or the backlog item asks for a change, so it is left alone.
+  - Carrier-Declined: reporting wording only; not requested by backlog item or tested
 
 ## Scope check
 

@@ -80,7 +80,9 @@ Mechanism: `persist_project_policy` writes project.json without a newline, then 
 ## Deferred / out of scope (with reason)
 
 - `install_history.py` snapshot write (`json.dump(snapshot, f, indent=2)`): an install-history record under durable state, not `project.json`; the backlog item is scoped to project.json, so it is left unchanged.
+  - Carrier-Declined: install-history record under durable state; backlog item is scoped to project.json
 - A shared JSON-write helper consolidating all writers: refactor beyond this bug's scope.
+  - Carrier-Declined: architectural refactoring beyond this bug's focused scope
 
 ## Scope check
 
