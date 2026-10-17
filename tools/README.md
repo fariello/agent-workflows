@@ -477,3 +477,30 @@ python3 tools/replay_coverage_diff.py diff 19313eed tests/test_run_freeze.py --b
 # Diff an entire inventory list from lost_guard_census.py:
 python3 tools/replay_coverage_diff.py diff 19313eed --from-json uncited_inventory.json --baseline /tmp/base --format json
 ```
+
+## `regen_agents_block.py`
+
+`tools/regen_agents_block.py` regenerates the managed `<!-- aw:block -->` region of this repository's `AGENTS.md` from the generator (`engine.agents_managed_sections("aw")`) and re-records the section hashes in `.aw/system/managed-sections.json`.
+
+### Purpose
+
+In this repository, changes to pointer or reporting prose land as joint generator-plus-`AGENTS.md` commits where the full installer (`aw install .`) is not run. This repo-local tool provides a safe, focused path that rewrites only the managed block region between `<!-- aw:block -->` and `<!-- /aw:block -->`, keeping foreign header and footer text intact, and records updated section hashes in the manifest through `engine.merge_aw_block`. It never touches `GEMINI.md` or unrelated manifest entries.
+
+### Exit Codes
+
+- `0`: Success. The managed block and section hashes are up to date (or were cleanly reconciled).
+- `1`: Staleness detected under `--check`. Text or section hash records are out of step.
+- `2`: Refused. The file contains ambiguous block markers, legacy markers, drift (missing closer with trailing text), unknown section slugs, or declined tombstones.
+
+### Usage
+
+```bash
+# Check if AGENTS.md or manifest records are stale (exit 1 if stale, 0 if current):
+python3 -m tools.regen_agents_block --check
+
+# Reconcile AGENTS.md managed block and manifest records in place:
+python3 -m tools.regen_agents_block
+
+# Run against a specific repository root directory:
+python3 -m tools.regen_agents_block --dir /path/to/repo --check
+```
