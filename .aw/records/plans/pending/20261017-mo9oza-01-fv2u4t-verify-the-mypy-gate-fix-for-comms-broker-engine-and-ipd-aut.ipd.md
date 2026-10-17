@@ -6,7 +6,8 @@
 - Scope: IN: (1) re-measure the mypy gate and the slow typecheck test at the executing HEAD; (2) remove the `mo9oza` bullet from the advisory comment above the "Run slow-marked tests" step in `.github/workflows/tests.yml`, keeping `continue-on-error: true` because the other owning item `denczr` is not done (its carrier plan `gbnrdf` is still pending); (3) one `Fixed:` bullet in `CHANGELOG.md`. OUT: any edit to `agent_workflows/comms_broker.py`, `agent_workflows/engine.py` or `agent_workflows/ipd_authoring.py` (already fixed by `b4acc832d`; if E-01 finds new errors there, this plan stops and reports rather than widening scope); flipping the slow step to fail-closed (owned by the flip condition, gated on `denczr`); `pyproject.toml` `[tool.mypy]` configuration; `tests/test_typecheck_gate.py` (it already asserts the outcome this item needs).
 - Scope-Paths: .github/workflows/tests.yml, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: mo9oza
@@ -18,7 +19,7 @@
 - Id: fv2u4t
 
 ## Workflow history
-
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-17 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog mo9oza at HEAD 2c8da7b8d; measured the gate already clean (fixed by b4acc832d), so the plan verifies the fix and retires the stale CI advisory reference.
 
@@ -34,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Re-measure the type gate and its slow regression test at the executing HEAD.
   - Depends on: none
-  - Expected outcome: a pasted transcript of (a) `git rev-parse HEAD`; (b) `python3 -m mypy --version` and `python3 -c "import filelock; print(filelock.__version__)"` (the pinned environment named in the `pyproject.toml` `[tool.mypy]` comment, "mypy 2.3.1, filelock >=4"); (c) `python3 -m mypy agent_workflows 2>&1 | tail -3` ending in `Success: no issues found`; (d) `python3 -m pytest -o addopts="" -m slow tests/test_typecheck_gate.py -q` reporting `1 passed`; (e) `git show --stat b4acc832d -- agent_workflows/comms_broker.py agent_workflows/engine.py agent_workflows/ipd_authoring.py` naming the three files. If (c) reports any error, STOP: mark E-01 `failed`, record the errors, and do not perform E-02/E-03 (a new regression needs its own item, not a widened scope here).
+  - Expected outcome: a pasted transcript of (a) `git rev-parse HEAD`; (b) `python3 -m mypy --version` and `python3 -c "import filelock; print(filelock.__version__)"` (the pinned environment named in the `pyproject.toml` `[tool.mypy]` comment, "mypy 2.3.1, filelock >=4"); (c) `python3 -m mypy agent_workflows > /tmp/mypy.out 2>&1; echo rc=$?; tail -3 /tmp/mypy.out` showing `rc=0` and a last line `Success: no issues found in N source files` (the exit code is captured separately because piping into `tail` would mask it; an `[annotation-unchecked]` note line above it is expected and is not an error); (d) `python3 -m pytest -o addopts="" -m slow tests/test_typecheck_gate.py` reporting `1 passed` (the slow test is `TypecheckGateTests::test_typecheck_gate_clean_exit`); (e) `git show --stat b4acc832d -- agent_workflows/comms_broker.py agent_workflows/engine.py agent_workflows/ipd_authoring.py` naming the three files. If (c) reports any error, STOP: mark E-01 `failed`, record the errors, and do not perform E-02/E-03 (a new regression needs its own item, not a widened scope here).
   - Execution state: pending
 
 ### Task group 2: records
@@ -53,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-04 Run the closing validation.
   - Depends on: E-02, E-03
-  - Expected outcome: (1) `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/tests.yml'))"` exits 0; (2) `git grep -n mo9oza -- .github/` prints nothing; (3) a `\u2014`/`\u2013` scan of the CHANGELOG addition finds 0; (4) `python3 -m agent_workflows sanitize --agent` reports `"outcome": "clean"`; (5) bare `python3 -m pytest` passes (summary line pasted); (6) `git diff --name-only` against the pre-execution HEAD lists only `.github/workflows/tests.yml`, `CHANGELOG.md` and this plan.
+  - Expected outcome: (1) `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/tests.yml'))"` exits 0; (2) `git grep -n mo9oza -- .github/` prints nothing; (3) `git diff -U0 -- CHANGELOG.md | grep '^+' | grep -c -P '[\x{2013}\x{2014}]'` prints `0`; (4) `python3 -m agent_workflows sanitize --agent` reports `"outcome": "clean"`; (5) bare `python3 -m pytest` passes (summary line pasted); (6) `git diff --name-only <pre-execution HEAD>` lists only `.github/workflows/tests.yml`, `CHANGELOG.md` and this plan (at its pending or executed path).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -141,4 +142,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (Status `approved`). Follow the agent execution contract: commit only the declared paths through `aw commit fv2u4t -- <paths>`, never push, paste actual runner output. Move this plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` is `pass` with pasted evidence. If E-01 fails, stop and report instead of transitioning.
+Execute only after explicit human approval (Status `approved`). All open questions are resolved (OQ-01).
+
+SCOPE FENCE. `- Scope-Paths:` is the expected edit set. An out-of-scope edit is permitted only when justified at finalize with `--scope-reason <path>=<why>`; acknowledge a declared path left unmodified with `--scope-ack`. The one STOP condition is E-01's: a NEW mypy error means the premise (the gate is clean) is false, so the plan stops with E-01 `failed` rather than editing the three modules.
+
+HONESTY. Every `V-*` evidence block MUST paste the ACTUAL runner or command output; never claim a pass that was not run.
+
+COMMIT. Commit through `aw commit fv2u4t -- .github/workflows/tests.yml CHANGELOG.md <this plan>`; verify `git diff --cached --name-only` lists only those paths; never push.
+
+POST-GATE LIFECYCLE. Once every `E-*` is performed, every `V-*` is pass, and `aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/`: under `aw oc run`/`aw agy run` the runner owns that transition; by hand run `aw ipd finalize fv2u4t`. Never `git mv` the plan by hand. If E-01 fails, do not transition: leave the plan in `pending/` and report. This plan carries `- Blocks-Release: next` inherited from backlog `mo9oza`; closing that item `done` afterwards uses the HANDOFF route (this executed carrier).
