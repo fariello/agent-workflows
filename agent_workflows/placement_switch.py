@@ -1663,6 +1663,7 @@ def _write_atomic_json(target_path: Path, data: Dict[str, Any]) -> None:
     tmp_path = target_path.parent / f".tmp_{target_path.name}"
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+        f.write("\n")
     os.replace(tmp_path, target_path)
 
 
