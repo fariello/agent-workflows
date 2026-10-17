@@ -5,8 +5,9 @@
 - Concern: Backlog `wbz75c`: on an installed repository, `aw install <repo> --records-backend home -y --no-interactive` (no `--preset`) exits `0`, rewrites `<repo>/.aw/config/project.json` with `records_backend: home` while keeping `preset: private-target` and `delivery_mode: tracked`, and `project_context.resolve_project_context` then returns `<AW_HOME>/projects/<id>/records` as the records root while every existing record stays in `<repo>/.aw/records/` where no reader looks. The config directory does not change, so neither the `on0keo` label guard nor the `ppu39q` path detector (`install_wizard.config_placement_switch`, which compares CONFIG directories) fires. Nothing refuses a records-root change today.
 - Scope: IN: a pure detector `install_wizard.records_root_switch(repo_path, policy, existing_policy=None) -> Optional[RecordsRootSwitch]` comparing the CURRENT records root (stored policy) with the records root the new policy resolves, firing only on an installed repo whose current root holds record-bearing files and only when `config_placement_switch` does not already report a full placement switch; a typed `RecordsRootSwitchRequired(InvalidPolicyError)`; the refusal in `resolve_policy_noninteractive`, at the top of `persist_project_policy` (before any write) and in `cli._run_install` right after the `ppu39q` check (before the dry-run render and every write); spec Section 8.2 describing the records-root switch contract. OUT: actually moving records (Order 02 `fxbm7j`), the `--relocate` wiring (Order 03 `vv9ki4`), companion records (backlog `n9vd2h`).
 - Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/cli.py, tests/test_records_root_switch_guard.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-6i9viq-01-6i9viq-tests-test-clean-target-config-home-py-test-case-l.backlog.md (The execution contract requires every defect found during the turn to be filed with aw backlog new this records the pre-existing test_case_l hard-coded install file count failure observed while runnin...)
 - Item-Dependencies: executed:ppu39q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: s07f73
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: s07f73 verified (set rbswitch, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-6i9viq-01-6i9viq-tests-test-clean-target-config-home-py-test-case-l.backlog.md: The execution contract requires every defect found during the turn to be filed with aw backlog new; this records the pre-existing test_case_l hard-coded install file count failure observed while running the plan's required adjacent suites.]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
