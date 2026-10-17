@@ -1,11 +1,13 @@
 - Id: ziuj5c
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_gates
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: tf8fwt
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_gates
 
 Carries 3 candidate production keys for agent_workflows/run_gates.py (157 exclusive lines): execute_gated_action, GateDecision.is_approved, evaluate_gate.
