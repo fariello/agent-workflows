@@ -5,8 +5,9 @@
 - Concern: `aw runs decisions` and `aw runs questions` print raw markdown under `--agent`/`--json` (stdout is not parseable by `json.loads`), and `aw runs evidence` (machine `ledger` key and human header) plus `aw runs verify-ledger` (human `Ledger:` and `FAIL:` lines) print the absolute ledger path.
 - Scope: Give the two projection leaves a bare-JSON machine payload (same `_emit_machine` family as their `aw runs` siblings) while keeping human output and exit codes unchanged; route every ledger path these two ledger leaves print through `agent_schema.normalize_repo_path`, and the same-defect sibling sites in this file (`runs show` human `Ledger:` line and `_emit_not_a_ledger`'s machine `path`, review PR-001); add behavioral tests; update the live conformance sweep and exemption registry that currently pin the raw-markdown gap; add a CHANGELOG line.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_runs_machine_output_paths.py, tests/test_live_conformance_sweep.py, tests/conformance_matrix.py, CHANGELOG.md
+- Scope-Exceeded: .aw/records/backlog/open/20261016-kv7tj0-01-kv7tj0-aw-runs-not-a-ledger-refusal-the-error-message-tex.backlog.md (defect-report carrier the driver contract requires: files kv7tj0, the residual absolute path in the not-a-ledger error text found while executing E-07 record only, no code change)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: lpvcln
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: lpvcln verified (set runledger, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-kv7tj0-01-kv7tj0-aw-runs-not-a-ledger-refusal-the-error-message-tex.backlog.md: defect-report carrier the driver contract requires: files kv7tj0, the residual absolute path in the not-a-ledger error text found while executing E-07; record only, no code change]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): plan-review: revisions applied (PR-001..PR-005)
 
