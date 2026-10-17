@@ -735,12 +735,29 @@ def run_coverage(
 
     cwd = Path.cwd()
     repo_root: Path | None = None
-    for anc in [cwd] + list(cwd.parents):
-        if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-            repo_root = anc
-            break
-
     raw_targets = getattr(args, "targets", None) or []
+
+    from agent_workflows import project_context
+
+    for t in raw_targets:
+        try:
+            cand_p = Path(t)
+            if cand_p.exists():
+                owner = project_context.record_owner_root(cand_p)
+                if owner is not None:
+                    repo_root = owner
+                    break
+        except Exception:
+            pass
+
+    if repo_root is None:
+        repo_root = project_context.find_project_root(cwd)
+
+    if repo_root is None:
+        for anc in [cwd] + list(cwd.parents):
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
     if not repo_root:
         err_msg = "no agent-workflows project root located"
         if ctx.is_agent or ctx.is_json:

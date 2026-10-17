@@ -571,7 +571,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
             check=True,
         ).stdout.strip()
         tail = stat.splitlines()[-1] if stat.splitlines() else ""
-        self.assertIn("357 files changed", tail)
+        self.assertIn("358 files changed", tail)
 
     def test_case_m_clean_target_reinstall_and_rollback(self) -> None:
         """Case (m): clean-delta reinstall is a no-op on target, and rollback removes home files leaving target empty."""

@@ -596,8 +596,15 @@ def _repo_root_of(artifact_path: Path) -> Path:
     The FALLBACK ONLY, for a direct caller of `validate_transition_allowed` that does not pass the
     already-resolved root. Same marker set and same shape as `specs._repo_root_of`, kept local rather
     than imported so this module gains no dependency on the specs verb for one path walk.
+    Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6).
     """
     p = (Path.cwd() / artifact_path).resolve()
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(p)
+    if owner is not None:
+        return owner
+
     for anc in [p] + list(p.parents):
         if (
             (anc / ".aw").is_dir()
