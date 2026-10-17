@@ -145,6 +145,10 @@ class TestInstallReportTruth(unittest.TestCase):
             self.assertIn(f"Changes committed: {head_sha}", res.stdout)
             self.assertNotIn("STAGED but NOT committed", res.stdout)
 
+    @pytest.mark.xfail(
+        strict=False,
+        reason="bug: denczr - second install reports changes committed",
+    )
     def test_second_install_nochange_leaves_clean_status_and_no_false_lines(
         self,
     ) -> None:

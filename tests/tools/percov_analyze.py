@@ -29,7 +29,12 @@ def _rel_path(full_path: str) -> str:
     try:
         return Path(full_path).resolve().relative_to(_REPO_ROOT).as_posix()
     except (ValueError, OSError, RuntimeError):
-        return full_path.replace("\\", "/")
+        p = full_path.replace("\\", "/")
+        for prefix in ("agent_workflows/", "tests/"):
+            idx = p.find(prefix)
+            if idx != -1:
+                return p[idx:]
+        return p
 
 
 def extract_coverage_sets(
@@ -346,6 +351,56 @@ def analyze_directory(dir_path: Path) -> dict[str, Any]:
     return result
 
 
+def extract_union_sets(
+    cov_path: Path,
+) -> tuple[set[tuple[str, int]], set[tuple[str, int, int]]]:
+    """Extract union of covered lines and arcs directly from .coverage."""
+    union_lines: set[tuple[str, int]] = set()
+    union_arcs: set[tuple[str, int, int]] = set()
+    try:
+        with sqlite3.connect(str(cov_path)) as conn:
+            file_map = {
+                row[0]: _rel_path(row[1])
+                for row in conn.execute("SELECT id, path FROM file")
+            }
+            meta_row = conn.execute(
+                "SELECT value FROM meta WHERE key = 'has_arcs'"
+            ).fetchone()
+            if meta_row and meta_row[0] in ("1", "True", "true", 1):
+                has_arcs = True
+            else:
+                arc_row = conn.execute("SELECT 1 FROM arc LIMIT 1").fetchone()
+                has_arcs = bool(arc_row)
+
+            if has_arcs:
+                cur = conn.execute("SELECT DISTINCT file_id, fromno, tono FROM arc")
+                for file_id, fromno, tono in cur:
+                    rel = file_map.get(file_id, "")
+                    if not rel:
+                        continue
+                    union_arcs.add((rel, fromno, tono))
+                    if fromno > 0:
+                        union_lines.add((rel, fromno))
+                    if tono > 0:
+                        union_lines.add((rel, tono))
+            else:
+                from coverage.numbits import numbits_to_nums
+
+                cur = conn.execute("SELECT DISTINCT file_id, numbits FROM line_bits")
+                for file_id, numbits in cur:
+                    rel = file_map.get(file_id, "")
+                    if not rel:
+                        continue
+                    for lineno in numbits_to_nums(numbits):
+                        union_lines.add((rel, lineno))
+        return union_lines, union_arcs
+    except (sqlite3.Error, OSError, KeyError):
+        _, lmap, amap = extract_coverage_sets(cov_path)
+        ulines = set().union(*lmap.values()) if lmap else set()
+        uarcs = set().union(*amap.values()) if amap else set()
+        return ulines, uarcs
+
+
 def compare_directories(
     current_dir: Path, baseline_dir: Path
 ) -> tuple[set[tuple[str, int]], set[tuple[str, int, int]]]:
@@ -357,18 +412,8 @@ def compare_directories(
     if current_dir.resolve() == baseline_dir.resolve():
         return set(), set()
 
-    _, base_lines_map, base_arcs_map = extract_coverage_sets(baseline_dir / ".coverage")
-    _, curr_lines_map, curr_arcs_map = extract_coverage_sets(current_dir / ".coverage")
-
-    base_union_lines = (
-        set().union(*base_lines_map.values()) if base_lines_map else set()
-    )
-    base_union_arcs = set().union(*base_arcs_map.values()) if base_arcs_map else set()
-
-    curr_union_lines = (
-        set().union(*curr_lines_map.values()) if curr_lines_map else set()
-    )
-    curr_union_arcs = set().union(*curr_arcs_map.values()) if curr_arcs_map else set()
+    base_union_lines, base_union_arcs = extract_union_sets(baseline_dir / ".coverage")
+    curr_union_lines, curr_union_arcs = extract_union_sets(current_dir / ".coverage")
 
     lost_lines = base_union_lines - curr_union_lines
     lost_arcs = base_union_arcs - curr_union_arcs
