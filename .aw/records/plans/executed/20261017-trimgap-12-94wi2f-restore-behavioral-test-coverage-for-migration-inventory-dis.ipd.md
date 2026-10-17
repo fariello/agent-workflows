@@ -6,7 +6,7 @@
 - Scope: Restore ONE behavioral test module at its original path, `tests/test_migration_inventory_shared.py`, mined from `19313eed^:tests/test_migration_inventory_shared.py`, marked `core` so the routine gate reaches it, and extended where the deleted file left a key's return value unasserted or an error branch unexercised (`Disposition.to_dict`, `InventoryResult.to_dict` / `InventoryResult.ok` on a failing result, `LensModule.contribution`, `PersonaModule.contribution`, `HarnessRegistry.catalog_rows` row fields, and the unknown-member branches of `HarnessRegistry.resolve_lens` / `resolve_persona`). It drives all 25 keys named in `b1mx2w`: `_harness_ir`, `HarnessRegistry.catalog_rows`, `plan_rollup`, `build_assess_harness`, `plan_review_parity`, `build_advise_harness`, `Disposition.to_dict`, `_plan_review_views_from_ir`, `PlanReviewViews.view_digest`, `InventoryResult.to_dict`, `LensModule.contribution`, `assert_no_lens_fork`, `PersonaModule.contribution`, `compile_plan_review`, `HarnessRegistry.register_lens`, `HarnessRegistry.register_persona`, `HarnessRegistry.resolve_lens`, `HarnessRegistry.resolve_persona`, `render_agent_report`, `InventoryResult.ok`, `PlanReviewViews.semantic_digest`, `SharedHarness.compiled`, `SharedHarness.semantic_digest`, `detect_view_drift`, `plan_review_views_from_ir`. Private helpers (`_harness_ir`, `_plan_review_views_from_ir`) are driven through their public callers. EXCLUDES any change to `agent_workflows/migration_inventory.py` or any other production file; EXCLUDES the six other `migration_inventory` keys the same deleted file reached (`check_completeness`, `_command_disposition`, `enumerate_subjects`, `Disposition.validate`, `build_inventory`, `_catalog_disposition`), whose `b1mx2w` verdict is `budget-exhausted` (reached at baseline, mutation not completed) rather than `unguarded-unreached` and which are therefore not this item's keys; the restored tests will incidentally execute and assert them anyway. EXCLUDES `workflow_compiler._compile_step_packets`, which `hpjj44` also attributes to this file but which belongs to another module.
 - Scope-Paths: tests/test_migration_inventory_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 94wi2f
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 94wi2f verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
