@@ -5,8 +5,9 @@
 - Concern: `aw run init --agent --fields <f>` ignores the shared `--fields` projection and emits the full record (including `run_id` and `ledger`).
 - Scope: Apply `agent_schema.filter_record_fields` to the `--agent` success record in `run_cli._run_init`, add a behavioral regression test, and retire the `("run init", "--fields")` KNOWN_BROKEN ceiling entry.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_init.py, tests/test_shared_flag_honored.py
+- Scope-Exceeded: .aw/records/backlog/open/20261016-jndec6-01-jndec6-run-cli-error-payloads-emit-error-emit-machine-are.backlog.md (defect-report filing required by the runner contract: the adjacent finding run_cli error payloads are not aw.agent/v1 records needs a durable backlog carrier, cited as Carrier in the plan's Deferred s...)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +18,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: tgfxin
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: tgfxin verified (set runledger, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-jndec6-01-jndec6-run-cli-error-payloads-emit-error-emit-machine-are.backlog.md: defect-report filing required by the runner contract: the adjacent finding (run_cli error payloads are not aw.agent/v1 records) needs a durable backlog carrier, cited as Carrier in the plan's Deferred section]
 - 2026-10-17 executed (opencode lane run-20261017T001257Z-870713): E-01..E-03 performed, V-01..V-03 pass
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
