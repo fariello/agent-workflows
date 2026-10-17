@@ -359,7 +359,7 @@ class TestResolveExistingPolicyAndNoninteractive(unittest.TestCase):
             msg = str(cm.exception)
             self.assertIn("private-target", msg)
             self.assertIn("completely-clean-target", msg)
-            self.assertIn("ui1aln", msg)
+            self.assertIn("--relocate", msg)
 
     def test_resolve_project_context_enabled_hosts_precedence(self):
         with tempfile.TemporaryDirectory() as td:
@@ -678,7 +678,7 @@ class TestReinstallPreservesConfigSubprocess(unittest.TestCase):
             after_bytes = proj_file.read_bytes()
             self.assertEqual(before_bytes, after_bytes)
             output = r.stdout + r.stderr
-            self.assertIn("ui1aln", output)
+            self.assertIn("--relocate", output)
             self.assertIn("Switching config placement", output)
 
     def test_subprocess_reinstall_local_only_to_clean_target_normalizes_and_preserves(

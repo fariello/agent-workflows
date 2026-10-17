@@ -683,6 +683,8 @@ def resolve_policy_noninteractive(
     explicit_aw_home: Optional[str] = None,
     explicit_hosts: Optional[List[str]] = None,
     assume_yes: bool = False,
+    *,
+    allow_placement_switch: bool = False,
 ) -> ProjectPolicy:
     """Resolve policy for noninteractive execution (spec Section 11.3 & E-05)."""
     if existing_policy is not None:
@@ -733,10 +735,23 @@ def resolve_policy_noninteractive(
         switch = config_placement_switch(
             repo_path, pol, existing_policy=existing_policy
         )
-        if switch is not None:
+        if switch is not None and not allow_placement_switch:
+            if (
+                existing_policy.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+                or pol.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+            ):
+                msg = (
+                    f"Switching config placement from {existing_policy.preset} to {pol.preset} "
+                    f"involves a companion repository and is not supported yet (backlog n9vd2h)."
+                )
+            else:
+                msg = (
+                    f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
+                    f"to {pol.preset} ({switch.target_dir}) moves project config, records and install history. "
+                    f"Preview with --relocate --dry-run, then rerun with --relocate."
+                )
             raise PlacementSwitchRequired(
-                f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
-                f"to {pol.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+                msg,
                 current_dir=switch.current_dir,
                 target_dir=switch.target_dir,
                 current_preset=existing_policy.preset,
@@ -816,6 +831,8 @@ def collect_policy_interactive(
     explicit_companion: Optional[str] = None,
     explicit_aw_home: Optional[str] = None,
     explicit_hosts: Optional[List[str]] = None,
+    *,
+    allow_placement_switch: bool = False,
 ) -> ProjectPolicy:
     """Collect policy interactively with preset-first subflows and pre-write plan preview (E-01..E-06)."""
     if existing_policy is None:
@@ -838,6 +855,7 @@ def collect_policy_interactive(
             explicit_aw_home=explicit_aw_home,
             explicit_hosts=explicit_hosts,
             assume_yes=assume_yes,
+            allow_placement_switch=allow_placement_switch,
         )
 
     # Interactive Update Checkpoint (spec Section 11.2 & E-06)
@@ -1100,9 +1118,23 @@ def persist_project_policy(
             if cur_preset
             else str(switch.current_dir)
         )
+        if (
+            cur_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+            or policy.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+        ):
+            from_p = cur_preset or str(switch.current_dir)
+            msg = (
+                f"Switching config placement from {from_p} to {policy.preset} "
+                f"involves a companion repository and is not supported yet (backlog n9vd2h)."
+            )
+        else:
+            msg = (
+                f"Switching config placement from {from_desc} "
+                f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
+                f"Preview with --relocate --dry-run, then rerun with --relocate."
+            )
         raise PlacementSwitchRequired(
-            f"Switching config placement from {from_desc} "
-            f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
+            msg,
             current_dir=switch.current_dir,
             target_dir=switch.target_dir,
             current_preset=cur_preset,

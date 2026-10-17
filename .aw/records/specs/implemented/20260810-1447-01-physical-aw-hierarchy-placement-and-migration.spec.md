@@ -132,7 +132,7 @@ A fresh install creates the current `setup-repo` action under `state/durable/act
 
 ### 8.1 Placement switch on update
 
-The refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--relocate` and the transaction are specified for Set `cfgreloc` Orders 02 to 05 and until they ship every placement switch refuses unconditionally.
+The placement switch transaction and CLI opt-in flags (`--relocate`, `--relocate-resume`, `--relocate-rollback`) are implemented by `ozr356` (Set `cfgreloc` Orders 02 to 05); companion switches continue to refuse (backlog `n9vd2h`).
 
 1. A placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`).
 2. Without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy.
@@ -261,6 +261,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch CLI flags and transaction execution (IPD ozr356, backlog ui1aln)
 - 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch on update (IPD ppu39q, backlog ui1aln)
 - 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
 - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)

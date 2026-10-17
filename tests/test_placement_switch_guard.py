@@ -183,7 +183,7 @@ class TestPlacementSwitchGuardUnit(unittest.TestCase):
 
                 self.assertEqual(cm.exception.reason, "path")
                 self.assertIn("Switching config placement", str(cm.exception))
-                self.assertIn("ui1aln", str(cm.exception))
+                self.assertIn("--relocate", str(cm.exception))
                 home_projects = list(aw_home.glob("projects/*/config/project.json"))
                 self.assertEqual(home_projects, [])
 
