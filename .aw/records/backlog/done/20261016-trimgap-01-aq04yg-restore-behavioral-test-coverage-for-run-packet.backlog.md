@@ -1,5 +1,5 @@
 - Id: aq04yg
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for run_packet
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD 5jevb2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-05-5jevb2-restore-behavioral-test-coverage-for-run-packet-step-packets.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-05-5jevb2-restore-behavioral-test-coverage-for-run-packet-step-packets.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053813Z-512749: 5jevb2
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_packet
 
