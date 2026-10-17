@@ -6,7 +6,7 @@
 - Scope: Read-only on production code except for temporary, reverted mutations. Measure the final suite against the Set baseline (THE baseline is the `qqrgv3` E-07 run directory and its `meta.json` HEAD recorded in the `qqrgv3` decision-table research; research `offdhr` and `7ry5kv` are pre-`qqrgv3` context, lines-only and under-recording per `offdhr`'s own CORRECTION section, and are never the coverage bar): union line and branch coverage of `agent_workflows/`, a list of every line or branch that lost all coverage with a justification or a restored behavioral test; the mutation spot-check; a flake check of three randomized runs plus a serial run; final counts and timings; a CHANGELOG line; finalize the decision-table research; and write the Set's final report as a research record. Restoring a test (or writing a better behavioral one) when a mutation survives is IN scope.
 - Scope-Paths: tests/, conftest.py, CHANGELOG.md, .aw/records/research/*testprune*, .aw/records/backlog/
 - Item-Dependencies: executed:c8bfp9
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -15,9 +15,9 @@
 - Highest E allocated: 10
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vgus66
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vgus66 verified (set testprune, attempt 1). [Scope reconciliation - in-scope-unmodified conftest.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-17 amended (qqrgv3): synced percov_run and percov_analyze tooling commands in E-01
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
