@@ -1,5 +1,5 @@
 - Id: igefrj
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for migration_inventory
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD 94wi2f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-12-94wi2f-restore-behavioral-test-coverage-for-migration-inventory-dis.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-12-94wi2f-restore-behavioral-test-coverage-for-migration-inventory-dis.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: 94wi2f
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for migration_inventory
 
