@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_clean_delta.py` from `19313eed^:tests/test_clean_delta.py` as a core-tier behavioral module that drives the 9 keys through their public call surfaces and asserts on return values, written files and file contents. The 9 keys: `convert_legacy_adapters`, `uninstall_adapters`, `detect_adapter_drift`, `repair_adapters`, `verify_adapter_purity`, `resolve_adapter_reference`, `_compute_sha256` (reached through `build_default_adapter_manifest` and `detect_adapter_drift`), `AdapterManifest.get` (reached through `repair_adapters`), `build_default_adapter_manifest`. EXCLUDES any change to `agent_workflows/clean_delta.py` or any other production file, and EXCLUDES the 6 already-reached clean_delta keys, which the restored file will also exercise incidentally but which are not this item's gap.
 - Scope-Paths: tests/test_clean_delta.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: dwjfu4
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-17 to-review (opencode): authored from backlog `otc788`. Ran the deleted `19313eed^:tests/test_clean_delta.py` verbatim against HEAD `7dbf402bc` before writing any expected outcome (Finding F-03: 24 passed in 1.27s), so the restore is known to apply cleanly and the expectations below are observed, not inferred.

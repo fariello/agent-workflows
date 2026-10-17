@@ -6,7 +6,7 @@
 - Scope: Restore five deleted test modules from `19313eed^` at their original paths, with the edits listed per item, `core` markers on the cheapest tests that reach each key, and residual tests for two keys that survive early-return mutation (`_blocking_escalated_finding_ids`, and the `False` polarity of `check._on_staged_file`, F-05). The 8 keys: `check_engine.check_system_layout`, `evaluate_ipd_dependencies`, `evaluate_review_decision_escalation`, `_blocking_escalated_finding_ids`, `_plan_date`; `hooks.ipd_dependency_statement_gate.check._on_staged_file`; `review_findings.ReviewDocument.current_decisions`; `doctor._version_drift`. `tests/test_review_decisions.py` and `tests/test_doctor_and_marker.py` are not named by `b1mx2w` as reaching files but are the deleted files that reach `evaluate_review_decision_escalation`, `_blocking_escalated_finding_ids`, `current_decisions` and `_version_drift` once their `slow` mark is lifted (F-03). EXCLUDES any production change; EXCLUDES `tests/test_review_findings_gate.py` and `tests/test_review_findings.py` (F-06).
 - Scope-Paths: tests/test_cli_layout.py, tests/test_ipd_dependency_check.py, tests/test_ipd_dependency_statement_gate.py, tests/test_review_decisions.py, tests/test_doctor_and_marker.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: zhoul7
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm`. Replayed the deleted files with `tools/deleted_test_replay.py 19313eed` at HEAD `f84c3af26`, measured per-key reach with coverage contexts, durations, and an early-return mutation sweep over every key, plus a scratch `check_system_layout` return-`[]` mutation against `tests/test_cli_layout.py`; all scratch edits were reverted and `.coverage` removed.

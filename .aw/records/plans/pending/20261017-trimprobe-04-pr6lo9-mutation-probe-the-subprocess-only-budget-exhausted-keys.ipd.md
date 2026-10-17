@@ -6,7 +6,7 @@
 - Scope: IN: for every `P4` key, a narrowed survivor over the test files that name the key's module, a positive control, and a full-selection fallback survivor while the 10,800s cap allows; write the `P4` rows of `## Budget probe results`. OUT: `P2`/`P3` (Orders 02 `lictgf`, 03 `f4pbs5`), filing (Order 05 `b83dpg`), any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: executed:g00ljy, executed:f4pbs5
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: pr6lo9
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
 - 2026-10-17 to-review (opencode): authored review-ready child of Set `trimprobe` graduating backlog `lrnh5f`.

@@ -6,7 +6,7 @@
 - Scope: IN: a checkpoint step at the top of both drivers' `run_queue` loops (beside `runner_stop.poll_stop`, the dependency cascade and the deferred-integration retry); staleness check; priority re-queue; same-session resume through the host's own executor launcher with the recorded session id and an answer notice built like `build_fix_it_notice`; fresh-turn fallback on the preserved lane with the answer in the prompt (R5.5); resuming a parked review by merging its `aw/parked/<run_id>/<id6>` branch into the sweep lane; start-of-run and resume drain (the same loop-top call) so answers written while no driver was live are consumed; marking a consumed question `answered` in the inbox and refreshing `open-questions.md`. OUT: re-asking after a stale answer (Order 08 drain), the CLI (Order 05), channels (Orders 09-11).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/question_inbox.py, tests/test_question_resume.py
 - Item-Dependencies: executed:mtmqlm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: j0ufrj
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

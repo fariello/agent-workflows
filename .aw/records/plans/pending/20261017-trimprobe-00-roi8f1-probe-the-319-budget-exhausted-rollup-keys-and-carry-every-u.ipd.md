@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/**/20261017-trimprobe-00-roi8f1-probe-the-319-budget-exhausted-rollup-keys-and-carry-every-u.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 3e5e837490288733d9267c48ab578ef659c0bc9a7a6d641b9ef6f3a610b6260c
@@ -19,8 +19,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: roi8f1
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
 - 2026-10-17 coverage pass (aw oc run): fingerprint 3e5e83749028, model uri/its_direct/pt3-claude-opus-5.5-1m-us

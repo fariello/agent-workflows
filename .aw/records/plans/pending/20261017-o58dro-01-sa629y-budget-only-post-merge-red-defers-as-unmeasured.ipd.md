@@ -6,7 +6,7 @@
 - Scope: (1) Carry a `budget_only` fact from `suite_cache.run_full_suite` through `runner_shared.run_suite_check` onto `SuiteCheckResult`, computed with the `suite_cache.is_budget_only_failure` predicate that plan `44nfmd` adds; (2) in `make_integration_validation_runner`, classify a budget-only result as NOT a measurement of the code (`measured=False`) with a reason naming the budget and the passing summary, so it routes through the existing `merge-unchecked` deferral (re-attempted, never sent back to the agent, never labelled combined-red) instead of the terminal combined-red path; (3) do NOT cache a budget-only measurement in the per-run revalidation cache, so a deferred re-attempt on the same merged tree re-runs the suite instead of being served the stale refusal; (4) behavioral tests; (5) one CHANGELOG `Fixed` line; (6) one dated `## Workflow history` note on spec `25kzda` recording that a budget-only red is a harness-side `merge-unchecked` refusal and not the "non-passing combined revalidation" Section 2.1 makes terminal. It does NOT turn a budget-only red into a pass, does NOT change the conftest guard, the 30s budget, the `ytz6z4` default demotion in `suite_cache.build_suite_child_env`, the send-back wording (plan `44nfmd`), or the seam regression tests (plan `t54fet`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_budget_only_revalidation.py, CHANGELOG.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: executed:44nfmd
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: sa629y
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-o58dro-01-sa629y-budget-only-post-merge-red-defers-as-unmeasured.review.md`)
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

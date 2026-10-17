@@ -6,7 +6,7 @@
 - Scope: IN: the `aw notify` command family (`setup telegram|webhook|command`, `test`, `status`, `listen`, `disable <channel>`) registered in `cli.py`, each leaf declared in `command_surface.COMMAND_INVENTORY`, the bare family root answering `--agent` through `_show_family_help`, and `--agent` output on every leaf; the privacy and data notice; pairing; `deleteWebhook` only with explicit consent; a `docs/notifications.md` page covering setup, what leaves the machine, terse mode, how answers are verified, and the per-OS hand-test checklist; CHANGELOG. All config writes go through Order 09's `notify.config.save_user_config`, all Telegram traffic through Order 10's `TelegramChannel` and `TelegramReceiver`. OUT: Signal (backlog `szjsgj`); an OS service for listening (spec `6kwd2e` R10.6).
 - Scope-Paths: agent_workflows/notify/cli.py, agent_workflows/notify/telegram.py, agent_workflows/notify/config.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_notify_cli.py, docs/notifications.md, docs/README.md, CHANGELOG.md
 - Item-Dependencies: executed:qrup8m
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mrlblc
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

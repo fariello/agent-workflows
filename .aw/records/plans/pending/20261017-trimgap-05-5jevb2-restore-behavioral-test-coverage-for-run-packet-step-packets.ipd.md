@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_run_packet_restored_behavior.py`, that drives the 10 keys through their public call surfaces and asserts on real return values, raised exceptions, and durable ledger side effects. The 10 keys: `StepPacket.to_dict`, `StepOutcomeEnvelope.to_dict`, `_compute_packet_digest`, `BoundRequirement.to_dict`, `StepPacket.to_json`, `_normalize`, `build_step_packet`, `validate_outcome_envelope`, `StepPacket.render_prompt`, `apply_outcome_envelope`. Restores the outcome-envelope and step-packet cases of the deleted `19313eed^:tests/test_run_packet_gates.py` (classes `TestStepPacketRendering`, `TestOutcomeEnvelopeLegality`, `TestStepPacketEdgeCases`) in pytest form, plus a small number of branch cases the deleted file did not pin. EXCLUDES any change to `agent_workflows/run_packet.py` or any other production file, EXCLUDES editing `tests/test_core_module_coverage.py`, and EXCLUDES the deleted `TestHumanDecisionGates` class, which tests `agent_workflows/run_gates.py` and belongs to the sibling backlog item `ziuj5c`.
 - Scope-Paths: tests/test_run_packet_restored_behavior.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 5jevb2
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-trimgap-05-5jevb2-restore-behavioral-test-coverage-for-run-packet-step-packets.review.md
 
 - 2026-10-17 to-review (opencode): authored from backlog `aq04yg`. Ran the deleted `19313eed^:tests/test_run_packet_gates.py` unchanged against HEAD `92bdf4171` (20 tests, OK) and measured each extra branch by direct call before writing any expected outcome (Findings F-02 through F-06), so the expected values below are observed and not inferred from docstrings.

@@ -6,7 +6,7 @@
 - Scope: IN: `agent_workflows/notify/` package with the `Channel` protocol (`capabilities`, `send`, `receive`, `verify`, `ack`, `health`), user-level config `<AW_HOME>/notify.json` (0600 on POSIX, user-only ACL attempt on Windows, env-var overrides), a tracked-policy reader that may only forbid channels or force terse, the outbound builder (leak sanitizer then truncate), terse mode, the user-level registry for channel message ids and option tokens, the core's inbound routing entry point that later two-way channels call (`apply_inbound`), the dispatcher run at every dispatch checkpoint on both hosts (notifying newly parked questions from any source and acknowledging consumed or stale answers), and the `webhook` and `command` channels. OUT: Telegram (Order 10), setup commands and user docs (Order 11).
 - Scope-Paths: agent_workflows/notify/__init__.py, agent_workflows/notify/core.py, agent_workflows/notify/config.py, agent_workflows/notify/registry.py, agent_workflows/notify/webhook.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_notify_core.py
 - Item-Dependencies: executed:j0ufrj
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: txl556
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

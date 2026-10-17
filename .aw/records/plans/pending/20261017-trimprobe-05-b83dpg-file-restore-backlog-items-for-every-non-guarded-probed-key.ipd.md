@@ -6,7 +6,7 @@
 - Scope: IN: group every key whose final verdict in `## Budget probe results` or `## Probe queue` is not carrier-free, dedupe against live backlog, file one `trimgap` backlog item per module group (top 15 by key count, the rest in one residual item), and write `## Filed items` and `## Reconciliation` accounting for all 319 keys. OUT: writing any test (each filed item's own work); editing any existing backlog item, including `lrnh5f`; any code or test edit.
 - Scope-Paths: .aw/records/backlog/**/*-trimgap-*.backlog.md, .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: executed:g00ljy, executed:lictgf, executed:f4pbs5, executed:pr6lo9
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: b83dpg
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-17 to-review (opencode): authored review-ready child of Set `trimprobe` graduating backlog `lrnh5f`.

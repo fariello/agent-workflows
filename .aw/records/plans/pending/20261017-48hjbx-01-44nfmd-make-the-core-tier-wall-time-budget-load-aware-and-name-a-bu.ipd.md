@@ -6,7 +6,7 @@
 - Scope: (1) Make the conftest budget guard demote an overrun to a warning when the host is measurably oversubscribed (1-minute load average above the CPU count), and print the measured load in the budget banner either way; (2) make `suite_cache.run_full_suite` report a nonzero exit whose only cause is the budget banner as a budget-only failure in its `reason` instead of a generic "suite FAILED"; (3) replace the runner's combined-red send-back text "no test ids recorded" with a sentence that states the recorded revalidation reason, through one small helper; (4) behavioral tests for all three; (5) sync the budget comment in `pyproject.toml`, the `CONTRIBUTING.md` suite paragraph, and a CHANGELOG `Fixed` line. It does NOT change the 30s budget value, the core marker membership, or the `ytz6z4` runner-side demotion already shipped in `8b798b0b8`.
 - Scope-Paths: conftest.py, tests/test_core_tier_selection.py, agent_workflows/suite_cache.py, tests/test_suite_cache.py, agent_workflows/runner_shared.py, tests/test_combined_red_failure_lines.py, pyproject.toml, CONTRIBUTING.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 44nfmd
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed (review record `.aw/records/reviews/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.review.md`).
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 - 2026-10-17 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): authored from backlog 48hjbx with Step 0 evidence; review-ready.

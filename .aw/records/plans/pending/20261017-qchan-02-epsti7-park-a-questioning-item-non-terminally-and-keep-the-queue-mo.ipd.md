@@ -6,7 +6,7 @@
 - Scope: IN: the `awaiting-human` item status (absent from `TERMINAL_STATES` and every success set), recognized by `runner_shutdown.KNOWN_ITEM_STATUSES` and the resume coherence check; setting it when an execute or review turn returns valid questions; preserving the lane with `preserved_lane_id`/`preserved_base`/`preserved_branch`; holding dependents non-terminally (parked, not `fail-depend`); a queue drained only by parked items exiting with the distinct non-failure exit 3 (`run_exit_code`) instead of failing; no `- Readiness: no-go` written for a parked review (R6.1). OUT: writing the inbox (Order 03), consuming answers (Order 04), runaway bounds and the drain ask (Order 08).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/runner_shutdown.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/lifecycle_style.py, agent_workflows/run_evidence.py, agent_workflows/lane_containment.py, tests/test_question_parking.py
 - Item-Dependencies: executed:0jooqz
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: epsti7
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

@@ -6,7 +6,7 @@
 - Scope: IN: statusline count and hint (`render_stream.Statusline` / `format_statusline_lines` / `print_final_statusline`), a shared parked-question counter, the once-per-run bell called from both park branches, the `awaiting-human` run label in `attention` (alias table, priority order, run column) and a parked-question count in the attention output (human and `--format json`). OUT: off-machine notification (Orders 09-11); `aw runs questions` (Order 05).
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/attention.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_question_visibility.py
 - Item-Dependencies: executed:mtmqlm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y1vjzp
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

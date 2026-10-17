@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the eleven children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261017-qchan-00-wpv9r7-let-runner-turns-ask-the-maintainer-and-take-answers-while-t.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: b85cde20cc6e36c802f6da7579ba305f415cf0e130917abec4213e846fe312cd
@@ -19,8 +19,10 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wpv9r7
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-17 coverage pass (aw oc run): fingerprint b85cde20cc6e, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 coverage fail (aw oc run): fingerprint f631d4a35384, model uri/its_direct/pt3-claude-opus-5.5-1m-us

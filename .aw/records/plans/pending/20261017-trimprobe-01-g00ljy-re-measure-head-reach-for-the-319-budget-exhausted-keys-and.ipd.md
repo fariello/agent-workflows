@@ -6,7 +6,7 @@
 - Scope: IN: create the Set `trimprobe` findings doc; run one full `tests/` coverage baseline at HEAD; for each of the 319 keys record its reach class, a valid mutation operator, its reaching test node ids count, its surviving test files, an estimated probe cost, and its assigned partition (Order 02, Order 03, Order 04, or a no-probe final verdict); commit the doc. OUT: any mutation probe (Orders 02 to 04); filing (Order 05); any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: g00ljy
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-17 to-review (opencode): authored review-ready child of Set `trimprobe` graduating backlog `lrnh5f`.

@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_lifecycle_fixtures.py` from `19313eed^:tests/test_lifecycle_fixtures.py` as a core-tier behavioral module that drives the 21 keys through `run_fixture`, `run_all_fixtures`, `make_isolated_env`, `seed_legacy_tree` and `IsolatedEnv`, and asserts on returned `FixtureOutcome` fields, environment-variable state and the file system; plus one small added class covering the four behaviors the deleted file never asserted directly (an unknown fixture name is refused, `activate_aw_home` followed by `cleanup` restores a caller's prior `AW_HOME`, `run_fixture` removes the isolated tree it created, and a refuse-before-mutation fixture whose refusal DID write to the repo reports `mutated=True` and fails). The 21 keys: `run_clean_install`, `run_legacy_update`, `run_partial_state`, `run_customized_file`, `run_interrupted_update`, `run_rollback`, `run_downgrade_warning`, `run_no_network`, `run_no_credential`, `run_multi_host_discovery`, `run_unsupported_host`, `run_fixture`, `run_all_fixtures`, `make_isolated_env`, `seed_legacy_tree`, `_migrator`, `_snapshot_tree`, `_sha`, `IsolatedEnv.activate_aw_home`, `IsolatedEnv.restore_aw_home`, `IsolatedEnv.cleanup`. EXCLUDES any change to `agent_workflows/lifecycle_fixtures.py` or any other production file (see F-05 and Deferred for the one latent defect found), and EXCLUDES `tests/test_core_module_coverage.py`, whose existing `test_lifecycle_fixtures` smoke test stays as is.
 - Scope-Paths: tests/test_lifecycle_fixtures.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: jy7439
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
 - 2026-10-17 to-review (opencode): authored from backlog `lzn56i`. Ran the deleted `19313eed^:tests/test_lifecycle_fixtures.py` verbatim against HEAD `5c29f238e` before writing any expected outcome (F-03: 17 passed in 2.32s), probed the added behaviors and the `AW_HOME` handling directly (F-04, F-05), and pre-ran all nine E-04 mutations (F-08), so the expectations below are observed, not inferred.

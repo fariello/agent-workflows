@@ -6,7 +6,7 @@
 - Scope: Append to `tests/test_run_analytics_cli.py` the 75 `gap` tests from `git show 19313eed^:tests/test_run_analytics_cli.py` (with the helpers and fixtures they need) plus two `intended-change` tests adjusted to current behavior, dropping the one `retired-pin` name and the one `intended-change` name whose invariant another file owns (F-02, F-09), and add residual tests for the branches of `run_analytics_cli.run_analyze` and `run_analytics_cli._common_base` the restored tests leave unexecuted (F-05, F-06). No test is `core`-marked: the restored tests run in the default non-slow tier (OQ-01, F-08). Allowlist the one restored test that exceeds the 2s slow-report threshold in `tests/slow_allowlist.txt` (F-09). EXCLUDES any production change; EXCLUDES the `runs export`/`runs submit` leaf bodies (`run_export_leaf`, `run_submit_leaf`, carried by `gjmiuw`/`d2vfp2` and `pr6lo9`) beyond the one raw-export call needed to reach `_common_base`; EXCLUDES re-asserting invariants other files now own (F-02).
 - Scope-Paths: tests/test_run_analytics_cli.py, tests/slow_allowlist.txt
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: znjxom
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-17 to-review (opencode): authored from backlog `n6h5eg`. Replayed the deleted file at HEAD `fbd39b772` (`3 failed, 76 passed in 19.71s`), measured module coverage before and after, re-derived every intended-change failure against the commit that caused it, and probed the residual branches and the core-tier budget before writing any step.

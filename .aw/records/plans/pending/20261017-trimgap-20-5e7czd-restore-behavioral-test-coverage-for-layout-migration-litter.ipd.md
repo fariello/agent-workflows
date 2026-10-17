@@ -6,7 +6,7 @@
 - Scope: Restore three deleted test modules from `19313eed^` at their original paths, unchanged except `core` markers on the cheapest tests that reach each key and a provenance docstring paragraph. The 7 keys: `layout_migration.is_stale_tool_litter`, `_apply_grammar_facet`, `_grammar_facet_for`; `storage.move_companion`, `get_git_commit_boundaries`, `load_local_attachment_record`, `reattach_companion`. EXCLUDES any production change; EXCLUDES other `layout_migration` keys these files reach (for example `MigrationManager.*`, carried by `lrnh5f`).
 - Scope-Paths: tests/test_layout_migration.py, tests/test_awmigrename.py, tests/test_storage.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 5e7czd
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-trimgap-20-5e7czd-restore-behavioral-test-coverage-for-layout-migration-litter.review.md
 
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm`. Replayed the deleted files with `tools/deleted_test_replay.py 19313eed` at HEAD `f84c3af26`, measured per-key reach via coverage contexts and per-test durations, and ran an early-return mutation sweep over the 7 keys; scratch edits reverted, `.coverage` removed.

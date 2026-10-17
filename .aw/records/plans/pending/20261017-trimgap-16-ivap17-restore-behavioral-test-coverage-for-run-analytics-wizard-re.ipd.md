@@ -6,7 +6,7 @@
 - Scope: Restore six deleted test modules from `19313eed^` at their original paths, minus their code-pinning tests, with a neutral privacy canary and `core` markers, so the 22 keys are reached by the routine bare gate. The 22 keys: `run_analytics_wizard.apply_choices`, `read_settings`, `plan_deletion`, `write_settings`, `delete_analytics_artifacts`, `AnalyticsSettings.to_dict`, `_looks_like_secret`, `AnalyticsSettings.endpoint`, `_coerce_bool`, `_local_path`; `run_analytics_report._publish_flat`, `verify_bundle`, `prune_snapshots`, `publish_snapshot`, `resolve_snapshot_dir`; `run_analytics_findings.format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison`; `run_analytics_sources.inventory_corpus`, `CorpusInventory.generation_counts`; `run_analytics_config.clamp_interval`; `run_analytics_privacy.redact_text._replace`. EXCLUDES any production-code change; EXCLUDES restoring `tests/test_run_analytics_cache.py` and `tests/test_run_analytics_privacy_boundary.py` (F-05); EXCLUDES keys of other modules these files happen to reach.
 - Scope-Paths: tests/test_run_analytics_wizard.py, tests/test_run_analytics_report.py, tests/test_run_analytics_findings.py, tests/test_run_analytics_config.py, tests/test_run_analytics_e2e.py, tests/test_run_analytics_privacy.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: ivap17
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm`. Replayed the deleted files with `tools/deleted_test_replay.py 19313eed` against HEAD `f84c3af26`, applied the proposed subset edits to scratch copies under `tests/`, and measured per-key reach (coverage contexts), per-test durations and early-return mutation kills before writing any step; scratch copies and `.coverage` were removed.

@@ -6,7 +6,7 @@
 - Scope: IN: make `persist_project_policy` write both `project.json` and `local.json` with a trailing newline, matching `sync_cutovers_on_install`'s format; add a fast, non-slow regression test showing a repeated `persist_project_policy` plus `sync_cutovers_on_install` round leaves `project.json` byte-identical. OUT: changing the JSON layout (key order, indent) or any other installer writer; the install-history snapshot writer in `install_history.py` (not part of the committed diff measured below); the existing slow test's assertions (they are correct and are the acceptance check).
 - Scope-Paths: agent_workflows/install_wizard.py, tests/test_reinstall_preserves_config.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: gbnrdf
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (review record `.aw/records/reviews/20261017-denczr-01-gbnrdf-make-the-install-wizard-write-project-json-and-local-json-wi.review.md`)
 
 - 2026-10-17 draft (opencode): created.

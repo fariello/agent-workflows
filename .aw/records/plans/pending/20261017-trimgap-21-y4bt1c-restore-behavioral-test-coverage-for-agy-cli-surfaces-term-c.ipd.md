@@ -6,7 +6,7 @@
 - Scope: Restore seven deleted test modules from `19313eed^` at their original paths, minus code-pinning tests, with `core` markers, plus residual tests for four keys whose wrong value the restored files do not detect reliably (F-04 as corrected by F-06). The 19 keys: `agy_sessions.parse_args`, `agy_sessions.main`; `term.Term.format_diagnostic`, `Term.diagnostic`, `Term.title`, `Term.evidence`, `Term.fix`, `Term.outcome`, `Term.preview`, `Term.section`; `attention._colorize_tree_segment`; `agy_view.main`; `result_types.Diagnostic.from_drift`, `CommandResult.has_findings`, `CommandResult.is_error`; `agy_run.main`; `runner_stop.reset_signal_ladder`; `comms.is_ack_valid`, `comms.is_envelope_header_valid`. EXCLUDES any production change; EXCLUDES `tests/test_attention_priority_blocker.py` (F-05).
 - Scope-Paths: tests/test_agy_tools_graduation.py, tests/test_term_components.py, tests/test_attention_stem.py, tests/test_renderer_boundary.py, tests/test_output_contract.py, tests/test_interrupt_tty_wedge.py, tests/test_comms.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: y4bt1c
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm`. Replayed the deleted files with `tools/deleted_test_replay.py 19313eed` at HEAD `f84c3af26`, measured per-key reach via coverage contexts, durations, and an early-return mutation sweep over the 19 keys (both polarities for boolean keys); scratch edits reverted, `.coverage` removed.

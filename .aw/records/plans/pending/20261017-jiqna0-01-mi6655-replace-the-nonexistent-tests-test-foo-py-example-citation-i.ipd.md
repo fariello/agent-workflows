@@ -6,7 +6,7 @@
 - Scope: Replace the single `tests/test_foo.py` example in each of the two developer-facing documents with a real, existing test file (`tests/test_core_tier_selection.py`, the test module that exercises exactly the explicit-path behavior the sentence describes). No code, no tests, no other documents change.
 - Scope-Paths: CONTRIBUTING.md, AGENTS.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: mi6655
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-jiqna0-01-mi6655-replace-the-nonexistent-tests-test-foo-py-example-citation-i.review.md
 
 - 2026-10-17 draft (opencode): created.

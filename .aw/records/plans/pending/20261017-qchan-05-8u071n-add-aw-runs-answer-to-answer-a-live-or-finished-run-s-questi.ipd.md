@@ -6,7 +6,7 @@
 - Scope: IN: the `answer` leaf under `aw runs` (registered with the other run-family leaves in `cli.py`), interactive and non-interactive forms, `--agent`/`--json` output, listing across live runs when no run id is given, and pointing `aw runs questions` at a runner run directory's inbox when the run id names one. OUT: chat channels (Orders 09-11).
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/question_inbox.py, tests/test_runs_answer.py, CHANGELOG.md, docs/cli-output-contract.md
 - Item-Dependencies: executed:mtmqlm
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8u071n
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

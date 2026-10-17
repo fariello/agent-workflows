@@ -6,7 +6,7 @@
 - Scope: Orchestration only: confirm each of the twenty-one children below reaches `executed`. No code, test, spec or record work of its own. The eight `q86fxm` children partition the 45 residual groups by module family; the thirteen per-item children each own one backlog item. No Scope-Paths file is shared between any two of the 21 children (checked at review).
 - Scope-Paths: .aw/records/plans/pending/20261017-trimgap-00-kn7xtw-restore-behavioral-test-coverage-for-the-residual-trim-audit.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: fe4925e03a985f5112101827836a35fa4032a3a47b035731c23925f5b23e8005
@@ -19,8 +19,10 @@
 - Highest E allocated: 21
 - Author: opencode
 - Id: kn7xtw
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
 - 2026-10-17 coverage pass (aw oc run): fingerprint fe4925e03a98, model uri/its_direct/pt3-claude-opus-5.5-1m-us

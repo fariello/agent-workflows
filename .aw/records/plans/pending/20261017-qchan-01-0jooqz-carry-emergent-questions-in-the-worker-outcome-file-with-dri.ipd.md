@@ -6,7 +6,7 @@
 - Scope: IN: the `questions[]` outcome field (schema, tolerant never-raising validator, bounded and sanitized like `validate_proposal`), the driver-computed fingerprint (R4.1a, one shared normalizer), the execute-prompt instruction to use it under the askme three-way sort (R2.5, cited not restated), and the review-turn route: an isolated review turn writes its questions to the same outcome path. OUT: what the driver does with a valid question (Order 02 parks it; Order 03 writes the inbox); deduplication across items (Order 08); the verifier, spec-production and backlog-production prompts (spec `6kwd2e` covers execute and review turns only); a NON-isolated review turn, whose prompt stays the byte-identical bare slash command (`build_review_prompt` docstring, spec `7ckptx` R1.3), so it has no question carrier and its limit is stated in the Deferred section.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_question_carrier.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 0jooqz
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

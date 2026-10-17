@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_engine_restored_behavior.py`, that drives the 12 keys through their public call surfaces (or, for the two private helpers with no cheaper public surface, through their nearest public caller) and asserts on real return values, written files and file contents. The 12 keys: `create_dependency_gate_hook`, `create_precommit_scope_gate_hook`, `create_prepush_authorization_gate_hook`, `_wire_optin_precommit_hook` (reached through the two `create_*_gate_hook` wrappers that delegate to it), `_merge_tree` (reached through `migrate_local_lanes_to_untracked`), `validate_shim_grammar`, `is_stale_shim_customized`, `is_shim_customized`, `is_shim_customized_vs_expected`, `_shim_is_user_modified`, `agents_pointer_block`, `agents_managed_block`. EXCLUDES any change to `agent_workflows/engine.py` or any other production file, EXCLUDES editing or un-slowing `tests/test_installer.py`, and EXCLUDES the 8 `budget-exhausted` engine keys (`prune_stale`, `migrate_local_lanes_to_untracked` as its own key, `create_setup_artifacts`, `classify_git_state`, `resolve_source_root`, `shim_body`, `strip_description_and_normalize`, `_ensure_untracked_gitignore`), which belong to backlog item `lrnh5f`.
 - Scope-Paths: tests/test_engine_restored_behavior.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 33f8tn
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-trimgap-09-33f8tn-restore-behavioral-test-coverage-for-engine-py-opt-in-hooks.review.md
 
 - 2026-10-17 to-review (opencode): authored from backlog `7df9md`. Measured every key's current behavior by direct call at HEAD `d2ec81544` before writing any expected outcome (Findings F-02 through F-06), so the expected values below are observed and not inferred from docstrings.

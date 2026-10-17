@@ -6,7 +6,7 @@
 - Scope: IN: grouping open questions by fingerprint across the run (E-01) and across the pre-flight batch (E-08), applying one answer to every raiser through a group writer layered on the shared writer (E-02), showing and answering groups in `aw runs answer` (E-06), the R4.3/R4.3a ordering, the R4.4 pre-ask summary, `answers.md` at the drain with ingestion of answers edited into it (E-03), the drain-time terminal ask (reusing Order 07's bounded prompt) with same-invocation re-dispatch and the round bound (E-07), and the runaway bound with a minimum absolute count and its distinct exit reporting (E-04). OUT: channels (Orders 09-11 show what `group_open_questions` returns); a new run exit code (OQ-02).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/question_inbox.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, agent_workflows/run_cli.py, agent_workflows/cli.py, agent_workflows/command_surface.py, CHANGELOG.md, tests/test_question_drain.py
 - Item-Dependencies: executed:j0ufrj, executed:4kkcex, executed:8u071n
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jshwxb
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009, PR-010
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
 

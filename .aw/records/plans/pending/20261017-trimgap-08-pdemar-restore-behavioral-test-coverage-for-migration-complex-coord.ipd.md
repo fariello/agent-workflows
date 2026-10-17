@@ -6,7 +6,7 @@
 - Scope: Restore ONE behavioral test module at its original path, `tests/test_migration_complex.py`, mined from `19313eed^:tests/test_migration_complex.py`, marked `core` so the routine gate reaches it; adapt the ONE recovered test broken by the later `kmmoca` change (`authorize_release` now requires a `readiness_report`, commit `a6c676874`); and extend it where the deleted file reached a key without asserting its result (`run_fix_bar`/`disposition_all` return value, `rollback` return value, `OperatorDatum.to_dict` via `build_artifact()["data"]`, and the `authorize_release` readiness refusal branches). It drives all 40 keys named in `x62jok`/`b1mx2w`: `fix_bar`, `IssueLedger.add`, `IssueLedger.disposition_all`, `IssueLedger.undispositioned`, `IssueLedger.personas_covered`, `ReleaseReviewCoordinator.__post_init__`, `ReleaseReviewCoordinator.enter_stage`, `ReleaseReviewCoordinator.stages_entered`, `ReleaseReviewCoordinator.run_fix_bar`, `ReleaseReviewCoordinator.integrate_fixes`, `ReleaseReviewCoordinator.authorize_release`, `ReleaseReviewCoordinator.can_finalize`, `detect_mode_drift`, `DiffInspection.out_of_scope_paths`, `DiffInspection.failed_checks`, `DiffInspection.is_clean`, `VerifyExecutionCoordinator.verify`, `VerifyExecutionCoordinator.can_mark_executed`, `VerifyExecutionCoordinator.mark_executed`, `AssessAllCoordinator.lanes`, `AssessAllCoordinator.eligibility`, `AssessAllCoordinator.assert_lanes_read_only`, `AssessAllCoordinator.claim_synthesis_writer`, `AssessAllCoordinator.synthesize`, `SetupRepoStateMachine.preflight`, `SetupRepoStateMachine.apply_change`, `SetupRepoStateMachine.rollback`, `OperatorDatum.__post_init__`, `OperatorDatum.is_labeled_unavailable`, `OperatorDatum.is_operator_owned`, `OperatorDatum.to_dict`, `RiskAwarePackage.add_datum`, `RiskAwarePackage.unavailable_data`, `RiskAwarePackage.consent_gate`, `RiskAwarePackage.assert_supportable_claim`, `RiskAwarePackage.build_artifact`, `build_incident_package`, `build_migrate_package`, `build_benchmark_package`, `assert_commands_in_manifest`. EXCLUDES any change to `agent_workflows/migration_complex.py` or any other production file; EXCLUDES asserting contracts of the non-`migration_complex` keys the same deleted file also reached (`run_gates.evaluate_gate`, `run_gates.GateDecision.is_approved`, `run_freeze.diff_requirements`, `run_state.is_legal_edge`, `orchestrate_isolation.analyze_concurrency_eligibility`, `verify_roles.check_role_action`, `verify_roles.check_self_verification`), which other `trimgap` items own; EXCLUDES core-marking or editing `tests/test_release_review_readiness.py`, which is a separate file with its own tier decision.
 - Scope-Paths: tests/test_migration_complex.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: pdemar
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
 - 2026-10-17 to-review (opencode): authored from backlog `x62jok`. Recovered the deleted module from `19313eed^`, ran it unchanged against HEAD `30f327577` (29 passed, 1 failed in 1.82s: the consent-gate table, because `authorize_release` now demands a readiness report), re-ran it with only that test's release surface given a minimal clean `ReleaseReadinessReport` (30 passed in 0.62s), and measured every added expected value below by direct call (Findings F-02 to F-04) before writing it.

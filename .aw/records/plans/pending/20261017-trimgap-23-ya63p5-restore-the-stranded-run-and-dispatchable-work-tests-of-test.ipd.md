@@ -6,7 +6,7 @@
 - Scope: Append 33 of the 34 missing tests, unchanged in body, to `tests/test_run_summary_table.py` with their module-level helpers (`STRANDED_FIXTURE`, `_state`, `_item`, `_stranded_item`, `_outcome_line`, `_q`) and imports, each marked `@pytest.mark.core`, plus one residual test (E-03) that asserts on `runner_shared.emit_shutdown_report` output, which the restored tests reach without asserting on (F-05). The 34th, `test_both_hosts_and_the_summary_share_ONE_definition`, is not restored: its whole body is two `assert ... is ...` object-identity checks between modules (F-03). EXCLUDES any production change; EXCLUDES changing the committed fixture `tests/fixtures/run_summary/stranded-run-state.json` and the 9 existing tests.
 - Scope-Paths: tests/test_run_summary_table.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: ya63p5
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm`. Ran the `19313eed^` copy of the file at HEAD `f84c3af26` (34 passed in 0.72s), appended the proposed 33 tests to a scratch copy of the current file (42 passed serially and under `-n 4`, 32 core-selected), and ran reverted early-return mutations of `integration_was_refused` and `format_stranded_work_section` against the old copy.

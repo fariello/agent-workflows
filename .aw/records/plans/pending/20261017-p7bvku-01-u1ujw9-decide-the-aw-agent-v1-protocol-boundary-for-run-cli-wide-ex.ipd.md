@@ -6,7 +6,7 @@
 - Scope: Record the protocol decision (OQ-01): the exit-1 refusal class IS representable in `aw.agent/v1` without renumbering anything, so convert it to a `kind: "result"`, `outcome: "fail"`, `exit: 1` record under `--agent` (legacy `ok`/`error`/`exit_code` and extra keys retained, home-path-redacted, `--fields` honored); codes 3 to 7 are NOT representable without either renumbering (forbidden) or breaking exit parity / the {0, 1, 2} bound (an `aw.agent/v1` breaking change, Section 8), so they stay bare by documented design. Implement the exit-1 conversion in `run_cli`, correct the comments and docs that describe the boundary, add behavioral tests that pin both halves, and add a CHANGELOG line. `--json` output, human output, every success payload, and every exit code value stay unchanged.
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/command_surface.py, tests/test_run_cli_wide_exit_refusal_shape.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:2t033b
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: u1ujw9
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-p7bvku-01-u1ujw9-decide-the-aw-agent-v1-protocol-boundary-for-run-cli-wide-ex.review.md
 
 - 2026-10-17 to-review (opencode): authored from backlog p7bvku; review-ready.

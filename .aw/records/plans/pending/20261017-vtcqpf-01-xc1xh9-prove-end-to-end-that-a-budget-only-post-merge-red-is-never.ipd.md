@@ -6,7 +6,7 @@
 - Scope: One new behavioral test module that drives `oc_runipd.execute_item` and `agy_runipd.execute_item` end to end (real `runner_shared.make_integration_validation_runner`, real merge materialization, real `record_integration_refusal`, real combined-red send-back loop) with only the suite checker and the agent launcher stubbed, plus the deferred re-attempt through each host's `retry_deferred_integrations`, and a measured-red control proving the send-back path still fires for a real failing test. It does NOT edit production code, the 30s budget, the conftest guard, the suite reason text, the send-back wording, or the CHANGELOG (all carried by `44nfmd` and `sa629y`).
 - Scope-Paths: tests/test_budget_only_combined_red_e2e.py
 - Item-Dependencies: executed:44nfmd, executed:sa629y
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: xc1xh9
+- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-vtcqpf-01-xc1xh9-prove-end-to-end-that-a-budget-only-post-merge-red-is-never.review.md`)
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
