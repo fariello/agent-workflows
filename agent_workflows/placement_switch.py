@@ -24,6 +24,7 @@ from agent_workflows.install_wizard import (
     ProjectPolicy,
     config_placement_switch,
     get_preset_defaults,
+    records_root_switch,
     resolve_existing_policy,
 )
 from agent_workflows.project_context import (
@@ -49,8 +50,10 @@ __all__ = [
     "SwitchPlan",
     "SwitchResult",
     "plan_placement_switch",
+    "plan_records_root_switch",
     "retire_footprint",
     "execute_placement_switch",
+    "execute_records_root_switch",
     "resume_placement_switch",
     "rollback_placement_switch",
     "placement_switch_status",
@@ -330,6 +333,92 @@ def _calc_file_meta(
         return None, size, mode
 
 
+def _census_records(
+    old_records_root: Path,
+    new_records_root: Path,
+    is_tracked_fn: Any,
+    *,
+    discard_preexisting_scaffold: bool = False,
+) -> List[SwitchItem]:
+    """Enumerate records files for relocation or discard."""
+    records_items: List[SwitchItem] = []
+    if not old_records_root.exists():
+        return records_items
+
+    scaffold_names = {".gitkeep", "README.md"}
+
+    for root, dirs, files in os.walk(old_records_root, followlinks=False):
+        dirs.sort()
+        for d in list(dirs):
+            dp = Path(root) / d
+            if dp.is_symlink():
+                dirs.remove(d)
+                rel_p = dp.relative_to(old_records_root)
+                dest = new_records_root / rel_p
+                records_items.append(
+                    SwitchItem(
+                        item_class="records",
+                        source=dp,
+                        destination=dest,
+                        kind="move",
+                        tracked=is_tracked_fn(dp),
+                        sha256=None,
+                        size=dp.lstat().st_size,
+                        mode=dp.lstat().st_mode,
+                    )
+                )
+        for fname in sorted(files):
+            fp = Path(root) / fname
+            rel_p = fp.relative_to(old_records_root)
+            r_sha, r_size, r_mode = _calc_file_meta(fp)
+            if fname in ("INDEX.json", "INDEX.md"):
+                records_items.append(
+                    SwitchItem(
+                        item_class="records",
+                        source=fp,
+                        destination=None,
+                        kind="discard",
+                        tracked=is_tracked_fn(fp),
+                        sha256=r_sha,
+                        size=r_size,
+                        mode=r_mode,
+                    )
+                )
+            else:
+                dest = new_records_root / rel_p
+                if (
+                    discard_preexisting_scaffold
+                    and fname in scaffold_names
+                    and (dest.exists() or dest.is_symlink())
+                ):
+                    records_items.append(
+                        SwitchItem(
+                            item_class="records",
+                            source=fp,
+                            destination=None,
+                            kind="discard",
+                            tracked=is_tracked_fn(fp),
+                            sha256=r_sha,
+                            size=r_size,
+                            mode=r_mode,
+                        )
+                    )
+                else:
+                    records_items.append(
+                        SwitchItem(
+                            item_class="records",
+                            source=fp,
+                            destination=dest,
+                            kind="move",
+                            tracked=is_tracked_fn(fp),
+                            sha256=r_sha,
+                            size=r_size,
+                            mode=r_mode,
+                        )
+                    )
+    return records_items
+
+
 def plan_placement_switch(
     repo_path: str | Path,
     new_policy: ProjectPolicy,
@@ -606,60 +695,14 @@ def plan_placement_switch(
         # 3. records -> move regular files and symlinks, discard INDEX.json/INDEX.md
         old_records_root = Path(old_ctx.physical_classes["records"])
         new_records_root = Path(new_ctx.physical_classes["records"])
-        records_items: List[SwitchItem] = []
-        if old_records_root.exists():
-            for root, dirs, files in os.walk(old_records_root, followlinks=False):
-                dirs.sort()
-                for d in list(dirs):
-                    dp = Path(root) / d
-                    if dp.is_symlink():
-                        dirs.remove(d)
-                        rel_p = dp.relative_to(old_records_root)
-                        dest = new_records_root / rel_p
-                        records_items.append(
-                            SwitchItem(
-                                item_class="records",
-                                source=dp,
-                                destination=dest,
-                                kind="move",
-                                tracked=is_tracked(dp),
-                                sha256=None,
-                                size=dp.lstat().st_size,
-                                mode=dp.lstat().st_mode,
-                            )
-                        )
-                for fname in sorted(files):
-                    fp = Path(root) / fname
-                    rel_p = fp.relative_to(old_records_root)
-                    r_sha, r_size, r_mode = _calc_file_meta(fp)
-                    if fname in ("INDEX.json", "INDEX.md"):
-                        records_items.append(
-                            SwitchItem(
-                                item_class="records",
-                                source=fp,
-                                destination=None,
-                                kind="discard",
-                                tracked=is_tracked(fp),
-                                sha256=r_sha,
-                                size=r_size,
-                                mode=r_mode,
-                            )
-                        )
-                    else:
-                        dest = new_records_root / rel_p
-                        records_items.append(
-                            SwitchItem(
-                                item_class="records",
-                                source=fp,
-                                destination=dest,
-                                kind="move",
-                                tracked=is_tracked(fp),
-                                sha256=r_sha,
-                                size=r_size,
-                                mode=r_mode,
-                            )
-                        )
-        items.extend(records_items)
+        items.extend(
+            _census_records(
+                old_records_root,
+                new_records_root,
+                is_tracked,
+                discard_preexisting_scaffold=False,
+            )
+        )
 
         # 4. state_durable -> move history/ and install.json only, discard rest
         old_durable_root = Path(old_ctx.physical_classes["state_durable"])
@@ -1048,6 +1091,327 @@ def plan_placement_switch(
             companion_action=companion_action,
             companion_create=companion_create,
             config_retrack=config_retrack,
+        )
+    finally:
+        if prev_env_aw_home is not None:
+            os.environ["AW_HOME"] = prev_env_aw_home
+        else:
+            os.environ.pop("AW_HOME", None)
+
+
+def plan_records_root_switch(
+    repo_path: str | Path,
+    new_policy: ProjectPolicy,
+    *,
+    aw_home: Optional[str | Path] = None,
+) -> SwitchPlan:
+    """Pure planner for records-only root switches (IPD fxbm7j / Set rbswitch)."""
+    repo = Path(repo_path).resolve()
+    eff_aw_home_str, _, _ = _resolve_effective_aw_home(
+        aw_home=aw_home or getattr(new_policy, "aw_home", None)
+    )
+    eff_aw_home = Path(eff_aw_home_str)
+
+    anchor = repo
+    try:
+        if (repo / ".git").exists():
+            anchor = checkout_main_root(repo) or repo
+    except Exception:
+        anchor = repo
+    canonical_anchor = _canonical_path(anchor)
+    derived_project_id = _derive_project_id(canonical_anchor)
+
+    prev_env_aw_home = os.environ.get("AW_HOME")
+    os.environ["AW_HOME"] = str(eff_aw_home)
+    try:
+        existing_policy = resolve_existing_policy(str(repo))
+        from_config_dir = Path(project_config_dir(repo, aw_home=eff_aw_home))
+
+        from_preset = getattr(existing_policy, "preset", "")
+        if not from_preset:
+            cand_proj = from_config_dir / "project.json"
+            if cand_proj.exists():
+                try:
+                    from_preset = json.loads(cand_proj.read_text(encoding="utf-8")).get(
+                        "preset", ""
+                    )
+                except Exception:
+                    pass
+        to_preset = getattr(new_policy, "preset", "") or from_preset
+
+        hit = records_root_switch(repo, new_policy, existing_policy=existing_policy)
+
+        if hit is None:
+            msg = "Requested policy does not switch the records root or no records exist to move."
+            return SwitchPlan(
+                repo=repo,
+                project_id=derived_project_id,
+                from_preset=from_preset,
+                to_preset=to_preset,
+                from_config_dir=from_config_dir,
+                to_config_dir=from_config_dir,
+                direction="",
+                items=[],
+                retire_side=None,
+                blockers=[SwitchBlocker("not-a-records-switch", msg)],
+                blocker_messages={"not-a-records-switch": msg},
+                warnings={},
+            )
+
+        if hit.reason == "companion":
+            msg = "Companion records root switches are not supported yet (backlog n9vd2h)."
+            return SwitchPlan(
+                repo=repo,
+                project_id=derived_project_id,
+                from_preset=from_preset,
+                to_preset=to_preset,
+                from_config_dir=from_config_dir,
+                to_config_dir=from_config_dir,
+                direction="",
+                items=[],
+                retire_side=None,
+                blockers=[SwitchBlocker("companion-unsupported", msg)],
+                blocker_messages={"companion-unsupported": msg},
+                warnings={},
+            )
+
+        old_records_root = Path(hit.current_root)
+        new_records_root = Path(hit.target_root)
+
+        home_projects_dir = (eff_aw_home / "projects").resolve()
+        try:
+            new_records_root.resolve().relative_to(home_projects_dir)
+            direction = "records-to-home"
+        except (ValueError, OSError):
+            direction = "records-to-target"
+
+        tracked_files = _get_tracked_files(repo)
+        repo_res = repo.resolve()
+
+        def git_owner(file_path: Optional[Path]) -> Optional[str]:
+            if file_path is None:
+                return None
+            try:
+                resolved_f = file_path.resolve()
+            except OSError:
+                return None
+            if repo_res in resolved_f.parents or resolved_f == repo_res:
+                return "target"
+            return None
+
+        def is_tracked(file_path: Path) -> bool:
+            try:
+                resolved_f = file_path.resolve()
+                if git_owner(file_path) == "target":
+                    rel = resolved_f.relative_to(repo_res).as_posix()
+                    return rel in tracked_files
+            except (OSError, ValueError):
+                pass
+            return False
+
+        items: List[SwitchItem] = _census_records(
+            old_records_root,
+            new_records_root,
+            is_tracked,
+            discard_preexisting_scaffold=True,
+        )
+
+        for it in items:
+            it.source_git = git_owner(it.source) if it.source else None
+            it.dest_git = git_owner(it.destination) if it.destination else None
+
+        # Config rewrite items
+        # 1. project.json always
+        old_proj_file = from_config_dir / "project.json"
+        if not old_proj_file.exists():
+            for alt in ("config.json", "policy.json"):
+                if (from_config_dir / alt).exists():
+                    old_proj_file = from_config_dir / alt
+                    break
+        sha, size, mode = _calc_file_meta(old_proj_file)
+        items.append(
+            SwitchItem(
+                item_class="config_project",
+                source=old_proj_file,
+                destination=old_proj_file,
+                kind="rewrite",
+                tracked=is_tracked(old_proj_file),
+                sha256=sha,
+                size=size,
+                mode=mode,
+                source_git=git_owner(old_proj_file),
+                dest_git=git_owner(old_proj_file),
+            )
+        )
+
+        # 2. local.json only when it carries records_backend
+        old_local_file = from_config_dir / "local.json"
+        if old_local_file.exists():
+            try:
+                raw_local = json.loads(old_local_file.read_text(encoding="utf-8"))
+                if isinstance(raw_local, dict) and "records_backend" in raw_local:
+                    l_sha, l_size, l_mode = _calc_file_meta(old_local_file)
+                    items.append(
+                        SwitchItem(
+                            item_class="config_local",
+                            source=old_local_file,
+                            destination=old_local_file,
+                            kind="rewrite",
+                            tracked=is_tracked(old_local_file),
+                            sha256=l_sha,
+                            size=l_size,
+                            mode=l_mode,
+                            source_git=git_owner(old_local_file),
+                            dest_git=git_owner(old_local_file),
+                        )
+                    )
+            except Exception:
+                pass
+
+        # Blockers
+        blockers: List[SwitchBlocker] = []
+        blocker_messages: Dict[str, str] = {}
+
+        def add_blocker(bid: str, msg: str) -> None:
+            if bid not in blocker_messages:
+                blockers.append(SwitchBlocker(bid, msg))
+                blocker_messages[bid] = msg
+
+        # dirty-aw-tree (scoped to .aw/records and .aw/config)
+        res_aw = _run_git_read_only(
+            repo, ["status", "--porcelain", "--", ".aw/records", ".aw/config"]
+        )
+        if res_aw.returncode == 0:
+            aw_lines = [line for line in res_aw.stdout.splitlines() if line.strip()]
+            if aw_lines:
+                add_blocker(
+                    "dirty-aw-tree",
+                    "Working tree under .aw/records or .aw/config is dirty (uncommitted changes or untracked non-ignored files).",
+                )
+
+        # unmerged
+        res_all = _run_git_read_only(repo, ["status", "--porcelain"])
+        if res_all.returncode == 0:
+            for line in res_all.stdout.splitlines():
+                prefix = line[:2]
+                if "U" in prefix or prefix in ("AA", "DD"):
+                    add_blocker("unmerged", "Repository has unmerged conflicts.")
+                    break
+
+        # destination-not-empty
+        for it in items:
+            if it.destination is not None and it.destination.exists():
+                if not it.source.exists() and not it.source.is_symlink():
+                    add_blocker(
+                        "destination-not-empty",
+                        f"Destination {it.destination} already exists but source does not.",
+                    )
+                    break
+                src_sha, _, _ = _calc_file_meta(it.source)
+                dst_sha, _, _ = _calc_file_meta(it.destination)
+                if it.source.is_symlink() and it.destination.is_symlink():
+                    try:
+                        if os.readlink(it.source) != os.readlink(it.destination):
+                            add_blocker(
+                                "destination-not-empty",
+                                f"Destination symlink {it.destination} targets differ.",
+                            )
+                            break
+                    except OSError:
+                        add_blocker(
+                            "destination-not-empty",
+                            f"Destination symlink {it.destination} unreadable.",
+                        )
+                        break
+                elif src_sha != dst_sha or src_sha is None:
+                    add_blocker(
+                        "destination-not-empty",
+                        f"Destination {it.destination} already exists and is not hash-identical to source.",
+                    )
+                    break
+
+        # live-lane
+        from agent_workflows import worktree_lease
+
+        old_wt_root = worktree_lease.worktrees_root(repo).resolve()
+        res_wt = _run_git_read_only(repo, ["worktree", "list", "--porcelain"])
+        if res_wt.returncode == 0:
+            for line in res_wt.stdout.splitlines():
+                if line.startswith("worktree "):
+                    wt_path_str = line[len("worktree ") :].strip()
+                    try:
+                        wt_p = Path(wt_path_str).resolve()
+                        if wt_p != repo.resolve():
+                            wt_p.relative_to(old_wt_root)
+                            add_blocker(
+                                "live-lane",
+                                f"Active git worktree lane exists under old worktrees directory: {wt_p}",
+                            )
+                            break
+                    except (ValueError, OSError):
+                        pass
+
+        # unparseable-config
+        for cand in ("project.json", "local.json", "config.json", "policy.json"):
+            cand_path = from_config_dir / cand
+            if cand_path.exists():
+                try:
+                    val = json.loads(cand_path.read_text(encoding="utf-8"))
+                    if not isinstance(val, dict):
+                        add_blocker(
+                            "unparseable-config",
+                            f"Config file {cand} is not a JSON object.",
+                        )
+                except Exception as e:
+                    add_blocker(
+                        "unparseable-config",
+                        f"Config file {cand} cannot be parsed as JSON: {e}",
+                    )
+
+        # source-checkout
+        if (
+            getattr(existing_policy, "role", "") == "source-checkout"
+            or getattr(new_policy, "role", "") == "source-checkout"
+        ):
+            add_blocker(
+                "source-checkout",
+                "Cannot relocate configuration for a source-checkout repository.",
+            )
+
+        # Warnings
+        warnings: Dict[str, int] = {}
+        if direction == "records-to-home":
+            tracked_records = [
+                it
+                for it in items
+                if it.item_class == "records" and it.kind == "move" and it.tracked
+            ]
+            if tracked_records:
+                warnings["records-become-untracked"] = len(tracked_records)
+        elif direction == "records-to-target":
+            target_rb = getattr(new_policy, "records_backend", None)
+            if target_rb == "repository":
+                moved_records = [
+                    it
+                    for it in items
+                    if it.item_class == "records" and it.kind == "move"
+                ]
+                if moved_records:
+                    warnings["records-become-tracked-candidates"] = len(moved_records)
+
+        return SwitchPlan(
+            repo=repo,
+            project_id=derived_project_id,
+            from_preset=from_preset,
+            to_preset=to_preset,
+            from_config_dir=from_config_dir,
+            to_config_dir=from_config_dir,
+            direction=direction,
+            items=items,
+            retire_side=None,
+            blockers=list(blockers),
+            warnings=warnings,
+            blocker_messages=blocker_messages,
         )
     finally:
         if prev_env_aw_home is not None:
@@ -1448,6 +1812,100 @@ def _perform_rollback(
                 pass
 
     # 4. Delete the control dir
+    shutil.rmtree(control_dir, ignore_errors=True)
+
+
+def _perform_records_rollback(
+    repo: Path,
+    eff_aw_home: Path,
+    control_dir: Path,
+    journal: Dict[str, Any],
+    plan: Optional[SwitchPlan] = None,
+) -> None:
+    """Execute the rollback procedure for records root switch (IPD fxbm7j / Set rbswitch)."""
+    if plan is None:
+        plan = SwitchPlan.from_dict(journal["plan"])
+
+    # 1. Restore saved_config/ byte-for-byte
+    saved_config_dir = control_dir / "saved_config"
+    if saved_config_dir.is_dir():
+        for f in saved_config_dir.iterdir():
+            if f.is_file():
+                dest_f = plan.from_config_dir / f.name
+                dest_f.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest_f)
+                try:
+                    rel = dest_f.resolve().relative_to(repo.resolve()).as_posix()
+                    is_tracked = any(
+                        it.source.resolve() == dest_f.resolve() and it.tracked
+                        for it in plan.items
+                    )
+                    if is_tracked:
+                        _run_git_cmd(
+                            repo, ["reset", "-q", "HEAD", "--", rel], check=False
+                        )
+                    else:
+                        _run_git_cmd(
+                            repo,
+                            ["rm", "-q", "--cached", "--ignore-unmatch", "--", rel],
+                            check=False,
+                        )
+                except (ValueError, OSError):
+                    pass
+
+    # 2. Unstage staged destinations, delete copied destinations, delete .aw/.gitignore, prune dirs
+    staged = journal.get("staged_paths", [])
+    if staged:
+        _run_git_cmd(
+            repo,
+            ["rm", "-q", "--cached", "--ignore-unmatch", "--"] + staged,
+            check=False,
+        )
+
+    item_states = journal.get("item_states", {})
+    for it in plan.items:
+        if it.kind == "move" and it.destination is not None:
+            if item_states.get(str(it.source), {}).get("copied"):
+                if it.destination.is_symlink() or it.destination.is_file():
+                    try:
+                        it.destination.unlink()
+                    except OSError:
+                        pass
+
+    if journal.get("created_aw_gitignore"):
+        aw_gi = repo / ".aw" / ".gitignore"
+        if aw_gi.exists():
+            try:
+                _run_git_cmd(
+                    repo,
+                    [
+                        "rm",
+                        "-q",
+                        "-f",
+                        "--cached",
+                        "--ignore-unmatch",
+                        "--",
+                        ".aw/.gitignore",
+                    ],
+                    check=False,
+                )
+                aw_gi.unlink()
+            except OSError:
+                pass
+
+    for d_str in sorted(
+        journal.get("created_directories", []),
+        key=lambda s: len(Path(s).parts),
+        reverse=True,
+    ):
+        d = Path(d_str)
+        if d.is_dir():
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+
+    # 3. Delete the control dir last
     shutil.rmtree(control_dir, ignore_errors=True)
 
 
@@ -2000,6 +2458,423 @@ def _run_transaction(
     raise PlacementSwitchError(f"Unknown placement switch phase: {phase!r}")
 
 
+def _run_records_transaction(
+    repo: Path,
+    eff_aw_home: Path,
+    control_dir: Path,
+    journal: Dict[str, Any],
+    plan: SwitchPlan,
+    new_policy: ProjectPolicy,
+    *,
+    fault_injection: Optional[str] = None,
+) -> SwitchResult:
+    journal_file = control_dir / "journal.json"
+    saved_config_dir = control_dir / "saved_config"
+    phase = journal.get("phase", "planned")
+    item_states: Dict[str, Dict[str, bool]] = journal.setdefault("item_states", {})
+    created_directories: List[str] = journal.setdefault("created_directories", [])
+
+    old_records_root = Path(
+        journal.get("old_records_root")
+        or (
+            plan.from_config_dir.parent / "records"
+            if plan.direction == "records-to-home"
+            else eff_aw_home / "projects" / plan.project_id / "records"
+        )
+    )
+    new_records_root = Path(
+        journal.get("new_records_root")
+        or (
+            eff_aw_home / "projects" / plan.project_id / "records"
+            if plan.direction == "records-to-home"
+            else plan.to_config_dir.parent / "records"
+        )
+    )
+    journal.setdefault("old_records_root", str(old_records_root))
+    journal.setdefault("new_records_root", str(new_records_root))
+
+    # Phase: planned -> copy
+    if phase == "planned":
+        for it in plan.items:
+            if it.kind == "move":
+                src = it.source
+                dst = it.destination
+                if dst is None:
+                    continue
+                src_key = str(src)
+                st = item_states.get(src_key, {})
+                if st.get("copied") or st.get("preexisting"):
+                    if dst.exists() or dst.is_symlink():
+                        continue
+
+                # Missing destination parents
+                parents_to_create = []
+                curr = dst.parent
+                while not curr.exists():
+                    parents_to_create.append(curr)
+                    curr = curr.parent
+                for d in reversed(parents_to_create):
+                    d.mkdir(parents=False, exist_ok=True)
+                    if str(d) not in created_directories:
+                        created_directories.append(str(d))
+
+                # Check if destination exists
+                if dst.exists() or dst.is_symlink():
+                    src_sha, _, _ = _calc_file_meta(src)
+                    dst_sha, _, _ = _calc_file_meta(dst)
+                    if src.is_symlink() and dst.is_symlink():
+                        try:
+                            if os.readlink(src) != os.readlink(dst):
+                                raise PlacementSwitchError(
+                                    f"Destination symlink {dst} targets differ."
+                                )
+                        except OSError as e:
+                            raise PlacementSwitchError(
+                                f"Destination symlink {dst} unreadable: {e}"
+                            )
+                    elif src_sha != dst_sha or src_sha is None:
+                        raise PlacementSwitchError(
+                            f"Destination {dst} already exists and is not hash-identical to source."
+                        )
+                    item_states.setdefault(src_key, {})["preexisting"] = True
+                    item_states[src_key]["copied"] = False
+                else:
+                    shutil.copy2(src, dst, follow_symlinks=False)
+                    item_states.setdefault(src_key, {})["copied"] = True
+                    item_states[src_key]["preexisting"] = False
+
+                journal["item_states"] = item_states
+                journal["created_directories"] = created_directories
+                _write_atomic_json(journal_file, journal)
+
+        journal["phase"] = "copied"
+        _write_atomic_json(journal_file, journal)
+        phase = "copied"
+
+        if fault_injection == "after-copy":
+            raise PlacementSwitchError("Fault injected: after-copy")
+
+    # Phase: copied -> verify & stage
+    if phase == "copied":
+        verified_count = 0
+        for it in plan.items:
+            if it.kind == "move":
+                dst = it.destination
+                if dst is None or (not dst.exists() and not dst.is_symlink()):
+                    raise PlacementSwitchError(
+                        f"Destination missing during verify: {dst}"
+                    )
+                if it.source.is_symlink():
+                    if not dst.is_symlink() or os.readlink(dst) != os.readlink(
+                        it.source
+                    ):
+                        raise PlacementSwitchError(
+                            f"Destination symlink {dst} does not match source."
+                        )
+                else:
+                    d_sha, d_size, d_mode = _calc_file_meta(dst)
+                    if d_sha != it.sha256 or d_size != it.size:
+                        raise PlacementSwitchError(
+                            f"Destination {dst} hash or size mismatch during verify."
+                        )
+                    if it.mode is not None and stat.S_IMODE(d_mode) != stat.S_IMODE(
+                        it.mode
+                    ):
+                        raise PlacementSwitchError(
+                            f"Destination {dst} mode mismatch during verify."
+                        )
+                verified_count += 1
+                if fault_injection == "mid-verify" and verified_count == 1:
+                    raise PlacementSwitchError("Fault injected: mid-verify")
+
+        staged_paths = []
+        if plan.direction == "records-to-target":
+            created_gi = engine._ensure_aw_gitignore(repo)
+            if created_gi:
+                journal["created_aw_gitignore"] = True
+                _run_git_cmd(repo, ["add", "--", ".aw/.gitignore"], check=False)
+
+            repo_res = repo.resolve()
+            dest_rels = []
+            for it in plan.items:
+                if it.kind == "move" and it.destination is not None:
+                    try:
+                        d_res = it.destination.resolve()
+                        if repo_res in d_res.parents or d_res == repo_res:
+                            dest_rels.append(d_res.relative_to(repo_res).as_posix())
+                    except (ValueError, OSError):
+                        pass
+
+            if dest_rels:
+                res_ci = subprocess.run(
+                    ["git", "check-ignore", "--stdin", "-n", "-v", "--non-matching"],
+                    cwd=str(repo),
+                    input="\n".join(dest_rels) + "\n",
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                non_ignored = [
+                    line[3:]
+                    for line in res_ci.stdout.splitlines()
+                    if line.startswith("::\t")
+                ]
+                if non_ignored:
+                    _run_git_cmd(
+                        repo,
+                        ["add", "--pathspec-from-file=-"],
+                        input_str="\n".join(non_ignored) + "\n",
+                        check=True,
+                    )
+                staged_paths = sorted(non_ignored)
+
+        journal["staged_paths"] = staged_paths
+        journal["phase"] = "verified"
+        _write_atomic_json(journal_file, journal)
+        phase = "verified"
+
+    # Phase: verified -> switch
+    if phase == "verified":
+        new_target_rb = new_policy.records_backend
+        if new_target_rb == "repository":
+            rec_placement = "target-tracked"
+            rec_git = "target-git"
+        elif new_target_rb == "repository-untracked":
+            rec_placement = "target-ignored"
+            rec_git = "ignored"
+        elif new_target_rb == "home":
+            rec_placement = "home-untracked"
+            rec_git = "untracked"
+        else:
+            raise PlacementSwitchError(
+                f"Unsupported records_backend for records switch: {new_target_rb}"
+            )
+
+        # 1. Project policy rewrite
+        old_proj_file = saved_config_dir / "project.json"
+        if not old_proj_file.exists():
+            for alt in ("config.json", "policy.json"):
+                if (saved_config_dir / alt).exists():
+                    old_proj_file = saved_config_dir / alt
+                    break
+
+        raw_proj = {}
+        if old_proj_file.exists():
+            try:
+                raw_proj = json.loads(old_proj_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        if not isinstance(raw_proj, dict):
+            raw_proj = {}
+
+        new_proj_data = dict(raw_proj)
+        new_proj_data["records_backend"] = new_target_rb
+        pls = dict(new_proj_data.get("placements") or {})
+        pls["records"] = rec_placement
+        new_proj_data["placements"] = pls
+        gps = dict(new_proj_data.get("git_policies") or {})
+        gps["records"] = rec_git
+        new_proj_data["git_policies"] = gps
+
+        target_proj_file = plan.to_config_dir / old_proj_file.name
+        tmp_proj = plan.to_config_dir / f".tmp_{old_proj_file.name}"
+        with open(tmp_proj, "w", encoding="utf-8") as f:
+            json.dump(new_proj_data, f, indent=2)
+            f.write("\n")
+        os.replace(tmp_proj, target_proj_file)
+
+        proj_item = next(
+            (it for it in plan.items if it.item_class == "config_project"), None
+        )
+        if proj_item and proj_item.tracked:
+            try:
+                rel_proj = (
+                    target_proj_file.resolve().relative_to(repo.resolve()).as_posix()
+                )
+                _run_git_cmd(repo, ["add", "--", rel_proj], check=True)
+            except (ValueError, OSError):
+                pass
+
+        # 2. Local binding rewrite (if local.json has records_backend)
+        old_local_file = saved_config_dir / "local.json"
+        if old_local_file.exists():
+            try:
+                raw_local = json.loads(old_local_file.read_text(encoding="utf-8"))
+                if isinstance(raw_local, dict) and "records_backend" in raw_local:
+                    new_local_data = dict(raw_local)
+                    new_local_data["records_backend"] = new_target_rb
+                    target_local_file = plan.to_config_dir / "local.json"
+                    tmp_local = plan.to_config_dir / ".tmp_local.json"
+                    with open(tmp_local, "w", encoding="utf-8") as f:
+                        json.dump(new_local_data, f, indent=2)
+                        f.write("\n")
+                    os.replace(tmp_local, target_local_file)
+            except Exception:
+                pass
+
+        journal["phase"] = "switched"
+        _write_atomic_json(journal_file, journal)
+        phase = "switched"
+
+        if fault_injection == "after-switch":
+            raise PlacementSwitchError("Fault injected: after-switch")
+
+    # Phase: switched -> sources-removed
+    if phase == "switched":
+        resolved_ctx = resolve_project_context(
+            target_repo=str(repo), aw_home=eff_aw_home
+        )
+        resolved_records = Path(resolved_ctx.logical_roots["records"]).resolve()
+        expected_records = new_records_root.resolve()
+
+        if resolved_records != expected_records:
+            _perform_records_rollback(repo, eff_aw_home, control_dir, journal, plan)
+            raise PlacementSwitchError(
+                f"Authority flip invariant violated: expected records root {expected_records}, got {resolved_records}"
+            )
+
+        journal["phase"] = "sources-removed"
+        _write_atomic_json(journal_file, journal)
+        phase = "sources-removed"
+
+    # Phase: sources-removed
+    if phase == "sources-removed":
+        tracked_in_tree_rels = []
+        tracked_files = _get_tracked_files(repo)
+
+        for it in plan.items:
+            if it.item_class == "records" and it.kind in ("move", "discard"):
+                src = it.source
+                src_key = str(src)
+                if item_states.get(src_key, {}).get("removed"):
+                    continue
+                if src.exists() or src.is_symlink():
+                    if fault_injection == "mid-source-removal":
+                        try:
+                            rel = src.resolve().relative_to(repo.resolve()).as_posix()
+                            if rel in tracked_files or it.tracked:
+                                _run_git_cmd(
+                                    repo, ["rm", "-q", "-f", "--", rel], check=False
+                                )
+                            else:
+                                src.unlink()
+                        except (ValueError, OSError):
+                            src.unlink()
+                        item_states.setdefault(src_key, {})["removed"] = True
+                        journal["item_states"] = item_states
+                        _write_atomic_json(journal_file, journal)
+                        raise PlacementSwitchError("Fault injected: mid-source-removal")
+
+                    try:
+                        rel = src.resolve().relative_to(repo.resolve()).as_posix()
+                        if rel in tracked_files or it.tracked:
+                            tracked_in_tree_rels.append(rel)
+                        else:
+                            src.unlink()
+                    except (ValueError, OSError):
+                        src.unlink()
+                    item_states.setdefault(src_key, {})["removed"] = True
+                    journal["item_states"] = item_states
+                    _write_atomic_json(journal_file, journal)
+
+        if tracked_in_tree_rels:
+            _run_git_cmd(
+                repo, ["rm", "-q", "-f", "--"] + tracked_in_tree_rels, check=False
+            )
+
+        if old_records_root.is_dir():
+            for root, dirs, files in os.walk(old_records_root, topdown=False):
+                for d in dirs:
+                    dp = Path(root) / d
+                    try:
+                        dp.rmdir()
+                    except OSError:
+                        pass
+            try:
+                old_records_root.rmdir()
+            except OSError:
+                pass
+
+        journal["phase"] = "done"
+        _write_atomic_json(journal_file, journal)
+        phase = "done"
+
+    # Phase: done
+    if phase == "done":
+        new_ctx = resolve_project_context(
+            target_repo=str(repo),
+            delivery_mode=new_policy.delivery_mode,
+            records_backend=new_policy.records_backend,
+            preset=new_policy.preset,
+            role=new_policy.role,
+            companion_dir=new_policy.companion_dir,
+            aw_home=eff_aw_home,
+        )
+        new_durable = Path(new_ctx.physical_classes["state_durable"])
+        receipt_path = new_durable / "migrations" / "records_switch_receipt.json"
+
+        plan_sources = {it.source.resolve() for it in plan.items}
+        unplanned_leftovers = []
+        if old_records_root.is_dir():
+            for p in old_records_root.rglob("*"):
+                if p.is_file() and p.resolve() not in plan_sources:
+                    try:
+                        rel = p.resolve().relative_to(repo.resolve()).as_posix()
+                    except ValueError:
+                        rel = str(p)
+                    unplanned_leftovers.append(rel)
+
+        staged_paths = journal.get("staged_paths", [])
+        item_counts = {
+            "move": len([it for it in plan.items if it.kind == "move"]),
+            "discard": len([it for it in plan.items if it.kind == "discard"]),
+            "rewrite": len([it for it in plan.items if it.kind == "rewrite"]),
+        }
+
+        receipt_data = {
+            "schema_version": 1,
+            "transaction_id": journal["transaction_id"],
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "mode": "records",
+            "from_backend": journal.get("from_records_backend"),
+            "to_backend": new_policy.records_backend,
+            "from_records_root": str(old_records_root),
+            "to_records_root": str(new_records_root),
+            "from_preset": plan.from_preset,
+            "to_preset": plan.to_preset,
+            "from_config_dir": str(plan.from_config_dir),
+            "to_config_dir": str(plan.to_config_dir),
+            "direction": plan.direction,
+            "retire_side": plan.retire_side,
+            "item_counts": item_counts,
+            "staged_path_count": len(staged_paths),
+            "staged_paths": staged_paths,
+            "unplanned_leftovers": unplanned_leftovers,
+        }
+        _write_atomic_json(receipt_path, receipt_data)
+
+        shutil.rmtree(control_dir, ignore_errors=True)
+
+        return SwitchResult(
+            transaction_id=journal["transaction_id"],
+            from_preset=plan.from_preset,
+            to_preset=plan.to_preset,
+            from_config_dir=plan.from_config_dir,
+            to_config_dir=plan.to_config_dir,
+            direction=plan.direction,
+            items_moved=item_counts["move"],
+            items_discarded=item_counts["discard"],
+            items_rewritten=item_counts["rewrite"],
+            staged_paths=staged_paths,
+            retire_actions=[],
+            receipt_path=receipt_path,
+            unplanned_leftovers=unplanned_leftovers,
+        )
+
+    raise PlacementSwitchError(f"Unknown placement switch phase: {phase!r}")
+
+
 def execute_placement_switch(
     repo_path: str | Path,
     new_policy: ProjectPolicy,
@@ -2109,6 +2984,138 @@ def execute_placement_switch(
         _cleanup_lock(lock_file, lock_handle, control_dir)
 
 
+def execute_records_root_switch(
+    repo_path: str | Path,
+    new_policy: ProjectPolicy,
+    *,
+    aw_home: Optional[str | Path] = None,
+    fault_injection: Optional[str] = None,
+) -> SwitchResult:
+    """Execute a records root switch transaction (IPD fxbm7j / Set rbswitch)."""
+    valid_faults = {
+        "after-copy",
+        "mid-verify",
+        "after-switch",
+        "mid-source-removal",
+    }
+    if fault_injection is not None and fault_injection not in valid_faults:
+        raise ValueError(
+            f"Invalid fault_injection for records mode: {fault_injection!r}. Must be one of {sorted(valid_faults)}"
+        )
+
+    repo, eff_aw_home, control_dir, lock_file, project_id = _resolve_control_and_lock(
+        repo_path, aw_home=aw_home
+    )
+    journal_file = control_dir / "journal.json"
+    saved_config_dir = control_dir / "saved_config"
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    lock_handle = None
+
+    try:
+        try:
+            lock_handle = platform_lock.acquire(lock_file)
+        except platform_lock.LockBusy as exc:
+            raise PlacementSwitchError(
+                f"another placement switch is running for project {project_id}"
+            ) from exc
+
+        if journal_file.exists():
+            raise PlacementSwitchError(
+                f"An incomplete placement switch transaction already exists for project {project_id}. "
+                "Resume it with resume_placement_switch or roll it back with rollback_placement_switch."
+            )
+
+        plan = plan_records_root_switch(repo, new_policy, aw_home=eff_aw_home)
+        if plan.blockers:
+            msgs = [f"- {b}: {plan.blocker_messages.get(b, '')}" for b in plan.blockers]
+            raise PlacementSwitchError(
+                "Records root switch blocked:\n" + "\n".join(msgs)
+            )
+
+        saved_config_dir.mkdir(parents=True, exist_ok=True)
+        saved_files = []
+        for cand in ("project.json", "local.json", "config.json", "policy.json"):
+            cand_p = plan.from_config_dir / cand
+            if cand_p.is_file() or cand_p.is_symlink():
+                shutil.copy2(cand_p, saved_config_dir / cand, follow_symlinks=False)
+                saved_files.append(cand)
+
+        transaction_id = f"rs-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+        item_states = {
+            str(it.source): {"copied": False, "preexisting": False, "removed": False}
+            for it in plan.items
+        }
+
+        new_policy_dict = (
+            new_policy.to_dict()
+            if hasattr(new_policy, "to_dict")
+            else {
+                "preset": getattr(new_policy, "preset", plan.to_preset),
+                "role": getattr(new_policy, "role", "target"),
+                "placements": getattr(new_policy, "placements", None),
+                "git_policies": getattr(new_policy, "git_policies", None),
+                "delivery_mode": getattr(new_policy, "delivery_mode", None),
+                "records_backend": getattr(new_policy, "records_backend", None),
+                "durability_state": getattr(new_policy, "durability_state", None),
+                "companion_dir": getattr(new_policy, "companion_dir", None),
+                "enabled_hosts": getattr(new_policy, "enabled_hosts", None),
+                "non_secret_consent": getattr(new_policy, "non_secret_consent", None),
+            }
+        )
+
+        existing_policy = resolve_existing_policy(str(repo))
+        from_rb = getattr(existing_policy, "records_backend", None)
+        if not from_rb:
+            old_ctx = resolve_project_context(
+                target_repo=str(repo), aw_home=eff_aw_home
+            )
+            from_rb = old_ctx.records_backend
+
+        old_records_root = (
+            plan.from_config_dir.parent / "records"
+            if plan.direction == "records-to-home"
+            else eff_aw_home / "projects" / plan.project_id / "records"
+        )
+        new_records_root = (
+            eff_aw_home / "projects" / plan.project_id / "records"
+            if plan.direction == "records-to-home"
+            else plan.to_config_dir.parent / "records"
+        )
+
+        journal = {
+            "schema_version": 1,
+            "mode": "records",
+            "transaction_id": transaction_id,
+            "phase": "planned",
+            "from_records_backend": from_rb,
+            "old_records_root": str(old_records_root),
+            "new_records_root": str(new_records_root),
+            "plan": plan.to_dict(),
+            "new_policy": new_policy_dict,
+            "item_states": item_states,
+            "created_directories": [],
+            "created_aw_gitignore": False,
+            "saved_config_files": saved_files,
+            "new_config_paths": [],
+            "staged_paths": [],
+            "unplanned_leftovers": [],
+        }
+        _write_atomic_json(journal_file, journal)
+
+        return _run_records_transaction(
+            repo,
+            eff_aw_home,
+            control_dir,
+            journal,
+            plan,
+            new_policy,
+            fault_injection=fault_injection,
+        )
+
+    finally:
+        _cleanup_lock(lock_file, lock_handle, control_dir)
+
+
 def resume_placement_switch(
     repo_path: str | Path,
     *,
@@ -2136,6 +3143,7 @@ def resume_placement_switch(
             )
 
         journal = _read_json(journal_file)
+        mode = journal.get("mode", "placement")
         plan = SwitchPlan.from_dict(journal["plan"])
 
         if "new_policy" in journal:
@@ -2164,15 +3172,26 @@ def resume_placement_switch(
                 aw_home=str(eff_aw_home),
             )
 
-        return _run_transaction(
-            repo,
-            eff_aw_home,
-            control_dir,
-            journal,
-            plan,
-            new_policy,
-            fault_injection=None,
-        )
+        if mode == "records":
+            return _run_records_transaction(
+                repo,
+                eff_aw_home,
+                control_dir,
+                journal,
+                plan,
+                new_policy,
+                fault_injection=None,
+            )
+        else:
+            return _run_transaction(
+                repo,
+                eff_aw_home,
+                control_dir,
+                journal,
+                plan,
+                new_policy,
+                fault_injection=None,
+            )
 
     finally:
         _cleanup_lock(lock_file, lock_handle, control_dir)
@@ -2205,15 +3224,25 @@ def rollback_placement_switch(
             )
 
         journal = _read_json(journal_file)
+        mode = journal.get("mode", "placement")
         phase = journal.get("phase", "")
-        if phase in ("sources-removed", "retired", "done"):
-            raise PlacementSwitchError(
-                "The switch is past the point of no return; finish it with resume, "
-                "then switch back with aw install --preset <old> --relocate."
-            )
+        if mode == "records":
+            if phase in ("sources-removed", "done"):
+                raise PlacementSwitchError(
+                    "The records move is past the point of no return; finish it with resume, "
+                    "then switch back with aw install --records-backend <old> --relocate."
+                )
+            plan = SwitchPlan.from_dict(journal["plan"])
+            _perform_records_rollback(repo, eff_aw_home, control_dir, journal, plan)
+        else:
+            if phase in ("sources-removed", "retired", "done"):
+                raise PlacementSwitchError(
+                    "The switch is past the point of no return; finish it with resume, "
+                    "then switch back with aw install --preset <old> --relocate."
+                )
 
-        plan = SwitchPlan.from_dict(journal["plan"])
-        _perform_rollback(repo, eff_aw_home, control_dir, journal, plan)
+            plan = SwitchPlan.from_dict(journal["plan"])
+            _perform_rollback(repo, eff_aw_home, control_dir, journal, plan)
 
     finally:
         _cleanup_lock(lock_file, lock_handle, control_dir)
@@ -2240,6 +3269,7 @@ def placement_switch_status(
     item_states = journal.get("item_states", {})
     return {
         "transaction_id": journal.get("transaction_id"),
+        "mode": journal.get("mode", "placement"),
         "phase": journal.get("phase"),
         "direction": plan.get("direction"),
         "from_preset": plan.get("from_preset"),
@@ -2247,7 +3277,9 @@ def placement_switch_status(
         "from_config_dir": plan.get("from_config_dir"),
         "to_config_dir": plan.get("to_config_dir"),
         "items_total": len(plan.get("items", [])),
-        "items_copied": sum(1 for s in item_states.values() if s.get("copied")),
+        "items_copied": sum(
+            1 for s in item_states.values() if s.get("copied") or s.get("preexisting")
+        ),
         "items_removed": sum(1 for s in item_states.values() if s.get("removed")),
         "staged_paths": journal.get("staged_paths", []),
         "created_directories": journal.get("created_directories", []),
