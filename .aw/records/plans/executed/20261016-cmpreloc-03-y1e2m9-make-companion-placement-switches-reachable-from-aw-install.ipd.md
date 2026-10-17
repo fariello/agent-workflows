@@ -6,7 +6,7 @@
 - Scope: IN: in `install_wizard`, the companion branch of the `PlacementSwitchRequired` message becomes the same remedy message as every other pair (names `--relocate` and the `--relocate --dry-run` preview), keeping the substring `Switching config placement`; in `cli._run_install`, passing `--companion-dir` through to `plan_placement_switch`/`execute_placement_switch` for a relocation and refusing a relocation INTO the companion preset when no companion dir resolves; `placement_switch.render_plan` lines for the companion fields (companion dir, attach or detach, create, per-repository staged counts, the three Order 01 warnings); removing the interim `companion-unsupported` planner blocker (`xc8nae` E-02) and the `allow_companion` keyword (`fo08zx` E-06) from `placement_switch` and retargeting the planner and executor tests that assert or pass them (E-05); updating the `ozr356` CLI test case (7) to the new behavior; new end-to-end CLI tests; CHANGELOG, README and the spec Section 8.1 item 3 amendment. OUT: `aw storage attach|detach|move|reattach` (unchanged), moving between two companion dirs (Order 01 `companion-to-companion` blocker).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_placement_switch_cli.py, tests/test_placement_switch_companion_cli.py, tests/test_placement_switch_companion_plan.py, tests/test_placement_switch_plan.py, tests/test_placement_switch_companion_execute.py, CHANGELOG.md, README.md, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
 - Item-Dependencies: executed:fo08zx, executed:ozr356
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: y1e2m9
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: y1e2m9 verified (set cmpreloc, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
