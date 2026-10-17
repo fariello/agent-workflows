@@ -208,11 +208,11 @@ class TestEgressPolicyUnit:
         )
 
     def test_policy_has_no_allow_all_or_negation_switch(self) -> None:
-        # Verify no allow-all parameter or negation flag exists
-        policy = EgressPolicy()
-        assert not hasattr(policy, "allow_all")
-        assert not hasattr(policy, "deny_list")
-        assert not hasattr(policy, "negation")
+        # Security boundary: no allow-all parameter or negation flag can be passed
+        with pytest.raises(TypeError):
+            EgressPolicy(allow_all=True)  # type: ignore[call-arg]
+        with pytest.raises(TypeError):
+            EgressPolicy(negation=True)  # type: ignore[call-arg]
         # Attempting a wildcard to simulate allow-all fails
         with pytest.raises(ValueError):
             EgressPolicy([("*", 443)])

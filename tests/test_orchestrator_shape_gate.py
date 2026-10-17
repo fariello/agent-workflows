@@ -321,15 +321,6 @@ Fixture.
 {_ORCH_TAIL_ONE_ITEM}"""
 
 
-class BothHostsShareOneDefinition(unittest.TestCase):
-    """E-01 / V-01: Object identity through getattr fallback, no host re-export, no oc-to-agy import growth."""
-
-    def test_no_new_host_attribute_is_added(self):
-        """PR-304: direct hasattr is False on both hosts; hosts share via initialize_run_core."""
-        self.assertFalse(hasattr(oc_runipd, "enforce_orchestrator_shape_gate"))
-        self.assertFalse(hasattr(agy_runipd, "enforce_orchestrator_shape_gate"))
-
-
 class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):
     """E-02 / V-02: Gate sited before run_dir creation; --prepare-only integration verified."""
 

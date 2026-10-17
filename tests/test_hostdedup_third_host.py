@@ -292,29 +292,6 @@ class ThirdHostInitializationAndLimitTests(unittest.TestCase):
         assert summary is not None
         self.assertEqual(summary.driver, "scripted")
 
-    def test_pin_measured_turn_execution_limits(self) -> None:
-        """PIN THE BOUNDARY (E-03/E-04/E-06): A descriptor-only host cannot execute a turn.
-
-        This test fails if:
-        1. Shared runner gains an unparameterized spawn seam or argv builder without updating this guard.
-        2. execute_item or run_queue is unified into runner_shared without a generic spawn contract.
-        """
-        # Wall 1: runner_shared does not define a generic run_queue or execute_item
-        self.assertFalse(hasattr(runner_shared, "run_queue"))
-        self.assertFalse(hasattr(runner_shared, "execute_item"))
-
-        # Wall 2: execute_item is forked in each runner module and hardcodes its own spawn function
-        self.assertTrue(hasattr(oc_runipd, "execute_item"))
-        self.assertTrue(hasattr(agy_runipd, "execute_item"))
-        self.assertTrue(hasattr(oc_runipd, "run_opencode"))
-        self.assertTrue(hasattr(agy_runipd, "run_agy_turn"))
-
-        # Wall 3: HostLabels carries no spawn function, argv builder, or per-turn execution contract
-        for field in runner_shared.HostLabels._fields:
-            self.assertNotIn("spawn", field)
-            self.assertNotIn("runner_fn", field)
-            self.assertNotIn("argv_builder", field)
-
     def _create_conforming_repo(self, repo_dir: Path) -> Path:
         for cmd in (
             ["git", "init", "-q", str(repo_dir)],

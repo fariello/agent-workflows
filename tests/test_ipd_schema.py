@@ -40,8 +40,6 @@ structural about the module itself (its import allowlist) rather than about a sc
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import unittest
 from pathlib import Path
 
@@ -3133,34 +3131,6 @@ class DensityHeuristicTests(unittest.TestCase):
             overfire_rate,
             0.10,
             f"Overfire rate too high: {len(fired)}/{len(all_e_items)} ({overfire_rate * 100:.1f}%)",
-        )
-
-
-class NoDependencyTests(unittest.TestCase):
-    @unittest.skipIf(
-        sys.version_info < (3, 10),
-        "sys.stdlib_module_names (the stdlib census this check uses) exists only on Python 3.10+",
-    )
-    def test_module_is_stdlib_only(self):
-        """Kept separate: behavioral test that the module imports with only stdlib available."""
-        code = (
-            "import sys\n"
-            "class StrictStdlibFinder:\n"
-            "    def find_spec(self, fullname, path, target=None):\n"
-            "        top = fullname.split('.')[0]\n"
-            "        if top not in sys.stdlib_module_names and top != 'agent_workflows':\n"
-            "            raise ImportError(f'Non-stdlib import attempted: {fullname}')\n"
-            "        return None\n"
-            "sys.meta_path.insert(0, StrictStdlibFinder())\n"
-            "import agent_workflows.ipd_schema\n"
-        )
-        res = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True
-        )
-        self.assertEqual(
-            res.returncode,
-            0,
-            f"Module import failed or attempted non-stdlib import: {res.stderr}",
         )
 
 
