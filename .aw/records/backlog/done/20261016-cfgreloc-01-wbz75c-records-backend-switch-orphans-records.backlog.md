@@ -1,5 +1,5 @@
 - Id: wbz75c
-- Status: graduated
+- Status: done
 - Graduated-To: rbswitch
 - Blocks-Release: next
 - Set: cfgreloc
@@ -8,6 +8,7 @@
 - Summary: aw install --records-backend change on an installed repo repoints the records resolver without moving the existing records tree, orphaning it
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD vg7zw3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-rbswitch-00-vg7zw3-stop-a-records-backend-change-from-orphaning-the-existing-re.ipd.md, .aw/records/plans/executed/20261016-rbswitch-02-fxbm7j-records-only-relocation-in-the-placement-switch-planner-and.ipd.md, .aw/records/plans/executed/20261016-rbswitch-03-vv9ki4-wire-records-only-relocation-into-aw-install-relocate-with-e.ipd.md); evidence .aw/records/plans/executed/20261016-rbswitch-00-vg7zw3-stop-a-records-backend-change-from-orphaning-the-existing-re.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T212827Z-3381869: fxbm7j, s07f73, vg7zw3, vv9ki4
 - 2026-10-16 created (aw backlog): aw install --records-backend change on an installed repo repoints the records resolver without moving the existing records tree, orphaning it
 
