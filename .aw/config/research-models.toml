@@ -1,0 +1,13 @@
+# Research model vocabulary overrides (tracked, travels with the repo).
+#
+# Layers are additive on top of the package default: models and normalizations
+# added here extend the recognized vocabulary for this repository.
+# Managed by `aw research add-model`.
+
+models = [
+  "gemini4argonmedium",
+  "gpt61solmedium",
+  "opus55high",
+]
+
+[normalizations]

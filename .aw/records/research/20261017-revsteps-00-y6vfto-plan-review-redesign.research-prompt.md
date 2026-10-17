@@ -124,7 +124,7 @@ question as a finding merely because it is listed here.
 
 Return your review as ONE downloadable Markdown file named
 `plan-review-redesign-review-<reviewer>.md`, where `<reviewer>` is a short lowercase name for you or
-your model (for example `opus55`, `gemini4high`, `gpt61med`). If you cannot produce a downloadable file,
+your model (for example `opus55high`, `gemini4argonmedium`, `gpt61solmedium`, `gemini38flashhigh`). If you cannot produce a downloadable file,
 return the same content as one fenced Markdown block. Use exactly the sections below, in this order.
 Write `None.` in a section that has no content.
 

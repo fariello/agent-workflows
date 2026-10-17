@@ -4,7 +4,7 @@ created: 20261017
 set: revsteps
 order: 02
 topic: [plan-review, runner]
-model: gemini4high
+model: gemini4argonmedium
 kind: research-report
 status: todo
 outcome: none-yet

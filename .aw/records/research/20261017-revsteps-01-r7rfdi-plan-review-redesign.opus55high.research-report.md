@@ -4,7 +4,7 @@ created: 20261017
 set: revsteps
 order: 01
 topic: [plan-review, runner]
-model: opus55
+model: opus55high
 kind: research-report
 status: todo
 outcome: none-yet

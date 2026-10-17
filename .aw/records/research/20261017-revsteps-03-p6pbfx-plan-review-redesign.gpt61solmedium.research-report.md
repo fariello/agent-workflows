@@ -4,7 +4,7 @@ created: 20261017
 set: revsteps
 order: 03
 topic: [plan-review, runner]
-model: gpt61med
+model: gpt61solmedium
 kind: research-report
 status: todo
 outcome: none-yet
