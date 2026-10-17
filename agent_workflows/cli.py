@@ -1492,6 +1492,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also install drop-in shell completion ('auto' detects $SHELL). Default: none "
         "(non-interactively nothing is written; interactively you are asked).",
     )
+    grp_relocate = p_install.add_mutually_exclusive_group()
+    grp_relocate.add_argument(
+        "--relocate",
+        action="store_true",
+        help="Perform a detected config placement switch.",
+    )
+    grp_relocate.add_argument(
+        "--relocate-resume",
+        action="store_true",
+        help="Resume an interrupted placement switch to completion.",
+    )
+    grp_relocate.add_argument(
+        "--relocate-rollback",
+        action="store_true",
+        help="Roll back an interrupted placement switch.",
+    )
 
     p_setup = sub.add_parser(
         "setup", parents=[common], help="Guided first-run setup wizard."
@@ -7857,6 +7873,43 @@ def _confirm_install(
     return answer in ("y", "yes")
 
 
+def _confirm_relocation(
+    term: Term,
+    repo_root: Union[str, Path],
+    from_preset: str,
+    from_config_dir: Path,
+    to_preset: str,
+    to_config_dir: Path,
+    assume_yes: bool,
+) -> bool:
+    """Relocation confirmation gate (spec Section 8 & E-02). Defaults NO for interactive."""
+    if assume_yes:
+        return True
+    is_interactive = _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
+    if not is_interactive:
+        term.status(
+            "warn",
+            f"Relocate config for {repo_root} from {from_preset} ({from_config_dir}) "
+            f"to {to_preset} ({to_config_dir})? (declining: non-interactive; pass --yes to proceed)",
+        )
+        return False
+    prompt = (
+        f"Relocate config for {repo_root} from {from_preset} ({from_config_dir}) "
+        f"to {to_preset} ({to_config_dir})? [y/N] "
+    )
+    try:
+        answer = input(prompt).strip().lower()
+    except EOFError:
+        return False
+    except KeyboardInterrupt:
+        from agent_workflows.install_wizard import PolicyCancelledError
+
+        raise PolicyCancelledError(
+            f"{repo_root}: relocation cancelled; nothing written."
+        )
+    return answer in ("y", "yes")
+
+
 def _exclude_guard(term: Term, repo_root: Path, args) -> str:
     """Guard an explicitly targeted repo against the never-install exclude blocklist.
 
@@ -8207,6 +8260,18 @@ def _install_one(
     if _split_brain_guard(term, repo_root, args) == "skip":
         return "nochange"
 
+    from agent_workflows import placement_switch
+
+    pw_status = placement_switch.placement_switch_status(repo_root)
+    if pw_status is not None:
+        phase = pw_status.get("phase", "unknown")
+        term.status(
+            "fail",
+            f"{repo_root}: a placement switch was interrupted at phase {phase}; "
+            f"finish it with aw install {repo_root} --relocate-resume or undo it with aw install {repo_root} --relocate-rollback.",
+        )
+        return "failed"
+
     import copy
 
     try:
@@ -8411,6 +8476,16 @@ def _handle_legacy_migration(
 def _run_install(args: argparse.Namespace, term: Term) -> int:
     targets = args.targets if getattr(args, "targets", None) else []
     if "all" in targets:
+        if (
+            getattr(args, "relocate", False)
+            or getattr(args, "relocate_resume", False)
+            or getattr(args, "relocate_rollback", False)
+        ):
+            term.status(
+                "fail",
+                "Relocation flags (--relocate, --relocate-resume, --relocate-rollback) cannot be used with 'install all'.",
+            )
+            return 1
         return _install_all(args, term)
 
     repo_roots = (
@@ -8453,7 +8528,58 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
 
         kept_legacy = _handle_legacy_migration(repo_root, args, term)
 
+        # Relocation recovery and pending-journal guard (E-07)
+        from agent_workflows import placement_switch
+
+        pw_status = placement_switch.placement_switch_status(repo_root)
+        if getattr(args, "relocate_resume", False):
+            if pw_status is None:
+                term.status(
+                    "fail",
+                    f"{repo_root}: no interrupted placement switch for {repo_root}.",
+                )
+                returncode = 1
+                continue
+            try:
+                res_resume = placement_switch.resume_placement_switch(str(repo_root))
+                term.status(
+                    "ok",
+                    f"{repo_root}: resumed placement switch (transaction {res_resume.transaction_id}) to completion.",
+                )
+                term.status("info", f"Receipt written to {res_resume.receipt_path}")
+            except placement_switch.PlacementSwitchError as exc:
+                term.status("fail", str(exc))
+                return 1
+            # Fall through to normal policy and install of the now-authoritative layout
+        elif getattr(args, "relocate_rollback", False):
+            if pw_status is None:
+                term.status(
+                    "fail",
+                    f"{repo_root}: no interrupted placement switch for {repo_root}.",
+                )
+                returncode = 1
+                continue
+            try:
+                placement_switch.rollback_placement_switch(str(repo_root))
+                term.status(
+                    "ok", f"{repo_root}: rolled back interrupted placement switch."
+                )
+                continue
+            except placement_switch.PlacementSwitchError as exc:
+                term.status("fail", str(exc))
+                return 1
+        elif pw_status is not None:
+            phase = pw_status.get("phase", "unknown")
+            term.status(
+                "fail",
+                f"{repo_root}: a placement switch was interrupted at phase {phase}; "
+                f"finish it with aw install {repo_root} --relocate-resume or undo it with aw install {repo_root} --relocate-rollback.",
+            )
+            return 1
+
         policy = None
+        relocating = False
+        switch_plan = None
         if not kept_legacy:
             # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
             from agent_workflows.install_wizard import (
@@ -8479,6 +8605,8 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             ):
                 explicit_preset = Preset.PRIVATE_TARGET.value
 
+            is_relocate = getattr(args, "relocate", False)
+
             try:
                 policy = collect_policy_interactive(
                     term=term,
@@ -8489,6 +8617,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     explicit_delivery=getattr(args, "delivery_mode", None),
                     explicit_backend=getattr(args, "records_backend", None),
                     explicit_companion=getattr(args, "companion_dir", None),
+                    allow_placement_switch=is_relocate,
                 )
                 switch = config_placement_switch(
                     str(repo_root), policy, existing_policy=existing_policy
@@ -8512,18 +8641,61 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                         if cur_preset
                         else str(switch.current_dir)
                     )
-                    raise PlacementSwitchRequired(
-                        f"Switching config placement from {from_desc} "
-                        f"to {policy.preset} ({switch.target_dir}) is not supported by reinstall yet (backlog ui1aln).",
-                        current_dir=switch.current_dir,
-                        target_dir=switch.target_dir,
-                        current_preset=cur_preset,
-                        target_preset=policy.preset,
-                        reason=switch.reason,
+                    if not is_relocate:
+                        if (
+                            existing_policy
+                            and existing_policy.preset
+                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+                        ) or (
+                            policy
+                            and policy.preset
+                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+                        ):
+                            from_p = (
+                                existing_policy.preset
+                                if existing_policy
+                                else cur_preset
+                            ) or str(switch.current_dir)
+                            msg = (
+                                f"Switching config placement from {from_p} to {policy.preset} "
+                                f"involves a companion repository and is not supported yet (backlog n9vd2h)."
+                            )
+                        else:
+                            msg = (
+                                f"Switching config placement from {from_desc} "
+                                f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
+                                f"Preview with --relocate --dry-run, then rerun with --relocate."
+                            )
+                        raise PlacementSwitchRequired(
+                            msg,
+                            current_dir=switch.current_dir,
+                            target_dir=switch.target_dir,
+                            current_preset=cur_preset,
+                            target_preset=policy.preset,
+                            reason=switch.reason,
+                        )
+                    else:
+                        switch_plan = placement_switch.plan_placement_switch(
+                            str(repo_root), policy
+                        )
+                        term.line(placement_switch.render_plan(switch_plan, term=term))
+                        if switch_plan.blockers:
+                            term.status(
+                                "fail",
+                                f"{repo_root}: placement switch blocked by: {', '.join(switch_plan.blockers)}",
+                            )
+                            return 1
+                        if getattr(args, "dry_run", False):
+                            term.status(
+                                "ok",
+                                "[DRY RUN] No changes written to filesystem or Git state.",
+                            )
+                            continue
+                        relocating = True
+                else:
+                    raise_if_records_root_switch(
+                        str(repo_root), policy, existing_policy=existing_policy
                     )
-                raise_if_records_root_switch(
-                    str(repo_root), policy, existing_policy=existing_policy
-                )
             except PolicyCancelledError:
                 term.status("skip", f"{repo_root}: install cancelled; nothing written.")
                 returncode = 1
@@ -8532,7 +8704,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 term.status("fail", str(exc))
                 return 1
 
-            if getattr(args, "dry_run", False):
+            if getattr(args, "dry_run", False) and not relocating:
                 term.status(
                     "ok", f"[DRY RUN] Install policy pre-write plan for {repo_root}:"
                 )
@@ -8554,8 +8726,24 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             continue
 
         try:
-            if not _confirm_install(term, repo_root, getattr(args, "yes", False)):
+            if relocating and switch_plan is not None:
+                confirmed = _confirm_relocation(
+                    term=term,
+                    repo_root=repo_root,
+                    from_preset=switch_plan.from_preset,
+                    from_config_dir=switch_plan.from_config_dir,
+                    to_preset=switch_plan.to_preset,
+                    to_config_dir=switch_plan.to_config_dir,
+                    assume_yes=getattr(args, "yes", False),
+                )
+            else:
+                confirmed = _confirm_install(
+                    term, repo_root, getattr(args, "yes", False)
+                )
+            if not confirmed:
                 term.status("skip", f"{repo_root}: aborted; nothing changed.")
+                if relocating:
+                    returncode = 1
                 continue
         except PolicyCancelledError:
             term.status("skip", f"{repo_root}: install cancelled; nothing written.")
@@ -8563,6 +8751,48 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             continue
 
         if not kept_legacy and policy is not None:
+            if relocating:
+                try:
+                    switch_result = placement_switch.execute_placement_switch(
+                        str(repo_root), policy
+                    )
+                except placement_switch.PlacementSwitchError as exc:
+                    term.status("fail", str(exc))
+                    returncode = 1
+                    continue
+
+                term.status(
+                    "ok",
+                    f"{repo_root}: completed placement switch from {switch_result.from_preset} to {switch_result.to_preset} (transaction {switch_result.transaction_id}).",
+                )
+                term.status("info", f"Receipt written to {switch_result.receipt_path}")
+                if switch_result.direction == "to-home":
+                    import subprocess
+                    from agent_workflows.project_context import resolve_project_context
+
+                    res_diff = subprocess.run(
+                        ["git", "diff", "--cached", "--name-only"],
+                        cwd=str(repo_root),
+                        capture_output=True,
+                        text=True,
+                    )
+                    staged_count = len(
+                        [line for line in res_diff.stdout.splitlines() if line.strip()]
+                    )
+                    new_ctx = resolve_project_context(
+                        target_repo=str(repo_root),
+                        aw_home=policy.aw_home,
+                        preset=policy.preset,
+                        records_backend=policy.records_backend,
+                        delivery_mode=policy.delivery_mode,
+                        role=policy.role,
+                    )
+                    records_dir = new_ctx.physical_classes["records"]
+                    term.line(
+                        f"{staged_count} tracked files were removed or modified in the target and left staged; "
+                        f"review with git status and commit when ready. Records now live in {records_dir} and are no longer versioned by this repository."
+                    )
+
             # Atomic installation step: Materialize companion + Persist policy + Install bundle
             if getattr(policy, "companion_dir", None):
                 from agent_workflows import storage
@@ -8624,6 +8854,10 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
         if _install_one(repo_root, source_root, args, term) == "failed":
             returncode = 1
+            if relocating:
+                term.line(
+                    f"The placement switch completed; rerun aw install {repo_root} to finish installing the new layout."
+                )
 
     # tabcomp Order 03 (jolfpj) E-04: host-level completion setup + discovery tip, ONCE per
     # invocation (not per repo) because completion is a per-user/per-machine concern.

@@ -54,6 +54,7 @@ __all__ = [
     "resume_placement_switch",
     "rollback_placement_switch",
     "placement_switch_status",
+    "render_plan",
 ]
 
 
@@ -1118,6 +1119,32 @@ def retire_footprint(
                         f"PRESERVED {inbox_readme_rel} (you edited it; left in place)"
                     )
 
+        # 2b. .aw/workflow-artifacts/README.md template-check and removal
+        wf_readme_rel = ".aw/workflow-artifacts/README.md"
+        wf_readme_path = repo / wf_readme_rel
+        if (
+            not engine._is_preserved(wf_readme_rel, preserve_set)
+            and wf_readme_path.is_file()
+        ):
+            source_root = engine.resolve_source_root(None)
+            scaffold = engine.collect_scaffold_members(
+                repo, source_root, category="workflow_artifacts"
+            )
+            expected_bytes = scaffold.get(
+                wf_readme_rel, engine._ARTIFACTS_README_FALLBACK.encode("utf-8")
+            )
+            if expected_bytes is not None:
+                actual_bytes = wf_readme_path.read_bytes()
+                if actual_bytes == expected_bytes:
+                    engine._uninstall_remove(repo, wf_readme_rel, use_git)
+                    if changed_out is not None:
+                        changed_out.append(wf_readme_rel)
+                    actions.append(f"removed {wf_readme_rel}")
+                else:
+                    actions.append(
+                        f"PRESERVED {wf_readme_rel} (you edited it; left in place)"
+                    )
+
         # 3. .aw/inbox/ and .aw/workflow-artifacts/ directories are pruned ONLY when empty
         for d_rel in (".aw/inbox", ".aw/workflow-artifacts"):
             d_path = repo / d_rel
@@ -1391,6 +1418,19 @@ def _perform_rollback(
         aw_gi = repo / ".aw" / ".gitignore"
         if aw_gi.exists():
             try:
+                _run_git_cmd(
+                    repo,
+                    [
+                        "rm",
+                        "-q",
+                        "-f",
+                        "--cached",
+                        "--ignore-unmatch",
+                        "--",
+                        ".aw/.gitignore",
+                    ],
+                    check=False,
+                )
                 aw_gi.unlink()
             except OSError:
                 pass
@@ -1522,6 +1562,7 @@ def _run_transaction(
             created_gi = engine._ensure_aw_gitignore(repo)
             if created_gi:
                 journal["created_aw_gitignore"] = True
+                _run_git_cmd(repo, ["add", "--", ".aw/.gitignore"], check=False)
 
             repo_res = repo.resolve()
             dest_rels = []
@@ -1880,7 +1921,11 @@ def _run_transaction(
                         rel = str(p)
                     unplanned_leftovers.append(rel)
 
-        preserve = {".aw/records"} if plan.retire_side == "target" else ()
+        preserve = (
+            {".aw/records"}
+            if (plan.retire_side == "target" and unplanned_leftovers)
+            else ()
+        )
         retire_actions = retire_footprint(
             repo,
             plan.retire_side,
@@ -2208,3 +2253,101 @@ def placement_switch_status(
         "created_directories": journal.get("created_directories", []),
         "created_aw_gitignore": journal.get("created_aw_gitignore", False),
     }
+
+
+def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
+    """Render human-readable placement switch plan preview (spec Section 8 & E-06)."""
+    lines: list[str] = []
+    lines.append(f"Placement switch plan for {plan.repo}:")
+    lines.append(f"  Direction:   {plan.direction or 'none'}")
+    lines.append(f"  From:        {plan.from_preset} ({plan.from_config_dir})")
+    lines.append(f"  To:          {plan.to_preset} ({plan.to_config_dir})")
+    lines.append(f"  Retire side: {plan.retire_side or 'none'}")
+
+    # Count tracked target files that will be staged as removed
+    tracked_removals = 0
+    if plan.retire_side == "target" and plan.repo.exists():
+        res = _run_git_read_only(plan.repo, ["ls-files", "-z", "--", ".aw"])
+        if res.returncode == 0 and res.stdout:
+            tracked_removals = len([e for e in res.stdout.split("\x00") if e])
+        else:
+            tracked_removals = sum(
+                1
+                for it in plan.items
+                if it.tracked
+                and (
+                    plan.repo in it.source.resolve().parents
+                    or it.source.resolve() == plan.repo.resolve()
+                )
+            )
+    lines.append(
+        f"  Tracked target files that will be staged as removed: {tracked_removals}"
+    )
+
+    # Per-class counts of move / discard / rewrite items
+    class_order = [
+        "config_project",
+        "config_local",
+        "records",
+        "state_durable",
+        "state_runtime",
+    ]
+    seen_classes = set(class_order)
+    extra_classes = sorted(
+        {it.item_class for it in plan.items if it.item_class not in seen_classes}
+    )
+    all_classes = class_order + extra_classes
+
+    class_ops: dict[str, dict[str, int]] = {
+        cls_name: {"move": 0, "discard": 0, "rewrite": 0} for cls_name in all_classes
+    }
+    for it in plan.items:
+        if it.item_class in class_ops and it.kind in class_ops[it.item_class]:
+            class_ops[it.item_class][it.kind] += 1
+        elif it.item_class in class_ops:
+            class_ops[it.item_class][it.kind] = (
+                class_ops[it.item_class].get(it.kind, 0) + 1
+            )
+
+    lines.append("")
+    lines.append("Operations by class:")
+    for cls_name in all_classes:
+        counts = class_ops[cls_name]
+        parts = [f"{count} {op}" for op, count in counts.items() if count > 0]
+        if parts:
+            lines.append(f"  - {cls_name}: {', '.join(parts)}")
+        else:
+            lines.append(f"  - {cls_name}: 0 operations")
+
+    # The first 20 paths per kind with a "and <n> more" line
+    for kind in ("move", "rewrite", "discard"):
+        items_of_kind = [it for it in plan.items if it.kind == kind]
+        if items_of_kind:
+            lines.append("")
+            lines.append(
+                f"Planned operations [{kind.upper()}] ({len(items_of_kind)} items):"
+            )
+            for it in items_of_kind[:20]:
+                if it.destination is not None:
+                    lines.append(f"  [{kind.upper()}] {it.source} -> {it.destination}")
+                else:
+                    lines.append(f"  [{kind.upper()}] {it.source}")
+            if len(items_of_kind) > 20:
+                lines.append(f"  ... and {len(items_of_kind) - 20} more")
+
+    # Blockers
+    if plan.blockers:
+        lines.append("")
+        lines.append(f"Blockers ({len(plan.blockers)}):")
+        for b in plan.blockers:
+            msg = plan.blocker_messages.get(b, getattr(b, "message", ""))
+            lines.append(f"  [BLOCKER] {b}: {msg}")
+
+    # Warnings
+    if plan.warnings:
+        lines.append("")
+        lines.append(f"Warnings ({len(plan.warnings)}):")
+        for w_name, w_count in sorted(plan.warnings.items()):
+            lines.append(f"  [WARNING] {w_name}: {w_count}")
+
+    return "\n".join(lines)
