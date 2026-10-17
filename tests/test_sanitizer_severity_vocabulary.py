@@ -19,7 +19,14 @@ from unittest.mock import patch
 from agent_workflows import doctor
 from agent_workflows import leak_sanitizer
 from agent_workflows import term as T
-from tests.support import git, init_repo, run_cli
+from tests.conformance_matrix import run_cli_inproc
+from tests.support import git, init_repo
+
+
+def run_cli(
+    *args: str, cwd: Path | None = None, env: dict[str, str] | None = None, **kwargs
+):
+    return run_cli_inproc(list(args), cwd=cwd, env_overrides=env)
 
 
 CANONICAL_SEVERITIES = {"error", "warning", "info"}

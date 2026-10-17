@@ -18,7 +18,12 @@ import pytest
 
 from agent_workflows import artifact_core as core
 from agent_workflows import check_engine, doctor
-from tests.support import init_repo, run_cli
+from tests.conformance_matrix import run_cli_inproc
+from tests.support import init_repo
+
+
+def run_cli(*args: str, cwd: Path | None = None):
+    return run_cli_inproc(list(args), cwd=cwd)
 
 
 def test_doctor_inspect_repo_preserves_diagnostic_severity_seam(

@@ -12,7 +12,12 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tests.support import init_repo, run_cli
+from tests.conformance_matrix import run_cli_inproc
+from tests.support import init_repo
+
+
+def run_cli(*args: str, cwd: Path | None = None):
+    return run_cli_inproc(list(args), cwd=cwd)
 
 
 class CheckSeverityTallyTests(unittest.TestCase):

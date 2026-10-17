@@ -23,9 +23,9 @@ from pathlib import Path
 from agent_workflows import agent_schema
 from agent_workflows.result_types import CommandResult, Diagnostic
 
-# Reuses tests.conformance_matrix.run_cli (which passes cwd and pins NO_COLOR/COLUMNS)
+# Reuses tests.conformance_matrix.run_cli_inproc (which passes cwd and pins NO_COLOR/COLUMNS)
 # rather than forking a subprocess harness.
-from tests.conformance_matrix import REPO_ROOT, run_cli
+from tests.conformance_matrix import REPO_ROOT, run_cli_inproc as run_cli
 
 
 def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:

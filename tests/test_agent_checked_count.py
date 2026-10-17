@@ -16,12 +16,14 @@ import tempfile
 import unittest
 
 import re
+from typing import Any
 from unittest import mock
 
-from tests.support import git, init_repo, run_cli
+from tests.conformance_matrix import run_cli_inproc
+from tests.support import git, init_repo
 
 
-def _run_cli_with_fallback(*args: str, cwd: Path) -> subprocess.CompletedProcess:
+def _run_cli_with_fallback(*args: str, cwd: Path) -> Any:
     unfixed_tree = os.environ.get("AW_UNFIXED_TREE")
     if unfixed_tree:
         env = dict(os.environ)
@@ -34,7 +36,7 @@ def _run_cli_with_fallback(*args: str, cwd: Path) -> subprocess.CompletedProcess
             text=True,
             check=False,
         )
-    return run_cli(*args, cwd=cwd)
+    return run_cli_inproc(list(args), cwd=cwd)
 
 
 def _parse_agent_result(stdout: str) -> dict:

@@ -25,7 +25,17 @@ from pathlib import Path
 
 from agent_workflows import check_engine as ce
 from agent_workflows import coverage_record as cr
-from tests import support
+from tests.conformance_matrix import run_cli_inproc
+
+
+def _run_cli(*args, cwd=None, **kwargs):
+    cli_args = []
+    for a in args:
+        if isinstance(a, (list, tuple)):
+            cli_args.extend(str(x) for x in a)
+        else:
+            cli_args.append(str(a))
+    return run_cli_inproc(cli_args, cwd=cwd)
 
 
 def _make_conforming_child(
@@ -469,7 +479,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         orig_bytes = item.read_bytes()
 
         # Route 1: positional spelling
-        res1 = support.run_cli(
+        res1 = _run_cli(
             "backlog",
             "set",
             "graduated",
@@ -487,7 +497,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         self.assertTrue(item.exists())
 
         # Route 2: --status spelling
-        res2 = support.run_cli(
+        res2 = _run_cli(
             "backlog",
             "set",
             str(item),
@@ -514,7 +524,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         _make_conforming_child(
             self.repo, id6="chd001", status="to-review", backlog_id6="bk0001"
         )
-        res1 = support.run_cli(
+        res1 = _run_cli(
             "backlog",
             "set",
             "graduated",
@@ -533,7 +543,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         _make_conforming_child(
             self.repo, id6="chd002", status="to-review", backlog_id6="bk0002"
         )
-        res2 = support.run_cli(
+        res2 = _run_cli(
             "backlog",
             "set",
             str(item2),
@@ -550,7 +560,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
     def test_same_status_note_skips_check(self):
         # Already graduated item with no handoff: a same-status note succeeds without refusal
         item = _make_backlog_item(self.repo, id6="bk0003", status="graduated")
-        res = support.run_cli(
+        res = _run_cli(
             "backlog",
             "set",
             str(item),
@@ -582,9 +592,7 @@ class TestSpecSetterSubprocess(unittest.TestCase):
         _make_conforming_child(
             self.repo, id6="chd001", status="draft", spec_id6="sp0001"
         )
-        res = support.run_cli(
-            "specs", "set", "implementing", "sp0001", "--yes", cwd=self.repo
-        )
+        res = _run_cli("specs", "set", "implementing", "sp0001", "--yes", cwd=self.repo)
         self.assertEqual(res.returncode, 1)
         self.assertIn("handoff for spec sp0001 is not ready", res.stderr)
         self.assertIn("plan-status-not-ready", res.stderr)
@@ -595,9 +603,7 @@ class TestSpecSetterSubprocess(unittest.TestCase):
         _make_conforming_child(
             self.repo, id6="chd002", status="to-review", spec_id6="sp0002"
         )
-        res = support.run_cli(
-            "specs", "set", "implementing", "sp0002", "--yes", cwd=self.repo
-        )
+        res = _run_cli("specs", "set", "implementing", "sp0002", "--yes", cwd=self.repo)
         self.assertEqual(res.returncode, 0, f"Expected success: {res.stderr}")
         moved = self.repo / ".aw" / "records" / "specs" / "implementing" / spec.name
         self.assertTrue(moved.exists())
@@ -672,7 +678,7 @@ class TestGraduationIncompleteCheckRule(unittest.TestCase):
         _make_backlog_item(
             self.repo, id6="bkpost", status="graduated", history_date="2026-10-06"
         )
-        res = support.run_cli("check", "backlog", cwd=self.repo)
+        res = _run_cli("check", "backlog", cwd=self.repo)
         self.assertIn("check.graduation-incomplete", res.stdout + res.stderr)
 
 
@@ -696,7 +702,7 @@ class TestProductionAndIsolation(unittest.TestCase):
                 self.repo, id6="chd001", status="to-review", backlog_id6="bklane"
             )
 
-            res = support.run_cli(
+            res = _run_cli(
                 "backlog",
                 "set",
                 str(item),

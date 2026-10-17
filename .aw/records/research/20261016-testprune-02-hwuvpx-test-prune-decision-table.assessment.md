@@ -2223,3 +2223,42 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | 48 | 9.11s | tests/test_suite_cache.py::test_reproducible_failure_stored_and_not_served_to_seam |
 | 49 | 9.11s | tests/test_authoring_coverage_guidance.py::ScaffoldPlaceholderOutputTests::test_scaffold_subprocess_emits_expected_placeholders |
 | 50 | 9.05s | tests/test_installed_version_reporting.py::InstalledVersionReportingTests::test_e2e_wheel_build_installed_version_reporting |
+
+## c8bfp9 E-11 in-process conversions and kept-subprocess census
+
+### Converted Module Group 1 (10 modules)
+
+| Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_index_check_agent_records.py` | 7.16s | 2.53s | -4.63s |
+| `tests/test_index_write_agent_records.py` | 7.15s | 4.38s | -2.77s |
+| `tests/test_agent_checked_count.py` | 3.24s | 1.85s | -1.39s |
+| `tests/test_check_severity_tally.py` | 2.38s | 1.91s | -0.47s |
+| `tests/test_doctor_diagnostic_severity.py` | 2.63s | 2.01s | -0.62s |
+| `tests/test_handoff_ready_gate.py` | 2.66s | 1.71s | -0.95s |
+| `tests/test_attention_degraded_item.py` | 2.26s | 1.74s | -0.52s |
+| `tests/test_sanitizer_severity_vocabulary.py` | 2.70s | 1.99s | -0.71s |
+| `tests/test_explicit_dir_non_project.py` | 4.04s | 2.01s | -2.03s |
+| `tests/test_explicit_dir_subdir_resolution.py` | 2.82s | 1.72s | -1.10s |
+| **Total Serial** | **37.04s** | **21.85s** | **-15.19s** |
+
+Parallel execution under `-n 6`:
+- Pass 1 (seed 2097388723): 106 passed in 6.73s
+- Pass 2 (seed 99887766): 106 passed in 6.49s
+
+Zero outcome differences found between `run_cli` and `run_cli_inproc` across all 106 tests.
+
+### Kept-Subprocess Set
+
+| Test Module / Node ID | Category | Reason Kept as Subprocess |
+|---|---|---|
+| `tests/test_pwatch_tty_color.py` | TTY/pty | Real pseudo-terminal slave attachment and ANSI emission detection |
+| `tests/test_term.py::ColorDepthEndToEndLadderTests` | TTY/pty | Real pseudo-terminal ladder and TTY color detection |
+| `tests/test_broken_pipe_exit.py` | Signal / EPIPE | Tests SIGPIPE and closed-pipe subprocess exit code 141 |
+| `test_universal_130_floor_and_signal_code_exclusion` | Signal / Exit 130 | Subprocess SIGINT and signal-floor exclusion under test |
+| `tests/test_nv_backend_args_climb.py` | Env / PYTHONPATH | Explicitly pins subprocess execution with isolated HOME and lane PYTHONPATH |
+| `tests/test_resolver_bypass_sites_climb.py` | Env / PYTHONPATH | Explicitly pins subprocess execution with isolated HOME and lane PYTHONPATH |
+| `tests/test_clean_target_config_home.py` | Re-exec | Tests AW_NO_REEXEC and re-execution boundary |
+| `tests/test_installed_version_reporting.py` | Packaging / Wheel | Builds wheel and runs installed console script in virtualenv |
+| `tests/test_core_smoke.py` | Core Smoke | hguae9 core smoke boundary test running external CLI |
+
