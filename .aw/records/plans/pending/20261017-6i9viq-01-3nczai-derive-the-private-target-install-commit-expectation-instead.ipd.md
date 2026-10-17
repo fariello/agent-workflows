@@ -3,10 +3,11 @@
 - Date: 2026-10-17
 - Kind: child
 - Concern: `tests/test_clean_target_config_home.py` method `test_case_l_tracked_install_still_writes_target` asserts a literal file count (`self.assertIn("358 files changed", tail)`) on the commit a `private-target -y` install makes. The count is the size of the shipped payload, so every added or removed workflow asset breaks the test with no behavior change. It has already been bumped once (commit a75488af5 changed "357" to "358"), backlog `6i9viq` and the duplicate backlog `ioegmo` were both filed for the same breakage, and it will recur on the next payload change.
-- Scope: IN: replace the literal count assertion in `test_case_l_tracked_install_still_writes_target` with assertions derived from the install's own observable result (the commit contains exactly the files the install left tracked in the target, the worktree is clean afterwards, and the commit is non-empty). OUT: any change to the installer, the payload, or other test cases; closing backlog `ioegmo` (a separate item; noted for the reviewer below).
+- Scope: IN: the literal count assertion in `test_case_l_tracked_install_still_writes_target` was ALREADY replaced, outside this plan, by commit 84cba788c ("fix(ci): derive test_case_l expectation ..."), with exactly the derived assertions this plan specified (install commit path set equals tracked installed path set, non-empty, contains `AGENTS.md` and `.aw/.gitignore`, clean `git status --porcelain`). This plan therefore (1) confirms the landed assertions match the specification and pass, and (2) performs the sensitivity proof that commit did not record (a deliberately partial commit and a stray untracked file each make the test fail), so the release-gated backlog item `6i9viq` closes on verified evidence. OUT: any further edit to the test (unless E-01 finds a divergence), any change to the installer, the payload, or other test cases; closing backlog `ioegmo` or its plan `im4afa` (a separate item; noted below).
 - Scope-Paths: tests/test_clean_target_config_home.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 6i9viq
@@ -18,7 +19,7 @@
 - Id: 3nczai
 
 ## Workflow history
-
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 - 2026-10-17 draft (opencode): created.
 - 2026-10-17 to-review (opencode): authored review-ready from backlog 6i9viq.
 
@@ -32,16 +33,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Replace the pinned count with derived assertions
 
-- [ ] E-01 In `test_case_l_tracked_install_still_writes_target`, remove the `git show --stat` tail parse and the literal `"358 files changed"` assertion. Replace them with: (a) `git show --name-only --format= HEAD` gives the set of paths the install commit touched; (b) `git ls-files` in the target, minus the pre-existing `README.md`, gives the set of tracked installed paths; assert (a) equals (b); (c) assert that set is non-empty and contains `AGENTS.md` and `.aw/.gitignore`; (d) assert `git status --porcelain` in the target is empty, so the install left nothing staged or untracked outside the commit. Keep every other existing assertion in the method unchanged.
+- [ ] E-01 Confirm that `test_case_l_tracked_install_still_writes_target` as landed by commit 84cba788c carries the specified derived assertions and no literal count: (a) `git show --name-only --format= HEAD` gives the set of paths the install commit touched; (b) `git ls-files` in the target, minus the pre-existing `README.md`, gives the set of tracked installed paths; (a) is asserted equal to (b); (c) that set is asserted non-empty and to contain `AGENTS.md` and `.aw/.gitignore`; (d) `git status --porcelain` in the target is asserted empty; every earlier assertion of the method (`returncode == 0`, HEAD moved, `AGENTS.md`/`.aw/.gitignore`/backups exist, the `Git: changes staged; commit offered below` line) is still present. If the method at execution time diverges from (a)-(d), edit it to match and say so in V-01; otherwise make no edit to the test file.
   - Depends on: none
-  - Expected outcome: the method contains no hard-coded file count, and its assertions are all computed from the target repository's git state after the install.
+  - Expected outcome: the method contains no hard-coded file count and its assertions are all computed from the target repository's git state after the install; whether an edit was needed is stated.
   - Execution state: pending
 
 ### Task group 2: Prove the test still detects a broken commit
 
-- [ ] E-02 Run the modified test and the full module, then demonstrate the new assertions are not vacuous: temporarily (uncommitted, reverted before commit) make the test see a partial commit, for example by running `git rm --cached -q AGENTS.md && git commit -qm drop` in the target before the assertions, confirm the test fails on the set-equality or clean-status assertion, then revert the temporary edit.
+- [ ] E-02 Run the test and the full module, then demonstrate the derived assertions are not vacuous with two temporary, uncommitted edits to the method, each inserted immediately after the `assertIn("Git: changes staged; commit offered below", ...)` line and reverted before the next: (1) a partial commit, `subprocess.run(["git", "rm", "--cached", "-q", "AGENTS.md"], cwd=str(target), check=True)` followed by `subprocess.run(["git", "commit", "-qm", "drop"], cwd=str(target), check=True)`, which must fail the set-equality assertion; (2) a stray file, `(target / "stray.txt").write_text("x", encoding="utf-8")`, which leaves the commit and tracked sets equal and must fail ONLY the clean-status assertion. Restore the file with `git checkout -- tests/test_clean_target_config_home.py` after each run.
   - Depends on: E-01
-  - Expected outcome: the real test passes; the deliberately broken variant fails with an assertion error naming the mismatch; the temporary edit is absent from the final diff.
+  - Expected outcome: the real test passes; each broken variant fails with an `AssertionError` from the expected assertion; `git status --short tests/test_clean_target_config_home.py` is empty afterwards.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -55,20 +56,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | # | Finding | Evidence |
 |---|---|---|
-| F1 | The assertion pins the payload size. | `test_case_l_tracked_install_still_writes_target` ends with `self.assertIn("358 files changed", tail)` where `tail` is the last line of `git show --stat --format= HEAD`. |
+| F1 | The assertion pinned the payload size (historical; fixed at HEAD). | Before 84cba788c the method ended with `self.assertIn("358 files changed", tail)` where `tail` is the last line of `git show --stat --format= HEAD`. |
+| F6 | The fix already landed outside this plan, with no sensitivity proof. | `git show 84cba788c -- tests/test_clean_target_config_home.py` replaces the stat parse with the `commit_paths == tracked_paths`, non-empty, `AGENTS.md`, `.aw/.gitignore` and empty-porcelain assertions; the commit message records no mutation run. At review, `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py -k test_case_l` reported `1 passed, 22 deselected`. |
 | F2 | The count has already drifted once. | `git log -L` on that line: introduced as "357" in 9ca816dba (3m8aix), changed to "358" in a75488af5 (ki6t17). |
-| F3 | The backlog item's stated failure is already masked at the current tip, but the defect (a pinned count) remains. | In this worktree `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py -k test_case_l` reports `1 passed`, because a75488af5 bumped the literal. Any further payload change re-breaks it. |
+| F3 | (Superseded by F6.) When authored, the backlog failure was masked by the a75488af5 bump while the pinned count remained. | Authoring-time run reported `1 passed`; 84cba788c later removed the literal. |
 | F4 | A duplicate backlog item exists for the same breakage. | `.aw/records/backlog/open/20261016-ioegmo-01-ioegmo-test-clean-target-config-home-pins-stale-357-files.backlog.md` ("pins stale 357 files changed count broken by askme rationale.md"). |
 | F5 | The intent of the count was "the install commit captures the installed tree", which can be checked directly. | The method's docstring: "tracked private-target install still writes target, commits under -y, and matches baseline". |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: rewrite the tail of `test_case_l_tracked_install_still_writes_target` to compare the install commit's path set with the tracked installed path set and assert a clean worktree. Validated by V-01.
-2. E-02: run the test and module, and prove a broken commit is caught. Validated by V-02.
+1. E-01: confirm the landed tail of `test_case_l_tracked_install_still_writes_target` matches the derived-assertion specification (edit only on divergence). Validated by V-01.
+2. E-02: run the test and module, and prove a partial commit and a stray file are each caught. Validated by V-02.
 
 ## Deferred / out of scope (with reason)
 
-- Backlog `ioegmo` describes the same defect. Closing or de-duplicating it is a backlog decision for the maintainer and is outside this plan's scope fence; this plan's fix would satisfy it, which a reviewer may cite as evidence when closing it.
+- Backlog `ioegmo` describes the same defect, and its pending plan `im4afa` is equally stale after 84cba788c. Closing or retiring them is a decision for the maintainer and is outside this plan's scope fence; this plan's V-02 evidence is what a reviewer may cite when doing so.
   - Carrier-Declined: duplicate backlog item ioegmo is tracked separately and graduated to plan im4afa
 - No installer or payload change: the installer behavior is correct; only the test is wrong.
   - Carrier-Declined: installer behavior is correct; only the test assertion is changed
@@ -76,13 +78,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. The only failing surface named by the backlog item is the single literal in this one method; no other test in `tests/` asserts a "files changed" count (`grep -rn "files changed" tests/` finds only this line and an unrelated comment in `tests/test_status_set.py`).
+- Under-scope: none. The sensitivity proof (E-02) is the only work 84cba788c left undone. The only failing surface named by the backlog item is the single literal in this one method; no other test in `tests/` asserts a "files changed" count (`grep -rn "files changed" tests/` finds only this line and an unrelated comment in `tests/test_status_set.py`).
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py -k test_case_l` passes (V-01).
-- `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py` passes (V-02).
-- A deliberately partial commit makes the test fail (V-02).
+- `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k test_case_l` passes (V-01).
+- `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py` passes (V-02).
+- A deliberately partial commit, and separately a stray untracked file, each make the test fail (V-02).
 - The routine gate `python3 -m pytest` passes (V-02).
 
 ## Spec / documentation sync
@@ -98,12 +100,12 @@ None. The remedy follows from AGENTS.md's outcome-testing rule and the test's ow
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git diff -- tests/test_clean_target_config_home.py` showing the literal `"358 files changed"` removed and the path-set and clean-status assertions added; paste `grep -n "files changed" tests/test_clean_target_config_home.py` returning no match; paste the actual output of `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py -k test_case_l` showing `1 passed`.
+  - Required evidence: paste `git show 84cba788c -- tests/test_clean_target_config_home.py` (the landed change removing the literal and adding the path-set and clean-status assertions) and `git diff -- tests/test_clean_target_config_home.py` (empty unless E-01 found a divergence, in which case paste the corrective hunk and say why); paste `grep -n "files changed" tests/test_clean_target_config_home.py` returning no match; paste the actual output of `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k test_case_l` showing `1 passed`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the actual failing output (the assertion error line) of the temporarily broken variant created in E-02; paste the actual output of `python3 -m pytest -o addopts="" -q tests/test_clean_target_config_home.py` with the `N passed` summary and zero failures after reverting; paste the `N passed` summary line of a bare `python3 -m pytest`; paste `git diff --cached --name-only` at commit time listing only `tests/test_clean_target_config_home.py` (plus this plan file).
+  - Required evidence: for EACH of the two broken variants in E-02, paste the actual `AssertionError` lines showing which assertion failed (set equality for the partial commit; the `git status --porcelain` equality for the stray file); paste `git status --short tests/test_clean_target_config_home.py` empty after reverting; paste the actual output of `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py` with the `N passed` summary and zero failures; paste the `N passed` summary line of a bare `python3 -m pytest`; paste `git diff --cached --name-only` at commit time listing only this plan file (plus `tests/test_clean_target_config_home.py` only if E-01 required an edit).
   - Observed evidence:
   - Result: pending
 
@@ -119,5 +121,5 @@ Execution contract:
 - Scope fence: see Scope check; an out-of-scope edit is made and justified at finalize, not a reason to stop.
 - You MUST paste the ACTUAL command output into each V-item's Observed evidence; never claim a result you did not run.
 - Tests assert observable behavior (real outputs, exit codes, files written), never source text or structure (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
-- Commit only through `aw commit <plan> -- <paths>`, verify `git diff --cached --name-only` lists only your paths, and never push.
-- After every V-item reads `pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `executed/` through the tooled lifecycle.
+- Commit only through `aw commit 3nczai -- <this plan> [tests/test_clean_target_config_home.py only if E-01 edited it]`, verify `git diff --cached --name-only` lists only your paths, and never push.
+- Post-gate lifecycle: after every V-item reads `pass` and `aw ipd lint --phase pre-transition` conforms, the plan moves to `executed/`: under `aw oc run`/`aw agy run` the runner owns that transition; by hand run `aw ipd finalize 3nczai`, passing `--scope-ack tests/test_clean_target_config_home.py` when E-01 needed no edit (the declared path is then legitimately unmodified). Never `git mv` the plan by hand. This plan carries `- Blocks-Release: next` inherited from backlog `6i9viq`.
