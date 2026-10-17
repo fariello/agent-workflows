@@ -1,5 +1,6 @@
 - Id: geajrj
-- Status: open
+- Status: graduated
+- Graduated-To: geajrj
 - Blocks-Release: next
 - Set: geajrj
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: Execute-path console line labels an unmeasured integration refusal as combined-red
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T231229Z-2639110: h8peam
 - 2026-10-17 created (aw backlog): Execute-path console line labels an unmeasured integration refusal as combined-red
 
 ## Detail
