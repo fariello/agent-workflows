@@ -266,8 +266,7 @@ FAIL     /tmp/scratch/repo: a switch to public-target-private-companion needs --
 
 - [x] V-05 validates E-05
   - Required evidence: pasted `git diff -- agent_workflows/placement_switch.py` showing the blocker and keyword removed; pasted `grep -rn "companion-unsupported\|allow_companion" agent_workflows/ tests/` output with no matches; pasted `git log -1 --name-only` showing E-05 and E-01's attach gating in the same commit; pasted `-v` summary of the three retargeted modules passing.
-  - Observed evidence:
-Diff of placement_switch.py:
+  - Observed evidence: Diff of placement_switch.py:
 ```diff
 diff --git a/agent_workflows/placement_switch.py b/agent_workflows/placement_switch.py
 index a6de3cf58..222b6efaf 100644
@@ -409,8 +408,7 @@ assert em_en_count == 0  # 0 em/en dashes
 
 - [x] V-03 validates E-03
   - Required evidence: pasted `git diff -- CHANGELOG.md README.md` and a pasted Python check printing 0 em/en dashes in the added lines; pasted spec diff of Section 8.1 item 3 and the history line; pasted `aw specs check` output conforming.
-  - Observed evidence:
-Diff of CHANGELOG.md and README.md:
+  - Observed evidence: Diff of CHANGELOG.md and README.md:
 ```diff
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 index 38132a7d6..47fd6dd25 100644
@@ -484,8 +482,7 @@ aw specs check: all specs conform. 1 specs checked.
 
 - [x] V-04 validates E-04
   - Required evidence: pasted `-v` output of both CLI test modules with every case PASSED; the combined five-module summary; the bare `python3 -m pytest` summary line; the `make test-all` summary line; the `aw sanitize --agent` result.
-  - Observed evidence:
-CLI test modules -v:
+  - Observed evidence: CLI test modules -v:
 ```text
 tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_from_companion_to_home_executed PASSED [  6%]
 tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_resume_and_rollback_cli PASSED [ 13%]
