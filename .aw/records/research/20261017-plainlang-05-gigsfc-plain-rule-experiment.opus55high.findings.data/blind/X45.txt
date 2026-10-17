@@ -1,0 +1,7 @@
+Verification after merging failed for work item `7hvkk0`. All 745 tests passed in 47.14 seconds, but that exceeded the 30-second limit, so the timing check forced exit code 1, indicating failure. Both retries were exhausted.
+
+The base commit—the starting commit for this change—also exceeded the limit, suggesting a timing problem independent of the change. Four concurrent runners executing work and high load on the host machine likely contributed.
+
+Wait for the run that owns this work to finish; integration is blocked while that run remains active. Then retry verification with less competition for resources. If permitted, disable timing enforcement by setting the environment variable `AW_CORE_BUDGET_ENFORCE=0`.
+
+The work and the follow-up bug identified as `ytz6z4` remain only on the branch named `aw/lane/7hvkk0`.

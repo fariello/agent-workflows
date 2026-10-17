@@ -1,0 +1,11 @@
+The error is misleading: backlog items are valid targets for `--action plan`, which graduates open backlog items into plans.
+
+You entered `ufawp` (five characters); the ID is `ufawpb` (six). Target selection requires the exact six-character ID for backlog items, but the error-reporting fallback matched the filename by substring and incorrectly reported a type mismatch.
+
+Use:
+
+```sh
+aw oc run --action plan 7rs77x ufawpb
+```
+
+Verified with `--prepare-only`: both items queue with action `plan`.

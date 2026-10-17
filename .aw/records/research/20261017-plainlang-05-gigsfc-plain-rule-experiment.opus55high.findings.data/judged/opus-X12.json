@@ -1,0 +1,1 @@
+{"understand": 4, "act": 4, "unexplained_terms": 5, "facts_covered": [0, 1, 2, 3], "false_claims": ["says describe_unresolved_plan_selector 'searches without filtering by artifact type'; the missing filter is the match-kind allow filter (MATCH_ID6), not an artifact-type filter", "expands IPD as 'Implementation Plan Document', which is not in the reference facts"]}

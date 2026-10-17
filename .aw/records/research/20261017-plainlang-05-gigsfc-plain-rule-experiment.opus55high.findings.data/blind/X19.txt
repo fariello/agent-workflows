@@ -1,0 +1,20 @@
+**What was observed:**
+The repository workflow runner, `aw oc run`, was executed with the plan graduation action, `--action plan`, on the target artifact identifier `7rs77x` and the five-character input selector `ufawp`. It failed with an error from the plan execution tool, `runipd`:
+`runipd: 'ufawp' is a backlog item (.aw/records/backlog/open/20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md), not an IPD plan.`
+(An IPD plan is an Implementation Planning Document, and a backlog item is an open task record tracking pending work.)
+
+**What caused it:**
+The target backlog item has a six-character identifier (id6), `ufawpb`, but the command supplied only the five-character prefix `ufawp`. The target resolution function that parses command-line arguments into repository artifacts, `expand_selectors`, matches non-plan records only by exact six-character identifier using the matching filter `MATCH_ID6`. Because `ufawp` is only five characters, `expand_selectors` did not match the backlog item and fell through to the fallback error diagnostic function, `describe_unresolved_plan_selector`.
+
+**What that led to:**
+The diagnostic function `describe_unresolved_plan_selector` called the general artifact lookup function, `selectors.resolve`, without an allowed matching filter. Without an allow filter, resolution fell through to its lowest-precedence rule, the filename substring matching mode `MATCH_SUBSTRING`. That matched `ufawp` to the backlog record file `.aw/records/backlog/open/20261016-uypgvi-01-ufawpb-readiness-custom-wf-disposition.backlog.md`. Because `describe_unresolved_plan_selector` assumes any unresolved target was intended as a plan, it emitted an error claiming that a backlog item cannot be targeted, even though open backlog items are legal targets for `--action plan` to graduate them into implementation plans.
+
+**What fixes it:**
+Pass the complete six-character identifier `ufawpb`:
+`aw oc run --action plan 7rs77x ufawpb`
+With the full identifier, `expand_selectors` matches the backlog record directly via `MATCH_ID6`.
+
+**Verification status:**
+Verified with the dry-run preparation flag that validates queuing without execution, `--prepare-only`:
+`aw oc run --action plan --prepare-only 7rs77x ufawpb`
+Both items (`7rs77x` and `ufawpb`) queue successfully with action plan.

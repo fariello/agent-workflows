@@ -1,0 +1,380 @@
+{
+ "X01": {
+  "src": "out_rw/gem-old-s3-2.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X02": {
+  "src": "out_rw/gem-old-s1-1.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X03": {
+  "src": "out/codex-new-s1-1.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X04": {
+  "src": "out/codex-old-s3-2.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X05": {
+  "src": "out/opus-old-s2-2.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X06": {
+  "src": "out_rw/gem-old-s3-1.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X07": {
+  "src": "out/codex-old-s3-1.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X08": {
+  "src": "out/gem-old-s3-1.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X09": {
+  "src": "out/gem-new-s2-1.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X10": {
+  "src": "out/opus-old-s3-2.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X11": {
+  "src": "out_rw/gem-old-s2-2.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X12": {
+  "src": "out/gem-new-s3-1.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X13": {
+  "src": "out/gem-old-s1-2.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X14": {
+  "src": "out/codex-old-s2-1.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X15": {
+  "src": "out_rw/codex-old-s3-1.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X16": {
+  "src": "out_rw/opus-old-s2-1.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X17": {
+  "src": "out_rw/opus-old-s3-1.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X18": {
+  "src": "out_rw/codex-old-s1-1.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X19": {
+  "src": "out/gem-new-s3-2.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X20": {
+  "src": "out/gem-old-s2-2.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X21": {
+  "src": "out/opus-new-s3-2.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X22": {
+  "src": "out_rw/opus-old-s2-2.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X23": {
+  "src": "out/gem-new-s1-1.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X24": {
+  "src": "out/opus-new-s1-1.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X25": {
+  "src": "out_rw/gem-old-s2-1.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X26": {
+  "src": "out/codex-new-s1-2.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X27": {
+  "src": "out/gem-old-s1-1.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X28": {
+  "src": "out/opus-new-s3-1.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X29": {
+  "src": "out_rw/opus-old-s3-2.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X30": {
+  "src": "out/opus-old-s1-2.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X31": {
+  "src": "out/opus-old-s1-1.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X32": {
+  "src": "out/codex-old-s1-2.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X33": {
+  "src": "out_rw/gem-old-s1-2.txt",
+  "model": "gem",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X34": {
+  "src": "out_rw/codex-old-s2-1.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X35": {
+  "src": "out_rw/codex-old-s2-2.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X36": {
+  "src": "out/gem-new-s2-2.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X37": {
+  "src": "out_rw/opus-old-s1-1.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X38": {
+  "src": "out/opus-new-s2-1.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X39": {
+  "src": "out/opus-new-s2-2.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X40": {
+  "src": "out/codex-new-s3-2.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X41": {
+  "src": "out/codex-new-s2-1.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X42": {
+  "src": "out/gem-new-s1-2.txt",
+  "model": "gem",
+  "cond": "new",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X43": {
+  "src": "out/opus-old-s2-1.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s2",
+  "k": "1"
+ },
+ "X44": {
+  "src": "out_rw/opus-old-s1-2.txt",
+  "model": "opus",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X45": {
+  "src": "out_rw/codex-old-s1-2.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X46": {
+  "src": "out/gem-old-s3-2.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X47": {
+  "src": "out/codex-old-s1-1.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s1",
+  "k": "1"
+ },
+ "X48": {
+  "src": "out/opus-old-s3-1.txt",
+  "model": "opus",
+  "cond": "old",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X49": {
+  "src": "out/codex-new-s3-1.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s3",
+  "k": "1"
+ },
+ "X50": {
+  "src": "out/codex-new-s2-2.txt",
+  "model": "codex",
+  "cond": "new",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X51": {
+  "src": "out_rw/codex-old-s3-2.txt",
+  "model": "codex",
+  "cond": "old+rewrite",
+  "scen": "s3",
+  "k": "2"
+ },
+ "X52": {
+  "src": "out/opus-new-s1-2.txt",
+  "model": "opus",
+  "cond": "new",
+  "scen": "s1",
+  "k": "2"
+ },
+ "X53": {
+  "src": "out/codex-old-s2-2.txt",
+  "model": "codex",
+  "cond": "old",
+  "scen": "s2",
+  "k": "2"
+ },
+ "X54": {
+  "src": "out/gem-old-s2-1.txt",
+  "model": "gem",
+  "cond": "old",
+  "scen": "s2",
+  "k": "1"
+ }
+}

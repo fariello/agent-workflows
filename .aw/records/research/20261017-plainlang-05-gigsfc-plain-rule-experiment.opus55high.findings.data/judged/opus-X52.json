@@ -1,0 +1,1 @@
+{"understand": 5, "act": 4, "unexplained_terms": 4, "facts_covered": [0, 1, 2, 3, 4, 5], "false_claims": ["lane agent answered 'not-mine' both times (reference records one gate answer)", "every plan run on a busy 12-CPU host will fail-merge (overgeneralized beyond the facts)"]}

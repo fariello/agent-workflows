@@ -1,0 +1,31 @@
+A unit of work in this system is called a "plan", and each one has a short ID. Plan 7hvkk0 had the task "repair the two red home-backend tests", where "red" means failing. The plan was marked as failed, but no test was actually broken. Here is what happened, in order.
+
+**What was observed**
+
+All 745 tests passed. The test suite still exited with code 1, and the automated run that was processing the plan counted that exit code as a failure.
+
+**What caused it**
+
+- The repository has a shared test setup file called `conftest.py`. It contains a timing check: if the core tests take longer than a time limit, it marks the whole test session as failed even when every test passes.
+  - The limit is set by the environment variable `AW_CORE_BUDGET_SECONDS` and defaults to 30 seconds.
+  - The check only runs on machines with 12 or more CPUs.
+  - Setting `AW_CORE_BUDGET_ENFORCE=0` turns it off.
+- The plan's merged code took 47.14 seconds, which is over the limit.
+- The plan did not cause the slowdown. The unchanged base commit took 68.31 seconds and also exited with code 1.
+- The real cause was an overloaded machine. Its load average was 33.95 on 12 CPUs, and 4 runs were going at the same time. The check was measuring how busy the machine was, not how good the code was.
+
+**What that led to**
+
+1. After the merge, the run re-tested the merged code and got exit code 1.
+2. Because of that exit code, it sent the plan back for another attempt, and this happened twice.
+3. Once both retries were used up, the run stopped with the status `fail-merge`.
+
+The AI agent working on the plan correctly reported the failure as "not-mine", meaning its own change did not cause it. That report did not stop the retries.
+
+**What fixes it**
+
+1. **Wait for run 849133 to finish.** An earlier attempt to merge the work using the integrate command was refused with the error `lane-owned-by-live-process`, because run 849133 still owned the plan's work branch.
+2. **Re-check and merge the saved work branch, `aw/lane/7hvkk0`.** Either run the check on a machine that isn't busy, or set `AW_CORE_BUDGET_ENFORCE=0` to turn off the timing check. This merge also brings in backlog item ytz6z4, which currently exists only on that branch.
+3. **Decide what to do about the timing check.** Backlog item ytz6z4 is filed as a bug that blocks the next release. As things stand, any night with several runs at once can fail plans whose tests actually pass. There are two options:
+   - turn the check off during overnight runs, or
+   - base the time limit on how busy the machine is.

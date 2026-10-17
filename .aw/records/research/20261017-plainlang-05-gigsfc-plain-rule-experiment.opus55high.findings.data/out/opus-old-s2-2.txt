@@ -1,0 +1,9 @@
+**No real failure occurred.** Both items in run `run-20261016T221501Z-3469718`, 24h56i and x9z0ve, finished as executed and passed verification.
+
+**Why it showed "1 fail":** when an agent reports its own work as done, the runner doesn't trust that claim yet. It marks the item with a temporary status, "fail-gate", until independent verification passes. This rule exists to catch made-up success claims. The statusline counts any status starting with "fail" as a failure, so it counted this temporary status too.
+
+Your screenshot was taken at 22:40:24. At that moment, x9z0ve was still in that temporary state:
+- It had been sent back for a retry at 22:36:32.
+- It was finalized at 22:40:50, 26 seconds after the screenshot.
+
+**Defect:** the statusline should show these items as awaiting verification, not as failed. The fix is to count "fail-gate" separately in `render_stream.compute_queue_tally`, the function that builds the counts.

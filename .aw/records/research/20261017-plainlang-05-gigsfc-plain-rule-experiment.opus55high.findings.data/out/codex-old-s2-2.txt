@@ -1,0 +1,3 @@
+The statusline counted a temporary “fail-gate” state as a failure while verification and integration were still pending. That state prevents an item from being accepted as successful based only on its own success report.
+
+Your screenshot was taken at 22:40:24; the pending item finished successfully at 22:40:51. Both items ultimately completed and passed verification. The “1 fail” was a misleading live count, not a final failure.

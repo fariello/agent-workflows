@@ -1,0 +1,1 @@
+{"understand":4,"act":4,"unexplained_terms":2,"facts_covered":[0,1,2,3,4,5],"false_claims":["Post-merge validation timed out; the tests completed and a wall-time budget hook forced exit status 1.","An active process lock caused the integration refusal; the facts establish live-run ownership, not a lock mechanism."]}

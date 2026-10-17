@@ -1,0 +1,1 @@
+{"understand":4,"act":4,"unexplained_terms":1,"facts_covered":[0,1,2,3,4,5],"false_claims":["Describes completed test runs as timing out; conftest instead set a nonzero exit status after completion for exceeding the wall-time budget."]}

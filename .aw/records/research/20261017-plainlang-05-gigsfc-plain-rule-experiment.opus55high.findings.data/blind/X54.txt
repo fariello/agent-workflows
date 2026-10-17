@@ -1,0 +1,5 @@
+The failure count was a temporary display artifact while an item was retrying; no tasks actually failed.
+
+At 22:40:24, when the screenshot was taken, item `x9z0ve` was retrying. To prevent premature success claims, the runner assigns running items a provisional `fail-gate` status until verification completes. The status line tally counts any status starting with `fail` as a failure.
+
+By 22:40:51, the retry finished. Both items passed verification and concluded in the `executed` state.

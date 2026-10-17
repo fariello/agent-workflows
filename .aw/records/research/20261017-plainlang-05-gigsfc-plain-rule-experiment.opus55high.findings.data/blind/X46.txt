@@ -1,0 +1,6 @@
+The command failed because the backlog item identifier `ufawp` is missing its final character; the full identifier is `ufawpb`.
+
+Backlog items require an exact 6-character identifier to match. Because `ufawp` was only 5 characters, resolution fell through to an error reporter that matched the filename by substring. That reporter emitted a misleading message claiming backlog items are invalid plan targets, even though planning accepts them.
+
+Run the command with the complete identifier:
+`aw oc run --action plan 7rs77x ufawpb`

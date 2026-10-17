@@ -1,0 +1,3 @@
+7hvkk0 failed because the merged test run exceeded the 30-second time limit: all 745 tests passed in 47.14 seconds, but the timing check returned exit code 1. Both merge retries were exhausted. The unchanged base also returned exit 1 at 68.31 seconds; heavy host load and four concurrent runners indicate contention.
+
+Wait for the owning run to stop; integration currently refuses with `lane-owned-by-live-process`. Then rerun verification and integration under lower load, or explicitly disable the timing check with `AW_CORE_BUDGET_ENFORCE=0`. The work is preserved on `aw/lane/7hvkk0`; bug report `ytz6z4` exists only there.

@@ -1,0 +1,1 @@
+{"understand": 3, "act": 1, "unexplained_terms": 0, "facts_covered": [0], "false_claims": ["The failure count was a temporary display artifact while an item was retrying", "At 22:40:24, when the screenshot was taken, item x9z0ve was retrying", "The runner assigns running items a provisional fail-gate status until verification completes", "By 22:40:51, the retry finished"]}

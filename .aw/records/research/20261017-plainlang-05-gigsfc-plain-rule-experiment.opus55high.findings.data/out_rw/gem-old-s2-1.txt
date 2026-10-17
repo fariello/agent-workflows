@@ -1,0 +1,11 @@
+1. What was observed:
+At 22:40:24, in a captured image of the screen (the screenshot), a counter tracking failed tasks (the failure count) showed a failure. However, no units of work (tasks) actually failed; this was a temporary visual error in the display (a display artifact) while an individual work unit (an item) was retrying.
+
+2. What caused it:
+At 22:40:24, the specific work unit being processed, identified as `x9z0ve` (item `x9z0ve`), was retrying. Before the automated process that confirms successful completion (verification) finishes, the execution engine that runs tasks (the runner) assigns running items a provisional status to prevent premature claims of success, named `fail-gate`. Meanwhile, the summary counter on the interface (the status line tally) counts any status starting with `fail` as a failure.
+
+3. What that led to:
+Because the provisional status name `fail-gate` starts with `fail`, the summary counter (the status line tally) counted the retrying item as a failure. This caused the counter tracking failed tasks (the failure count) to temporarily show a failure while the item was retrying, even though no tasks had actually failed.
+
+4. What fixes it:
+The original does not explain a fix. By 22:40:51, the retry finished, both items passed verification, and both concluded in the final completion state, named `executed`.

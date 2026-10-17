@@ -1,0 +1,7 @@
+7hvkk0 was marked `fail-merge` because validation after merging exited with code 1, despite all 745 tests passing. The integration gate treated that exit as a failure and exhausted both retries.
+
+The cause was the test configuration in `conftest.py`: it forces exit 1 when core tests exceed 30 seconds on hosts reporting at least 12 CPUs. This run took 47.14 seconds. The unchanged base commit also exited 1 with all 745 tests passing, taking 68.31 seconds. Four runner drivers were active on the 12-CPU host, with load average 33.95; that suggests contention, though its contribution to the slowdown is unproven.
+
+The lane agent correctly identified the failure as unrelated to its test repair. Its changes remain on `aw/lane/7hvkk0`. It also filed bug `ytz6z4`, but that record exists only on that branch.
+
+Wait for the owning run to exit, or stop it, before retrying integration: the integration command refused because a live process still owned the lane (`lane-owned-by-live-process`). Then rerun validation with less concurrent load. If the wall-time limit should not block correctness validation, explicitly disable it with `AW_CORE_BUDGET_ENFORCE=0` for the retry. Preserve bug `ytz6z4` when integrating so the timing-gate problem remains tracked.

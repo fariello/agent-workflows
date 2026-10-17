@@ -1,0 +1,14 @@
+**1. What was observed:**
+The command failed with a misleading error message. The message claimed that units of work that serve as targets for planning, termed backlog items, are invalid targets for the action that executes planning, `plan`—even though planning accepts them. (What backlog items and the `plan` action do is not otherwise explained in the original investigation, other than that backlog items are accepted targets for planning.)
+
+**2. What caused it:**
+Matching a backlog item requires an exact 6-character identifier. The string provided to identify the backlog item, the identifier `ufawp`, was only 5 characters because it was missing its final character (the complete 6-character string required to match the item is the full identifier, `ufawpb`).
+
+**3. What that led to:**
+Because the identifier `ufawp` had only 5 characters, the target-matching process, resolution, fell through to a diagnostic component that outputs failure messages, the error reporter. That error reporter matched the filename by substring (the specific filename is not explained in the original) and emitted the misleading error message claiming backlog items are invalid plan targets.
+
+**4. What fixes it:**
+Run the command with the complete identifier:
+`aw oc run --action plan 7rs77x ufawpb`
+
+(In this command, what the command-line tool `aw`, its subcommands `oc` and `run`, and the identifier argument `7rs77x` do is not explained in the original investigation.)

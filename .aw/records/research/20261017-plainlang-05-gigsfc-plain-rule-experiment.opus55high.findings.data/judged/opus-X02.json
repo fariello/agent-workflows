@@ -1,0 +1,1 @@
+{"understand": 4, "act": 3, "unexplained_terms": 2, "facts_covered": [0, 1, 2, 3, 5], "false_claims": ["States the runner process is now idle; the facts only show integration was refused because the run was still live, with nothing confirming it has since finished"]}

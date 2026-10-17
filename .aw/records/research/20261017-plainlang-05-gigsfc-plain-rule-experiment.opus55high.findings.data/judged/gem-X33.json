@@ -1,0 +1,1 @@
+{"understand": 4, "act": 4, "unexplained_terms": 0, "facts_covered": [0, 1, 2, 3, 4, 5], "false_claims": ["a runtime timeout was triggered (all 745 tests passed; conftest.py pytest_sessionfinish set exitstatus = 1 for exceeding the budget)", "the baseline run timed out (all 745 tests ran to completion in 68.31s)"]}

@@ -1,0 +1,5 @@
+Your screenshot, taken at 22:40:24, showed “1 fail” in the status display, or statusline.
+
+The component that runs the items, called the runner, temporarily assigns a failure-gate label, “fail-gate,” to a result labeled “executed” while verification and integration are still unfinished. This prevents unverified success claims. The statusline counted that temporary label as a failure.
+
+The screenshot was taken before the retried item finished successfully at 22:40:51. Both items ultimately completed with verified results. The displayed “1 fail” therefore reflected a temporary verification state, not a final failure.

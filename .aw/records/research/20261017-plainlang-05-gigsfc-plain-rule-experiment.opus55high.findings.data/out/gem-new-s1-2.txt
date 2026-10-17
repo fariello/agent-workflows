@@ -1,0 +1,9 @@
+Plan item 7hvkk0 ("repair the two red home-backend tests") failed merge validation because the test suite returned exit code 1 despite all 745 tests passing with zero failures.
+
+The non-zero exit was caused by a suite duration threshold. In the test configuration file conftest.py, the test completion hook pytest_sessionfinish forces exit code 1 when core suite execution time exceeds the 30.0-second budget set by the environment variable AW_CORE_BUDGET_SECONDS on hosts with 12 or more CPUs. The run took 47.14 seconds because host processor load reached 33.95 across 12 CPUs under four concurrent runner processes. The repository base commit also failed this check at 68.31 seconds.
+
+This caused the automated validation gate integration_ladder to record failure cause gate-combined-red, exhaust its 2 retry attempts, mark the plan as fail-merge, and preserve the changes on Git branch aw/lane/7hvkk0 with release-blocking issue ytz6z4 recorded. Integration was blocked while the runner process held the lock lane-owned-by-live-process.
+
+To resolve:
+1. Wait for the active runner process to finish so the lane lock clears.
+2. Re-integrate branch aw/lane/7hvkk0 with the budget override environment variable AW_CORE_BUDGET_ENFORCE="0" set, or re-run when host processor load drops.

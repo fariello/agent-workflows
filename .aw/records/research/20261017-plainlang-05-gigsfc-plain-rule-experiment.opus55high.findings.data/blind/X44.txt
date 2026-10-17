@@ -1,0 +1,29 @@
+**Summary: a piece of automated work was rejected at merge because the test run was too slow. No test actually failed.**
+
+Some context first. The work is one "plan," with ID 7hvkk0. A plan is a unit of changes produced by an automated coding agent. Before the changes are merged, automated checks run the test suite on the merged code. If the checks decide the merged code is broken, they mark the plan "fail-merge." That happened here, but all 745 tests passed.
+
+**What happened, in order**
+
+1. The tests ran on the merged code, and all 745 passed.
+2. The repository's test setup file, `conftest.py`, includes a time limit. On a machine with 12 or more CPUs, if the core tests take longer than 30 seconds, it marks the whole run as failed with exit code 1, even when every test passed.
+3. The machine was overloaded. Four overnight automated runs were going at once. The load average (the number of processes running or waiting for CPU) was 34 on 12 CPUs, roughly three times what the machine can handle.
+4. Because of that load, the core tests took 47 seconds on the merged code. That is over the 30-second limit, so the run exited with code 1.
+5. The merge checks saw exit code 1 and treated the merged code as failing ("red"). They sent the work back to the agent for fixes twice, which used up both allowed attempts.
+6. The agent reported that the failure was "not mine." That was correct: no code change could have fixed it.
+7. The plan's changes did not cause the failure. The code before the merge failed the same way, and its core tests took even longer: 68 seconds.
+
+**Current state**
+
+- The work is saved on the git branch `aw/lane/7hvkk0`.
+- The agent filed a bug about the time limit as backlog item ytz6z4 and marked it as blocking the next release. That item exists only on this branch, so it will be lost if the branch is not merged.
+- When we tried to merge manually, the merge command refused to run. The overnight run that owns this work, run 849133, has not finished yet.
+
+**What to do**
+
+1. Wait for run 849133 to finish, or stop it.
+2. Run the merge again, either on a machine that isn't busy or with the environment variable `AW_CORE_BUDGET_ENFORCE=0`, which turns off the time limit. Then merge the branch so that backlog item ytz6z4 is merged along with it.
+3. Choose the long-term fix that ytz6z4 tracks. There are two options:
+   - Stop the time limit from failing runs when the machine is busy.
+   - Have the merge checks treat a failure that the pre-merge code also has as "not new," so it doesn't block the merge.
+
+**One thing to check before merging:** the pre-merge code also passed all 745 tests. This plan was meant to fix "two red tests" (two failing tests). So either those tests weren't failing at the start, or they aren't part of this test suite. Confirm that the plan actually did what it was meant to do before you merge it.

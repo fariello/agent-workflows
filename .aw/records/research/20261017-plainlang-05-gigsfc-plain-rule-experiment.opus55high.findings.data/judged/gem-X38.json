@@ -1,0 +1,1 @@
+{"understand": 5, "act": 5, "unexplained_terms": 0, "facts_covered": [0, 1, 2, 3, 4], "false_claims": ["it was sent back for a retry because its output didn't match its spec (the reference notes only state a spec-anchor-sent-back retry, inventing the cause)"]}

@@ -1,0 +1,3 @@
+The displayed failure was a temporary provisional status during an in-progress retry; both tasks completed successfully and are verified.
+
+The runner temporarily downgrades in-progress tasks to a provisional failure status (`fail-gate`) as an anti-fabrication safeguard until verification passes. The live tally counts any status starting with "fail" as a failure. When the screenshot was taken at 22:40:24, the second item was still retrying. It completed twenty-seven seconds later at 22:40:51, clearing the provisional failure. Both items ended fully executed and verified.

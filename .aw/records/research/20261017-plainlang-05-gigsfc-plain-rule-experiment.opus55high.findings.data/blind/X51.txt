@@ -1,0 +1,11 @@
+The command reported that the backlog item was an invalid target for planning. That error is misleading: backlog items are valid targets for the planning option, `--action plan`.
+
+You entered the five-character identifier `ufawp`, but the item’s actual identifier is the six-character `ufawpb`. The command requires an exact six-character identifier for backlog items. When that requirement was not met, its error handler searched for filenames containing the entered text. That search found the backlog item, which the handler then incorrectly reported as an invalid target.
+
+Use this command to queue both items for planning:
+
+```sh
+aw oc run --action plan 7rs77x ufawpb
+```
+
+I verified that the same command with the additional option `--prepare-only` queues both items for planning. The original message does not explain what else that option does.

@@ -1,0 +1,7 @@
+1. **What was observed:** A captured screen image (the screenshot) taken at 22:40:24 showed a displayed failure.
+
+2. **What caused it:** The system that executes tasks (the runner) temporarily downgrades in-progress tasks to a provisional failure status that serves as an anti-fabrication safeguard until verification passes (`fail-gate`). When the screenshot was taken at 22:40:24, the second item was still in the middle of an in-progress retry, so it held this temporary provisional status.
+
+3. **What that led to:** The real-time status counter (the live tally) counts any status starting with "fail" as a failure, so it counted the provisional `fail-gate` status as a failure in the displayed count.
+
+4. **What fixes it:** Twenty-seven seconds later, at 22:40:51, the second item completed its retry, which cleared the provisional failure. Both tasks completed successfully, ended fully executed, and are verified.

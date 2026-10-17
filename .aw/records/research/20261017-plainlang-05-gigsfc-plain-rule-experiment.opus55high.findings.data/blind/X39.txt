@@ -1,0 +1,12 @@
+**There was no real failure.** Both items in run `run-20261016T221501Z-3469718`, `24h56i` and `x9z0ve`, finished with status `executed` and verification `verified`. The "✗ 1 fail" was a temporary label on an item that hadn't finished yet, and the statusline counted it as a failure.
+
+**What happened, in order:**
+
+1. When an item reports its own result as "executed", the runner doesn't trust it right away. This is the anti-fabrication rule, which stops an agent from claiming success it didn't earn. `execute_item_core` uses `outcome_precedence_disposition` to give the item a temporary disposition of `fail-gate`, which means "not accepted until verification and integration pass." That disposition is recorded for both items, at 22:26:09 and 22:36:02.
+2. `x9z0ve` was then sent back for a retry at 22:36:32 because it didn't match the spec. It wasn't finalized until 22:40:50 and was marked `executed` at 22:40:51.
+3. Your screenshot is from 22:40:24. At that point `x9z0ve` still had the temporary `fail-gate` disposition. From the timestamps, I think `x9z0ve` is the "fail" and `24h56i` is the "ok", but I haven't confirmed which item the statusline counted.
+4. The statusline gets its counts from `render_stream.compute_queue_tally`. That function marks an item as failed if its status begins with "fail" (among other checks). `fail-gate` begins with "fail", so the temporary hold was shown as a failure for about 26 seconds.
+
+**Fix:** `compute_queue_tally` should treat `fail-gate` as pending rather than failed, or count only finalized items. Separately, the same function also counts any status in `TERMINAL_STATES` (the set of statuses that end an item) as failed. That looks wrong too, but I haven't checked what that set contains.
+
+No changes made yet.

@@ -1,0 +1,17 @@
+You ran a command to queue work items for planning. You gave it the ID `ufawp`, and it failed with an error saying the item was a backlog item, not a plan. That error was misleading.
+
+**What actually happened:**
+
+1. Items have six-character IDs. The ID you typed, `ufawp`, has only five characters. The backlog item you meant has the ID `ufawpb`.
+2. The command (`aw oc run --action plan`) accepts an item that isn't a plan only when its six-character ID matches exactly. `ufawp` matched no item exactly, so the lookup failed.
+3. When that lookup fails, a separate helper builds the error message. It searches again with looser rules, and one of those rules matches any part of a filename.
+4. `ufawp` is part of the backlog item's filename, so the helper found that item and reported "this is a backlog item, not a plan."
+5. That message suggests backlog items can't be used with `--action plan`. They can. The correct message would have been "no item has the ID `ufawp`."
+
+**Fix for your command:** use the full six-character ID. This command works and queues both items, `7rs77x` and `ufawpb`, for planning:
+
+```
+aw oc run --action plan 7rs77x ufawpb
+```
+
+**Fix for the tool:** the error helper should be fixed so it reports a missing ID instead of reporting the wrong item type.

@@ -1,0 +1,11 @@
+**What was observed:**
+At 22:40:24, the terminal progress display component, `Statusline`, showed `[✓ 1 ok · ✗ 1 fail]` in the command-line agent runner, `agy`, for batch execution run `run-20261016T221501Z-3469718`. Both assigned work items, `24h56i` and `x9z0ve`, finished with execution status `executed` (task run completed) and verification status `verified` (independent validation checks passed).
+
+**What caused it:**
+The queue counting function that calculates display totals, `render_stream.compute_queue_tally`, marks a task as failed if its status matches a list of finished failure states (`TERMINAL_STATES`), contains `error`, or starts with `fail`. Concurrently, the task execution handler, `execute_item_core`, determines item status using a disposition precedence rule, `outcome_precedence_disposition`. Under an anti-fabrication safeguard to prevent unconfirmed success, this rule provisionally downgrades an item's self-recorded `executed` status to `fail-gate`—a temporary disposition indicating that the task cannot be treated as successful until independent verification and integration pass.
+
+**What that led to:**
+At 22:36:02, the defect logging event, `defect-report-recorded`, registered work item `x9z0ve` with the provisional disposition `fail-gate`. At 22:36:32, the runner initiated a retry through a specification retry event, `spec-anchor-sent-back`. At 22:40:24, when the statusline was generated, item `x9z0ve` was actively executing this retry while still carrying the provisional `fail-gate` status in its live state dictionary. Because `render_stream.compute_queue_tally` treats any status starting with `fail` as a failure, it counted `x9z0ve` as failed alongside the finished first item, `24h56i`, producing `[✓ 1 ok · ✗ 1 fail]`. At 22:40:50, item `x9z0ve` finalized processing via the finalization event, `ipd-finalized`, and completed at 22:40:51 with execution status `executed` via the process completion event, `ipd-finished`.
+
+**What fixes it:**
+Updating the queue tally function, `render_stream.compute_queue_tally`, to exclude provisional dispositions like `fail-gate` from the failure condition—or to count only confirmed terminal failure states—prevents active retries from incrementing the failure tally in the live display.

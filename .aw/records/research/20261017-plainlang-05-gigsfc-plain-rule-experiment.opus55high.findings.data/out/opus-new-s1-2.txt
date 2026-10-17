@@ -1,0 +1,29 @@
+**7hvkk0 failed to merge because of a test-time limit, not a failing test.** All 745 tests passed. The run still counted the suite as failed because it finished too slowly, and the base commit fails the same check without this plan's changes, so the plan didn't cause it.
+
+**What happened, in order:**
+
+1. The run is `run-20261017T001059Z-849133`, and the plan is "repair the two red home-backend tests." After the plan's work merged, the runner re-ran the test suite on the merged code. Its result was `745 passed in 47.14s`, but pytest exited with code 1. No test ids failed.
+2. The exit 1 comes from our own `conftest.py`. When the session ends, it sets the exit status to 1 if the "core tier" of tests took longer than `AW_CORE_BUDGET_SECONDS` (default 30s) on a machine reporting 12 or more CPUs (`AW_TEST_CPU_COUNT`). This happens unless `AW_CORE_BUDGET_ENFORCE=0` is set. 47s is over 30s, so the suite counted as red.
+3. The merge gate saw red and sent the work back to the agent working in the plan's isolated branch (the lane agent) twice. That used up both allowed retries (`combined_red_sendback` 2/2). The plan was then marked `fail-merge`, and the verification step never recorded a result (`verification_status` is null).
+4. The lane agent's answer both times was "not-mine": every test passed, and only the wall-time check made the exit nonzero. The evidence supports this. The base commit, without the plan, gives `745 passed in 68.31s`, also exit 1. The gate was already red before this plan.
+5. The host was heavily loaded: load average 33.95 on 12 CPUs, with 4 runner processes going at once (runs 849133, 851514, 870713, 878067). That fits with slow runs, but I haven't confirmed load is why the suite goes over 30s. Cause unknown.
+
+**Where things stand:**
+
+- The plan's work is kept on branch `aw/lane/7hvkk0`.
+- The lane agent filed backlog item `ytz6z4` (Work-Kind: bug, Blocks-Release: next) for the budget check. It exists **only on the lane branch**, so it isn't on main yet.
+- I tried the integrate command (the one that merges a lane into main). It refused with `lane-owned-by-live-process` because run 849133 still owns the lane.
+
+**What to do:**
+
+1. Wait for run 849133 to finish, or stop it.
+2. Re-run integrate for `aw/lane/7hvkk0` in one of two ways:
+   - with `AW_CORE_BUDGET_ENFORCE=0`, since the check fails on the base commit too and isn't a real signal right now, or
+   - on a quiet host where the core tier fits in 30s.
+3. Make sure `ytz6z4` lands on main along with the lane, so the release blocker is tracked.
+4. Decide how to fix the budget check itself. Until then, every plan run on a busy 12-CPU host will fail-merge with all tests passing. Options:
+   - raise the budget
+   - skip the check when several runners share the host
+   - report it as a warning instead of failing the exit code
+
+   I recommend the last one, so it doesn't block merges.
