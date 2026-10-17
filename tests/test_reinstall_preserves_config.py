@@ -271,6 +271,40 @@ class TestPersistProjectPolicyPreservation(unittest.TestCase):
 
             self.assertEqual(res_local.get("companion_dir"), "/saved/companion/dir")
 
+    def test_reinstall_leaves_config_byte_identical_with_trailing_newline(self):
+        with tempfile.TemporaryDirectory() as td:
+            tpath = Path(td)
+            aw_home = tpath / "aw_home"
+            aw_home.mkdir()
+            repo = tpath / "repo"
+            repo.mkdir()
+            self._init_repo(repo)
+
+            policy = ProjectPolicy(
+                preset=Preset.PRIVATE_TARGET.value,
+                role=ProjectRole.TARGET.value,
+                aw_home=str(aw_home),
+            )
+            persist_project_policy(str(repo), policy, replace_config=False)
+
+            proj_file = repo / ".aw" / "config" / "project.json"
+            local_file = repo / ".aw" / "config" / "local.json"
+
+            proj_bytes_first = proj_file.read_bytes()
+            local_bytes_first = local_file.read_bytes()
+
+            persist_project_policy(str(repo), policy, replace_config=False)
+
+            proj_bytes_second = proj_file.read_bytes()
+            local_bytes_second = local_file.read_bytes()
+
+            self.assertEqual(proj_bytes_second, proj_bytes_first)
+            self.assertEqual(local_bytes_second, local_bytes_first)
+            self.assertTrue(proj_bytes_second.endswith(b"\n"))
+            self.assertFalse(proj_bytes_second.endswith(b"\n\n"))
+            self.assertTrue(local_bytes_second.endswith(b"\n"))
+            self.assertFalse(local_bytes_second.endswith(b"\n\n"))
+
 
 class TestResolveExistingPolicyAndNoninteractive(unittest.TestCase):
     """Verify resolve_existing_policy, resolve_policy_noninteractive, and enabled_hosts precedence."""
