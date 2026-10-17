@@ -203,6 +203,9 @@ class Disposition:
 # Family assignment for each COMMAND row, from the plan's "Initial disposition by family" table. This
 # is the reviewed grouping the Order freezes. Every non-catalog manifest command must appear here so
 # the completeness tool can prove no command is unassigned.
+#
+# This table is this toolkit's own catalog. Fail-closed remains the default and the source-checkout
+# behavior; only a managed repository's own workflow rows are reported as repo-local (backlog ufawpb).
 _COMMAND_FAMILY: Dict[str, str] = {
     "release-review": "release review modes",
     "release-review-plan": "release review modes",
@@ -540,6 +543,7 @@ class InventoryResult:
 
     dispositions: Dict[str, Disposition]
     findings: List[str] = field(default_factory=list)
+    repo_local: List[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -553,6 +557,7 @@ class InventoryResult:
                 s: d.to_dict() for s, d in sorted(self.dispositions.items())
             },
             "findings": list(self.findings),
+            "repo_local": list(self.repo_local),
         }
 
 
@@ -578,12 +583,15 @@ def enumerate_subjects(workflows: Sequence[Workflow]) -> Dict[str, List[Workflow
     return {"commands": commands, "lenses": lenses, "personas": personas}
 
 
-def build_inventory(source_root: Any) -> InventoryResult:
+def build_inventory(
+    source_root: Any, *, allow_repo_local: bool = False
+) -> InventoryResult:
     """Build the complete disposition inventory from the live manifest + the conformance package.
 
-    Raises :class:`InventoryError` only for a programmer error (an unassigned command family); an
-    invalid vocabulary value or a missing canonical target is a FINDING, not an exception, so the
-    completeness tool reports every problem at once instead of aborting on the first.
+    Raises :class:`InventoryError` only for a programmer error (an unassigned command family)
+    when ``allow_repo_local`` is False; an invalid vocabulary value or a missing canonical target
+    is a FINDING, not an exception, so the completeness tool reports every problem at once instead
+    of aborting on the first.
     """
 
     root = _workflows_root(source_root)
@@ -592,6 +600,7 @@ def build_inventory(source_root: Any) -> InventoryResult:
 
     dispositions: Dict[str, Disposition] = {}
     findings: List[str] = []
+    repo_local: List[str] = []
 
     def _add(d: Disposition) -> None:
         if d.subject in dispositions:
@@ -600,6 +609,9 @@ def build_inventory(source_root: Any) -> InventoryResult:
         dispositions[d.subject] = d
 
     for w in subjects["commands"]:
+        if allow_repo_local and w.command not in _COMMAND_FAMILY:
+            repo_local.append(w.command)
+            continue
         _add(_command_disposition(w))
     for w in subjects["lenses"]:
         _add(_catalog_disposition(w))
@@ -607,14 +619,20 @@ def build_inventory(source_root: Any) -> InventoryResult:
         _add(_catalog_disposition(w))
     _add(_conformance_disposition())
 
-    findings.extend(check_completeness(dispositions, workflows, root))
-    return InventoryResult(dispositions=dispositions, findings=findings)
+    repo_local.sort()
+    findings.extend(
+        check_completeness(dispositions, workflows, root, repo_local=repo_local)
+    )
+    return InventoryResult(
+        dispositions=dispositions, findings=findings, repo_local=repo_local
+    )
 
 
 def check_completeness(
     dispositions: Mapping[str, Disposition],
     workflows: Sequence[Workflow],
     source_root: Any,
+    repo_local: Sequence[str] = (),
 ) -> List[str]:
     """PROVE the inventory is complete + valid. Returns a list of findings (empty = complete).
 
@@ -633,10 +651,13 @@ def check_completeness(
 
     manifest_subjects = {w.command for w in workflows}
     all_subjects = set(manifest_subjects) | {CONFORMANCE_TARGET}
+    repo_local_set = set(repo_local)
 
     # 1+2) every manifest row + the conformance file dispositioned exactly once, none omitted.
     for subj in sorted(all_subjects):
         if subj not in dispositions:
+            if subj in repo_local_set:
+                continue
             findings.append(
                 "subject '{0}' has NO disposition (silent omission)".format(subj)
             )

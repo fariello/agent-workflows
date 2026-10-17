@@ -138,3 +138,5 @@ The coverage database (6.9 MB) and the derived per-test unique-line JSON are mac
 ## CORRECTION (2026-10-16, found while authoring child `qqrgv3`)
 
 The per-test context numbers above are a MEASUREMENT ARTIFACT, not facts about the suite. Under Python 3.14 the default coverage tracer recorded contexts for only 77 of 110 tests in `tests/test_status_set.py` (103 with the C tracer), and contexts were not propagated into subprocesses. "3714 contexts", "1331 zero-unique" and "70 all-redundant modules" therefore UNDERSTATE coverage and must not drive any deletion. A probe plugin that sets the context per test id, in-process and in spawned subprocesses, with branch coverage, recorded 110 of 110. Child `qqrgv3` builds that tooling and re-measures; its decision table supersedes these numbers.
+
+Superseded by full branch-and-subprocess measurement record `.aw/records/research/20261016-testprune-02-hwuvpx-test-prune-decision-table.assessment.md` (`hwuvpx`) produced by child `qqrgv3`.

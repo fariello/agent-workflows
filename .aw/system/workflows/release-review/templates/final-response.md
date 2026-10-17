@@ -33,8 +33,12 @@ Summarize the most important changes made.
 
 ## Tests and validations run
 
+Record every validation run, including `aw releases readiness` (with `--suite-passed` or `--suite-failed` matching the full test run). The readiness check runs in EVERY repository (no repository-specific carve-out). Record its gate verdict, failing gates, and counts reading `N passed, M not-applicable, K failed`, never folding M into N. A gate whose input files are absent is reported NOT-APPLICABLE, does not force NO-GO, needs no triage or waiver, and is NEVER counted or described as passed. A not-applicable `full_suite` or `residual_risk` is a hard failure.
+
 | Command/check | Result | Notes |
 |---|---|---|
+| `aw releases readiness` | <VERDICT> (N passed, M not-applicable, K failed) | <Failing gates, or "clean"> |
+| Not-applicable gates | <List of not-applicable gates or "none"> | Inputs absent, NOT verified |
 |  |  |  |
 
 ## CI assessment summary
@@ -129,6 +133,8 @@ State whether pushing is recommended, whether permission exists, and what comman
 GO, CONDITIONAL GO, or NO-GO.
 
 Include rationale and blocking IDs if applicable.
+
+Readiness report gate rules: any failing `aw releases readiness` hard gate (`full_suite`, `leak_scan`, `benchmark_thresholds`, `generated_drift`, `docs_checks`, `workflow_disposition`, `changelog_versioning`, `artifact_manifest`) forces NO-GO. Any failing standing gate (`ipd_lint`, `capability_freshness`) caps the recommendation at CONDITIONAL GO (when verified out-of-scope/triaged) or NO-GO. An unsigned `residual_risk` alone is satisfied by the human's Section 8->9 release approval and permits a GO recommendation. If any gate is reported not-applicable, repeat the warning here: **WARNING: not-applicable gates (input absent, NOT verified): <list of gates>**. Not-applicable gates do not force NO-GO and need no triage or waiver, but are never counted as passes and must be stated plainly.
 
 If any in-scope pending plan / staged prompt was found (see Pending plans / staged
 prompts above) or any unaddressed `LIVE`/High data-integrity finding remains, repeat the

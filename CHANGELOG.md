@@ -25,6 +25,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
 - Fixed: `aw install --records-backend <new>` on an installed repository no longer silently leaves existing records where no reader looks: it refuses when records would be orphaned, and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves them.
+- Fixed: `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows.
 - Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.
 - Fixed: Commands acting on a record stored in a companion records repository now find the owning repository, so plan dependency checks, spec history, id6 collision checks, and rename hints work there.
 - Fixed: `aw install` no longer leaves two project configs when switching between `private-target` and `completely-clean-target`/`local-only`. It refuses by default and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves config, records and install history and retires the old files, and companion switches still refuse.

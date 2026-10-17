@@ -58,6 +58,12 @@ does not force `NO-GO`, and is named in a WARNING line and as warning diagnostic
 and `residual_risk` gates are never not-applicable. The accepted risk is that an input deleted by
 mistake reads not-applicable, so review the WARNING line.
 
+In a managed repository, manifest rows outside the toolkit's reviewed catalog (normally the
+workflows the repository added itself, but also any toolkit row the running `aw` version does not
+know, for example after a version skew between the installed tree and the CLI) are listed by name
+as repo-local by the `workflow_disposition` gate and do not force `NO-GO`, so review that list,
+while in the toolkit's own source checkout every command must carry a reviewed disposition.
+
 Run the read-only report from the CLI:
 
 ```
