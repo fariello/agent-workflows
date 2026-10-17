@@ -1,11 +1,13 @@
 - Id: 2mcirl
-- Status: open
+- Status: graduated
+- Graduated-To: 2mcirl
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for compat_migration
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053813Z-512749: r20rid
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for compat_migration
 
 Carries 36 candidate production keys for agent_workflows/compat_migration.py (446 exclusive lines): CompatRollback.scan_future_data, CompatRollback.rollback, CompatRollback.assess, check_contract, CompatMigrator.register_human_file, ... (36 keys).
