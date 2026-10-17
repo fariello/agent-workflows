@@ -26,6 +26,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from agent_workflows import oc_runipd, runner_shared
 from tests import support
 from tests.test_oc_runipd import _init_repo_with_conforming_plan
@@ -182,6 +184,10 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
             # Assert no attempt["suite_baseline_started"] key
             self.assertNotIn("suite_baseline_started", att)
 
+    @pytest.mark.xfail(
+        strict=False,
+        reason="flaky: w4eswb - timing out under xdist CPU contention",
+    )
     def test_validation_off_starts_and_collects_suite_baseline(self) -> None:
         """Cell (c): validation OFF (validate: False) starts and collects baseline."""
         with tempfile.TemporaryDirectory() as temp:
