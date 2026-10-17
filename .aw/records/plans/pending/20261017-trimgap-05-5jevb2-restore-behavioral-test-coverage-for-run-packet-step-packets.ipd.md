@@ -35,35 +35,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: new behavioral test module
 
-- [ ] E-01 Create `tests/test_run_packet_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.run_packet`, `run_freeze`, `run_engine`, `run_ledger_store` and `run_ledger_schema`. Add a module docstring naming backlog `aq04yg`, findings `b1mx2w`, and the deleted source file `tests/test_run_packet_gates.py` at `19313eed^`. Add two pytest fixtures restored from the deleted file's `setUp` methods: `packet_workflow` (the three-step `test-step-packet-wf` workflow dict with permissions, three requirements, and steps `S-01`..`S-03`) plus `frozen_reqs` (`run_freeze.freeze_requirements` of the deleted file's `raw_requirements`), and `released_engine(tmp_path)` (a `run_ledger_store.RunLedgerStore(tmp_path / "run.jsonl")` seeded with the `run` and `requirement_set` records, a `run_engine.RunEngine` over the one-step `envelope-test-wf`, with `S-01` released and started). Use `tmp_path` only; spawn no subprocess.
+- [x] E-01 Create `tests/test_run_packet_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.run_packet`, `run_freeze`, `run_engine`, `run_ledger_store` and `run_ledger_schema`. Add a module docstring naming backlog `aq04yg`, findings `b1mx2w`, and the deleted source file `tests/test_run_packet_gates.py` at `19313eed^`. Add two pytest fixtures restored from the deleted file's `setUp` methods: `packet_workflow` (the three-step `test-step-packet-wf` workflow dict with permissions, three requirements, and steps `S-01`..`S-03`) plus `frozen_reqs` (`run_freeze.freeze_requirements` of the deleted file's `raw_requirements`), and `released_engine(tmp_path)` (a `run_ledger_store.RunLedgerStore(tmp_path / "run.jsonl")` seeded with the `run` and `requirement_set` records, a `run_engine.RunEngine` over the one-step `envelope-test-wf`, with `S-01` released and started). Use `tmp_path` only; spawn no subprocess.
   - Depends on: none
   - Expected outcome: the file exists, is collected by a bare `python3 -m pytest` (it carries the `core` marker), and imports cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add step-packet contract tests restored from the deleted `test_golden_packet_contains_every_contract_field`, `test_packet_omits_unrelated_bulk_context`, and `test_unknown_step_id_raises_key_error`. Using `packet_workflow`/`frozen_reqs`, `run_packet.build_step_packet(..., step_id="S-01", run_id="run-12345678", attempt=1, frozen_requirements=frozen_reqs)` must yield: `run_id`, `workflow_id == "test-step-packet-wf"`, `step_id`, `attempt`, a timestamp accepted by `run_ledger_schema.is_timestamp`; `action`, `expected_artifacts == ("agent_workflows/run_packet.py",)`, `evidence_contract == ("test_report", "artifact")`, `stop_conditions`, `depends_on == ()`; `scope_fence` holding `allowed_paths`, `forbidden_paths` and `mutation_boundary == "product"`; `allowed_files == ("agent_workflows/**", "tests/**")`; bound requirement ids exactly `["R-01"]` (not R-02/R-03); an exit checklist of at least 3 items mentioning action and evidence; `trace == {"S-01": ["R-01"]}`; `run_ledger_schema.is_sha256(packet_digest)`. `render_prompt()` contains the S-01 action, the `## Bound Requirements & Success Criteria`, `## Expected Artifacts`, `## Required Evidence Contract`, `## Allowed Scope & Tools`, `## Stop Conditions` and `## Step Exit Checklist` headings, a `- [ ] ` checklist line, the `mutation_boundary: product` scope line, and does NOT contain the S-02 or S-03 actions. A workflow wrapped as `{"workflow": {...}}` yields the same `workflow_id`. `step_id="S-99"` raises `KeyError`. Explicit `allowed_tools=("view_file",)` is reflected in `allowed_tools`; omitting it yields `run_packet.DEFAULT_ALLOWED_TOOLS`. Also assert a minimal packet (`{"id": "m", "steps": [{"id": "S", "action": "act"}]}`) with no requirements, artifacts, evidence or stop conditions renders a prompt WITHOUT the `## Bound Requirements & Success Criteria`, `## Expected Artifacts`, `## Required Evidence Contract` and `## Stop Conditions` headings (the empty-section branches of `render_prompt`). It still contains `## Allowed Scope & Tools` (the default tools are non-empty) and `## Step Exit Checklist` (always present); measured at review.
+- [x] E-02 Add step-packet contract tests restored from the deleted `test_golden_packet_contains_every_contract_field`, `test_packet_omits_unrelated_bulk_context`, and `test_unknown_step_id_raises_key_error`. Using `packet_workflow`/`frozen_reqs`, `run_packet.build_step_packet(..., step_id="S-01", run_id="run-12345678", attempt=1, frozen_requirements=frozen_reqs)` must yield: `run_id`, `workflow_id == "test-step-packet-wf"`, `step_id`, `attempt`, a timestamp accepted by `run_ledger_schema.is_timestamp`; `action`, `expected_artifacts == ("agent_workflows/run_packet.py",)`, `evidence_contract == ("test_report", "artifact")`, `stop_conditions`, `depends_on == ()`; `scope_fence` holding `allowed_paths`, `forbidden_paths` and `mutation_boundary == "product"`; `allowed_files == ("agent_workflows/**", "tests/**")`; bound requirement ids exactly `["R-01"]` (not R-02/R-03); an exit checklist of at least 3 items mentioning action and evidence; `trace == {"S-01": ["R-01"]}`; `run_ledger_schema.is_sha256(packet_digest)`. `render_prompt()` contains the S-01 action, the `## Bound Requirements & Success Criteria`, `## Expected Artifacts`, `## Required Evidence Contract`, `## Allowed Scope & Tools`, `## Stop Conditions` and `## Step Exit Checklist` headings, a `- [ ] ` checklist line, the `mutation_boundary: product` scope line, and does NOT contain the S-02 or S-03 actions. A workflow wrapped as `{"workflow": {...}}` yields the same `workflow_id`. `step_id="S-99"` raises `KeyError`. Explicit `allowed_tools=("view_file",)` is reflected in `allowed_tools`; omitting it yields `run_packet.DEFAULT_ALLOWED_TOOLS`. Also assert a minimal packet (`{"id": "m", "steps": [{"id": "S", "action": "act"}]}`) with no requirements, artifacts, evidence or stop conditions renders a prompt WITHOUT the `## Bound Requirements & Success Criteria`, `## Expected Artifacts`, `## Required Evidence Contract` and `## Stop Conditions` headings (the empty-section branches of `render_prompt`). It still contains `## Allowed Scope & Tools` (the default tools are non-empty) and `## Step Exit Checklist` (always present); measured at review.
   - Depends on: E-01
   - Expected outcome: packet contract, prompt rendering (both populated and empty-section branches), wrapper unwrapping, tool defaulting, and unknown-step tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add requirement-binding and digest tests. (a) Restored `test_packet_digest_changes_when_bound_requirement_changes`, with EVERY build in the test passing the same explicit `timestamp="2026-01-01T00:00:00Z"`: rebuilding with a revised frozen R-01 text changes `packet_digest`, and rebuilding with identical inputs yields an equal digest AND an equal `to_json()`. Do NOT restore the deleted test's timestamp-less builds verbatim: the timestamp is part of the digest (measured at review: builds one second apart differ), so without a pinned timestamp the stability assertion is flaky across a second boundary, and the sensitivity assertion can pass from timestamp drift alone even when a mutant ignores the requirement text. (b) Digest round trip: `run_packet._compute_packet_digest(packet.to_dict()) == packet.packet_digest` (the function drops `packet_digest` before hashing), and changing any one field of `to_dict()` (for example `action`) yields a different digest. (c) Binding branches, each asserted by the `BoundRequirement` produced: a raw requirement with no frozen set binds `category == "must"`, its `text`, and `digest == hashlib.sha256(text.encode()).hexdigest()`; a raw requirement given `"description"` and no `"text"` binds the description text; a raw requirement whose text differs from a frozen item only by whitespace binds to that frozen item's text and digest, which reaches `_normalize`. Use `run_freeze.freeze_requirements({"must": ["first thing", "second thing"]})` with the raw text `"  second\n  thing "` as the step's FIRST `satisfies` entry, so the positional fallback (`frozen_must_items[idx]`) would bind `first thing` instead; the assertion `text == "second thing"` therefore fails if `_normalize` stops normalizing (measured at review: binds `second thing`, digest `731e4810...`); a `satisfies` id that is neither frozen nor raw, given a frozen set, binds the frozen must item at its position (positional fallback branch; measured at review: `satisfies: ["X-9", "Y-9"]` against that frozen set binds `first thing`, `second thing`); a `satisfies` id that equals a frozen id (for example `M-01`) binds that frozen item directly; and `_normalize("  a \n\t b  ") == "a b"`.
+- [x] E-03 Add requirement-binding and digest tests. (a) Restored `test_packet_digest_changes_when_bound_requirement_changes`, with EVERY build in the test passing the same explicit `timestamp="2026-01-01T00:00:00Z"`: rebuilding with a revised frozen R-01 text changes `packet_digest`, and rebuilding with identical inputs yields an equal digest AND an equal `to_json()`. Do NOT restore the deleted test's timestamp-less builds verbatim: the timestamp is part of the digest (measured at review: builds one second apart differ), so without a pinned timestamp the stability assertion is flaky across a second boundary, and the sensitivity assertion can pass from timestamp drift alone even when a mutant ignores the requirement text. (b) Digest round trip: `run_packet._compute_packet_digest(packet.to_dict()) == packet.packet_digest` (the function drops `packet_digest` before hashing), and changing any one field of `to_dict()` (for example `action`) yields a different digest. (c) Binding branches, each asserted by the `BoundRequirement` produced: a raw requirement with no frozen set binds `category == "must"`, its `text`, and `digest == hashlib.sha256(text.encode()).hexdigest()`; a raw requirement given `"description"` and no `"text"` binds the description text; a raw requirement whose text differs from a frozen item only by whitespace binds to that frozen item's text and digest, which reaches `_normalize`. Use `run_freeze.freeze_requirements({"must": ["first thing", "second thing"]})` with the raw text `"  second\n  thing "` as the step's FIRST `satisfies` entry, so the positional fallback (`frozen_must_items[idx]`) would bind `first thing` instead; the assertion `text == "second thing"` therefore fails if `_normalize` stops normalizing (measured at review: binds `second thing`, digest `731e4810...`); a `satisfies` id that is neither frozen nor raw, given a frozen set, binds the frozen must item at its position (positional fallback branch; measured at review: `satisfies: ["X-9", "Y-9"]` against that frozen set binds `first thing`, `second thing`); a `satisfies` id that equals a frozen id (for example `M-01`) binds that frozen item directly; and `_normalize("  a \n\t b  ") == "a b"`.
   - Depends on: E-01
   - Expected outcome: digest determinism and sensitivity (timestamp pinned), digest round trip, and all five binding branches pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add serialization and budget tests. (a) Restored `test_packet_serialization_roundtrip`: for the deleted file's `wf-roundtrip` workflow at `attempt=2`, `json.loads(packet.to_json())` carries `run_id`, `step_id`, `attempt == 2`, two `bound_requirements`, `depends_on == ["S-00"]`, `expected_artifacts`, `evidence_contract`, `allowed_files == ["src/**"]`, and `scope_fence["forbidden_paths"] == ["secret/**"]`; `to_json(indent=None)` contains no newline and parses to the same object; and `parsed["bound_requirements"][0]` has exactly the keys `id`, `category`, `text`, `digest` (`BoundRequirement.to_dict`). (b) `to_dict()` returns plain lists (not tuples) for every sequence field, so `json.dumps(packet.to_dict())` succeeds without a custom encoder. (c) Restored `test_packet_size_budget_enforcement`: `budget_bytes=8192` builds and the rendered prompt is under 8192 bytes; `budget_bytes=50` raises `run_packet.PacketBudgetExceededError`, which is a `run_packet.RunPacketError`.
+- [x] E-04 Add serialization and budget tests. (a) Restored `test_packet_serialization_roundtrip`: for the deleted file's `wf-roundtrip` workflow at `attempt=2`, `json.loads(packet.to_json())` carries `run_id`, `step_id`, `attempt == 2`, two `bound_requirements`, `depends_on == ["S-00"]`, `expected_artifacts`, `evidence_contract`, `allowed_files == ["src/**"]`, and `scope_fence["forbidden_paths"] == ["secret/**"]`; `to_json(indent=None)` contains no newline and parses to the same object; and `parsed["bound_requirements"][0]` has exactly the keys `id`, `category`, `text`, `digest` (`BoundRequirement.to_dict`). (b) `to_dict()` returns plain lists (not tuples) for every sequence field, so `json.dumps(packet.to_dict())` succeeds without a custom encoder. (c) Restored `test_packet_size_budget_enforcement`: `budget_bytes=8192` builds and the rendered prompt is under 8192 bytes; `budget_bytes=50` raises `run_packet.PacketBudgetExceededError`, which is a `run_packet.RunPacketError`.
   - Depends on: E-01
   - Expected outcome: JSON round trip, compact-indent form, key shape, list typing, and both budget outcomes pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `validate_outcome_envelope` and `StepOutcomeEnvelope.to_dict` tests (pure, no engine). (a) `to_dict()` of a minimal `StepOutcomeEnvelope("r", "s", 1, "blocked")` equals `{"run_id": "r", "step_id": "s", "attempt": 1, "status": "blocked", "actor": "executor", "evidence_ids": [], "artifacts": []}` exactly (optional keys omitted when falsy), and with `prose`, `block_reason`, `failure_reason`, `timestamp` set, each appears. (b) Restored acceptance: `performed` with an evidence id and required kinds, `blocked` with `block_reason`, and `failed` with `failure_reason` each return `ok is True` with an `envelope` whose fields match; a plain mapping input is accepted the same as the NamedTuple. (c) One parametrized row per rejection code, asserting `ok is False` and the code present in `findings`: raw string -> `OE-UNSUPPORTED-PROSE` with `envelope is None`; `{"prose": ...}` without status -> `OE-UNSUPPORTED-PROSE`; mapping missing `attempt` -> `OE-INVALID-STRUCTURE` with `where == "attempt"`; `attempt=True` -> `OE-INVALID-STRUCTURE`; `status="bogus"` -> `OE-INVALID-STATUS`; foreign actor -> `OE-FOREIGN-ACTOR`; mismatched run id -> `OE-RUN-MISMATCH`; mismatched step id -> `OE-STEP-MISMATCH`; `attempt=5` vs expected 1 -> `OE-WRONG-ATTEMPT`; `performed` with empty `evidence_ids` and required kinds -> `OE-MISSING-EVIDENCE`. (d) Controls: `performed` with empty evidence but NO required kinds is ok; non-mapping entries in `artifacts` and non-string entries in `evidence_ids` are dropped from the returned envelope.
+- [x] E-05 Add `validate_outcome_envelope` and `StepOutcomeEnvelope.to_dict` tests (pure, no engine). (a) `to_dict()` of a minimal `StepOutcomeEnvelope("r", "s", 1, "blocked")` equals `{"run_id": "r", "step_id": "s", "attempt": 1, "status": "blocked", "actor": "executor", "evidence_ids": [], "artifacts": []}` exactly (optional keys omitted when falsy), and with `prose`, `block_reason`, `failure_reason`, `timestamp` set, each appears. (b) Restored acceptance: `performed` with an evidence id and required kinds, `blocked` with `block_reason`, and `failed` with `failure_reason` each return `ok is True` with an `envelope` whose fields match; a plain mapping input is accepted the same as the NamedTuple. (c) One parametrized row per rejection code, asserting `ok is False` and the code present in `findings`: raw string -> `OE-UNSUPPORTED-PROSE` with `envelope is None`; `{"prose": ...}` without status -> `OE-UNSUPPORTED-PROSE`; mapping missing `attempt` -> `OE-INVALID-STRUCTURE` with `where == "attempt"`; `attempt=True` -> `OE-INVALID-STRUCTURE`; `status="bogus"` -> `OE-INVALID-STATUS`; foreign actor -> `OE-FOREIGN-ACTOR`; mismatched run id -> `OE-RUN-MISMATCH`; mismatched step id -> `OE-STEP-MISMATCH`; `attempt=5` vs expected 1 -> `OE-WRONG-ATTEMPT`; `performed` with empty `evidence_ids` and required kinds -> `OE-MISSING-EVIDENCE`. (d) Controls: `performed` with empty evidence but NO required kinds is ok; non-mapping entries in `artifacts` and non-string entries in `evidence_ids` are dropped from the returned envelope.
   - Depends on: E-01
   - Expected outcome: exact `to_dict` shape, three accepted statuses, 10 rejection rows, and the controls pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `apply_outcome_envelope` tests against `released_engine`, restored from the deleted `TestOutcomeEnvelopeLegality`. (a) A `performed` envelope with evidence and artifacts `({"path": "output.txt", "sha256": "d"*64}, {"path": "nosha.txt"})` returns a snapshot with `state == "performed"`, `engine.step_state("S-01") == "performed"`, and the ledger (`store.read_records()`) gains exactly one `step_attempt` and exactly one `artifact_ref` record whose `path == "output.txt"` (the sha-less artifact is not recorded). (b) Fail-closed, one parametrized row per typed exception, each asserting the exception type AND that the ledger record count and `engine.step_state("S-01") == "running"` are unchanged afterwards: unsupported prose inputs (the deleted file's four inputs) -> `run_packet.OutcomeEnvelopeError`; prose string -> `UnsupportedProseError`; foreign actor -> `ForeignActorError`; `attempt=5` -> `WrongAttemptError`; empty evidence with `required_evidence_kinds=["test_report"]` -> `MissingEvidenceError`; `status="bogus"` -> `InvalidOutcomeEnvelopeError`; mismatched `run_id` -> `InvalidOutcomeEnvelopeError`.
+- [x] E-06 Add `apply_outcome_envelope` tests against `released_engine`, restored from the deleted `TestOutcomeEnvelopeLegality`. (a) A `performed` envelope with evidence and artifacts `({"path": "output.txt", "sha256": "d"*64}, {"path": "nosha.txt"})` returns a snapshot with `state == "performed"`, `engine.step_state("S-01") == "performed"`, and the ledger (`store.read_records()`) gains exactly one `step_attempt` and exactly one `artifact_ref` record whose `path == "output.txt"` (the sha-less artifact is not recorded). (b) Fail-closed, one parametrized row per typed exception, each asserting the exception type AND that the ledger record count and `engine.step_state("S-01") == "running"` are unchanged afterwards: unsupported prose inputs (the deleted file's four inputs) -> `run_packet.OutcomeEnvelopeError`; prose string -> `UnsupportedProseError`; foreign actor -> `ForeignActorError`; `attempt=5` -> `WrongAttemptError`; empty evidence with `required_evidence_kinds=["test_report"]` -> `MissingEvidenceError`; `status="bogus"` -> `InvalidOutcomeEnvelopeError`; mismatched `run_id` -> `InvalidOutcomeEnvelopeError`.
   - Depends on: E-01
   - Expected outcome: the accepted application writes exactly the expected ledger records, and every rejection raises its typed exception while leaving the ledger and step state unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -128,35 +128,161 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat` (and `git status --short`) showing only `tests/test_run_packet_restored_behavior.py` added; paste the bare `python3 -m pytest` summary line showing every test passed with the new module included (`python3 -m pytest --collect-only -q | rg -c test_run_packet_restored_behavior` nonzero), the module's own run time under 1s, and the core-tier wall-time line as observed (an overrun is reported against `o58dro`, not a failure of this item).
   - Observed evidence:
-  - Result: pending
+```
+$ git diff --stat
+(clean)
 
-- [ ] V-02 validates E-02
+$ git status --short
+?? tests/test_run_packet_restored_behavior.py
+
+$ python3 -m pytest --collect-only -q | rg -c test_run_packet_restored_behavior
+1
+
+$ python3 -m pytest tests/test_run_packet_restored_behavior.py -o addopts="" -q
+.....................................                                    [100%]
+============================== SLOW TESTS REPORT ===============================
+0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+37 passed in 0.74s
+
+$ python3 -m pytest
+================================ CORE TIER BUDGET EXCEEDED ================================
+Core tier wall time: 34.30s exceeded budget of 30.00s.
+...
+855 passed in 34.30s
+```
+(Wall-time overrun is a pre-existing host condition tracked by backlog o58dro; module runtime is 0.74s, well below the 1.0s limit.)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing the packet-contract, prompt-rendering, empty-section, wrapper, tool-default and unknown-step tests as PASSED, and the failures produced by making `build_step_packet` ignore `allowed_tools` and by making `render_prompt` drop the `if self.stop_conditions:` guard so the heading is always emitted (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+tests/test_run_packet_restored_behavior.py::test_golden_packet_contains_every_contract_field PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_omits_unrelated_bulk_context PASSED
+tests/test_run_packet_restored_behavior.py::test_render_prompt_empty_sections PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_workflow_wrapper PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_tool_default_and_explicit PASSED
+tests/test_run_packet_restored_behavior.py::test_unknown_step_id_raises_key_error PASSED
 
-- [ ] V-03 validates E-03
+Mutation 1 (build_step_packet ignores allowed_tools):
+>       assert packet_explicit.allowed_tools == ("view_file",)
+E       AssertionError: assert ('run_command...by_name', ...) == ('view_file',)
+FAILED tests/test_run_packet_restored_behavior.py::test_packet_tool_default_and_explicit
+
+Mutation 2 (render_prompt drops if self.stop_conditions: guard):
+>       assert "## Stop Conditions" not in prompt
+E       AssertionError: assert '## Stop Conditions' not in '# Step Pack...conditions\n'
+FAILED tests/test_run_packet_restored_behavior.py::test_render_prompt_empty_sections
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing the digest and binding tests as PASSED, and the failures produced by making `_compute_packet_digest` return a constant string and by making `_normalize` return its input unchanged (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+tests/test_run_packet_restored_behavior.py::test_packet_digest_changes_when_bound_requirement_changes PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_digest_roundtrip_and_field_sensitivity PASSED
+tests/test_run_packet_restored_behavior.py::test_requirement_binding_branches PASSED
 
-- [ ] V-04 validates E-04
+Mutation 1 (_compute_packet_digest returns constant string):
+>       assert (
+            run_packet._compute_packet_digest(mutated_payload) != packet.packet_digest
+        )
+E       AssertionError: assert 'constant-digest' != 'constant-digest'
+FAILED tests/test_run_packet_restored_behavior.py::test_packet_digest_roundtrip_and_field_sensitivity
+FAILED tests/test_run_packet_restored_behavior.py::test_packet_digest_changes_when_bound_requirement_changes
+
+Mutation 2 (_normalize returns input unchanged):
+>       assert req_ws.text == "second thing"
+E       AssertionError: assert 'first thing' == 'second thing'
+FAILED tests/test_run_packet_restored_behavior.py::test_requirement_binding_branches
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing the serialization and budget tests as PASSED, and the failures produced by making `StepPacket.to_dict` drop `depends_on` and by removing the budget check in `build_step_packet` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+tests/test_run_packet_restored_behavior.py::test_packet_serialization_roundtrip PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_to_dict_sequence_types PASSED
+tests/test_run_packet_restored_behavior.py::test_packet_size_budget_enforcement PASSED
 
-- [ ] V-05 validates E-05
+Mutation 1 (StepPacket.to_dict drops depends_on):
+>       assert parsed["depends_on"] == ["S-00"]
+E       KeyError: 'depends_on'
+FAILED tests/test_run_packet_restored_behavior.py::test_packet_serialization_roundtrip
+
+Mutation 2 (removing budget check):
+>       with pytest.raises(run_packet.PacketBudgetExceededError) as exc_info:
+E       Failed: DID NOT RAISE <class 'agent_workflows.run_packet.PacketBudgetExceededError'>
+FAILED tests/test_run_packet_restored_behavior.py::test_packet_size_budget_enforcement
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` output listing the `to_dict` shape test, three acceptance cases, all 10 rejection rows and the controls as PASSED, and the failure produced by removing the `actor not in authorized_actors` check in `validate_outcome_envelope` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+tests/test_run_packet_restored_behavior.py::test_outcome_envelope_to_dict PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_acceptance PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[raw_string_unsupported_prose] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[mapping_prose_no_status] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[missing_attempt] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[attempt_is_bool] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[status_bogus] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[foreign_actor] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[mismatched_run_id] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[mismatched_step_id] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[wrong_attempt_number] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[performed_missing_evidence] PASSED
+tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_controls PASSED
 
-- [ ] V-06 validates E-06
+Mutation (removing authorized_actors check):
+>       assert val_res.ok is False
+E       AssertionError: assert True is False
+FAILED tests/test_run_packet_restored_behavior.py::test_validate_outcome_envelope_rejections[foreign_actor]
+FAILED tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[foreign_actor]
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the `-v` output listing the application and fail-closed rows as PASSED; the failure produced by moving `engine.record_step_attempt` ahead of validation in `apply_outcome_envelope` (reverted afterwards); the coverage output showing all 10 keys' bodies executed; and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+```
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_accepted PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_plain_mapping_accepted PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_unsupported_prose_fail_closed[prose_string] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_unsupported_prose_fail_closed[mapping_prose] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_unsupported_prose_fail_closed[mapping_message] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_unsupported_prose_fail_closed[mapping_result_missing_fields] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[prose_string] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[foreign_actor] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[wrong_attempt] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[missing_evidence] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[bogus_status] PASSED
+tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[mismatched_run_id] PASSED
+
+Mutation (premature engine.record_step_attempt ahead of validation):
+>       assert len(released_engine.store.read_records()) == records_before
+E       AssertionError: assert 4 == 3
+FAILED tests/test_run_packet_restored_behavior.py::test_apply_outcome_envelope_typed_exceptions_fail_closed[wrong_attempt]
+
+Coverage output:
+Name                            Stmts   Miss  Cover   Missing
+-------------------------------------------------------------
+agent_workflows/run_packet.py     286      2    99%   687-688
+-------------------------------------------------------------
+TOTAL                             286      2    99%
+(Remaining missed lines 687-688 are the defensive `except Exception: pass` block around reconstruct_state(); all 10 keys' bodies are 100% executed.)
+
+Final git diff agent_workflows/:
+$ git diff agent_workflows/
+(empty)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
