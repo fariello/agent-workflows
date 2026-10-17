@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_benchmark_corpus.py` from `19313eed^` unchanged, marked `core`, and add two residual tests for the two boolean keys whose `False` polarity no restored test asserts (`is_ground_truth_accessible`, `is_critical_class`, F-03). The 25 keys: `benchmark_manifest.manifest_from_dict`, `validate_manifest`, `validate_ceilings_dict`, `declared_factors`, `BenchmarkManifest.result_key`, `BenchmarkManifest.to_json`, `can_pool`, `manifest_from_json`; `benchmark_protocol.assert_frozen`, `freeze_protocol`, `validate_protocol`, `_decision_view`, `changed_decision_fields`, `protocol_digest`, `_canonical_json`; `benchmark_corpus.hash_tree`, `materialize_task`, `is_ground_truth_accessible`, `load_ground_truth`, `reset_task`, `SeededTask.ground_truth_path`, `seed_workspace_hash`, `task_classes_present`; `benchmark_scorer.intended_verdict`, `is_critical_class`. EXCLUDES any production change and any change under `tests/benchmark_fixtures/`.
 - Scope-Paths: tests/test_benchmark_corpus.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: 78g6ic
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 78g6ic verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
