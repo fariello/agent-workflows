@@ -5,8 +5,9 @@
 - Concern: After Orders 01 to 04 (`ppu39q`, `xvlemm`, `gjylny`, `6u755v`), a user who runs `aw install <repo> --preset local-only` on a `private-target` repo still only gets the refusal "is not supported by reinstall yet (backlog ui1aln)" and has no command that performs the switch. Backlog `ui1aln` is done only when the switch is reachable from the CLI, previewable, recoverable after a crash, and documented.
 - Scope: IN: `aw install` flags `--relocate` (perform a detected placement switch), `--relocate-resume` and `--relocate-rollback` (finish or undo an interrupted one); in `cli._run_install`, on `PlacementSwitchRequired`: without `--relocate` keep refusing with a message that names `--relocate` and the `--dry-run` preview; with `--relocate --dry-run` render the Order 02 plan (moves, discards, retirements, warnings, blockers) and write nothing; with `--relocate` (and `-y` or an interactive confirm whose default is NO) call `execute_placement_switch`, then continue into the normal install of the NEW layout (`_install_one`), whose commit offer (`engine.prompt_and_run_commit`) is skipped for a to-home switch because the switch's staged deletions are reported instead (see E-03); a pending journal blocks a plain install with a message naming the two recovery flags; update the refusal message in `install_wizard` (drop "not supported ... yet (backlog ui1aln)", keep the substring `Switching config placement`); update the two `on0keo` assertions that pin `ui1aln` in the message; an `allow_placement_switch` keyword on `install_wizard.collect_policy_interactive`/`resolve_policy_noninteractive` so the CLI obtains the new policy instead of an exception; `placement_switch.render_plan`; a pending-journal guard in the shared `cli._install_one` shell (so `install all` and `setup` cannot install into a half-switched repo); the spec Section 8.1 implementation-status sentence; CHANGELOG and README. OUT: `aw setup` (it calls `_install_one` but never the policy wizard: `cli._run_setup` has no `collect_policy_interactive` call, so it cannot switch placement); companion pairs (`n9vd2h`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_placement_switch_cli.py, tests/test_reinstall_preserves_config.py, CHANGELOG.md, README.md, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
+- Scope-Exceeded: tests/test_placement_switch_guard.py (update PlacementSwitchRequired assertion to --relocate matching E-01 refusal message change)
 - Item-Dependencies: executed:6u755v
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +18,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: ozr356
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ozr356 verified (set cfgreloc, attempt 1). [Scope reconciliation - out-of-scope tests/test_placement_switch_guard.py: update PlacementSwitchRequired assertion to --relocate matching E-01 refusal message change]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009
 
