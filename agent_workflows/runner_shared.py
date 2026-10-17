@@ -136,11 +136,13 @@ import re
 import secrets
 import shlex
 import shutil
+import string
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from collections.abc import (
     Container,
     Iterable,
@@ -24329,6 +24331,53 @@ def proposal_schema_literal() -> str:
     )
 
 
+#: The questions field's key inside the agent-written outcome JSON (spec 6kwd2e R2, qchan-01 0jooqz).
+QUESTIONS_KEY: str = "questions"
+
+QUESTIONS_VERDICT_VALID: str = "valid"
+QUESTIONS_VERDICT_ABSENT: str = "absent"
+QUESTIONS_VERDICT_MALFORMED: str = "malformed"
+QUESTIONS_VERDICTS: tuple[str, ...] = (
+    QUESTIONS_VERDICT_VALID,
+    QUESTIONS_VERDICT_ABSENT,
+    QUESTIONS_VERDICT_MALFORMED,
+)
+
+QUESTION_REQUIRED_KEYS: tuple[str, ...] = (
+    "question_id",
+    "text",
+    "artifact_id6",
+    "gates_verdict",
+    "evidence",
+)
+
+_QUESTION_ID_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
+QUESTION_TEXT_MAX_LENGTH: int = 2000
+QUESTION_EVIDENCE_MAX_COUNT: int = 10
+QUESTION_EVIDENCE_ITEM_MAX_LENGTH: int = 500
+QUESTION_OPTIONS_MIN_COUNT: int = 2
+QUESTION_OPTIONS_MAX_COUNT: int = 8
+QUESTION_OPTION_MAX_LENGTH: int = 120
+QUESTIONS_MAX_COUNT: int = 20
+
+
+def questions_schema_literal() -> str:
+    """The questions field as it appears inside the execute prompt's outcome-JSON literal."""
+    return (
+        f'  "{QUESTIONS_KEY}": [\n'
+        f"    {{\n"
+        f'      "question_id": "terse-local-id",\n'
+        f'      "text": "the question for the human (max 2000 chars)",\n'
+        f'      "artifact_id6": "id6",\n'
+        f'      "gates_verdict": true,\n'
+        f'      "evidence": ["prior artifact or repo evidence consulted"],\n'
+        f'      "options": ["optional label 1", "optional label 2"],\n'
+        f'      "allow_free_text": true\n'
+        f"    }}\n"
+        f"  ],"
+    )
+
+
 def defect_report_prompt_block() -> str:
     """The demand itself: state findings AFFIRMATIVELY AND NEGATIVELY, and file a carrier.
 
@@ -24859,6 +24908,311 @@ def validate_proposal(outcome: Any) -> ProposalVerdict:
         proposal=raw_dict,
         sanitized_proposal=sanitized,
         violations=(),
+    )
+
+
+def _normalize_question_text(text: str) -> str:
+    """Normalize question text: Unicode NFKC, casefold, collapse whitespace, strip trailing punctuation."""
+    s = unicodedata.normalize("NFKC", str(text)).casefold()
+    s = " ".join(s.split())
+    while s and (
+        s[-1].isspace()
+        or unicodedata.category(s[-1]).startswith("P")
+        or s[-1] in string.punctuation
+    ):
+        s = s[:-1].rstrip()
+    return s
+
+
+def question_fingerprint(text: str, options: Any = None) -> str:
+    """Compute a deterministic 16-hex-char SHA-256 fingerprint for a question.
+
+    Applies Unicode NFKC normalization, casefolding, whitespace collapsing,
+    and stripping of trailing punctuation. If options are present, each option
+    label is normalized identically, and the resulting labels are sorted.
+    Shared across both runner hosts (spec 6kwd2e R4.1a, A19).
+    """
+    norm_text = _normalize_question_text(text)
+    sorted_options: list[str] = []
+    if options:
+        sorted_options = sorted(_normalize_question_text(opt) for opt in options)
+
+    payload_dict = {
+        "options": sorted_options,
+        "text": norm_text,
+    }
+    payload = json.dumps(
+        payload_dict,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+
+class QuestionsVerdict(NamedTuple):
+    """The validator's structured answer for an outcome's questions field.
+
+    NEVER raises (see :func:`validate_questions`).
+
+    Fields:
+      * `verdict`: one of :data:`QUESTIONS_VERDICTS` (valid, absent, malformed).
+      * `questions`: tuple of validated, fingerprinted question dicts.
+      * `violations`: tuple of diagnostic strings naming missing or malformed keys/values.
+    """
+
+    verdict: str
+    questions: tuple[dict[str, Any], ...]
+    violations: tuple[str, ...]
+
+    @property
+    def is_valid(self) -> bool:
+        """True when questions are present and conforming."""
+        return self.verdict == QUESTIONS_VERDICT_VALID
+
+    @property
+    def is_absent(self) -> bool:
+        """True when no questions were submitted."""
+        return self.verdict == QUESTIONS_VERDICT_ABSENT
+
+    @property
+    def is_malformed(self) -> bool:
+        """True when questions were attempted but missed schema, bounds, or trust rules."""
+        return self.verdict == QUESTIONS_VERDICT_MALFORMED
+
+
+def validate_questions(outcome: Any, *, item_id6: str) -> QuestionsVerdict:
+    """Validate the questions field tolerantly and NEVER raise.
+
+    Accepts either the whole outcome dict, a questions list, or a single question dict.
+    Returns :class:`QuestionsVerdict`.
+    """
+    from agent_workflows import artifact_core as _core
+
+    raw: Any = None
+    if isinstance(outcome, Mapping):
+        if QUESTIONS_KEY in outcome:
+            raw = outcome.get(QUESTIONS_KEY)
+            if raw is None:
+                return QuestionsVerdict(
+                    verdict=QUESTIONS_VERDICT_ABSENT,
+                    questions=(),
+                    violations=(),
+                )
+        elif any(k in outcome for k in QUESTION_REQUIRED_KEYS):
+            raw = [outcome]
+        else:
+            return QuestionsVerdict(
+                verdict=QUESTIONS_VERDICT_ABSENT,
+                questions=(),
+                violations=(),
+            )
+    elif isinstance(outcome, list):
+        raw = outcome
+    elif outcome is None:
+        return QuestionsVerdict(
+            verdict=QUESTIONS_VERDICT_ABSENT,
+            questions=(),
+            violations=(),
+        )
+    else:
+        return QuestionsVerdict(
+            verdict=QUESTIONS_VERDICT_MALFORMED,
+            questions=(),
+            violations=(f"questions must be a list, got {type(outcome).__name__}",),
+        )
+
+    if not isinstance(raw, list):
+        return QuestionsVerdict(
+            verdict=QUESTIONS_VERDICT_MALFORMED,
+            questions=(),
+            violations=(f"questions must be a list, got {type(raw).__name__}",),
+        )
+
+    if not raw:
+        return QuestionsVerdict(
+            verdict=QUESTIONS_VERDICT_ABSENT,
+            questions=(),
+            violations=(),
+        )
+
+    all_violations: list[str] = []
+    valid_questions: list[dict[str, Any]] = []
+    seen_question_ids: set[str] = set()
+
+    if len(raw) > QUESTIONS_MAX_COUNT:
+        all_violations.append(
+            f"questions array exceeds maximum of {QUESTIONS_MAX_COUNT} entries ({len(raw)})"
+        )
+
+    eval_entries = raw[:QUESTIONS_MAX_COUNT]
+
+    for idx, entry in enumerate(eval_entries):
+        if not isinstance(entry, Mapping):
+            all_violations.append(
+                f"question entry at index {idx} must be a dict/object, got {type(entry).__name__}"
+            )
+            continue
+
+        entry_dict = dict(entry)
+        entry_violations: list[str] = []
+
+        # 1. question_id
+        qid = entry_dict.get("question_id")
+        if qid is None or not isinstance(qid, str):
+            entry_violations.append(
+                f"question entry at index {idx} missing required string 'question_id'"
+            )
+        elif not _QUESTION_ID_RE.match(qid):
+            entry_violations.append(
+                f"question entry at index {idx} 'question_id' {qid!r} invalid; "
+                f"must match [A-Za-z0-9._-]{{1,40}}"
+            )
+        elif qid in seen_question_ids:
+            entry_violations.append(
+                f"question entry at index {idx} duplicate 'question_id' {qid!r}; "
+                "already seen in this outcome"
+            )
+        else:
+            seen_question_ids.add(qid)
+
+        # 2. text
+        q_text = entry_dict.get("text")
+        if q_text is None or not isinstance(q_text, str):
+            entry_violations.append(
+                f"question entry at index {idx} missing required string 'text'"
+            )
+        elif len(q_text) > QUESTION_TEXT_MAX_LENGTH:
+            entry_violations.append(
+                f"question entry at index {idx} 'text' exceeds {QUESTION_TEXT_MAX_LENGTH} "
+                f"characters ({len(q_text)})"
+            )
+        elif not q_text.strip():
+            entry_violations.append(
+                f"question entry at index {idx} 'text' must not be empty"
+            )
+
+        # 3. artifact_id6
+        art_id6 = entry_dict.get("artifact_id6")
+        if art_id6 is None or not isinstance(art_id6, str):
+            entry_violations.append(
+                f"question entry at index {idx} missing required string 'artifact_id6'"
+            )
+        elif not _core.is_valid_id6(art_id6):
+            entry_violations.append(
+                f"question entry at index {idx} 'artifact_id6' {art_id6!r} invalid; "
+                "must be a valid 6-char id6"
+            )
+        elif art_id6 != item_id6:
+            entry_violations.append(
+                f"question entry at index {idx} 'artifact_id6' mismatch: "
+                f"got {art_id6!r}, expected {item_id6!r}"
+            )
+
+        # 4. gates_verdict
+        gates_verdict = entry_dict.get("gates_verdict")
+        if gates_verdict is None or not isinstance(gates_verdict, bool):
+            entry_violations.append(
+                f"question entry at index {idx} missing required boolean 'gates_verdict'"
+            )
+
+        # 5. evidence
+        evidence = entry_dict.get("evidence")
+        if evidence is None or not isinstance(evidence, (list, tuple)):
+            entry_violations.append(
+                f"question entry at index {idx} missing required list 'evidence'"
+            )
+        else:
+            if len(evidence) > QUESTION_EVIDENCE_MAX_COUNT:
+                entry_violations.append(
+                    f"question entry at index {idx} 'evidence' exceeds {QUESTION_EVIDENCE_MAX_COUNT} "
+                    f"items ({len(evidence)})"
+                )
+            for ev_idx, ev in enumerate(evidence):
+                if not isinstance(ev, str):
+                    entry_violations.append(
+                        f"question entry at index {idx} 'evidence' item {ev_idx} must be a string, "
+                        f"got {type(ev).__name__}"
+                    )
+                elif len(ev) > QUESTION_EVIDENCE_ITEM_MAX_LENGTH:
+                    entry_violations.append(
+                        f"question entry at index {idx} 'evidence' item {ev_idx} exceeds "
+                        f"{QUESTION_EVIDENCE_ITEM_MAX_LENGTH} characters ({len(ev)})"
+                    )
+
+        # 6. options (optional)
+        options = entry_dict.get("options")
+        if options is not None:
+            if not isinstance(options, (list, tuple)):
+                entry_violations.append(
+                    f"question entry at index {idx} 'options' must be a list of strings"
+                )
+            else:
+                if not (
+                    QUESTION_OPTIONS_MIN_COUNT
+                    <= len(options)
+                    <= QUESTION_OPTIONS_MAX_COUNT
+                ):
+                    entry_violations.append(
+                        f"question entry at index {idx} 'options' count must be between "
+                        f"{QUESTION_OPTIONS_MIN_COUNT} and {QUESTION_OPTIONS_MAX_COUNT}, "
+                        f"got {len(options)}"
+                    )
+                for opt_idx, opt in enumerate(options):
+                    if not isinstance(opt, str):
+                        entry_violations.append(
+                            f"question entry at index {idx} 'options' item {opt_idx} must be a string, "
+                            f"got {type(opt).__name__}"
+                        )
+                    elif len(opt) > QUESTION_OPTION_MAX_LENGTH:
+                        entry_violations.append(
+                            f"question entry at index {idx} 'options' item {opt_idx} exceeds "
+                            f"{QUESTION_OPTION_MAX_LENGTH} characters ({len(opt)})"
+                        )
+
+        # 7. allow_free_text (optional)
+        allow_free_text = entry_dict.get("allow_free_text")
+        if allow_free_text is not None and not isinstance(allow_free_text, bool):
+            entry_violations.append(
+                f"question entry at index {idx} 'allow_free_text' must be a boolean"
+            )
+
+        if entry_violations:
+            all_violations.extend(entry_violations)
+            continue
+
+        clean_entry: dict[str, Any] = {
+            "question_id": str(qid),
+            "text": sanitize_front_matter_text(str(q_text).strip()),
+            "artifact_id6": str(art_id6),
+            "gates_verdict": bool(gates_verdict),
+            "evidence": [
+                sanitize_front_matter_text(str(ev).strip()) for ev in evidence
+            ],
+        }
+        if options is not None:
+            clean_entry["options"] = [
+                sanitize_front_matter_text(str(opt).strip()) for opt in options
+            ]
+        if allow_free_text is not None:
+            clean_entry["allow_free_text"] = bool(allow_free_text)
+        else:
+            clean_entry["allow_free_text"] = True
+
+        if "fingerprint" in entry_dict and entry_dict["fingerprint"] is not None:
+            clean_entry["proposed_fingerprint"] = str(entry_dict["fingerprint"])
+
+        clean_entry["fingerprint"] = question_fingerprint(
+            clean_entry["text"],
+            clean_entry.get("options"),
+        )
+        valid_questions.append(clean_entry)
+
+    verdict = QUESTIONS_VERDICT_MALFORMED if all_violations else QUESTIONS_VERDICT_VALID
+    return QuestionsVerdict(
+        verdict=verdict,
+        questions=tuple(valid_questions),
+        violations=tuple(all_violations),
     )
 
 
@@ -30105,7 +30459,24 @@ def build_review_prompt(
     command = f"/{handler} {rel_path}"
     if lane_root is None:
         return command
-    return command + "\n" + lane_containment.isolation_notice(lane_root)
+    paths = lane_containment.project_worker_paths(
+        item=item,
+        run_id=state["run_id"],
+        run_dir=run_dir,
+        plan_path=plan_path,
+        lane_root=lane_root,
+    )
+    lane_containment.prepare_lane_submission_dir(paths)
+    return (
+        command
+        + "\n"
+        + lane_containment.isolation_notice(lane_root)
+        + f"\n\nRequired JSON outcome: {paths.prompt_outcome}\n\n"
+        f"When a material question is the HUMAN'S to decide under the askme three-way sort "
+        f"(see `.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), "
+        f"record it in `questions[]` in {paths.prompt_outcome} and exit normally; "
+        f"never prompt and never wait."
+    )
 
 
 def _append_continue_handoff_section(
@@ -32888,9 +33259,12 @@ When a material question arises, investigate the approved plans, repository deci
 source, tests, history, and current primary documentation. If a reasonable recommended
 approach exists, choose it, record it in the decisions/questions register with evidence,
 alternatives, rationale, confidence, scope, reversibility, and validation, then continue.
-If no reasonable approach exists, record a DEFERRED question with the work completed,
-work blocked, dependency effect, exact preserved state, and recommended human action.
-Continue every independent part of this IPD despite a deferred question.
+When a material question is the HUMAN'S to decide under the askme three-way sort (see
+`.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), record it in
+`questions[]` (which supersedes `deferred_question_ids`), finish all independent work,
+and exit normally; never prompt and never wait. A question resolved from evidence still
+gets a `D-*` row in the decisions/questions register.
+Continue every independent part of this IPD despite an emergent question.
 If the IPD itself says it needs a human present while it runs (for example it must ask the
 maintainer live questions), do only what it allows without one, then record a `proposal` with
 kind `needs-attended` and size `small`. The runner marks the plan for an attended session; do
@@ -32935,6 +33309,7 @@ Before exiting, write valid JSON to {outcome} with at least:
   "incomplete_requirements": [],
 {defect_report_schema_literal()}
 {proposal_schema_literal()}
+{questions_schema_literal()}
   "partial_work_location": null,
   "recommended_next_action": "...",
   "pushed": false
@@ -37989,6 +38364,12 @@ def execute_item_core(
         "model": exec_model,
         "model_source": exec_model_source,
     }
+    out_path_before = recorded_outcome_path(run_dir, item)
+    attempt["outcome_before_sha256"] = (
+        sha256_file(out_path_before)
+        if (out_path_before and out_path_before.is_file())
+        else None
+    )
     if is_review:
         attempt["review_handler"] = item.get("review_handler") or review_handler_for(
             item
@@ -39429,6 +39810,63 @@ def execute_item_core(
         )
 
         verify_disp = None
+
+        # qchan-01 (0jooqz) E-06: Driver intake for questions
+        outcome_fresh = False
+        if work_dir or attempt.get("worktree") or turn_ran_in_a_lane(attempt):
+            receipt = lane_containment.read_collection_receipt(
+                run_dir, item, attempt_no
+            )
+            collected = (
+                (receipt or {}).get("collected")
+                or (attempt.get("collection") or {}).get("collected")
+                or []
+            )
+            if "outcome" in collected:
+                outcome_fresh = True
+        else:
+            cur_path = recorded_outcome_path(run_dir, item)
+            cur_sha = (
+                sha256_file(cur_path) if (cur_path and cur_path.is_file()) else None
+            )
+            before_sha = attempt.get("outcome_before_sha256")
+            if cur_sha is not None and cur_sha != before_sha:
+                outcome_fresh = True
+
+        if not outcome_fresh:
+            attempt["questions_verdict"] = {"verdict": QUESTIONS_VERDICT_ABSENT}
+        else:
+            attempt_outcome = (
+                outcome if outcome is not None else read_recorded_outcome(run_dir, item)
+            )
+            q_verdict = validate_questions(attempt_outcome, item_id6=item["id6"])
+            if q_verdict.is_absent:
+                attempt["questions_verdict"] = {"verdict": QUESTIONS_VERDICT_ABSENT}
+            else:
+                attempt["questions_verdict"] = {
+                    "verdict": q_verdict.verdict,
+                    "questions": list(q_verdict.questions),
+                    "violations": list(q_verdict.violations),
+                }
+                if q_verdict.is_malformed:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "questions-malformed",
+                            "id6": item["id6"],
+                            "attempt": attempt_no,
+                            "violations": list(q_verdict.violations),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"  ! IPD {item['id6']} questions malformed: "
+                            f"{'; '.join(q_verdict.violations)}",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
 
         # fixfirst-02 (tha7a6) E-03: Proposal channel check
         if not is_review and not is_production:

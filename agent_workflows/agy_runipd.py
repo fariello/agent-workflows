@@ -356,6 +356,19 @@ from agent_workflows.runner_shared import (
     perform_coordinator_proposal_file as perform_coordinator_proposal_file,
     proposal_schema_literal as proposal_schema_literal,
 )
+
+# qchan-01 (0jooqz) E-01, E-02: Question carrier re-exports
+from agent_workflows.runner_shared import (
+    QUESTIONS_KEY as QUESTIONS_KEY,
+    QUESTIONS_VERDICTS as QUESTIONS_VERDICTS,
+    QUESTIONS_VERDICT_ABSENT as QUESTIONS_VERDICT_ABSENT,
+    QUESTIONS_VERDICT_VALID as QUESTIONS_VERDICT_VALID,
+    QUESTIONS_VERDICT_MALFORMED as QUESTIONS_VERDICT_MALFORMED,
+    QuestionsVerdict as QuestionsVerdict,
+    validate_questions as validate_questions,
+    question_fingerprint as question_fingerprint,
+    questions_schema_literal as questions_schema_literal,
+)
 from agent_workflows.runner_shared import (
     _ORDER_RE as _ORDER_RE,
 )
