@@ -209,7 +209,7 @@ class Exemption:
 
 
 EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    # sanctioned_raw (11):
+    # sanctioned_raw (13):
     "find": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 12",
@@ -243,6 +243,15 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="tools/completion.py",
         reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
     ),
+    "runs decisions": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
     "runs evidence": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 3.1",
@@ -253,6 +262,15 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         ),
     ),
     "runs next": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 3.1",
+        reason=(
+            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
+            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
+            "rather than aw.agent/v1 records."
+        ),
+    ),
+    "runs questions": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 3.1",
         reason=(
@@ -297,7 +315,7 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
             "rather than aw.agent/v1 records."
         ),
     ),
-    # not_runnable (11):
+    # not_runnable (9):
     "ipd begin": Exemption(
         reason_kind="not_runnable",
         citation="aw ipd begin runner protocol",
@@ -307,22 +325,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="not_runnable",
         citation="agent_workflows/ipd_compiler.py",
         reason="Emits schema_version: 1 execution manifest rather than aw.agent/v1 envelope.",
-    ),
-    "runs decisions": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_cli.py",
-        reason=(
-            "Reads set_records markdown projections instead of ledger.jsonl and "
-            "prints raw markdown under all modes, including --agent and --json (gap hbok5d)."
-        ),
-    ),
-    "runs questions": Exemption(
-        reason_kind="not_runnable",
-        citation="agent_workflows/run_cli.py",
-        reason=(
-            "Reads set_records markdown projections instead of ledger.jsonl and "
-            "prints raw markdown under all modes, including --agent and --json (gap hbok5d)."
-        ),
     ),
     "test": Exemption(
         reason_kind="not_runnable",

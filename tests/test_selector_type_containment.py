@@ -20,6 +20,12 @@ from agent_workflows import cli, selectors, status_set
 @pytest.fixture
 def temp_git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True
+    )
     return tmp_path
 
 

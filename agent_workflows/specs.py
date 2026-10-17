@@ -212,8 +212,15 @@ SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
 
 def _repo_root_of(spec_path: Path) -> Path:
     """Walk up from a spec file to the repo root (a dir containing `.aw` or `.agents` or `.git`),
-    falling back to spec_path parent. Used to locate the repo root and global history sidecar."""
+    falling back to spec_path parent. Used to locate the repo root and global history sidecar.
+    Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6)."""
     p = (Path.cwd() / spec_path).resolve()
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(p)
+    if owner is not None:
+        return owner
+
     for anc in [p] + list(p.parents):
         if (
             (anc / ".aw").is_dir()
@@ -1208,8 +1215,15 @@ def run_new(args) -> int:
 
 def _spec_repo_root(spec_path: Path) -> Path:
     """The repo root for a spec file: walk up until a `.git`/`.aw`/`.agents` marker (bklggrad
-    orb9zb: factored out of `_evidence_resolvable` so the shared resolver can reuse it)."""
+    orb9zb: factored out of `_evidence_resolvable` so the shared resolver can reuse it).
+    Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6)."""
     resolved = spec_path.resolve()
+    from agent_workflows import project_context
+
+    owner = project_context.record_owner_root(resolved)
+    if owner is not None:
+        return owner
+
     for parent in resolved.parents:
         if (
             (parent / ".git").exists()

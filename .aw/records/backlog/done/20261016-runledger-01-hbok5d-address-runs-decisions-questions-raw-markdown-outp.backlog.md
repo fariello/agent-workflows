@@ -1,5 +1,5 @@
 - Id: hbok5d
-- Status: graduated
+- Status: done
 - Graduated-To: runledger
 - Set: runledger
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Address runs decisions/questions raw markdown output and runs evidence/verify-ledger absolute path leaks
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw oc run: IPD lpvcln executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-runledger-02-lpvcln-runs-decisions-questions-emit-structured-machine-output-runs.ipd.md); evidence .aw/records/plans/executed/20261016-runledger-02-lpvcln-runs-decisions-questions-emit-structured-machine-output-runs.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T212849Z-3382142: lpvcln
 - 2026-10-16 created (aw backlog): Address runs decisions/questions raw markdown output and runs evidence/verify-ledger absolute path leaks
 

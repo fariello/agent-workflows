@@ -1227,6 +1227,139 @@ def project_records_dir(
     return Path(records_path)
 
 
+def record_owner_root(
+    path: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> Optional[Path]:
+    """Reverse-map a record file under AW_HOME to its owning repository root (backlog 4uw2a6).
+
+    Pure, safe, and verification-backed:
+    For a record path located under <effective AW_HOME>/projects/<pid>/records/,
+    this resolver identifies the owning repository root by evaluating three candidates in order:
+      1. CWD-anchored candidate: find_project_root(Path.cwd()), followed by checkout_main_root
+         when inside a linked worktree.
+      2. Home local.json back-pointer: the parent of common_dir from
+         <aw_home>/projects/<pid>/config/local.json when common_dir is a non-empty string naming
+         an existing directory called '.git'.
+      3. Project registry target paths: each existing directory in target_paths from the project's
+         entry in <aw_home>/config/registry.json.
+
+    Verification rule:
+    Every candidate is accepted ONLY when
+    _canonical_path(project_records_dir(candidate, aw_home=eff_aw_home)) == _canonical_path(<aw_home>/projects/<pid>/records).
+    Returns the first verified candidate as a Path, or None if no candidate matches or if the
+    path does not lie under AW_HOME projects records.
+
+    Companion-root limit:
+    Records under a companion records root (records_backend: companion) are not handled by this
+    resolver and remain out of scope (backlog miq4mi).
+    """
+    # FAST PATH (performance, F-11): before resolving AW_HOME or canonicalizing anything,
+    # return None when the path's parts contain no 'projects' component followed later by 'records',
+    # a pure string check with no I/O, so an in-tree record pays only this check.
+    try:
+        parts = Path(path).parts
+    except Exception:
+        return None
+
+    try:
+        idx_projects = parts.index("projects")
+    except ValueError:
+        return None
+
+    if "records" not in parts[idx_projects + 1 :]:
+        return None
+
+    try:
+        canon_path = Path(_canonical_path(path))
+        eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+        canon_aw_home = Path(_canonical_path(eff_aw_home))
+
+        projects_dir = canon_aw_home / "projects"
+        try:
+            rel = canon_path.relative_to(projects_dir)
+        except ValueError:
+            return None
+
+        # Path must be under <aw_home>/projects/<pid>/records/
+        # The second component after projects must be exactly 'records'
+        if len(rel.parts) < 2 or rel.parts[1] != "records":
+            return None
+
+        pid = rel.parts[0]
+        expected_records_dir = projects_dir / pid / "records"
+
+        def _accepts(cand: str | Path) -> Optional[Path]:
+            try:
+                cand_p = Path(cand).resolve()
+                if not cand_p.is_dir():
+                    return None
+                rec_dir = project_records_dir(cand_p, aw_home=eff_aw_home)
+                if _canonical_path(rec_dir) == _canonical_path(expected_records_dir):
+                    return cand_p
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                ProjectContextError,
+                json.JSONDecodeError,
+                TypeError,
+            ):
+                return None
+            return None
+
+        # Candidate 1: cwd-anchored candidate
+        cwd_root = find_project_root(Path.cwd())
+        if cwd_root is not None:
+            main_root = checkout_main_root(cwd_root)
+            cand1 = main_root if main_root is not None else cwd_root
+            accepted1 = _accepts(cand1)
+            if accepted1 is not None:
+                return accepted1
+
+        # Candidate 2: common_dir back-pointer in local.json
+        local_json_path = projects_dir / pid / "config" / "local.json"
+        local_data = _read_json_file(str(local_json_path))
+        if isinstance(local_data, dict):
+            common_dir = local_data.get("common_dir")
+            if isinstance(common_dir, str) and common_dir.strip():
+                p_common = Path(common_dir)
+                if p_common.is_dir() and p_common.name == ".git":
+                    cand2 = p_common.parent
+                    accepted2 = _accepts(cand2)
+                    if accepted2 is not None:
+                        return accepted2
+
+        # Candidate 3: registry.json target_paths
+        from agent_workflows import project_registry
+
+        reg_path = project_registry.get_registry_path(eff_aw_home)
+        reg_data = project_registry.load_registry(reg_path)
+        if isinstance(reg_data, dict):
+            projects = reg_data.get("projects", {})
+            if isinstance(projects, dict):
+                entry_raw = projects.get(pid)
+                if isinstance(entry_raw, dict):
+                    target_paths = entry_raw.get("target_paths", [])
+                    if isinstance(target_paths, list):
+                        for tp in target_paths:
+                            if isinstance(tp, str) and tp.strip():
+                                accepted3 = _accepts(tp)
+                                if accepted3 is not None:
+                                    return accepted3
+
+        return None
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        ProjectContextError,
+        json.JSONDecodeError,
+        TypeError,
+    ):
+        return None
+
+
 def has_stored_system_placement(
     repo_root: str | Path,
     aw_home: Optional[str | Path] = None,

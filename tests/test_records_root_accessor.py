@@ -207,6 +207,9 @@ def test_home_records_reproduction_history_sidecar(home_records_env):
 def test_home_records_reproduction_prompts_index(home_records_env):
     """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError."""
     target, home, aw_home = home_records_env
+    (project_context.project_records_dir(target, aw_home=aw_home) / "prompts").mkdir(
+        parents=True
+    )
     res = run_aw(
         ["index", "prompts", "--dir", str(target)],
         cwd=target,
