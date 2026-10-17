@@ -6,7 +6,7 @@
 - Scope: Orchestrate five children in strict order: (01) measurement tooling and decision table; (02) delete structure/name/architecture pins; (03) consolidate duplicates, marginal and combinatorial tests; (04) speed up to under 120s; (05) prove nothing was lost (coverage parity, mutation spot-check, flakes, final numbers). Runs after `hguae9` (Set `testtier`) so the `core` marker exists and is protected. Orchestration only.
 - Scope-Paths: .aw/records/plans/pending/20261016-testprune-00-8wfzb5-prune-consolidate-and-speed-up-the-test-suite-to-a-full-reta.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 153a062252c4516c10eb91dd738ba25a83ddee5a5c792aa03cd5f10046bdd40c
@@ -18,9 +18,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8wfzb5
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set testprune reached executed, so the runner (run run-20261017T051051Z-101161) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: qqrgv3, tv72xy, 83nnyn, c8bfp9, vgus66.
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 coverage pass (aw oc run): fingerprint 153a062252c4, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -35,6 +35,9 @@
 The full retained suite runs in under 2 minutes on 6 workers, every remaining test proves behavior, and union line and branch coverage of `agent_workflows/` does not drop (each lost line restored or justified), with a mutation spot-check showing deletions lost no detection.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
