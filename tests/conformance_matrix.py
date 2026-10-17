@@ -37,15 +37,19 @@ goldens do not flake across supported CPython versions.
 
 from __future__ import annotations
 
+import atexit
+import contextlib
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from agent_workflows import runner_shared, set_records
 from agent_workflows.command_surface import (
@@ -149,12 +153,12 @@ LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "runs verify-ledger": [LEDGER_FIXTURE_RUN_ID],
 }
 
-# Leaves whose invocation wall time is too heavy for the default test suite.
-# Partition decided in IPD 34iwyp: doctor, attention, status.
-# Measured at execution (high concurrency baseline):
-# - doctor: human 598.970s, agent 359.733s, no_color 262.383s (per-invocation ~407.0s)
-# - attention: human 48.411s, agent 48.577s, no_color 48.658s (per-invocation ~48.5s)
-# - status: human 43.852s, agent 35.515s, no_color 33.626s (per-invocation ~37.7s)
+# Leaves historically partitioned due to live repository records traversal (IPD 34iwyp).
+# Re-measured in IPD c8bfp9 E-03 against seeded fixture project with sandboxed config:
+# - doctor: human 0.986s, agent 0.942s
+# - attention: human 0.384s, agent 0.365s
+# - status: human 0.416s, agent 0.419s
+# All under 1.0s on the seeded project; slow mark and timeout(500) dropped in c8bfp9.
 LIVE_HEAVY_LEAVES: frozenset[str] = frozenset(
     {
         "doctor",
@@ -176,8 +180,10 @@ RUNNABLE_ARGV: Dict[str, List[str]] = {
     "reviews decisions": ["f36de0"],
     "runs query": ["schema"],
     "show": ["f36de0"],
-    "workflow validate": ["tests/fixtures/workflow-src/plan-review"],
-    "workflow check-generated": ["tests/fixtures/workflow-src/plan-review"],
+    "workflow validate": [str(REPO_ROOT / "tests/fixtures/workflow-src/plan-review")],
+    "workflow check-generated": [
+        str(REPO_ROOT / "tests/fixtures/workflow-src/plan-review")
+    ],
     "agy profile show": ["non-existent"],
     "oc profile show": ["non-existent"],
     "upgrade-test env": ["dummy"],
@@ -773,6 +779,76 @@ def run_cli(
     )
 
 
+def run_cli_inproc(
+    argv: Sequence[str],
+    *,
+    cwd: Optional[Path | str] = None,
+    force_color: bool = False,
+    no_color: bool = False,
+    ascii_only: bool = False,
+    columns: str = "80",
+    encoding: str = "utf-8",
+    env_overrides: Optional[Dict[str, str]] = None,
+) -> RunResult:
+    """Execute ``agent_workflows.cli.main(argv)`` in-process with a pinned env and captured I/O.
+
+    Saves and restores ``os.getcwd()`` with ``os.chdir`` in a ``finally`` block, applies the
+    same environment ``_pinned_env`` builds via save-and-restore of ``os.environ``, redirects
+    stdout/stderr to ``io.StringIO``, calls ``agent_workflows.cli.main(argv)``, maps
+    ``SystemExit`` to an integer return code, and resets ``sys.argv``.
+    """
+    from agent_workflows import cli
+
+    old_cwd = os.getcwd()
+    old_env = dict(os.environ)
+    old_argv = list(sys.argv)
+
+    effective_cwd = str(REPO_ROOT) if cwd is None else str(cwd)
+    try:
+        pinned = _pinned_env(
+            force_color=force_color,
+            no_color=no_color,
+            ascii_only=ascii_only,
+            columns=columns,
+            env_overrides=env_overrides,
+        )
+        os.environ.clear()
+        os.environ.update(pinned)
+
+        os.chdir(effective_cwd)
+        sys.argv = ["agent_workflows", *argv]
+
+        out = io.StringIO()
+        err = io.StringIO()
+        code: Optional[int | Any] = None
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = cli.main(list(argv))
+            except SystemExit as exc:
+                code = exc.code
+
+        if code is None:
+            returncode = 0
+        elif isinstance(code, int):
+            returncode = code
+        else:
+            returncode = 1
+
+        out_str = out.getvalue().replace("\r\n", "\n")
+        err_str = err.getvalue().replace("\r\n", "\n")
+        return RunResult(
+            argv=list(argv), returncode=returncode, stdout=out_str, stderr=err_str
+        )
+    finally:
+        try:
+            os.chdir(old_cwd)
+        except Exception:
+            pass
+        os.environ.clear()
+        os.environ.update(old_env)
+        sys.argv = old_argv
+
+
 def run_cli_tty(
     argv: Sequence[str],
     *,
@@ -1045,6 +1121,244 @@ def clone_isolated_project(
         baseline_head=template.baseline_head,
         env_overrides=env_overrides,
     )
+
+
+_SEEDED_TEMPLATE: Optional[InstalledProjectTemplate] = None
+
+
+def build_seeded_project_template(base_dir: Path) -> InstalledProjectTemplate:
+    """Build a session-scoped seeded installed-project template (c8bfp9 E-02).
+
+    Extends build_installed_project_template with a small committed records set:
+    - one pending plan with id f36de0, status approved, order 1, set seeded
+    - one review record with id f36de0 and Decisions table
+    - one spec with id 25kzda, status approved
+    - one backlog item with id bklg01, status open
+    - one research record with id rsch01
+    - one release record with id f33nrj, status planned
+    - ledger fixture initialized via seed_ledger_fixture
+    Committed with git add and git commit.
+    """
+    installed = build_installed_project_template(base_dir)
+    proj = installed.template_dir
+
+    # Seed plan f36de0 (approved pending plan)
+    plan_dir = proj / ".aw" / "records" / "plans" / "pending"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    plan_content = """# IPD: Seeded Plan for Conformance
+
+- Date: 2026-10-16
+- Kind: child
+- Scope: Seeded fixture plan
+- Scope-Paths: tests/
+- Item-Dependencies: none
+- Status: approved
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- Set: seeded
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: f36de0
+
+## Workflow history
+- 2026-10-16 approved: status set to approved
+- 2026-10-16 to-review: drafted
+
+## Goal
+Seeded fixture goal.
+
+## Detailed Implementation Checklist (TODO)
+- [ ] E-01 Seeded task
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Validation and cross-check (verify before reporting done)
+- [ ] V-01 validates E-01
+  - Required evidence: done
+  - Observed evidence:
+  - Result: pending
+"""
+    (plan_dir / "20261016-seeded-01-f36de0-seeded-plan.ipd.md").write_text(
+        plan_content, encoding="utf-8"
+    )
+
+    # Seed spec 25kzda
+    spec_dir = proj / ".aw" / "records" / "specs" / "approved"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    spec_content = """# SPEC: Seeded Spec for Conformance
+
+- Id: 25kzda
+- Status: approved
+- Title: Seeded Spec
+- Slug: seeded-spec
+- Scope-Paths: tests/
+- Author: test
+
+## Summary
+Seeded spec summary.
+
+## Workflow history
+- 2026-08-26 approved: status set to approved
+
+## Requirements
+### R-01 Seeded Requirement
+Seeded requirement text.
+"""
+    (spec_dir / "20260826-25kzda-01-25kzda-seeded-spec.spec.md").write_text(
+        spec_content, encoding="utf-8"
+    )
+
+    # Seed review f36de0
+    rev_dir = proj / ".aw" / "records" / "reviews"
+    rev_dir.mkdir(parents=True, exist_ok=True)
+    rev_content = """# Review findings: plan f36de0
+
+- Subject-Id: f36de0
+- Subject-Type: ipd
+- Reviewed-At: 2026-10-16
+- Reviewer: test-reviewer
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+Seeded review text.
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Seeded question? | Yes | No | Basis text | yes |
+"""
+    (rev_dir / "20261016-seeded-01-f36de0-seeded-plan.review.md").write_text(
+        rev_content, encoding="utf-8"
+    )
+
+    # Seed backlog item
+    bklg_dir = proj / ".aw" / "records" / "backlog" / "open"
+    bklg_dir.mkdir(parents=True, exist_ok=True)
+    bklg_content = """- Id: bklg01
+- Status: open
+- Set: seeded
+- Priority: low
+- Work-Kind: chore
+- Summary: Seeded backlog item
+
+## Workflow history
+- 2026-10-16 created: created
+"""
+    (bklg_dir / "20261016-seeded-01-bklg01-seeded-item.backlog.md").write_text(
+        bklg_content, encoding="utf-8"
+    )
+
+    # Seed research record
+    rsch_dir = proj / ".aw" / "records" / "research"
+    rsch_dir.mkdir(parents=True, exist_ok=True)
+    rsch_content = """---
+id: rsch01
+created: 20261016
+set: seeded
+order: 01
+topic: [testing]
+model: test
+kind: assessment
+status: reference
+outcome: informational
+summary: Seeded research record
+consumed-by: []
+---
+
+# Seeded research record
+Seeded research content.
+"""
+    (rsch_dir / "20261016-seeded-01-rsch01-seeded-research.assessment.md").write_text(
+        rsch_content, encoding="utf-8"
+    )
+
+    # Seed release record
+    rel_dir = proj / ".aw" / "records" / "releases"
+    rel_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        REPO_ROOT
+        / ".aw"
+        / "records"
+        / "releases"
+        / "20260820-f33nrj-01-f33nrj-2-0-0.release.md",
+        rel_dir,
+    )
+
+    # Seed ledger fixture
+    seed_ledger_fixture(proj, LEDGER_FIXTURE_RUN_ID)
+
+    # Commit all seeded records
+    subprocess.run(["git", "add", "-A"], cwd=proj, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed records and ledger fixture"],
+        cwd=proj,
+        check=True,
+        capture_output=True,
+    )
+
+    head_proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=proj,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    status_proc = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=proj,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    return InstalledProjectTemplate(
+        template_dir=proj,
+        home_dir=installed.home_dir,
+        xdg_config_home=installed.xdg_config_home,
+        baseline_status=status_proc.stdout,
+        baseline_head=head_proc.stdout.strip(),
+    )
+
+
+def get_seeded_project_template() -> InstalledProjectTemplate:
+    """Return process-singleton seeded project template, initializing lazily."""
+    global _SEEDED_TEMPLATE
+    if _SEEDED_TEMPLATE is not None and _SEEDED_TEMPLATE.template_dir.is_dir():
+        return _SEEDED_TEMPLATE
+
+    tmp_root = Path(tempfile.mkdtemp(prefix="aw_seeded_template_"))
+    atexit.register(shutil.rmtree, str(tmp_root), ignore_errors=True)
+    _SEEDED_TEMPLATE = build_seeded_project_template(tmp_root)
+    return _SEEDED_TEMPLATE
+
+
+def get_seeded_project_dir() -> Path:
+    """Return the Path to the template_dir of the seeded project template."""
+    return get_seeded_project_template().template_dir
+
+
+_INSTALLED_TEMPLATE: Optional[InstalledProjectTemplate] = None
+
+
+def get_installed_project_template() -> InstalledProjectTemplate:
+    """Return process-singleton installed project template, initializing lazily."""
+    global _INSTALLED_TEMPLATE
+    if _INSTALLED_TEMPLATE is not None and _INSTALLED_TEMPLATE.template_dir.is_dir():
+        return _INSTALLED_TEMPLATE
+
+    tmp_root = Path(tempfile.mkdtemp(prefix="aw_installed_template_"))
+    atexit.register(shutil.rmtree, str(tmp_root), ignore_errors=True)
+    _INSTALLED_TEMPLATE = build_installed_project_template(tmp_root)
+    return _INSTALLED_TEMPLATE
+
+
+def get_installed_project_dir() -> Path:
+    """Return the Path to the template_dir of the installed project template."""
+    return get_installed_project_template().template_dir
 
 
 # --------------------------------------------------------------------------------------------------

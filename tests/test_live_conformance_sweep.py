@@ -27,6 +27,7 @@ from tests.conformance_matrix import (
     LIVE_HEAVY_LEAVES,
     LIVE_SAFE_LEAVES,
     USAGE_ERROR_FLAG,
+    get_seeded_project_dir,
     live_cheap_leaves,
     live_leaf_argv,
     outcome_family,
@@ -39,10 +40,8 @@ from tests.conformance_matrix import (
 
 
 @pytest.fixture(scope="session")
-def live_ledger_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    td = tmp_path_factory.mktemp("live_ledger")
-    subprocess.run(["git", "init"], cwd=td, check=True, capture_output=True)
-    return seed_ledger_fixture(td)
+def live_ledger_dir() -> Path:
+    return get_seeded_project_dir()
 
 
 # Cheap leaves measured to emit ANSI escape sequences over a pty when NO_COLOR is NOT set,
@@ -79,7 +78,7 @@ def test_no_color_transport_contrast_observes_ansi(
 ) -> None:
     """Transport contrast: run_cli_tty without NO_COLOR observes ANSI escape sequences (E-07)."""
     argv = live_leaf_argv(leaf, live_ledger_dir)
-    res = run_cli_tty(argv, no_color=False)
+    res = run_cli_tty(argv, no_color=False, cwd=live_ledger_dir)
     assert res.returncode in (
         0,
         1,
@@ -90,17 +89,19 @@ def test_no_color_transport_contrast_observes_ansi(
 
 
 @pytest.mark.parametrize("leaf", sorted(LIVE_SAFE_LEAVES.keys()))
-def test_help_scenario_exits_zero_and_documents_usage(leaf: str) -> None:
+def test_help_scenario_exits_zero_and_documents_usage(
+    leaf: str, live_ledger_dir: Path
+) -> None:
     """--help over LIVE_SAFE_LEAVES must exit 0 and document usage (E-02)."""
-    res = run_cli([*leaf.split(), "--help"])
+    res = run_cli([*leaf.split(), "--help"], cwd=live_ledger_dir)
     assert res.returncode == 0, f"{leaf} --help rc={res.returncode}"
     assert "usage" in res.stdout.lower(), f"{leaf} --help output did not document usage"
 
 
 @pytest.mark.parametrize("leaf", sorted(LIVE_SAFE_LEAVES.keys()))
-def test_usage_error_scenario_exits_two(leaf: str) -> None:
+def test_usage_error_scenario_exits_two(leaf: str, live_ledger_dir: Path) -> None:
     """Invalid flag over LIVE_SAFE_LEAVES must exit 2 with usage error (E-02)."""
-    res = run_cli([*leaf.split(), USAGE_ERROR_FLAG])
+    res = run_cli([*leaf.split(), USAGE_ERROR_FLAG], cwd=live_ledger_dir)
     assert (
         res.returncode == 2
     ), f"{leaf} bad-flag rc={res.returncode} (expected usage error 2)"
@@ -115,21 +116,19 @@ def test_no_color_scenario_is_plain_cheap_leaves(
 ) -> None:
     """NO_COLOR over live_cheap_leaves() via pty must produce plain output without ANSI (E-02)."""
     argv = live_leaf_argv(leaf, live_ledger_dir)
-    res = run_cli_tty(argv, no_color=True)
+    res = run_cli_tty(argv, no_color=True, cwd=live_ledger_dir)
     assert not ANSI_RE.search(
         res.stdout
     ), f"NO_COLOR human stream for {leaf!r} contained ANSI: {res.stdout!r}"
 
 
-@pytest.mark.slow
-@pytest.mark.timeout(500)
 @pytest.mark.parametrize("leaf", sorted(LIVE_HEAVY_LEAVES))
 def test_no_color_scenario_is_plain_heavy_leaves(
     leaf: str, live_ledger_dir: Path
 ) -> None:
-    """NO_COLOR over LIVE_HEAVY_LEAVES via pty must produce plain output without ANSI (slow, E-03)."""
+    """NO_COLOR over LIVE_HEAVY_LEAVES via pty must produce plain output without ANSI (c8bfp9 E-02 / E-03)."""
     argv = live_leaf_argv(leaf, live_ledger_dir)
-    res = run_cli_tty(argv, no_color=True)
+    res = run_cli_tty(argv, no_color=True, cwd=live_ledger_dir)
     assert not ANSI_RE.search(
         res.stdout
     ), f"NO_COLOR heavy stream for {leaf!r} contained ANSI: {res.stdout!r}"
@@ -256,9 +255,9 @@ def test_live_ledger_read_leaves_non_vacuous(leaf: str, live_ledger_dir: Path) -
     expected_rc = EXPECTED_READ_EXIT_CODES[leaf]
     argv_base = live_leaf_argv(leaf, live_ledger_dir)
 
-    res_human = run_cli(argv_base)
-    res_agent = run_cli([*argv_base, "--agent"])
-    res_json = run_cli([*argv_base, "--json"])
+    res_human = run_cli(argv_base, cwd=live_ledger_dir)
+    res_agent = run_cli([*argv_base, "--agent"], cwd=live_ledger_dir)
+    res_json = run_cli([*argv_base, "--json"], cwd=live_ledger_dir)
 
     for mode, res in (("human", res_human), ("agent", res_agent), ("json", res_json)):
         assert res.returncode == expected_rc, (

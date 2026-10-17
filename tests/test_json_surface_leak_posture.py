@@ -320,8 +320,12 @@ class CliSubprocessLeakPostureTests(unittest.TestCase):
     @pytest.mark.timeout(300)
     def test_cli_json_surface_envelope_clean(self) -> None:
         # Run aw check plans --json in a subprocess
+        from tests.conformance_matrix import get_installed_project_dir
+
+        repo_dir = get_installed_project_dir()
         proc = subprocess.run(
             [sys.executable, "-m", "agent_workflows", "check", "plans", "--json"],
+            cwd=repo_dir,
             capture_output=True,
             text=True,
         )
@@ -350,10 +354,14 @@ class CliSubprocessLeakPostureTests(unittest.TestCase):
     @pytest.mark.timeout(300)
     def test_aw_check_plans_agent_no_crash(self) -> None:
         # Run aw check plans --agent with PYTHONHASHSEED=1 which previously crashed on field 'next'
+        from tests.conformance_matrix import get_installed_project_dir
+
+        repo_dir = get_installed_project_dir()
         env = dict(os.environ)
         env["PYTHONHASHSEED"] = "1"
         proc = subprocess.run(
             [sys.executable, "-m", "agent_workflows", "check", "plans", "--agent"],
+            cwd=repo_dir,
             env=env,
             capture_output=True,
             text=True,

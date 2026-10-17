@@ -92,17 +92,17 @@ _HEARTBEAT_CHILD_CODE = textwrap.dedent("""
     if not run_id or not item_id6:
         sys.exit(1)
 
-    deadline = time.monotonic() + 4.0
+    deadline = time.monotonic() + 1.8
     while time.monotonic() < deadline:
         suite_cache.touch_heartbeat(run_id, item_id6)
-        time.sleep(0.2)
+        time.sleep(0.15)
     sys.exit(0)
 """)
 
 _CONTROL_CHILD_CODE = textwrap.dedent("""
     import sys
     import time
-    time.sleep(4.0)
+    time.sleep(1.8)
     sys.exit(0)
 """)
 
@@ -304,7 +304,7 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
             _WORKER_SCRIPT,
             str(log_file),
             "w1",
-            "3.0",
+            "1.4",
             str(started1),
         ],
         env=env_base,
@@ -318,8 +318,8 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
     assert started1.exists(), "p1 did not start in time"
 
     env2 = env_base.copy()
-    env2["AW_SUITE_SLOT_TIMEOUT"] = "1.0"
-    env2["AW_SUITE_SLOT_POLL_INTERVAL"] = "0.05"
+    env2["AW_SUITE_SLOT_TIMEOUT"] = "0.6"
+    env2["AW_SUITE_SLOT_POLL_INTERVAL"] = "0.03"
     p2 = subprocess.Popen(
         [sys.executable, "-c", _WORKER_SCRIPT, str(log_file), "w2", "0.2"],
         env=env2,
@@ -341,7 +341,7 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
     ]
     r2 = next(r for r in records if r["id"] == "w2")
     assert r2["slot_acquired"] is False
-    assert r2["waited_seconds"] >= 0.95
+    assert r2["waited_seconds"] >= 0.55
 
 
 def test_nested_guard_with_and_without_marker(tmp_path: Path):
@@ -498,12 +498,12 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
     with mock.patch.dict(os.environ, env_patch):
         os.environ.pop("AW_SUITE_SLOT_HELD", None)
 
-        # 1. Heartbeat child: silent on stdout for 4s, touches heartbeat every 0.3s -> NOT reaped
+        # 1. Heartbeat child: silent on stdout for 1.8s, touches heartbeat every 0.15s -> NOT reaped
         state_hb = {
             "run_id": "run-test-e2e",
             "options": {
                 "opencode": str(hb_child),
-                "stall_timeout": 2.0,
+                "stall_timeout": 1.0,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -529,12 +529,12 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
             hb_file = suite_cache.heartbeat_path("run-test-e2e", "abc123")
             assert hb_file is not None and not hb_file.exists()
 
-        # 2. Control child: silent for 4s, touches nothing -> StallTimeout raised after ~1s
+        # 2. Control child: silent for 1.8s, touches nothing -> StallTimeout raised after ~1s
         state_ctl = {
             "run_id": "run-test-e2e",
             "options": {
                 "opencode": str(ctl_child),
-                "stall_timeout": 2.0,
+                "stall_timeout": 1.0,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -583,12 +583,12 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
     with mock.patch.dict(os.environ, env_patch):
         os.environ.pop("AW_SUITE_SLOT_HELD", None)
 
-        # 1. Heartbeat child: silent on stdout for 4s, touches heartbeat every 0.3s -> NOT reaped
+        # 1. Heartbeat child: silent on stdout for 1.8s, touches heartbeat every 0.15s -> NOT reaped
         state_hb = {
             "run_id": "run-test-e2e-agy",
             "options": {
                 "agy_executable": str(hb_child),
-                "stall_timeout": 2.0,
+                "stall_timeout": 1.0,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -609,12 +609,12 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
             hb_file = suite_cache.heartbeat_path("run-test-e2e-agy", "xyz789")
             assert hb_file is not None and not hb_file.exists()
 
-        # 2. Control child: silent for 4s, touches nothing -> StallTimeout raised after ~1s
+        # 2. Control child: silent for 1.8s, touches nothing -> StallTimeout raised after ~1s
         state_ctl = {
             "run_id": "run-test-e2e-agy",
             "options": {
                 "agy_executable": str(ctl_child),
-                "stall_timeout": 2.0,
+                "stall_timeout": 1.0,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),

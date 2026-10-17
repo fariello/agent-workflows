@@ -25,7 +25,7 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import pytest
 
@@ -37,6 +37,7 @@ from tests.conformance_matrix import (
     IsolatedProject,
     build_installed_project_template,
     clone_isolated_project,
+    get_seeded_project_dir,
     run_cli,
 )
 from tests.test_agent_surface_conformance import (
@@ -120,17 +121,9 @@ def _parser_option_strings(parser: argparse.ArgumentParser) -> Set[str]:
 
 
 @pytest.fixture(scope="session")
-def scoped_repo_dir(tmp_path_factory) -> Path:
-    """A minimal initialized git repo with a minimal .aw folder.
-
-    Used by expensive whole-tree inspection commands (doctor, check) so their
-    conformance check verifies the emit contract without traversing this
-    repository's full records tree.
-    """
-    temp_dir = tmp_path_factory.mktemp("scoped_aw_project")
-    subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True, check=True)
-    (temp_dir / ".aw" / "records" / "plans").mkdir(parents=True)
-    return temp_dir
+def seeded_project_dir() -> Path:
+    """Session-scoped seeded project directory with initialized records."""
+    return get_seeded_project_dir()
 
 
 @pytest.fixture(scope="session")
@@ -272,12 +265,11 @@ def _assert_fields_honored(leaf: str, full_argv: List[str], res) -> None:
 
 
 @pytest.mark.parametrize("leaf", _json_read_params())
-def test_json_flag_honored_read(leaf: str, scoped_repo_dir: Path) -> None:
+def test_json_flag_honored_read(leaf: str, seeded_project_dir: Path) -> None:
     """Assert read/check leaf emits parseable JSON on stdout under --json."""
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--json"]
-    cwd: Optional[Path] = scoped_repo_dir if leaf in ("doctor", "check") else None
-    res = run_cli(full_argv, cwd=cwd)
+    res = run_cli(full_argv, cwd=seeded_project_dir)
     _assert_json_parseable(leaf, full_argv, res)
 
 
@@ -303,12 +295,11 @@ def test_json_flag_honored_mutation(
 
 
 @pytest.mark.parametrize("leaf", _fields_read_params())
-def test_fields_flag_honored_read(leaf: str, scoped_repo_dir: Path) -> None:
+def test_fields_flag_honored_read(leaf: str, seeded_project_dir: Path) -> None:
     """Assert read/check leaf honors --fields cmd under --agent."""
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--agent", "--fields", "cmd"]
-    cwd: Optional[Path] = scoped_repo_dir if leaf in ("doctor", "check") else None
-    res = run_cli(full_argv, cwd=cwd)
+    res = run_cli(full_argv, cwd=seeded_project_dir)
     _assert_fields_honored(leaf, full_argv, res)
 
 

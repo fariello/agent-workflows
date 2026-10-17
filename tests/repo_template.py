@@ -48,6 +48,12 @@ def get_template_repo() -> Path:
         check=True,
         capture_output=True,
     )
+    subprocess.run(
+        ["git", "config", "commit.gpgsign", "false"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+    )
 
     _TEMPLATE_DIR = repo_dir
     return _TEMPLATE_DIR
@@ -62,4 +68,21 @@ def copy_template_repo(dest: Path) -> Path:
     else:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(template, dest_path, symlinks=True)
-    return dest_path
+    return Path(dest)
+
+
+def directory_content_digest(root: Path) -> str:
+    """Compute deterministic SHA256 digest of all files in a directory tree."""
+    import hashlib
+
+    hasher = hashlib.sha256()
+    root_path = Path(root).resolve()
+    for p in sorted(root_path.rglob("*")):
+        if p.is_file() and not p.is_symlink():
+            rel = p.relative_to(root_path).as_posix().encode("utf-8")
+            hasher.update(rel)
+            try:
+                hasher.update(p.read_bytes())
+            except OSError:
+                pass
+    return hasher.hexdigest()

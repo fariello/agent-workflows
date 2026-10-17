@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import pytest
 
@@ -29,6 +29,7 @@ from tests.conformance_matrix import (
     IsolatedProject,
     build_installed_project_template,
     clone_isolated_project,
+    get_seeded_project_dir,
     run_cli,
     semantic_facts_from_agent,
 )
@@ -75,29 +76,18 @@ MUTATION_UNIVERSE = compute_mutation_conformance_universe()
 
 
 @pytest.fixture(scope="session")
-def scoped_repo_dir(tmp_path_factory) -> Path:
-    """A minimal initialized git repo with a minimal .aw folder.
-
-    Used by expensive whole-tree inspection commands (doctor, check) so their
-    conformance check verifies the emit contract without spending tens of seconds
-    traversing this repository's full records tree.
-    """
-    temp_dir = tmp_path_factory.mktemp("scoped_aw_project")
-    subprocess.run(["git", "init"], cwd=temp_dir, capture_output=True, check=True)
-    (temp_dir / ".aw" / "records" / "plans").mkdir(parents=True)
-    return temp_dir
+def seeded_project_dir() -> Path:
+    """The session-scoped seeded fixture project template directory (c8bfp9 E-02)."""
+    return get_seeded_project_dir()
 
 
 @pytest.mark.parametrize("leaf", UNIVERSE)
-def test_agent_surface_conformance(leaf: str, scoped_repo_dir: Path) -> None:
+def test_agent_surface_conformance(leaf: str, seeded_project_dir: Path) -> None:
     """Assert leaf emits non-empty stdout, a valid terminal record, and exit parity."""
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--agent"]
 
-    # Scope expensive tree-walking leaves to a minimal test project (E-06)
-    cwd: Optional[Path] = scoped_repo_dir if leaf in ("doctor", "check") else None
-
-    res = run_cli(full_argv, cwd=cwd)
+    res = run_cli(full_argv, cwd=seeded_project_dir)
 
     # 1. Non-empty stdout
     assert res.stdout.strip(), (

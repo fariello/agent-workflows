@@ -2127,3 +2127,886 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | `tests/test_shared_flag_honored.py` | `keep` | Shared flag honoring across all leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_live_conformance_sweep.py` | `keep` | Live conformance sweep across leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | Remaining E-01 owner list modules (254 modules) | `keep` | Remaining candidate modules reviewed and preserved per protocol (b)/(c) | 0 | 0 | Preserved unchanged | `83nnyn` | |
+
+
+## c8bfp9 baseline
+
+- **Run Directory**: .aw/state/percov/c8bfp9-base
+- **Git HEAD**: 88b0fda5825ba43662779d0585c0dcde0a70c7e5
+- **Host**: Linux 12-CPU
+- **Worker Count**: 6 xdist workers (--dist=worksteal)
+- **Python Version**: 3.14.6 (main, Jul  8 2026, 13:05:09) [GCC 13.3.0]
+- **Coverage Version**: 7.15.0 (core: ctrace, patch = subprocess)
+- **Instrumented Wall Time**: 1206.80s
+- **Uninstrumented Wall Times**:
+  - Run 1: 751.39s (3 failed, 8602 passed, 5 skipped)
+  - Run 2: 754.18s (2 failed, 8603 passed, 5 skipped)
+  - Run 3: 749.23s (2 failed, 8603 passed, 5 skipped)
+  - **Median Wall Time**: 751.39s
+- **Collected Count**: 8610 tests
+- **Sum of All Call Durations**:
+  - Run 1: 4413.90s
+  - Run 2: 4397.76s
+  - Run 3: 4440.12s
+- **Tail Floor / Longest Single Test**: 139.47s (tests.test_exit_contract_conformance::test_live_safe_leaves_exit_contract_membership_heavy[doctor])
+- **Slow Test Census (Run 1)**:
+  - Duration > 2.0s: 637 tests
+  - Duration > 5.0s: 155 tests
+  - Duration > 10.0s: 41 tests
+
+### Target Arithmetic
+
+- **Target Wall Time**: < 120.0s on 6 xdist workers (--dist=worksteal)
+- **Current Median Wall Time**: 751.39s (6.26x over target)
+- **Theoretical Lower Bound (Sum of Call Durations / 6 workers)**: 4413.90s / 6 = 735.65s (6.13x over target)
+- **Tail Constraint (Longest Single Test)**: 139.47s (doctor exit contract sweep) alone exceeds the entire 120.0s target by 19.47s (1.16x).
+- **Core Insight**: The slowest tests (doctor, attention, status, ipd lint) are dominated by traversing the repository's full records tree in subprocess sweeps, plus repeated installation and subprocess startup overhead.
+
+### Full-Suite Union Line and Branch Coverage (percov_analyze)
+
+- **Total Collected Tests**: 8609
+- **No-Coverage Tests**: 462
+- **Union Covered Lines**: 126,521 / 99,474 statements (82.81%)
+- **Union Covered Arcs**: 165,372 / 40,572 branches (74.62%)
+
+### Top 50 Call Durations (Run 1)
+
+| Rank | Duration (s) | Node ID |
+|---|---|---|
+| 1 | 139.47s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[doctor] |
+| 2 | 69.73s | tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_heavy_leaves[doctor] |
+| 3 | 34.37s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_c |
+| 4 | 32.23s | tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference |
+| 5 | 29.93s | tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_03_fault_points_resume_to_same_end_state |
+| 6 | 25.20s | tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta |
+| 7 | 24.55s | tests/test_installer.py::InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering |
+| 8 | 24.02s | tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_04_fault_points_resume_to_completed_state |
+| 9 | 23.07s | tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit |
+| 10 | 22.88s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_a |
+| 11 | 22.63s | tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_exhaustive_sweep |
+| 12 | 20.46s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[attention] |
+| 13 | 19.93s | tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun |
+| 14 | 17.89s | tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_3_rollback_pre_sources_removed_pair_a |
+| 15 | 16.60s | tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection |
+| 16 | 15.88s | tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_aw_check_plans_agent_no_crash |
+| 17 | 15.84s | tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_cli_json_surface_envelope_clean |
+| 18 | 15.50s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_cheap[ipd lint] |
+| 19 | 15.31s | tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_e05_spec_5_5_checker_rejects_stale_owner |
+| 20 | 15.22s | tests/test_installer.py::UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly |
+| 21 | 15.13s | tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered |
+| 22 | 14.53s | tests/test_agent_surface_conformance.py::test_agent_surface_conformance[next] |
+| 23 | 14.10s | tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_04_pre_sources_removed_fault_points_rollback_byte_identical |
+| 24 | 13.03s | tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes |
+| 25 | 12.74s | tests/test_shared_flag_honored.py::test_partition_fields_branch_behavior |
+| 26 | 12.22s | tests/test_agent_surface_conformance.py::test_agent_surface_conformance[releases readiness] |
+| 27 | 12.06s | tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e01_e06_e07_success_path_graduate_review_orchestrate |
+| 28 | 11.56s | tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_oc_restart_enabled |
+| 29 | 11.22s | tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_b_per_set_cap_stops_second_item |
+| 30 | 11.06s | tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_attention_closed_pipe |
+| 31 | 11.02s | tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_6_recovery_resume_and_rollback |
+| 32 | 10.94s | tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_agy_restart_enabled |
+| 33 | 10.93s | tests/test_live_conformance_sweep.py::test_live_ledger_mutation_leaves_conformance |
+| 34 | 10.77s | tests/test_shared_flag_honored.py::test_fields_flag_honored_read[next] |
+| 35 | 10.62s | tests/test_installer.py::InstallerEndToEndTests::test_native_agent_files_mirroring |
+| 36 | 10.30s | tests/test_shared_flag_honored.py::test_json_flag_honored_read[releases readiness] |
+| 37 | 10.30s | tests/test_shared_flag_honored.py::test_fields_flag_honored_read[releases readiness] |
+| 38 | 10.29s | tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_heavy_leaves[attention] |
+| 39 | 10.28s | tests/test_shared_flag_honored.py::test_json_flag_honored_read[next] |
+| 40 | 10.20s | tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_c_per_run_cap_stops_second_item |
+| 41 | 10.16s | tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[status] |
+| 42 | 9.86s | tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_local_only_ordinary_use |
+| 43 | 9.54s | tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e03_review_orchestrator_fixed_and_exhausted |
+| 44 | 9.31s | tests/test_installer.py::TargetLayoutResolutionTests::test_every_repo_shape_resolves_and_installs_to_the_right_layout |
+| 45 | 9.24s | tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering |
+| 46 | 9.15s | tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use |
+| 47 | 9.13s | tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_05_pre_sources_removed_fault_points_rollback_byte_identical |
+| 48 | 9.11s | tests/test_suite_cache.py::test_reproducible_failure_stored_and_not_served_to_seam |
+| 49 | 9.11s | tests/test_authoring_coverage_guidance.py::ScaffoldPlaceholderOutputTests::test_scaffold_subprocess_emits_expected_placeholders |
+| 50 | 9.05s | tests/test_installed_version_reporting.py::InstalledVersionReportingTests::test_e2e_wheel_build_installed_version_reporting |
+
+## c8bfp9 E-11 in-process conversions and kept-subprocess census
+
+### Converted Module Group 1 (10 modules)
+
+| Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_index_check_agent_records.py` | 7.16s | 2.53s | -4.63s |
+| `tests/test_index_write_agent_records.py` | 7.15s | 4.38s | -2.77s |
+| `tests/test_agent_checked_count.py` | 3.24s | 1.85s | -1.39s |
+| `tests/test_check_severity_tally.py` | 2.38s | 1.91s | -0.47s |
+| `tests/test_doctor_diagnostic_severity.py` | 2.63s | 2.01s | -0.62s |
+| `tests/test_handoff_ready_gate.py` | 2.66s | 1.71s | -0.95s |
+| `tests/test_attention_degraded_item.py` | 2.26s | 1.74s | -0.52s |
+| `tests/test_sanitizer_severity_vocabulary.py` | 2.70s | 1.99s | -0.71s |
+| `tests/test_explicit_dir_non_project.py` | 4.04s | 2.01s | -2.03s |
+| `tests/test_explicit_dir_subdir_resolution.py` | 2.82s | 1.72s | -1.10s |
+| **Total Serial** | **37.04s** | **21.85s** | **-15.19s** |
+
+Parallel execution under `-n 6`:
+- Pass 1 (seed 2097388723): 106 passed in 6.73s
+- Pass 2 (seed 99887766): 106 passed in 6.49s
+
+Zero outcome differences found between `run_cli` and `run_cli_inproc` across all 106 tests.
+
+### Kept-Subprocess Set
+
+| Test Module / Node ID | Category | Reason Kept as Subprocess |
+|---|---|---|
+| `tests/test_pwatch_tty_color.py` | TTY/pty | Real pseudo-terminal slave attachment and ANSI emission detection |
+| `tests/test_term.py::ColorDepthEndToEndLadderTests` | TTY/pty | Real pseudo-terminal ladder and TTY color detection |
+| `tests/test_broken_pipe_exit.py` | Signal / EPIPE | Tests SIGPIPE and closed-pipe subprocess exit code 141 |
+| `test_universal_130_floor_and_signal_code_exclusion` | Signal / Exit 130 | Subprocess SIGINT and signal-floor exclusion under test |
+| `tests/test_nv_backend_args_climb.py` | Env / PYTHONPATH | Explicitly pins subprocess execution with isolated HOME and lane PYTHONPATH |
+| `tests/test_resolver_bypass_sites_climb.py` | Env / PYTHONPATH | Explicitly pins subprocess execution with isolated HOME and lane PYTHONPATH |
+| `tests/test_clean_target_config_home.py` | Re-exec | Tests AW_NO_REEXEC and re-execution boundary |
+| `tests/test_installed_version_reporting.py` | Packaging / Wheel | Builds wheel and runs installed console script in virtualenv |
+| `tests/test_core_smoke.py` | Core Smoke | hguae9 core smoke boundary test running external CLI |
+
+## c8bfp9 E-05 host-binary and network probe census
+
+### Host-Binary Spawn Census and Dispositions
+
+| Binary / Command | Calling Module / Function | Disposition | Reason / Measurement |
+|---|---|---|---|
+| `git init`, `git config`, `git add`, `git commit` | `tests/test_doctor.py`, `tests/test_checkup.py` test setup | Kept | Fast (< 5ms per call); required for repository state and commit history under test. |
+| `git rev-parse`, `git rev-list` | `doctor._check_editable_install_staleness` | Kept (reverted probe mock) | Measured with mock: 2.19s vs 2.21s unmocked (< 0.02s delta, within noise). Per plan rule, mock that does not reduce duration is reverted. |
+| `gh workflow run`, `gh api` | `agent_workflows.checkup` | Mocked | Already mocked via `checkup._gh_api` and `checkup._gh_run_list` seams across all tests; 0 live network calls verified by `test_attention_and_doctor_read_record_zero_gh_calls`. |
+| `opencode`, `agy` | Host capabilities / runner probes | Kept / Mocked | Unit tests use `host_capability_registry` mocks; live integration tests keep subprocess where host capability is under test. |
+
+### Module Durations (test_doctor.py and test_checkup.py)
+
+- `tests/test_doctor.py`: 37 passed in 2.21s (unmocked) vs 2.19s (mocked); top test 0.48s.
+- `tests/test_checkup.py`: 17 passed in 1.25s; top test 0.47s (`test_concurrency_lock_busy`).
+- F-9 confirmed: `doctor` slowness on the live repository checkout was driven entirely by records tree traversal (resolved by E-02 seeded fixture project), not host-binary or network probes.
+
+## c8bfp9 E-06 cached setup fixtures and templates
+
+### Implementation Summary
+
+1. **Bare Git Repository Template (`tests/repo_template.py`)**:
+   - Extended `get_template_repo()` to configure `commit.gpgsign=false` alongside `user.name` and `user.email`.
+   - Added `directory_content_digest(root: Path) -> str` helper to compute deterministic SHA256 directory tree hashes for isolation verification.
+   - Updated `tests/support.py`'s `init_repo(path: Path) -> Path` to delegate directly to `copy_template_repo(path)`, replacing 5 sequential git subprocesses (`git init -q`, `git rev-parse`, three `git config` calls) per invocation across the entire test suite.
+
+2. **Installed Project Template (`tests/conformance_matrix.py`)**:
+   - Added process-singleton `get_installed_project_template() -> InstalledProjectTemplate` and `get_installed_project_dir() -> Path` with automatic lazy initialization and cleanup.
+
+3. **Template Caching in Slow Test Suites (`tests/test_installer.py`)**:
+   - `InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering`: Cached the initial setup install in `template_repo` and cloned into each of the 7 cases; asserted `digest_before == digest_after` to prove zero template mutation across runs.
+   - `UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered`: Cached pre-install templates per distinct initial `.gitignore` state; asserted digest equality for all templates after runs.
+   - `UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly`: Cached the initial install in `drift-template` and cloned into each case; asserted `digest_before == digest_after`.
+
+### Measured Durations Before and After
+
+| Test Node ID / Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_installer.py::InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering` | 22.89s | 8.95s | -13.94s (-60.9%) |
+| `tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered` | 15.72s | 11.76s | -3.96s (-25.2%) |
+| `tests/test_installer.py::UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly` | 12.34s | 8.31s | -4.03s (-32.7%) |
+| `tests/test_installer.py::InstallerEndToEndTests::test_gitignored_opencode_does_not_abort` | 2.40s | 2.43s | +0.03s |
+| **Combined 4 Tests Wall Time** | **26.65s** | **14.96s** | **-11.69s (-43.9%)** |
+
+### Module Summary Lines
+
+- `tests/test_installer.py` under pytest (`-n 6`, seed 123456): `149 passed in 42.27s`
+- `tests/test_installer.py` under `python3 -m unittest`: `Ran 149 tests in 270.696s; OK`
+- Template digest verification: `a2bf96fad5604a27b190031e2e4c0d55e90c499bb4789eb87fc79c6523e49a7f` (all test-level digests verified identical before and after test execution).
+
+## c8bfp9 E-07 time.sleep census and dispositions
+
+Census of `time.sleep(` in `tests/` re-derived at execution: 58 matches across `tests/` (57 active code occurrences across 23 files, plus 1 docstring reference in `tests/test_runner_peer_dependency.py:89`), plus 1 site in `tests/test_run_analytics_cli.py:581` eliminated during E-07 conversion (58 total original code call sites).
+
+### Per-Site Disposition Table
+
+| Site | File and Line | Snippet | Category | Disposition and Rationale |
+|---|---|---|---|---|
+| 1 | `tests/test_platform_lock.py:202` | `time.sleep(0.05)` | kept-poll | Reader/writer thread contention poll. Bounded short poll (<50ms). |
+| 2 | `tests/test_platform_lock.py:339` | `time.sleep(0.2)` | converted | Shortened from `1.0s` to `0.2s`. Verifies blocking acquire waits rather than failing fast; threshold unchanged. |
+| 3 | `tests/test_run_analytics_cli.py:581` | `time.sleep(1.05)` | converted (eliminated) | Replaced sleep with `dataclasses.replace(..., generated_at=...)` backdating earlier entry timestamps. Sleep completely eliminated (0s). |
+| 4 | `tests/test_hang_guard_budget.py:109` | `time.sleep(1.2)` | kept-synthetic | Generated synthetic child test script. Subject under test is hang guard wall-vs-CPU budget distinction. |
+| 5 | `tests/test_hang_guard_budget.py:164` | `time.sleep(1.5)` | kept-synthetic | Generated synthetic child test script for hang guard budget. |
+| 6 | `tests/test_hang_guard_budget.py:205` | `time.sleep(1.5)` | kept-synthetic | Generated synthetic child test script for hang guard budget. |
+| 7 | `tests/test_stall_progress_agy.py:170` | `time.sleep(10)` | kept-kill-target | Long-lived child process spawned to be reaped on stall watchdog timeout. Terminated upon trigger. |
+| 8 | `tests/test_stall_progress_agy.py:191` | `time.sleep(0.3)` | kept-poll | Polling wait for watchdog state transition. Bounded poll. |
+| 9 | `tests/test_stall_progress_agy.py:198` | `time.sleep(0.3)` | kept-poll | Polling wait for watchdog state transition. Bounded poll. |
+| 10 | `tests/test_stall_progress_agy.py:232` | `time.sleep(0.05)` | kept-poll | Short polling interval. |
+| 11 | `tests/test_stall_progress_agy.py:243` | `time.sleep(0.05)` | kept-poll | Short polling interval. |
+| 12 | `tests/test_stall_progress_agy.py:250` | `time.sleep(1)` | kept-kill-target | Spawned child process kill target. Terminated on test cleanup. |
+| 13 | `tests/test_turn_bounds.py:42` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed when turn bounds fire. |
+| 14 | `tests/test_turn_bounds.py:94` | `time.sleep(0.01)` | kept-synthetic | Child script streaming stdout lines with small yield. |
+| 15 | `tests/test_turn_bounds.py:166` | `time.sleep(0.2)` | kept-poll | Bounded wait for child to initialize before testing turn boundary. |
+| 16 | `tests/test_turn_bounds.py:223` | `time.sleep(0.05)` | kept-poll | Bounded wait for process termination. |
+| 17 | `tests/test_turn_bounds.py:458` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed by turn boundary enforcement. |
+| 18 | `tests/test_turn_bounds.py:482` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed by turn boundary enforcement. |
+| 19 | `tests/test_runner_backlog_close_behavior.py:1095` | `time.sleep(0.05)` | kept-poll | Polling interval for backlog status check. |
+| 20 | `tests/test_capture_command_contract.py:258` | `time.sleep(2)` | kept-kill-target | Child process spawned as timeout/kill target. |
+| 21 | `tests/test_comms_broker.py:396` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 22 | `tests/test_concurrent_driver_guard.py:747` | `time.sleep(0.05)` | kept-kill-target | Child script loop in concurrent driver guard test. |
+| 23 | `tests/test_statusline_behavior.py:899` | `time.sleep(0.06)` | kept-poll | Poll wait for statusline refresh. |
+| 24 | `tests/test_hostcapgate_descriptor_freeze.py:56` | `time.sleep(0.001)` | kept-poll | Millisecond sleep to ensure distinct filesystem mtime. |
+| 25 | `tests/test_ipd_lifecycle_cli.py:1303` | `time.sleep(60)` | kept-kill-target | Long-lived child process holder killed in addCleanup. |
+| 26 | `tests/test_ipd_lifecycle_cli.py:1337` | `time.sleep(60)` | kept-kill-target | Long-lived child process holder killed in addCleanup. |
+| 27 | `tests/test_ipd_lifecycle_cli.py:1355` | `_time.sleep(sec)` | kept-cooperative | Custom sleep callback passed to `acquire_finalize_lock` for testing lock release handshake (~0.2s total). |
+| 28 | `tests/test_ipd_lifecycle_cli.py:1387` | `time.sleep(60)` | kept-kill-target | Child process holder killed in addCleanup. |
+| 29 | `tests/test_ipd_lifecycle_cli.py:1427` | `time.sleep(60)` | kept-kill-target | Child process holder killed in addCleanup. |
+| 30 | `tests/test_ipd_lifecycle_cli.py:1497` | `time.sleep(0.01)` | kept-synthetic | Child process loop waiting on sentinel. |
+| 31 | `tests/test_ipd_lifecycle_cli.py:1507` | `_time.sleep(0.02)` | kept-poll | Parent polling for child lock file creation. |
+| 32 | `tests/test_ipd_lifecycle_cli.py:1519` | `_time.sleep(sec)` | kept-cooperative | Custom sleep callback passed to `acquire_finalize_lock` for two-process lock handshake (~0.2s total). |
+| 33 | `tests/test_capture_command_stream_bounds.py:133` | `time.sleep(10)` | kept-kill-target | Child process spawned as stream bounds timeout target. |
+| 34 | `tests/test_lane_owner_record_anchoring.py:133` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 35 | `tests/test_deleted_test_replay.py:119` | `time.sleep(30)` | kept-synthetic | Synthetic test file written into temp repo to test slow replay timeout. |
+| 36 | `tests/test_core_tier_selection.py:108` | `time.sleep(0.05)` | kept-synthetic | Synthetic test file written to test core tier selection. |
+| 37 | `tests/test_oc_runipd.py:737` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 38 | `tests/test_oc_runipd.py:1699` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 39 | `tests/test_oc_runipd.py:1794` | `time.sleep(0.5)` | kept-poll | Bounded wait for process startup in review sweep test. |
+| 40 | `tests/test_comms_broker_registry.py:581` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 41 | `tests/test_comms_broker_registry.py:731` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 42 | `tests/test_checkup.py:77` | `time.sleep(resp["sleep"])` | kept-mocked | Sleep in mock GitHub API handler (`resp["sleep"]` is 0.0 or mocked). |
+| 43 | `tests/test_suite_baseline_mode_gate.py:107` | `time.sleep(0.05)` | kept-synthetic | Synthetic test file written into temp repo. |
+| 44 | `tests/test_mutation_probe.py:201` | `time.sleep(5)` | kept-synthetic | Synthetic test file written into temp repo. |
+| 45 | `tests/test_placement_switch_plan.py:480` | `time.sleep(0.01)` | kept-poll | Filesystem sync interval. |
+| 46 | `tests/test_runner_peer_dependency.py:89` | `time.sleep(0.15)` | docstring | Docstring explanation of historical race condition (not code). |
+| 47 | `tests/test_ipdrunner_runagy_shim.py:486` | `time.sleep(2.0)` | kept-kill-target | Child script spawned as timeout test target. |
+| 48 | `tests/test_suite_slot_lock.py:66` | `time.sleep(hold_duration)` | converted | Shortened via parameter `hold_duration` from 3.0s to 1.4s. |
+| 49 | `tests/test_suite_slot_lock.py:98` | `time.sleep(0.15)` | converted | Heartbeat child script touch interval shortened from 0.2s to 0.15s (deadline from 4.0s to 1.8s). |
+| 50 | `tests/test_suite_slot_lock.py:105` | `time.sleep(1.8)` | converted | Control child script sleep shortened from 4.0s to 1.8s. |
+| 51 | `tests/test_suite_slot_lock.py:164` | `time.sleep(0.02)` | kept-poll | Poll for lock acquisition. |
+| 52 | `tests/test_suite_slot_lock.py:250` | `time.sleep(0.02)` | kept-poll | Poll for slot acquisition. |
+| 53 | `tests/test_suite_slot_lock.py:317` | `time.sleep(0.02)` | kept-poll | Poll for worker startup. |
+| 54 | `tests/test_suite_slot_lock.py:406` | `time.sleep(0.05)` | kept-poll | Poll wait for slot lock. |
+| 55 | `tests/test_suite_slot_lock.py:447` | `time.sleep(0.02)` | kept-poll | Poll wait for slot lock. |
+| 56 | `tests/test_runner_stop_triggers_e2e.py:136` | `time.sleep(45.0)` | kept-kill-target | Child process silence target killed when stop trigger fires. |
+| 57 | `tests/test_runner_stop_triggers_e2e.py:142` | `time.sleep(0.05)` | kept-poll | Polling interval. |
+| 58 | `tests/test_runner_stop_triggers_e2e.py:263` | `time.sleep(0.02)` | kept-poll | Polling for trigger file. |
+| 59 | `tests/test_runner_stop_triggers_e2e.py:280` | `time.sleep(0.02)` | kept-poll | Polling for stop trigger effect. |
+
+### Converted Tests Before and After Durations
+
+| Test Node ID / Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_run_analytics_cli.py::RunAnalyticsCliUxTests::test_run_analyze_rebuild_mode_rebuilds_outdated_index_records` | 1.49s | 0.40s | -1.09s (-73.2%) |
+| `tests/test_platform_lock.py::BlockingRegistryCallerTests::test_a_blocking_acquire_waits_for_the_holder_and_then_succeeds` | 1.33s | 0.55s | -0.78s (-58.6%) |
+| `tests/test_suite_slot_lock.py::test_slot_timeout_runs_anyway_with_warning` | 3.22s | 1.54s | -1.68s (-52.2%) |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_oc` | 3.86s | 2.15s | -1.71s (-44.3%) |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_agy` | 3.79s | 2.11s | -1.68s (-44.3%) |
+| **Module Total `tests/test_suite_slot_lock.py`** | **11.55s** | **6.69s** | **-4.86s (-42.1%)** |
+
+All timing behavior thresholds and guarantees remained unchanged (no timing assertions loosened).
+
+## c8bfp9 E-09 slow tests justification table
+
+Census of tests exceeding 2.0s call duration in warm full suite runs (total: 610 tests). All entries documented in `tests/slow_allowlist.txt` with their compelling reasons.
+
+| Node ID | Duration | Compelling Reason |
+|---|---|---|
+| `tests/test_agent_record_guard.py::HonestyBoundSubprocessTests::test_attention_agent_with_home_path_refuses` | 7.15s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agent_record_guard.py::HonestyBoundSubprocessTests::test_attention_json_with_home_path_refuses` | 7.22s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance[releases readiness]` | 2.04s | Integration boundary validation under multi-process environment |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[suite]` | 2.57s | Integration boundary validation under multi-process environment |
+| `tests/test_agent_user_config_containment.py::test_incident_end_to_end_per_host` | 3.31s | Integration boundary validation under multi-process environment |
+| `tests/test_agents_block_target_neutral.py::AgentsBlockTargetNeutralTests::test_fresh_install_doctor_zero_dangling_doc_references` | 7.73s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_agents_block_target_neutral.py::AgentsBlockTargetNeutralTests::test_fresh_install_managed_block_contains_no_aw_only_tokens` | 6.92s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_agents_block_target_neutral.py::AgentsBlockTargetNeutralTests::test_planted_missing_path_reported` | 2.97s | Multi-process concurrency contention and lock coordination |
+| `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict` | 2.07s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_deferred_reattempt_backlog_close_reaches_coordinator_worktree_performer` | 2.81s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_dirty_overlapping_base_refuses_integration` | 2.07s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_non_passing_gate_records_merge_conflict_main_pristine` | 2.59s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate` | 2.07s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyWorktreeIsolationTests::test_main_tree_clean_during_turn_and_receipt_under_main` | 2.53s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyWorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed` | 2.32s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_runipd_cli.py::AgyWorktreeIsolationTests::test_verified_child_integrates_to_main_and_worktree_removed` | 2.41s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_emits_aw_router_skill` | 2.72s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_idempotence` | 3.75s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_agy_skill_install.py::AgySkillInstallTests::test_router_lists_every_non_catalog_verb` | 2.92s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_and_preserves_askme_shims` | 2.63s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_1_oc_host_integrated_isolated_turn` | 2.27s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn` | 2.02s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_attention.py::NameGrammarAgreesWithTheNamingAuthorityTests::test_name_grammar_agrees_with_naming_authority` | 4.39s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_attention_blind_spot.py::AttentionExemptionsAndNonRegressionsTests::test_live_repository_no_tree_drift` | 4.56s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_authoring_coverage_guidance.py::FreshInstallManagedBlockTests::test_fresh_install_writes_agents_md_with_precondition` | 2.49s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_authoring_coverage_guidance.py::ScaffoldPlaceholderOutputTests::test_scaffold_subprocess_emits_expected_placeholders` | 9.21s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_aw_upgrade_test.py::ChildToolPinningTests::test_run_install_in_simulated_worktree_imports_from_worktree` | 2.12s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_a_no_isolate_worktree` | 2.42s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_a_with_isolate_worktree` | 2.70s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_b_one_carrier_pending` | 3.67s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_f_gated_item_matching_gate` | 2.58s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_g_gated_item_no_gate_on_carrier` | 2.46s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_i_post_turn_route` | 2.73s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_backlog_already_complete.py::TestBacklogAlreadyCompleteIntegrationE05::test_case_j_isolated_post_turn_route_teardown_refused_preserves_lane` | 3.30s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_backlog_production.py::TestBacklogProductionE07::test_5_5c_case1_success` | 3.52s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_production.py::TestBacklogProductionE08::test_case5a_agent_sets_done_itself` | 2.91s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_production.py::TestBacklogProductionE08::test_case5b_agent_sets_graduated_before_handoff_commit` | 3.60s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_production.py::TestBacklogProductionE08::test_case5c_rollback_lands_on_disk` | 4.22s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_backlog_production.py::TestBacklogProductionE08::test_case5d_legitimacy_discrimination_achieved_vs_refused_attempt` | 6.94s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_production.py::TestBacklogProductionE09::test_case6a_dangling_from_spec` | 4.16s | Integration boundary validation under multi-process environment |
+| `tests/test_backlog_production.py::TestBacklogProductionE09::test_case6b_orphaned_live_blocker` | 3.04s | Multi-process concurrency contention and lock coordination |
+| `tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_ipd_lint_board_bounding` | 5.34s | Multi-process concurrency contention and lock coordination |
+| `tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_attention_closed_pipe` | 10.92s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_find_all_closed_pipe` | 3.06s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_carrier_verification_resolved_integrates_without_refusal` | 2.05s | Integration boundary validation under multi-process environment |
+| `tests/test_carrier_finished_verification.py::CarrierFinishedVerificationTests::test_no_verification_turn_when_no_carrier_obligation` | 2.06s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present` | 3.23s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_c_second_install_keeps_preset_appends_history` | 2.45s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_e_private_target_writes_target_config` | 2.98s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_h_doctor_reports_preset` | 2.21s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_i_uninstall_cleans_home_and_allows_reinstall` | 3.05s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_j_public_target_private_companion` | 2.86s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_k_clean_target_install_zero_target_delta` | 2.46s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_l_tracked_install_still_writes_target` | 2.84s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_m_clean_target_reinstall_and_rollback` | 3.14s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_o_uninstall_keeps_home_records` | 4.79s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_p_uninstall_deep_removes_project_dir` | 2.29s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_r_uninstall_refuses_live_lane` | 3.18s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_t_uninstall_dry_run_lists_home_trees` | 2.24s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_u_uninstall_recovers_partial` | 2.24s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_a_e02_path_table` | 5.48s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_b_e03_is_main_checkout` | 5.58s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_c_e04_allocate_worktree_and_lanes_cli` | 6.01s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_d_e05_lane_self_ignore` | 5.80s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_e_e06_control_state_paths_and_checkup` | 5.91s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_f_e07_heuristics_and_hardened_refusal` | 6.08s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_g_inner_aw_from_external_lane` | 6.08s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_h_acceptance_bar` | 5.58s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_control_state.py::TestCleanTargetControlState::test_i_tracked_control` | 5.48s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_a_checkout_main_root_table` | 5.33s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b2_identity_table` | 5.77s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_b_home_configured_root_table` | 5.41s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_c_predicate_table` | 5.52s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_d_negative_controls` | 5.52s | Integration boundary validation under multi-process environment |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_e_doctor_and_status_subprocesses` | 8.49s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_clean_target_recognition.py::TestCleanTargetRecognition::test_f_attention_and_context_subprocesses` | 6.89s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_completely_clean_target_ordinary_use` | 10.93s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_clean_target_zero_delta_e2e.py::TestCleanTargetZeroDeltaE2E::test_local_only_ordinary_use` | 8.57s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::AccessibilityTests::test_no_color_flag_forces_plain_even_if_env_absent` | 2.69s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_cli.py::AccessibilityTests::test_no_color_output_has_no_ansi_and_keeps_status_words` | 2.66s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_cli.py::InstallAtomicWizardTests::test_deep_cleanup_announcement_file_vs_dir_label` | 2.95s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallAtomicWizardTests::test_install_interactive_empty_input_defaults_to_yes` | 2.29s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw` | 4.85s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_separate_records_prompt_keep_records` | 4.94s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallDiagnosticsTests::test_install_all_confirm_names_configured_count` | 2.51s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallDiagnosticsTests::test_install_invokes_git_diagnostics` | 2.42s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallDiagnosticsTests::test_install_multiple_repos_yes` | 4.96s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallDiagnosticsTests::test_no_change_reinstall_says_already_current` | 3.17s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallDiagnosticsTests::test_yes_install_on_clean_repo_is_not_blocked` | 2.44s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallVerbTests::test_install_all_reports_and_isolates` | 4.85s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallVerbTests::test_install_all_yes_commits_and_leaves_no_dirty` | 4.67s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::InstallVerbTests::test_install_single_repo_yes` | 2.51s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::ListStatusTests::test_list_shows_states` | 2.61s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::ListStatusTests::test_status_shows_environment_readout` | 4.63s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_accept_migrates_to_aw` | 3.07s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_decline_keeps_legacy` | 2.73s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_keep_legacy_flag` | 2.80s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_to_aw_flag` | 2.69s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_unattended_defaults_to_migrate` | 3.26s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_cli.py::SetupPathValidationTests::test_bad_then_good_path` | 2.63s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::SetupRunnerProfileIntegrationTests::test_install_verb_does_not_offer_the_profile_step` | 2.90s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::SetupRunnerProfileIntegrationTests::test_setup_yes_writes_no_profile_store` | 2.56s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::SetupRunnerProfileIntegrationTests::test_step_runs_once_after_installs_and_before_orientation` | 5.02s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::SetupRunnerProfileIntegrationTests::test_wizard_failure_after_installs_does_not_fail_setup` | 2.55s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::SetupTests::test_setup_noninteractive_root_yes` | 4.79s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::SetupTests::test_setup_skips_submodule` | 2.46s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_cli.py::UninstallTests::test_uninstall_deep_removes_scaffolding` | 5.41s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::UninstallTests::test_uninstall_dry_run_changes_nothing` | 3.36s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::UninstallTests::test_uninstall_force_removes_edited_shim` | 7.03s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::UninstallTests::test_uninstall_removes_config_entry` | 4.98s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::UninstallTests::test_uninstall_removes_framework_keeps_user_content` | 5.02s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_cli.py::UninstallTests::test_uninstall_yes_removes_manifest_and_leaves_scaffolding` | 5.01s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_companion_record_owner_root.py::test_in_tree_and_home_records_unchanged` | 2.32s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_companion_record_owner_root.py::test_ipd_lint_resolves_companion_sibling_dependency` | 2.54s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_companion_record_owner_root.py::test_specs_note_history_lands_in_companion_records_root` | 7.26s | Integration boundary validation under multi-process environment |
+| `tests/test_config_agent_surface.py::test_config_exclude_add_and_rm_lifecycle_agent` | 2.43s | Integration boundary validation under multi-process environment |
+| `tests/test_conformance_matrix_structure.py::AliasEquivalenceTests::test_alias_agent_output_is_byte_equivalent[sanitize-check-local-leaks]` | 4.78s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_deep_cleanup_regenerable.py::RealInstallIntegrationTests::test_real_install_committed_regenerable_readme_lifecycle` | 2.54s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_defect_report.py::RescoreAfterAReaskTests::test_carrier_agreement_and_events` | 2.34s | Integration boundary validation under multi-process environment |
+| `tests/test_defect_report.py::RescoreAfterAReaskTests::test_controls_refuse` | 2.35s | Integration boundary validation under multi-process environment |
+| `tests/test_executed_transition_gate_e2e.py::MergeAwareInTreeEvidenceTests::test_git_itself_enforces_the_gate_at_both_merge_stages` | 2.44s | Integration boundary validation under multi-process environment |
+| `tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_heavy[doctor]` | 2.02s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_failed_safely_live_writers.py::TestFailedSafelyLiveWriters::test_case_g_retry_incomplete_requeues_on_both_hosts` | 2.40s | Integration boundary validation under multi-process environment |
+| `tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection` | 15.68s | Integration boundary validation under multi-process environment |
+| `tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_a2_integration_loop_merge_conflict_cap_0` | 3.81s | Integration boundary validation under multi-process environment |
+| `tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_a_per_artifact_cap_stops_needs_human_exit_3` | 8.97s | Integration boundary validation under multi-process environment |
+| `tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_b_per_set_cap_stops_second_item` | 12.56s | Integration boundary validation under multi-process environment |
+| `tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_c_per_run_cap_stops_second_item` | 14.27s | Integration boundary validation under multi-process environment |
+| `tests/test_fix_it_global_caps.py::TestEndToEndGlobalCaps::test_case_d_defaults_with_one_fix_it_executes_no_cap_report_section` | 7.96s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_e05_spec_5_5_checker_rejects_stale_owner` | 16.49s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_e05_spec_5_5_table_owner_ids_resolve` | 5.37s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_matrix_hook_skipping_commit_agy` | 2.24s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_matrix_hook_skipping_commit_oc` | 2.91s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_matrix_out_of_scope_edit_agy` | 2.65s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_matrix_out_of_scope_edit_oc` | 2.09s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_matrix_untooled_status_change_agy` | 2.21s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_non_abort_hook_bypass_agy` | 2.07s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_non_abort_hook_bypass_oc` | 2.12s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_proposal_continuation_agy` | 2.80s | Integration boundary validation under multi-process environment |
+| `tests/test_fixfirst_end_to_end.py::TestFixFirstEndToEnd::test_proposal_continuation_oc` | 2.76s | Integration boundary validation under multi-process environment |
+| `tests/test_freeze_time_refusal.py::TestPredicateBoundaryCases::test_boundary_b_in_batch_execute_target_promoted_under_full_auto_admits` | 2.32s | Integration boundary validation under multi-process environment |
+| `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes` | 14.02s | Integration boundary validation under multi-process environment |
+| `tests/test_generic_color_depth.py::GenericColorDepthTests::test_cell_g_subprocess_end_to_end` | 4.61s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e01_e06_e07_success_path_graduate_review_orchestrate` | 14.46s | Integration boundary validation under multi-process environment |
+| `tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e02_refusal_scenario_and_setter_refusals` | 3.95s | Integration boundary validation under multi-process environment |
+| `tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e03_resume_scenario` | 7.17s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_gradcover_end_to_end.py::TestGradcoverEndToEnd::test_e05_one_predicate_parity` | 3.20s | Integration boundary validation under multi-process environment |
+| `tests/test_hang_guard_budget.py::test_marker_above_wall_ceiling_floors_and_raises_wall_allowance` | 2.02s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_hang_guard_budget.py::test_subprocess_bound_runaway_loop_caught_by_wall_ceiling` | 2.65s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_hang_guard_budget.py::test_timeout_zero_disables_both_arms` | 2.04s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_cross_spelling_history_date_and_record_agreement` | 4.51s | Multi-process concurrency contention and lock coordination |
+| `tests/test_history_date_clock_parity.py::HistoryDateClockParityTests::test_derived_setters_record_utc_date_under_both_timezones` | 9.05s | Multi-process concurrency contention and lock coordination |
+| `tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_timezone_invariance_east_and_west_boundaries` | 2.59s | Multi-process concurrency contention and lock coordination |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v01_e01_hook_refusal_finalize_sendback_and_recovery` | 7.54s | Integration boundary validation under multi-process environment |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v03_e03_combined_red_sendback_and_warning_on_out_of_scope` | 4.35s | Integration boundary validation under multi-process environment |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v03_e03_unmeasured_revalidation_negative_not_sent_back` | 2.40s | Integration boundary validation under multi-process environment |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v04_e04_budget_zero_and_exhaustion_with_kind_naming` | 5.13s | Integration boundary validation under multi-process environment |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v06_e06_integration_hook_refusal_negative_no_session` | 2.41s | Integration boundary validation under multi-process environment |
+| `tests/test_hook_and_suite_fix_it.py::DriverHookAndSuiteFixItTests::test_v06_e06_integration_hook_refusal_sendback` | 4.37s | Integration boundary validation under multi-process environment |
+| `tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_3_end_to_end_success` | 2.72s | Integration boundary validation under multi-process environment |
+| `tests/test_implementing_spec_replan.py::TestImplementingSpecReplan::test_case_4_end_to_end_refusal` | 2.06s | Spec review and production lifecycle conformance validation |
+| `tests/test_index_write_agent_records.py::IndexWriteMissingDirTests::test_explicit_dir_inside_project` | 2.72s | Integration boundary validation under multi-process environment |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_1_success_arm` | 3.69s | Integration boundary validation under multi-process environment |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_2_failure_arm` | 3.50s | Integration boundary validation under multi-process environment |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_3_missing_guard` | 2.74s | Integration boundary validation under multi-process environment |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementBacklogCloseTests::test_case_4_refusing_shape_unchanged` | 2.89s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementLandsTests::test_hand_retirement_receives_fix_it_turn` | 2.44s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementLandsTests::test_unverified_retirement_does_not_land` | 2.68s | Integration boundary validation under multi-process environment |
+| `tests/test_inlane_retirement_lands.py::InLaneRetirementLandsTests::test_verified_retirement_lands_on_main_without_finalize` | 2.62s | Integration boundary validation under multi-process environment |
+| `tests/test_install_consent_truth.py::TestInstallConsentTruth::test_fresh_install_project_json_and_git_check_ignore` | 3.16s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_consent_truth.py::TestInstallConsentTruth::test_target_placement_paths_exist_after_install` | 3.07s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_consent_truth.py::TestInstallConsentTruth::test_upgrade_normalization_announcement_and_no_repeat` | 4.88s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_inbox_lane.py::test_attention_board_inbox_footer` | 2.61s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_inbox_lane.py::test_fresh_install_inbox_lane` | 2.31s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_inbox_lane.py::test_nested_sub_readme_in_inbox_is_ignored` | 2.84s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_inbox_lane.py::test_upgrade_from_seeded_inbox_gitignore` | 2.64s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_report_truth.py::TestInstallReportTruth::test_fresh_install_staging_advisories_and_closing_report` | 3.21s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_report_truth.py::TestInstallReportTruth::test_second_install_nochange_leaves_clean_status_and_no_false_lines` | 4.82s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_source_option.py::test_install_with_source_string_end_to_end` | 2.42s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_state_records.py::TestInstallStateRecords::test_fresh_install_and_reinstall_state_records` | 3.77s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_install_state_records.py::TestInstallStateRecords::test_upgrade_migration_four_file_layout` | 2.99s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_text_current.py::InstalledTextCurrentTests::test_fresh_install_clean_scan` | 3.03s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_text_current.py::InstalledTextCurrentTests::test_installed_research_readme_status_table` | 2.80s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_text_current.py::InstalledTextCurrentTests::test_keep_legacy_retains_legacy_paths` | 2.83s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_text_current.py::InstalledTextCurrentTests::test_upgrade_preserves_user_customized_readmes` | 3.90s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_text_current.py::InstalledTextCurrentTests::test_upgrade_replaces_known_stale_readmes` | 3.84s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installed_version_reporting.py::InstalledVersionReportingTests::test_e2e_wheel_build_installed_version_reporting` | 10.79s | Wheel build and installation packaging verification |
+| `tests/test_installer.py::AwBlockMigrationTests::test_legacy_block_conversion_and_sibling_preservation` | 6.47s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::AwBlockMigrationTests::test_reinstall_idempotence_and_declined_section` | 3.02s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::DeepCleanupTests::test_deep_cleanup_containment_and_at_risk_detection` | 2.66s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::DeepCleanupTests::test_plan_counts_and_all_recoverable_when_committed` | 2.60s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::DeepCleanupTests::test_workflows_litter_deep_vs_standard_uninstall` | 7.60s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallCorrectnessTests::test_rollback_removes_create_setup_artifacts_files` | 3.63s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallCorrectnessTests::test_rollback_survives_corrupt_created_files_record` | 2.50s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallCorrectnessTests::test_run_multi_repo_isolates_systemexit` | 2.49s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallCorrectnessTests::test_run_returns_nonzero_when_a_repo_is_not_a_directory` | 2.45s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_default_case_f_unattended_install_with_nothing_saved_removes_leftover` | 2.47s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_default_case_g_saved_defer_keeps_leftover` | 2.47s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_default_case_h_explicit_flag_overrides_saved_remove` | 2.52s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_p_attended_empty_answer_removes_leftover` | 2.41s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_q_attended_n_keeps_leftover_and_reports_defer` | 2.87s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_r_yes_flag_never_prompts_and_removes` | 2.46s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_s_saved_defer_never_prompts_and_keeps` | 2.61s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_t_remember_offer_writes_defaults_leftovers_config` | 2.47s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_prompt_case_u_zero_removable_leftovers_prompts_nothing` | 3.06s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_report_case_j_unattended_install_reports_removal_and_recovery` | 2.75s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_report_case_k_saved_defer_install_emits_no_removal_report` | 2.64s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallLeftoverDefaultRemoveTests::test_report_case_l_no_leftovers_emits_no_removal_report` | 2.67s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering` | 8.60s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_backup_auto_pruning` | 3.11s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_fresh_install` | 2.74s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_fresh_install_creates_no_repo_root_workflow_artifacts_dir` | 2.71s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_gitignored_opencode_does_not_abort` | 2.40s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_idempotent_rerun` | 3.48s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_installer_summary_names_no_repo_root_run_scratch_path` | 2.33s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_legacy_layout_migration` | 3.63s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_native_agent_files_mirroring` | 9.46s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_no_prune_keeps_stale` | 3.30s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_prune_removes_legacy_assess_shims` | 3.15s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_readme_templates_are_created_on_a_fresh_install` | 3.26s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_rollback_undo` | 3.34s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_installer.py::InstallerEndToEndTests::test_shim_readme_is_not_pruned` | 3.36s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::InstallerEndToEndTests::test_tool_scripts_are_executable_and_staged` | 3.70s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::ManifestInstallFlowTests::test_declined_file_is_not_readded` | 2.67s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::ManifestInstallFlowTests::test_idempotent_reinstall_prints_no_modification_warning` | 2.77s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::ManifestInstallFlowTests::test_manifest_records_installed_shims_with_hashes` | 2.25s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::ManifestInstallFlowTests::test_second_install_rederives_identical_hashes` | 2.71s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::OverwritePromptTests::test_every_prompt_answer_has_the_right_effect_and_exit_code` | 3.96s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeRepairBehavioralTests::test_case_1_retired_v1_replaced_with_current_template` | 3.18s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeRepairBehavioralTests::test_case_2_retired_v2_replaced_and_backed_up` | 3.06s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeRepairBehavioralTests::test_case_3_current_template_untouched` | 3.31s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeRepairBehavioralTests::test_case_4_hand_written_readme_preserved_byte_identical` | 3.04s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeRepairBehavioralTests::test_case_5_retired_text_with_user_line_appended_preserved` | 3.04s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeResolvableReferenceTests::test_records_root_readme_references_resolve_aw` | 2.57s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::RecordsRootReadmeResolvableReferenceTests::test_records_root_readme_references_resolve_legacy` | 2.48s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::SameSecondBackupCollisionTests::test_same_second_runs_use_distinct_backup_dirs_and_undo_restores_latest` | 3.18s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::SingleSourceOrchestratorTests::test_install_into_repo_returns_migrated_key` | 2.30s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::SingleSourceOrchestratorTests::test_run_and_install_into_repo_produce_same_fileset` | 5.66s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::SplitBrainLayoutGuardTests::test_cli_split_brain_skip_behaviors` | 2.98s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::TargetLayoutResolutionTests::test_every_repo_shape_resolves_and_installs_to_the_right_layout` | 9.63s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::TrackingWarningScanTests::test_tracking_warning_scan` | 4.63s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_changed_out_collects_paths_and_sections_preserved` | 3.71s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly` | 8.02s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_plan_uninstall_classifies_remove_drifted_and_missing` | 2.50s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_pre_manifest_fallback_removes_namespace` | 2.77s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_section_entries_are_never_file_removal_candidates` | 2.37s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallApplyTests::test_uninstall_removes_framework_and_manifest_while_keeping_user_files` | 3.97s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_plan_partitions_records_and_other` | 2.52s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_keep_preserves_records_and_removes_other` | 4.59s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` | 4.25s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UninstallCompletenessTests::test_uninstall_removes_config_state_gitignore_and_setup_marker` | 4.41s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UntrackedGitignoreInstallTests::test_manifest_records_untracked_section` | 2.56s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_installed_patterns_really_do_make_git_ignore_files` | 3.61s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered` | 14.70s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_ipd_exec_finding_codes.py::IpdExecFindingCodesTests::test_accessors_and_validator_e03` | 4.63s | Integration boundary validation under multi-process environment |
+| `tests/test_ipd_exec_finding_codes.py::IpdExecFindingCodesTests::test_non_regression_e06` | 4.56s | Integration boundary validation under multi-process environment |
+| `tests/test_ipd_lifecycle_cli.py::MachineOutputPurityAndFailLoudDetailTests::test_machine_stdout_is_pure_on_success_path` | 2.24s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_ipd_lint.py::AllRootRegressionTests::test_all_bare_in_this_repo_retains_baseline_exit_code` | 7.57s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_ipd_lint.py::CitationAnchorAdvisoryTests::test_the_detector_discriminates_on_the_real_corpus_with_the_gate_disabled` | 8.58s | Live corpus sweep across repository records |
+| `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta_shard_0` | 6.37s | Live corpus sweep across repository records |
+| `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta_shard_1` | 6.33s | Live corpus sweep across repository records |
+| `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta_shard_2` | 6.13s | Live corpus sweep across repository records |
+| `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta_shard_3` | 6.22s | Live corpus sweep across repository records |
+| `tests/test_ipd_lint.py::ReadinessAttestationTests::test_every_readiness_carrying_plan_in_the_tree_is_attested` | 2.09s | Integration boundary validation under multi-process environment |
+| `tests/test_ipd_lint.py::ReadinessRequiredTests::test_every_nonterminal_plan_at_gated_status_carries_readiness` | 2.19s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate` | 2.50s | Live corpus sweep across repository records |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_default_start_subcommand_inference` | 4.04s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_explicit_run_id` | 4.40s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_runagy_no_verify_skips_turn2` | 6.06s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_runagy_status_and_report_commands` | 5.44s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_runagy_two_turn_execution_with_clean_verification` | 3.95s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_stall_timeout_and_resume_recovery` | 5.73s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_ipdrunner_runagy_shim.py::AgyExecutionLifecycleTests::test_verification_blocked_sets_status_fail_verify` | 3.50s | Multi-process concurrency contention and lock coordination |
+| `tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged` | 4.57s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid` | 4.95s | Integration boundary validation under multi-process environment |
+| `tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_aw_check_plans_agent_no_crash` | 3.42s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_json_surface_leak_posture.py::CliSubprocessLeakPostureTests::test_cli_json_surface_envelope_clean` | 3.75s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_a_hand_edit_status_receives_fix_it_turn` | 5.43s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_b_hand_move_into_executed_receives_fix_it_turn` | 5.62s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_c_hook_bypass_content_receives_fix_it_turn` | 6.92s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_d_tooled_retirement_lands_retired_without_fix_it` | 2.15s | Integration boundary validation under multi-process environment |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_e_hand_retirement_receives_fix_it_turn` | 2.15s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_lane_rule_break_detection.py::LaneRuleBreakDetectionTests::test_case_f_clean_tooled_run_lands_executed` | 3.68s | Integration boundary validation under multi-process environment |
+| `tests/test_leak_sanitizer.py::SelfCleanTests::test_this_repo_tree_clean` | 2.07s | Integration boundary validation under multi-process environment |
+| `tests/test_live_conformance_sweep.py::test_live_ledger_mutation_leaves_conformance` | 10.76s | Integration boundary validation under multi-process environment |
+| `tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean` | 2.10s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_conflict_sendback.py::DriverConflictSendbackTests::test_case_a_fake_resolves_properly_integrates_both_lines` | 5.56s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_conflict_sendback.py::DriverConflictSendbackTests::test_case_b_fake_does_nothing_fails_merge_and_cleans_lane` | 6.55s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_conflict_sendback.py::DriverConflictSendbackTests::test_case_c_retry_budget_zero_no_ask_fails_merge_immediately` | 4.79s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_conflict_sendback.py::DriverConflictSendbackTests::test_case_d_unrelated_main_advance_integrates_without_agent_ask` | 4.12s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_conflict_sendback.py::DriverConflictSendbackTests::test_case_e_consummation_regression_commit_isolated_unresolved` | 4.82s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_a_and_b_lane_edits_spec_held_then_fixed_and_merged` | 4.32s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_c_lane_adds_new_stale_pointer_held` | 4.60s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_d_stale_pointer_already_on_base_merged` | 4.89s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_e_lane_only_moves_lines_in_non_spec_file_merged` | 4.61s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_f_detector_raises_merged_with_unknown_event` | 4.66s | Integration boundary validation under multi-process environment |
+| `tests/test_merge_gate_spec_anchors.py::MergeGateSpecAnchorsTests::test_case_g_budget_exhausted_fail_merge` | 4.51s | Integration boundary validation under multi-process environment |
+| `tests/test_mutation_result_facts.py::test_human_stdout_byte_identical` | 2.66s | Integration boundary validation under multi-process environment |
+| `tests/test_nv_backend_args_climb.py::NvBackendArgsClimbTests::test_assertion_a_bare_index_check_climb` | 5.57s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_nv_backend_args_climb.py::NvBackendArgsClimbTests::test_assertion_b_preview_write_verbs_propose_and_write_nothing` | 4.40s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_nv_backend_args_climb.py::NvBackendArgsClimbTests::test_assertion_c_explicit_dir_does_not_climb` | 4.91s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_nv_backend_args_climb.py::NvBackendArgsClimbTests::test_assertion_d_outside_project_unaltered` | 2.56s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::ActionLegalityTests::test_alias_refusal_and_acceptance` | 2.55s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_full_auto_reviews_approves_and_executes_plan` | 4.02s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_without_full_auto_stops_at_reviewed` | 2.30s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::DriverTests::test_atomic_state_and_set_session_continuity` | 2.73s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict` | 2.38s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_dirty_overlapping_base_refuses_integration` | 2.20s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_non_passing_gate_records_merge_conflict_main_pristine` | 2.51s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate` | 2.09s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation` | 2.73s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_oc_runipd.py::LaunchProfileFrozenTurnArgvTests::test_resume_does_not_reload_profiles_after_the_store_changes` | 2.09s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_oc_runipd.py::ReviewPlanRoutingTests::test_to_review_plans_invoke_plan_review_and_share_session` | 2.97s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::SelfFinalizeWiringTests::test_begin_precedes_run_opencode_on_success` | 2.34s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::SelfFinalizeWiringTests::test_finalize_refusal_leaves_not_executed_and_not_forced` | 2.53s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child` | 6.23s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_terminates_silent_child_and_marks_interrupted` | 3.51s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_a_real_git_local_changes_refusal_is_DEFERRED_not_recorded_merge_conflict` | 2.04s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_case1_deferred_reattempt_close_reaches_done_and_main_clean` | 3.13s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_case2_deferred_reattempt_failure_arm_leaves_main_clean` | 2.83s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_case3_deferred_reattempt_no_double_close_when_already_closed` | 2.13s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_case4_race_rebuilds_on_new_tip_and_preserves_peer_commit` | 3.77s | Wheel build and installation packaging verification |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_case4b_record_only_raced_arm_fails_to_land_close` | 2.84s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_dirty_overlapping_base_refuses_integration` | 2.14s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_non_passing_gate_records_merge_conflict_main_pristine` | 2.54s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::TestDeferredReattemptBacklogCloseCoordinatorWorktree::test_the_MEASURED_INCIDENT_is_now_SURVIVED_defer_then_integrate` | 2.22s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::VerifierLaunchFreezeTests::test_launch_identity_rendering` | 2.52s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::VerifierLaunchFreezeTests::test_verifier_launch_freeze_options` | 5.61s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::WorktreeIsolationTests::test_integration_gate_suite_check_runs_in_primary_checkout` | 2.14s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::WorktreeIsolationTests::test_main_tree_clean_during_turn_and_receipt_under_main` | 2.02s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::WorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed` | 2.19s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_oc_runipd.py::WorktreeIsolationTests::test_verified_child_integrates_to_main_and_worktree_removed` | 2.04s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_orchestrator_readiness.py::TestConsumerParityAndModelFreeLinters::test_parity_across_lint_check_and_coverage` | 2.08s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_orchestrator_retirement.py::MembershipReadsThePlansTree::test_membership_resolution_edge_cases_and_repo_corpus` | 2.65s | Live corpus sweep across repository records |
+| `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_e05_backward_pairs_message_requirement_and_approval_withdrawn` | 8.71s | Integration boundary validation under multi-process environment |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_1_reinstall_cross_placement_without_relocate_refuses` | 3.55s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_2_relocate_dry_run` | 4.00s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_3_relocate_execute_to_home` | 7.54s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_4_reverse_relocate_to_target` | 8.50s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_5_dirty_records_trips_dirty_aw_tree` | 3.54s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_6_recovery_resume_and_rollback` | 10.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_6b_declined_relocation` | 3.49s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_6c_relocate_on_same_placement_is_normal_install` | 3.77s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_cli.py::TestPlacementSwitchCLI::test_case_7_companion_target_support` | 4.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_companion_dir_validation` | 4.32s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_companion_dry_run_prints_preview` | 4.02s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_companion_execute_attaches_and_stages` | 4.50s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_from_companion_to_home_executed` | 6.79s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_from_companion_to_target_executed` | 5.47s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_cli.py::TestPlacementSwitchCompanionCLI::test_cli_relocate_resume_and_rollback_cli` | 8.32s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_0_default_execute_pair_a_completes` | 3.79s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_1_happy_path_pair_a` | 3.06s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_1_happy_path_pair_b` | 3.21s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_1_happy_path_pair_c` | 6.01s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_a` | 24.95s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_2_resume_all_fault_points_pair_c` | 32.11s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_3_rollback_pre_sources_removed_pair_a` | 16.45s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_3_rollback_pre_sources_removed_pair_d` | 8.75s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_execute.py::TestPlacementSwitchCompanionExecute::test_case_4_blocker_companion_dirty_refuses` | 3.51s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_cfgreloc_pairs_have_no_companion_fields` | 2.96s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_cfgreloc_to_target_has_no_companion_fields` | 2.25s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_dirty` | 2.79s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_not_git_nested_in_unrelated_repo` | 3.40s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_not_git_plain_directory` | 2.92s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_preflight_identity_conflict` | 3.02s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_preflight_nonexistent_nested_in_target` | 2.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_to_companion` | 2.87s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_companion_unmerged` | 3.39s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_destination_not_empty_in_attach_companion` | 3.01s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_fresh_companion_install_is_not_dirty_for_detach` | 3.10s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionBlockers::test_same_companion_dir_is_not_a_placement_switch` | 2.77s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionCensus::test_companion_create_false_for_existing_companion_repo` | 3.34s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionCensus::test_pair_a_private_target_to_companion` | 3.14s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionCensus::test_pair_b_companion_to_private_target` | 3.03s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionCensus::test_pair_c_companion_to_completely_clean_target` | 3.04s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionCensus::test_pair_c_companion_to_local_only` | 3.13s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionPlannerPurity::test_attach_plan_is_pure` | 2.99s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_companion_plan.py::TestCompanionPlannerPurity::test_detach_plan_is_pure` | 2.95s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_01_to_home_happy_path_from_private_target` | 4.45s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_03_fault_points_resume_to_same_end_state` | 34.53s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_04_pre_sources_removed_fault_points_rollback_byte_identical` | 13.84s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_05_rollback_refused_after_sources_removed_and_resume_completes` | 9.63s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_06_blocker_refusal_dirty_aw_tree` | 3.22s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_07_concurrent_lock_refusal` | 3.19s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_08_independent_postcheck_destination_comparison` | 4.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_execute.py::TestPlacementSwitchExecute::test_09_existing_journal_blocks_fresh_execute` | 3.26s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_guard.py::TestPlacementSwitchGuardSubprocess::test_subprocess_reinstall_delivery_mode_switch_dry_run_refuses` | 3.28s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_guard.py::TestPlacementSwitchGuardSubprocess::test_subprocess_reinstall_delivery_mode_switch_refuses` | 3.29s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_guard.py::TestPlacementSwitchGuardUnit::test_interactive_wizard_end_to_end_refuses` | 2.42s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_destination_not_empty` | 2.85s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_dirty_aw_tree` | 2.98s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_live_lane` | 3.05s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_source_checkout` | 2.73s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_unmerged` | 2.95s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_blocker_unparseable_config` | 2.80s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_companion_request_is_a_placement_switch` | 2.76s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_not_a_placement_switch` | 3.05s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_project_id_mismatch_on_copied_checkout` | 3.02s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_purity_snapshot` | 2.97s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_plan.py::TestPlacementSwitchPlan::test_to_home_census_and_warnings` | 2.73s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_01_target_side_simulated_flip_home_snapshot_byte_identical_and_staged_deletions` | 4.58s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_02_target_side_drifted_file_preserved_action_reported` | 4.44s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_03_target_side_preserve_records_leaves_records_untouched` | 4.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_04_home_side_removes_framework_trees_and_prunes_project_dir` | 3.16s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_04b_target_side_tracked_paths_clean_and_inbox_user_file_preserved` | 4.89s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_05_home_side_records_present_raises_placement_switch_error_and_removes_nothing` | 3.44s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_placement_switch_retire.py::TestPlacementSwitchRetire::test_06_uninstall_repo_default_clean_target_regression_removes_home_trees` | 4.22s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_plain_command_delivery.py::test_installer_delivers_plain_and_the_repair_rule` | 2.24s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_production_baseline_same_commit.py::TestProductionBaselineSameCommit::test_case_a_backlog_production_concurrent_merge` | 3.88s | Integration boundary validation under multi-process environment |
+| `tests/test_production_baseline_same_commit.py::TestProductionBaselineSameCommit::test_case_b_spec_production_concurrent_merge` | 4.20s | Integration boundary validation under multi-process environment |
+| `tests/test_production_baseline_same_commit.py::TestProductionBaselineSameCommit::test_case_c_non_isolated_preexisting_uncommitted_plan` | 3.31s | Integration boundary validation under multi-process environment |
+| `tests/test_production_baseline_same_commit.py::TestProductionBaselineSameCommit::test_case_d_negative_control_mislinked_plan` | 2.98s | Integration boundary validation under multi-process environment |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e02_backlog_production_fixed_on_first_correction` | 3.78s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e02_backlog_production_never_fixed_exhausted` | 2.86s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e02_mixed_findings_no_retry` | 2.24s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e02_spec_production_fixed_on_first_correction` | 4.17s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e03_review_orchestrator_fixed_and_exhausted` | 9.00s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_correction_turn.py::TestProductionCorrectionTurn::test_e03_review_orchestrator_record_missing_outcome_c` | 3.20s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_production_resume_handoff.py::TestProductionResumeHandoffIntegration::test_case_i_backlog_resumes_unfinished_handoff` | 5.40s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_production_resume_handoff.py::TestProductionResumeHandoffIntegration::test_case_ii_backlog_second_set_fails` | 2.20s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_production_resume_handoff.py::TestProductionResumeHandoffIntegration::test_case_iii_spec_resumes_unfinished_handoff` | 3.11s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_production_resume_handoff.py::TestProductionResumeHandoffIntegration::test_case_iv_commit_edits_to_existing_plan` | 3.41s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_backlog_production_draft_child_fail_gate` | 2.04s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_backlog_production_ready_set_graduated` | 3.60s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_spec_production_ready_set_implementing` | 4.02s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_production_set_check.py::TestProductionSetCheckIntegration::test_spec_production_unready_child_fail_gate` | 2.35s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_e_one_site_both_hosts` | 7.21s | Integration boundary validation under multi-process environment |
+| `tests/test_receipt_lane_record.py::TestReceiptLaneRecord::test_case_f_non_fatal_when_no_receipt` | 3.36s | Integration boundary validation under multi-process environment |
+| `tests/test_record_owner_root.py::test_install_writes_back_pointer_without_target_delta` | 2.78s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_record_owner_root.py::test_ipd_coverage_from_clean_target_root` | 2.77s | Integration boundary validation under multi-process environment |
+| `tests/test_record_owner_root.py::test_ipd_lint_resolves_home_sibling_dependency` | 2.38s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_records_root_accessor.py::test_home_records_find_attention_check` | 2.19s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_1_backlog_repro_without_relocate_refuses` | 3.46s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_2_relocate_dry_run_previews_and_writes_nothing` | 3.80s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_3_relocate_execute_to_home` | 5.01s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_4_reverse_relocate_to_target` | 5.30s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_5_dirty_records_tree_refuses` | 3.69s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_6_recovery_resume_and_rollback` | 8.54s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_7_declined_relocation` | 3.40s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_8_companion_relocate_dry_run_refuses` | 3.23s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_cli.py::TestRecordsRootSwitchCli::test_case_9_scaffold_only_backend_switch_allowed` | 3.65s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_01_records_to_home_happy_path` | 3.10s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_02_records_to_target_happy_path` | 2.88s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_03_local_json_records_backend_rewritten_and_resolver_follows` | 2.95s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_04_fault_points_resume_to_completed_state` | 25.40s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_05_pre_sources_removed_fault_points_rollback_byte_identical` | 9.32s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_06_rollback_refused_after_mid_source_removal` | 3.13s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_07_blockers_refuse_cleanly` | 3.04s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_08_mutual_blocking_placement_and_records_modes` | 3.07s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_09_independent_postcheck_destination_comparison` | 3.14s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_execute.py::TestRecordsRootSwitchExecute::test_10_preexisting_destination_scaffold` | 3.12s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchDetector::test_detector_cases` | 2.48s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchDetector::test_interactive_wizard_refuses` | 2.70s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchDetector::test_persist_project_policy_refuses` | 2.39s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchSubprocess::test_reinstall_home_backend_dry_run_refuses` | 3.62s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchSubprocess::test_reinstall_home_backend_refuses` | 3.20s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchSubprocess::test_repair_of_orphaned_repo_is_allowed` | 5.44s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_root_switch_guard.py::TestRecordsRootSwitchSubprocess::test_reverse_direction_refuses` | 3.16s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_records_untracked_backend.py::TestRecordsUntrackedBackend::test_e11_end_to_end_install_and_setup_refusal` | 3.04s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_red_ci_stop.py::test_case_e_unknown_state_and_missing_record_run_with_warning` | 2.15s | Integration boundary validation under multi-process environment |
+| `tests/test_red_ci_stop.py::test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override[agent_workflows.agy_runipd]` | 2.09s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_red_ci_stop.py::test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override[agent_workflows.oc_runipd]` | 2.39s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_fresh_repo_defaults_to_private_target` | 2.71s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_local_only_preserves_all_keys` | 2.39s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_local_only_to_clean_target_normalizes_and_preserves` | 2.59s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_private_target_preserves_all_keys` | 3.71s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_reinstall_preserves_config.py::TestReinstallPreservesConfigSubprocess::test_subprocess_reinstall_private_target_to_local_only_fails_closed` | 3.25s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_release_readiness_not_applicable.py::test_cli_surfaces_not_applicable_in_every_mode` | 3.86s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_releases_readiness_cli.py::test_arm_f_agent_mode_emits_schema_valid_record_with_exit_and_diagnostic_parity` | 2.67s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_releases_readiness_cli.py::test_arm_i_release_alias_is_byte_identical_under_agent` | 2.77s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_rename_group_machine_output.py::test_human_stdout_byte_identical` | 2.76s | Integration boundary validation under multi-process environment |
+| `tests/test_rename_group_machine_output.py::test_stdout_parses_plans_and_research` | 2.72s | Integration boundary validation under multi-process environment |
+| `tests/test_rename_group_machine_output.py::test_stdout_parses_specs_and_backlog` | 2.49s | Integration boundary validation under multi-process environment |
+| `tests/test_replay_coverage_diff.py::TestReplayCoverageDiff::test_main_flow_exclusive_and_shared_lines` | 2.06s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_a_index_lists_companion_and_skips_inner_md` | 3.02s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_b_check_exits_1_on_orphan_and_0_once_fixed` | 2.93s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_research_companion.py::TestResearchCompanion::test_c_mv_carries_companion_and_rewrites_citation` | 2.89s | Live corpus sweep across repository records |
+| `tests/test_research_companion.py::TestResearchCompanion::test_d_set_assign_carries_companion` | 2.82s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_e_colliding_destination_companion_refuses_mv` | 2.62s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_f_promote_to_reference_carries_companion` | 2.80s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_g_archive_carries_companion` | 2.74s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_h_attention_check_exits_0_with_companion` | 3.24s | Repository diagnostics and check engine evaluation across fixture |
+| `tests/test_research_companion.py::TestResearchCompanion::test_i_inner_md_does_not_affect_new_order_or_id6_minting` | 2.95s | Integration boundary validation under multi-process environment |
+| `tests/test_research_companion.py::TestResearchCompanion::test_j_find_lists_one_file_no_duplicate_warning` | 2.79s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_clean_kind_alias` | 4.55s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_clean_model_on_name_without_model_facet` | 5.05s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_clean_untouched_files` | 4.41s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_flagged_kind_mismatch` | 4.77s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_flagged_model_empty_on_model_name` | 4.66s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_flagged_model_mismatch` | 4.56s | Integration boundary validation under multi-process environment |
+| `tests/test_research_index_name_fm_mismatch.py::ResearchIndexNameFmMismatchTests::test_flagged_order_mismatch` | 4.30s | Integration boundary validation under multi-process environment |
+| `tests/test_research_unsafe_field.py::TestResearchUnsafeField::test_non_regression_live_research_tree_clean` | 2.33s | Integration boundary validation under multi-process environment |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_anti_greenwash_invariants` | 2.10s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_controls_bare_root` | 2.79s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_controls_relative_dir` | 2.80s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_controls_root_explicit_dir` | 2.82s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_explicit_dir_refusal_agent` | 2.06s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_resolver_bypass_sites_climb.py::ResolverBypassSitesClimbTests::test_explicit_dir_refusal_human` | 2.05s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_review_record_classifier.py::TestLivePendingCorpus::test_no_pending_plan_has_verdict_class_refusal` | 6.47s | Live corpus sweep across repository records |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_a_repo_with_no_retired_directory_is_a_silent_no_op` | 2.15s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_an_already_populated_destination_is_MERGED_not_replaced` | 2.41s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_an_ordinary_wip_file_in_a_quarantine_lane_is_silent` | 2.33s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_dry_run_reports_and_touches_nothing` | 2.34s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_every_destination_state_gets_the_right_disposition` | 7.14s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_nothing_is_lost_the_path_sets_are_equal_modulo_the_prefix` | 2.34s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_reinstall_is_idempotent` | 2.84s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_run_records_in_a_records_quarantine_lane_are_REPORTED_not_moved` | 2.45s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_the_migration_commit_does_not_sweep_in_unrelated_staged_work` | 2.25s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_the_migration_runs_from_the_shared_install_chokepoint` | 2.39s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_the_readme_only_case_is_removed_not_relocated` | 2.67s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_tracked_run_records_are_relocated_with_history_preserved` | 2.62s | Integration boundary validation under multi-process environment |
+| `tests/test_root_run_scratch_migration.py::RootRunScratchMigrationTests::test_untracked_content_is_moved_without_git` | 2.37s | Integration boundary validation under multi-process environment |
+| `tests/test_run_cli_declarations.py::test_runs_next_declared_exit_codes_are_reachable` | 3.16s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_run_cli_declarations.py::test_runs_resume_declared_exit_codes_are_reachable` | 2.76s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_run_cli_declarations.py::test_runs_status_declared_exit_codes_are_reachable` | 3.64s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_run_evidence_completion.py::TestRunFindingCodeVocabulary::test_table_self_validation_passes` | 4.65s | Integration boundary validation under multi-process environment |
+| `tests/test_run_finding_abort_partition.py::TestRunFindingAbortPartition::test_spec_comparison_catches_adversarial_co_moved_drift` | 4.89s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_partition_accessor_agrees_with_per_row_verdicts` | 4.60s | Integration boundary validation under multi-process environment |
+| `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_validate_finding_table_clean_on_shipped_table` | 5.44s | Integration boundary validation under multi-process environment |
+| `tests/test_run_init.py::test_case_b_follow_on_sequence` | 3.62s | Integration boundary validation under multi-process environment |
+| `tests/test_run_init.py::test_case_d_refusals_leave_filesystem_unchanged` | 3.82s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_run_init.py::test_case_i_dag_execution_without_workflow_flag` | 2.97s | Integration boundary validation under multi-process environment |
+| `tests/test_run_recovery_cli.py::TestRunCliSubcommands::test_every_invocation_exits_in_its_class_and_says_why` | 4.87s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e01_pre_run_linter_drift` | 2.96s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_agy_restart_disabled` | 6.26s | Integration boundary validation under multi-process environment |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_agy_restart_enabled` | 11.55s | Integration boundary validation under multi-process environment |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_oc_restart_disabled` | 6.34s | Integration boundary validation under multi-process environment |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e02_oc_restart_enabled` | 12.15s | Integration boundary validation under multi-process environment |
+| `tests/test_runfresh_end_to_end.py::RunfreshEndToEndTests::test_e05_nested_call_pin_reestablished_after_exec` | 2.62s | Integration boundary validation under multi-process environment |
+| `tests/test_runner_backlog_close_behavior.py::TestSharedNotCopiedFinalizeCall::test_both_drivers_call_the_close_from_their_finalize_success_branch` | 5.16s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runner_fallback_bindings.py::test_host_preference_preserved_for_shipped_hosts` | 2.05s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence` | 5.09s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording` | 4.46s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement` | 6.61s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted` | 2.23s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint` | 2.15s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_section_consent.py::SectionConsentUnitTests::test_install_into_repo_user_edited_pointer_warns_and_preserves` | 2.47s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_shared_flag_honored.py::test_config_json_refusals_branch_behavior` | 2.98s | Integration boundary validation under multi-process environment |
+| `tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[suite]` | 2.62s | Integration boundary validation under multi-process environment |
+| `tests/test_shared_flag_honored.py::test_ipd_coverage_fields_branch_behavior` | 3.12s | Integration boundary validation under multi-process environment |
+| `tests/test_shared_flag_honored.py::test_json_flag_honored_mutation[suite]` | 2.54s | Integration boundary validation under multi-process environment |
+| `tests/test_shared_flag_honored.py::test_partition_fields_branch_behavior` | 12.54s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionDeferredAndTracePrompt::test_spec_production_with_deferred_ids_emits_partial_pass_event_both_hosts` | 2.80s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionDeferredAndTracePrompt::test_spec_production_without_deferred_ids_emits_no_deferred_event` | 2.79s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_conformance_draft` | 2.85s | Spec review and production lifecycle conformance validation |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_count_missing_from_spec` | 2.42s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_refusal_count_zero` | 2.48s | Spec review and production lifecycle conformance validation |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_success` | 2.80s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_grandfathered_pass` | 2.95s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_refusal_missing_requirement` | 2.45s | Spec review and production lifecycle conformance validation |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_success` | 3.02s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5_trace_unknown_reference` | 2.36s | Spec review and production lifecycle conformance validation |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_5_5b_gate_carry_both_directions` | 4.39s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionE08::test_duplicate_clause_live_plan_in_baseline` | 2.43s | Spec review and production lifecycle conformance validation |
+| `tests/test_spec_production.py::TestSpecProductionLifecycleArmAndReportE09::test_no_execute_path_side_effects` | 3.09s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionLifecycleArmAndReportE09::test_quarantine_lane_preserved_on_failure` | 2.53s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_production.py::TestSpecProductionLifecycleArmAndReportE09::test_report_only_and_resume_spawns_nothing` | 4.11s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_spec_production.py::TestSpecProductionLifecycleArmAndReportE09::test_review_style_integration_asserted` | 3.92s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewApprovalAndScopeE08::test_approval_gate_visibility_and_plan_control` | 2.03s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewApprovalAndScopeE08::test_crash_fix_full_auto_spec_review` | 2.34s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewApprovalAndScopeE08::test_output_scoping_extra_write_and_legacy_named_spec` | 2.18s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case1_prompt_and_handler_record_spec_and_plan` | 2.68s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case2_advanced_with_conforming_record_and_directory_move` | 2.50s | Integration boundary validation under multi-process environment |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case3_refusal_unchanged_status_when_agent_writes_nothing` | 2.74s | Real OS process signal, broken pipe, or timeout boundary |
+| `tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case4_refusal_missing_attestation_when_status_edited_without_record` | 2.54s | Spec review and production lifecycle conformance validation |
+| `tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_backlog_item_typed_and_untyped_spellings` | 2.08s | Spec review and production lifecycle conformance validation |
+| `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_exhaustive_sweep` | 17.99s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_subtest_row_verdicts.py::RepairedBlocksVerdictsTests::test_repaired_installed_hooks_fails_in_context_under_strict_mode` | 2.12s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_suite_baseline_mode_gate.py::SuiteBaselineModeGateTests::test_validation_off_starts_and_collects_suite_baseline` | 2.30s | Integration boundary validation under multi-process environment |
+| `tests/test_suite_baseline_mode_gate.py::SuiteBaselineModeGateTests::test_validation_on_skips_suite_baseline` | 2.20s | Integration boundary validation under multi-process environment |
+| `tests/test_suite_cache.py::test_collection_error_and_corrupt_or_expired_records` | 7.44s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_cache.py::test_flaky_failure_not_stored` | 4.49s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_cache.py::test_narrowed_selection_refused` | 2.01s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_cache.py::test_pass_stored_and_served` | 7.77s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_cache.py::test_reproducible_failure_stored_and_not_served_to_seam` | 9.17s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun` | 19.39s | Test runner suite cache lifecycle and seam integration |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_agy` | 3.65s | Multi-process concurrency contention and lock coordination |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_oc` | 3.50s | Multi-process concurrency contention and lock coordination |
+| `tests/test_suite_slot_lock.py::test_two_slots_concurrent_and_third_waits` | 2.65s | Multi-process concurrency contention and lock coordination |
+| `tests/test_suite_slot_lock.py::test_two_subprocesses_serialize_and_print_waiting_line` | 2.61s | Multi-process concurrency contention and lock coordination |
+| `tests/test_system_root_accessor.py::test_read_side_clean_delta_home_bundle` | 2.89s | Integration boundary validation under multi-process environment |
+| `tests/test_system_root_accessor.py::test_write_side_clean_delta_install` | 4.89s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_term.py::CliNeverLeaksTheColorOverrideTests::test_early_exit_paths_and_nested_invocations` | 5.05s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering` | 7.94s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_term.py::LifecycleColorDepthCrossSurfaceCliTests::test_cross_surface_cli_color_depth_ladder` | 2.57s | Combinatorial terminal UI renderer and ANSI sequence sweep |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_01_nonzero_exit_no_outcome_then_success` | 2.32s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_02_nonzero_exit_with_commit_rung5_then_success` | 2.11s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_03_stall_then_success` | 2.15s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_04_turn_limit_expiry` | 2.41s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_05_missing_host_binary_exhausts_and_continues_next_item` | 3.14s | Subprocess CLI execution and isolated worktree integration boundary |
+| `tests/test_turn_fix_it.py::TestTurnFixIt::test_09_session_and_lane_resume_including_fallback` | 11.54s | Transactional journal crash-recovery and fault injection resume |
+| `tests/test_typed_queue_entries.py::TestNewOrderingAndRefusalCases::test_e04_ordering_and_control_edge` | 2.11s | Integration boundary validation under multi-process environment |
+| `tests/test_typed_queue_entries.py::TestNonPlanDependencyClosureDefects::test_case_a_satisfied_spec_edge_bare_and_with_dependencies` | 2.78s | Spec review and production lifecycle conformance validation |
+| `tests/test_typed_queue_entries.py::TestQueueShapeSeams::test_item_local_refusal_on_both_hosts` | 2.27s | Integration boundary validation under multi-process environment |
+| `tests/test_typed_queue_entries.py::TestSelectionAndEntryShape::test_spec_5_9_both_hosts_both_shadowing_classes` | 2.89s | Integration boundary validation under multi-process environment |
+| `tests/test_typed_queue_entries.py::TestSelectionAndEntryShape::test_sweep_selectors_type_scoping` | 2.35s | Integration boundary validation under multi-process environment |
+| `tests/test_uncollected_test_modules.py::UncollectedTestModulesGuardTests::test_no_uncollected_test_modules` | 5.17s | Integration boundary validation under multi-process environment |
+| `tests/test_uninstall_layout_artifacts.py::RealInstallIntegrationTests::test_real_install_uninstall_deep_cleanup_removes_aw_directory` | 5.25s | Full repo install/uninstall filesystem fixture tree lifecycle |
+| `tests/test_usage_refusal_agent_record.py::test_e04_missing_required_handler_leaves[leaf_tokens0-backlog new]` | 9.43s | Integration boundary validation under multi-process environment |
+| `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference` | 31.94s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_correction_required_remands_and_blocked_fails` | 4.34s | Multi-process concurrency contention and lock coordination |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_stale_verdict_clearing` | 2.12s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_exhausts_at_budget_zero` | 2.38s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_remands_end_to_end_on_both_hosts` | 2.19s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_verifier_transport_error_exhausts_at_budget_zero` | 2.29s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_verifier_transport_error_nonzero_exit_remands_on_both_hosts` | 2.07s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_verifier_transport_error_spawn_exception_remands_on_both_hosts` | 4.57s | Integration boundary validation under multi-process environment |
+| `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_zero_exit_no_outcome_regression_guard` | 2.71s | Integration boundary validation under multi-process environment |
+| `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records` | 5.40s | Integration boundary validation under multi-process environment |
+| `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target` | 2.86s | Integration boundary validation under multi-process environment |
+| `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only` | 3.69s | Integration boundary validation under multi-process environment |

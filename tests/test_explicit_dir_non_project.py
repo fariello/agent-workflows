@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 import tempfile
 import unittest
 
@@ -72,15 +71,10 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         self.fixtures_dir_obj.cleanup()
 
     def _run_cli(self, args, run_cwd=None):
+        from tests.conformance_matrix import run_cli_inproc
+
         target_cwd = run_cwd or self.cwd
-        cmd = [sys.executable, "-m", "agent_workflows"] + args
-        res = subprocess.run(
-            cmd,
-            cwd=target_cwd,
-            env=self.env,
-            capture_output=True,
-            text=True,
-        )
+        res = run_cli_inproc(args, cwd=target_cwd, env_overrides=self.env)
         return res.returncode, res.stdout, res.stderr
 
     def test_attention_explicit_dir_nongit_human(self):

@@ -40,7 +40,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agent_schema, plans_index, prompts_index, research_index
-from tests.conformance_matrix import REPO_ROOT, run_cli
+from tests.conformance_matrix import REPO_ROOT, run_cli_inproc as run_cli
 from tests.test_index_check_agent_records import _create_fixture_repo
 from tests.test_research_index import _write
 

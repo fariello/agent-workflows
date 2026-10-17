@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -101,17 +100,10 @@ Test wellformed.
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def _run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
-        cmd = [
-            sys.executable,
-            "-m",
-            "agent_workflows.cli",
-            "attention",
-            *args,
-            "--dir",
-            str(self.root),
-        ]
-        return subprocess.run(cmd, capture_output=True, text=True)
+    def _run_cli(self, *args: str):
+        from tests.conformance_matrix import run_cli_inproc
+
+        return run_cli_inproc(["attention", *args, "--dir", str(self.root)])
 
     def test_scan_synthesizes_degraded_item_and_preserves_drift(self):
         items, drift = att.scan(self.root)
