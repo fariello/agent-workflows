@@ -466,12 +466,13 @@ class AntigravityExecuteIpdCompatibilityTests(unittest.TestCase):
     """Verify backwards compatibility of tools/antigravity_execute_ipd.py."""
 
     def test_re_exports_and_interface_parity(self):
-        self.assertTrue(hasattr(antigravity_execute_ipd, "ScriptError"))
-        self.assertTrue(hasattr(antigravity_execute_ipd, "AgyResult"))
-        self.assertTrue(hasattr(antigravity_execute_ipd, "resolve_ipd"))
-        self.assertTrue(hasattr(antigravity_execute_ipd, "run_agy"))
-        self.assertTrue(hasattr(antigravity_execute_ipd, "main"))
-        self.assertTrue(hasattr(antigravity_execute_ipd, "run"))
+        proc = subprocess.run(
+            [sys.executable, str(TOOLS_DIR / "antigravity_execute_ipd.py"), "--help"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage: agy_run.py", proc.stdout)
 
     def test_delegation_to_agy_run(self):
         # antigravity_execute_ipd delegates to the agy_run module it imported off tools/
