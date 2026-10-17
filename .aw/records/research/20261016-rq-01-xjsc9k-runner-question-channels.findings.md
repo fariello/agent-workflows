@@ -4,7 +4,7 @@ created: 20261016
 set: rq
 order: 01
 topic: [runner, questions, notifications]
-model: its_direct/pt3-claude-opus-5.5-1m-us
+model: claude-opus-5-5
 kind: findings
 status: active
 outcome: informational
