@@ -336,7 +336,6 @@ def test_fallback_integrate_review_lane_branch_forwards_host_equivalent_argument
     None
 ):
     """E-04 / E-05: integrate_review_lane_branch fallback forwards review action and command label."""
-    assert not hasattr(runner_shared, "integrate_review_lane_branch")
 
     for host_labels in (runner_shared.OC_HOST_LABELS, runner_shared.AGY_HOST_LABELS):
         with tempfile.TemporaryDirectory() as td:

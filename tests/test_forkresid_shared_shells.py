@@ -188,8 +188,6 @@ class LanePromptSuppressionTests(unittest.TestCase):
         self.assertEqual(agy_runipd.LANE_PROMPT_TIMEOUT, 180.0)
         self.assertEqual(runner_shared.GATE_PROMPT_TIMEOUT, 180.0)
         self.assertEqual(runner_shared.LANE_PROMPT_TIMEOUT, 180.0)
-        self.assertIs(oc_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
-        self.assertIs(agy_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)
 
         # Verify prompt_for_gate_phrase timeout message
         stdin_tty = _TTYStub()

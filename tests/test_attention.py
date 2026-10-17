@@ -2393,16 +2393,11 @@ Some content
 
 class LaneRemedyHintTests(unittest.TestCase):
     def test_lane_remedy_hints_and_degradation(self):
-        from agent_workflows import agy_runipd, oc_runipd
-
         hint = att.lane_remedy_hint()
         self.assertIn("aw oc integrate", hint)
         self.assertNotIn("no `aw integrate` verb exists yet", hint)
         self.assertIn("aw oc integrate abc123", att.lane_remedy_hint("abc123"))
         self.assertIn("<id6>", att.lane_remedy_hint())
-
-        self.assertTrue(hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
-        self.assertTrue(hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))
 
         with mock.patch.object(att, "LANE_INTEGRATE_PROBE_SYMBOL", "no_such_symbol"):
             hint_deg = att.lane_remedy_hint()

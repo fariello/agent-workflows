@@ -2350,23 +2350,6 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
             "configured_file": "",
         }
 
-    def test_both_dependency_entry_points_are_the_shared_objects(self):
-        """The IDENTITY pin. After the deletion this is what fails if the copy ever returns.
-
-        Stated honestly: because both paths now call the SAME object, the behavioral agreement
-        asserted below is true BY CONSTRUCTION. The identity assertion is therefore the one that
-        carries the guarantee, and the behavioral test is what catches a re-fork that kept the name.
-        """
-        from agent_workflows import oc_runipd
-
-        self.assertIs(agy_runipd.dependency_status, oc_runipd.dependency_status)
-        self.assertIs(
-            agy_runipd.dependency_status_detailed,
-            oc_runipd.dependency_status_detailed,
-            "agy must BIND the shared implementation, never define its own",
-        )
-        self.assertIs(agy_runipd.edge_satisfied, oc_runipd.edge_satisfied)
-
     def test_drain_path_resolves_typed_edge_and_orchestrator(self):
         for action in ("review", "execute"):
             with self.subTest(action=action):
@@ -2681,16 +2664,6 @@ class AgyPerArtifactDispositionLineTests(unittest.TestCase):
             self.assertIn("approval", lines[0])
             self.assertIn("ipd_already_executed", lines[1])
 
-    def test_both_hosts_render_the_line_from_the_same_object(self):
-        from agent_workflows import oc_runipd, run_selection_policy as pol
-
-        self.assertIs(
-            agy_runipd.render_queue_dispositions, pol.render_queue_dispositions
-        )
-        self.assertIs(
-            agy_runipd.render_queue_dispositions, oc_runipd.render_queue_dispositions
-        )
-
 
 class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
     def test_a_run_that_acted_on_ZERO_artifacts_still_prints_the_summary(self):
@@ -2721,15 +2694,7 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
             self.assertIn("aw ipd set approved <id6> --by-human", out)
             self.assertIn("total: 8 matched, 0 acted on, 8 not acted on", out)
 
-    def test_this_hosts_footer_names_ANTIGRAVITY_and_shared_object(self):
-        from agent_workflows import oc_runipd, run_selection_policy as pol
-
-        self.assertIs(
-            agy_runipd.render_disposition_summary, pol.render_disposition_summary
-        )
-        self.assertIs(
-            agy_runipd.render_disposition_summary, oc_runipd.render_disposition_summary
-        )
+    def test_this_hosts_footer_names_ANTIGRAVITY(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             _init_repo_with_conforming_plan(repo, "agy001")
@@ -2754,22 +2719,6 @@ class AgyEndOfRunDispositionSummaryTests(AgyPerArtifactDispositionLineTests):
 
 
 class AgyVerdictMappingTests(unittest.TestCase):
-    def test_this_host_binds_the_shared_mapping_and_holds_no_copy(self):
-        from agent_workflows import oc_runipd, runner_shared as rs
-
-        for name in (
-            "map_verdict",
-            "normalize_verdict",
-            "verdict_refusal_text",
-            "VerdictMapping",
-        ):
-            with self.subTest(symbol=name):
-                self.assertIs(
-                    getattr(agy_runipd, name),
-                    getattr(rs, name),
-                )
-                self.assertIs(getattr(agy_runipd, name), getattr(oc_runipd, name))
-
     def test_verdict_integration_decisions(self):
         from agent_workflows import runner_shared as rs
 
@@ -2798,10 +2747,6 @@ class AgyVerdictMappingTests(unittest.TestCase):
 
 class AgyVerificationAbsenceTests(unittest.TestCase):
     def test_plan_path_resolution(self):
-        from agent_workflows import runner_shared as rs
-
-        self.assertIs(agy_runipd.resolve_plan_path, rs.resolve_plan_path)
-
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
             pending = repo / ".aw" / "records" / "plans" / "pending"

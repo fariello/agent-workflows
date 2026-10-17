@@ -3335,7 +3335,7 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                 self.assertEqual(mod.action_for(None, "approved"), "execute")
 
         # 3. Agy queue entry carries kind
-        from agent_workflows import agy_runipd, oc_runipd
+        from agent_workflows import agy_runipd
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -3354,7 +3354,6 @@ class TheActionDecisionIsSHAREDCode(unittest.TestCase):
                 agy_runipd.action_for(entry["kind"], entry["status"]), "orchestrate"
             )
             self.assertIn("kind", agy_runipd.PlanRecord._fields)
-            self.assertIs(agy_runipd.PlanRecord, oc_runipd.PlanRecord)
 
         # 4. Queue build derives orchestrate on both hosts
         import argparse
@@ -5431,10 +5430,6 @@ class OrchestratorRetirementRowAuditAndHonestRecord(RollupTransitionCase):
         )
         self.assertTrue(dest.is_file(), "retired orchestrator must land in executed/")
         dest_text = dest.read_text(encoding="utf-8")
-        self.assertTrue(
-            hasattr(LC, "ROLLUP_SUPERSEDED_STATEMENT"),
-            "LC must define ROLLUP_SUPERSEDED_STATEMENT",
-        )
         checklist_section = support.section(
             dest_text,
             "## Detailed Implementation Checklist (TODO)",

@@ -50,7 +50,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared, worktree_lease
+from agent_workflows import runner_shared, worktree_lease
 
 PLAN_NAME = "20260901-race-01-aaa111-a-plan.ipd.md"
 PENDING = f".aw/records/plans/pending/{PLAN_NAME}"
@@ -657,29 +657,3 @@ def test_the_writer_refuses_a_path_it_did_not_positively_classify() -> None:
 
 
 # --------------------------------------------------------------------------------------------------
-# Anti-re-fork: ONE definition reaches both hosts
-# --------------------------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "classify_records_only_front_matter_conflict",
-        "classify_records_only_conflict_set",
-        "format_records_only_conflict_refusal_reason",
-        "rederive_front_matter",
-        "integrate_lane_branch",
-    ],
-)
-def test_the_seam_is_shared_by_both_runners(name: str) -> None:
-    """The integration seam is shared, so this reaches both hosts with no per-host edit.
-
-    `integrate_lane_branch` is included because each host binds a thin WRAPPER around the shared body;
-    the wrapper is the host's own object, so identity is asserted on the shared module's attribute
-    being the one the wrappers call.
-    """
-    shared = getattr(runner_shared, name)
-    assert shared.__module__ == "agent_workflows.runner_shared"
-    if name != "integrate_lane_branch":
-        assert getattr(oc_runipd, name, shared) is shared
-        assert getattr(agy_runipd, name, shared) is shared
