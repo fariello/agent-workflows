@@ -38,6 +38,8 @@ goldens do not flake across supported CPython versions.
 from __future__ import annotations
 
 import atexit
+import contextlib
+import io
 import json
 import os
 import re
@@ -47,7 +49,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from agent_workflows import runner_shared, set_records
 from agent_workflows.command_surface import (
@@ -775,6 +777,76 @@ def run_cli(
     return RunResult(
         argv=list(argv), returncode=proc.returncode, stdout=out, stderr=err
     )
+
+
+def run_cli_inproc(
+    argv: Sequence[str],
+    *,
+    cwd: Optional[Path | str] = None,
+    force_color: bool = False,
+    no_color: bool = False,
+    ascii_only: bool = False,
+    columns: str = "80",
+    encoding: str = "utf-8",
+    env_overrides: Optional[Dict[str, str]] = None,
+) -> RunResult:
+    """Execute ``agent_workflows.cli.main(argv)`` in-process with a pinned env and captured I/O.
+
+    Saves and restores ``os.getcwd()`` with ``os.chdir`` in a ``finally`` block, applies the
+    same environment ``_pinned_env`` builds via save-and-restore of ``os.environ``, redirects
+    stdout/stderr to ``io.StringIO``, calls ``agent_workflows.cli.main(argv)``, maps
+    ``SystemExit`` to an integer return code, and resets ``sys.argv``.
+    """
+    from agent_workflows import cli
+
+    old_cwd = os.getcwd()
+    old_env = dict(os.environ)
+    old_argv = list(sys.argv)
+
+    effective_cwd = str(REPO_ROOT) if cwd is None else str(cwd)
+    try:
+        pinned = _pinned_env(
+            force_color=force_color,
+            no_color=no_color,
+            ascii_only=ascii_only,
+            columns=columns,
+            env_overrides=env_overrides,
+        )
+        os.environ.clear()
+        os.environ.update(pinned)
+
+        os.chdir(effective_cwd)
+        sys.argv = ["agent_workflows", *argv]
+
+        out = io.StringIO()
+        err = io.StringIO()
+        code: Optional[int | Any] = None
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = cli.main(list(argv))
+            except SystemExit as exc:
+                code = exc.code
+
+        if code is None:
+            returncode = 0
+        elif isinstance(code, int):
+            returncode = code
+        else:
+            returncode = 1
+
+        out_str = out.getvalue().replace("\r\n", "\n")
+        err_str = err.getvalue().replace("\r\n", "\n")
+        return RunResult(
+            argv=list(argv), returncode=returncode, stdout=out_str, stderr=err_str
+        )
+    finally:
+        try:
+            os.chdir(old_cwd)
+        except Exception:
+            pass
+        os.environ.clear()
+        os.environ.update(old_env)
+        sys.argv = old_argv
 
 
 def run_cli_tty(
