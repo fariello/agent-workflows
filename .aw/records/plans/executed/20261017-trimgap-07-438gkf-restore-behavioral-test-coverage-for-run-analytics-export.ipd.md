@@ -6,7 +6,7 @@
 - Scope: Restore the behavioral part of `tests/test_run_analytics_export.py` from `19313eed^` (everything above its `# --- E-01: the surface contract` banner, minus the three tests that read production source text and the `_code_lines` helper they use, Finding F-02/F-03), add `pytestmark = pytest.mark.core` so the bare core-tier gate selects it, and append residual edge-case tests for the branches the restored file leaves unexecuted (F-05). The 10 keys: `build_manifest`, `_bundle_readme`, `_sha256_file`, `archive_member_refusal`, `select_raw_files`, `_categorize`, `ExportManifestEntry.to_dict`, `write_bundle`, `sanitizer_blind_spot_report`, `build_redacted_events`. EXCLUDES any change to `agent_workflows/run_analytics_export.py` or any other production file; EXCLUDES restoring `tests/test_run_analytics_privacy_boundary.py`, `tests/test_run_analytics_submit.py` and `tests/test_run_analytics_wizard.py`, which backlog item `gjmiuw` (`run_analytics_submit`) lists as its own files to mine and which `q86fxm` group 16 covers for the wizard; EXCLUDES the `runs export`/`runs submit` CLI surface-contract tests of the deleted file (F-03).
 - Scope-Paths: tests/test_run_analytics_export.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: 438gkf
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 438gkf verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-trimgap-07-438gkf-restore-behavioral-test-coverage-for-run-analytics-export.review.md
 
