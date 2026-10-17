@@ -32,6 +32,8 @@ GO / CONDITIONAL GO, you choose exactly one rung; the safe rung is the default:
 
 On a `NO-GO`, no rungs are offered.
 
+Before the decision tree is presented, Section 8 runs `aw releases readiness --suite-passed` (or `--suite-failed`) without `--residual-risk-signer`. This step runs in EVERY repository (no repository-specific carve-out). A gate whose input files are absent is reported NOT-APPLICABLE, does not force NO-GO, needs no triage or waiver, and is never counted or described as passed; a not-applicable `full_suite` or `residual_risk` is a hard failure. Section 8 permits a `GO` recommendation when `residual_risk` is the only failing gate (since the human approver supplies the sign-off on approval), caps at `CONDITIONAL GO` when a standing `ipd_lint` or `capability_freshness` failure is triaged as an out-of-scope pending plan or tracked item, and forces `NO-GO` on any hard gate failure. In Section 9, before cutting a candidate or full release, `aw releases readiness --suite-passed --residual-risk-signer "<approver>"` is re-run with the approver identity; all applicable gates must pass (or standing red gates must be explicitly waived in writing by the approver), and any not-applicable gate is restated to the human in the release prompt.
+
 ## Tag conventions
 
 - A **bare `vX.Y.Z`** tag means "this is intended for a registry release". Use it only for a
