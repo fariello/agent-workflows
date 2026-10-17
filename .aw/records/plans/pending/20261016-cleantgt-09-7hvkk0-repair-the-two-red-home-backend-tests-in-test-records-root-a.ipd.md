@@ -37,22 +37,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure
 
-- [ ] E-01 Re-measure the module at the executing HEAD before changing anything, and record where `4v8s0m` is (`ls .aw/records/plans/*/ | grep 4v8s0m`).
+- [x] E-01 Re-measure the module at the executing HEAD before changing anything, and record where `4v8s0m` is (`ls .aw/records/plans/*/ | grep 4v8s0m`).
   - Depends on: none
   - Expected outcome: pasted output of `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py` showing `test_home_records_reproduction_prompts_index` failing (exit 2, `records directory records/prompts does not exist; nothing was written.`). `test_home_records_runner_discovery` passes if `4v8s0m` is executed, else fails with `FileNotFoundError` on the `plans/pending/...kfnfji...` path; no other test fails. If the prompts index test already passes, or any test fails other than these, stop and record the divergence in this plan before continuing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prompts index test
 
-- [ ] E-04 In `test_home_records_reproduction_prompts_index`, before running `aw index prompts`, create the home-backed prompts directory exactly where the resolver places it: `(project_context.project_records_dir(target, aw_home=aw_home) / "prompts").mkdir(parents=True)` (this mirrors `engine._records_member_destination`, through which `aw install` creates the records tree). Keep the existing assertions (exit 0, no `target/.aw/records/prompts`, exactly one `*/records/prompts/INDEX.json` under `AW_HOME/projects`). Update the docstring to say the directory is pre-created because index writes refuse on an absent directory (fbdxmh).
+- [x] E-04 In `test_home_records_reproduction_prompts_index`, before running `aw index prompts`, create the home-backed prompts directory exactly where the resolver places it: `(project_context.project_records_dir(target, aw_home=aw_home) / "prompts").mkdir(parents=True)` (this mirrors `engine._records_member_destination`, through which `aw install` creates the records tree). Keep the existing assertions (exit 0, no `target/.aw/records/prompts`, exactly one `*/records/prompts/INDEX.json` under `AW_HOME/projects`). Update the docstring to say the directory is pre-created because index writes refuse on an absent directory (fbdxmh).
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py -k prompts_index` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `test_home_records_prompts_index_refuses_absent_dir(home_records_env)`: on the unmodified fixture (no prompts directory anywhere), run `aw index prompts --dir <target> --agent` and assert exit `2`, no `Traceback` in stderr, the last stdout line parses as JSON with `outcome == "cannot-run"` and a `records-dir-missing` diagnostic whose location does NOT start with `.aw/records/` (proving it names the home-resolved directory, not an in-repo one), and afterwards neither `target/.aw/records` nor any `AW_HOME/projects/*/records/prompts` exists.
+- [x] E-05 Add `test_home_records_prompts_index_refuses_absent_dir(home_records_env)`: on the unmodified fixture (no prompts directory anywhere), run `aw index prompts --dir <target> --agent` and assert exit `2`, no `Traceback` in stderr, the last stdout line parses as JSON with `outcome == "cannot-run"` and a `records-dir-missing` diagnostic whose location does NOT start with `.aw/records/` (proving it names the home-resolved directory, not an in-repo one), and afterwards neither `target/.aw/records` nor any `AW_HOME/projects/*/records/prompts` exists.
   - Depends on: E-04
   - Expected outcome: the new test passes, and the whole module reports zero failures and zero errors, EXCEPT that while `4v8s0m` is not yet executed exactly `test_home_records_runner_discovery` may fail, and only with the `FileNotFoundError` on the `plans/pending/...kfnfji...` path (re-derive the collected count at execution; it is not a bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,20 +121,62 @@ N/A: test-only change; no behavior, CLI surface, or spec contract changes, and n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the executing HEAD sha, the `ls .aw/records/plans/*/ | grep 4v8s0m` output, and the pre-change pytest output showing the prompts index failure (and, only if `4v8s0m` is unexecuted, the runner discovery `FileNotFoundError`) with their error lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-change measurement reproduced exactly the prompts index refusal; 4v8s0m is executed so runner discovery already passes.
+    - Executing HEAD: `8f3c1c09800a863bb7510ba4c2198b39cba1e029`
+    - `ls .aw/records/plans/*/ | grep 4v8s0m` -> `20261016-g9kupi-01-4v8s0m-decouple-test-home-records-runner-discovery-from-the-live-re.ipd.md` (in `executed/`), so runner discovery is expected to pass.
+    - Pre-change `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py`:
+      ```
+      E       AssertionError: stdout:
+      E         stderr: error: aw index prompts: records directory records/prompts does not exist; nothing was written.
+      E         Run 'aw install .' at the project root to restore it.
+      E       assert 2 == 0
+      tests/test_records_root_accessor.py:216: AssertionError
+      FAILED tests/test_records_root_accessor.py::test_home_records_reproduction_prompts_index
+      1 failed, 17 passed in 12.78s
+      ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` hunk for the prompts index test and the passing output of `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py -k "prompts_index and not refuses"`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Prompts index test pre-creates the home-resolved prompts dir and passes.
+    - Diff hunk:
+      ```
+      @@ -205,8 +205,17 @@ def test_home_records_reproduction_history_sidecar(home_records_env):
+       def test_home_records_reproduction_prompts_index(home_records_env):
+      -    """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError."""
+      +    """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError.
+      +
+      +    The home-backed prompts directory is pre-created first, exactly where the resolver
+      +    places it (as `aw install` does), because index writes refuse on an absent records
+      +    directory by design (plan fbdxmh). The refusal itself is pinned by
+      +    test_home_records_prompts_index_refuses_absent_dir.
+      +    """
+           target, home, aw_home = home_records_env
+      +    (project_context.project_records_dir(target, aw_home=aw_home) / "prompts").mkdir(
+      +        parents=True
+      +    )
+      ```
+    - `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py -k "prompts_index and not refuses"`:
+      ```
+      1 passed, 18 deselected in 1.50s
+      ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new test's diff; the full output of `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py tests/test_index_write_agent_records.py` with zero failures (or, only while `4v8s0m` is unexecuted, exactly the one runner-discovery `FileNotFoundError` failure, shown); the summary line of the routine gate `python3 -m pytest`; and `git diff --stat` showing only `tests/test_records_root_accessor.py` changed. Also paste the new test's observed refusal JSON line (produced by `prompts_index.run_index` -> `artifact_core.emit_index_missing_dir_refusal`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. New refusal test passes; module and fbdxmh contract tests all pass; routine gate green; only the scoped test file changed.
+    - New test `test_home_records_prompts_index_refuses_absent_dir` added (hunk `@@ -224,6 +233,38 @@`): runs `aw index prompts --dir <target> --agent` on the unmodified fixture and asserts exit 2, no `Traceback`, last stdout JSON `outcome == "cannot-run"`, a `records-dir-missing` diagnostic whose location does not start with `.aw/records/`, no `target/.aw/records`, and no `AW_HOME/projects/*/records/prompts`.
+    - `python3 -m pytest -o addopts="" -q tests/test_records_root_accessor.py tests/test_index_write_agent_records.py`:
+      ```
+      ......................................                                   [100%]
+      38 passed in 42.84s
+      ```
+    - Routine gate `aw suite`: `745 passed in 65.34s (0:01:05)`
+    - `git diff --stat`: ` tests/test_records_root_accessor.py | 43 ++++++++++++++++++++++++++++++++++++-` / ` 1 file changed, 42 insertions(+), 1 deletion(-)`
+    - Observed refusal JSON (same invocation reproduced in a scratch home-backed repo): `{"schema":"aw.agent/v1","kind":"error","cmd":"index","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"applied":false,"target":"prompts","findings":1,"findings_by_severity":{"error":1,"warning":0,"info":0},"diagnostics":[{"location":"records/prompts","rule":"records-dir-missing"}],"next":"aw install ."}`
+  - Result: pass
 
 ## Approval and execution gate
 

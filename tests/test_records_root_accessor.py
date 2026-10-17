@@ -205,8 +205,17 @@ def test_home_records_reproduction_history_sidecar(home_records_env):
 
 
 def test_home_records_reproduction_prompts_index(home_records_env):
-    """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError."""
+    """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError.
+
+    The home-backed prompts directory is pre-created first, exactly where the resolver
+    places it (as `aw install` does), because index writes refuse on an absent records
+    directory by design (plan fbdxmh). The refusal itself is pinned by
+    test_home_records_prompts_index_refuses_absent_dir.
+    """
     target, home, aw_home = home_records_env
+    (project_context.project_records_dir(target, aw_home=aw_home) / "prompts").mkdir(
+        parents=True
+    )
     res = run_aw(
         ["index", "prompts", "--dir", str(target)],
         cwd=target,
@@ -222,6 +231,40 @@ def test_home_records_reproduction_prompts_index(home_records_env):
     assert (
         len(index_files) == 1
     ), f"Expected 1 INDEX.json under AW_HOME, found: {index_files}"
+
+
+def test_home_records_prompts_index_refuses_absent_dir(home_records_env):
+    """With no prompts directory anywhere, aw index prompts refuses and creates nothing.
+
+    Pins the fbdxmh contract on a home-backed project: exit 2 (cannot-run), a
+    records-dir-missing diagnostic naming the home-resolved directory (not an in-repo
+    .aw/records path), no traceback, and no directory created in the target or AW_HOME.
+    """
+    target, home, aw_home = home_records_env
+    res = run_aw(
+        ["index", "prompts", "--dir", str(target), "--agent"],
+        cwd=target,
+        home=home,
+        aw_home=aw_home,
+    )
+    assert res.returncode == 2, f"stdout: {res.stdout}\nstderr: {res.stderr}"
+    assert "Traceback" not in res.stderr, res.stderr
+    lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
+    assert lines, f"no agent output; stderr: {res.stderr}"
+    record = json.loads(lines[-1])
+    assert record.get("outcome") == "cannot-run", record
+    missing = [
+        d
+        for d in record.get("diagnostics", [])
+        if d.get("rule") == "records-dir-missing"
+    ]
+    assert missing, f"no records-dir-missing diagnostic: {record}"
+    for diag in missing:
+        assert not str(diag.get("location", "")).startswith(".aw/records/"), diag
+    assert not (target / ".aw" / "records").exists(), "Found target/.aw/records"
+    projects_dir = aw_home / "projects"
+    created = list(projects_dir.glob("*/records/prompts"))
+    assert created == [], f"Refusal created a home prompts dir: {created}"
 
 
 def test_accessor_unconfigured(tmp_path: Path):
