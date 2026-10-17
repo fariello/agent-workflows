@@ -1,5 +1,5 @@
 - Id: 5mnbaz
-- Status: graduated
+- Status: done
 - Graduated-To: cleantgt
 - Blocks-Release: next
 - Set: cleantgt
@@ -8,6 +8,7 @@
 - Summary: tests/test_records_root_accessor.py has 2 failing tests at HEAD (runner_discovery, prompts_index)
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw oc run: IPD 7hvkk0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-cleantgt-09-7hvkk0-repair-the-two-red-home-backend-tests-in-test-records-root-a.ipd.md); evidence .aw/records/plans/executed/20261016-cleantgt-09-7hvkk0-repair-the-two-red-home-backend-tests-in-test-records-root-a.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T212849Z-3382142: 7hvkk0
 - 2026-10-16 created (aw backlog): tests/test_records_root_accessor.py has 2 failing tests at HEAD (runner_discovery, prompts_index)
 
