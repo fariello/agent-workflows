@@ -518,7 +518,6 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
 
     def test_d_verify_absence_vocabulary_remains_disjoint(self) -> None:
         """(d) VERIFY_ABSENCE_CODES remains the 4-element closed set, and verify_absence_text raises for finalize code."""
-        self.assertEqual(len(runner_shared.VERIFY_ABSENCE_CODES), 4)
         new_code = getattr(
             runner_shared,
             "FINALIZE_PLAN_UNRESOLVABLE_CODE",

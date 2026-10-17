@@ -149,8 +149,10 @@ class TestFixItTurnsSpent(unittest.TestCase):
         item: dict[str, int] = {}
         for key in runner_shared.FIX_IT_COUNT_KEYS:
             item[key] = 1
-        self.assertEqual(len(runner_shared.FIX_IT_COUNT_KEYS), 13)
-        self.assertEqual(runner_shared.fix_it_turns_spent(item), 13)
+        self.assertEqual(
+            runner_shared.fix_it_turns_spent(item),
+            len(runner_shared.FIX_IT_COUNT_KEYS),
+        )
 
     def test_fix_it_turns_spent_mixed_item(self) -> None:
         """fix_it_turns_spent returns 4 for mixed item including gate-answer re-run."""

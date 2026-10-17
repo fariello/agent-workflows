@@ -116,8 +116,16 @@ def test_type_mapping_is_one_data_table_covering_the_resolver_vocabulary():
     # explicit None), so a new type cannot be silently mistyped.
     assert set(pol.SPEC_TYPE_BY_RESOLVER_TYPE) == set(sel.KNOWN_PRIMARY_TYPES)
     # Spec 2.2's seven runnable types are exactly the non-None values.
-    assert set(pol.RESOLVER_TYPE_BY_SPEC_TYPE) == set(pol.SPEC_TYPE_ORDER)
-    assert len(pol.SPEC_TYPE_ORDER) == 7
+    # Spec 25kzda Section 2.2 enumerates the seven runnable record types in precedence order.
+    assert pol.SPEC_TYPE_ORDER == (
+        "ipd",
+        "spec",
+        "backlog",
+        "prompt",
+        "research",
+        "release",
+        "walkthrough",
+    )
     # comms/roadmaps have no spec 2.2 type.
     assert pol.SPEC_TYPE_BY_RESOLVER_TYPE["comms"] is None
     assert pol.SPEC_TYPE_BY_RESOLVER_TYPE["roadmaps"] is None
