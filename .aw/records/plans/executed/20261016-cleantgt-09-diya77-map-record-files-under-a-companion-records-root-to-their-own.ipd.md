@@ -6,7 +6,7 @@
 - Scope: IN: (1) extending `project_context.record_owner_root` with a companion branch: for a path that lies under a `records` directory whose parent is not `.aw`/`.agents` (cheap string fast path), try in order a cwd-anchored candidate, the default sibling-companion convention (`<X>.aw/records/...` -> candidate `<X>`), and every `registry.json` `target_paths` entry (whatever the entry's own `records_backend` field says: `aw project attach` records `home` for every project, F-11), ACCEPTING a candidate only when the path lies under `project_records_dir(candidate)` and that candidate's resolved `records_backend` is `companion`; (2) keeping every GIT-BOUND consumer of the routed walkers (review staleness, record moves, path-scoped commits) on the git repository that actually holds the companion record, so routing the record's owner to the target does not regress them (F-10, E-06); (3) a behavioral test module; (4) a placement-spec amendment and a CHANGELOG line. Because `ki6t17` routes every walker through the resolver, no walker's ROOT LOOKUP is edited here; only the git-bound call sites E-06 inventories are. OUT: writing any back-pointer into the companion repository or the target (OQ-01); a custom (non-sibling) `--companion-dir` resolved from an unrelated cwd for a project not attached via `aw project attach` (a documented limit, pinned by a test); the walkers themselves and the AW_HOME branch (owned by `ki6t17`); the companion installer's placement of `config/project.json` (F-06, not a walker defect).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/ipd_lint.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/artifact_core.py, tests/test_companion_record_owner_root.py, .aw/records/specs/implemented/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md, CHANGELOG.md
 - Item-Dependencies: executed:ki6t17
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: diya77
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: diya77 verified (set cleantgt, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/specs.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
