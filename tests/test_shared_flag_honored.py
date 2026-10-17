@@ -52,9 +52,7 @@ from tests.test_usage_refusal_agent_record import REQUIRED_LEAVES, _capture_cli
 # THE DICT IS A CEILING, NOT A CONVENIENCE. Adding an entry to silence a red case
 # without a filed backlog item is prohibited. Every entry is strictly xfailed: if a leaf
 # is fixed without removing its entry, the test turns red with XPASS.
-KNOWN_BROKEN: Dict[Tuple[str, str], str] = {
-    ("run init", "--fields"): "gm9saf",
-}
+KNOWN_BROKEN: Dict[Tuple[str, str], str] = {}
 
 
 # Note on sanctioned_raw: Leaves whose --agent output is registered as sanctioned_raw

@@ -8589,6 +8589,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 collect_policy_interactive,
                 config_placement_switch,
                 persist_project_policy,
+                raise_if_records_root_switch,
                 render_pre_write_plan,
                 resolve_existing_policy,
             )
@@ -8691,6 +8692,10 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                             )
                             continue
                         relocating = True
+                else:
+                    raise_if_records_root_switch(
+                        str(repo_root), policy, existing_policy=existing_policy
+                    )
             except PolicyCancelledError:
                 term.status("skip", f"{repo_root}: install cancelled; nothing written.")
                 returncode = 1

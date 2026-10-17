@@ -5,8 +5,9 @@
 - Concern: `aw run init --agent --fields <f>` ignores the shared `--fields` projection and emits the full record (including `run_id` and `ledger`).
 - Scope: Apply `agent_schema.filter_record_fields` to the `--agent` success record in `run_cli._run_init`, add a behavioral regression test, and retire the `("run init", "--fields")` KNOWN_BROKEN ceiling entry.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_init.py, tests/test_shared_flag_honored.py
+- Scope-Exceeded: .aw/records/backlog/open/20261016-jndec6-01-jndec6-run-cli-error-payloads-emit-error-emit-machine-are.backlog.md (defect-report filing required by the runner contract: the adjacent finding run_cli error payloads are not aw.agent/v1 records needs a durable backlog carrier, cited as Carrier in the plan's Deferred s...)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +18,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: tgfxin
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: tgfxin verified (set runledger, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261016-jndec6-01-jndec6-run-cli-error-payloads-emit-error-emit-machine-are.backlog.md: defect-report filing required by the runner contract: the adjacent finding (run_cli error payloads are not aw.agent/v1 records) needs a durable backlog carrier, cited as Carrier in the plan's Deferred section]
+- 2026-10-17 executed (opencode lane run-20261017T001257Z-870713): E-01..E-03 performed, V-01..V-03 pass
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode/claude-opus): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
@@ -37,20 +39,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Honor the projection in run init
 
-- [ ] E-01 In `run_cli._run_init`, in the `--agent` branch (the block building `rec` with `"cmd": "run init"` and writing `agent_schema.render_guarded_jsonl_record(rec)`), when `getattr(args, "fields", None)` is set, normalize it to a list (split a string on commas and strip empties, the same normalization `cli._emit_config_agent_record` uses for `args.fields`) and replace `rec` with `agent_schema.filter_record_fields(rec, fields)` before rendering. Leave the `--json` and human branches unchanged.
+- [x] E-01 In `run_cli._run_init`, in the `--agent` branch (the block building `rec` with `"cmd": "run init"` and writing `agent_schema.render_guarded_jsonl_record(rec)`), when `getattr(args, "fields", None)` is set, normalize it to a list (split a string on commas and strip empties, the same normalization `cli._emit_config_agent_record` uses for `args.fields`) and replace `rec` with `agent_schema.filter_record_fields(rec, fields)` before rendering. Leave the `--json` and human branches unchanged.
   - Depends on: none
   - Expected outcome: `aw run init --workflow wf.json --agent --fields cmd` emits one valid `aw.agent/v1` record whose keys are a subset of `_PRESERVED_FIELDS | {"cmd"}` (no `run_id`, no `ledger`); `--fields cmd,run_id` keeps `run_id` and drops `ledger`; without `--fields` the record is byte-identical in key set to today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a behavioral test to `tests/test_run_init.py` that drives `run_cli("run", "init", "--workflow", <wf>, "--agent", "--fields", "cmd", cwd=repo)` and asserts exit 0, exactly one JSONL line, `agent_schema.validate_agent_record` returns no errors, `run_id` and `ledger` are absent, and that a second invocation with `--fields cmd,run_id` retains `run_id` matching `^run-[0-9a-f]{16}$` and omits `ledger`. Also assert the ledger file was still created on disk (projection must not change the side effect).
+- [x] E-02 Add a behavioral test to `tests/test_run_init.py` that drives `run_cli("run", "init", "--workflow", <wf>, "--agent", "--fields", "cmd", cwd=repo)` and asserts exit 0, exactly one JSONL line, `agent_schema.validate_agent_record` returns no errors, `run_id` and `ledger` are absent, and that a second invocation with `--fields cmd,run_id` retains `run_id` matching `^run-[0-9a-f]{16}$` and omits `ledger`. Also assert the ledger file was still created on disk (projection must not change the side effect).
   - Depends on: E-01
   - Expected outcome: new test passes against the fixed code. Its assertions target exactly the keys the unfixed code emits under `--fields cmd` (`run_id`, `ledger`; observed at plan-review on unmodified `run_cli.py`, and corroborated by the strict-xfail baseline `test_fields_flag_honored_mutation[run init] XFAIL`), so it would fail against the unfixed code. Use the module's existing `SAMPLE_WORKFLOW` and `_create_scratch_repo` helpers (a workflow with an empty `requirements` list is refused with `RF-E007`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Remove the `("run init", "--fields"): "gm9saf"` entry from `KNOWN_BROKEN` in `tests/test_shared_flag_honored.py` (the dict becomes empty, keeping its ceiling comment), so the strict-xfail case becomes a normal passing case.
+- [x] E-03 Remove the `("run init", "--fields"): "gm9saf"` entry from `KNOWN_BROKEN` in `tests/test_shared_flag_honored.py` (the dict becomes empty, keeping its ceiling comment), so the strict-xfail case becomes a normal passing case.
   - Depends on: E-01
   - Expected outcome: `test_fields_flag_honored_mutation[run init]` runs as a plain test and passes; no XPASS(strict) failure.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -79,9 +81,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Converting `run_cli` error payloads to `aw.agent/v1` records and projecting them: a separate contract change across every `_emit_machine`/`_emit_error` site, explicitly deferred in the `_emit_error` docstring; the backlog item names only the success-record projection.
-  - Carrier-Declined: Separate contract change across _emit_machine/_emit_error sites; explicitly deferred in docstring.
+  - Carrier: jndec6
 - Applying `--fields` to `--json` output: `--fields` is documented as "field projection for --agent output", so `--json` stays unprojected.
-  - Carrier-Declined: --fields is documented for --agent output only; --json stays unprojected by design.
+  - Carrier-Declined: deliberate design, not an obligation; `--fields` is defined for `--agent` output only (OQ-01, resolved)
 
 ## Scope check
 
@@ -111,20 +113,52 @@ N/A: `docs/cli-output-contract.md` already requires every `--agent` leaf to hono
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: from the lane root, against a scratch git repo containing `.aw/records/` and a workflow JSON with a non-empty `requirements` list, paste the stdout of `AW_NO_REEXEC=1 python3 -m agent_workflows run init --workflow <wf.json> --dir <scratch> --agent --fields cmd` (code path `run_cli._run_init` `--agent` branch, created by E-01) showing a single record whose keys exclude `run_id` and `ledger`, the same with `--fields cmd,run_id` showing `run_id` present and `ledger` absent, and the same without `--fields` showing both keys still present; paste the `git diff agent_workflows/run_cli.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    == --fields cmd
+    {"schema":"aw.agent/v1","kind":"result","cmd":"run init","exit":0,"outcome":"ok","verified":true,"complete":true}
+    == --fields cmd,run_id
+    {"schema":"aw.agent/v1","kind":"result","cmd":"run init","exit":0,"outcome":"ok","verified":true,"complete":true,"run_id":"run-b66499c2bbb50473"}
+    == (no --fields)
+    {"schema":"aw.agent/v1","kind":"result","cmd":"run init","exit":0,"outcome":"ok","verified":true,"complete":true,"run_id":"run-871c7c1e19c316c3","ledger":".aw/records/runs/run-871c7c1e19c316c3/ledger.jsonl"}
+    git diff agent_workflows/run_cli.py:
+    +        # Honor the shared --fields projection (gm9saf / tgfxin E-01), normalizing a
+    +        # comma-separated string the same way cli._emit_config_agent_record does.
+    +        fields = getattr(args, "fields", None)
+    +        if fields:
+    +            if isinstance(fields, str):
+    +                fields = [f.strip() for f in fields.split(",") if f.strip()]
+    +            rec = agent_schema.filter_record_fields(rec, fields)
+         sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the actual `python3 -m pytest tests/test_run_init.py -o addopts="" -v` output showing the new projection test PASSED and the `N passed` summary line.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_run_init.py::test_case_f2_agent_honors_fields_projection PASSED [ 21%]
+    tests/test_run_init.py::test_case_f_machine_modes_agent_and_json PASSED  [ 50%]
+    (all 14 test_run_init.py cases PASSED)
+    ============================= 14 passed in 30.66s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the actual `python3 -m pytest tests/test_shared_flag_honored.py -o addopts="" -v -k "run and init or known_broken"` output showing `test_fields_flag_honored_mutation[run init]` PASSED (not XFAIL, not XPASS), plus the bare `python3 -m pytest` routine-gate summary line.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_shared_flag_honored.py::test_json_flag_honored_mutation[run init] PASSED [ 20%]
+    tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation[run init] PASSED [ 40%]
+    tests/test_shared_flag_honored.py::test_parser_usage_refusal_fields_honored_required_leaves[run init] PASSED [ 60%]
+    tests/test_shared_flag_honored.py::test_known_broken_no_dead_entries PASSED [ 80%]
+    tests/test_shared_flag_honored.py::test_known_broken_citations_resolve PASSED [100%]
+    ====================== 5 passed, 254 deselected in 5.49s =======================
+    routine gate (python3 -m pytest): 745 passed in 82.46s (0:01:22)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

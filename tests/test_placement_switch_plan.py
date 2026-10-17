@@ -244,8 +244,13 @@ class TestPlacementSwitchPlan(unittest.TestCase):
             self.assertEqual(plan.items, [])
             self.assertIn("not-a-placement-switch", plan.blockers)
 
-    def test_companion_unsupported_short_circuit(self) -> None:
-        """(4) Companion policy on private-target returns 'companion-unsupported' (not 'not-a-placement-switch')."""
+    def test_companion_request_is_a_placement_switch(self) -> None:
+        """(4) Companion policy on private-target is planned as pair (a), still gated by 'companion-unsupported'.
+
+        IPD xc8nae replaced the empty short-circuit plan with a full census; the
+        behavior kept is that a companion request is recognized as a placement
+        switch, never a same-placement refresh.
+        """
         with tempfile.TemporaryDirectory() as td:
             tpath = Path(td)
             aw_home = tpath / "aw_home"
@@ -261,7 +266,9 @@ class TestPlacementSwitchPlan(unittest.TestCase):
             )
 
             plan = plan_placement_switch(repo, pol_comp, aw_home=aw_home)
-            self.assertEqual(plan.items, [])
+            self.assertEqual(plan.direction, "in-place")
+            self.assertEqual(plan.companion_action, "attach")
+            self.assertNotEqual(plan.items, [])
             self.assertIn("companion-unsupported", plan.blockers)
             self.assertNotIn("not-a-placement-switch", plan.blockers)
             self.assertIn("n9vd2h", plan.blocker_messages["companion-unsupported"])

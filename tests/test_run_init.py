@@ -329,6 +329,64 @@ def test_case_f_machine_modes_agent_and_json(tmp_path: Path) -> None:
     assert json_obj["ledger"].endswith("ledger.jsonl")
 
 
+def test_case_f2_agent_honors_fields_projection(tmp_path: Path) -> None:
+    """Case (f2, gm9saf/tgfxin): --agent --fields projects the result record to the
+    requested keys plus the preserved envelope, without changing the ledger side effect.
+    """
+    repo = _create_scratch_repo(tmp_path / "repo")
+    wf_file = repo / "workflow.json"
+    wf_file.write_text(json.dumps(SAMPLE_WORKFLOW), encoding="utf-8")
+    runs_root = runner_shared.state_root(repo)
+
+    def _ledgers() -> set:
+        if not runs_root.is_dir():
+            return set()
+        return set(runs_root.glob("*/" + run_ledger_store.LEDGER_FILENAME))
+
+    # 1. --fields cmd drops run_id and ledger, but still creates the ledger.
+    before = _ledgers()
+    res = run_cli(
+        "run",
+        "init",
+        "--workflow",
+        str(wf_file),
+        "--agent",
+        "--fields",
+        "cmd",
+        cwd=repo,
+    )
+    assert res.returncode == 0, f"projection failed: {res.stderr}"
+    lines = [ln.strip() for ln in res.stdout.splitlines() if ln.strip()]
+    assert len(lines) == 1, f"Expected 1 line, got {lines}"
+    rec = json.loads(lines[0])
+    assert agent_schema.validate_agent_record(rec) == []
+    assert rec["cmd"] == "run init"
+    assert "run_id" not in rec, rec
+    assert "ledger" not in rec, rec
+    created = _ledgers() - before
+    assert len(created) == 1, f"Expected one new ledger, got {created}"
+
+    # 2. --fields cmd,run_id keeps run_id, drops ledger.
+    res2 = run_cli(
+        "run",
+        "init",
+        "--workflow",
+        str(wf_file),
+        "--agent",
+        "--fields",
+        "cmd,run_id",
+        cwd=repo,
+    )
+    assert res2.returncode == 0, f"projection failed: {res2.stderr}"
+    lines2 = [ln.strip() for ln in res2.stdout.splitlines() if ln.strip()]
+    assert len(lines2) == 1, f"Expected 1 line, got {lines2}"
+    rec2 = json.loads(lines2[0])
+    assert agent_schema.validate_agent_record(rec2) == []
+    assert re.match(r"^run-[0-9a-f]{16}$", rec2["run_id"])
+    assert "ledger" not in rec2, rec2
+    assert (runs_root / rec2["run_id"] / run_ledger_store.LEDGER_FILENAME).is_file()
+
+
 def test_case_g_dir_flag_from_different_cwd(tmp_path: Path) -> None:
     """Case (g): --dir <scratch> run from a different cwd writes under the --dir repo."""
     repo = _create_scratch_repo(tmp_path / "repo")
