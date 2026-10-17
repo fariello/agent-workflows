@@ -1080,3 +1080,879 @@ Re-diff of the 4 test files recreated in earlier work against the deleted versio
 | `tests/test_release_readiness.py` | `pass` | 20 | 0 | 7511 | none |
 | `tests/test_run_analytics_cli.py` | `fail` | 79 | 445 | 9060 | `agent_workflows/run_analytics_cache.py::decode_envelope` (3), `agent_workflows/run_analytics_cache.py::load_entry` (2), `agent_workflows/run_analytics_cli.py::_analyze_list` (3), `agent_workflows/run_analytics_cli.py::_analyze_open` (20), `agent_workflows/run_analytics_cli.py::_analyze_path` (6), `agent_workflows/run_analytics_cli.py::_default_launcher` (6), `agent_workflows/run_analytics_cli.py::_emit_query_agent` (1), `agent_workflows/run_analytics_cli.py::_latest_report_path` (1), `agent_workflows/run_analytics_cli.py::_publish_snapshot` (18), `agent_workflows/run_analytics_cli.py::open_report` (2), `agent_workflows/run_analytics_cli.py::reset_launcher` (1), `agent_workflows/run_analytics_cli.py::run_analyze` (26), `agent_workflows/run_analytics_cli.py::run_query_leaf` (26), `agent_workflows/run_analytics_cli.py::set_launcher` (1), `agent_workflows/run_analytics_query.py::_bound` (2), `agent_workflows/run_analytics_query.py::_cache_entries` (2), `agent_workflows/run_analytics_query.py::_coverage_caveats` (24), `agent_workflows/run_analytics_query.py::_numbers_for` (18), `agent_workflows/run_analytics_query.py::_stat_of` (4), `agent_workflows/run_analytics_query.py::_token_absence_class` (7), `agent_workflows/run_analytics_query.py::_unreadable_entry_count` (2), `agent_workflows/run_analytics_query.py::_validate_metric` (1), `agent_workflows/run_analytics_query.py::classify_token_absences` (5), `agent_workflows/run_analytics_query.py::parse_filters` (11), `agent_workflows/run_analytics_query.py::parse_group_by` (12), `agent_workflows/run_analytics_query.py::run_query` (12), `agent_workflows/run_analytics_query.py::view_distributions` (14), `agent_workflows/run_analytics_query.py::view_evidence` (56), `agent_workflows/run_analytics_query.py::view_explain` (24), `agent_workflows/run_analytics_query.py::view_metrics` (58), `agent_workflows/run_analytics_query.py::view_slices` (17), `agent_workflows/run_analytics_report.py::_build_manifest` (1), `agent_workflows/run_analytics_report.py::_publish_flat` (20), `agent_workflows/run_analytics_report.py::publish_bundle` (6), `agent_workflows/run_analytics_report.py::publish_snapshot` (7), `agent_workflows/run_analytics_report.py::read_manifest` (2), `agent_workflows/run_analytics_report.py::resolve_snapshot_dir` (5), `agent_workflows/run_analytics_report.py::verify_bundle` (15), `agent_workflows/run_analytics_spa.py::_render_interactive_explorer` (1), `agent_workflows/run_analytics_spa.py::decode_embedded_payload` (2), `agent_workflows/run_dashboard.py::_iso_ts` (1) |
 | `tests/test_run_summary_table.py` | `pass` | 34 | 10 | 3839 | `agent_workflows/render_stream.py::_interrupt_reason_of` (1), `agent_workflows/render_stream.py::format_stranded_work_section` (4), `agent_workflows/render_stream.py::integration_refusal_detail` (3), `agent_workflows/render_stream.py::integration_was_refused` (1), `agent_workflows/runner_shared.py::emit_shutdown_report` (1) |
+
+## Rollup mutation results
+
+| Key | Operator | Reach class | Final verdict | Reason | Survivor | Control | wall_s |
+|---|---|---|---|---|---|---|---:|
+| `agent_workflows/benchmark_scorer.py::_detect_ground_truth_violations` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 6) | n/a | 4.75 |
+| `agent_workflows/benchmark_runners.py::RunnerDouble.run_trial` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 6) | n/a | 4.61 |
+| `agent_workflows/benchmark_thresholds.py::evaluate_release_gate` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 3) | n/a | 4.92 |
+| `agent_workflows/benchmark_ablations.py::compute_paired_comparison` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 5.96 |
+| `agent_workflows/benchmark_metrics.py::evaluate_trial_metrics` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 6) | n/a | 5.78 |
+| `agent_workflows/runner_shared.py::make_integration_validation_runner._runner` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 59) | n/a | 1824.22 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.build_command` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 8) | n/a | 4.94 |
+| `agent_workflows/layout_migration.py::MigrationManager.execute_migration` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 13) | n/a | 15.54 |
+| `agent_workflows/benchmark_reports.py::format_markdown_report` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 2) | n/a | 4.51 |
+| `agent_workflows/layout_migration.py::MigrationManager.status_migration` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 2) | n/a | 10.65 |
+| `agent_workflows/benchmark_scorer.py::_detect_evidence_violations` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 6) | n/a | 4.57 |
+| `agent_workflows/benchmark_reports.py::compare_with_baseline` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 2.94 |
+| `agent_workflows/check_engine.py::check_system_layout` | `return-none` | `reached` | `unguarded` | n/a | `survived` (newly_failing: 0) | `killed` (newly_failing: 11) | 274.51 |
+| `agent_workflows/layout_migration.py::MigrationManager._handle_leftovers` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 3) | n/a | 15.14 |
+| `agent_workflows/benchmark_manifest.py::build_manifest` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 5) | n/a | 3.34 |
+| `agent_workflows/benchmark_scorer.py::score_transcript` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 3) | n/a | 4.77 |
+| `agent_workflows/layout_migration.py::MigrationManager.resume_migration` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 11.41 |
+| `agent_workflows/benchmark_ablations.py::AblationScheduler.generate_schedule` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 4.77 |
+| `agent_workflows/benchmark_manifest.py::validate_usage` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 7) | n/a | 4.52 |
+| `agent_workflows/check_engine.py::evaluate_ipd_dependencies` | `return-none` | `reached` | `unprovable` | survivor timeout: baseline run timed out after 1800s | `timeout` | n/a | 1801.71 |
+| `agent_workflows/benchmark_manifest.py::make_usage` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 7) | n/a | 12.65 |
+| `agent_workflows/benchmark_runners.py::execute_live_runner` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 11.10 |
+| `agent_workflows/plan_readiness.py::recheck_conditions` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 8) | n/a | 15.49 |
+| `agent_workflows/benchmark_corpus.py::load_task` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 4.76 |
+| `agent_workflows/runner_shared.py::unattributed_merged_failures` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 4) | n/a | 1034.99 |
+| `agent_workflows/benchmark_reports.py::run_ci_offline_benchmark` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 8.57 |
+| `agent_workflows/orchestrate_isolation.py::execute_merge_and_revalidate_gate` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 126) | n/a | 3307.22 |
+| `agent_workflows/readiness_recheck.py::run_recheck_readiness` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 8) | n/a | 13.73 |
+| `agent_workflows/clean_delta.py::CleanDeltaManager.install_clean_delta` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 10.52 |
+| `agent_workflows/layout_migration.py::is_stale_tool_litter` | `return-false` | `reached` | `unguarded` | n/a | `survived` (newly_failing: 0) | `killed` (newly_failing: 7) | 30.27 |
+| `agent_workflows/benchmark_manifest.py::make_ceilings` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 7) | n/a | 3.72 |
+| `agent_workflows/benchmark_thresholds.py::ThresholdPolicy.apply_revision` | `raise` | `reached` | `guarded` | n/a | `killed` (newly_failing: 1) | n/a | 4.83 |
+| `agent_workflows/ipd_lifecycle.py::_run_record_committed_paths` | `return-none` | `reached` | `guarded` | n/a | `killed` (newly_failing: 155) | n/a | 2362.25 |
+| `agent_workflows/record_history.py::record_rename` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::snapshot_target_state` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::new_failures_since_baseline` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::classify_recovery_disposition` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_metrics.py::MetricSummary.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_run_layout` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._perform_move` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::check_completeness` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::validate_evidence` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/discovery.py::_scan_children` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::classify_commit_refusal` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::publish_bundle` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_ablations.py::AblationScheduler.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_plan_priority_required` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_freeze.py::diff_requirements` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::materialize_merge_result` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::TrialResult.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::acknowledge_remote_durability` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::prune_stale` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::decode_envelope` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.verify_chain` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::get_storage_status` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::init_records_storage` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/agy_verifier.py::run_fresh_verifier` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_run_plans` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/render_stream.py::format_spec_impact_announcement` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::_publish` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::load_corpus` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::generate_benchmark_report` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.build_rerun_command` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.read_records` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/set_records.py::render_decisions` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/set_records.py::render_open_questions` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/backlog.py::run_new` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::Ceilings.as_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_dispatch` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager.plan_migration` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_verify_ledger` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::_relative_revalidation_verdict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_review_finding_unescalated` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::evaluate_review_finding_escalation` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/plan_readiness.py::cite_review_entry` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::decide` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::build_finding` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::expand_selectors` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_review_decision_unescalated` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::compute_target_delta` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_oc_profile_add` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_run_show` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_runner.py::run_worker_process` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/prompts.py::inject_metadata_id6` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_scalar` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/verify_roles.py::validate_verifier_packet` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::compute_target_name` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::resolve_system_provider` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/project_context.py::_resolve_effective_aw_home` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::update_cache` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::validate_event` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_engine.py::RunEngine.record_verifier_decision` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::validate_storage_boundaries` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/work_cmd.py::run_commit` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_refs.py::dead_filename_citations._type_appropriate` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::BenchmarkRunRecord.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_oc_profile_list` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_capability_registry.py::evaluate_negative_probe` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/plans_refs.py::apply_renames` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.accelerators` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.recover` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::_remote_reachable` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/agent_schema.py::validate_agent_record` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::BenchmarkRunRecord.digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_scorer.py::_claimed_complete` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::evaluate_handoff_ready` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/discovery.py::submodule_paths` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._is_removable_leftover` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::_command_disposition` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/review_findings.py::parse_review_text` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_config.py::parse_telemetry_settings` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::UnparseableLineError.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::attributed_away_failure_ids` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::resolve_prior_lane` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_ablations.py::compute_paired_comparison.cell_key` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::format_markdown_report.fmt_metric` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_resolve_edge` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::_git_state` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_schema.py::validate_record` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::_compose_revalidation_excuses` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::path_is_within_analytics` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::route_recovery_turn` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_ablations.py::AblationTrialSpec.cell_key` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::BenchmarkReport.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.adapter_digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_thresholds.py::GateEvaluationResult.to_dict` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_is_grandfathered_plan` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_review_index` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/doctor.py::probe_environment` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/orchestrate_isolation.py::analyze_concurrency_eligibility` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/readiness_recheck.py::_resolve` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/record_history.py::append_rename` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/research_cmd.py::_set_priority_line` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_config.py::_coerce_bool` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_privacy.py::_project_label_list` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_privacy.py::_project_scalar` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/verify_roles.py::check_role_action` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_refs.py::dead_filename_citations` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::_shared_gate_ref` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_thresholds.py::SignedRevisionEvent.verify_signature` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::validate_host_evidence` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_oc_profile_remove` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::migrate_local_lanes_to_untracked` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::begin` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._emit` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_resources` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_engine.py::RunEngine.complete_run` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::format_merge_conflict_reason` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::run_rename_generic` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::RunnerDouble.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_success` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_thresholds.py::ThresholdPolicy.get_thresholds` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_names` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_spec_criteria_uncovered` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::CleanDeltaManager.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::validate_envelope_header` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/config.py::findings_gate_threshold` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/discovery.py::discover` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/duration.py::parse_age_duration` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::create_setup_artifacts` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::validate_skill_package` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_schema.py::_parse_item_dependency_edge` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::_legacy_class` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._load_transaction` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::enumerate_subjects` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/research_contract.py::validate_frontmatter` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/review_findings.py::append_round_resolving_stale` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/review_findings.py::stale_escalated_findings` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::load_entry` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_config.py::_telemetry_section` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_privacy.py::_project_number_map` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_spa.py::_render_pricing` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_accelerators` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_number_map` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_record` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::classify_jsonl_file` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_viewer.py::format_step_line` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::spec_impacts_for_queue` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::_id6_write_message` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::run_group_generic` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_receipt_is_live` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_walk_plan_lifecycle_history` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::load_emitted_layout` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::is_filename_safe` | `return-false` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::classify_git_state` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_capability_registry.py::EvidenceRecord.__post_init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lint.py::lint_file` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/project_context.py::get_default_aw_home` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cache.py::run_is_terminal` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::assert_no_causal_language` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_privacy.py::pseudonymize` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.start` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.disk` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_refuse_unknown` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_tool_versions` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_finalize` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/selectors.py::resolve_for_mutation` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/work_cmd.py::_recover_commit_flags` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::_update_or_inject_set_metadata` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::find_target_record` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::_render_table_row` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::render_table` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::SeededTask.workspace_seed_path` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::Ceilings.digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::_canonical_json` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::_digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_scorer.py::_get` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_iter_type_files` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_plan_disposition` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_oc_profile_default` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::validate_ack` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/discovery.py::_is_excluded` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/discovery.py::discover.add_target` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::build_host_adapter` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_capability_registry.py::render_probe_commands` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_runner.py::classify_worker_state` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_runner.py::worker_state_to_ledger` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_baseline_ambiguity` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_execution_cohesive_committed_paths` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_working_tree_path_is_owned` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::finalize_precheck` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lint.py::check_item_dependencies` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_schema.py::parse_item_dependencies` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::_flatten_records_subpath` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::build_migration_map` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._raw_move` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._records_root_for_backend` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::Disposition.validate` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::build_inventory` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/plan_readiness.py::format_recheck_history_entry` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/project_registry.py::find_project` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/pwatch.py::main` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/readiness_recheck.py::_run_stale_findings` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/record_history.py::_endpoint_id6` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/renderers.py::BaseRenderer.emit` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/result_types.py::select_output` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::BundleFile.__post_init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::read_manifest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_spa.py::_render_findings` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceProbeAdapter.resources` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.stop` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.memory` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._write` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.close` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_label_list` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::get_git_head` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::compute_record_hash` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_viewer.py::repair_run` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::SuiteCheckResult.failing_text` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::gate_answer_is_warranted` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::normalize_failure_id` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.format_preview` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::is_interactive` | `return-false` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::stdin_is_interactive` | `negate-return` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/agent_schema.py::normalize_repo_path` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::_existing_type_id6s` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_rename.py::_update_frontmatter_metadata` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::_color_dep_id` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::_gate_ref_display` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/backlog.py::blocks_release_of_item` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_metrics.py::wilson_score_interval` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_reports.py::format_json_report` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_completed` | `return-false` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_pending` | `return-false` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_runners.py::get_adapter` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_check_untooled_plan_transition` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_summarize_paths` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_from_spec_dangling` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_ipd_draft_ready` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_release_gate_consistency` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::parse_envelope_header` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::parse_not_before` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/config.py::read_review_findings_gate` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/doctor.py::_infer_artifact_type` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/doctor.py::probe_artifacts` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/doctor.py::probe_attention` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::resolve_source_root` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::shim_body` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::strip_description_and_normalize` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::build_skill_package` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_capability_registry.py::_parse_iso_utc` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/host_launchers.py::host_result_can_finalize` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_plan_status_event_groups` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::_walk` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager._git_toplevel` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/leak_sanitizer.py::scan_text` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/plan_readiness.py::_prepend_history_entry` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/plans_refs.py::_dirs` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/research_cmd.py::build_frontmatter` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/result_types.py::CommandResult.to_agent_record` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::findings_from_results` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::_build_manifest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::_order_key` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_spa.py::_render_refusals` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_spa.py::refusal_from_result` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_spa.py::scan_for_network_references` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.start` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_as_label` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::node_pseudonym` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_cancel` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_evidence` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::_porcelain_paths` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::dirty_within` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::get_git_dirty_digest` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_evidence.py::get_worktree_path` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::RedactionPolicy.__init__` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_ledger_store.py::is_ledger_shaped` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_viewer.py::_state_setids` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_profile_wizard.py::opencode_argv_fields` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::extract_suite_failures` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::resolve_run_dir` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::revalidation_baseline_for` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::_canonical_path` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.format_empty_result` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.severity_label` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/verify_roles.py::check_self_verification` | `raise` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/work_cmd.py::_resolve_plan` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/workflow_compiler.py::_compile_step_packets` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::lane_id_from_branch` | `return-none` | `reached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cli.py::run_export_leaf` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cli.py::run_submit_leaf` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::_catalog_disposition` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::check` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::_ensure_untracked_gitignore` | `raise` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::preview_raw_selection` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/prepush_authorization_gate.py::main` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/status_untooled_gate.py::main` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/runner_stop.py::install_stop_signal_handlers._sigint` | `raise` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::validate_companion_preflight` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::residual_risk_notes` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_run_storage_init` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::_tier_rank` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::build_metrics_payload` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_decisions` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/run_cli.py::_run_questions` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::load_companion_identity` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::main` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::materialize_companion_storage` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::check_push_authorization` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/prepush_authorization_gate.py::check` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/status_untooled_gate.py::check` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::detach_companion` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::get_git_common_dir` | `return-none` | `subprocess-only` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/render_stream.py::_status_glyph_char` | `return-none` | `unreached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/render_stream.py::Palette.status` | `return-none` | `unreached` | `budget-exhausted` | budget exhausted at 10833.66s | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager.cleanup_migration` | n/a | `reached` | `pin-retired` | Classification pin-retired; carrier-free per hpjj44 reconciliation (d) | n/a | n/a | 0.00 |
+| `agent_workflows/layout_inventory.py::classify_item` | n/a | `reached` | `pin-retired` | Classification pin-retired; carrier-free per hpjj44 reconciliation (d) | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatRollback.scan_future_data` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::apply_choices` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::convert_legacy_adapters` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify_command` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatRollback.rollback` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::SetupRepoStateMachine.apply_change` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::open_url` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::create_dependency_gate_hook` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::read_settings` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::move_companion` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::evaluate_promotion_gate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::_harness_ir` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::build_manifest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::format_findings_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::price_era_paradox_finding` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify_tool_call` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::evaluate_review_decision_escalation` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_downgrade_warning` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_launchers.py::plan_launch` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::_bundle_readme` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.format_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::plan_deletion` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::manifest_from_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::uninstall_adapters` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::MigrationManager.uninstall_layout` | n/a | `reached` | `pin-retired` | Classification pin-retired; carrier-free per hpjj44 reconciliation (d) | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_customized_file` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::_publish_flat` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::verify_bundle` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::build_metric_summary` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::IssueLedger.disposition_all` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::_segment_head` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_sessions.py::parse_args` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::validate_manifest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatRollback.assess` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::check_contract` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::disposition_pass` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_multi_host_discovery` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_unsupported_host` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.__post_init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::VerifyExecutionCoordinator.verify` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_parse_accelerator_csv` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::get_git_commit_boundaries` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::detect_adapter_drift` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_interrupted_update` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_no_network` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_partial_state` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::HarnessRegistry.catalog_rows` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.register_human_file` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::TypedContract.validate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::plan_rollup` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::prune_snapshots` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::StepPacket.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_lifecycle.py::derive_progress` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_lifecycle.py::stale_evidence_seqs_after_integration` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::is_stale_shim_customized` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::build_lanes` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::build_compact_package` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::generate_compact_projection` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.authorize_release` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::build_assess_harness` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::plan_review_parity` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.compare_to_baseline` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::routing_config_from_mapping` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_clean_install` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_no_credential` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::VerifyExecutionCoordinator.mark_executed` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::build_advise_harness` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::write_settings` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::StepOutcomeEnvelope.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_lifecycle.py::make_invalidation_records` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::hash_tree` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::repair_adapters` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_launchers.py::verify_fresh` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::make_isolated_env` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_legacy_update` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::resolve_shim` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::_sha256_file` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::Classification.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::delete_analytics_artifacts` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::verify_adapter_purity` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::_wire_optin_precommit_hook` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::RoutingConfig.resolve` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_rollback` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::check_compact_completeness` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::Disposition.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_findings.py::detect_pooled_era_comparison` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_gates.py::execute_gated_action` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_lifecycle.py::terminal_transition_allowed` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::assert_frozen` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::make_authorization_record` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::AssessAllCoordinator.synthesize` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::_redact_url` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::_refusal_result` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::url_policy_refusal` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter._run_bounded` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_state.py::derive_set_state` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/attention.py::_colorize_tree_segment` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::validate_ceilings_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::classify_node_work` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::RiskAwarePackage.build_artifact` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::attestation_refusal` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.unclassified_regressed` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::LeaseTable.claim` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_verifier.py::AgySessionDouble.invoke` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_blocking_escalated_finding_ids` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatRollback.recover_interrupted` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_plan.py::_run_resume_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::RiskAwarePackage.consent_gate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::SetupRepoStateMachine.preflight` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::_plan_review_views_from_ir` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/record_producers.py::render_logical_path` | n/a | `unreached` | `pin-retired` | Classification pin-retired; carrier-free per hpjj44 reconciliation (d) | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::archive_member_refusal` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::select_raw_files` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::build_event` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_view.py::main` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::_merge_tree` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::old_invocation_still_works` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.enter_stage` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::PlanReviewViews.view_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/record_history.py::_synthetic_key` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_config.py::clamp_interval` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_sources.py::inventory_corpus` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::assert_no_command_text` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.tick` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatSurface.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationGate.can_remove` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::SkillPackage.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::AuthorizationLedger.proposals` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::ready_lanes` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::TypedContract.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::resolve_body_dir` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_records.py::write_local_projections` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::materialize_task` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::freeze_protocol` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::validate_protocol` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator._expected_generated` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.read_stamp` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatRollback.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatSurface.validate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.record_use` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::_version_tuple` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::detect_unspecified_break` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::create_precommit_scope_gate_hook` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::create_prepush_authorization_gate_hook` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::plan_wave` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::_apply_grammar_facet` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/layout_migration.py::_grammar_facet_for` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::OperatorDatum.__post_init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/record_producers.py::resolve_record_read_paths` | n/a | `reached` | `pin-retired` | Classification pin-retired; carrier-free per hpjj44 reconciliation (d) | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::Attestation.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::RefusingRedirectHandler.redirect_request` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::split_command_segments` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::AnalyticsSettings.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.notice_for` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::resolve_role_target` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_runner.py::validate_terminal_envelope` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_plan.py::run_execute_set` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::argument_parity` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::render_agent_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::AssessAllCoordinator.lanes` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::publish_snapshot` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::build_restricted_opener` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_accelerators` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_state.py::is_legal_edge` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.format_diagnostic` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::_decision_view` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::changed_decision_fields` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::resolve_adapter_reference` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::CompactPackage.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::skill_resolves_package` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::fix_bar` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::InventoryResult.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/result_types.py::Diagnostic.from_drift` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::_sha256` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::_file_category` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::_compute_packet_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::is_ground_truth_accessible` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::declared_factors` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::ContractCheck.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.read_counts` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.request_alias_removal` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::build_contract` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::gate_alias_removal` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_launchers.py::enforce_model_binding` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_fixture` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::advertised_families` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::legacy_fallback_families` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::AssessAllCoordinator.claim_synthesis_writer` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::IssueLedger.add` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.run_fix_bar` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::RiskAwarePackage.assert_supportable_claim` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::SetupRepoStateMachine.rollback` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::LensModule.contribution` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::assert_no_lens_fork` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/research_cmd.py::plan_set_priority` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_report.py::resolve_snapshot_dir` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::LabelEvidence.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify_corpus_calls` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter._count` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::_looks_like_secret` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::BoundRequirement.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/set_lifecycle.py::resume_or_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::load_local_attachment_record` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::assert_worker_scope` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_run.py::main` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_verifier.py::finalize_run` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_scorer.py::intended_verdict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/check_engine.py::_plan_date` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationNotice.message` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::agents_pointer_block` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::SkillPackage.resource_paths` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::AuthorizationLedger.authorized_decisions` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::authorize_mutation` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::classify_node_work._is_coding` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::_snapshot_tree` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::CompactProjection.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::assert_no_needless_subagent` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::IssueLedger.undispositioned` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.integrate_fixes` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::VerifyExecutionCoordinator.can_mark_executed` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::PersonaModule.contribution` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::compile_plan_review` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_cli.py::_common_base` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::_categorize` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_sources.py::CorpusInventory.generation_counts` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::SubmitRefusal.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify_segment.note` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.cpu` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.load` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.memory` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.process` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ProbeOutcome.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::AnalyticsSettings.endpoint` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::_coerce_bool` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_wizard.py::_local_path` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/runner_shared.py::gate_answer_needs_human_remedy` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::LeaseTable.release` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::load_ground_truth` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::protocol_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::DeprecationDiagnostics.disable_counting` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::_shim_is_user_modified` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::is_shim_customized_vs_expected` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_launchers.py::resume_task_packet` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_executor.py::classify_node_work._is_prose` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/ipd_set_plan.py::_resolve_repo_and_plans` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::IsolatedEnv.restore_aw_home` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::seed_legacy_tree` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::assert_commands_in_manifest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::detect_mode_drift` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::ExportManifestEntry.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_privacy.py::redact_text._replace` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::Classification.display_label` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::Classification.is_ambiguous` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::allocate_session` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::reset_task` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::_compute_sha256` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_nv_resolve_types` | n/a | `reached` | `property-unidentifiable` | Classification property-unidentifiable; operator n/a | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_rewrite_help_token` | n/a | `reached` | `property-unidentifiable` | Classification property-unidentifiable; operator n/a | n/a | n/a | 0.00 |
+| `agent_workflows/cli.py::_run_noun_verb` | n/a | `reached` | `property-unidentifiable` | Classification property-unidentifiable; operator n/a | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.current_version` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::_sha256_bytes` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::_sha256_path` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::render_contract_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::agents_managed_block` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::check._on_staged_file` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/host_adapters.py::HostAdapter.advertises_supported` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::IsolatedEnv.activate_aw_home` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::IsolatedEnv.cleanup` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::_sha` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::CompactProjection.shim_for` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::_shim_view_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::detect_shim_drift` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::AssessAllCoordinator.assert_lanes_read_only` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::DiffInspection.failed_checks` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::DiffInspection.out_of_scope_paths` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.can_finalize` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::HarnessRegistry.register_lens` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::HarnessRegistry.register_persona` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::HarnessRegistry.resolve_lens` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::HarnessRegistry.resolve_persona` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::render_agent_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/research_refs.py::plan_reference_rewrites` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/result_types.py::CommandResult.has_findings` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/review_findings.py::ReviewDocument.current_decisions` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.accelerators` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.tool_versions` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.__enter__` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler._run` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.__enter__` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._note` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.sample` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::_as_int` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_gates.py::GateDecision.is_approved` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::StepPacket.to_json` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/runner_stop.py::reset_signal_ladder` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/selectors.py::Resolution.is_unique` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/storage.py::reattach_companion` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.diagnostic` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.title` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::LeaseTable.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::path_is_worker_forbidden` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/agy_sessions.py::main` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/artifact_refs.py::_rp_type_facet` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::SeededTask.ground_truth_path` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::seed_workspace_hash` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_corpus.py::task_classes_present` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.result_key` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.to_json` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::can_pool` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_manifest.py::manifest_from_json` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_protocol.py::_canonical_json` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/benchmark_scorer.py::is_critical_class` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::AdapterManifest.get` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::is_ack_valid` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/comms.py::is_envelope_header_valid` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatSurface.breaking` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::ContractCheck.ok` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::MigrationPreview.is_noop` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::_version_lt` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/doctor.py::_version_drift` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::is_shim_customized` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::_migrator` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/lifecycle_fixtures.py::run_all_fixtures` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::_mv` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::_workflow_by_command` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_compact.py::build_all_compact_packages` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::AssessAllCoordinator.eligibility` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::DiffInspection.is_clean` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::IssueLedger.personas_covered` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::OperatorDatum.is_labeled_unavailable` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::OperatorDatum.is_operator_owned` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::OperatorDatum.to_dict` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::ReleaseReviewCoordinator.stages_entered` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::RiskAwarePackage.add_datum` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::RiskAwarePackage.unavailable_data` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::build_benchmark_package` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::build_incident_package` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_complex.py::build_migrate_package` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::InventoryResult.ok` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::PlanReviewViews.semantic_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::SharedHarness.compiled` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::SharedHarness.semantic_digest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::detect_view_drift` | `negate-return` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/migration_inventory.py::plan_review_views_from_ir` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/plan_readiness.py::RecheckResult.holding` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/record_history.py::read_renames_for` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/result_types.py::CommandResult.is_error` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::RefusingRedirectHandler.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting._share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.ambiguous_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.leading_cd_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.multi_class_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.multi_segment_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.single_class_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::ClassAccounting.unclassified_command_share` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::Classification.is_multi_class` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::Classification.is_unclassified` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.__exit__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.running` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.__exit__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.note_skipped_sample` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_engine.py::RunEngine.run_state` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::_normalize` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.evidence` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.fix` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.outcome` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.preview` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/term.py::Term.section` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/worktree_lease.py::LeaseTable.owner_of` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/engine.py::validate_shim_grammar` | `return-false` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_gates.py::evaluate_gate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::build_step_packet` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::validate_outcome_envelope` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::submit_bundle` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::write_bundle` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::classify_segment` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.preview` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::validate_bundle` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.apply` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::_closed_vocabulary` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::sanitizer_blind_spot_report` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::StepPacket.render_prompt` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_packet.py::apply_outcome_envelope` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_export.py::build_redacted_events` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/clean_delta.py::build_default_adapter_manifest` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_taxonomy.py::accumulate` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::FakeResourceProbeAdapter.__init__` | `raise` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/run_analytics_submit.py::build_receipt` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+| `agent_workflows/compat_migration.py::CompatMigrator.detect_state` | `return-none` | `unreached` | `unguarded-unreached` | unreached by the non-slow selection at 86f0d88d9e967a79af6b3e6cd335081393fdbf72 | n/a | n/a | 0.00 |
+
+Caveat for Order 06: Test paths changed between Order 03 baseline head 86f0d88d9e967a79af6b3e6cd335081393fdbf72 and current HEAD: tests/test_placement_switch_guard.py, tests/test_records_root_accessor.py, tests/test_release_readiness.py, tests/test_release_readiness_docs_gate.py, tests/test_release_readiness_not_applicable.py, tests/test_release_readiness_producers.py, tests/test_releases_readiness_cli.py, tests/test_statusline_stop_tally.py.
+
+## Rollup mutation totals
+
+Summary of mutation probe outcomes across the 747 rollup candidate keys:
+
+| Final Verdict | Count | Description |
+|---|---:|---|
+| `pin-retired` | 5 | Pin-retired per hpjj44 classification; carrier-free |
+| `property-unidentifiable` | 3 | Property unidentifiable per hpjj44 classification; operator n/a |
+| `key-gone` | 0 | Subject function or module no longer exists at HEAD |
+| `unguarded-unreached` | 387 | Unreached by routine non-slow test suite at baseline HEAD |
+| `guarded` | 30 | Mutation killed by surviving test suite |
+| `unguarded` | 2 | Mutant survived surviving test suite but killed by positive control deleted test |
+| `unprovable` | 1 | Survivor errored/timed out, or positive control failed to kill mutant |
+| `budget-exhausted` | 319 | Unprobed keys stopped after cumulative probe wall time reached cap |
+| **Total Evaluated Keys** | **747** | Sum of all evaluated rollup candidate keys |
+
+- **Total Probe Wall Time**: 10833.66s (3.01h)
+
+### Non-Guarded Keys by Module (for Order 06 Grouping)
+
+| Module | Key Count | Verdict Breakdown | Non-Guarded Keys |
+|---|---:|---|---|
+| `agent_workflows/agent_schema.py` | 2 | `budget-exhausted`: 2 | `validate_agent_record`, `normalize_repo_path` |
+| `agent_workflows/agy_run.py` | 1 | `unguarded-unreached`: 1 | `main` |
+| `agent_workflows/agy_sessions.py` | 2 | `unguarded-unreached`: 2 | `parse_args`, `main` |
+| `agent_workflows/agy_verifier.py` | 3 | `budget-exhausted`: 1, `unguarded-unreached`: 2 | `run_fresh_verifier`, `AgySessionDouble.invoke`, `finalize_run` |
+| `agent_workflows/agy_view.py` | 1 | `unguarded-unreached`: 1 | `main` |
+| `agent_workflows/artifact_refs.py` | 3 | `budget-exhausted`: 2, `unguarded-unreached`: 1 | `dead_filename_citations._type_appropriate`, `dead_filename_citations`, `_rp_type_facet` |
+| `agent_workflows/artifact_rename.py` | 8 | `budget-exhausted`: 8 | `compute_target_name`, `run_rename_generic`, `_id6_write_message`, `run_group_generic`, `_update_or_inject_set_metadata`, `find_target_record`, `_existing_type_id6s`, `_update_frontmatter_metadata` |
+| `agent_workflows/attention.py` | 6 | `budget-exhausted`: 5, `unguarded-unreached`: 1 | `_shared_gate_ref`, `_render_table_row`, `render_table`, `_color_dep_id`, `_gate_ref_display`, `_colorize_tree_segment` |
+| `agent_workflows/backlog.py` | 2 | `budget-exhausted`: 2 | `run_new`, `blocks_release_of_item` |
+| `agent_workflows/benchmark_ablations.py` | 3 | `budget-exhausted`: 3 | `AblationScheduler.__init__`, `compute_paired_comparison.cell_key`, `AblationTrialSpec.cell_key` |
+| `agent_workflows/benchmark_corpus.py` | 10 | `budget-exhausted`: 2, `unguarded-unreached`: 8 | `load_corpus`, `SeededTask.workspace_seed_path`, `hash_tree`, `materialize_task`, `is_ground_truth_accessible`, `load_ground_truth`, `reset_task`, `SeededTask.ground_truth_path`, `seed_workspace_hash`, `task_classes_present` |
+| `agent_workflows/benchmark_manifest.py` | 14 | `budget-exhausted`: 6, `unguarded-unreached`: 8 | `Ceilings.as_dict`, `BenchmarkManifest.digest`, `BenchmarkManifest.to_dict`, `Ceilings.digest`, `_canonical_json`, `_digest`, `manifest_from_dict`, `validate_manifest`, `validate_ceilings_dict`, `declared_factors`, `BenchmarkManifest.result_key`, `BenchmarkManifest.to_json`, `can_pool`, `manifest_from_json` |
+| `agent_workflows/benchmark_metrics.py` | 2 | `budget-exhausted`: 2 | `MetricSummary.to_dict`, `wilson_score_interval` |
+| `agent_workflows/benchmark_protocol.py` | 7 | `unguarded-unreached`: 7 | `assert_frozen`, `freeze_protocol`, `validate_protocol`, `_decision_view`, `changed_decision_fields`, `protocol_digest`, `_canonical_json` |
+| `agent_workflows/benchmark_reports.py` | 6 | `budget-exhausted`: 6 | `generate_benchmark_report`, `BenchmarkRunRecord.to_dict`, `BenchmarkRunRecord.digest`, `format_markdown_report.fmt_metric`, `BenchmarkReport.to_dict`, `format_json_report` |
+| `agent_workflows/benchmark_runners.py` | 9 | `budget-exhausted`: 9 | `TrialResult.to_dict`, `RunnerAdapter.build_rerun_command`, `RunnerAdapter.adapter_digest`, `RunnerAdapter.__init__`, `RunnerDouble.__init__`, `TrialResult.is_success`, `TrialResult.is_completed`, `TrialResult.is_pending`, `get_adapter` |
+| `agent_workflows/benchmark_scorer.py` | 4 | `budget-exhausted`: 2, `unguarded-unreached`: 2 | `_claimed_complete`, `_get`, `intended_verdict`, `is_critical_class` |
+| `agent_workflows/benchmark_thresholds.py` | 3 | `budget-exhausted`: 3 | `GateEvaluationResult.to_dict`, `SignedRevisionEvent.verify_signature`, `ThresholdPolicy.get_thresholds` |
+| `agent_workflows/check_engine.py` | 26 | `budget-exhausted`: 21, `unguarded`: 1, `unguarded-unreached`: 3, `unprovable`: 1 | `check_system_layout`, `evaluate_ipd_dependencies`, `check_plan_priority_required`, `check_review_finding_unescalated`, `evaluate_review_finding_escalation`, `check_review_decision_unescalated`, `evaluate_handoff_ready`, `_resolve_edge`, `_is_grandfathered_plan`, `_review_index`, `check_names`, `check_spec_criteria_uncovered`, `_receipt_is_live`, `_walk_plan_lifecycle_history`, `load_emitted_layout`, `_iter_type_files`, `_plan_disposition`, `_check_untooled_plan_transition`, `_summarize_paths`, `check_from_spec_dangling`, `check_ipd_draft_ready`, `check_release_gate_consistency`, `check_push_authorization`, `evaluate_review_decision_escalation`, `_blocking_escalated_finding_ids`, `_plan_date` |
+| `agent_workflows/clean_delta.py` | 14 | `budget-exhausted`: 5, `unguarded-unreached`: 9 | `snapshot_target_state`, `compute_target_delta`, `resolve_system_provider`, `validate_host_evidence`, `CleanDeltaManager.__init__`, `convert_legacy_adapters`, `uninstall_adapters`, `detect_adapter_drift`, `repair_adapters`, `verify_adapter_purity`, `resolve_adapter_reference`, `_compute_sha256`, `AdapterManifest.get`, `build_default_adapter_manifest` |
+| `agent_workflows/cli.py` | 12 | `budget-exhausted`: 9, `property-unidentifiable`: 3 | `_run_layout`, `_run_plans`, `_dispatch`, `_oc_profile_add`, `_run_show`, `_oc_profile_list`, `_oc_profile_remove`, `_oc_profile_default`, `_run_storage_init`, `_nv_resolve_types`, `_rewrite_help_token`, `_run_noun_verb` |
+| `agent_workflows/comms.py` | 7 | `budget-exhausted`: 5, `unguarded-unreached`: 2 | `validate_envelope_header`, `is_filename_safe`, `validate_ack`, `parse_envelope_header`, `parse_not_before`, `is_ack_valid`, `is_envelope_header_valid` |
+| `agent_workflows/compat_migration.py` | 36 | `unguarded-unreached`: 36 | `CompatRollback.scan_future_data`, `CompatRollback.rollback`, `CompatRollback.assess`, `check_contract`, `CompatMigrator.register_human_file`, `CompatMigrator.__init__`, `CompatRollback.recover_interrupted`, `CompatSurface.to_dict`, `DeprecationGate.can_remove`, `CompatMigrator._expected_generated`, `CompatMigrator.read_stamp`, `CompatRollback.__init__`, `CompatSurface.validate`, `DeprecationDiagnostics.record_use`, `_version_tuple`, `detect_unspecified_break`, `DeprecationDiagnostics.notice_for`, `ContractCheck.to_dict`, `DeprecationDiagnostics.read_counts`, `DeprecationDiagnostics.request_alias_removal`, `build_contract`, `gate_alias_removal`, `DeprecationDiagnostics.__init__`, `DeprecationNotice.message`, `DeprecationDiagnostics.disable_counting`, `CompatMigrator.current_version`, `_sha256_bytes`, `_sha256_path`, `render_contract_report`, `CompatSurface.breaking`, `ContractCheck.ok`, `MigrationPreview.is_noop`, `_version_lt`, `CompatMigrator.preview`, `CompatMigrator.apply`, `CompatMigrator.detect_state` |
+| `agent_workflows/config.py` | 2 | `budget-exhausted`: 2 | `findings_gate_threshold`, `read_review_findings_gate` |
+| `agent_workflows/discovery.py` | 5 | `budget-exhausted`: 5 | `_scan_children`, `submodule_paths`, `discover`, `_is_excluded`, `discover.add_target` |
+| `agent_workflows/doctor.py` | 5 | `budget-exhausted`: 4, `unguarded-unreached`: 1 | `probe_environment`, `_infer_artifact_type`, `probe_artifacts`, `probe_attention`, `_version_drift` |
+| `agent_workflows/duration.py` | 1 | `budget-exhausted`: 1 | `parse_age_duration` |
+| `agent_workflows/engine.py` | 20 | `budget-exhausted`: 8, `unguarded-unreached`: 12 | `prune_stale`, `migrate_local_lanes_to_untracked`, `create_setup_artifacts`, `classify_git_state`, `resolve_source_root`, `shim_body`, `strip_description_and_normalize`, `_ensure_untracked_gitignore`, `create_dependency_gate_hook`, `is_stale_shim_customized`, `_wire_optin_precommit_hook`, `_merge_tree`, `create_precommit_scope_gate_hook`, `create_prepush_authorization_gate_hook`, `agents_pointer_block`, `_shim_is_user_modified`, `is_shim_customized_vs_expected`, `agents_managed_block`, `is_shim_customized`, `validate_shim_grammar` |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py` | 4 | `budget-exhausted`: 3, `unguarded-unreached`: 1 | `check`, `_staged_ipd_overlay`, `main`, `check._on_staged_file` |
+| `agent_workflows/hooks/prepush_authorization_gate.py` | 2 | `budget-exhausted`: 2 | `main`, `check` |
+| `agent_workflows/hooks/status_untooled_gate.py` | 2 | `budget-exhausted`: 2 | `main`, `check` |
+| `agent_workflows/host_adapters.py` | 7 | `budget-exhausted`: 3, `unguarded-unreached`: 4 | `validate_skill_package`, `build_host_adapter`, `build_skill_package`, `SkillPackage.to_dict`, `resolve_role_target`, `SkillPackage.resource_paths`, `HostAdapter.advertises_supported` |
+| `agent_workflows/host_capability_registry.py` | 4 | `budget-exhausted`: 4 | `evaluate_negative_probe`, `EvidenceRecord.__post_init__`, `render_probe_commands`, `_parse_iso_utc` |
+| `agent_workflows/host_launchers.py` | 5 | `budget-exhausted`: 1, `unguarded-unreached`: 4 | `host_result_can_finalize`, `plan_launch`, `verify_fresh`, `enforce_model_binding`, `resume_task_packet` |
+| `agent_workflows/host_runner.py` | 4 | `budget-exhausted`: 3, `unguarded-unreached`: 1 | `run_worker_process`, `classify_worker_state`, `worker_state_to_ledger`, `validate_terminal_envelope` |
+| `agent_workflows/ipd_lifecycle.py` | 7 | `budget-exhausted`: 7 | `classify_commit_refusal`, `begin`, `_baseline_ambiguity`, `_execution_cohesive_committed_paths`, `_working_tree_path_is_owned`, `finalize_precheck`, `_plan_status_event_groups` |
+| `agent_workflows/ipd_lint.py` | 2 | `budget-exhausted`: 2 | `lint_file`, `check_item_dependencies` |
+| `agent_workflows/ipd_schema.py` | 2 | `budget-exhausted`: 2 | `_parse_item_dependency_edge`, `parse_item_dependencies` |
+| `agent_workflows/ipd_set_executor.py` | 13 | `unguarded-unreached`: 13 | `disposition_pass`, `build_lanes`, `routing_config_from_mapping`, `RoutingConfig.resolve`, `make_authorization_record`, `classify_node_work`, `AuthorizationLedger.proposals`, `ready_lanes`, `plan_wave`, `AuthorizationLedger.authorized_decisions`, `authorize_mutation`, `classify_node_work._is_coding`, `classify_node_work._is_prose` |
+| `agent_workflows/ipd_set_plan.py` | 3 | `unguarded-unreached`: 3 | `_run_resume_report`, `run_execute_set`, `_resolve_repo_and_plans` |
+| `agent_workflows/layout_inventory.py` | 5 | `budget-exhausted`: 5 | `_git_state`, `_legacy_class`, `_flatten_records_subpath`, `build_migration_map`, `_walk` |
+| `agent_workflows/layout_migration.py` | 10 | `budget-exhausted`: 7, `unguarded`: 1, `unguarded-unreached`: 2 | `is_stale_tool_litter`, `MigrationManager._perform_move`, `MigrationManager.plan_migration`, `MigrationManager._is_removable_leftover`, `MigrationManager._load_transaction`, `MigrationManager._raw_move`, `MigrationManager._records_root_for_backend`, `MigrationManager._git_toplevel`, `_apply_grammar_facet`, `_grammar_facet_for` |
+| `agent_workflows/leak_sanitizer.py` | 1 | `budget-exhausted`: 1 | `scan_text` |
+| `agent_workflows/lifecycle_fixtures.py` | 21 | `unguarded-unreached`: 21 | `run_downgrade_warning`, `run_customized_file`, `run_multi_host_discovery`, `run_unsupported_host`, `run_interrupted_update`, `run_no_network`, `run_partial_state`, `run_clean_install`, `run_no_credential`, `make_isolated_env`, `run_legacy_update`, `run_rollback`, `run_fixture`, `_snapshot_tree`, `IsolatedEnv.restore_aw_home`, `seed_legacy_tree`, `IsolatedEnv.activate_aw_home`, `IsolatedEnv.cleanup`, `_sha`, `_migrator`, `run_all_fixtures` |
+| `agent_workflows/migration_compact.py` | 24 | `unguarded-unreached`: 24 | `evaluate_promotion_gate`, `build_metric_summary`, `TypedContract.validate`, `build_compact_package`, `generate_compact_projection`, `resolve_shim`, `check_compact_completeness`, `old_invocation_still_works`, `TypedContract.to_dict`, `resolve_body_dir`, `argument_parity`, `render_agent_report`, `CompactPackage.to_dict`, `skill_resolves_package`, `advertised_families`, `legacy_fallback_families`, `CompactProjection.to_dict`, `assert_no_needless_subagent`, `CompactProjection.shim_for`, `_shim_view_digest`, `detect_shim_drift`, `_mv`, `_workflow_by_command`, `build_all_compact_packages` |
+| `agent_workflows/migration_complex.py` | 40 | `unguarded-unreached`: 40 | `SetupRepoStateMachine.apply_change`, `IssueLedger.disposition_all`, `ReleaseReviewCoordinator.__post_init__`, `VerifyExecutionCoordinator.verify`, `ReleaseReviewCoordinator.authorize_release`, `VerifyExecutionCoordinator.mark_executed`, `AssessAllCoordinator.synthesize`, `RiskAwarePackage.build_artifact`, `RiskAwarePackage.consent_gate`, `SetupRepoStateMachine.preflight`, `ReleaseReviewCoordinator.enter_stage`, `OperatorDatum.__post_init__`, `AssessAllCoordinator.lanes`, `fix_bar`, `AssessAllCoordinator.claim_synthesis_writer`, `IssueLedger.add`, `ReleaseReviewCoordinator.run_fix_bar`, `RiskAwarePackage.assert_supportable_claim`, `SetupRepoStateMachine.rollback`, `IssueLedger.undispositioned`, `ReleaseReviewCoordinator.integrate_fixes`, `VerifyExecutionCoordinator.can_mark_executed`, `assert_commands_in_manifest`, `detect_mode_drift`, `AssessAllCoordinator.assert_lanes_read_only`, `DiffInspection.failed_checks`, `DiffInspection.out_of_scope_paths`, `ReleaseReviewCoordinator.can_finalize`, `AssessAllCoordinator.eligibility`, `DiffInspection.is_clean`, `IssueLedger.personas_covered`, `OperatorDatum.is_labeled_unavailable`, `OperatorDatum.is_operator_owned`, `OperatorDatum.to_dict`, `ReleaseReviewCoordinator.stages_entered`, `RiskAwarePackage.add_datum`, `RiskAwarePackage.unavailable_data`, `build_benchmark_package`, `build_incident_package`, `build_migrate_package` |
+| `agent_workflows/migration_inventory.py` | 31 | `budget-exhausted`: 6, `unguarded-unreached`: 25 | `check_completeness`, `_command_disposition`, `enumerate_subjects`, `Disposition.validate`, `build_inventory`, `_catalog_disposition`, `_harness_ir`, `HarnessRegistry.catalog_rows`, `plan_rollup`, `build_assess_harness`, `plan_review_parity`, `build_advise_harness`, `Disposition.to_dict`, `_plan_review_views_from_ir`, `PlanReviewViews.view_digest`, `InventoryResult.to_dict`, `LensModule.contribution`, `assert_no_lens_fork`, `PersonaModule.contribution`, `compile_plan_review`, `HarnessRegistry.register_lens`, `HarnessRegistry.register_persona`, `HarnessRegistry.resolve_lens`, `HarnessRegistry.resolve_persona`, `render_agent_report`, `InventoryResult.ok`, `PlanReviewViews.semantic_digest`, `SharedHarness.compiled`, `SharedHarness.semantic_digest`, `detect_view_drift`, `plan_review_views_from_ir` |
+| `agent_workflows/orchestrate_isolation.py` | 1 | `budget-exhausted`: 1 | `analyze_concurrency_eligibility` |
+| `agent_workflows/plan_readiness.py` | 4 | `budget-exhausted`: 3, `unguarded-unreached`: 1 | `cite_review_entry`, `format_recheck_history_entry`, `_prepend_history_entry`, `RecheckResult.holding` |
+| `agent_workflows/plans_refs.py` | 2 | `budget-exhausted`: 2 | `apply_renames`, `_dirs` |
+| `agent_workflows/project_context.py` | 2 | `budget-exhausted`: 2 | `_resolve_effective_aw_home`, `get_default_aw_home` |
+| `agent_workflows/project_registry.py` | 1 | `budget-exhausted`: 1 | `find_project` |
+| `agent_workflows/prompts.py` | 1 | `budget-exhausted`: 1 | `inject_metadata_id6` |
+| `agent_workflows/pwatch.py` | 1 | `budget-exhausted`: 1 | `main` |
+| `agent_workflows/readiness_recheck.py` | 2 | `budget-exhausted`: 2 | `_resolve`, `_run_stale_findings` |
+| `agent_workflows/record_history.py` | 5 | `budget-exhausted`: 3, `unguarded-unreached`: 2 | `record_rename`, `append_rename`, `_endpoint_id6`, `_synthetic_key`, `read_renames_for` |
+| `agent_workflows/render_stream.py` | 3 | `budget-exhausted`: 3 | `format_spec_impact_announcement`, `_status_glyph_char`, `Palette.status` |
+| `agent_workflows/renderers.py` | 1 | `budget-exhausted`: 1 | `BaseRenderer.emit` |
+| `agent_workflows/research_cmd.py` | 3 | `budget-exhausted`: 2, `unguarded-unreached`: 1 | `_set_priority_line`, `build_frontmatter`, `plan_set_priority` |
+| `agent_workflows/research_contract.py` | 1 | `budget-exhausted`: 1 | `validate_frontmatter` |
+| `agent_workflows/research_refs.py` | 1 | `unguarded-unreached`: 1 | `plan_reference_rewrites` |
+| `agent_workflows/result_types.py` | 5 | `budget-exhausted`: 2, `unguarded-unreached`: 3 | `select_output`, `CommandResult.to_agent_record`, `Diagnostic.from_drift`, `CommandResult.has_findings`, `CommandResult.is_error` |
+| `agent_workflows/review_findings.py` | 4 | `budget-exhausted`: 3, `unguarded-unreached`: 1 | `parse_review_text`, `append_round_resolving_stale`, `stale_escalated_findings`, `ReviewDocument.current_decisions` |
+| `agent_workflows/run_analytics_cache.py` | 6 | `budget-exhausted`: 6 | `decode_envelope`, `_publish`, `decide`, `update_cache`, `load_entry`, `run_is_terminal` |
+| `agent_workflows/run_analytics_cli.py` | 3 | `budget-exhausted`: 2, `unguarded-unreached`: 1 | `run_export_leaf`, `run_submit_leaf`, `_common_base` |
+| `agent_workflows/run_analytics_config.py` | 4 | `budget-exhausted`: 3, `unguarded-unreached`: 1 | `parse_telemetry_settings`, `_coerce_bool`, `_telemetry_section`, `clamp_interval` |
+| `agent_workflows/run_analytics_export.py` | 14 | `budget-exhausted`: 4, `unguarded-unreached`: 10 | `preview_raw_selection`, `residual_risk_notes`, `_tier_rank`, `build_metrics_payload`, `build_manifest`, `_bundle_readme`, `_sha256_file`, `archive_member_refusal`, `select_raw_files`, `_categorize`, `ExportManifestEntry.to_dict`, `write_bundle`, `sanitizer_blind_spot_report`, `build_redacted_events` |
+| `agent_workflows/run_analytics_findings.py` | 6 | `budget-exhausted`: 3, `unguarded-unreached`: 3 | `build_finding`, `assert_no_causal_language`, `findings_from_results`, `format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison` |
+| `agent_workflows/run_analytics_privacy.py` | 5 | `budget-exhausted`: 4, `unguarded-unreached`: 1 | `_project_label_list`, `_project_scalar`, `_project_number_map`, `pseudonymize`, `redact_text._replace` |
+| `agent_workflows/run_analytics_report.py` | 10 | `budget-exhausted`: 5, `unguarded-unreached`: 5 | `publish_bundle`, `BundleFile.__post_init__`, `read_manifest`, `_build_manifest`, `_order_key`, `_publish_flat`, `verify_bundle`, `prune_snapshots`, `publish_snapshot`, `resolve_snapshot_dir` |
+| `agent_workflows/run_analytics_sources.py` | 2 | `unguarded-unreached`: 2 | `inventory_corpus`, `CorpusInventory.generation_counts` |
+| `agent_workflows/run_analytics_spa.py` | 5 | `budget-exhausted`: 5 | `_render_pricing`, `_render_findings`, `_render_refusals`, `refusal_from_result`, `scan_for_network_references` |
+| `agent_workflows/run_analytics_submit.py` | 14 | `unguarded-unreached`: 14 | `open_url`, `_redact_url`, `_refusal_result`, `url_policy_refusal`, `attestation_refusal`, `Attestation.to_dict`, `RefusingRedirectHandler.redirect_request`, `build_restricted_opener`, `_sha256`, `SubmitRefusal.__init__`, `RefusingRedirectHandler.__init__`, `submit_bundle`, `validate_bundle`, `build_receipt` |
+| `agent_workflows/run_analytics_taxonomy.py` | 29 | `unguarded-unreached`: 29 | `classify_command`, `classify_tool_call`, `ClassAccounting.format_report`, `_segment_head`, `ClassAccounting.to_dict`, `ClassAccounting.compare_to_baseline`, `Classification.to_dict`, `ClassAccounting.unclassified_regressed`, `assert_no_command_text`, `split_command_segments`, `_file_category`, `classify`, `LabelEvidence.to_dict`, `classify_corpus_calls`, `classify_segment.note`, `Classification.display_label`, `Classification.is_ambiguous`, `ClassAccounting._share`, `ClassAccounting.ambiguous_command_share`, `ClassAccounting.leading_cd_command_share`, `ClassAccounting.multi_class_command_share`, `ClassAccounting.multi_segment_command_share`, `ClassAccounting.single_class_command_share`, `ClassAccounting.unclassified_command_share`, `Classification.is_multi_class`, `Classification.is_unclassified`, `classify_segment`, `_closed_vocabulary`, `accumulate` |
+| `agent_workflows/run_analytics_telemetry.py` | 47 | `budget-exhausted`: 23, `unguarded-unreached`: 24 | `_validate_scalar`, `validate_event`, `SystemResourceProbeAdapter.accelerators`, `TelemetryCollector._emit`, `TelemetryCollector._observe_resources`, `TelemetryCollector._observe_accelerators`, `_validate_number_map`, `ResourceSampler.start`, `SystemResourceProbeAdapter.disk`, `TelemetryCollector._observe_tool_versions`, `_refuse_unknown`, `_validate_tool_versions`, `ResourceProbeAdapter.resources`, `ResourceSampler.stop`, `SystemResourceProbeAdapter.memory`, `TelemetryCollector._write`, `TelemetryCollector.close`, `_validate_label_list`, `ResourceSampler.__init__`, `TelemetryCollector.__init__`, `TelemetryCollector.start`, `_as_label`, `node_pseudonym`, `_parse_accelerator_csv`, `SystemResourceProbeAdapter._run_bounded`, `build_event`, `ResourceSampler.tick`, `_validate_accelerators`, `FakeResourceProbeAdapter._count`, `FakeResourceProbeAdapter.cpu`, `FakeResourceProbeAdapter.load`, `FakeResourceProbeAdapter.memory`, `FakeResourceProbeAdapter.process`, `ProbeOutcome.to_dict`, `FakeResourceProbeAdapter.accelerators`, `FakeResourceProbeAdapter.tool_versions`, `ResourceSampler.__enter__`, `ResourceSampler._run`, `TelemetryCollector.__enter__`, `TelemetryCollector._note`, `TelemetryCollector.sample`, `_as_int`, `ResourceSampler.__exit__`, `ResourceSampler.running`, `TelemetryCollector.__exit__`, `TelemetryCollector.note_skipped_sample`, `FakeResourceProbeAdapter.__init__` |
+| `agent_workflows/run_analytics_wizard.py` | 10 | `unguarded-unreached`: 10 | `apply_choices`, `read_settings`, `plan_deletion`, `write_settings`, `delete_analytics_artifacts`, `AnalyticsSettings.to_dict`, `_looks_like_secret`, `AnalyticsSettings.endpoint`, `_coerce_bool`, `_local_path` |
+| `agent_workflows/run_cli.py` | 7 | `budget-exhausted`: 7 | `_run_verify_ledger`, `_run_record`, `_run_finalize`, `_run_cancel`, `_run_evidence`, `_run_decisions`, `_run_questions` |
+| `agent_workflows/run_engine.py` | 3 | `budget-exhausted`: 2, `unguarded-unreached`: 1 | `RunEngine.record_verifier_decision`, `RunEngine.complete_run`, `RunEngine.run_state` |
+| `agent_workflows/run_evidence.py` | 6 | `budget-exhausted`: 6 | `validate_evidence`, `get_git_head`, `_porcelain_paths`, `dirty_within`, `get_git_dirty_digest`, `get_worktree_path` |
+| `agent_workflows/run_freeze.py` | 1 | `budget-exhausted`: 1 | `diff_requirements` |
+| `agent_workflows/run_gates.py` | 3 | `unguarded-unreached`: 3 | `execute_gated_action`, `GateDecision.is_approved`, `evaluate_gate` |
+| `agent_workflows/run_ledger_schema.py` | 1 | `budget-exhausted`: 1 | `validate_record` |
+| `agent_workflows/run_ledger_store.py` | 8 | `budget-exhausted`: 8 | `RunLedgerStore.verify_chain`, `RunLedgerStore.read_records`, `RunLedgerStore.recover`, `UnparseableLineError.__init__`, `classify_jsonl_file`, `compute_record_hash`, `RedactionPolicy.__init__`, `is_ledger_shaped` |
+| `agent_workflows/run_packet.py` | 10 | `unguarded-unreached`: 10 | `StepPacket.to_dict`, `StepOutcomeEnvelope.to_dict`, `_compute_packet_digest`, `BoundRequirement.to_dict`, `StepPacket.to_json`, `_normalize`, `build_step_packet`, `validate_outcome_envelope`, `StepPacket.render_prompt`, `apply_outcome_envelope` |
+| `agent_workflows/run_state.py` | 1 | `unguarded-unreached`: 1 | `is_legal_edge` |
+| `agent_workflows/run_viewer.py` | 3 | `budget-exhausted`: 3 | `format_step_line`, `repair_run`, `_state_setids` |
+| `agent_workflows/runner_profile_wizard.py` | 1 | `budget-exhausted`: 1 | `opencode_argv_fields` |
+| `agent_workflows/runner_shared.py` | 19 | `budget-exhausted`: 18, `unguarded-unreached`: 1 | `new_failures_since_baseline`, `classify_recovery_disposition`, `materialize_merge_result`, `_relative_revalidation_verdict`, `expand_selectors`, `attributed_away_failure_ids`, `resolve_prior_lane`, `_compose_revalidation_excuses`, `path_is_within_analytics`, `route_recovery_turn`, `format_merge_conflict_reason`, `spec_impacts_for_queue`, `SuiteCheckResult.failing_text`, `gate_answer_is_warranted`, `normalize_failure_id`, `extract_suite_failures`, `resolve_run_dir`, `revalidation_baseline_for`, `gate_answer_needs_human_remedy` |
+| `agent_workflows/runner_stop.py` | 2 | `budget-exhausted`: 1, `unguarded-unreached`: 1 | `install_stop_signal_handlers._sigint`, `reset_signal_ladder` |
+| `agent_workflows/selectors.py` | 2 | `budget-exhausted`: 1, `unguarded-unreached`: 1 | `resolve_for_mutation`, `Resolution.is_unique` |
+| `agent_workflows/set_lifecycle.py` | 5 | `unguarded-unreached`: 5 | `derive_progress`, `stale_evidence_seqs_after_integration`, `make_invalidation_records`, `terminal_transition_allowed`, `resume_or_report` |
+| `agent_workflows/set_records.py` | 3 | `budget-exhausted`: 2, `unguarded-unreached`: 1 | `render_decisions`, `render_open_questions`, `write_local_projections` |
+| `agent_workflows/set_state.py` | 1 | `unguarded-unreached`: 1 | `derive_set_state` |
+| `agent_workflows/storage.py` | 15 | `budget-exhausted`: 11, `unguarded-unreached`: 4 | `acknowledge_remote_durability`, `get_storage_status`, `init_records_storage`, `validate_storage_boundaries`, `_remote_reachable`, `_canonical_path`, `validate_companion_preflight`, `load_companion_identity`, `materialize_companion_storage`, `detach_companion`, `get_git_common_dir`, `move_companion`, `get_git_commit_boundaries`, `load_local_attachment_record`, `reattach_companion` |
+| `agent_workflows/term.py` | 13 | `budget-exhausted`: 5, `unguarded-unreached`: 8 | `Term.format_preview`, `is_interactive`, `stdin_is_interactive`, `Term.format_empty_result`, `Term.severity_label`, `Term.format_diagnostic`, `Term.diagnostic`, `Term.title`, `Term.evidence`, `Term.fix`, `Term.outcome`, `Term.preview`, `Term.section` |
+| `agent_workflows/verify_roles.py` | 3 | `budget-exhausted`: 3 | `validate_verifier_packet`, `check_role_action`, `check_self_verification` |
+| `agent_workflows/work_cmd.py` | 3 | `budget-exhausted`: 3 | `run_commit`, `_recover_commit_flags`, `_resolve_plan` |
+| `agent_workflows/workflow_compiler.py` | 1 | `budget-exhausted`: 1 | `_compile_step_packets` |
+| `agent_workflows/worktree_lease.py` | 8 | `budget-exhausted`: 1, `unguarded-unreached`: 7 | `lane_id_from_branch`, `LeaseTable.claim`, `assert_worker_scope`, `LeaseTable.release`, `allocate_session`, `LeaseTable.__init__`, `path_is_worker_forbidden`, `LeaseTable.owner_of` |
