@@ -110,7 +110,11 @@ ATTEMPT_METRICS: tuple[str, ...] = (
     "cost",
     "cost_input",
     "cost_output",
+    "cost_reasoning",
     "cost_cache_read",
+    "model_seconds",
+    "thinking_seconds_est",
+    "tool_seconds",
     "steps",
     "context_first",
     "context_last",
@@ -377,6 +381,9 @@ def summarize_group(
             ),
             "output": round(
                 sum(_value(r, "cost_output") or 0.0 for r in priced) / cost_total, 4
+            ),
+            "reasoning": round(
+                sum(_value(r, "cost_reasoning") or 0.0 for r in priced) / cost_total, 4
             ),
         }
     out["with_cost"] = sum(1 for r in members if _value(r, "cost") is not None)

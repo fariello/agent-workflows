@@ -1368,7 +1368,8 @@ def _attempt_view(
         )
         payload.update({"metrics": list(metrics), "stat": stat_name})
         caveats.append(
-            "cost shares are APPORTIONED (recorded cost split by token count x the dated rate); "
+            "cost shares are APPORTIONED: each step's recorded cost is split by token kind with the "
+            "rate set that reproduces it exactly (reasoning billed at the output rate); "
             "sessions with no recorded cost (all Antigravity) carry tokens only"
         )
         hint = " ".join(

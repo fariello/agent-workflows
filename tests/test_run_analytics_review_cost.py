@@ -99,7 +99,9 @@ def _oc_review_session(
                         "reasoning": 2,
                         "cache": {"read": cread, "write": cwrite},
                     },
-                    "cost": cost / len(contexts),
+                    # Priced exactly as the host does at the era-b (Opus 5) rates, reasoning at
+                    # the output rate, so the per-step cost split recognises it. `cost` is unused.
+                    "cost": (inp * 5.5 + (10 + 2) * 27.5 + cread * 0.55) / 1e6,
                 },
             }
         )
@@ -262,6 +264,25 @@ class SessionFactsTests(unittest.TestCase):
         self.assertEqual(a["cache_write"], 5000)
         self.assertEqual(a["output"], 30)
         self.assertEqual(a["reasoning"], 6)
+        # Thinking is part of the total once, exactly as OpenCode's own `total` counts it.
+        self.assertEqual(a["total_tokens"], 30300 + 30 + 6 + 100000 + 5000)
+        self.assertEqual(a["fresh_tokens"], 30300 + 30 + 6)
+
+    def test_model_time_and_thinking_estimate(self) -> None:
+        a = self.by[("aaaaaa", "main")]
+        self.assertIsNotNone(a["wall"])
+        self.assertAlmostEqual(
+            a["model_seconds"], a["wall"] - a["tool_seconds"], places=6
+        )
+        share = 6 / (6 + 30)
+        self.assertAlmostEqual(
+            a["thinking_seconds_est"], a["model_seconds"] * share, places=6
+        )
+
+    def test_display_name_and_raw_id(self) -> None:
+        a = self.by[("aaaaaa", "main")]
+        self.assertEqual(a["model"], "M A")
+        self.assertEqual(a["model_id"], "uri/m-a")
 
     def test_session_origin_new_then_reused(self) -> None:
         self.assertEqual(self.by[("aaaaaa", "main")]["session_origin"], "new")
@@ -386,6 +407,7 @@ class AttemptQueryTests(unittest.TestCase):
         self.assertAlmostEqual(sum(shares.values()), 1.0, places=3)
         self.assertGreater(shares["cache_read"], 0.9)
         self.assertAlmostEqual(sum(row["cost_share"].values()), 1.0, places=3)
+        self.assertGreater(row["cost_share"]["reasoning"], 0)
 
     def test_group_by_session_origin_and_step_bucket(self) -> None:
         res = query.run_query(
@@ -451,8 +473,8 @@ class AttemptQueryTests(unittest.TestCase):
             stat="sum",
         )
         by = {r["model"]: r for r in res.rows}
-        self.assertEqual(by["m-a"]["redo_total"], 7 * 3)
-        self.assertEqual(by["m-b"]["turn_retries"], 7)
+        self.assertEqual(by["M A"]["redo_total"], 7 * 3)
+        self.assertEqual(by["M B"]["turn_retries"], 7)
 
     def test_tools_view(self) -> None:
         res = query.run_query(
@@ -470,12 +492,18 @@ class AttemptQueryTests(unittest.TestCase):
         res = query.run_query("experiment", repo=self.repo, filters=["label=exp1"])
         rows = {(r["id6"], r["review_variant"], r["model"]): r for r in res.rows}
         self.assertEqual(len(rows), 8)  # 2 plans x 2 variants x 2 models
-        r = rows[("aaaaaa", "single-12", "m-a")]
+        r = rows[("aaaaaa", "single-12", "M A")]
         self.assertEqual(r["items"], 4)
         self.assertEqual(r["attempts"], 4)
         self.assertEqual(r["outcome"], {"reviewed": 4})
-        # The verifier's cost is folded into the item it verified.
-        self.assertAlmostEqual(r["cost_median"], 0.65, places=4)
+
+        # The verifier's cost is folded into the item it verified: item A's three steps plus the
+        # verifier's one step, each priced at the era-b rates used by the fixture.
+        def step(inp, cread):
+            return (inp * 5.5 + 12 * 27.5 + cread * 0.55) / 1e6
+
+        expected = step(30000, 0) + step(100, 40000) + step(200, 60000) + step(1000, 0)
+        self.assertAlmostEqual(r["cost_median"], round(expected, 4), places=4)
 
     def test_disallowed_fields_refused(self) -> None:
         for kw in (
@@ -681,3 +709,110 @@ class ItemEndStateTests(unittest.TestCase):
             self.assertEqual(
                 {r["item_end"] for r in rows if r["id6"] == "bbbbbb"}, {"failed"}
             )
+
+
+class ModelDisplayNameTests(unittest.TestCase):
+    def test_rules(self) -> None:
+        from agent_workflows.model_names import display_name
+
+        cases = [
+            (
+                ("uri/its_direct/pt3-claude-opus-5.5-1m-us", "high"),
+                "Claude Opus 5.5 High",
+            ),
+            (("uri/its_direct/pt3-claude-opus-5-1m-us", "high"), "Claude Opus 5 High"),
+            (("uri/its_direct/pt3-claude-opus-4.8-1m-us", None), "Claude Opus 4.8"),
+            (
+                ("uri/its_direct/pt3-claude-opus-5.5-1m-us", "default"),
+                "Claude Opus 5.5",
+            ),
+            (("Gemini 3.8 Flash (High)", None), "Gemini 3.8 Flash High"),
+            (("gemini-3.7-flash-high", None), "Gemini 3.7 Flash High"),
+            (("google/gemini-3.8-flash", "medium"), "Gemini 3.8 Flash Medium"),
+            (("anthropic/claude-sonnet-4-5-20250929", None), "Claude Sonnet 4.5"),
+            (("openai/gpt-5", "high"), "GPT 5 High"),
+            (("", "high"), ""),
+        ]
+        for (model, variant), want in cases:
+            self.assertEqual(display_name(model, variant), want, (model, variant))
+
+    def test_project_override(self) -> None:
+        from agent_workflows.model_names import display_name, load_overrides
+
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / ".aw" / "config"
+            cfg.mkdir(parents=True)
+            (cfg / "project.json").write_text(
+                json.dumps(
+                    {
+                        "model_display_names": {
+                            "pt3-claude-opus-5.5-1m-us": "Opus Five-Five"
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            ov = load_overrides(Path(td))
+            self.assertEqual(
+                display_name(
+                    "uri/its_direct/pt3-claude-opus-5.5-1m-us", "high", overrides=ov
+                ),
+                "Opus Five-Five High",
+            )
+
+    def test_rows_use_display_names_with_variant_and_keep_raw_id(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run = _review_run(
+                Path(td) / "runs",
+                "run-20260910T000000Z-nm",
+                model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
+            )
+            state = json.loads((run / "state.json").read_text())
+            for item in state["queue"]:
+                item["attempts"][0]["host_model_variant"] = "high"
+            (run / "state.json").write_text(json.dumps(state))
+            rows, _ = dash.collect_rows([run], cache_path=None)
+            main = next(r for r in rows if r["role"] == "main")
+            self.assertEqual(main["model"], "Claude Opus 5.5 High")
+            self.assertEqual(main["agent"], "oc / Claude Opus 5.5 High")
+            self.assertEqual(
+                main["model_id"], "uri/its_direct/pt3-claude-opus-5.5-1m-us"
+            )
+            self.assertEqual(main["model_variant"], "high")
+            # The verifier ran the same model and recorded no variant of its own: it inherits.
+            verify = next(r for r in rows if r["role"] == "verify")
+            self.assertEqual(verify["model"], "Claude Opus 5.5 High")
+
+
+class AntigravityThinkingTests(unittest.TestCase):
+    """Antigravity's output_tokens INCLUDES thinking_tokens; thinking must be counted once."""
+
+    def test_visible_output_and_total(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "s.jsonl"
+            _jl(
+                path,
+                [
+                    {
+                        "event": "step_update",
+                        "step_update": {
+                            "step_index": 1,
+                            "state": "DONE",
+                            "step_type": "agent_response",
+                            "duration_seconds": 3.0,
+                            "usage": {
+                                "input_tokens": 1000,
+                                "output_tokens": 300,
+                                "thinking_tokens": 200,
+                                "cache_read_tokens": 400,
+                                "total_tokens": 1300,
+                            },
+                        },
+                    },
+                ],
+            )
+            st = dash.session_stats(path)
+            self.assertEqual(st["output"], 100)
+            self.assertEqual(st["reasoning"], 200)
+            # input + visible output + thinking == the host's own total_tokens (cache aside).
+            self.assertEqual(st["input"] + st["output"] + st["reasoning"], 1300)

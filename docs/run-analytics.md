@@ -110,6 +110,47 @@ to the recorded total. Sessions with no recorded cost (all Antigravity sessions 
 rather than an invented one. Cache writes and reasoning tokens have no known price, so they are counted
 but never priced. Each session row also carries these values in the CSV download.
 
+## Thinking, model time and model names
+
+**Thinking tokens** are counted separately as `reasoning` (labelled "Thinking" in the dashboard),
+and they are part of "in + out" and of the total. Two host details matter:
+
+- OpenCode reports thinking beside output, and bills it at the output rate. This was measured by
+  reproducing every priced step's recorded cost exactly.
+- Antigravity reports thinking INSIDE `output_tokens`. The dashboard shows Antigravity output as the
+  visible part only (output minus thinking), so thinking is never counted twice.
+
+**Per-kind costs** are split step by step. For each step, the dashboard finds the published rate set
+that reproduces that step's recorded cost exactly, and splits the cost into input, output, thinking
+and cached parts that add up to the recorded total. Three rate sets cover every priced OpenCode step
+in this corpus (USD per million tokens, input / output / cached):
+
+| Rate set | Rates | Applies to |
+| --- | --- | --- |
+| era-a | 5.00 / 25.00 / 0.00 | everything before 2026-08-29 |
+| era-b | 5.50 / 27.50 / 0.55 | Claude Opus 5 and unrecorded models |
+| opus-5.5 | 4.40 / 22.00 / 0.22 | Claude Opus 5.5 |
+
+A session whose steps match none of them (for example Gemini through OpenCode) shows its recorded
+total with no split. Antigravity records no cost, so its sessions have tokens only.
+
+**Time.** Hosts do not log thinking time. The dashboard reports **model time** (wall time minus time
+spent inside tools) and an **estimated thinking time**: model time multiplied by thinking's share of
+the tokens the model generated. Treat the second as an estimate, not a measurement.
+
+**Model names** are shown in a readable form, for example
+`uri/its_direct/pt3-claude-opus-5.5-1m-us` run at variant `high` reads as "Claude Opus 5.5 High".
+Routing prefixes, deployment tags, the context-window marker, region and date stamps are dropped, and
+the variant is added only when the run recorded one. The exact id stays in the data: it appears in
+the session detail, the CSV download and `attempts.jsonl` as `model_id` and `model_variant`. To
+correct a name, add an override to `.aw/config/project.json`; the variant is still appended:
+
+```json
+"model_display_names": {
+  "uri/its_direct/pt3-claude-opus-5.5-1m-us": "Claude Opus 5.5"
+}
+```
+
 ## Review cost: per-attempt analysis
 
 Every `aw runs analyze` also publishes `attempts.jsonl` beside the dashboard: one row per agent

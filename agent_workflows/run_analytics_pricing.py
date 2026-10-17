@@ -64,6 +64,8 @@ __all__ = [
     "validate_against_recorded",
     "stratify_by_era",
     "component_spend_shares",
+    "STEP_RATE_SETS",
+    "matching_rate_set",
 ]
 
 
@@ -418,6 +420,54 @@ MEASURED_ERAS: tuple[PriceEra, ...] = (
 
 #: The seeded schedule. A caller may build its own; this one carries the measured eras.
 MEASURED_SCHEDULE = PriceSchedule(eras=MEASURED_ERAS)
+
+
+#: STEP-LEVEL RATE SETS recovered from recorded cost, re-measured 2026-10-17 over 168,548 priced
+#: OpenCode steps. Each is (label, input, output, cache_read) USD per million tokens, and REASONING
+#: IS BILLED AT THE OUTPUT RATE: fitting cost against input / output / reasoning / cache_read gives
+#: output and reasoning identical coefficients to floating-point exactness (max error ~4e-15), and
+#: leaving reasoning out misfits by up to $0.32 per step. Every priced step matched exactly one set
+#: except 42 steps of ``google/gemini-3.8-flash``, which match none (no recoverable Gemini rate).
+#:
+#:   era-a        5.00 / 25.00 / 0.00    7,917 steps (before 2026-08-29T05:38:43Z, any model)
+#:   era-b        5.50 / 27.50 / 0.55  134,929 steps (claude-opus-5 and unrecorded models)
+#:   opus-5.5     4.40 / 22.00 / 0.22   25,660 steps (claude-opus-5.5)
+#:
+#: Used by :func:`matching_rate_set` to APPORTION a recorded cost across token kinds. Selected per
+#: step by which set reproduces the recorded cost, so a model's identity need not be known.
+STEP_RATE_SETS: tuple[tuple[str, float, float, float], ...] = (
+    ("era-a", 5.00, 25.00, 0.00),
+    ("era-b", 5.50, 27.50, 0.55),
+    ("opus-5.5", 4.40, 22.00, 0.22),
+)
+
+
+def matching_rate_set(
+    *,
+    input_tokens: float,
+    output_tokens: float,
+    reasoning_tokens: float,
+    cache_read_tokens: float,
+    recorded_usd: float,
+    tolerance: float = 1e-9,
+) -> tuple[str, float, float, float] | None:
+    """The :data:`STEP_RATE_SETS` entry that reproduces ``recorded_usd`` for one step, or ``None``.
+
+    Reasoning is priced at the output rate (measured). ``None`` means no known rate set reproduces
+    the recorded cost (an unpriced model); the caller must then not pretend to know the split.
+    """
+
+    for entry in STEP_RATE_SETS:
+        _label, r_in, r_out, r_cache = entry
+        est = (
+            input_tokens * r_in
+            + (output_tokens + reasoning_tokens) * r_out
+            + cache_read_tokens * r_cache
+        ) / 1_000_000.0
+        if abs(est - recorded_usd) <= tolerance + tolerance * abs(recorded_usd):
+            return entry
+    return None
+
 
 #: Model identifiers measured to be OUTSIDE both eras' rates. The 23 residual steps all carry
 #: ``reasoning > 0`` and all three of their runs declare this model at a blended rate near

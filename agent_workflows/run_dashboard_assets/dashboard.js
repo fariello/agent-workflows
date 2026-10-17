@@ -108,10 +108,10 @@
   function num(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }
 
   metric('total_tokens', 'Total tokens (incl. cache reads)', 'tok', HAS_TOK, 'Tokens');
-  metric('fresh_tokens', 'In + out tokens (input + output)', 'tok', HAS_TOK, 'Tokens');
+  metric('fresh_tokens', 'In + out tokens (input + output + thinking)', 'tok', HAS_TOK, 'Tokens');
   metric('input', 'Input tokens (uncached)', 'tok', HAS_TOK, 'Tokens');
   metric('output', 'Output tokens', 'tok', HAS_TOK, 'Tokens');
-  metric('reasoning', 'Reasoning tokens', 'tok', HAS_TOK, 'Tokens');
+  metric('reasoning', 'Thinking tokens (reasoning)', 'tok', HAS_TOK, 'Tokens');
   metric('cache_read', 'Cached tokens (cache reads)', 'tok', HAS_TOK, 'Tokens');
   metric('cache_write', 'Cache-write tokens', 'tok', HAS_TOK, 'Tokens');
   ratio('cache_share', 'Cache-read share of tokens', 'pct', 'cache_read', 'total_tokens', HAS_TOK, 'Tokens');
@@ -122,6 +122,10 @@
   metric('cost_input', 'Cost of input tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
   metric('cost_output', 'Cost of output tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
   metric('cost_cache_read', 'Cost of cached tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
+  metric('cost_reasoning', 'Cost of thinking tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
+  const HAS_WALL = (r) => r.wall !== null && r.wall !== undefined;
+  metric('model_seconds', 'Model time (wall minus tool time)', 'dur', (r) => HAS_WALL(r) && HAS_LOG(r), 'Cost and time');
+  metric('thinking_seconds_est', 'Thinking time (estimate)', 'dur', (r) => r.thinking_seconds_est !== null && r.thinking_seconds_est !== undefined, 'Cost and time');
   ratio('usd_per_mtok', 'Cost per million tokens', 'usd', 'cost', 'total_tokens', (r) => r.cost !== null && r.cost !== undefined && HAS_TOK(r), 'Cost and time', 1e6);
   const HAS_CTX = (r) => r.context_first !== null && r.context_first !== undefined;
   metric('context_first', 'Context at first step', 'tok', HAS_CTX, 'Steps and context');
@@ -262,7 +266,7 @@
 
   // ---------------------------------------------------------------- units of analysis
   const SUMS = ['input', 'output', 'reasoning', 'cache_read', 'cache_write', 'fresh_tokens', 'total_tokens', 'steps',
-    'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'sessions', 'tool_output_bytes',
+    'tool_calls', 'tool_errors', 'tool_seconds', 'model_seconds', 'thinking_seconds_est', 'files_read', 'files_edited', 'sessions', 'tool_output_bytes',
     'turn_retries', 'refusals', 'reasks', 'redo_total']
     .concat(CATS.map((c) => 't_' + c)).concat(SHELL.map((c) => 'sh_' + c));
   const GRAINS = {
@@ -282,7 +286,7 @@
     o._terr = {};
     SUMS.forEach((k) => { o[k] = 0; });
     let cost = null, wall = null, start = null, anyLog = false, src = 'none', maxAtt = 0, anyRecovery = false;
-    const parts = { cost_input: null, cost_output: null, cost_cache_read: null };
+    const parts = { cost_input: null, cost_output: null, cost_reasoning: null, cost_cache_read: null };
     list.forEach((r) => {
       SUMS.forEach((k) => { o[k] += num(r[k]); });
       if (r.cost !== null && r.cost !== undefined) cost = (cost || 0) + r.cost;
@@ -929,6 +933,7 @@
     { k: 'fresh_tokens', label: 'In + out', cost: 'cost_fresh', color: '#3b6fd8' },
     { k: 'input', label: 'Input', cost: 'cost_input', color: '#1ea4b8' },
     { k: 'output', label: 'Output', cost: 'cost_output', color: '#e0822d' },
+    { k: 'reasoning', label: 'Thinking', cost: 'cost_reasoning', color: '#d65c9e' },
     { k: 'cache_read', label: 'Cached (reads)', cost: 'cost_cache_read', color: '#2e9e6a' },
     { k: 'cache_write', label: 'Cache writes', cost: null, color: '#8a5cc7' },
     { k: 'total_tokens', label: 'Total', cost: 'cost', color: '#6b7a8f' },
@@ -992,7 +997,8 @@
     const totSplit = agg(rows.filter(HAS_SPLIT), 'cost', 'sum').v || 0;
     const shares = h('p', { class: 'hint' });
     shares.innerHTML = '<b>Share of tokens:</b> ' + ['input', 'cache_read', 'cache_write', 'output', 'reasoning'].map((k) => esc(MET[k].label.split(' (')[0]) + ' ' + fmt(totTok ? (agg(rows, k, 'sum').v || 0) / totTok : null, 'pct')).join(', ') +
-      (totSplit ? '. <b>Share of cost:</b> input ' + fmt((agg(rows, 'cost_input', 'sum').v || 0) / totSplit, 'pct') + ', cached ' + fmt((agg(rows, 'cost_cache_read', 'sum').v || 0) / totSplit, 'pct') + ', output ' + fmt((agg(rows, 'cost_output', 'sum').v || 0) / totSplit, 'pct') : '') + '.';
+      (totSplit ? '. <b>Share of cost:</b> input ' + fmt((agg(rows, 'cost_input', 'sum').v || 0) / totSplit, 'pct') + ', cached ' + fmt((agg(rows, 'cost_cache_read', 'sum').v || 0) / totSplit, 'pct') + ', output ' + fmt((agg(rows, 'cost_output', 'sum').v || 0) / totSplit, 'pct') + ', thinking ' + fmt((agg(rows, 'cost_reasoning', 'sum').v || 0) / totSplit, 'pct') : '') + '.' +
+      '<br><b>Time:</b> model ' + fmt(agg(rows, 'model_seconds', 'sum').v, 'dur') + ', in tools ' + fmt(agg(rows, 'tool_seconds', 'sum').v, 'dur') + ', thinking about ' + fmt(agg(rows, 'thinking_seconds_est', 'sum').v, 'dur') + ' (estimate: model time times thinking\'s share of generated tokens; hosts do not log thinking time).';
     MAIN.appendChild(shares);
 
     const p = panel('Tokens and cost, by component', 'Each token kind on its own: <b>in + out</b> (input plus output), <b>input</b> (uncached prompt tokens), <b>output</b>, <b>cached</b> (cache reads) and <b>cache writes</b>. ' +
@@ -1038,12 +1044,12 @@
       const g = h('div', { class: 'grid2' });
       const gs = [];
       topGroups(rows, c.by, 16).forEach((list, key) => gs.push({ key: key, rows: list }));
-      const tparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'cache_read', 'cache_write'].indexOf(x.k) >= 0).map((x) => ({ key: x.k, label: x.label, color: x.color }));
+      const tparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'reasoning', 'cache_read', 'cache_write'].indexOf(x.k) >= 0).map((x) => ({ key: x.k, label: x.label, color: x.color }));
       const p2 = panel('Token mix by ' + DIMS[c.by].label.toLowerCase(), 'Share of each group\'s tokens by kind.');
       p2.appendChild(h('div', { class: 'chart' }, stacked(gs, tparts, (list, pp) => sumOf(list.filter(HAS_TOK), pp.key), true, (v) => fmt(v, 'tok'), c.by)));
       p2.appendChild(h('div', null, legend(tparts)));
       g.appendChild(p2);
-      const cparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'cache_read'].indexOf(x.k) >= 0).map((x) => ({ key: x.cost, label: x.label, color: x.color }));
+      const cparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'reasoning', 'cache_read'].indexOf(x.k) >= 0).map((x) => ({ key: x.cost, label: x.label, color: x.color }));
       const p3 = panel('Cost by ' + DIMS[c.by].label.toLowerCase(), 'Apportioned cost per token kind, absolute so groups compare by spend.');
       p3.appendChild(h('div', { class: 'chart' }, stacked(gs, cparts, (list, pp) => sumOf(list.filter(HAS_SPLIT), pp.key), false, (v) => fmt(v, 'usd'), c.by)));
       p3.appendChild(h('div', null, legend(cparts)));
@@ -1519,8 +1525,8 @@
   };
 
   function downloadCsv() {
-    const cols = ['run', 'set', 'id6', 'kind', 'stage', 'action', 'role', 'attempt', 'restart', 'agent', 'model', 'host', 'outcome', 'disposition', 'verification', 'date',
-      'total_tokens', 'fresh_tokens', 'input', 'output', 'reasoning', 'cache_read', 'cache_write', 'cost', 'cost_input', 'cost_output', 'cost_cache_read', 'cost_split', 'wall', 'steps', 'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'token_source']
+    const cols = ['run', 'set', 'id6', 'kind', 'stage', 'action', 'role', 'attempt', 'restart', 'agent', 'model', 'model_id', 'model_variant', 'host', 'outcome', 'disposition', 'verification', 'date',
+      'total_tokens', 'fresh_tokens', 'input', 'output', 'reasoning', 'cache_read', 'cache_write', 'cost', 'cost_input', 'cost_output', 'cost_reasoning', 'cost_cache_read', 'cost_split', 'wall', 'model_seconds', 'thinking_seconds_est', 'steps', 'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'token_source']
       .concat(CATS.map((c) => 't_' + c)).concat(SHELL.map((c) => 'sh_' + c));
     const q = (v) => { v = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     const lines = [cols.join(',')];
@@ -1542,10 +1548,10 @@
     s += '<h2>' + esc(base.id6 || '(no plan)') + ' <span class="muted">' + esc(base.set) + '</span></h2>';
     s += '<p class="hint mono">' + esc(base.run) + '</p>';
     s += '<dl>';
-    const kv = [['Stage', base.stage], ['Attempt', base.attempt + ' of ' + base.attempts_total + (base.recovery ? ' (recovery)' : '')], ['Model', base.model + (base.model_source ? ' (from ' + base.model_source + ')' : '')],
+    const kv = [['Stage', base.stage], ['Attempt', base.attempt + ' of ' + base.attempts_total + (base.recovery ? ' (recovery)' : '')], ['Model', base.model + (base.model_id ? ' [' + base.model_id + (base.model_variant ? ', variant ' + base.model_variant : '') + ']' : '') + (base.model_source ? ' (from ' + base.model_source + ')' : '')],
       ['Host', base.host], ['Outcome', base.outcome], ['Disposition', base.disposition], ['Verifier', base.verification || '-'], ['Item status', base.item_status], ['Date', base.date],
       ['Tokens', fmt(base.total_tokens, 'tok') + ' total; ' + fmt(base.input, 'tok') + ' in, ' + fmt(base.output, 'tok') + ' out, ' + fmt(base.reasoning, 'tok') + ' reasoning, ' + fmt(base.cache_read, 'tok') + ' cache read'],
-      ['Token source', base.token_source], ['Cost', fmt(base.cost, 'usd') + (HAS_SPLIT(base) ? ' (' + fmt(base.cost_input, 'usd') + ' input, ' + fmt(base.cost_output, 'usd') + ' output, ' + fmt(base.cost_cache_read, 'usd') + ' cached; apportioned)' : '')], ['Wall time', fmt(base.wall, 'dur')], ['Time in tools', fmt(base.tool_seconds, 'dur')],
+      ['Token source', base.token_source], ['Cost', fmt(base.cost, 'usd') + (HAS_SPLIT(base) ? ' (' + fmt(base.cost_input, 'usd') + ' input, ' + fmt(base.cost_output, 'usd') + ' output, ' + fmt(base.cost_reasoning, 'usd') + ' thinking, ' + fmt(base.cost_cache_read, 'usd') + ' cached; ' + esc(base.cost_split) + ')' : '')], ['Wall time', fmt(base.wall, 'dur')], ['Time in tools', fmt(base.tool_seconds, 'dur')], ['Model time', fmt(base.model_seconds, 'dur') + (base.thinking_seconds_est !== null && base.thinking_seconds_est !== undefined ? ' (thinking about ' + fmt(base.thinking_seconds_est, 'dur') + ', estimated)' : '')],
       ['LLM steps', base.steps], ['Tool calls', base.tool_calls + ' (' + base.tool_errors + ' errors)'], ['Files read / edited', base.files_read + ' / ' + base.files_edited]];
     kv.forEach((x) => { s += '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
     s += '</dl>';

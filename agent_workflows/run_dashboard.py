@@ -36,6 +36,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from agent_workflows import model_names
 from agent_workflows.run_analytics_schema import resolve_attempt_model
 from agent_workflows.runner_shared import canonical_terminal_status
 from agent_workflows.verifier_corroboration import (
@@ -55,7 +56,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 8
+DASHBOARD_SCHEMA_VERSION = 9
 ASSETS_DIRNAME = "run_dashboard_assets"
 #: The browser assets the dashboard inlines; packaging tests assert each ships in wheel and sdist.
 REQUIRED_ASSETS: tuple[str, ...] = ("dashboard.css", "dashboard.js")
@@ -195,6 +196,17 @@ def _empty_stats() -> dict[str, Any]:
         "families": {},
         "read_counts": {},
         "host_session": None,
+        # Schema 9: recorded cost apportioned PER STEP with the rate set that reproduces that step's
+        # cost (reasoning at the output rate); `cost_split_steps` counts steps that matched one.
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_reasoning": 0.0,
+        "cost_cache_read": 0.0,
+        "cost_split_steps": 0,
+        "cost_unsplit_steps": 0,
+        # Antigravity reports thinking INSIDE output_tokens; this counts the thinking part so the
+        # visible output can be derived without counting thinking twice.
+        "thinking_in_output": False,
     }
 
 
@@ -358,6 +370,48 @@ def _note_context(stats: dict[str, Any], context: float) -> None:
         stats["context_max"] = context
 
 
+def _apportion_step(
+    stats: dict[str, Any],
+    cost: float,
+    inp: float,
+    out: float,
+    reasoning: float,
+    cache_read: float,
+) -> None:
+    """Split ONE step's recorded cost by token kind, using the rate set that reproduces it."""
+
+    from agent_workflows import run_analytics_pricing as pricing
+
+    rate = pricing.matching_rate_set(
+        input_tokens=inp,
+        output_tokens=out,
+        reasoning_tokens=reasoning,
+        cache_read_tokens=cache_read,
+        recorded_usd=cost,
+    )
+    if rate is None:
+        stats["cost_unsplit_steps"] += 1
+        return
+    _label, r_in, r_out, r_cache = rate
+    parts = {
+        "cost_input": inp * r_in,
+        "cost_output": out * r_out,
+        "cost_reasoning": reasoning * r_out,
+        "cost_cache_read": cache_read * r_cache,
+    }
+    total = sum(parts.values())
+    if total <= 0:
+        if cost == 0:
+            stats["cost_split_steps"] += 1
+        else:
+            stats["cost_unsplit_steps"] += 1
+        return
+    for k, v in parts.items():
+        # Scaled so the parts add up to the RECORDED cost exactly (they already match to ~1e-15).
+        stats[k] += cost * v / total
+    stats["cost_split_steps"] += 1
+
+
 def _output_bytes(value: Any) -> int:
     if value is None:
         return 0
@@ -478,6 +532,16 @@ def _oc_line(
             stats["cache_read"] += c_read
             stats["cache_write"] += c_write
             _note_context(stats, _num(toks.get("input")) + c_read + c_write)
+            step_cost = part.get("cost")
+            if isinstance(step_cost, (int, float)) and not isinstance(step_cost, bool):
+                _apportion_step(
+                    stats,
+                    float(step_cost),
+                    _num(toks.get("input")),
+                    _num(toks.get("output")),
+                    _num(toks.get("reasoning")),
+                    c_read,
+                )
         if isinstance(part.get("cost"), (int, float)) and not isinstance(
             part.get("cost"), bool
         ):
@@ -535,10 +599,16 @@ def _agy_line(
         )
         if usage:
             stats["has_tokens"] = True
+            # MEASURED (2026-10-17, 16,348 steps): Antigravity's `output_tokens` ALREADY INCLUDES
+            # `thinking_tokens` (output >= thinking on every step, and total_tokens == input +
+            # output exactly). So `output` here is the VISIBLE output, and thinking is counted
+            # once, under `reasoning`. Adding both would count every thinking token twice.
+            thinking = _num(usage.get("thinking_tokens"))
             stats["input"] += _num(usage.get("input_tokens"))
-            stats["output"] += _num(usage.get("output_tokens"))
-            stats["reasoning"] += _num(usage.get("thinking_tokens"))
+            stats["output"] += max(0.0, _num(usage.get("output_tokens")) - thinking)
+            stats["reasoning"] += thinking
             stats["cache_read"] += _num(usage.get("cache_read_tokens"))
+            stats["thinking_in_output"] = True
             _note_context(
                 stats,
                 _num(usage.get("input_tokens")) + _num(usage.get("cache_read_tokens")),
@@ -736,6 +806,41 @@ def _iso_ts(value: Any) -> float | None:
         return None
 
 
+def _row_variant(
+    att: Mapping[str, Any] | None, state: Mapping[str, Any], role: str, model: str
+) -> str:
+    """The effort VARIANT a session ran at, when recorded; ``""`` when it was not.
+
+    Main turns: the host-reported ``host_model_variant``, then the attempt's ``variant``, then the
+    run's ``options.variant``. Verifier turns: ``verify_variant`` (attempt, then options); the
+    executor's variant is used only when the verifier ran the SAME model as the executor, because a
+    verifier launched with its own profile may have run at a different effort.
+    """
+
+    a = att if isinstance(att, Mapping) else {}
+    opts = state.get("options") if isinstance(state.get("options"), Mapping) else {}
+    if str(role).strip().lower() == "verify":
+        v = (
+            a.get("verify_host_model_variant")
+            or a.get("verify_variant")
+            or opts.get("verify_variant")
+        )
+        if v:
+            return str(v)
+        exec_model = a.get("host_model") or a.get("model") or opts.get("model")
+        if exec_model and str(exec_model) == model:
+            return str(
+                a.get("host_model_variant")
+                or a.get("variant")
+                or opts.get("variant")
+                or ""
+            )
+        return ""
+    return str(
+        a.get("host_model_variant") or a.get("variant") or opts.get("variant") or ""
+    )
+
+
 def _run_model(state: Mapping[str, Any]) -> tuple[str, str]:
     model, source = resolve_attempt_model(None, state, role="main")
     return (
@@ -826,23 +931,25 @@ def split_cost(
     output_tokens: float,
     cache_read_tokens: float,
     at: float | None,
+    reasoning_tokens: float = 0.0,
 ) -> tuple[dict[str, float | None], str]:
-    """Split a RECORDED session cost into input / output / cache-read parts.
+    """Split a RECORDED session cost into input / output / reasoning / cache-read parts.
 
-    Returns ``(parts, method)``. Host logs record ONE cost per step, never a per-component one, so
-    the split is an APPORTIONMENT: each component is weighted by its token count times the rate of
-    the price era covering ``at`` (``run_analytics_pricing.MEASURED_SCHEDULE``), and the weights are
-    scaled so the parts sum EXACTLY to the recorded cost. The recorded total is never altered.
+    THE FALLBACK. Sessions whose log carries per-step cost are split step by step in
+    :func:`session_stats` with the rate set that reproduces each step exactly (method
+    ``per-step``). This function is used only when the cost came from ``state.json`` (no usable
+    log): it weights each kind by its tokens times the dated era's rate, reasoning at the output
+    rate, and scales the parts to sum EXACTLY to the recorded cost (method ``apportioned``).
 
-    NO RECORDED COST, NO SPLIT. A row without a recorded cost (every Antigravity row, which reports
-    none) returns ``None`` parts and method ``none`` rather than an estimate priced at another
-    model's rates. Cache WRITES carry no rate column (measured zero in the corpus), so they never
-    receive a share; reasoning tokens likewise have no recoverable rate.
+    NO RECORDED COST, NO SPLIT. A row without a recorded cost (every Antigravity row) returns
+    ``None`` parts and method ``none`` rather than an estimate at another model's rates. Cache
+    writes have no rate (measured zero in the corpus) and never receive a share.
     """
 
     empty: dict[str, float | None] = {
         "cost_input": None,
         "cost_output": None,
+        "cost_reasoning": None,
         "cost_cache_read": None,
     }
     if cost is None or at is None:
@@ -857,6 +964,7 @@ def split_cost(
     weights = {
         "cost_input": max(0.0, input_tokens) * rates.input_per_mtok,
         "cost_output": max(0.0, output_tokens) * rates.output_per_mtok,
+        "cost_reasoning": max(0.0, reasoning_tokens) * rates.output_per_mtok,
         "cost_cache_read": max(0.0, cache_read_tokens) * rates.cache_read_per_mtok,
     }
     total = sum(weights.values())
@@ -1148,6 +1256,9 @@ def _row_from_stats(
         inp = _num(fallback_tokens.get("input"))
         out = _num(fallback_tokens.get("output"))
         rsn = _num(fallback_tokens.get("reasoning"))
+        if base.get("host") == "agy":
+            # Same measured fact as the log path: Antigravity output already contains thinking.
+            out = max(0.0, out - rsn)
         cread = _num(fallback_tokens.get("cache") or fallback_tokens.get("cache_read"))
         cwrite = 0.0
         source = "state"
@@ -1172,13 +1283,33 @@ def _row_from_stats(
     )
     cats = stats.get("categories") or {}
     cmds = stats.get("commands") or {}
-    parts, split_method = split_cost(
-        cost,
-        input_tokens=inp,
-        output_tokens=out,
-        cache_read_tokens=cread,
-        at=start if start is not None else base.get("run_start"),
-    )
+    if (
+        source == "log"
+        and stats.get("has_cost")
+        and stats.get("cost_split_steps")
+        and not stats.get("cost_unsplit_steps")
+    ):
+        parts: dict[str, float | None] = {
+            k: float(stats.get(k) or 0.0)
+            for k in ("cost_input", "cost_output", "cost_reasoning", "cost_cache_read")
+        }
+        split_method = "per-step"
+    elif source == "log" and stats.get("cost_unsplit_steps"):
+        # Some step's cost matches no known rate set (an unpriced model): do not guess a split.
+        parts = {
+            k: None
+            for k in ("cost_input", "cost_output", "cost_reasoning", "cost_cache_read")
+        }
+        split_method = "none"
+    else:
+        parts, split_method = split_cost(
+            cost,
+            input_tokens=inp,
+            output_tokens=out,
+            reasoning_tokens=rsn,
+            cache_read_tokens=cread,
+            at=start if start is not None else base.get("run_start"),
+        )
     row.update(parts)
     row.update(
         {
@@ -1191,8 +1322,11 @@ def _row_from_stats(
             "reasoning": rsn,
             "cache_read": cread,
             "cache_write": cwrite,
-            "fresh_tokens": inp + out,
-            "total_tokens": inp + out + cread + cwrite,
+            # Thinking is generated output and is billed at the output rate, so it belongs in both
+            # "in + out" and the total. OpenCode's own `total` is input + output + reasoning + cache
+            # (measured on every step), and the Antigravity correction above keeps it single-counted.
+            "fresh_tokens": inp + out + rsn,
+            "total_tokens": inp + out + rsn + cread + cwrite,
             "cost": cost,
             "wall": wall,
             "start": start,
@@ -1200,6 +1334,21 @@ def _row_from_stats(
             "tool_calls": stats.get("tool_calls", 0),
             "tool_errors": stats.get("tool_errors", 0),
             "tool_seconds": stats.get("tool_seconds", 0.0),
+            # MODEL TIME: wall time not spent inside tools (the model generating, plus host and
+            # network overhead between steps). The host logs no separate thinking time, so the
+            # thinking share is an ESTIMATE: model time x thinking's share of generated tokens.
+            "model_seconds": (
+                max(0.0, wall - float(stats.get("tool_seconds") or 0.0))
+                if wall is not None
+                else None
+            ),
+            "thinking_seconds_est": (
+                max(0.0, wall - float(stats.get("tool_seconds") or 0.0))
+                * rsn
+                / (rsn + out)
+                if wall is not None and (rsn + out) > 0
+                else None
+            ),
             "files_read": stats.get("files_read", 0),
             "files_edited": stats.get("files_edited", 0),
             "token_source": source,
@@ -1240,6 +1389,9 @@ def collect_rows(
     else:
         cpath = Path(cache_path) if cache_path else None
     cache = _StatsCache(cpath)
+    name_overrides = model_names.load_overrides(repo)
+    # display name -> (raw model id, variant), so each row also carries the exact recorded id.
+    ids: dict[str, tuple[str, str]] = {}
     rows: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
     live: set[str] = set()
@@ -1271,11 +1423,15 @@ def collect_rows(
             att_map: Mapping[str, Any] | None, r_role: str
         ) -> tuple[str, str]:
             raw_m, m_src = resolve_attempt_model(att_map, state, role=r_role)
-            norm_m = _normalize_model(raw_m) if raw_m else UNRECORDED
-            if norm_m == UNRECORDED:
+            if not raw_m:
                 # Per host, so an unknown OpenCode model never pools with an unknown Antigravity one.
-                norm_m = "(unrecorded, {0})".format(host)
-            return norm_m, m_src
+                return "(unrecorded, {0})".format(host), m_src
+            variant = _row_variant(att_map, state, r_role, str(raw_m))
+            name = model_names.display_name(
+                str(raw_m), variant, overrides=name_overrides
+            )
+            ids[name] = (str(raw_m), variant)
+            return name, m_src
 
         run_id = str(state.get("run_id") or run_dir.name)
         run_start = _iso_ts(state.get("created_at"))
@@ -1474,6 +1630,9 @@ def collect_rows(
         _attach_session_origin(run_rows)
     cache.save(live)
     for r in rows:
+        raw_id, variant = ids.get(str(r.get("model") or ""), ("", ""))
+        r["model_id"] = raw_id
+        r["model_variant"] = variant
         ts = r.get("start") or r.get("run_start")
         r["date"] = (
             _dt.datetime.fromtimestamp(ts, _dt.timezone.utc).strftime("%Y-%m-%d")
@@ -1514,6 +1673,8 @@ COLUMNS: tuple[str, ...] = (
         "item_end",
         "host",
         "model",
+        "model_id",
+        "model_variant",
         "model_source",
         "agent",
         "phase",
@@ -1538,6 +1699,7 @@ COLUMNS: tuple[str, ...] = (
         "cost",
         "cost_input",
         "cost_output",
+        "cost_reasoning",
         "cost_cache_read",
         "cost_split",
         "input",
@@ -1551,6 +1713,8 @@ COLUMNS: tuple[str, ...] = (
         "tool_calls",
         "tool_errors",
         "tool_seconds",
+        "model_seconds",
+        "thinking_seconds_est",
         "files_read",
         "files_edited",
         "token_source",
@@ -1654,6 +1818,8 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "item_end",
     "host",
     "model",
+    "model_id",
+    "model_variant",
     "model_source",
     "agent",
     "label",
@@ -1671,6 +1837,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "cost",
     "cost_input",
     "cost_output",
+    "cost_reasoning",
     "cost_cache_read",
     "cost_split",
     "input",
@@ -1687,6 +1854,9 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "tool_calls",
     "tool_errors",
     "tool_output_bytes",
+    "tool_seconds",
+    "model_seconds",
+    "thinking_seconds_est",
     "files_read",
     "files_edited",
     "turn_retries",
@@ -1698,7 +1868,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
 )
 ATTEMPT_FACT_MAPS: tuple[str, ...] = ("tools", "tool_bytes", "families", "read_counts")
 ATTEMPT_FACTS_FILENAME = "attempts.jsonl"
-ATTEMPT_FACTS_SCHEMA_VERSION = 1
+ATTEMPT_FACTS_SCHEMA_VERSION = 2
 
 
 def attempt_facts_jsonl(

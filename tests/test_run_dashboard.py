@@ -240,7 +240,8 @@ class SessionStatsTests(unittest.TestCase):
         self.assertEqual(st["format"], "agy")
         self.assertEqual(st["steps"], 1)
         self.assertEqual(st["input"], 200)
-        self.assertEqual(st["output"], 20)
+        # Antigravity's output_tokens (20) already includes thinking (5): visible output is 15.
+        self.assertEqual(st["output"], 15)
         self.assertEqual(st["reasoning"], 5)
         self.assertEqual(st["cache_read"], 50)
         self.assertFalse(st["has_cost"])
@@ -279,7 +280,8 @@ class CollectRowsTests(unittest.TestCase):
             roles, [(1, "main"), (1, "verify"), (2, "gate-answer"), (2, "main")]
         )
         main1 = next(r for r in rows if r["attempt"] == 1 and r["role"] == "main")
-        self.assertEqual(main1["model"], "some-model")
+        self.assertEqual(main1["model"], "Some Model")
+        self.assertEqual(main1["model_id"], "uri/some-model")
         self.assertEqual(main1["host"], "oc")
         self.assertEqual(main1["outcome"], "partial")
         self.assertEqual(main1["token_source"], "log")
@@ -334,8 +336,9 @@ class CollectRowsTests(unittest.TestCase):
         verify_row = next(
             r for r in rows if r["attempt"] == 1 and r["role"] == "verify"
         )
-        self.assertEqual(main_row["model"], "attempt-exec-model")
-        self.assertEqual(verify_row["model"], "attempt-verify-model")
+        self.assertEqual(main_row["model"], "Attempt Exec Model")
+        self.assertEqual(verify_row["model"], "Attempt Verify Model")
+        self.assertEqual(main_row["model_id"], "uri/attempt-exec-model")
         self.assertNotEqual(main_row["model"], verify_row["model"])
 
     def test_stats_cache_reuse_and_invalidation(self) -> None:
@@ -589,9 +592,9 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
         for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
             self.assertEqual(dash.tool_category(name), "subagent")
 
-    def test_dashboard_schema_version_is_8(self) -> None:
-        """E-03 (0yvidi), bumped to 8 for the review-cost session facts (context, tool bytes, families)."""
-        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 8)
+    def test_dashboard_schema_version_is_9(self) -> None:
+        """E-03 (0yvidi), bumped to 9 for per-step cost splitting and the agy thinking correction."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 9)
 
     def test_dashboard_conflict_and_info_only_shapes_e10(self) -> None:
         """E-10 (n8we3u): session_stats counts tools/categories/commands correctly for CONFLICT and INFO-ONLY."""
@@ -691,7 +694,8 @@ class TestUnifiedToolExtractionRouting(unittest.TestCase):
             st_failed = by_state["FAILED"]
             self.assertEqual(st_failed["steps"], 1)
             self.assertEqual(st_failed["input"], 5.0)
-            self.assertEqual(st_failed["output"], 3.0)
+            # output_tokens 3 includes thinking 2, so visible output is 1.
+            self.assertEqual(st_failed["output"], 1.0)
             self.assertEqual(st_failed["reasoning"], 2.0)
             self.assertEqual(st_failed["cache_read"], 1.0)
             self.assertEqual(st_failed, by_state["ERROR"])

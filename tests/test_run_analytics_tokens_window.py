@@ -89,7 +89,15 @@ class SplitCostTests(unittest.TestCase):
         self.assertAlmostEqual(
             sum(v for v in parts.values() if v is not None), 1.2345, places=12
         )
-        self.assertTrue(all(v is not None and v > 0 for v in parts.values()))
+        # No reasoning tokens were given, so that part is zero; every other part is positive.
+        self.assertEqual(parts["cost_reasoning"], 0.0)
+        self.assertTrue(
+            all(
+                v is not None and v > 0
+                for k, v in parts.items()
+                if k != "cost_reasoning"
+            )
+        )
 
     def test_weights_follow_era_rates(self) -> None:
         # Era B: input 5.50, output 27.50, cache 0.55 per Mtok. Equal token counts -> 10 : 50 : 1.
@@ -138,21 +146,60 @@ class RowColumnsTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_rows_carry_agent_and_cost_parts(self) -> None:
+    def test_unpriceable_step_costs_are_not_split(self) -> None:
+        # The shared fixture's step costs (0.1 per step) match no recovered rate set, so the split
+        # is WITHHELD rather than guessed; the recorded total is untouched.
         run = _write_run(self.runs, "run-20260910T000000Z-1")
         _set_created(run, "2026-09-10T00:00:00+00:00")
         rows, _ = dash.collect_rows([run], cache_path=None)
         self.assertTrue(rows)
         for r in rows:
-            self.assertEqual(r["agent"], "oc / some-model")
-            self.assertEqual(r["cost_split"], "apportioned")
-            total = r["cost_input"] + r["cost_output"] + r["cost_cache_read"]
-            self.assertAlmostEqual(total, r["cost"], places=9)
+            self.assertEqual(r["agent"], "oc / Some Model")
+            self.assertEqual(r["cost_split"], "none")
+            self.assertIsNone(r["cost_input"])
+            self.assertIsNotNone(r["cost"])
+
+    def test_priced_steps_split_per_step_including_reasoning(self) -> None:
+        run = _write_run(self.runs, "run-20260910T000000Z-p")
+        _set_created(run, "2026-09-10T00:00:00+00:00")
+        sess = run / "sessions" / "01-abc123-attempt-1.jsonl"
+        tok = {
+            "input": 1000,
+            "output": 200,
+            "reasoning": 100,
+            "cache": {"read": 50000, "write": 0},
+        }
+        # Exactly the Opus 5.5 rates: 4.40 / 22.00 / 0.22, reasoning at the output rate.
+        cost = (1000 * 4.4 + 300 * 22.0 + 50000 * 0.22) / 1e6
+        sess.write_text(
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "timestamp": 1_788_000_000_000,
+                    "part": {"tokens": tok, "cost": cost},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        rows, _ = dash.collect_rows([run], cache_path=None)
+        main = next(r for r in rows if r["attempt"] == 1 and r["role"] == "main")
+        self.assertEqual(main["cost_split"], "per-step")
+        self.assertAlmostEqual(main["cost_input"], 1000 * 4.4 / 1e6, places=12)
+        self.assertAlmostEqual(main["cost_output"], 200 * 22.0 / 1e6, places=12)
+        self.assertAlmostEqual(main["cost_reasoning"], 100 * 22.0 / 1e6, places=12)
+        self.assertAlmostEqual(main["cost_cache_read"], 50000 * 0.22 / 1e6, places=12)
+        parts = sum(
+            main[k]
+            for k in ("cost_input", "cost_output", "cost_reasoning", "cost_cache_read")
+        )
+        self.assertAlmostEqual(parts, main["cost"], places=12)
         payload = dash.build_payload(rows, {"runs": 1})
         for col in (
             "agent",
             "cost_input",
             "cost_output",
+            "cost_reasoning",
             "cost_cache_read",
             "cost_split",
         ):
