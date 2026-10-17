@@ -22,7 +22,7 @@
 - Scope: IN: (1) add `READINESS_ATTESTATION_GATES`, `READINESS_STANDING_WAIVABLE_GATES`, `READINESS_HARD_GATES`, `RECOMMENDATION_GO`, `RECOMMENDATION_CONDITIONAL_GO`, `RECOMMENDATION_NO_GO`, `ReadinessVerification`, and `ReleaseReviewCoordinator.verify_readiness` (entering `STAGE_VERIFY`) plus readiness enforcement in `ReleaseReviewCoordinator.authorize_release` (at `STAGE_RELEASE`) in `agent_workflows/migration_complex.py`, including consumption of the not-applicable gate state `v1re2z` adds; (2) add behavioral and falsifiability tests in `tests/test_release_review_readiness.py` (shown RED against pre-change `migration_complex.py` first); (3) wire `aw releases readiness`, the standing-`NO-GO` rules, and the prominent not-applicable display into `.aw/system/workflows/release-review/08-final-ship-review.md`, `.aw/system/workflows/release-review/09-release-execution.md`, `.aw/system/workflows/release-review/templates/final-response.md`, and `RELEASING.md`. OUT: modifying `agent_workflows/release_readiness.py` (owned by sibling pending plan `w9l8ph`; the not-applicable gate state itself is carried by backlog `v1re2z` and its own plan, a prerequisite of this one), `.aw/system/workflows/conformance/tools/host_matrix.json` (owned by sibling pending plan `8ru81x`), `.github/workflows/tests.yml`, or `.pre-commit-config.yaml`; and any tag, publish, push, or release action (`assert_no_release_action`).
 - Scope-Paths: agent_workflows/migration_complex.py, .aw/system/workflows/release-review/08-final-ship-review.md, .aw/system/workflows/release-review/09-release-execution.md, .aw/system/workflows/release-review/templates/final-response.md, RELEASING.md, tests/test_release_review_readiness.py
 - Item-Dependencies: state:backlog:done:v1re2z
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -32,9 +32,9 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: kmmoca
-- Approval: 2026-10-15, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kmmoca verified (set uypgvi, attempt 1).
 - 2026-10-15 approved (aw set): status set to approved
 - 2026-10-15 same-status (aw set): plan-review round 2: APPROVE WITH REVISIONS APPLIED; consume v1re2z not-applicable state (OQ-03 b), depend state:backlog:done:v1re2z; PR-002, PR-006..PR-008 fixed
 - 2026-10-15 reviewed (/plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us, round 2): APPROVE WITH REVISIONS APPLIED; PR-002 fixed via resolved OQ-03 (maintainer, option (b)); PR-006, PR-007, PR-008 fixed; depends on backlog v1re2z (state:backlog:done:v1re2z)
