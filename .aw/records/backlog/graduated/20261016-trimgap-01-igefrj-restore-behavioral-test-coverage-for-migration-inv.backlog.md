@@ -1,11 +1,13 @@
 - Id: igefrj
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for migration_inventory
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: 94wi2f
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for migration_inventory
 
 Carries 25 candidate production keys for agent_workflows/migration_inventory.py (189 exclusive lines): _harness_ir, HarnessRegistry.catalog_rows, plan_rollup, build_assess_harness, plan_review_parity, ... (25 keys).
