@@ -28,7 +28,7 @@ def _rel_path(full_path: str) -> str:
     """Normalize file path to repo-relative posix path."""
     try:
         return Path(full_path).resolve().relative_to(_REPO_ROOT).as_posix()
-    except Exception:
+    except (ValueError, OSError, RuntimeError):
         return full_path.replace("\\", "/")
 
 
@@ -47,25 +47,37 @@ def extract_coverage_sets(
     ctx_lines: dict[str, set[tuple[str, int]]] = defaultdict(set)
     ctx_arcs: dict[str, set[tuple[str, int, int]]] = defaultdict(set)
 
-    cov_data = coverage.CoverageData(str(cov_path))
-    cov_data.read()
-    has_arcs = cov_data.has_arcs()
-
-    # Fast path: query underlying sqlite database directly
+    # Fast path: query underlying sqlite database directly without reading full CoverageData
     try:
         with sqlite3.connect(str(cov_path)) as conn:
-            if has_arcs:
-                cur = conn.execute(
-                    """
-                    SELECT file.path, context.context, arc.fromno, arc.tono
-                    FROM arc
-                    JOIN context ON arc.context_id = context.id
-                    JOIN file ON arc.file_id = file.id
-                    WHERE context.context != ''
-                    """
+            meta_row = conn.execute(
+                "SELECT value FROM meta WHERE key = 'has_arcs'"
+            ).fetchone()
+            if meta_row and meta_row[0] in ("1", "True", "true", 1):
+                has_arcs = True
+            else:
+                arc_row = conn.execute("SELECT 1 FROM arc LIMIT 1").fetchone()
+                has_arcs = bool(arc_row)
+
+            # Pre-cache file paths and contexts
+            file_map = {
+                row[0]: _rel_path(row[1])
+                for row in conn.execute("SELECT id, path FROM file")
+            }
+            context_map = {
+                row[0]: row[1]
+                for row in conn.execute(
+                    "SELECT id, context FROM context WHERE context != ''"
                 )
-                for full_path, ctx, fromno, tono in cur:
-                    rel = _rel_path(full_path)
+            }
+
+            if has_arcs:
+                cur = conn.execute("SELECT file_id, context_id, fromno, tono FROM arc")
+                for file_id, context_id, fromno, tono in cur:
+                    ctx = context_map.get(context_id)
+                    if not ctx:
+                        continue
+                    rel = file_map.get(file_id, "")
                     ctx_arcs[ctx].add((rel, fromno, tono))
                     if fromno > 0:
                         ctx_lines[ctx].add((rel, fromno))
@@ -74,22 +86,20 @@ def extract_coverage_sets(
             else:
                 from coverage.numbits import numbits_to_nums
 
-                cur = conn.execute(
-                    """
-                    SELECT file.path, context.context, line_bits.numbits
-                    FROM line_bits
-                    JOIN context ON line_bits.context_id = context.id
-                    JOIN file ON line_bits.file_id = file.id
-                    WHERE context.context != ''
-                    """
-                )
-                for full_path, ctx, numbits in cur:
-                    rel = _rel_path(full_path)
+                cur = conn.execute("SELECT file_id, context_id, numbits FROM line_bits")
+                for file_id, context_id, numbits in cur:
+                    ctx = context_map.get(context_id)
+                    if not ctx:
+                        continue
+                    rel = file_map.get(file_id, "")
                     for lineno in numbits_to_nums(numbits):
                         ctx_lines[ctx].add((rel, lineno))
-        return has_arcs, ctx_lines, ctx_arcs
-    except Exception:
+            return has_arcs, ctx_lines, ctx_arcs
+    except (sqlite3.Error, OSError, KeyError):
         # Fallback to CoverageData API
+        cov_data = coverage.CoverageData(str(cov_path))
+        cov_data.read()
+        has_arcs = cov_data.has_arcs()
         for f in cov_data.measured_files():
             rel = _rel_path(f)
             for ctx in cov_data.measured_contexts():
@@ -133,18 +143,24 @@ def analyze_directory(dir_path: Path) -> dict[str, Any]:
             ):
                 collected_nodeids.append(line)
 
-    all_nodeids = sorted(
-        set(collected_nodeids) | set(ctx_lines.keys()) | set(ctx_arcs.keys())
-    )
+    if collected_nodeids:
+        all_nodeids = sorted(set(collected_nodeids))
+    else:
+        all_nodeids = sorted(set(ctx_lines.keys()) | set(ctx_arcs.keys()))
 
+    all_nodeids_set = set(all_nodeids)
     line_to_ctxs: dict[tuple[str, int], list[str]] = defaultdict(list)
     arc_to_ctxs: dict[tuple[str, int, int], list[str]] = defaultdict(list)
 
     for ctx, lines in ctx_lines.items():
+        if ctx not in all_nodeids_set:
+            continue
         for ln in lines:
             line_to_ctxs[ln].append(ctx)
 
     for ctx, arcs in ctx_arcs.items():
+        if ctx not in all_nodeids_set:
+            continue
         for a in arcs:
             arc_to_ctxs[a].append(ctx)
 
@@ -223,11 +239,15 @@ def analyze_directory(dir_path: Path) -> dict[str, Any]:
                 if cand == nodeid or cand in identical_groups.get(nodeid, []):
                     continue
                 cand_lines, cand_arcs = ctx_signature[cand]
-                if len(cand_lines) >= len(lines) and len(cand_arcs) >= len(arcs):
-                    if lines.issubset(cand_lines) and arcs.issubset(cand_arcs):
-                        contained_by.append(cand)
-                        if len(contained_by) >= 10:  # cap per test
-                            break
+                if (
+                    len(cand_lines) >= len(lines)
+                    and len(cand_arcs) >= len(arcs)
+                    and lines.issubset(cand_lines)
+                    and arcs.issubset(cand_arcs)
+                ):
+                    contained_by.append(cand)
+                    if len(contained_by) >= 10:  # cap per test
+                        break
             if contained_by:
                 subset_groups[nodeid] = contained_by
 
@@ -285,7 +305,7 @@ def analyze_directory(dir_path: Path) -> dict[str, Any]:
             num_branches = cov_tot.get("num_branches")
             pct_statements = cov_tot.get("percent_statements_covered")
             pct_branches = cov_tot.get("percent_branches_covered")
-        except Exception:
+        except (OSError, json.JSONDecodeError, KeyError):
             pass
 
     union_lines = len(line_to_ctxs)
@@ -301,7 +321,7 @@ def analyze_directory(dir_path: Path) -> dict[str, Any]:
     if meta_file.is_file():
         try:
             metadata = json.loads(meta_file.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
     metadata["has_arcs"] = has_arcs
 
@@ -334,6 +354,9 @@ def compare_directories(
     Returns:
       (lost_lines, lost_arcs)
     """
+    if current_dir.resolve() == baseline_dir.resolve():
+        return set(), set()
+
     _, base_lines_map, base_arcs_map = extract_coverage_sets(baseline_dir / ".coverage")
     _, curr_lines_map, curr_arcs_map = extract_coverage_sets(current_dir / ".coverage")
 
@@ -361,11 +384,20 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Baseline directory to compare against",
     )
+    parser.add_argument(
+        "--reuse",
+        action="store_true",
+        help="Reuse existing percov.json in target dir if present",
+    )
 
     args = parser.parse_args(argv)
     target_dir = args.dir.resolve()
 
-    data = analyze_directory(target_dir)
+    percov_json = target_dir / "percov.json"
+    if args.reuse and percov_json.is_file():
+        data = json.loads(percov_json.read_text(encoding="utf-8"))
+    else:
+        data = analyze_directory(target_dir)
     totals = data["totals"]
 
     sys.stdout.write("=== Percov Analysis Summary ===\n")

@@ -351,7 +351,9 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
         "-p",
         "no:cov",
     ]
-    res = subprocess.run(cmd, cwd=_REPO_ROOT, env=env, capture_output=True, text=True)
+    res = subprocess.run(
+        cmd, cwd=_REPO_ROOT, env=env, capture_output=True, text=True, check=False
+    )
     assert res.returncode == 0
 
     clean_env = dict(env)
