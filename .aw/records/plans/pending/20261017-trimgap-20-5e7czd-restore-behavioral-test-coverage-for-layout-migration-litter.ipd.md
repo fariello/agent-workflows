@@ -35,20 +35,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 RESTORE RULE for every E-item: create the file from `git show 19313eed^:<path>`; add `import pytest` if absent; add `@pytest.mark.core` to exactly the tests named; add a docstring paragraph naming backlog `q86fxm`, findings `b1mx2w` and revision `19313eed^`; change nothing else. All three files build tmpdir repositories (their `Path(__file__)` uses resolve committed fixtures under `tests/fixtures/awphysical/` or a working directory for a CLI subprocess, which is input data, not source reading), so no test is dropped. If a test fails at execution HEAD, do not mark its E-item performed until it is dispositioned: record it in Findings and either update only that expectation for an intended change (cite the commit `git log -S` finds), or, for a regression, file a `bug` backlog item with `--blocks-release next` (`aw backlog new`, an out-of-scope path justified at finalize with `--scope-reason`) and mark that test `@pytest.mark.xfail(strict=True, reason="<bug id6>")`, then continue. All 71 tests passed at review (`71 passed in 7.69s`).
 
-- [ ] E-01 Restore `tests/test_layout_migration.py` (49 tests, 3.6 to 7.3s summed CPU) with `@pytest.mark.core` on `LeftoverDispositionTests.test_remove_preserves_untracked_ignored_local_lanes` and `StaleToolLitterSweepTests.test_cli_migrate_layout_noninteractive_yes_leaves_litter` (together 0.24 to 0.31s; they reach `is_stale_tool_litter`).
+- [x] E-01 Restore `tests/test_layout_migration.py` (49 tests, 3.6 to 7.3s summed CPU) with `@pytest.mark.core` on `LeftoverDispositionTests.test_remove_preserves_untracked_ignored_local_lanes` and `StaleToolLitterSweepTests.test_cli_migrate_layout_noninteractive_yes_leaves_litter` (together 0.24 to 0.31s; they reach `is_stale_tool_litter`).
   - Depends on: none
   - Expected outcome: every restored test passes on an explicit-path run (49 at review); exactly these 2 tests selected by `-m core`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Restore `tests/test_awmigrename.py` (9 tests, 1.2 to 1.9s) with `@pytest.mark.core` on `FacetResolutionTests.test_records_subtypes_map_to_facets`, `FacetResolutionTests.test_non_records_class_is_excluded` and `FacetResolutionTests.test_apply_facet_transform` (all near 0s; together 0.16s at review). `test_records_subtypes_map_to_facets` is REQUIRED: `test_non_records_class_is_excluded` only asserts `None` returns, so a `_grammar_facet_for` -> `None` mutant passes both of the other two (measured at review: `2 passed`; with the third test added: `1 failed, 2 passed`).
+- [x] E-02 Restore `tests/test_awmigrename.py` (9 tests, 1.2 to 1.9s) with `@pytest.mark.core` on `FacetResolutionTests.test_records_subtypes_map_to_facets`, `FacetResolutionTests.test_non_records_class_is_excluded` and `FacetResolutionTests.test_apply_facet_transform` (all near 0s; together 0.16s at review). `test_records_subtypes_map_to_facets` is REQUIRED: `test_non_records_class_is_excluded` only asserts `None` returns, so a `_grammar_facet_for` -> `None` mutant passes both of the other two (measured at review: `2 passed`; with the third test added: `1 failed, 2 passed`).
   - Depends on: none
   - Expected outcome: every restored test passes (9 at review); exactly these 3 tests selected by `-m core`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Restore `tests/test_storage.py` (13 tests, 1.7 to 2.9s) with `@pytest.mark.core` on `CompanionAttachmentTests.test_e01`, `test_e03` and `test_e05` (together 0.23 to 0.65s; they reach all four storage keys).
+- [x] E-03 Restore `tests/test_storage.py` (13 tests, 1.7 to 2.9s) with `@pytest.mark.core` on `CompanionAttachmentTests.test_e01`, `test_e03` and `test_e05` (together 0.23 to 0.65s; they reach all four storage keys).
   - Depends on: none
   - Expected outcome: every restored test passes (13 at review); exactly these 3 tests selected by `-m core`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -103,20 +103,246 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a diff against `19313eed^` showing only the import, two markers and docstring lines; paste the `-v` run listing every test PASSED (49 at review) and `-m core --collect-only -q` listing the 2 marked tests; paste the failure of the core-marked tests under a scratch `is_stale_tool_litter` return-False mutation (reverted).
   - Observed evidence:
-  - Result: pending
+    - Unified diff against `19313eed^:tests/test_layout_migration.py`:
+      ```diff
+      --- a/tests/test_layout_migration.py
+      +++ b/tests/test_layout_migration.py
+      @@ -1,4 +1,7 @@
+      -"""Unit tests for layout migration, rollback, and conservative uninstall (IPD 20260809-awlayout-09)."""
+      +"""Unit tests for layout migration, rollback, and conservative uninstall (IPD 20260809-awlayout-09).
+      +
+      +Restored for backlog q86fxm from findings b1mx2w and source revision 19313eed^.
+      +"""
 
-- [ ] V-02 validates E-02
+       from __future__ import annotations
+
+      @@ -10,6 +13,8 @@ import tempfile
+       import unittest
+       from pathlib import Path
+
+      +import pytest
+      +
+       from agent_workflows.layout_migration import (
+           MigrationManager,
+       )
+      @@ -810,6 +815,7 @@ class LeftoverDispositionTests(unittest.TestCase):
+               )
+               return tx.get("leftover_disposition", {})
+
+      +    @pytest.mark.core
+           def test_remove_preserves_untracked_ignored_local_lanes(self):
+               """The load-bearing case: `remove` must NOT delete the gitignored local lanes; they
+               survive on disk and are reported in `preserved`, not `removed`."""
+      @@ -1439,6 +1445,7 @@ class StaleToolLitterSweepTests(unittest.TestCase):
+               self.assertFalse(pyc.exists(), "remove MUST sweep litter from disk")
+               self.assertFalse(tools_dir.exists(), "remove MUST prune emptied tools dir")
+
+      +    @pytest.mark.core
+           def test_cli_migrate_layout_noninteractive_yes_leaves_litter(self):
+               """E-03 & V-03: non-interactive migration with --yes leaves litter in place under default defer."""
+               from unittest import mock
+      ```
+    - `-v` run over `tests/test_layout_migration.py`:
+      ```
+      ============================== 49 passed in 4.42s ==============================
+      ```
+    - `-m core --collect-only -q` over `tests/test_layout_migration.py`:
+      ```
+      tests/test_layout_migration.py::StaleToolLitterSweepTests::test_cli_migrate_layout_noninteractive_yes_leaves_litter
+      tests/test_layout_migration.py::LeftoverDispositionTests::test_remove_preserves_untracked_ignored_local_lanes
+
+      NOTE: 47 tests were deselected by -m/-k and did not run (filtered by marker expression: 'core')
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      2/49 tests collected (47 deselected) in 0.35s
+      ```
+    - Failure under scratch `is_stale_tool_litter` return-False mutation (reverted):
+      ```
+      FAILED tests/test_layout_migration.py::StaleToolLitterSweepTests::test_cli_migrate_layout_noninteractive_yes_leaves_litter - AssertionError: False is not true : non-interactive --yes MUST leave tools dir in place
+      ================== 1 failed, 1 passed, 47 deselected in 0.82s ==================
+      ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff against `19313eed^` showing only the `import pytest` line (if added), three markers and docstring lines, the `-v` run listing every test PASSED (9 at review), `-m core --collect-only -q` listing the 3 marked tests, and the failures of those tests under scratch `_grammar_facet_for` return-None and `_apply_grammar_facet` return-input mutations (reverted).
   - Observed evidence:
-  - Result: pending
+    - Unified diff against `19313eed^:tests/test_awmigrename.py`:
+      ```diff
+      --- a/tests/test_awmigrename.py
+      +++ b/tests/test_awmigrename.py
+      @@ -10,6 +10,8 @@ Covers:
+       - integration over a real HOME->REPOSITORY migration of seeded legacy `.agents/` records: with
+         rename ON a plan/spec lands `.type.md` (riding the atomic move + journaled), with rename OFF it
+         lands bare, and comms/research stay bare (E-03/E-04).
+      +
+      +Restored for backlog q86fxm from findings b1mx2w and source revision 19313eed^.
+       """
 
-- [ ] V-03 validates E-03
+       from __future__ import annotations
+      @@ -22,6 +24,8 @@ import tempfile
+       import unittest
+       from pathlib import Path
+
+      +import pytest
+      +
+       from agent_workflows.layout_migration import (
+           MigrationManager,
+           _apply_grammar_facet,
+      @@ -32,6 +36,7 @@ from agent_workflows.project_schema import DeliveryMode, RecordsBackend
+
+
+       class FacetResolutionTests(unittest.TestCase):
+      +    @pytest.mark.core
+           def test_records_subtypes_map_to_facets(self) -> None:
+               self.assertEqual(
+                   _grammar_facet_for("records/plans/pending/a.md", "records"), "ipd"
+      @@ -59,11 +64,13 @@ class FacetResolutionTests(unittest.TestCase):
+               )
+               self.assertIsNone(_grammar_facet_for("records/research/x.md", "records"))
+
+      +    @pytest.mark.core
+           def test_non_records_class_is_excluded(self) -> None:
+               self.assertIsNone(_grammar_facet_for("system/VERSION", "system"))
+               self.assertIsNone(_grammar_facet_for("records/plans/x.md", "doc"))
+               self.assertIsNone(_grammar_facet_for("config/config.json", "config"))
+
+      +    @pytest.mark.core
+           def test_apply_facet_transform(self) -> None:
+               self.assertEqual(
+                   _apply_grammar_facet(Path("/t/20260101-0001-01-a.md"), "ipd").name,
+      ```
+    - `-v` run over `tests/test_awmigrename.py`:
+      ```
+      ============================== 9 passed in 1.55s ===============================
+      ```
+    - `-m core --collect-only -q` over `tests/test_awmigrename.py`:
+      ```
+      tests/test_awmigrename.py::FacetResolutionTests::test_apply_facet_transform
+      tests/test_awmigrename.py::FacetResolutionTests::test_non_records_class_is_excluded
+      tests/test_awmigrename.py::FacetResolutionTests::test_records_subtypes_map_to_facets
+
+      NOTE: 6 tests were deselected by -m/-k and did not run (filtered by marker expression: 'core')
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      3/9 tests collected (6 deselected) in 0.30s
+      ```
+    - Failures under scratch mutations:
+      `_grammar_facet_for` return None:
+      ```
+      FAILED tests/test_awmigrename.py::FacetResolutionTests::test_records_subtypes_map_to_facets - AssertionError: None != 'ipd'
+      ================== 1 failed, 2 passed, 6 deselected in 0.28s ===================
+      ```
+      `_apply_grammar_facet` return input path:
+      ```
+      FAILED tests/test_awmigrename.py::FacetResolutionTests::test_apply_facet_transform - AssertionError: '20260101-0001-01-a.md' != '20260101-0001-01-a.ipd.md'
+      ================== 1 failed, 2 passed, 6 deselected in 0.25s ===================
+      ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diff against `19313eed^` showing only the `import pytest` line (if added), three markers and docstring lines, the `-v` run listing every test PASSED (13 at review), `-m core --collect-only -q` listing the 3 marked tests, the failures of those tests under scratch `move_companion`, `get_git_commit_boundaries`, `load_local_attachment_record` and `reattach_companion` return-None mutations (reverted), the reach output from Required tests, the bare `python3 -m pytest` summary line, and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+    - Unified diff against `19313eed^:tests/test_storage.py`:
+      ```diff
+      --- a/tests/test_storage.py
+      +++ b/tests/test_storage.py
+      @@ -1,4 +1,7 @@
+      -"""Unit tests for AW records storage backends, safety boundaries, and durability reporting (IPD 20260809-awlayout-03)."""
+      +"""Unit tests for AW records storage backends, safety boundaries, and durability reporting (IPD 20260809-awlayout-03).
+      +
+      +Restored for backlog q86fxm from findings b1mx2w and source revision 19313eed^.
+      +"""
+
+       from __future__ import annotations
+
+      @@ -11,6 +14,8 @@ import unittest
+       from pathlib import Path
+       from unittest.mock import patch
+
+      +import pytest
+      +
+       from agent_workflows.project_registry import (
+           register_or_update_project,
+       )
+      @@ -269,6 +274,7 @@ class CompanionAttachmentTests(unittest.TestCase):
+                   os.environ["AW_HOME"] = self._prev_aw_home
+               shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+      +    @pytest.mark.core
+           def test_e01(self):
+               """E-01: Portable companion identity and machine-local attachment record."""
+               from agent_workflows.storage import (
+      @@ -348,6 +354,7 @@ class CompanionAttachmentTests(unittest.TestCase):
+               self.assertTrue(report["valid"])
+               self.assertEqual(report["target_repo"], self.target_repo.resolve().as_posix())
+
+      +    @pytest.mark.core
+           def test_e03(self):
+               """E-03: Materialize private companion storage bundle and Git boundary separation."""
+               from agent_workflows.storage import (
+      @@ -453,6 +460,7 @@ class CompanionAttachmentTests(unittest.TestCase):
+               )
+               self.assertFalse(st5.remote_acknowledged)
+
+      +    @pytest.mark.core
+           def test_e05(self):
+               """E-05: Attachment lifecycle operations (attach, detach, move, reattach, status)."""
+               from agent_workflows.storage import (
+      ```
+    - `-v` run over `tests/test_storage.py`:
+      ```
+      ============================== 13 passed in 2.77s ==============================
+      ```
+    - `-m core --collect-only -q` over `tests/test_storage.py`:
+      ```
+      tests/test_storage.py::CompanionAttachmentTests::test_e03
+      tests/test_storage.py::CompanionAttachmentTests::test_e05
+      tests/test_storage.py::CompanionAttachmentTests::test_e01
+
+      NOTE: 10 tests were deselected by -m/-k and did not run (filtered by marker expression: 'core')
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      3/13 tests collected (10 deselected) in 0.31s
+      ```
+    - Failures under scratch mutations:
+      `load_local_attachment_record` return None:
+      ```
+      FAILED tests/test_storage.py::CompanionAttachmentTests::test_e01 - AssertionError: unexpectedly None
+      ================== 1 failed, 2 passed, 10 deselected in 0.40s ==================
+      ```
+      `get_git_commit_boundaries` return None:
+      ```
+      FAILED tests/test_storage.py::CompanionAttachmentTests::test_e03 - TypeError: 'NoneType' object is not subscriptable
+      ================== 1 failed, 2 passed, 10 deselected in 0.81s ==================
+      ```
+      `move_companion` return None:
+      ```
+      FAILED tests/test_storage.py::CompanionAttachmentTests::test_e05 - TypeError: 'NoneType' object is not subscriptable
+      ================== 1 failed, 2 passed, 10 deselected in 0.42s ==================
+      ```
+      `reattach_companion` return None:
+      ```
+      FAILED tests/test_storage.py::CompanionAttachmentTests::test_e05 - TypeError: 'NoneType' object is not subscriptable
+      ================== 1 failed, 2 passed, 10 deselected in 0.41s ==================
+      ```
+    - Reach output from Required tests (`-m core --cov=agent_workflows.layout_migration --cov=agent_workflows.storage --cov-report=term-missing`):
+      ```
+      Name                                  Stmts   Miss  Cover   Missing
+      -------------------------------------------------------------------
+      agent_workflows/layout_migration.py     722    344    52%   98, 157, 160, 231, 236, 251-264, 266-269, 315-321, 338-339, 342-343, 372, 388-395, 412-414, 419-423, 431, 455-471, 482-494, 499-504, 538, 545-551, 605, 610, 615-640, 649-677, 700-701, 712-714, 722-736, 755-756, 771-776, 817, 822, 826, 831-840, 844-845, 911-912, 931-932, 937-938, 940-941, 945-948, 966, 983-987, 996, 1001, 1013-1031, 1039-1044, 1070-1073, 1100-1103, 1108, 1133-1137, 1194-1197, 1217-1232, 1246-1308, 1314-1388, 1405-1482, 1488-1513
+      agent_workflows/storage.py              307     94    69%   90, 94-95, 103, 113, 121-125, 139-150, 172, 179-184, 195-196, 198-203, 208-209, 211-212, 214-215, 217-218, 220-221, 249-270, 280-307, 328-329, 365, 369-370, 412-417, 436, 443, 451, 459, 481-482, 489-508, 521-526, 529, 576-578, 667
+      -------------------------------------------------------------------
+      TOTAL                                  1029    438    57%
+      ======================= 8 passed, 63 deselected in 2.43s =======================
+      ```
+    - Bare test suite summary line:
+      `818 passed in 27.91s` (`aw suite`, exit 0); `818 passed in 46.69s` (`python3 -m pytest`).
+    - Final empty diff in production code:
+      `git diff agent_workflows/` is empty.
+  - Result: pass
 
 ## Approval and execution gate
 
