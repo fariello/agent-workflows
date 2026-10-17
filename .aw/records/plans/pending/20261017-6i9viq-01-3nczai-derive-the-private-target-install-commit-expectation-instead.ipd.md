@@ -35,17 +35,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Replace the pinned count with derived assertions
 
-- [ ] E-01 Confirm that `test_case_l_tracked_install_still_writes_target` as landed by commit 84cba788c carries the specified derived assertions and no literal count: (a) `git show --name-only --format= HEAD` gives the set of paths the install commit touched; (b) `git ls-files` in the target, minus the pre-existing `README.md`, gives the set of tracked installed paths; (a) is asserted equal to (b); (c) that set is asserted non-empty and to contain `AGENTS.md` and `.aw/.gitignore`; (d) `git status --porcelain` in the target is asserted empty; every earlier assertion of the method (`returncode == 0`, HEAD moved, `AGENTS.md`/`.aw/.gitignore`/backups exist, the `Git: changes staged; commit offered below` line) is still present. If the method at execution time diverges from (a)-(d), edit it to match and say so in V-01; otherwise make no edit to the test file.
+- [x] E-01 Confirm that `test_case_l_tracked_install_still_writes_target` as landed by commit 84cba788c carries the specified derived assertions and no literal count: (a) `git show --name-only --format= HEAD` gives the set of paths the install commit touched; (b) `git ls-files` in the target, minus the pre-existing `README.md`, gives the set of tracked installed paths; (a) is asserted equal to (b); (c) that set is asserted non-empty and to contain `AGENTS.md` and `.aw/.gitignore`; (d) `git status --porcelain` in the target is asserted empty; every earlier assertion of the method (`returncode == 0`, HEAD moved, `AGENTS.md`/`.aw/.gitignore`/backups exist, the `Git: changes staged; commit offered below` line) is still present. If the method at execution time diverges from (a)-(d), edit it to match and say so in V-01; otherwise make no edit to the test file.
   - Depends on: none
   - Expected outcome: the method contains no hard-coded file count and its assertions are all computed from the target repository's git state after the install; whether an edit was needed is stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Prove the test still detects a broken commit
 
-- [ ] E-02 Run the test and the full module, then demonstrate the derived assertions are not vacuous with two temporary, uncommitted edits to the method, each inserted immediately after the `assertIn("Git: changes staged; commit offered below", ...)` line and reverted before the next: (1) a partial commit, `subprocess.run(["git", "rm", "--cached", "-q", "AGENTS.md"], cwd=str(target), check=True)` followed by `subprocess.run(["git", "commit", "-qm", "drop"], cwd=str(target), check=True)`, which must fail the set-equality assertion; (2) a stray file, `(target / "stray.txt").write_text("x", encoding="utf-8")`, which leaves the commit and tracked sets equal and must fail ONLY the clean-status assertion. Restore the file with `git checkout -- tests/test_clean_target_config_home.py` after each run.
+- [x] E-02 Run the test and the full module, then demonstrate the derived assertions are not vacuous with two temporary, uncommitted edits to the method, each inserted immediately after the `assertIn("Git: changes staged; commit offered below", ...)` line and reverted before the next: (1) a partial commit, `subprocess.run(["git", "rm", "--cached", "-q", "AGENTS.md"], cwd=str(target), check=True)` followed by `subprocess.run(["git", "commit", "-qm", "drop"], cwd=str(target), check=True)`, which must fail the set-equality assertion; (2) a stray file, `(target / "stray.txt").write_text("x", encoding="utf-8")`, which leaves the commit and tracked sets equal and must fail ONLY the clean-status assertion. Restore the file with `git checkout -- tests/test_clean_target_config_home.py` after each run.
   - Depends on: E-01
   - Expected outcome: the real test passes; each broken variant fails with an `AssertionError` from the expected assertion; `git status --short tests/test_clean_target_config_home.py` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -101,15 +101,154 @@ None. The remedy follows from AGENTS.md's outcome-testing rule and the test's ow
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git show 84cba788c -- tests/test_clean_target_config_home.py` (the landed change removing the literal and adding the path-set and clean-status assertions) and `git diff -- tests/test_clean_target_config_home.py` (empty unless E-01 found a divergence, in which case paste the corrective hunk and say why); paste `grep -n "files changed" tests/test_clean_target_config_home.py` returning no match; paste the actual output of `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k test_case_l` showing `1 passed`.
   - Observed evidence:
-  - Result: pending
+```
+$ git show 84cba788c -- tests/test_clean_target_config_home.py
+commit 84cba788cd58ece72756a63042700308ffeab6e5
+Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+Date:   Sat Oct 17 13:24:09 2026 -0400
 
-- [ ] V-02 validates E-02
+    fix(ci): derive test_case_l expectation and declare Carrier-Declined in pending plans
+
+    AW-Runner: aw commit
+
+diff --git a/tests/test_clean_target_config_home.py b/tests/test_clean_target_config_home.py
+index e48dfa529..1d24cb606 100644
+--- a/tests/test_clean_target_config_home.py
++++ b/tests/test_clean_target_config_home.py
+@@ -563,15 +563,36 @@ class TestCleanTargetConfigHome(unittest.TestCase):
+         self.assertTrue((target / ".agent-workflows-installer-backups").is_dir())
+
+         self.assertIn("Git: changes staged; commit offered below", res.stdout)
+-        stat = subprocess.run(
+-            ["git", "show", "--stat", "--format=", "HEAD"],
++        commit_paths = set(
++            subprocess.run(
++                ["git", "show", "--name-only", "--format=", "HEAD"],
++                cwd=str(target),
++                capture_output=True,
++                text=True,
++                check=True,
++            ).stdout.splitlines()
++        )
++        tracked_paths = set(
++            subprocess.run(
++                ["git", "ls-files"],
++                cwd=str(target),
++                capture_output=True,
++                text=True,
++                check=True,
++            ).stdout.splitlines()
++        ) - {"README.md"}
++        self.assertEqual(commit_paths, tracked_paths)
++        self.assertTrue(len(commit_paths) > 0)
++        self.assertIn("AGENTS.md", commit_paths)
++        self.assertIn(".aw/.gitignore", commit_paths)
++        status = subprocess.run(
++            ["git", "status", "--porcelain"],
+             cwd=str(target),
+             capture_output=True,
+             text=True,
+             check=True,
+         ).stdout.strip()
+-        tail = stat.splitlines()[-1] if stat.splitlines() else ""
+-        self.assertIn("358 files changed", tail)
++        self.assertEqual(status, "")
+
+     def test_case_m_clean_target_reinstall_and_rollback(self) -> None:
+         """Case (m): clean-delta reinstall is a no-op on target, and rollback removes home files leaving target empty."""
+
+$ git diff -- tests/test_clean_target_config_home.py
+diff --git a/tests/test_clean_target_config_home.py b/tests/test_clean_target_config_home.py
+index 77eb31796..3ac65d5fd 100644
+--- a/tests/test_clean_target_config_home.py
++++ b/tests/test_clean_target_config_home.py
+@@ -511,7 +511,6 @@ class TestCleanTargetConfigHome(unittest.TestCase):
+                 "Expected .created-files.json in home runtime backups",
+             )
+
+-    @pytest.mark.xfail(strict=False, reason="bug: 96lj37 - hardcodes file count")
+     def test_case_l_tracked_install_still_writes_target(self) -> None:
+         """Case (l): tracked private-target install still writes target, commits under -y, and matches baseline."""
+         target = self.base / "repo_l"
+
+Divergence rationale: commit 24e4c39cc merged lane vgus66 into main, which had added @pytest.mark.xfail(strict=False, reason="bug: 96lj37 - hardcodes file count") to quarantine the hardcoded file count failure. Because 84cba788c had already fixed the failure on main by deriving the path-set assertions, the xfail decorator was stale, turning what should be 1 passed into 1 xpassed and masking failure on mutations. Removing the stale xfail un-quarantines the test so it runs and asserts actively.
+
+$ grep -n "files changed" tests/test_clean_target_config_home.py
+(returned no match, exit code 1)
+
+$ python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py -k test_case_l
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=2769639453
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3nczai
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 23 items / 22 deselected / 1 selected
+
+tests/test_clean_target_config_home.py .                                 [100%]
+
+NOTE: 22 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+============================== SLOW TESTS REPORT ===============================
+0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+======================= 1 passed, 22 deselected in 3.93s =======================
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for EACH of the two broken variants in E-02, paste the actual `AssertionError` lines showing which assertion failed (set equality for the partial commit; the `git status --porcelain` equality for the stray file); paste `git status --short tests/test_clean_target_config_home.py` empty after reverting; paste the actual output of `python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py` with the `N passed` summary and zero failures; paste the `N passed` summary line of a bare `python3 -m pytest`; paste `git diff --cached --name-only` at commit time listing only this plan file (plus `tests/test_clean_target_config_home.py` only if E-01 required an edit).
   - Observed evidence:
-  - Result: pending
+```
+Variant 1 (partial commit: git rm --cached -q AGENTS.md && git commit -qm drop):
+>       self.assertEqual(commit_paths, tracked_paths)
+E       AssertionError: Items in the first set but not the second:
+E       'AGENTS.md'
+E       Items in the second set but not the first:
+E       ...
+FAILED tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_l_tracked_install_still_writes_target
+
+Variant 2 (stray untracked file: (target / "stray.txt").write_text("x", encoding="utf-8")):
+>       self.assertEqual(status, "")
+E       AssertionError: '?? stray.txt' != ''
+E       - ?? stray.txt
+
+tests/test_clean_target_config_home.py:598: AssertionError
+FAILED tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_l_tracked_install_still_writes_target
+
+Reverted mutations check (both E-02 temporary mutations removed; only E-01 corrective edit remains):
+$ git status --short tests/test_clean_target_config_home.py
+ M tests/test_clean_target_config_home.py
+
+Full module test:
+$ python3 -m pytest -o addopts="" tests/test_clean_target_config_home.py
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=2015223151
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/3nczai
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 23 items
+
+tests/test_clean_target_config_home.py .......................           [100%]
+============================== SLOW TESTS REPORT ===============================
+
+WARNING: 2 test(s) exceeded 2s and are not listed in tests/slow_allowlist.txt:
+    3.15s  tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_s_uninstall_refuses_live_driver
+    2.09s  tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_q_uninstall_tears_down_idle_lane
+============================= 23 passed in 52.34s ==============================
+
+Bare pytest N passed summary line:
+775 passed in 78.87s (0:01:18)
+and via aw suite (bounded workers, passing within core tier budget):
+775 passed in 28.55s
+
+git diff --cached --name-only at commit time:
+.aw/records/plans/pending/20261017-6i9viq-01-3nczai-derive-the-private-target-install-commit-expectation-instead.ipd.md
+tests/test_clean_target_config_home.py
+```
+  - Result: pass
 
 ## Approval and execution gate
 
