@@ -40066,6 +40066,45 @@ def execute_item_core(
                 item[NEEDS_INPUT_KEY] = True
                 attempt[NEEDS_INPUT_KEY] = True
 
+                from agent_workflows import question_inbox
+
+                # qchan-03 (mtmqlm) E-03: write per-run question inbox files for gating questions
+                written_qids: list[str] = []
+                for gq in gating_questions:
+                    try:
+                        q_path = question_inbox.write_question(
+                            run_dir=run_dir,
+                            item=item,
+                            question=gq,
+                            attempt=attempt_no,
+                            repo=repo,
+                        )
+                        written_qids.append(q_path.stem)
+                    except Exception as q_err:
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "question-write-failed",
+                                "id6": item.get("id6"),
+                                "question_id": gq.get("question_id"),
+                                "error": str(q_err),
+                            },
+                        )
+                item["question_ids"] = written_qids
+                attempt["question_ids"] = written_qids
+                try:
+                    question_inbox.write_projection(run_dir)
+                except Exception as proj_err:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "projection-write-failed",
+                            "error": str(proj_err),
+                        },
+                    )
+
                 if wt_handle is not None:
                     lane_containment.record_lane_preserved(
                         run_dir=run_dir,
@@ -41732,6 +41771,45 @@ def execute_item_core(
                 attempt[NEEDS_INPUT_KEY] = True
                 item["questions"] = list(q_v_review.get("questions", []))
                 attempt["questions"] = list(q_v_review.get("questions", []))
+
+                from agent_workflows import question_inbox
+
+                # qchan-03 (mtmqlm) E-03: write per-run question inbox files for gating questions
+                written_qids: list[str] = []
+                for gq in review_gating_questions:
+                    try:
+                        q_path = question_inbox.write_question(
+                            run_dir=run_dir,
+                            item=item,
+                            question=gq,
+                            attempt=attempt_no,
+                            repo=repo,
+                        )
+                        written_qids.append(q_path.stem)
+                    except Exception as q_err:
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "question-write-failed",
+                                "id6": item.get("id6"),
+                                "question_id": gq.get("question_id"),
+                                "error": str(q_err),
+                            },
+                        )
+                item["question_ids"] = written_qids
+                attempt["question_ids"] = written_qids
+                try:
+                    question_inbox.write_projection(run_dir)
+                except Exception as proj_err:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "projection-write-failed",
+                            "error": str(proj_err),
+                        },
+                    )
 
                 update_awaiting_upstream(state)
                 save_state(run_dir, state)
