@@ -1,11 +1,13 @@
 - Id: gjmiuw
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_analytics_submit
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053813Z-512749: d2vfp2
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_submit
 
 Carries 14 candidate production keys for agent_workflows/run_analytics_submit.py (311 exclusive lines): open_url, _redact_url, _refusal_result, url_policy_refusal, attestation_refusal, ... (14 keys).
