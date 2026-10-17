@@ -2401,7 +2401,7 @@ Census of tests exceeding 2.0s call duration in warm full suite runs (total: 610
 |---|---|---|
 | `tests/test_agent_record_guard.py::HonestyBoundSubprocessTests::test_attention_agent_with_home_path_refuses` | 7.15s | Subprocess CLI execution and isolated worktree integration boundary |
 | `tests/test_agent_record_guard.py::HonestyBoundSubprocessTests::test_attention_json_with_home_path_refuses` | 7.22s | Subprocess CLI execution and isolated worktree integration boundary |
-| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance[releases` | 2.04s | Integration boundary validation under multi-process environment |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance[releases readiness]` | 2.04s | Integration boundary validation under multi-process environment |
 | `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[suite]` | 2.57s | Integration boundary validation under multi-process environment |
 | `tests/test_agent_user_config_containment.py::test_incident_end_to_end_per_host` | 3.31s | Integration boundary validation under multi-process environment |
 | `tests/test_agents_block_target_neutral.py::AgentsBlockTargetNeutralTests::test_fresh_install_doctor_zero_dangling_doc_references` | 7.73s | Full repo install/uninstall filesystem fixture tree lifecycle |
@@ -2997,7 +2997,7 @@ Census of tests exceeding 2.0s call duration in warm full suite runs (total: 610
 | `tests/test_typed_queue_entries.py::TestSelectionAndEntryShape::test_sweep_selectors_type_scoping` | 2.35s | Integration boundary validation under multi-process environment |
 | `tests/test_uncollected_test_modules.py::UncollectedTestModulesGuardTests::test_no_uncollected_test_modules` | 5.17s | Integration boundary validation under multi-process environment |
 | `tests/test_uninstall_layout_artifacts.py::RealInstallIntegrationTests::test_real_install_uninstall_deep_cleanup_removes_aw_directory` | 5.25s | Full repo install/uninstall filesystem fixture tree lifecycle |
-| `tests/test_usage_refusal_agent_record.py::test_e04_missing_required_handler_leaves[leaf_tokens0-backlog` | 9.43s | Integration boundary validation under multi-process environment |
+| `tests/test_usage_refusal_agent_record.py::test_e04_missing_required_handler_leaves[leaf_tokens0-backlog new]` | 9.43s | Integration boundary validation under multi-process environment |
 | `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference` | 31.94s | Integration boundary validation under multi-process environment |
 | `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_correction_required_remands_and_blocked_fails` | 4.34s | Multi-process concurrency contention and lock coordination |
 | `tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_stale_verdict_clearing` | 2.12s | Integration boundary validation under multi-process environment |
