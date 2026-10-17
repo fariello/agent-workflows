@@ -1319,6 +1319,13 @@ def _run_init(args: argparse.Namespace) -> int:
             "run_id": run_id,
             "ledger": rel_ledger,
         }
+        # Honor the shared --fields projection (gm9saf / tgfxin E-01), normalizing a
+        # comma-separated string the same way cli._emit_config_agent_record does.
+        fields = getattr(args, "fields", None)
+        if fields:
+            if isinstance(fields, str):
+                fields = [f.strip() for f in fields.split(",") if f.strip()]
+            rec = agent_schema.filter_record_fields(rec, fields)
         sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
         return EXIT_OK
     elif getattr(args, "json", False) or getattr(args, "as_json", False):

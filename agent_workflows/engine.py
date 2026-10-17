@@ -356,6 +356,35 @@ def _member_source_path(source_root: Path, source_relative: str) -> Path:
     return source_root / source_relative
 
 
+# The patterns `release_readiness.gate_artifact_manifest` READS the index.md stamps with. The
+# installer matches with the same whitespace tolerance, so every stamp the gate can read is one
+# the installer rewrites; it writes the canonical forms `make version-file` writes.
+_INDEX_COMMENT_STAMP_RE = re.compile(r"<!--\s*WORKFLOWS-VERSION:\s*[^\s>]+\s*-->")
+_INDEX_VERSION_LINE_RE = re.compile(r"(?m)^Version:\s*`[^`]+`")
+
+
+def _stamp_index_version(data: bytes, resolved: str) -> bytes:
+    """Rewrite the first comment stamp and first `Version:` line of `index.md` to `resolved`.
+
+    Returns the original bytes unchanged when neither stamp is present, when the file is not
+    UTF-8, or when the resolver answered `unknown` (never stamp `unknown` over a real version).
+    """
+
+    if not resolved or resolved == "unknown":
+        return data
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+    new = _INDEX_COMMENT_STAMP_RE.sub(
+        lambda _m: f"<!-- WORKFLOWS-VERSION: {resolved} -->", text, count=1
+    )
+    new = _INDEX_VERSION_LINE_RE.sub(lambda _m: f"Version: `{resolved}`", new, count=1)
+    if new == text:
+        return data
+    return new.encode("utf-8")
+
+
 def _member_source_bytes(
     source_root: Path, source_relative: str, source_path: Path
 ) -> bytes:
@@ -378,9 +407,19 @@ def _member_source_bytes(
 
     The source file's trailing-newline shape is mirrored so a re-install of an already-current
     target is not reported as a spurious modification.
+
+    `index.md` is the SECOND derived member (IPD e9l2e0). It carries two stamps of the same
+    value as VERSION, `<!-- WORKFLOWS-VERSION: ... -->` and the `Version: \\`...\\`` line, which
+    `make version-file` rewrites in lockstep with VERSION. Copying it verbatim left the installed
+    stamps at the last baked value while VERSION held the resolved one, so
+    `release_readiness.gate_artifact_manifest` reported a false "version stamp mismatch" in every
+    repo installed from a dev checkout, and `/list-workflows` read a version that misdescribed the
+    install. So both stamps are rewritten to the same resolved value; every other byte is kept.
     """
 
     data = source_path.read_bytes()
+    if source_relative == "index.md":
+        return _stamp_index_version(data, read_version(source_root))
     if source_relative != VERSION_FILE:
         return data
     resolved = read_version(source_root)
