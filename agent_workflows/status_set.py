@@ -1292,14 +1292,39 @@ def _prepare_status_change(
             try:
                 from agent_workflows.plan_readiness import review_staleness_index
 
+                from agent_workflows import project_context
+
+                owner = project_context.record_owner_root(rec.path)
+                is_companion = False
+                if owner is not None:
+                    try:
+                        ctx = project_context.resolve_project_context(
+                            target_repo=str(owner)
+                        )
+                        is_companion = (
+                            ctx.records_backend
+                            == project_context.RecordsBackend.COMPANION.value
+                        )
+                    except Exception:
+                        pass
+
                 effective_root = (
                     repo_root if repo_root is not None else _repo_root_of(rec.path)
                 )
-                stale_map = review_staleness_index(effective_root, [rec.path])
+
+                if is_companion:
+                    git_root = project_context.record_git_root(rec.path)
+                    staleness_root = (
+                        git_root if git_root is not None else effective_root
+                    )
+                else:
+                    staleness_root = effective_root
+
+                stale_map = review_staleness_index(staleness_root, [rec.path])
                 try:
                     rel_posix = (
                         rec.path.resolve()
-                        .relative_to(effective_root.resolve())
+                        .relative_to(staleness_root.resolve())
                         .as_posix()
                     )
                 except ValueError:
@@ -1817,14 +1842,31 @@ def apply_status_change(
 
     moving = dest_path.resolve() != rec.path.resolve()
     if moving and rec.path.exists():
+        from agent_workflows import project_context
+
+        git_target_root = repo_root
+        owner = project_context.record_owner_root(rec.path)
+        if owner is not None:
+            try:
+                ctx = project_context.resolve_project_context(target_repo=str(owner))
+                if (
+                    ctx.records_backend
+                    == project_context.RecordsBackend.COMPANION.value
+                ):
+                    gr = project_context.record_git_root(rec.path)
+                    if gr is not None:
+                        git_target_root = gr
+            except Exception:
+                pass
+
         try:
-            rel_src = str(rec.path.relative_to(repo_root))
-            rel_dst = str(dest_path.relative_to(repo_root))
+            rel_src = str(rec.path.relative_to(git_target_root))
+            rel_dst = str(dest_path.relative_to(git_target_root))
         except ValueError:
             rel_src = str(rec.path)
             rel_dst = str(dest_path)
         _core.git_mv(
-            repo_root,
+            git_target_root,
             rel_src,
             rel_dst,
         )
@@ -2279,12 +2321,30 @@ def _offer_self_commit(
 
     paths = list(touched_paths)
     label = scoped_type_canonical or "records"
+    commit_root = repo_root
+    if paths:
+        from agent_workflows import project_context
+
+        owner = project_context.record_owner_root(paths[0])
+        if owner is not None:
+            try:
+                ctx = project_context.resolve_project_context(target_repo=str(owner))
+                if (
+                    ctx.records_backend
+                    == project_context.RecordsBackend.COMPANION.value
+                ):
+                    gr = project_context.record_git_root(paths[0])
+                    if gr is not None:
+                        commit_root = gr
+            except Exception:
+                pass
+
     # The touched paths are passed to git_commit_helper.offer_commit already staged by
     # artifact_core.git_mv; offer_commit drops a staged rename's source from its git add set
     # via _in_index and stages the rest itself, so no pre-reset is needed, and a pre-reset would
     # unstage the rename whenever the commit is skipped (backlog r73v9i).
     outcome = _gch.offer_commit(
-        repo_root,
+        commit_root,
         paths,
         message=f"chore({label}): set status {target_status}",
         assume_yes=bool(

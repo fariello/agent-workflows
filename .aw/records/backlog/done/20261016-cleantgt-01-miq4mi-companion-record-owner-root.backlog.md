@@ -1,5 +1,5 @@
 - Id: miq4mi
-- Status: graduated
+- Status: done
 - Graduated-To: cleantgt
 - Set: cleantgt
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: record-file-to-root walkers for records under a companion records backend
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD diya77 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-cleantgt-09-diya77-map-record-files-under-a-companion-records-root-to-their-own.ipd.md); evidence .aw/records/plans/executed/20261016-cleantgt-09-diya77-map-record-files-under-a-companion-records-root-to-their-own.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T212843Z-3382020: diya77
 - 2026-10-16 created (aw backlog): record-file-to-root walkers for records under a companion records backend
 

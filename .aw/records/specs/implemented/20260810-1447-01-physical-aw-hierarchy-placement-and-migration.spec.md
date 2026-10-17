@@ -59,6 +59,8 @@ AMENDED 2026-10-15 (cleantgt, maintainer decisions 2026-10-15): for `clean-delta
 
 AMENDED 2026-10-16 (cleantgt ki6t17, backlog 4uw2a6): a record path under `AW_HOME/projects/<project-id>/records/` maps to its owning repository by `project_context.record_owner_root`, candidates are cwd, the home `config/local.json` `common_dir`, and `registry.json` `target_paths`, every candidate is accepted only when the records-root accessor maps it back to the same records root, and install writes `common_dir` into the HOME `local.json` only.
 
+AMENDED 2026-10-17 (cleantgt diya77, backlog miq4mi): a record path under a companion records root maps to its owning repository through the same `project_context.record_owner_root`; candidates are cwd, the default sibling `<repo>.aw` convention, and `registry.json` `target_paths`; every candidate is accepted only when the records-root accessor maps it to a companion records root containing the path; git operations on a companion record (review staleness, moves, commits) run in the companion repository that holds it; nothing is written into the companion or the target; a custom companion directory resolves from an unrelated cwd only once the project is attached.
+
 The resolver returns each physical class separately: `system`, `config_project`, `config_local`, `state_durable`, `state_runtime`, and `records`. The four short root names remain human-facing group names only; they are not permission to collapse the six physical classes.
 
 ### 4.1 Exact ownership and filenames
