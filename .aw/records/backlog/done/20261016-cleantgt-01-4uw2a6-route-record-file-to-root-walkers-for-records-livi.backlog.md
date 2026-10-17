@@ -1,5 +1,5 @@
 - Id: 4uw2a6
-- Status: graduated
+- Status: done
 - Graduated-To: cleantgt
 - Blocks-Release: next
 - Set: cleantgt
@@ -8,6 +8,7 @@
 - Summary: route record-file-to-root walkers for records living under AW_HOME
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD ki6t17 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-cleantgt-08-ki6t17-reverse-map-record-files-under-aw-home-to-their-owning-repos.ipd.md); evidence .aw/records/plans/executed/20261016-cleantgt-08-ki6t17-reverse-map-record-files-under-aw-home-to-their-owning-repos.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: ki6t17
 - 2026-10-16 created (aw backlog): route record-file-to-root walkers for records living under AW_HOME
 
