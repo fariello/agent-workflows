@@ -2262,3 +2262,21 @@ Zero outcome differences found between `run_cli` and `run_cli_inproc` across all
 | `tests/test_installed_version_reporting.py` | Packaging / Wheel | Builds wheel and runs installed console script in virtualenv |
 | `tests/test_core_smoke.py` | Core Smoke | hguae9 core smoke boundary test running external CLI |
 
+## c8bfp9 E-05 host-binary and network probe census
+
+### Host-Binary Spawn Census and Dispositions
+
+| Binary / Command | Calling Module / Function | Disposition | Reason / Measurement |
+|---|---|---|---|
+| `git init`, `git config`, `git add`, `git commit` | `tests/test_doctor.py`, `tests/test_checkup.py` test setup | Kept | Fast (< 5ms per call); required for repository state and commit history under test. |
+| `git rev-parse`, `git rev-list` | `doctor._check_editable_install_staleness` | Kept (reverted probe mock) | Measured with mock: 2.19s vs 2.21s unmocked (< 0.02s delta, within noise). Per plan rule, mock that does not reduce duration is reverted. |
+| `gh workflow run`, `gh api` | `agent_workflows.checkup` | Mocked | Already mocked via `checkup._gh_api` and `checkup._gh_run_list` seams across all tests; 0 live network calls verified by `test_attention_and_doctor_read_record_zero_gh_calls`. |
+| `opencode`, `agy` | Host capabilities / runner probes | Kept / Mocked | Unit tests use `host_capability_registry` mocks; live integration tests keep subprocess where host capability is under test. |
+
+### Module Durations (test_doctor.py and test_checkup.py)
+
+- `tests/test_doctor.py`: 37 passed in 2.21s (unmocked) vs 2.19s (mocked); top test 0.48s.
+- `tests/test_checkup.py`: 17 passed in 1.25s; top test 0.47s (`test_concurrency_lock_busy`).
+- F-9 confirmed: `doctor` slowness on the live repository checkout was driven entirely by records tree traversal (resolved by E-02 seeded fixture project), not host-binary or network probes.
+
+
