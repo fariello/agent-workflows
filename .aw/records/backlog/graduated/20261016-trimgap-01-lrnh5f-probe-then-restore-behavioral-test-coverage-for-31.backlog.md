@@ -1,11 +1,13 @@
 - Id: lrnh5f
-- Status: open
+- Status: graduated
+- Graduated-To: trimprobe
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Probe then restore behavioral test coverage for 319 budget-exhausted rollup keys
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: b83dpg, f4pbs5, g00ljy, lictgf, pr6lo9, roi8f1
 - 2026-10-17 created (aw backlog): Probe then restore behavioral test coverage for 319 budget-exhausted rollup keys
 
 Carries 319 candidate production keys across 54 modules left with final verdict budget-exhausted after cumulative mutation probe wall time reached the 10,800s cap in Set trimcarry (Order 05 rf1xxr).
