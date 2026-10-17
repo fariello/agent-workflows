@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: park on a question
 
-- [ ] E-02 In `execute_item_core`, after the outcome is read and BEFORE the proposal branch, when `validate_questions` (Order 01) returns at least one valid entry: set the item to `awaiting-human`, store the validated questions on the item and attempt (`item["questions"]`), set `needs_input`, record the lane as preserved (`lane_containment.record_lane_preserved` with reason code `awaiting-human`, recording `preserved_lane_id`/`preserved_base`/`preserved_branch` as the missing-input path does), skip integration, and write no `- Readiness:` for a review. Applies to execute and review turns alike.
+- [ ] E-02 In `execute_item_core`, after the outcome is read and BEFORE the proposal branch, when `attempt["questions_verdict"]` (recorded by Order 01 `0jooqz` E-06 from `validate_questions`, already filtered to an outcome THIS attempt wrote) holds at least one valid entry: set the item to `awaiting-human`, store the validated questions on the item and attempt (`item["questions"]`), set `needs_input`, record the lane as preserved (`lane_containment.record_lane_preserved` with reason code `awaiting-human`, recording `preserved_lane_id`/`preserved_base`/`preserved_branch` as the missing-input path does), skip integration, and write no `- Readiness:` for a review. Applies to execute and review turns alike.
   - Depends on: E-01
   - Expected outcome: a scripted execute turn that commits in its lane and returns one question ends `awaiting-human` with the lane branch present, its commit absent from main, and main's head unchanged.
   - Execution state: pending
