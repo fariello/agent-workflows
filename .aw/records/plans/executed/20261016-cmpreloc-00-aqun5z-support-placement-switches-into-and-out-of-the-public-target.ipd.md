@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the three children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cmpreloc-00-aqun5z-support-placement-switches-into-and-out-of-the-public-target.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 90b83754d0a96fd787e8c0e1fe51517060b0acc8c5e18361ebc27834cf51a405
@@ -19,9 +19,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: aqun5z
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set cmpreloc reached executed, so the runner (run run-20261017T051054Z-101189) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: xc8nae, fo08zx, y1e2m9.
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 cross-reference (opencode, from /plan-review of fo08zx PR-001): ownership of the interim `companion-unsupported` blocker re-assigned: `fo08zx` E-06 adds an `allow_companion=True` library opt-in, `y1e2m9` removes the blocker from the default path; completion criteria and child rows reconciled.
 - 2026-10-16 coverage pass (aw oc run): fingerprint 90b83754d0a9, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -37,6 +37,9 @@
 `aw install --relocate` switches a repository into or out of `public-target-private-companion` from or to every other preset, with the same preview, transaction, recovery and documentation guarantees the cfgreloc Set gives target and home placements.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
