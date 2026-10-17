@@ -42,18 +42,30 @@ ARGV_SHAPES_DIR = [
 ]
 
 
-@pytest.mark.parametrize("argv", ARGV_SHAPES_REPO, ids=lambda a: " ".join(a[:3]))
-def test_repo_alias_parses_to_dir_attr(argv: list[str]) -> None:
+def test_repo_alias_parses_to_dir_attr() -> None:
     parser = cli._build_parser()
-    args = parser.parse_args(argv)
-    assert getattr(args, "dir", None) == "/custom/repo"
+    failures: list[str] = []
+    for argv in ARGV_SHAPES_REPO:
+        args = parser.parse_args(argv)
+        val = getattr(args, "dir", None)
+        if val != "/custom/repo":
+            failures.append(
+                f"argv={' '.join(argv)}: expected /custom/repo, got {val!r} (why: --repo alias must parse to dir)"
+            )
+    assert not failures, "repo alias parse failures:\n" + "\n".join(failures)
 
 
-@pytest.mark.parametrize("argv", ARGV_SHAPES_DIR, ids=lambda a: " ".join(a[:3]))
-def test_dir_control_parses_to_dir_attr(argv: list[str]) -> None:
+def test_dir_control_parses_to_dir_attr() -> None:
     parser = cli._build_parser()
-    args = parser.parse_args(argv)
-    assert getattr(args, "dir", None) == "/custom/repo"
+    failures: list[str] = []
+    for argv in ARGV_SHAPES_DIR:
+        args = parser.parse_args(argv)
+        val = getattr(args, "dir", None)
+        if val != "/custom/repo":
+            failures.append(
+                f"argv={' '.join(argv)}: expected /custom/repo, got {val!r} (why: --dir control must parse to dir)"
+            )
+    assert not failures, "dir control parse failures:\n" + "\n".join(failures)
 
 
 def test_derived_coverage_every_dir_parser_accepts_repo() -> None:

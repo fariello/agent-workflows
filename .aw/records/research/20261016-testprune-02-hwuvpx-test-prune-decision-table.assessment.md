@@ -2079,3 +2079,51 @@ Total tests assigned to `83nnyn`: 2635 across 288 modules.
 | `tests/test_lifecycle_dirs.py` | `keep` | Consumer agreement tests for lifecycle subdirectories table under IPD d1lo52 preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_lifecycle_gate_coverage.py` | `keep` | Reported-not-silent lifecycle gate coverage tests under IPD 5xq2ng preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
 | `tests/test_scaffold_history_clock.py` | `keep` | Scaffold workflow history clock parity and timezone tests under IPD 9wcei0 preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_runs_repo_alias.py::test_repo_alias_parses_to_dir_attr` (10 cases) | `consolidate` | Collapsed 10-case parametrized sweep into single accumulate test | 0 | 0 | `tests/test_runs_repo_alias.py::test_repo_alias_parses_to_dir_attr` | `83nnyn` | |
+| `tests/test_runs_repo_alias.py::test_dir_control_parses_to_dir_attr` (10 cases) | `consolidate` | Collapsed 10-case parametrized sweep into single accumulate test | 0 | 0 | `tests/test_runs_repo_alias.py::test_dir_control_parses_to_dir_attr` | `83nnyn` | |
+| `tests/test_runs_repo_alias.py` (remaining tests) | `keep` | Parser attribute mapping and derived coverage tests preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_agent_findings_severity.py` | `keep` | Defect-cited wizzis diagnostic severity breakdown tests preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_agent_surface_conformance.py` | `keep` | Universal declared leaf agent surface conformance sweep preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_agents_block_target_neutral.py` | `keep` | Target-neutral agent block rendering contract preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_artifact_audit_index_cache.py` | `keep` | Artifact audit index caching invariants preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_artifact_audit_verdicts.py` | `keep` | Artifact audit verdict evaluation contracts preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_bidi_control_rejection.py` | `keep` | Bidirectional control character injection rejection preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_capture_command_stream_bounds.py` | `keep` | Command stream capture bounds and memory guard preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_check_engine_metadata_region.py` | `keep` | Check engine metadata region parser preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_check_engine_status_meta.py` | `keep` | Check engine status metadata extraction preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_check_recovery_fidelity.py` | `keep` | Check recovery fidelity and diagnostic rendering preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_clean_target_config_home.py` | `keep` | Clean target configuration directory isolation preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_cli_parser_conflict_policy.py` | `keep` | CLI parser conflict policy and argument collisions preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_command_surface_declarations.py` | `keep` | Command surface leaf declarations and help text preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_config_agent_surface.py` | `keep` | Configuration reader agent mode output preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_conformance_matrix_structure.py` | `keep` | Conformance matrix structure and leaf table preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_coverage_record.py` | `keep` | Coverage record generation and serialization preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_deselect_notice.py` | `keep` | Test runner deselect notice collection guard preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_drift_rule_registration.py` | `keep` | Drift rule registry invariants and metadata schema preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_empty_result_convention_doc.py` | `keep` | Empty result convention documentation parity preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_exit_contract_conformance.py` | `keep` | Universal exit contract conformance sweep across leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_exit_vocabulary_boundary.py` | `keep` | Exit code vocabulary boundary contracts preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_explicit_dir_non_project.py` | `keep` | Non-project explicit directory error handling preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_family_root_agent_conformance.py` | `keep` | Universal family root agent conformance sweep preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_gate_pair_validation_parity.py` | `keep` | Gate pair validation parity across models preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_help_nontty_claim.py` | `keep` | Non-TTY help claim and layout formatting preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_home_path_pattern_source.py` | `keep` | Leak sanitizer home path regex pattern sources preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_host_capability_wiring.py` | `keep` | Host capability wiring and provider resolution preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_hostcapgate_execute_requirement.py` | `keep` | Host capability execute requirement gate preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_human_renderer_agent_hint.py` | `keep` | Human renderer agent continuation hint rendering preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_install_report_truth.py` | `keep` | Installer idempotence and reporting truth contracts preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_install_source_option.py` | `keep` | Installer source option selection preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_installed_text_current.py` | `keep` | Installed workflow template text currency preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_lifecycle_legend_help_reach.py` | `keep` | Lifecycle legend reachability in help text preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_loaded_code.py` | `keep` | Loaded code safety inspection contracts preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_no_project_exit_is_cannot_run.py` | `keep` | Non-project invocation cannot-run exit code contract preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_selector_type_containment.py` | `keep` | Selector type containment and prefix resolution preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_severity_tier_contract.py` | `keep` | Severity tier contract and exit code mapping preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_subparser_descriptions.py` | `keep` | Subparser description presence and completeness preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_support_section.py` | `keep` | Support section rendering and error help text preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_typecheck_gate.py` | `keep` | Typecheck gate invocation and returncode contract preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_uncollected_test_modules.py` | `keep` | Test collector discovery and non-collected module guard preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_uninstall_layout_artifacts.py` | `keep` | Uninstaller layout artifact cleanup and directory removal preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_shared_flag_honored.py` | `keep` | Shared flag honoring across all leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| `tests/test_live_conformance_sweep.py` | `keep` | Live conformance sweep across leaves preserved | 0 | 0 | Preserved unchanged | `83nnyn` | |
+| Remaining E-01 owner list modules (254 modules) | `keep` | Remaining candidate modules reviewed and preserved per protocol (b)/(c) | 0 | 0 | Preserved unchanged | `83nnyn` | |
