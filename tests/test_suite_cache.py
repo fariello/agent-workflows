@@ -36,20 +36,9 @@ def _fixture_env(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def _init_fixture_repo(path: Path, *, test_body: str | None = None) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.name", "Suite Cache Test"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "suite-cache@example.com"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-    )
+    from tests.repo_template import copy_template_repo
+
+    copy_template_repo(path)
     (path / ".gitignore").write_text(
         "*.ignored\n.pytest_cache/\n__pycache__/\n",
         encoding="utf-8",

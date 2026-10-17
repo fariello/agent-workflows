@@ -3878,6 +3878,15 @@ class AllRootRegressionTests(unittest.TestCase):
             self.assertIn("error=0", out)
 
 
+def _corpus_plans():
+    return sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md"))
+
+
+def _corpus_shards(num_shards: int = 4):
+    plans = _corpus_plans()
+    return [plans[i::num_shards] for i in range(num_shards)]
+
+
 class ContinuationSubfieldOutcomeTests(unittest.TestCase):
     """obsevcont 0nxa8o (E-02, E-03): continuation read on Observed evidence and Execution note."""
 
@@ -4051,21 +4060,29 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
                 self._check_row(name)
 
     @pytest.mark.livecorpus
-    @pytest.mark.timeout(180)
-    def test_corpus_verdict_neutrality_delta(self):
-        """Asserts the property that continuation read changes no tracked plan's verdict.
+    def test_corpus_verdict_neutrality_delta_shard_union_and_disjointness(self):
+        """Assert that corpus shards partition the full plan list without loss or overlap."""
+        all_plans = _corpus_plans()
+        shards = _corpus_shards(4)
+        self.assertGreater(len(all_plans), 0, "corpus must contain plans")
+        # Disjointness: intersection of every pair is empty
+        for i in range(len(shards)):
+            for j in range(i + 1, len(shards)):
+                overlap = set(shards[i]) & set(shards[j])
+                self.assertEqual(overlap, set(), f"shards {i} and {j} overlap")
+        # Union equals list
+        combined = []
+        for s in shards:
+            combined.extend(s)
+        self.assertEqual(
+            sorted(combined), all_plans, "union of shards must equal full plan list"
+        )
 
-        Asserts delta neutrality across (author, review-finalize, pre-transition) checkpoints:
-        for every tracked plan, continuation read only removes evidence-emptiness diagnostics
-        and never adds a diagnostic or worsens a disposition compared with one-line read
-        (narrowly monkeypatching _CONTINUATION_SUBFIELDS to empty). Does NOT assert absolute
-        absence of empty Observed evidence (188+ plans report it legitimately).
-        """
+    def _assert_corpus_shard_neutrality(self, plans):
         from collections import Counter
         from unittest import mock
 
-        plans = sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md"))
-        self.assertGreater(len(plans), 0, "must find tracked plans in corpus")
+        self.assertGreater(len(plans), 0, "must find tracked plans in shard")
         mismatches = []
         for plan in plans:
             text = plan.read_text(encoding="utf-8")
@@ -4127,6 +4144,26 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
                 else ""
             ),
         )
+
+    @pytest.mark.livecorpus
+    @pytest.mark.timeout(180)
+    def test_corpus_verdict_neutrality_delta_shard_0(self):
+        self._assert_corpus_shard_neutrality(_corpus_shards(4)[0])
+
+    @pytest.mark.livecorpus
+    @pytest.mark.timeout(180)
+    def test_corpus_verdict_neutrality_delta_shard_1(self):
+        self._assert_corpus_shard_neutrality(_corpus_shards(4)[1])
+
+    @pytest.mark.livecorpus
+    @pytest.mark.timeout(180)
+    def test_corpus_verdict_neutrality_delta_shard_2(self):
+        self._assert_corpus_shard_neutrality(_corpus_shards(4)[2])
+
+    @pytest.mark.livecorpus
+    @pytest.mark.timeout(180)
+    def test_corpus_verdict_neutrality_delta_shard_3(self):
+        self._assert_corpus_shard_neutrality(_corpus_shards(4)[3])
 
 
 class DateMetadataLintTests(unittest.TestCase):

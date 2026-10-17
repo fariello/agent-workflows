@@ -17,7 +17,8 @@ from pathlib import Path
 
 
 from agent_workflows import runner_shared as rs
-from tests.support import init_repo, run_cli
+from tests.conformance_matrix import run_cli_inproc
+from tests.support import init_repo
 
 
 def _summary_line_buckets(output: str) -> tuple[int, int, int, int, int]:
@@ -64,7 +65,7 @@ def test_doctor_summary_bucket_count_conservation(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    proc = run_cli("doctor", cwd=repo)
+    proc = run_cli_inproc(["doctor"], cwd=repo)
     assert proc.returncode != 0
 
     total, g, m, v, o = _summary_line_buckets(proc.stdout)
@@ -164,7 +165,7 @@ def test_attention_diagnostic_preserves_drift_severity_and_exit_code(
     (state_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
     # 1. Drive --check --json path
-    proc_check = run_cli("attention", "--check", "--json", cwd=repo)
+    proc_check = run_cli_inproc(["attention", "--check", "--json"], cwd=repo)
 
     # Assertion A: Exit-code independence (drift carries info severity, which does not fail check)
     assert (
@@ -187,7 +188,7 @@ def test_attention_diagnostic_preserves_drift_severity_and_exit_code(
     ), f"Diagnostic severity was flattened to '{superseded_diags[0]['severity']}', expected 'info'"
 
     # 2. Drive non-check --agent --verbose path
-    proc_noncheck = run_cli("attention", "--agent", "--verbose", cwd=repo)
+    proc_noncheck = run_cli_inproc(["attention", "--agent", "--verbose"], cwd=repo)
     assert (
         proc_noncheck.returncode == 0
     ), f"Expected exit code 0, got {proc_noncheck.returncode}: {proc_noncheck.stderr}"

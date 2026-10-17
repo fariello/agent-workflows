@@ -75,8 +75,16 @@ class TypecheckGateTests(unittest.TestCase):
     def test_typecheck_gate_clean_exit(self) -> None:
         """The configured narrowed mypy gate exits 0 over agent_workflows/."""
         repo_root = Path(__file__).resolve().parent.parent
+        cache_dir = repo_root / ".aw" / "state" / "mypy-cache"
         res = subprocess.run(
-            [sys.executable, "-m", "mypy", "agent_workflows"],
+            [
+                sys.executable,
+                "-m",
+                "mypy",
+                "agent_workflows",
+                "--cache-dir",
+                str(cache_dir),
+            ],
             cwd=repo_root,
             capture_output=True,
             text=True,
