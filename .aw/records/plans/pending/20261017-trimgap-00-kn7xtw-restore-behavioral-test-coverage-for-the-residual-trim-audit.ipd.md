@@ -2,32 +2,35 @@
 
 - Date: 2026-10-17
 - Kind: orchestrator
-- Concern: Backlog item `q86fxm` is the residual rollup of the uncited trim-audit (`b1mx2w` `## Filing plan` groups 16 through 60): 135 production keys across 44 modules that the routine non-slow test selection did not reach at baseline HEAD `86f0d88d`, plus 34 test names missing from the recreated `tests/test_run_summary_table.py` (group 40, `render_stream.py`), all because suite trim `19313eed` deleted the behavioral tests that drove them. This orchestrator sequences the eight child plans that restore that coverage.
-- Scope: Orchestration only: confirm each of the eight children below reaches `executed`. No code, test, spec or record work of its own. The children partition the 45 groups by module family with no shared Scope-Paths file between any two of them.
+- Concern: Backlog item `q86fxm` is the residual rollup of the uncited trim-audit (`b1mx2w` `## Filing plan` groups 16 through 60): 135 production keys across 44 modules that the routine non-slow test selection did not reach at baseline HEAD `86f0d88d`, plus 34 test names missing from the recreated `tests/test_run_summary_table.py` (group 40, `render_stream.py`), all because suite trim `19313eed` deleted the behavioral tests that drove them. This orchestrator sequences the eight child plans that restore that coverage, and is ALSO the Order-0 parent of the Set's thirteen per-item children (Orders 02, 04 to 15), each graduated from its own `trimgap` backlog item (groups 2 to 15 of the same filing plan), because the runner reads Set membership from disk (`runner_shared.read_set_membership`) and gates retirement on every one of them.
+- Scope: Orchestration only: confirm each of the twenty-one children below reaches `executed`. No code, test, spec or record work of its own. The eight `q86fxm` children partition the 45 residual groups by module family; the thirteen per-item children each own one backlog item. No Scope-Paths file is shared between any two of the 21 children (checked at review).
 - Scope-Paths: .aw/records/plans/pending/20261017-trimgap-00-kn7xtw-restore-behavioral-test-coverage-for-the-residual-trim-audit.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: c002fda2872c93cb5b6a4a2b3ebecc5bcc35a3d28249330be25498b10ca902af
+- Coverage-Fingerprint: fe4925e03a985f5112101827836a35fa4032a3a47b035731c23925f5b23e8005
 - Coverage-Checked: 2026-10-17 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: q86fxm
 - Set: trimgap
 - Order: 0
-- Highest E allocated: 08
+- Highest E allocated: 21
 - Author: opencode
 - Id: kn7xtw
 
 ## Workflow history
+- 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
+- 2026-10-17 coverage pass (aw oc run): fingerprint fe4925e03a98, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 coverage pass (aw oc run): fingerprint c002fda2872c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 to-review (opencode): authored from backlog `q86fxm` together with children `ivap17`, `vqr3xq`, `zhoul7`, `78g6ic`, `5e7czd`, `y4bt1c`, `9gjvrq`, `ya63p5`.
 - 2026-10-17 draft (opencode): created.
 
 ## Goal
 
-Graduate backlog `q86fxm` into executable children whose combined effect is that every one of the 135 residual keys is reached and mutation-guarded by the routine bare core-tier run, and 33 of the 34 missing run-summary tests are back. This plan only confirms the children finished.
+Graduate backlog `q86fxm` into executable children whose combined effect is that every one of the 135 residual keys is reached and mutation-guarded by the routine bare core-tier run, and 33 of the 34 missing run-summary tests are back; and confirm that the Set's thirteen per-item children, each governed by its own backlog item and its own Goal, also finished. This plan only confirms the children finished.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -75,10 +78,90 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `ya63p5` is under `.aw/records/plans/executed/` with `- Status: executed`.
   - Execution state: pending
 
+### Task group 2: confirm the per-item children
+
+- [ ] E-09 CONFIRM znjxom REACHED executed
+  - Depends on: none
+  - Expected outcome: `znjxom` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-10 CONFIRM t8j7mn REACHED executed
+  - Depends on: none
+  - Expected outcome: `t8j7mn` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-11 CONFIRM 5jevb2 REACHED executed
+  - Depends on: none
+  - Expected outcome: `5jevb2` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-12 CONFIRM d2vfp2 REACHED executed
+  - Depends on: none
+  - Expected outcome: `d2vfp2` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-13 CONFIRM 438gkf REACHED executed
+  - Depends on: none
+  - Expected outcome: `438gkf` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-14 CONFIRM pdemar REACHED executed
+  - Depends on: none
+  - Expected outcome: `pdemar` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-15 CONFIRM 33f8tn REACHED executed
+  - Depends on: none
+  - Expected outcome: `33f8tn` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-16 CONFIRM jy7439 REACHED executed
+  - Depends on: none
+  - Expected outcome: `jy7439` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-17 CONFIRM syzi9i REACHED executed
+  - Depends on: none
+  - Expected outcome: `syzi9i` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-18 CONFIRM 94wi2f REACHED executed
+  - Depends on: none
+  - Expected outcome: `94wi2f` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-19 CONFIRM dwjfu4 REACHED executed
+  - Depends on: none
+  - Expected outcome: `dwjfu4` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-20 CONFIRM tf8fwt REACHED executed
+  - Depends on: none
+  - Expected outcome: `tf8fwt` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
+- [ ] E-21 CONFIRM 8bhcd3 REACHED executed
+  - Depends on: none
+  - Expected outcome: `8bhcd3` is under `.aw/records/plans/executed/` with `- Status: executed`.
+  - Execution state: pending
+
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
+| 2 | `znjxom` | `20261017-trimgap-02-znjxom-restore-behavioral-test-coverage-for-run-analytics-cli-analy.ipd.md` | Backlog `n6h5eg`: restores behavioral test coverage for run_analytics_cli analyze and query leaves. | none |
+| 4 | `t8j7mn` | `20261017-trimgap-04-t8j7mn-restore-behavioral-test-coverage-for-run-analytics-taxonomy.ipd.md` | Backlog `aux1f6`: restores behavioral test coverage for run_analytics_taxonomy. | none |
+| 5 | `5jevb2` | `20261017-trimgap-05-5jevb2-restore-behavioral-test-coverage-for-run-packet-step-packets.ipd.md` | Backlog `aq04yg`: restores behavioral test coverage for run_packet step packets and outcome envelopes. | none |
+| 6 | `d2vfp2` | `20261017-trimgap-06-d2vfp2-restore-behavioral-test-coverage-for-run-analytics-submit-tr.ipd.md` | Backlog `gjmiuw`: restores behavioral test coverage for run_analytics_submit transport, consent and validation. | none |
+| 7 | `438gkf` | `20261017-trimgap-07-438gkf-restore-behavioral-test-coverage-for-run-analytics-export.ipd.md` | Backlog `liybkg`: restores behavioral test coverage for run_analytics_export. | none |
+| 8 | `pdemar` | `20261017-trimgap-08-pdemar-restore-behavioral-test-coverage-for-migration-complex-coord.ipd.md` | Backlog `x62jok`: restores behavioral test coverage for migration_complex coordinators, Fix Bar, consent gates and setup state machine. | none |
+| 9 | `33f8tn` | `20261017-trimgap-09-33f8tn-restore-behavioral-test-coverage-for-engine-py-opt-in-hooks.ipd.md` | Backlog `7df9md`: restores behavioral test coverage for engine.py opt-in hooks, shim customization, managed blocks and lane merge. | none |
+| 10 | `jy7439` | `20261017-trimgap-10-jy7439-restore-behavioral-test-coverage-for-lifecycle-fixtures-matr.ipd.md` | Backlog `lzn56i`: restores behavioral test coverage for lifecycle_fixtures matrix runners, registry and isolation. | none |
+| 11 | `syzi9i` | `20261017-trimgap-11-syzi9i-restore-behavioral-test-coverage-for-migration-compact-contr.ipd.md` | Backlog `fdyjv6`: restores behavioral test coverage for migration_compact contracts, projections, shim resolution and promotion gates. | none |
+| 12 | `94wi2f` | `20261017-trimgap-12-94wi2f-restore-behavioral-test-coverage-for-migration-inventory-dis.ipd.md` | Backlog `igefrj`: restores behavioral test coverage for migration_inventory disposition inventory, shared harnesses and plan-review views. | none |
+| 13 | `dwjfu4` | `20261017-trimgap-13-dwjfu4-restore-behavioral-test-coverage-for-clean-delta-adapter-man.ipd.md` | Backlog `otc788`: restores behavioral test coverage for clean_delta adapter manifest, purity, conversion, drift, repair and uninstall. | none |
+| 14 | `tf8fwt` | `20261017-trimgap-14-tf8fwt-restore-behavioral-test-coverage-for-run-gates-human-decisio.ipd.md` | Backlog `ziuj5c`: restores behavioral test coverage for run_gates human decision gates. | none |
+| 15 | `8bhcd3` | `20261017-trimgap-15-8bhcd3-restore-behavioral-test-coverage-for-run-analytics-telemetry.ipd.md` | Backlog `yqpb7q`: restores behavioral test coverage for run_analytics_telemetry. | none |
 | 16 | `ivap17` | `20261017-trimgap-16-ivap17-restore-behavioral-test-coverage-for-run-analytics-wizard-re.ipd.md` | Groups 16, 19, 21, 34, 39, 50 (22 keys): restores the run-analytics wizard, report, findings, config, e2e and privacy test modules with neutral canaries and core markers. | none |
 | 17 | `vqr3xq` | `20261017-trimgap-17-vqr3xq-restore-behavioral-test-coverage-for-the-set-executor-worktr.ipd.md` | Groups 17, 20, 24, 28, 29, 31, 33, 35, 41, 43 (41 keys): restores the Set executor, exec-set workflow, host runner and host adapter skill tests, plus residual tests for `SkillPackage.to_dict`, `resource_paths` and `advertises_supported`. | none |
 | 18 | `zhoul7` | `20261017-trimgap-18-zhoul7-restore-behavioral-test-coverage-for-check-engine-layout-dep.ipd.md` | Groups 18, 51, 53, 58 (8 keys): restores the layout, dependency-check, dependency-statement-hook, review-decision and doctor version-drift tests, plus residual tests for `_blocking_escalated_finding_ids` and `_on_staged_file`. | none |
@@ -88,7 +171,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 22 | `9gjvrq` | `20261017-trimgap-22-9gjvrq-restore-behavioral-test-coverage-for-rename-history-selector.ipd.md` | Groups 37, 44, 45, 46, 49, 52, 55, 57, 59, 60 (13 keys): restores the rename, regroup, rename-ledger, research-priority, reference-matcher, selector, readiness-recheck, gate-answer and run-state tests, plus residual tests for `_synthetic_key` and `Resolution.is_unique`. | none |
 | 23 | `ya63p5` | `20261017-trimgap-23-ya63p5-restore-the-stranded-run-and-dispatchable-work-tests-of-test.ipd.md` | Group 40 (34 missing names, `render_stream.py`): appends 33 of the missing run-summary tests to `tests/test_run_summary_table.py`, declining one identity-only test. | none |
 
-The children are independent (no child consumes another's output and no Scope-Paths file is shared), so any order is valid; the table order follows `b1mx2w` group rank.
+The children are independent (no child consumes another's output, every child declares `- Item-Dependencies: none`, and no Scope-Paths file is shared), so any order is valid; the table order follows `b1mx2w` group rank. Orders 01 and 03 are unused: no plan on disk carries them.
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -100,26 +183,27 @@ The children are independent (no child consumes another's output and no Scope-Pa
 - Every one of the 19 output-surface keys of groups 30, 32, 36, 38, 42, 48, 54 and 56 is reached by a core-marked test and killed by an early-return mutation. Owner: y4bt1c
 - Every one of the 13 keys of groups 37, 44, 45, 46, 49, 52, 55, 57, 59 and 60 is reached by a core-marked test and killed by an early-return mutation. Owner: 9gjvrq
 - 33 of the 34 missing run-summary test names of group 40 pass in `tests/test_run_summary_table.py` under the core tier, with the 34th declined in that plan's deferred section. Owner: ya63p5
+- Each per-item child meets its OWN Goal and validation for its own backlog item (not the `q86fxm` key criteria above; for example `znjxom` deliberately adds no core-marked tests). Owner: znjxom, t8j7mn, 5jevb2, d2vfp2, 438gkf, pdemar, 33f8tn, jy7439, syzi9i, 94wi2f, dwjfu4, tf8fwt, 8bhcd3, each for itself.
 
 ## Cross-IPD validation
 
-- No two children change the same file: each child's `- Scope-Paths:` is disjoint from every other child's, and each child's V-item demands `git diff --stat` showing only its own declared paths. Owner: ivap17 (its V-06 final `git diff agent_workflows/` and diff evidence), and likewise vqr3xq V-05, zhoul7 V-06, 78g6ic V-02, 5e7czd V-03, y4bt1c V-05, 9gjvrq V-06 and ya63p5 V-01 for their own paths.
-- The bare core tier still passes with each child's additions: each child's final V-item pastes the bare `python3 -m pytest` summary line after its own restore. Owner: ivap17 V-06, vqr3xq V-05, zhoul7 V-06, 78g6ic V-02, 5e7czd V-03, y4bt1c V-05, 9gjvrq V-06, ya63p5 V-02.
+- No two children change the same file: each of the 21 children's `- Scope-Paths:` is disjoint from every other child's, and each child's V-items demand diff evidence for its own declared paths. Owner: ivap17 (its V-06 final `git diff agent_workflows/` and diff evidence), and likewise vqr3xq V-05, zhoul7 V-06, 78g6ic V-02, 5e7czd V-03, y4bt1c V-05, 9gjvrq V-06 and ya63p5 V-01 for their own paths; each per-item child likewise for its own paths.
+- The bare core tier still passes with each child's additions: each `q86fxm` child's final V-item pastes the bare `python3 -m pytest` summary line after its own restore (per-item children carry their own equivalent). Owner: ivap17 V-06, vqr3xq V-05, zhoul7 V-06, 78g6ic V-02, 5e7czd V-03, y4bt1c V-05, 9gjvrq V-06, ya63p5 V-02.
 - The union of the children's key lists is exactly the 135 keys of `q86fxm` (22 + 41 + 8 + 25 + 7 + 19 + 13 = 135) plus group 40's 34 names; this was checked at authoring against `b1mx2w` `## Rollup mutation results` and is restated in each child's `- Scope:`. Owner: each child for its own list, as above.
 
 ## Deferred / out of scope (with reason)
 
-- The bare core tier was already over its 30s wall-time budget on this 12-CPU host before any restore (measured 36 to 45s, `CORE TIER BUDGET EXCEEDED`, at HEAD `f84c3af26`). This Set does not fix that; the children keep their own core additions small (about 10s of summed CPU across all eight, mostly per-test markers on expensive files).
+- Core-tier wall time is load-dependent and has been measured both over its 30s budget (36 to 45s, `CORE TIER BUDGET EXCEEDED`, at HEAD `f84c3af26`) and under it (`753 passed in 22.97s` at HEAD `5c427b50c`, during this plan's review). This Set does not fix that; the children keep their own core additions small (about 10s of summed CPU across all eight, mostly per-test markers on expensive files).
   - Carrier: o58dro
 
 ## Scope check
 
 - Over-scope: none. This plan touches only itself.
-- Under-scope: none. Every group 16 through 60 of `q86fxm` is owned by exactly one child (table above).
+- Under-scope: none. Every group 16 through 60 of `q86fxm` is owned by exactly one child, and every other `trimgap` plan on disk is a row of the table above.
 
 ## Required tests / validation
 
-This plan runs no tests. Each child runs its own reach, mutation, bare-suite and sanitizer checks: run-analytics keys ivap17; Set-execution and host-adapter keys vqr3xq; checker keys zhoul7; benchmark keys 78g6ic; migration and storage keys 5e7czd; output-surface keys y4bt1c; rename, selector, readiness, gate-answer and run-state keys 9gjvrq; run-summary tests ya63p5.
+This plan runs no tests. Each child runs its own reach, mutation, bare-suite and sanitizer checks (each per-item child under its own plan): run-analytics keys ivap17; Set-execution and host-adapter keys vqr3xq; checker keys zhoul7; benchmark keys 78g6ic; migration and storage keys 5e7czd; output-surface keys y4bt1c; rename, selector, readiness, gate-answer and run-state keys 9gjvrq; run-summary tests ya63p5.
 
 ## Open questions
 
@@ -127,7 +211,7 @@ This plan runs no tests. Each child runs its own reach, mutation, bare-suite and
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: most modules carry one to three keys reached by the same deleted test file as a neighbor module (for example `worktree_lease`, `set_lifecycle` and `set_state` are all reached only by `tests/test_ipd_set_executor.py`), so splitting by module would put one file in several plans. Grouping by the deleted test files that reach the keys gives eight children, each one focused pass, with disjoint Scope-Paths.
 
 ## Validation and cross-check (verify before reporting the Set complete)
@@ -174,9 +258,74 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-09 validates E-09
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep znjxom` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-10 validates E-10
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep t8j7mn` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-11 validates E-11
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep 5jevb2` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-12 validates E-12
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep d2vfp2` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-13 validates E-13
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep 438gkf` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-14 validates E-14
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep pdemar` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-15 validates E-15
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep 33f8tn` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-16 validates E-16
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep jy7439` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-17 validates E-17
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep syzi9i` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-18 validates E-18
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep 94wi2f` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-19 validates E-19
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep dwjfu4` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-20 validates E-20
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep tf8fwt` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-21 validates E-21
+  - Required evidence: pasted `ls .aw/records/plans/executed/ -R | grep 8bhcd3` output and its `- Status: executed` line.
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
-- Size assessment: standard
-- Cohesion rationale: not required
+- Size assessment: exception
+- Cohesion rationale: the 21 E-items are one uniform orchestration act (confirm a child reached executed), one per child the runner already counts in this Set; each is a single ls/grep check, so the count reflects Set breadth, not conceptual density, and splitting the orchestrator would contradict the one-orchestrator-per-Set rule.
 
-Execute only after explicit human approval (`Status: approved`). This orchestrator performs no work of its own: under `aw oc run` / `aw agy run` it is retired once every child is `executed`. By hand, execute the children (each under its own gate, any order), then confirm each row above, pasting the ACTUAL command output each `V-*` demands. Scope fence: `- Scope-Paths:` (this plan file only). Commit through `aw commit kn7xtw -- <paths>`; never `git add -A`, never push. Under a runner the runner retires this plan; by hand, `aw ipd finalize kn7xtw` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms.
+Execute only after explicit human approval (`Status: approved`). This orchestrator performs no work of its own: under `aw oc run` / `aw agy run` it is retired once every child is `executed`. By hand, execute all 21 children (each under its own gate, any order), then confirm each row above, pasting the ACTUAL command output each `V-*` demands. Open questions: OQ-01 is resolved; none block. Scope fence: `- Scope-Paths:` (this plan file only). Commit through `aw commit kn7xtw -- <paths>`; never `git add -A`, never push. Under a runner the runner retires this plan; by hand, `aw ipd finalize kn7xtw` once every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms.
