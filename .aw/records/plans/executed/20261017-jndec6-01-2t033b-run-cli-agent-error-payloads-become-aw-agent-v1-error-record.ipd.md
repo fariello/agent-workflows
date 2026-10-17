@@ -6,7 +6,7 @@
 - Scope: For the exit-2 (`run_cli.EXIT_INVALID_INVOCATION`) refusal class under `--agent` only, make `run_cli._emit_error` emit a validated `aw.agent/v1` `kind: "error"` record (`outcome: "cannot-run"`, `exit: 2`, `verified: false`, `complete: false`, `cmd` naming the leaf, a `next` recovery command), keep the legacy `ok`/`error`/`exit_code` keys and any `extra` keys inside it, home-path-redact and ANSI-strip it, and apply `agent_schema.filter_record_fields` for `--fields`, through one reusable emitter that plans `2jzld4` and `u1ujw9` build on. Route the two inline exit-2 payloads through `_emit_error`. Leave human output, every non-2 refusal (exit 1/3/4/5/6/7) and every success payload unchanged; `--json` is unchanged except that the two "failed to read ledger" payloads lose their baked-in `error: ` value prefix (E-02, the `d91i3e` F-17 convention). Update the stale comments, docs, tests and CHANGELOG that describe the old shape.
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/command_surface.py, tests/test_run_cli_error_payload_keys.py, tests/test_run_recovery_cli.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: 2t033b
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2t033b verified (set jndec6, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
 - 2026-10-17 to-review (opencode): authored from backlog jndec6; review-ready.
