@@ -577,6 +577,9 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 self.assertEqual(
                     overlap(repo, ["orig.txt", "dest.txt"]), ["dest.txt", "orig.txt"]
                 )
+                self.assertEqual(
+                    overlap(repo, ["dest.txt", "unrelated.txt"]), ["dest.txt"]
+                )
                 # Disjoint dirt is still ignored, and no incoming files is never blocked.
                 self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
                 self.assertEqual(overlap(repo, []), [])

@@ -1247,20 +1247,6 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertIn("ipd-integration-deferred", events)
             self.assertIn("ipd-integrated-after-deferral", events)
 
-    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            _init_repo_with_conforming_plan(repo, "agy001")
-            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, ["src/x.py"]), [])
-            (repo / "src").mkdir(parents=True, exist_ok=True)
-            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(
-                agy_runipd.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
-                ["src/x.py"],
-            )
-            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
-
     def test_this_hosts_merge_subject_still_says_aw_agy_run(self):
         """The host label on THIS driver, from a REAL merge.
 

@@ -1511,37 +1511,42 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
 
 
 class HeartbeatFormattingTests(unittest.TestCase):
-    def test_heartbeat_idle_formatting_over_60s(self):
+    def test_heartbeat_idle_formatting(self):
         import io
         import time
 
-        buf = io.StringIO()
-        pal = driver.Palette(False)
-        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
-        hb._start = time.monotonic() - 150.0  # 2m30s elapsed
-        hb._last_activity = time.monotonic() - 75.0  # 1m15s idle
-        self.assertEqual(hb.format_idle(), "1m15s")
-        msg = hb.format_message()
-        # stallfp kaga7s: the line reports LACK OF PROGRESS (and, when a watchdog is
-        # attached, the kill countdown) instead of the old reassuring "still working".
-        self.assertIn("no progress 1m15s", msg)
-        self.assertIn("2m30s elapsed", msg)
-        self.assertNotIn("still working", msg)
-
-    def test_heartbeat_idle_formatting_under_60s(self):
-        import io
-        import time
-
-        buf = io.StringIO()
-        pal = driver.Palette(False)
-        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
-        hb._start = time.monotonic() - 45.0
-        hb._last_activity = time.monotonic() - 20.0
-        self.assertEqual(hb.format_idle(), "0m20s")
-        msg = hb.format_message()
-        self.assertIn("no progress 0m20s", msg)
-        self.assertIn("0m45s elapsed", msg)
-        self.assertNotIn("still working", msg)
+        cases = (
+            (
+                "over_60s",
+                150.0,
+                75.0,
+                "1m15s",
+                "no progress 1m15s",
+                "2m30s elapsed",
+                "stallfp kaga7s: idle formatting over 60s reports lack of progress",
+            ),
+            (
+                "under_60s",
+                45.0,
+                20.0,
+                "0m20s",
+                "no progress 0m20s",
+                "0m45s elapsed",
+                "idle formatting under 60s reports lack of progress",
+            ),
+        )
+        for case_id, elapsed, idle, exp_idle, exp_progress, exp_elapsed, why in cases:
+            with self.subTest(case=case_id, why=why):
+                buf = io.StringIO()
+                pal = driver.Palette(False)
+                hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
+                hb._start = time.monotonic() - elapsed
+                hb._last_activity = time.monotonic() - idle
+                self.assertEqual(hb.format_idle(), exp_idle)
+                msg = hb.format_message()
+                self.assertIn(exp_progress, msg)
+                self.assertIn(exp_elapsed, msg)
+                self.assertNotIn("still working", msg)
 
 
 #: The reaper's LAST rung. Windows has no SIGKILL, and `runner_shutdown.terminate_process` escalates
@@ -4486,25 +4491,6 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(item.get("preserved_branch"), "aw/lane/wir001")
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("ipd-merge-conflict", events)
-
-    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
-        # Unit coverage of the E-01 helper: only paths that are BOTH dirty in main AND incoming are
-        # reported; a rename's origin+destination both count; disjoint dirt is ignored.
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            _init_repo_with_conforming_plan(repo, "wir001")
-            # Dirty an un-owned file that does NOT overlap.
-            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(driver.dirty_tree_overlap(repo, ["src/x.py"]), [])
-            # Dirty a file that DOES overlap the incoming change.
-            (repo / "src").mkdir(parents=True, exist_ok=True)
-            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(
-                driver.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
-                ["src/x.py"],
-            )
-            # No incoming files -> never blocked.
-            self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
 
     def test_this_hosts_merge_subject_still_says_aw_oc_run(self):
         """The ONE value the extraction parameterized, checked against a REAL merge on this host.
