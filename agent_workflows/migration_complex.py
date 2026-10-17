@@ -44,6 +44,7 @@ from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tupl
 
 from agent_workflows import engine
 from agent_workflows import orchestrate_isolation as _iso
+from agent_workflows import release_readiness as _readiness
 from agent_workflows import run_freeze as _freeze
 from agent_workflows import run_gates as _gates
 from agent_workflows import run_state as _state
@@ -119,6 +120,79 @@ class ReleaseModeError(ComplexMigrationError):
 
 class ReleaseAuthorityError(ComplexMigrationError):
     """Raised when a release is attempted without explicit human release authority."""
+
+
+# Release readiness gate classifications (E-02 / kmmoca).
+# Attestation gate requires explicit human release sign-off.
+READINESS_ATTESTATION_GATES: FrozenSet[str] = frozenset(("residual_risk",))
+# Standing corpus / seed-data gates that may be triaged in Section 8 (capping at CONDITIONAL GO)
+# or explicitly waived in Section 9.
+READINESS_STANDING_WAIVABLE_GATES: FrozenSet[str] = frozenset(
+    ("ipd_lint", "capability_freshness")
+)
+# Hard technical/release-integrity gates: non-waivable, always force NO-GO / refuse release.
+READINESS_HARD_GATES: FrozenSet[str] = frozenset(
+    (
+        "full_suite",
+        "leak_scan",
+        "benchmark_thresholds",
+        "generated_drift",
+        "docs_checks",
+        "workflow_disposition",
+        "changelog_versioning",
+        "artifact_manifest",
+    )
+)
+# Gates driven by explicit attestations, not files; reported not-applicable is treated as hard failure.
+READINESS_INPUT_REQUIRED_GATES: FrozenSet[str] = frozenset(
+    ("full_suite", "residual_risk")
+)
+
+# Section 8 readiness recommendations.
+RECOMMENDATION_GO: str = "GO"
+RECOMMENDATION_CONDITIONAL_GO: str = "CONDITIONAL GO"
+RECOMMENDATION_NO_GO: str = "NO-GO"
+
+
+@dataclass(frozen=True)
+class ReadinessVerification:
+    """The result of verifying a release readiness report in Section 8 (STAGE_VERIFY)."""
+
+    report: _readiness.ReleaseReadinessReport
+    recommendation: str
+    hard_failures: Tuple[str, ...]
+    standing_failures: Tuple[str, ...]
+    triaged_standing_gates: Tuple[str, ...]
+    untriaged_standing_gates: Tuple[str, ...]
+    not_applicable_gates: Tuple[str, ...]
+    passed_gates: Tuple[str, ...]
+    pending_human_attestation: bool
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "verdict": self.report.verdict,
+            "recommendation": self.recommendation,
+            "hard_failures": list(self.hard_failures),
+            "standing_failures": list(self.standing_failures),
+            "triaged_standing_gates": list(self.triaged_standing_gates),
+            "untriaged_standing_gates": list(self.untriaged_standing_gates),
+            "not_applicable_gates": list(self.not_applicable_gates),
+            "passed_gates": list(self.passed_gates),
+            "pending_human_attestation": self.pending_human_attestation,
+        }
+
+
+def _not_applicable_names(report: _readiness.ReleaseReadinessReport) -> Tuple[str, ...]:
+    """Return the names of not-applicable gates from a ReleaseReadinessReport."""
+    if hasattr(report, "not_applicable_gates") and callable(
+        report.not_applicable_gates
+    ):
+        return tuple(report.not_applicable_gates())
+    return tuple(
+        g.name
+        for g in getattr(report, "gates", ())
+        if not getattr(g, "applicable", True)
+    )
 
 
 def fix_bar(remediation_risk: str) -> bool:
@@ -257,6 +331,9 @@ class ReleaseReviewCoordinator:
     frozen: _freeze.RequirementSet = field(init=False)
     ledger: IssueLedger = field(default_factory=IssueLedger)
     _stages_entered: List[str] = field(default_factory=list)
+    _last_verification: Optional[ReadinessVerification] = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if self.mode not in RELEASE_MODES:
@@ -319,6 +396,10 @@ class ReleaseReviewCoordinator:
     def stages_entered(self) -> Tuple[str, ...]:
         return tuple(self._stages_entered)
 
+    @property
+    def last_verification(self) -> Optional[ReadinessVerification]:
+        return self._last_verification
+
     # -- Fix Bar pass -----------------------------------------------------------------------------
 
     def run_fix_bar(self) -> List[PersonaFinding]:
@@ -353,6 +434,66 @@ class ReleaseReviewCoordinator:
             )
         return result
 
+    # -- STAGE_VERIFY release readiness check -----------------------------------------------------
+
+    def verify_readiness(
+        self,
+        report: _readiness.ReleaseReadinessReport,
+        *,
+        triaged_standing_gates: Sequence[str] = (),
+    ) -> ReadinessVerification:
+        """Verify the release readiness report in STAGE_VERIFY (Section 8)."""
+
+        self.enter_stage(STAGE_VERIFY)
+        for gate in triaged_standing_gates:
+            if gate not in READINESS_STANDING_WAIVABLE_GATES:
+                raise ComplexMigrationError(
+                    f"gate '{gate}' cannot be triaged as standing corpus noise; only {sorted(READINESS_STANDING_WAIVABLE_GATES)} are waivable"
+                )
+
+        na = _not_applicable_names(report)
+        failed = tuple(g for g in report.failing_gates() if g not in na)
+        passed_gates = tuple(
+            g.name for g in report.gates if g.passed and g.name not in na
+        )
+        hard_failures = tuple(
+            g
+            for g in failed
+            if g not in READINESS_ATTESTATION_GATES
+            and g not in READINESS_STANDING_WAIVABLE_GATES
+        ) + tuple(g for g in na if g in READINESS_INPUT_REQUIRED_GATES)
+        not_applicable_gates = tuple(
+            g for g in na if g not in READINESS_INPUT_REQUIRED_GATES
+        )
+        standing_failures = tuple(
+            g for g in failed if g in READINESS_STANDING_WAIVABLE_GATES
+        )
+        triaged_set = frozenset(triaged_standing_gates)
+        triaged = tuple(g for g in standing_failures if g in triaged_set)
+        untriaged = tuple(g for g in standing_failures if g not in triaged_set)
+        pending_human_attestation = "residual_risk" in failed
+
+        if hard_failures or untriaged:
+            recommendation = RECOMMENDATION_NO_GO
+        elif standing_failures:
+            recommendation = RECOMMENDATION_CONDITIONAL_GO
+        else:
+            recommendation = RECOMMENDATION_GO
+
+        result = ReadinessVerification(
+            report=report,
+            recommendation=recommendation,
+            hard_failures=hard_failures,
+            standing_failures=standing_failures,
+            triaged_standing_gates=triaged,
+            untriaged_standing_gates=untriaged,
+            not_applicable_gates=not_applicable_gates,
+            passed_gates=passed_gates,
+            pending_human_attestation=pending_human_attestation,
+        )
+        self._last_verification = result
+        return result
+
     # -- explicit release boundary ----------------------------------------------------------------
 
     def authorize_release(
@@ -361,6 +502,8 @@ class ReleaseReviewCoordinator:
         interactive: bool,
         input_handler: Optional[Any] = None,
         approver: str = "human",
+        readiness_report: Optional[_readiness.ReleaseReadinessReport] = None,
+        waived_standing_gates: Sequence[str] = (),
     ) -> _gates.GateDecision:
         """Gate the release behind an explicit human decision. REFUSE without explicit approval.
 
@@ -370,12 +513,66 @@ class ReleaseReviewCoordinator:
         """
 
         self.enter_stage(STAGE_RELEASE)
+
+        for gate in waived_standing_gates:
+            if gate not in READINESS_STANDING_WAIVABLE_GATES:
+                raise ReleaseAuthorityError(
+                    f"gate '{gate}' cannot be waived; only standing gates {sorted(READINESS_STANDING_WAIVABLE_GATES)} may be waived"
+                )
+
+        if readiness_report is None:
+            raise ReleaseAuthorityError(
+                "release refused: no Section 9 readiness report supplied"
+            )
+
+        na = _not_applicable_names(readiness_report)
+        failed = tuple(g for g in readiness_report.failing_gates() if g not in na)
+        hard_failures = tuple(
+            g
+            for g in failed
+            if g not in READINESS_ATTESTATION_GATES
+            and g not in READINESS_STANDING_WAIVABLE_GATES
+        ) + tuple(g for g in na if g in READINESS_INPUT_REQUIRED_GATES)
+        not_applicable_gates = tuple(
+            g for g in na if g not in READINESS_INPUT_REQUIRED_GATES
+        )
+
+        if hard_failures:
+            raise ReleaseAuthorityError(
+                f"release refused: hard gate failure(s): {', '.join(sorted(hard_failures))}"
+            )
+
+        if "residual_risk" in readiness_report.failing_gates():
+            raise ReleaseAuthorityError(
+                "release refused: residual_risk gate is unsigned in readiness report"
+            )
+
+        standing_failures = tuple(
+            g for g in failed if g in READINESS_STANDING_WAIVABLE_GATES
+        )
+        waived_set = frozenset(waived_standing_gates)
+        unwaived = tuple(g for g in standing_failures if g not in waived_set)
+        if unwaived:
+            raise ReleaseAuthorityError(
+                f"release refused: unwaived standing gate failure(s): {', '.join(sorted(unwaived))}"
+            )
+
+        prompt = "Execute the release (tag/publish)? This is irreversible."
+        metadata: Dict[str, Any] = {}
+        if not_applicable_gates:
+            prompt = (
+                f"Execute the release (tag/publish)? This is irreversible. "
+                f"NOT-APPLICABLE gates (inputs absent, NOT verified): {', '.join(not_applicable_gates)}"
+            )
+            metadata = {"not_applicable_gates": list(not_applicable_gates)}
+
         gate = _gates.DecisionGate(
             gate_id="release-review/release",
-            prompt="Execute the release (tag/publish)? This is irreversible.",
+            prompt=prompt,
             options=("approve", "reject", "abort"),
             default_option="abort",
             requires_human=True,
+            metadata=metadata,
         )
         decision = _gates.evaluate_gate(
             gate,
@@ -1045,6 +1242,14 @@ __all__ = [
     "STAGE_RELEASE",
     "ReleaseModeError",
     "ReleaseAuthorityError",
+    "READINESS_ATTESTATION_GATES",
+    "READINESS_STANDING_WAIVABLE_GATES",
+    "READINESS_HARD_GATES",
+    "READINESS_INPUT_REQUIRED_GATES",
+    "RECOMMENDATION_GO",
+    "RECOMMENDATION_CONDITIONAL_GO",
+    "RECOMMENDATION_NO_GO",
+    "ReadinessVerification",
     "fix_bar",
     "PersonaFinding",
     "IssueLedger",
