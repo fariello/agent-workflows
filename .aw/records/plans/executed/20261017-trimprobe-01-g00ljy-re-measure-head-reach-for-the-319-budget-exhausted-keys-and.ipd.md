@@ -6,7 +6,7 @@
 - Scope: IN: create the Set `trimprobe` findings doc; run one full `tests/` coverage baseline at HEAD; for each of the 319 keys record its reach class, a valid mutation operator, its reaching test node ids count, its surviving test files, an estimated probe cost, and its assigned partition (Order 02, Order 03, Order 04, or a no-probe final verdict); commit the doc. OUT: any mutation probe (Orders 02 to 04); filing (Order 05); any code or test edit.
 - Scope-Paths: .aw/records/research/*-trimprobe-01-*.findings.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: g00ljy
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: g00ljy verified (set trimprobe, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Inputs and baseline
 
-- [ ] E-01 Create the doc with `aw research new --kind findings --set trimprobe --order 1 --slug budget-probe --summary "HEAD reach, probe queue and mutation verdicts for the 319 lrnh5f budget-exhausted keys" --apply`. Write `## Inputs`: `git rev-parse HEAD`; the key list extracted from `b1mx2w` `## Rollup mutation results` as every row whose `Final verdict` cell is `budget-exhausted` (count MUST be 319), with each row's `Operator` cell; the distinct module count of those keys (measured at authoring as 79 modules, not the 54 the backlog body states; record the measured value and the discrepancy); and paste `git diff --stat 86f0d88d HEAD -- agent_workflows tests | tail -1`. Save the extracted key list as `.aw/state/trimprobe-g00ljy/keys.tsv` (gitignored scratch).
+- [x] E-01 Create the doc with `aw research new --kind findings --set trimprobe --order 1 --slug budget-probe --summary "HEAD reach, probe queue and mutation verdicts for the 319 lrnh5f budget-exhausted keys" --apply`. Write `## Inputs`: `git rev-parse HEAD`; the key list extracted from `b1mx2w` `## Rollup mutation results` as every row whose `Final verdict` cell is `budget-exhausted` (count MUST be 319), with each row's `Operator` cell; the distinct module count of those keys (measured at authoring as 79 modules, not the 54 the backlog body states; record the measured value and the discrepancy); and paste `git diff --stat 86f0d88d HEAD -- agent_workflows tests | tail -1`. Save the extracted key list as `.aw/state/trimprobe-g00ljy/keys.tsv` (gitignored scratch).
   - Depends on: none
   - Expected outcome: the doc exists with `## Inputs`; the extracted count is 319.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Run `python3 tools/replay_coverage_diff.py baseline --out .aw/state/trimprobe-g00ljy/base -- tests/` and paste its full stdout (`head`, `xdist`, `functions`, `subprocess_only`, `wall_s`) under `## Baseline`. Confirm its `head` equals the E-01 HEAD. Then run `python3 -m pytest -o addopts= -q --collect-only -p no:randomly -m "not slow and not livecorpus" tests/ > .aw/state/trimprobe-g00ljy/collect.txt` and paste its final summary line; this one collection maps each reaching test function to its collected item count (parametrized instances included).
+- [x] E-02 Run `python3 tools/replay_coverage_diff.py baseline --out .aw/state/trimprobe-g00ljy/base -- tests/` and paste its full stdout (`head`, `xdist`, `functions`, `subprocess_only`, `wall_s`) under `## Baseline`. Confirm its `head` equals the E-01 HEAD. Then run `python3 -m pytest -o addopts= -q --collect-only -p no:randomly -m "not slow and not livecorpus" tests/ > .aw/state/trimprobe-g00ljy/collect.txt` and paste its final summary line; this one collection maps each reaching test function to its collected item count (parametrized instances included).
   - Depends on: E-01
   - Expected outcome: `baseline.json` and `collect.txt` exist under `.aw/state/trimprobe-g00ljy/`; heads match.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Classification and partition
 
-- [ ] E-03 With a scratch script under `.aw/state/trimprobe-g00ljy/` (paste its source under `## Method`), classify every key in this order: `key-gone` when the module file is absent at HEAD or `tools.replay_coverage_diff.extract_functions` finds no span for the qualname in the HEAD module (final verdict, no probe); OPERATOR CHECK: when `tools.mutation_probe.apply_operator(<HEAD source>, <qualname>, <operator>)` returns `None`, replace the operator with the first entry of `tools.mutation_probe.OPERATORS` it accepts and record both, and if none is accepted the key is final `unprovable` with reason `no applicable operator`; `unguarded-unreached` when the key is absent from `baseline.json` (final verdict; Reason cell "unreached by the non-slow selection at <E-01 HEAD>", since `slow`/`livecorpus` are excluded, `8dyt88` `## Method`); `subprocess-only` when `subprocess_only` is true (partition `P4`); otherwise `reached`. For every key record its CONTROL FILE as below. For each `reached` key derive its NODE-ID selection by mapping every context (`tests.<module>[.<Class>].<test>`) to `tests/<module>.py[::<Class>]::<test>` with the longest-existing-file-prefix rule of `tools.mutation_probe._node_id_to_selector` (pass `"<module part>::<test>"` and the repo root, splitting the context at its last dot), its collected item count `N` (the number of `collect.txt` lines equal to a selector or equal to it followed by a `[...]` parametrize suffix, summed over its selectors; count and list any context that matches zero collected lines as UNMAPPED), its surviving test files (the distinct file parts of its selectors), its CONTROL FILE (the deleted file with the most exclusive lines in the key's `hpjj44` `## Derived properties` `Reaching Test Files` cell, ties broken by path ascending, read with `git show 19313eed^:<path>` to confirm it exists there; `none` when no row or no such blob), and `est_s = 10 + 0.48 * N` (calibration at authoring HEAD `476c7b7bd`, `-n 6`: a 60-test selection probed in 24.92s and a 963-test selection in 459.68s, Findings F-03). Sort `reached` keys by `(N, key)` ascending and assign `P2` while the cumulative `est_s` is at most 7,200s; the first key that would push it past 7,200s and every key after it is `P3`. Then sum `P3`'s `est_s`: when it exceeds 7,200s (the same fallback headroom `P2` keeps), write a `### Capacity warning` under `## Probe queue` naming the summed value and, as a bullet list (not table rows), the `P3` keys past the 7,200s mark in queue order, since those are the keys Order 03 is most likely to leave `budget-exhausted`; do not repartition (a further probe plan is a human scope decision). At authoring, from the `86f0d88d` contexts, this rule gave `P2` 259 keys at 7,106s and `P3` 33 keys at 8,103s (review measurement; re-derive at HEAD).
+- [x] E-03 With a scratch script under `.aw/state/trimprobe-g00ljy/` (paste its source under `## Method`), classify every key in this order: `key-gone` when the module file is absent at HEAD or `tools.replay_coverage_diff.extract_functions` finds no span for the qualname in the HEAD module (final verdict, no probe); OPERATOR CHECK: when `tools.mutation_probe.apply_operator(<HEAD source>, <qualname>, <operator>)` returns `None`, replace the operator with the first entry of `tools.mutation_probe.OPERATORS` it accepts and record both, and if none is accepted the key is final `unprovable` with reason `no applicable operator`; `unguarded-unreached` when the key is absent from `baseline.json` (final verdict; Reason cell "unreached by the non-slow selection at <E-01 HEAD>", since `slow`/`livecorpus` are excluded, `8dyt88` `## Method`); `subprocess-only` when `subprocess_only` is true (partition `P4`); otherwise `reached`. For every key record its CONTROL FILE as below. For each `reached` key derive its NODE-ID selection by mapping every context (`tests.<module>[.<Class>].<test>`) to `tests/<module>.py[::<Class>]::<test>` with the longest-existing-file-prefix rule of `tools.mutation_probe._node_id_to_selector` (pass `"<module part>::<test>"` and the repo root, splitting the context at its last dot), its collected item count `N` (the number of `collect.txt` lines equal to a selector or equal to it followed by a `[...]` parametrize suffix, summed over its selectors; count and list any context that matches zero collected lines as UNMAPPED), its surviving test files (the distinct file parts of its selectors), its CONTROL FILE (the deleted file with the most exclusive lines in the key's `hpjj44` `## Derived properties` `Reaching Test Files` cell, ties broken by path ascending, read with `git show 19313eed^:<path>` to confirm it exists there; `none` when no row or no such blob), and `est_s = 10 + 0.48 * N` (calibration at authoring HEAD `476c7b7bd`, `-n 6`: a 60-test selection probed in 24.92s and a 963-test selection in 459.68s, Findings F-03). Sort `reached` keys by `(N, key)` ascending and assign `P2` while the cumulative `est_s` is at most 7,200s; the first key that would push it past 7,200s and every key after it is `P3`. Then sum `P3`'s `est_s`: when it exceeds 7,200s (the same fallback headroom `P2` keeps), write a `### Capacity warning` under `## Probe queue` naming the summed value and, as a bullet list (not table rows), the `P3` keys past the 7,200s mark in queue order, since those are the keys Order 03 is most likely to leave `budget-exhausted`; do not repartition (a further probe plan is a human scope decision). At authoring, from the `86f0d88d` contexts, this rule gave `P2` 259 keys at 7,106s and `P3` 33 keys at 8,103s (review measurement; re-derive at HEAD).
   - Depends on: E-02
   - Expected outcome: every key has exactly one of `key-gone`, `unprovable`, `unguarded-unreached`, `P2`, `P3`, `P4`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Write `## Probe queue`: one row per key with columns `Key`, `Operator`, `Operator note`, `Reach class`, `N`, `est_s`, `Surviving test files`, `Control file`, `Partition or final verdict`, in partition order then queue order, then the E-03 `### Capacity warning` when one applies, plus a summary table of counts per partition and per final verdict that sums to 319 and the summed `est_s` of `P2` and `P3`. The node-id selections are NOT committed (they are re-derived by Orders 02 and 03 at their own HEAD); the surviving files and control files ARE committed because Orders 02 to 04 need them in an isolated worktree (the file-level fallback and the positive control). Run `aw research index`, then commit only the doc with `aw commit <this plan> -- <doc path>`.
+- [x] E-04 Write `## Probe queue`: one row per key with columns `Key`, `Operator`, `Operator note`, `Reach class`, `N`, `est_s`, `Surviving test files`, `Control file`, `Partition or final verdict`, in partition order then queue order, then the E-03 `### Capacity warning` when one applies, plus a summary table of counts per partition and per final verdict that sums to 319 and the summed `est_s` of `P2` and `P3`. The node-id selections are NOT committed (they are re-derived by Orders 02 and 03 at their own HEAD); the surviving files and control files ARE committed because Orders 02 to 04 need them in an isolated worktree (the file-level fallback and the positive control). Run `aw research index`, then commit only the doc with `aw commit <this plan> -- <doc path>`.
   - Depends on: E-03
   - Expected outcome: the table has 319 rows; counts sum to 319; one path-scoped commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,25 +116,127 @@ N/A: a measurement record only; no behavior, CLI surface or spec-described contr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `aw research new` output naming the created path; paste the extraction command and its printed count `319`; paste the measured module count and the `git diff --stat` tail line.
   - Observed evidence:
-  - Result: pending
+    `aw research new` output:
+    ```
+    aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/g00ljy but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/g00ljy's package (set AW_NO_REEXEC=1 to disable)
+    wrote /mnt/md1/VC/agent-workflows/.aw/worktrees/g00ljy/.aw/records/research/20261017-trimprobe-01-wo21z5-budget-probe.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    ```
+    Extraction command and count:
+    ```sh
+    python3 .aw/state/trimprobe-g00ljy/extract_keys.py
+    ```
+    Output:
+    ```
+    Total budget-exhausted keys extracted: 319
+    Distinct modules: 79
+    ```
+    Measured module count: 79 modules (discrepancy with backlog `lrnh5f` body stating 54).
+    `git diff --stat 86f0d88d HEAD -- agent_workflows tests | tail -1`:
+    ```
+     179 files changed, 27211 insertions(+), 1882 deletions(-)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the full `replay_coverage_diff.py baseline` stdout and `git rev-parse HEAD` showing equal heads; paste the `--collect-only` summary line.
   - Observed evidence:
-  - Result: pending
+    `tools/replay_coverage_diff.py baseline` stdout:
+    ```
+    Baseline recorded to .aw/state/trimprobe-g00ljy/base/baseline.json
+    head: f3afece925f521dd5a6e930e02b584a2c08cf950
+    xdist: True
+    functions: 4583
+    subprocess_only: 100
+    wall_s: 1199.10
+    ```
+    `git rev-parse HEAD`:
+    ```
+    f3afece925f521dd5a6e930e02b584a2c08cf950
+    ```
+    Heads match.
+    `--collect-only` summary line:
+    ```
+    8261/8666 tests collected (405 deselected) in 18.79s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the classification script's printed counts per class and partition (summing to 319), the list of keys whose operator was replaced (or `none`), the UNMAPPED context count (and list, or `none`), the cumulative `est_s` at the `P2`/`P3` boundary showing `P2` at most 7,200s, the summed `P3` `est_s`, and either the `### Capacity warning` text or a statement that `P3` is at most 7,200s.
   - Observed evidence:
-  - Result: pending
+    Classification script printed counts:
+    ```
+    === CLASSIFICATION SUMMARY ===
+    Total keys: 319
+    P2 count: 263, sum est_s: 7111.28s
+    P3 count: 37, sum est_s: 9732.40s
+    P4 count: 17
+      P2: 263
+      P3: 37
+      P4: 17
+      unguarded-unreached: 2
+    Sum: 319
+    ```
+    Operator replacements: none (0 replaced, all 319 original operators valid and applicable at HEAD).
+    UNMAPPED contexts: 0 (none; all reaching contexts mapped to collected test node IDs).
+    Cumulative `est_s` at P2/P3 boundary:
+    P2 263rd key: `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_accelerators` (cumulative P2 est_s: 7111.28s <= 7200.00s).
+    P3 1st key: `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_resources` (est_s: 137.68s; adding to P2 would yield 7248.96s > 7200s).
+    Summed P3 `est_s`: 9732.40s.
+    Capacity warning text:
+    ```markdown
+    ### Capacity warning
 
-- [ ] V-04 validates E-04
+    Partition `P3` estimated survivor cost totals **9732.40s**, which exceeds the 7,200s planning headroom by **2532.40s**.
+    Order 03 (`f4pbs5`) has a 10,800s hard cap, but fallbacks and positive control runs may cause trailing keys past the 7,200s mark to risk `budget-exhausted`.
+    The 3 `P3` keys past the 7,200s cumulative mark in queue order are:
+    - `agent_workflows/cli.py::_dispatch` (est_s: 688.72s, cumulative P3 cost: 7310.48s)
+    - `agent_workflows/result_types.py::select_output` (est_s: 770.32s, cumulative P3 cost: 8080.80s)
+    - `agent_workflows/project_context.py::_resolve_effective_aw_home` (est_s: 1651.60s, cumulative P3 cost: 9732.40s)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `sed -n '/^## Probe queue/,/^## [^P]/p' <doc> | rg -c '^\| \`agent_workflows/'` showing 319 (the doc has no other `## ` section after `## Probe queue` at this Order, so the range is that section); paste the summary table; paste the `aw commit` output and `git show --stat HEAD` listing only the doc.
   - Observed evidence:
-  - Result: pending
+    `sed -n '/^## Probe queue/,/^## [^P]/p' .aw/records/research/20261017-trimprobe-01-wo21z5-budget-probe.findings.md | rg -c '^\| \`agent_workflows/'`:
+    `319`
+    Summary table:
+    ```markdown
+    | Partition or final verdict | Count | Estimated survivor time (s) | Description |
+    |---|---|---|---|
+    | `P2` | 263 | 7111.28 | Cheapest reached keys (probed by Order 02 `lictgf`) |
+    | `P3` | 37 | 9732.40 | Remaining reached keys (probed by Order 03 `f4pbs5`) |
+    | `P4` | 17 | n/a | Subprocess-only keys (probed by Order 04 `pr6lo9`) |
+    | `unguarded-unreached` | 2 | n/a | Unreached by non-slow test selection at HEAD (final verdict) |
+    | `key-gone` | 0 | n/a | Key absent or qualname span not found at HEAD (final verdict) |
+    | `unprovable` | 0 | n/a | No applicable mutation operator (final verdict) |
+    | **Total** | **319** | **16843.68** | All 319 budget-exhausted candidate keys partitioned or decided |
+    ```
+    `aw commit` output:
+    ```
+    aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/g00ljy but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/g00ljy's package (set AW_NO_REEXEC=1 to disable)
+    aw commit: committed 1 path(s): d416e8d8f38a1253a09b8e4266ce34c9c784115c
+    ```
+    `git show --stat HEAD`:
+    ```
+    commit d416e8d8f38a1253a09b8e4266ce34c9c784115c (HEAD -> aw/lane/g00ljy)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Sat Oct 17 18:40:21 2026 -0400
+
+        work(g00ljy): Re-measure HEAD reach for the 319 budget-exhausted keys and build the probe queue
+
+        AW-Run: run-20261017T220251Z-1893841
+        AW-Item: g00ljy
+        AW-Runner: aw agy run
+
+     ...17-trimprobe-01-wo21z5-budget-probe.findings.md | 1047 ++++++++++++++++++++
+     1 file changed, 1047 insertions(+)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
