@@ -22,10 +22,9 @@ from agent_workflows.render_stream import (
 class TestStatuslineAsciiModePurity:
     """Assert ASCII-mode purity, width parity, and boundary properties across renderer and class."""
 
-    @pytest.mark.parametrize("enabled", [False, True], ids=["plain", "styled"])
-    @pytest.mark.parametrize(
-        ("cur", "tot"),
-        [
+    def test_format_statusline_lines_ascii_purity_swept_states(self) -> None:
+        """Level 1 (renderer): format_statusline_lines under use_unicode=False emits only ASCII across all 16 swept states."""
+        swept_states = [
             (0, 0),  # degenerate zero total
             (0, 10),  # un-started run (0/N)
             (1, 10),  # started run
@@ -34,39 +33,50 @@ class TestStatuslineAsciiModePurity:
             (10, 10),  # completed run (N/N)
             (3, 80),  # fractional eighths on wider total
             (79, 80),  # 99% boundary
-        ],
-    )
-    def test_format_statusline_lines_ascii_purity_swept_states(
-        self, enabled: bool, cur: int, tot: int
-    ) -> None:
-        """Level 1 (renderer): format_statusline_lines under use_unicode=False emits only ASCII."""
-        pal = Palette(enabled, use_unicode=False)
-        lines = format_statusline_lines(
-            now_ts=1700000000.0,
-            run_start_ts=1700000000.0,
-            item_start_ts=1700000000.0,
-            last_act_ts=1700000000.0,
-            current_idx=cur,
-            total_items=tot,
-            setid="statuscov",
-            id6="mzrr7x",
-            pal=pal,
-            use_unicode=False,
-        )
-        assert len(lines) == 4, f"Expected 4 lines, got {len(lines)}"
-        for i, line in enumerate(lines):
-            non_ascii = [c for c in line if ord(c) >= 128]
-            assert not non_ascii, f"Line {i} for cur={cur}, tot={tot}, enabled={enabled} contains non-ASCII: {non_ascii}"
-        # All 4 lines must share the exact same visible terminal width
-        widths = {_T.visible_width(line) for line in lines}
-        assert (
-            len(widths) == 1
-        ), f"Expected uniform visible width across 4 lines, got {widths}"
+        ]
+        failures = []
+        for enabled in [False, True]:
+            for cur, tot in swept_states:
+                case_id = f"enabled={enabled}_cur={cur}_tot={tot}"
+                pal = Palette(enabled, use_unicode=False)
+                lines = format_statusline_lines(
+                    now_ts=1700000000.0,
+                    run_start_ts=1700000000.0,
+                    item_start_ts=1700000000.0,
+                    last_act_ts=1700000000.0,
+                    current_idx=cur,
+                    total_items=tot,
+                    setid="statuscov",
+                    id6="mzrr7x",
+                    pal=pal,
+                    use_unicode=False,
+                )
+                if len(lines) != 4:
+                    failures.append(
+                        f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                    )
+                    continue
+                for i, line in enumerate(lines):
+                    non_ascii = [c for c in line if ord(c) >= 128]
+                    if non_ascii:
+                        failures.append(
+                            f"[{case_id}] Line {i} contains non-ASCII: {non_ascii} (why: ascii mode purity invariant)"
+                        )
+                widths = {_T.visible_width(line) for line in lines}
+                if len(widths) != 1:
+                    failures.append(
+                        f"[{case_id}] Non-uniform visible width across 4 lines: {widths} (why: uniform visible width invariant)"
+                    )
 
-    @pytest.mark.parametrize("enabled", [False, True], ids=["plain", "styled"])
-    @pytest.mark.parametrize(
-        ("cur", "tot"),
-        [
+        if failures:
+            pytest.fail(
+                f"{len(failures)} renderer ascii purity combination(s) failed:\n"
+                + "\n".join(failures)
+            )
+
+    def test_statusline_class_ascii_purity_swept_states(self) -> None:
+        """Level 2 (class): Statusline with a use_unicode=False palette forwards ASCII mode across all 16 swept states."""
+        swept_states = [
             (0, 0),
             (0, 10),
             (1, 10),
@@ -75,34 +85,45 @@ class TestStatuslineAsciiModePurity:
             (10, 10),
             (3, 80),
             (79, 80),
-        ],
-    )
-    def test_statusline_class_ascii_purity_swept_states(
-        self, enabled: bool, cur: int, tot: int
-    ) -> None:
-        """Level 2 (class): Statusline with a use_unicode=False palette forwards ASCII mode."""
-        pal = Palette(enabled, use_unicode=False)
-        sl = Statusline(
-            pal=pal,
-            stream=io.StringIO(),
-            current_idx=cur,
-            total_items=tot,
-            setid="statuscov",
-            id6="mzrr7x",
-            run_start_mono=time.monotonic(),
-        )
-        box = sl.render_line()
-        lines = box.splitlines()
-        assert (
-            len(lines) == 4
-        ), f"Expected 4 lines in rendered statusline, got {len(lines)}"
-        for i, line in enumerate(lines):
-            non_ascii = [c for c in line if ord(c) >= 128]
-            assert not non_ascii, f"Statusline line {i} for cur={cur}, tot={tot}, enabled={enabled} contains non-ASCII: {non_ascii}"
-        widths = {_T.visible_width(line) for line in lines}
-        assert (
-            len(widths) == 1
-        ), f"Expected uniform visible width across 4 statusline lines, got {widths}"
+        ]
+        failures = []
+        for enabled in [False, True]:
+            for cur, tot in swept_states:
+                case_id = f"enabled={enabled}_cur={cur}_tot={tot}"
+                pal = Palette(enabled, use_unicode=False)
+                sl = Statusline(
+                    pal=pal,
+                    stream=io.StringIO(),
+                    current_idx=cur,
+                    total_items=tot,
+                    setid="statuscov",
+                    id6="mzrr7x",
+                    run_start_mono=time.monotonic(),
+                )
+                box = sl.render_line()
+                lines = box.splitlines()
+                if len(lines) != 4:
+                    failures.append(
+                        f"[{case_id}] Expected 4 lines in rendered statusline, got {len(lines)} (why: statusline box height invariant)"
+                    )
+                    continue
+                for i, line in enumerate(lines):
+                    non_ascii = [c for c in line if ord(c) >= 128]
+                    if non_ascii:
+                        failures.append(
+                            f"[{case_id}] Statusline line {i} contains non-ASCII: {non_ascii} (why: ascii mode purity invariant)"
+                        )
+                widths = {_T.visible_width(line) for line in lines}
+                if len(widths) != 1:
+                    failures.append(
+                        f"[{case_id}] Expected uniform visible width across 4 statusline lines, got {widths} (why: uniform visible width invariant)"
+                    )
+
+        if failures:
+            pytest.fail(
+                f"{len(failures)} class ascii purity combination(s) failed:\n"
+                + "\n".join(failures)
+            )
 
     def test_statusline_explicit_use_unicode_override(self) -> None:
         """Statusline constructor honors explicit use_unicode parameter override."""

@@ -68,27 +68,39 @@ _CELL_CASES = [
 ]
 
 
-@pytest.mark.parametrize("case_name,case_kwargs", _CELL_CASES)
-@pytest.mark.parametrize("styled", [False, True])
-@pytest.mark.parametrize("use_unicode", [True, False])
-def test_statusline_box_is_rectangular(
-    case_name: str,
-    case_kwargs: dict[str, Any],
-    styled: bool,
-    use_unicode: bool,
-) -> None:
-    """The 4-line statusline box must have exactly one visible width across all lines."""
-    pal = render_stream.Palette(styled, use_unicode=use_unicode)
-    kwargs = {**_BASE_KWARGS, **case_kwargs, "pal": pal, "use_unicode": use_unicode}
-    lines = render_stream.format_statusline_lines(**kwargs)
-    assert len(lines) == 4
+def test_statusline_box_is_rectangular() -> None:
+    """The 4-line statusline box must have exactly one visible width across all 32 cell/style/unicode combinations."""
+    failures = []
+    for case_name, case_kwargs in _CELL_CASES:
+        for styled in [False, True]:
+            for use_unicode in [True, False]:
+                case_id = f"case={case_name}_styled={styled}_unicode={use_unicode}"
+                pal = render_stream.Palette(styled, use_unicode=use_unicode)
+                kwargs = {
+                    **_BASE_KWARGS,
+                    **case_kwargs,
+                    "pal": pal,
+                    "use_unicode": use_unicode,
+                }
+                lines = render_stream.format_statusline_lines(**kwargs)
+                if len(lines) != 4:
+                    failures.append(
+                        f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                    )
+                    continue
 
-    widths = {_T.visible_width(line) for line in lines}
-    assert len(widths) == 1, (
-        f"Statusline lines for {case_name} (styled={styled}, unicode={use_unicode}) "
-        f"have inconsistent visible widths: {widths}. Lines:\n"
-        + "\n".join(repr(line_str) for line_str in lines)
-    )
+                widths = {_T.visible_width(line) for line in lines}
+                if len(widths) != 1:
+                    failures.append(
+                        f"[{case_id}] Inconsistent visible widths: {widths} (why: uniform visible width invariant)\n"
+                        + "\n".join(repr(line_str) for line_str in lines)
+                    )
+
+    if failures:
+        pytest.fail(
+            f"{len(failures)} statusline rectangularity combination(s) failed:\n"
+            + "\n".join(failures)
+        )
 
 
 def test_activity_case_is_live() -> None:

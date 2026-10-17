@@ -133,53 +133,71 @@ class TestComputeQueueTally:
 
 
 class TestStatuslineStopTallyRendering:
-    @pytest.mark.parametrize("stop_level", [None, 1, 2, 3, 4])
-    @pytest.mark.parametrize("tally", [None, (0, 0), (3, 1)])
-    @pytest.mark.parametrize("styled", [False, True])
-    @pytest.mark.parametrize("use_unicode", [True, False])
-    def test_statusline_rectangular_with_badges(
-        self,
-        stop_level: int | None,
-        tally: tuple[int, int] | None,
-        styled: bool,
-        use_unicode: bool,
-    ) -> None:
-        """Assert that statusline box is strictly rectangular across badge combinations."""
-        pal = rs.Palette(styled, use_unicode=use_unicode)
-        p_arg = tally[0] if tally is not None else None
-        f_arg = tally[1] if tally is not None else None
+    def test_statusline_rectangular_with_badges(self) -> None:
+        """Assert that statusline box is strictly rectangular across all 60 badge combinations."""
+        stop_levels = [None, 1, 2, 3, 4]
+        tallies = [None, (0, 0), (3, 1)]
+        styled_options = [False, True]
+        unicode_options = [True, False]
 
-        lines = rs.format_statusline_lines(
-            now_ts=1700000000.0,
-            run_start_ts=1700000000.0 - 3600.0,
-            item_start_ts=1700000000.0 - 60.0,
-            last_act_ts=1700000000.0 - 10.0,
-            current_idx=8,
-            total_items=17,
-            setid="cvtg9u",
-            id6="lv0dvv",
-            runner="opencode",
-            model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
-            variant="high",
-            pal=pal,
-            use_unicode=use_unicode,
-            stop_level=stop_level,
-            items_passed=p_arg,
-            items_failed=f_arg,
-        )
+        failures = []
+        for stop_level in stop_levels:
+            for tally in tallies:
+                for styled in styled_options:
+                    for use_unicode in unicode_options:
+                        case_id = (
+                            f"stop={stop_level}_tally={tally}_"
+                            f"styled={styled}_unicode={use_unicode}"
+                        )
+                        pal = rs.Palette(styled, use_unicode=use_unicode)
+                        p_arg = tally[0] if tally is not None else None
+                        f_arg = tally[1] if tally is not None else None
 
-        assert len(lines) == 4
-        widths = {_T.visible_width(line) for line in lines}
-        assert len(widths) == 1, (
-            f"Non-rectangular lines for stop={stop_level}, tally={tally}, "
-            f"styled={styled}, unicode={use_unicode}: {widths}\n"
-            + "\n".join(repr(line) for line in lines)
-        )
+                        lines = rs.format_statusline_lines(
+                            now_ts=1700000000.0,
+                            run_start_ts=1700000000.0 - 3600.0,
+                            item_start_ts=1700000000.0 - 60.0,
+                            last_act_ts=1700000000.0 - 10.0,
+                            current_idx=8,
+                            total_items=17,
+                            setid="cvtg9u",
+                            id6="lv0dvv",
+                            runner="opencode",
+                            model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
+                            variant="high",
+                            pal=pal,
+                            use_unicode=use_unicode,
+                            stop_level=stop_level,
+                            items_passed=p_arg,
+                            items_failed=f_arg,
+                        )
 
-        if not use_unicode:
-            for i, line in enumerate(lines):
-                non_ascii = [c for c in line if ord(c) >= 128]
-                assert not non_ascii, f"Line {i} contains non-ASCII: {non_ascii}"
+                        if len(lines) != 4:
+                            failures.append(
+                                f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                            )
+                            continue
+
+                        widths = {_T.visible_width(line) for line in lines}
+                        if len(widths) != 1:
+                            failures.append(
+                                f"[{case_id}] Non-rectangular lines: {widths} (why: uniform visible width invariant)\n"
+                                + "\n".join(repr(line) for line in lines)
+                            )
+
+                        if not use_unicode:
+                            for i, line in enumerate(lines):
+                                non_ascii = [c for c in line if ord(c) >= 128]
+                                if non_ascii:
+                                    failures.append(
+                                        f"[{case_id}] Line {i} contains non-ASCII: {non_ascii} (why: ascii mode purity invariant)"
+                                    )
+
+        if failures:
+            pytest.fail(
+                f"{len(failures)} statusline badge combination(s) failed:\n"
+                + "\n".join(failures)
+            )
 
     def test_badge_content_in_bottom_border(self) -> None:
         """Assert Option 6 bottom border contains tally and stop badges."""
