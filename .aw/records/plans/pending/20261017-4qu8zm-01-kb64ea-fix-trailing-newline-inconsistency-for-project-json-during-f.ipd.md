@@ -3,10 +3,11 @@
 - Date: 2026-10-17
 - Kind: child
 - Concern: `.aw/config/project.json` ends with a trailing newline or not depending on which install code path wrote it last, so a reinstall flips the file's final byte and produces spurious git diffs in a tracked, committed policy file.
-- Scope: Make every framework-install and placement-switch writer of `.aw/config/project.json` (and the sibling `.aw/config/local.json` written by the same functions) emit exactly one trailing newline, and add behavioral tests that drive the writers and assert on the bytes on disk.
-- Scope-Paths: agent_workflows/install_wizard.py, agent_workflows/placement_switch.py, tests/test_install_config_trailing_newline.py
-- Item-Dependencies: none
-- Status: to-review
+- Scope: Make the placement-switch writer of `.aw/config/project.json` and `.aw/config/local.json` (`placement_switch._write_atomic_json`) emit exactly one trailing newline, and add behavioral tests that drive the writers and assert on the bytes on disk, including a regression test that the install-wizard writer (`install_wizard.persist_project_policy`) stays byte-stable. The install-wizard writer fix itself is carried by plan `gbnrdf` (Set `denczr`), which this plan depends on, so the two plans never make the same edit.
+- Scope-Paths: agent_workflows/placement_switch.py, tests/test_install_config_trailing_newline.py
+- Item-Dependencies: executed:gbnrdf
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: 4qu8zm
@@ -18,6 +19,7 @@
 - Id: kb64ea
 
 ## Workflow history
+- 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record `.aw/records/reviews/20261017-4qu8zm-01-kb64ea-fix-trailing-newline-inconsistency-for-project-json-during-f.review.md`)
 
 - 2026-10-17 draft (opencode claude opus): created.
 - 2026-10-17 to-review (opencode claude opus): authored from backlog 4qu8zm with findings, checklist, and validation.
@@ -32,23 +34,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Writers
 
-- [ ] E-01 In `install_wizard.persist_project_policy`, write a trailing `"\n"` after `json.dump(proj_schema.to_dict(), f, indent=2)` (the `.tmp_project.json` write) and after `json.dump(local_schema.to_dict(), f, indent=2)` (the `.tmp_local.json` write), before each `os.replace`.
+- [ ] E-01 Confirm (read-only) that plan `gbnrdf` is in `.aw/records/plans/executed/` and that `install_wizard.persist_project_policy` now writes `"\n"` after both `json.dump(proj_schema.to_dict(), f, indent=2)` and `json.dump(local_schema.to_dict(), f, indent=2)`. Do NOT edit `install_wizard.py` (it is not in this plan's Scope-Paths); if the fix is absent, STOP and report, because the prerequisite `gbnrdf` did not land.
   - Depends on: none
-  - Expected outcome: both files written by `persist_project_policy` end in exactly one `\n`, matching `config.sync_cutovers_on_install`, which already writes `f.write("\n")`.
+  - Expected outcome: the install-wizard newline fix is present from `gbnrdf`, so this plan's test (a)/(b) below are regression coverage that pass from the start, and this plan changes only `placement_switch.py`.
   - Execution state: pending
-- [ ] E-02 In `placement_switch._write_atomic_json`, write a trailing `"\n"` after `json.dump(data, f, indent=2)`, so the project.json and local.json writes that go through it (the `new_proj_schema` and `new_local_schema` writes) match the records-backend rewrite path in the same module, which already appends `f.write("\n")`.
-  - Depends on: none
+- [ ] E-02 After E-03's tests have been run red (see E-03), in `placement_switch._write_atomic_json`, write a trailing `"\n"` after `json.dump(data, f, indent=2)`, so the project.json and local.json writes that go through it (the `new_proj_schema` and `new_local_schema` writes) match the records-backend rewrite path in the same module, which already appends `f.write("\n")`.
+  - Depends on: E-03
   - Expected outcome: every file written through `_write_atomic_json` (project.json, local.json, journals, receipts) ends in exactly one `\n`; readers use `json.load`/`json.loads`, which accept trailing whitespace.
   - Execution state: pending
 
 ### Task group 2: Tests
 
-- [ ] E-03 Create `tests/test_install_config_trailing_newline.py` with tests that (a) call `persist_project_policy` on a fresh temp git repo (pattern from `tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation`) and assert `project.json` and `local.json` bytes end with `b"}\n"` and not `b"\n\n"`; (b) seed a `project.json` whose `cutovers` are already complete (so `sync_cutovers_on_install` does not rewrite), run `persist_project_policy` twice, and assert the second run leaves `project.json` byte-identical to the first and ending in one `\n`; (c) call `placement_switch._write_atomic_json` on a temp path and assert the bytes end in exactly one `\n` and round-trip through `json.loads`.
-  - Depends on: E-01, E-02
-  - Expected outcome: the new tests fail against the pre-fix code for (a)/(b)/(c) and pass after E-01/E-02.
+- [ ] E-03 Create `tests/test_install_config_trailing_newline.py` with tests that (a) call `persist_project_policy` on a fresh temp git repo (pattern from `tests/test_reinstall_preserves_config.py::TestPersistProjectPolicyPreservation`) and assert `project.json` and `local.json` bytes end with `b"}\n"` and not `b"\n\n"`; (b) seed a `project.json` whose `cutovers` are already complete (so `sync_cutovers_on_install` does not rewrite), run `persist_project_policy` twice, and assert the second run leaves `project.json` byte-identical to the first and ending in one `\n`; (c) call `placement_switch._write_atomic_json` on a temp path and assert the bytes end in exactly one `\n` (`endswith(b"}\n")` and not `endswith(b"\n\n")`) and round-trip through `json.loads`. Write the file BEFORE E-02 and run it once against the unmodified `placement_switch.py`, keeping the output for V-03.
+  - Depends on: E-01
+  - Expected outcome: before E-02, (a) and (b) pass (the `gbnrdf` fix is present) and (c) fails (measured at review: `_write_atomic_json` currently ends the file with `b'\n}'`, no trailing newline); after E-02 all pass.
   - Execution state: pending
-- [ ] E-04 Run the new test file, the existing install and placement-switch test files, and the core suite.
-  - Depends on: E-03
+- [ ] E-04 Run the new test file, the existing install and placement-switch test files (with the slow marker filter cleared, since most of them are `pytestmark = pytest.mark.slow`), and the core suite.
+  - Depends on: E-02, E-03
   - Expected outcome: all pass with no new failures.
   - Execution state: pending
 
@@ -63,36 +65,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Writer | File(s) | Trailing newline today |
 |---|---|---|
-| `install_wizard.persist_project_policy` (`json.dump(proj_schema.to_dict(), f, indent=2)`) | project.json | no |
-| `install_wizard.persist_project_policy` (`json.dump(local_schema.to_dict(), f, indent=2)`) | local.json | no |
+| `install_wizard.persist_project_policy` (`json.dump(proj_schema.to_dict(), f, indent=2)`) | project.json | no (fixed by plan `gbnrdf`, a prerequisite) |
+| `install_wizard.persist_project_policy` (`json.dump(local_schema.to_dict(), f, indent=2)`) | local.json | no (fixed by plan `gbnrdf`, a prerequisite) |
 | `config.sync_cutovers_on_install` (`f.write("\n")` after dump), only when `modified` | project.json | yes |
 | `placement_switch._write_atomic_json` (used for `new_proj_schema` / `new_local_schema`) | project.json, local.json | no |
 | `placement_switch` records-backend rewrite (`json.dump(new_proj_data, f, indent=2)` then `f.write("\n")`) | project.json, local.json | yes |
 
-Mechanism: `persist_project_policy` writes project.json without a newline, then calls `config.sync_cutovers_on_install`, which rewrites it WITH a newline only when it stamps a missing cutover. A first install stamps cutovers (newline present); a reinstall finds cutovers already present, skips the rewrite, and leaves the newline-less file from `persist_project_policy`. The tracked file therefore toggles its final byte between installs.
+Mechanism: `persist_project_policy` writes project.json without a newline, then calls `config.sync_cutovers_on_install`, which rewrites it WITH a newline only when it stamps a missing cutover. A first install stamps cutovers (newline present); a reinstall finds cutovers already present, skips the rewrite, and leaves the newline-less file from `persist_project_policy`. The tracked file therefore toggles its final byte between installs. A placement switch writes project.json through `_write_atomic_json` with no newline, so a later reinstall (which, after `gbnrdf`, writes a newline) toggles it again; that is the half this plan fixes.
+
+Duplicate carrier: pending plan `gbnrdf` (Set `denczr`, `- Blocks-Release: next`, reviewed) adds exactly the two `persist_project_policy` newline writes this plan's former E-01 described, plus a byte-stability test. This plan therefore depends on `executed:gbnrdf` and does not edit `install_wizard.py`.
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: append `\n` in both `persist_project_policy` temp writes.
-2. E-02: append `\n` in `placement_switch._write_atomic_json`.
-3. E-03/E-04: behavioral tests and suite run.
+1. E-01: confirm the `gbnrdf` install-wizard fix landed (read-only).
+2. E-03: behavioral tests, run red before E-02.
+3. E-02: append `\n` in `placement_switch._write_atomic_json`.
+4. E-04: suite runs.
 
 ## Deferred / out of scope (with reason)
 
 - `install_history.py` snapshot write (`json.dump(snapshot, f, indent=2)`): an install-history record under durable state, not `project.json`; the backlog item is scoped to project.json, so it is left unchanged.
   - Carrier-Declined: install-history record under durable state; backlog item is scoped to project.json
+- The `install_wizard.persist_project_policy` newline fix: carried by plan `gbnrdf` (Set `denczr`), a declared prerequisite; making the same edit here would duplicate it.
+  - Carrier: gbnrdf
 - A shared JSON-write helper consolidating all writers: refactor beyond this bug's scope.
   - Carrier-Declined: architectural refactoring beyond this bug's focused scope
 
 ## Scope check
 
-- Over-scope: E-02 also changes journal/receipt files written through `_write_atomic_json`; this is accepted because splitting the helper just for config files adds complexity, and all readers parse with `json` which ignores trailing whitespace. local.json is fixed alongside project.json because the same functions write it with the same defect.
+- Over-scope: the former install-wizard edit duplicated plan `gbnrdf` and was removed (now a read-only prerequisite check). E-02 also changes journal/receipt files written through `_write_atomic_json`; this is accepted because splitting the helper just for config files adds complexity, and all readers parse with `json` which ignores trailing whitespace. local.json is fixed alongside project.json because the same functions write it with the same defect.
 - Under-scope: none.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" -q tests/test_install_config_trailing_newline.py` passes (V-03).
-- `python3 -m pytest tests/test_reinstall_preserves_config.py tests/test_placement_switch_execute.py tests/test_placement_switch_companion_execute.py tests/test_installer.py` passes (V-04).
+- `python3 -m pytest -o addopts="" -q -n auto tests/test_reinstall_preserves_config.py tests/test_placement_switch_execute.py tests/test_placement_switch_companion_execute.py tests/test_placement_switch_guard.py tests/test_installer.py` passes (V-04). Clearing `addopts` is required: three of these files are `pytestmark = pytest.mark.slow`, and the default filter deselects 174 of their 185 tests (measured at review).
 - Bare `python3 -m pytest` core tier passes (V-04).
 
 ## Spec / documentation sync
@@ -105,7 +112,7 @@ N/A: no spec or user-facing doc describes the byte format of `project.json`; thi
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: Yes. They are written by the same functions with the same defect, and the repository convention (`config.py` canonical write, `sync_cutovers_on_install`) is trailing newline; fixing only project.json would leave the same function inconsistent.
 
 ## Validation and cross-check (verify before reporting done)
@@ -113,7 +120,7 @@ N/A: no spec or user-facing doc describes the byte format of `project.json`; thi
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `git diff agent_workflows/install_wizard.py` hunk showing a `\n` write after both `json.dump` calls in `persist_project_policy`.
+  - Required evidence: paste `ls .aw/records/plans/executed/ | grep gbnrdf` showing the prerequisite plan, the `grep -n -A1 'json.dump(\(proj\|local\)_schema.to_dict(), f, indent=2)' agent_workflows/install_wizard.py` output showing an `f.write("\n")` line after each, and `git diff --name-only <base>..HEAD -- agent_workflows/install_wizard.py` for this plan's own commits showing nothing.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -121,11 +128,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste pytest output for `tests/test_install_config_trailing_newline.py` showing all tests passed after the fix, plus pasted output of the same file run BEFORE applying E-01/E-02 (write the test first) showing at least one failure.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_install_config_trailing_newline.py` output run BEFORE E-02 showing tests (a) and (b) PASSED and test (c) FAILED on the trailing-newline assertion, then the same command after E-02 showing every test PASSED with zero failed.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `N passed` summary lines from the named existing test files and from the bare `python3 -m pytest` core run, with zero failures.
+  - Required evidence: paste the summary line of the `-o addopts=""` run of the named existing test files (zero failed, zero deselected) and the `N passed` summary line of the bare `python3 -m pytest` core run with `echo "exit=$?"` showing 0.
   - Observed evidence:
   - Result: pending
 
@@ -134,4 +141,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit through `aw commit <plan> -- <Scope-Paths>`; never push. After every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/` through the lifecycle tooling.
+Execute only after human approval (`Status: approved`) and after `gbnrdf` is executed; every open question is resolved. Commit only files you changed, through `aw commit kb64ea -- agent_workflows/placement_switch.py tests/test_install_config_trailing_newline.py`; never `git add -A`, never push. You MUST paste the ACTUAL runner output into each `V-*`; never claim a test passed that you did not run. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and justified (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path). The one stop condition is E-01's missing prerequisite. Lifecycle: after every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize` itself.
