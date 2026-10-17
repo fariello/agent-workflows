@@ -1,11 +1,13 @@
 - Id: n6h5eg
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_analytics_cli
 
 ## Workflow history
+- 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: znjxom
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_cli
 
 Carries 76 gaps for agent_workflows/run_analytics_cli.py (449 exclusive lines): 1 production key (agent_workflows/run_analytics_cli.py::run_analyze, verdict unguarded-unreached, 4 exclusive lines) and 75 missing test names from tests/test_run_analytics_cli.py classified as gap (445 exclusive lines).
