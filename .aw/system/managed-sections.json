@@ -1210,13 +1210,13 @@
       "host": "",
       "kind": "section",
       "logical_id": "pointer",
-      "sha256": "0fbbebcf7adb494ddd90bc28bc37e771f0675d1629b5433fa568f6d504c54c6b"
+      "sha256": "bc2566123cc6734243e580dac7d658fdba37230bd143cefbc877151d7ecd000d"
     },
     "AGENTS.md#aw:reporting": {
       "host": "",
       "kind": "section",
       "logical_id": "reporting",
-      "sha256": "2ab6fbfba20990736e8f9445c14602c4029fc58bd37ccb5356fdc4bcaac87b96"
+      "sha256": "46970f75c6d377d7b6280eb07f05ff97f4a6ab3a305120fb5e433b1ad3469078"
     }
   },
   "installed_version": "1.2.1",
