@@ -6,7 +6,7 @@
 - Scope: Make the placement-switch writer of `.aw/config/project.json` and `.aw/config/local.json` (`placement_switch._write_atomic_json`) emit exactly one trailing newline, and add behavioral tests that drive the writers and assert on the bytes on disk, including a regression test that the install-wizard writer (`install_wizard.persist_project_policy`) stays byte-stable. The install-wizard writer fix itself is carried by plan `gbnrdf` (Set `denczr`), which this plan depends on, so the two plans never make the same edit.
 - Scope-Paths: agent_workflows/placement_switch.py, tests/test_install_config_trailing_newline.py
 - Item-Dependencies: executed:gbnrdf
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode claude opus
 - Id: kb64ea
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kb64ea verified (set 4qu8zm, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (review record `.aw/records/reviews/20261017-4qu8zm-01-kb64ea-fix-trailing-newline-inconsistency-for-project-json-during-f.review.md`)
 
