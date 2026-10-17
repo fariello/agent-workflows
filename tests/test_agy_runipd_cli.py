@@ -1470,14 +1470,6 @@ class AgyFullAutoApprovalTests(unittest.TestCase):
     driver clears to the HONEST `auto-approved` status rather than machine-asserting `--by-human`.
     """
 
-    def test_predicate_is_the_shared_one_and_local_copies_are_gone(self):
-        from agent_workflows import plan_readiness
-
-        self.assertIs(
-            agy_runipd.is_plan_review_approved, plan_readiness.is_plan_review_approved
-        )
-        self.assertFalse(hasattr(agy_runipd, "extract_last_history_entry"))
-
     def test_structured_readiness_decides_and_prose_does_not(self):
         with tempfile.TemporaryDirectory() as t:
             root = Path(t)

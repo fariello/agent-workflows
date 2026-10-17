@@ -1528,10 +1528,10 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 ## Structure-Pin Classification Table (IPD tv72xy)
 
 ### Summary Counts
-- Total pinscan candidate hits: 234
-- Verdicts: true-pin: 89, false-positive: 145
-- Categories: structure: 11, name-shape: 49, arch-freeze: 29, none: 145
-- Actions: delete: 69, convert: 10, keep: 155
+- Total pinscan candidate hits: 235
+- Verdicts: true-pin: 91, false-positive: 144
+- Categories: structure: 11, name-shape: 51, arch-freeze: 29, none: 144
+- Actions: delete: 71, convert: 10, keep: 154
 
 | File | Test | Line Pattern | Verdict | Category | Action | Reason |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1543,7 +1543,7 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_agy_run.py` | `AntigravityExecuteIpdCompatibilityTests::test_re_exports_and_interface_parity` | `hasattr_prod` | `true-pin` | `structure` | `convert` | Compat wrapper re-export pins; convert to behavioral --help CLI invocation (E-09) |
 | `tests/test_agy_run.py` | `AntigravityExecuteIpdCompatibilityTests::test_re_exports_and_interface_parity` | `hasattr_prod` | `true-pin` | `structure` | `convert` | Compat wrapper re-export pins; convert to behavioral --help CLI invocation (E-09) |
 | `tests/test_agy_run.py` | `AntigravityExecuteIpdCompatibilityTests::test_re_exports_and_interface_parity` | `hasattr_prod` | `true-pin` | `structure` | `convert` | Compat wrapper re-export pins; convert to behavioral --help CLI invocation (E-09) |
-| `tests/test_agy_runipd_cli.py` | `AgyFullAutoApprovalTests::test_predicate_is_the_shared_one_and_local_copies_are_gone` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
+| `tests/test_agy_runipd_cli.py` | `AgyFullAutoApprovalTests::test_predicate_is_the_shared_one_and_local_copies_are_gone` | `hasattr_prod` | `true-pin` | `name-shape` | `delete` | Runner host identity and placement pin (E-02) |
 | `tests/test_agy_runipd_cli.py` | `AgyDependencyPathsAreSharedTests::test_both_dependency_entry_points_are_the_shared_objects` | `assert_is_host_attr` | `true-pin` | `name-shape` | `delete` | Runner host identity pin (E-02) |
 | `tests/test_agy_runipd_cli.py` | `AgyDependencyPathsAreSharedTests::test_both_dependency_entry_points_are_the_shared_objects` | `assert_is_host_attr` | `true-pin` | `name-shape` | `delete` | Runner host identity pin (E-02) |
 | `tests/test_agy_runipd_cli.py` | `AgyVerdictMappingTests::test_this_host_binds_the_shared_mapping_and_holds_no_copy` | `assert_is_host_attr` | `true-pin` | `name-shape` | `delete` | Runner host identity pin (E-02) |
@@ -1582,6 +1582,7 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_fix_it_global_caps.py` | `TestEndToEndGlobalCaps::fake_launcher` | `md_doc_prose` | `false-positive` | `none` | `keep` | Reads test execution artifact or test fixture markdown; does not pin production doc prose |
 | `tests/test_forkresid_shared_shells.py` | `LanePromptSuppressionTests::test_question_timeouts_are_180s` | `assert_is_host_attr` | `true-pin` | `name-shape` | `delete` | Runner host identity pin (E-02) |
 | `tests/test_forkresid_shared_shells.py` | `LanePromptSuppressionTests::test_question_timeouts_are_180s` | `assert_is_host_attr` | `true-pin` | `name-shape` | `delete` | Runner host identity pin (E-02) |
+| `tests/test_forkresid_shared_shells.py` | `LanePromptSuppressionTests::test_shared_and_declined_constants_guards` | `hasattr_prod` | `true-pin` | `name-shape` | `delete` | Runner host identity and placement pin (E-02) |
 | `tests/test_git_commit_helper.py` | `_FakeStdin::test_hook_rewrite_retry_and_peer_isolation` | `md_doc_prose` | `false-positive` | `none` | `keep` | Reads test execution artifact or test fixture markdown; does not pin production doc prose |
 | `tests/test_git_commit_helper.py` | `_FakeStdin::test_hook_rewrite_retry_and_peer_isolation` | `md_doc_prose` | `false-positive` | `none` | `keep` | Reads test execution artifact or test fixture markdown; does not pin production doc prose |
 | `tests/test_git_config_guard.py` | `_clean_git_env` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
@@ -1778,10 +1779,12 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_agy_runipd_cli.py::AgyPerArtifactDispositionLineTests::test_both_hosts_render_the_line_from_the_same_object` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | `492c07b77` |
 | `tests/test_agy_runipd_cli.py::AgyEndOfRunDispositionSummaryTests::test_this_hosts_footer_names_ANTIGRAVITY_and_shared_object` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | `492c07b77` |
 | `tests/test_agy_runipd_cli.py::AgyVerdictMappingTests::test_this_host_binds_the_shared_mapping_and_holds_no_copy` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | `492c07b77` |
+| `tests/test_agy_runipd_cli.py::AgyFullAutoApprovalTests::test_predicate_is_the_shared_one_and_local_copies_are_gone` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | |
 | `tests/test_attention.py::LaneRemedyHintTests::` (`self.assertTrue(hasattr(oc_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
 | `tests/test_attention.py::LaneRemedyHintTests::` (`self.assertTrue(hasattr(agy_runipd, att.LANE_INTEGRATE_PROBE_SYMBOL))`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
 | `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests::` (`self.assertIs(oc_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
 | `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests::` (`self.assertIs(agy_runipd.LANE_PROMPT_TIMEOUT, runner_shared.LANE_PROMPT_TIMEOUT)`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
+| `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests::test_shared_and_declined_constants_guards` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | |
 | `tests/test_oc_runipd.py::AllSelectorAndFullAutoTests::test_is_plan_review_approved_is_the_shared_predicate_not_a_local_copy` | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted pin (E-02); behavioral coverage retained in module | `tv72xy` | `492c07b77` |
 | `tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode::` (`self.assertIs(agy_runipd.PlanRecord, oc_runipd.PlanRecord)`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
 | `tests/test_orchestrator_retirement.py::OrchestratorRetirementRowAuditAndHonestRecord::` (`self.assertTrue(`) | `name-shape` | Runner host-identity and placement pins | 0 | 0 | Deleted assertion (E-02); test retains behavioral checks | `tv72xy` | `492c07b77` |
