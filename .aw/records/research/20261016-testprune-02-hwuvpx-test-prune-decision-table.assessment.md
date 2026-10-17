@@ -1529,9 +1529,9 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 
 ### Summary Counts
 - Total pinscan candidate hits: 235
-- Verdicts: true-pin: 91, false-positive: 144
-- Categories: structure: 11, name-shape: 51, arch-freeze: 29, none: 144
-- Actions: delete: 71, convert: 10, keep: 154
+- Verdicts: true-pin: 92, false-positive: 143
+- Categories: structure: 12, name-shape: 51, arch-freeze: 29, none: 143
+- Actions: delete: 72, convert: 10, keep: 153
 
 | File | Test | Line Pattern | Verdict | Category | Action | Reason |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1557,7 +1557,7 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_backlog_descriptive_safety.py` | `BacklogDescriptiveSafetyTests::test_helper_refuse_unsafe_descriptive_contract` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
 | `tests/test_backlog_handoff_close.py` | `BacklogGateDirSplitTests::test_backlog_set_declared_flag_surface_matches_parser` | `hasattr_prod` | `false-positive` | `none` | `keep` | Attribute check on standard library module, argparse namespace, test fixture or result object |
 | `tests/test_backlog_handoff_close.py` | `BacklogGateDirSplitTests::test_backlog_set_declared_flag_surface_matches_parser` | `hasattr_prod` | `false-positive` | `none` | `keep` | Attribute check on standard library module, argparse namespace, test fixture or result object |
-| `tests/test_check_engine.py` | `CarrierEvidencePlanAndSpecDisposition::test_fall_through_live_carrier_accepted` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
+| `tests/test_check_engine.py` | `CarrierEvidencePlanAndSpecDisposition::test_fall_through_live_carrier_accepted` | `hasattr_prod` | `true-pin` | `structure` | `delete` | Vacuous if hasattr guard around check_engine private helper (E-06) |
 | `tests/test_check_engine_metadata_region.py` | `test_bounded_accessors_ignore_body_quotations` | `hasattr_prod` | `true-pin` | `name-shape` | `delete` | hasattr pins on _read_item_id etc.; behavior tested directly on following lines (E-03) |
 | `tests/test_clean_target_recognition.py` | `TestCleanTargetRecognition::test_b2_identity_table` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
 | `tests/test_clean_target_recognition.py` | `TestCleanTargetRecognition::test_b2_identity_table` | `hasattr_prod` | `false-positive` | `none` | `keep` | hasattr on object or module attribute |
@@ -1849,6 +1849,7 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_history_order.py::HistoryOrderFixtureTests::` (`self.assertEqual(`) | `structure` | Vacuous if hasattr guards around private helper; public drift check retained | 0 | 0 | Deleted assertion (E-06); test retains behavioral checks | `tv72xy` | `545199f5a` |
 | `tests/test_history_order.py::HistoryOrderFixtureTests::` (`self.assertEqual(`) | `structure` | Vacuous if hasattr guards around private helper; public drift check retained | 0 | 0 | Deleted assertion (E-06); test retains behavioral checks | `tv72xy` | `545199f5a` |
 | `tests/test_history_order.py::HistoryOrderFixtureTests::` (`self.assertEqual(`) | `structure` | Vacuous if hasattr guards around private helper; public drift check retained | 0 | 0 | Deleted assertion (E-06); test retains behavioral checks | `tv72xy` | `545199f5a` |
+| `tests/test_check_engine.py::CarrierEvidencePlanAndSpecDisposition::test_fall_through_live_carrier_accepted` (`if hasattr(ce, "_evidence_spec_unshipped"):`) | `structure` | Vacuous if hasattr guard around check_engine private helper; public verdict.path retained | 0 | 0 | Deleted assertion (E-06); test retains behavioral checks | `tv72xy` | |
 | `tests/test_egress_policy.py::TestEgressPolicyUnit::` (`assert not hasattr(policy, "allow_all")`) | `arch-freeze` | Architecture freeze pins; refactoring prohibitions and stdlib-only imports | 0 | 0 | Deleted assertion (E-07); test retains behavioral checks | `tv72xy` | `48e479330` |
 | `tests/test_egress_policy.py::TestEgressPolicyUnit::` (`assert not hasattr(policy, "deny_list")`) | `arch-freeze` | Architecture freeze pins; refactoring prohibitions and stdlib-only imports | 0 | 0 | Deleted assertion (E-07); test retains behavioral checks | `tv72xy` | `48e479330` |
 | `tests/test_egress_policy.py::TestEgressPolicyUnit::` (`assert not hasattr(policy, "negation")`) | `arch-freeze` | Architecture freeze pins; refactoring prohibitions and stdlib-only imports | 0 | 0 | Deleted assertion (E-07); test retains behavioral checks | `tv72xy` | `48e479330` |

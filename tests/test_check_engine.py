@@ -2538,10 +2538,7 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                     root, ob, carrier_index=carrier_index
                 )
                 self.assertTrue(verdict.legitimate)
-                if hasattr(ce, "_evidence_spec_unshipped"):
-                    self.assertEqual(verdict.path, "HANDOFF")
-                else:
-                    self.assertIn(verdict.path, ("HANDOFF", "SATISFIED"))
+                self.assertEqual(verdict.path, "HANDOFF")
 
     def test_fall_through_unknown_carrier_refused(self) -> None:
         """Fall-through (F-08): unshipped Carrier-Evidence with unknown - Carrier: is refused."""
