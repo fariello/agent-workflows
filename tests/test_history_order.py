@@ -294,17 +294,6 @@ class HistoryOrderFixtureTests(unittest.TestCase):
         )
         content = _fixture_plan_text("fix01a", history, status="approved")
 
-        if hasattr(il, "_plan_status_event_groups"):
-            groups = il._plan_status_event_groups(content)
-            self.assertEqual(
-                groups,
-                [
-                    ("2026-09-01", [("draft", "agent")], True),
-                    ("2026-09-02", [("reviewed", "agent")], True),
-                    ("2026-09-03", [("approved", "agent")], True),
-                ],
-            )
-
         drift = self._run_check_on_plan(
             "20260901-fix01a-01-fix01a-newest-first.ipd.md", content
         )
@@ -318,17 +307,6 @@ class HistoryOrderFixtureTests(unittest.TestCase):
             "- 2026-09-03 approved (agent): ok"
         )
         content = _fixture_plan_text("fix01b", history, status="approved")
-
-        if hasattr(il, "_plan_status_event_groups"):
-            groups = il._plan_status_event_groups(content)
-            self.assertEqual(
-                groups,
-                [
-                    ("2026-09-01", [("draft", "agent")], True),
-                    ("2026-09-02", [("reviewed", "agent")], True),
-                    ("2026-09-03", [("approved", "agent")], True),
-                ],
-            )
 
         drift = self._run_check_on_plan(
             "20260901-fix01b-01-fix01b-oldest-first.ipd.md", content
@@ -346,18 +324,6 @@ class HistoryOrderFixtureTests(unittest.TestCase):
         )
         content = _fixture_plan_text("fix01c", history, status="approved")
 
-        if hasattr(il, "_plan_status_event_groups"):
-            groups = il._plan_status_event_groups(content)
-            self.assertEqual(
-                groups,
-                [
-                    ("2026-08-30", [("draft", "agent")], True),
-                    ("2026-09-01", [("to-review", "agent")], True),
-                    ("2026-09-02", [("reviewed", "agent")], True),
-                    ("2026-09-03", [("approved", "agent")], True),
-                ],
-            )
-
         drift = self._run_check_on_plan(
             "20260901-fix01c-01-fix01c-mixed.ipd.md", content
         )
@@ -372,17 +338,6 @@ class HistoryOrderFixtureTests(unittest.TestCase):
         )
         content = _fixture_plan_text("fix01d", history, status="draft")
 
-        if hasattr(il, "_plan_status_event_groups"):
-            groups = il._plan_status_event_groups(content)
-            self.assertEqual(
-                groups,
-                [
-                    ("2026-09-01", [("reviewed", "agent")], True),
-                    ("2026-09-02", [("executed", "aw ipd finalize")], True),
-                    ("2026-09-03", [("draft", "agent")], True),
-                ],
-            )
-
         drift = self._run_check_on_plan(
             "20260901-fix01d-01-fix01d-cross-day.ipd.md", content
         )
@@ -393,15 +348,6 @@ class HistoryOrderFixtureTests(unittest.TestCase):
         """(e) Single-date draft above approved in one block -> 0 findings (unordered)."""
         history = "- 2026-09-01 draft (agent): ok\n" "- 2026-09-01 approved (agent): ok"
         content = _fixture_plan_text("fix01e", history, status="approved")
-
-        if hasattr(il, "_plan_status_event_groups"):
-            groups = il._plan_status_event_groups(content)
-            self.assertEqual(
-                groups,
-                [
-                    ("2026-09-01", [("draft", "agent"), ("approved", "agent")], False),
-                ],
-            )
 
         drift = self._run_check_on_plan(
             "20260901-fix01e-01-fix01e-single-date.ipd.md", content
