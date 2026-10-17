@@ -50,7 +50,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests
 
-- [ ] E-04 Add `tests/test_question_inbox.py`: schema round-trip, hash capture, concurrent first-answer-wins with real threads, every refusal reason, atomicity (no partial file after a simulated crash between temp write and rename), the ledger event, and the park-time wiring through a scripted run.
+- [ ] E-04 Add `tests/test_question_inbox.py` (asserts spec `6kwd2e` A11 and A42): schema round-trip, hash capture, concurrent first-answer-wins with real threads, every refusal reason, atomicity (no partial file after a simulated crash between temp write and rename), the ledger event, and the park-time wiring through a scripted run.
   - Depends on: E-03
   - Expected outcome: the module passes.
   - Execution state: pending
