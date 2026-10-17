@@ -3705,7 +3705,10 @@ def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
     lines.append(f"  Direction:   {plan.direction or 'none'}")
     lines.append(f"  From:        {plan.from_preset} ({plan.from_config_dir})")
     lines.append(f"  To:          {plan.to_preset} ({plan.to_config_dir})")
-    lines.append(f"  Retire side: {plan.retire_side or 'none'}")
+    if plan.direction in ("records-to-home", "records-to-target"):
+        lines.append("  Retire side: records only")
+    else:
+        lines.append(f"  Retire side: {plan.retire_side or 'none'}")
 
     # Count tracked target files that will be staged as removed
     tracked_removals = 0
@@ -3723,6 +3726,16 @@ def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
                     or it.source.resolve() == plan.repo.resolve()
                 )
             )
+    elif plan.direction == "records-to-home":
+        tracked_removals = sum(
+            1
+            for it in plan.items
+            if it.tracked
+            and (
+                plan.repo in it.source.resolve().parents
+                or it.source.resolve() == plan.repo.resolve()
+            )
+        )
     lines.append(
         f"  Tracked target files that will be staged as removed: {tracked_removals}"
     )
@@ -3771,7 +3784,7 @@ def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
                 f"Planned operations [{kind.upper()}] ({len(items_of_kind)} items):"
             )
             for it in items_of_kind[:20]:
-                if it.destination is not None:
+                if it.destination is not None and it.destination != it.source:
                     lines.append(f"  [{kind.upper()}] {it.source} -> {it.destination}")
                 else:
                     lines.append(f"  [{kind.upper()}] {it.source}")

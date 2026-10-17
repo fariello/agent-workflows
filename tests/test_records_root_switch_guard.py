@@ -190,7 +190,8 @@ class TestRecordsRootSwitchDetector(unittest.TestCase):
                     persist_project_policy(str(repo), pol)
                 self.assertEqual(cm.exception.reason, "records")
                 self.assertEqual(cm.exception.record_files, 1)
-                self.assertIn("would leave 1 record files", str(cm.exception))
+                self.assertIn("moves 1 record files", str(cm.exception))
+                self.assertIn("--relocate", str(cm.exception))
                 self.assertEqual(proj.read_bytes(), before)
 
     def test_interactive_wizard_refuses(self) -> None:
@@ -220,7 +221,8 @@ class TestRecordsRootSwitchDetector(unittest.TestCase):
                         ]
                     )
                 self.assertEqual(rc, 1, out.getvalue()[-2000:])
-                self.assertIn("would leave 1 record files", out.getvalue())
+                self.assertIn("moves 1 record files", out.getvalue())
+                self.assertIn("--relocate", out.getvalue())
                 self.assertEqual(proj.read_bytes(), before)
                 self.assertEqual(json.loads(before)["records_backend"], "repository")
 
@@ -264,7 +266,8 @@ class TestRecordsRootSwitchSubprocess(unittest.TestCase):
         )
         out = r.stdout + r.stderr
         self.assertEqual(r.returncode, 1, out)
-        self.assertIn("would leave 1 record files", out)
+        self.assertIn("moves 1 record files", out)
+        self.assertIn("--relocate", out)
         self.assertIn(str(repo / ".aw" / "records"), out)
         self.assertIn(str(Path(env["AW_HOME"]) / "projects"), out)
         self.assertEqual(proj.read_bytes(), before)
@@ -327,7 +330,8 @@ class TestRecordsRootSwitchSubprocess(unittest.TestCase):
                 "--no-interactive",
             )
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-            self.assertIn("would leave 1 record files", r.stdout + r.stderr)
+            self.assertIn("moves 1 record files", r.stdout + r.stderr)
+            self.assertIn("--relocate", r.stdout + r.stderr)
             self.assertEqual(proj.read_bytes(), before)
 
     def test_repair_of_orphaned_repo_is_allowed(self) -> None:
