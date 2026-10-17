@@ -1,5 +1,5 @@
 - Id: 2mcirl
-- Status: graduated
+- Status: done
 - Graduated-To: 2mcirl
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for compat_migration
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD r20rid executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-2mcirl-01-r20rid-restore-behavioral-test-coverage-for-compat-migration.ipd.md); evidence .aw/records/plans/executed/20261017-2mcirl-01-r20rid-restore-behavioral-test-coverage-for-compat-migration.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053813Z-512749: r20rid
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for compat_migration
 
