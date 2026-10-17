@@ -115,6 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Load-aware demotion in the conftest guard, the budget-only `reason` text in `suite_cache`, and replacing "no test ids recorded" in the combined-red send-back: designed in `44nfmd`.
   - Carrier: 44nfmd
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.ipd.md
 - Regression tests proving each runner seam reports an all-green over-budget tree green under the default demotion: designed in `t54fet`. This plan does not alter that outcome (the default path never produces a budget-only red), and `t54fet`'s explicit-enforce controls assert `passed False` and empty `failures`, which still hold after E-02.
   - Carrier: t54fet
 - Treating a budget-only red as a PASS at revalidation (as exit 5 is): refused, because an explicit `AW_CORE_BUDGET_ENFORCE` request is a request for enforcement (`test_gate_suite_honors_explicit_enforce`, `44nfmd` OQ-02); E-02 defers instead of passing.

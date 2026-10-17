@@ -108,6 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: geajrj
 - Naming a budget-only red in the suite `reason`, replacing "no test ids recorded" in the send-back text, and the load-aware conftest guard: designed in `44nfmd`.
   - Carrier: 44nfmd
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.ipd.md
 - Seam regression tests under the default demotion: designed in `t54fet`.
   - Carrier: t54fet
 
