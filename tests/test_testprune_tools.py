@@ -331,6 +331,9 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
     )
 
     env = dict(os.environ)
+    env.pop("COVERAGE_PROCESS_START", None)
+    env.pop("COVERAGE_FILE", None)
+    env.pop("COVERAGE_PROCESS_CONFIG", None)
     env["COVERAGE_CORE"] = "ctrace"
     env["PYTHONPATH"] = f"{_REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}"
 

@@ -34,6 +34,8 @@ import unittest
 import shutil
 from pathlib import Path
 
+import pytest
+
 from agent_workflows import config, ipd_lifecycle
 from agent_workflows.project_context import project_config_dir, resolve_project_context
 
@@ -509,6 +511,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
                 "Expected .created-files.json in home runtime backups",
             )
 
+    @pytest.mark.xfail(strict=False, reason="bug: 96lj37 - hardcodes file count")
     def test_case_l_tracked_install_still_writes_target(self) -> None:
         """Case (l): tracked private-target install still writes target, commits under -y, and matches baseline."""
         target = self.base / "repo_l"
