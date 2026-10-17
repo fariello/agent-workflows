@@ -6,7 +6,8 @@
 - Scope: Replace the single `tests/test_foo.py` example in each of the two developer-facing documents with a real, existing test file (`tests/test_core_tier_selection.py`, the test module that exercises exactly the explicit-path behavior the sentence describes). No code, no tests, no other documents change.
 - Scope-Paths: CONTRIBUTING.md, AGENTS.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: jiqna0
@@ -18,6 +19,7 @@
 - Id: mi6655
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-jiqna0-01-mi6655-replace-the-nonexistent-tests-test-foo-py-example-citation-i.review.md
 
 - 2026-10-17 draft (opencode): created.
 - 2026-10-17 to-review (opencode): authored from backlog jiqna0; body completed, ready for review.
@@ -125,4 +127,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). The executor follows the repository execution contract: edit only `CONTRIBUTING.md` and `AGENTS.md`, commit through `aw commit <this plan> -- CONTRIBUTING.md AGENTS.md`, never push, and paste actual runner output into each `V-*`. After every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms, transition the plan to `executed/` through the tooled lifecycle (`aw ipd` begin/finalize), not by hand.
+Execute only after explicit human approval (`Status: approved`). Open questions: OQ-01 is resolved; none remain. The executor follows the repository execution contract:
+
+- Scope fence: `CONTRIBUTING.md` and `AGENTS.md` only (`- Scope-Paths:`). Do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize (`--scope-reason`). Do not touch the managed `<!-- aw:block -->` region of `AGENTS.md`.
+- Honesty (MUST): paste the ACTUAL runner output into each `V-*`; never claim a pass you did not run.
+- Commit only the two files through `aw commit mi6655 -- CONTRIBUTING.md AGENTS.md`; never `git add -A`, never push.
+- Lifecycle: the plan reaches `executed/` only through `aw ipd finalize` (never a hand `git mv`), and only after every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms. When run under `aw oc run` / `aw agy run`, the runner owns `aw ipd finalize`; the executor leaves the plan in `pending/` with evidence filled in. When executed by hand, the executor runs `aw ipd finalize mi6655 --actor <agent/model> --message <summary> --apply`.
