@@ -130,6 +130,7 @@ E-01 baseline -> E-02..E-04 matrix reductions (largest node-id savings, mechanic
   - Carrier: vgus66
 - Structure, name and architecture pins: already removed by the previous child.
   - Carrier: tv72xy
+  - Carrier-Evidence: .aw/records/plans/executed/20261016-testprune-02-tv72xy-delete-tests-that-pin-code-structure-names-or-architecture-r.ipd.md
 - Reducing the exhaustive statusline sweep (`test_box_renderer_invariants_exhaustive_sweep`) or other untouched-module repo builders: its wall time and the remaining builders are speed work.
   - Carrier: c8bfp9
 - Reducing the LEAF axis of universal conformance sweeps: declined, because "every declared leaf" is the contract those sweeps enforce (a new leaf must be covered automatically); only value or permutation axes are reduced.
