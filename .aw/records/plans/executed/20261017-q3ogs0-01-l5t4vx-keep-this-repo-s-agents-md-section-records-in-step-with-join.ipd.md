@@ -6,7 +6,7 @@
 - Scope: IN: a repo-local tool `tools/regen_agents_block.py` (run as `python3 -m tools.regen_agents_block`, with `--check`) that rewrites ONLY the `aw:block` region of this repo's `AGENTS.md` from the generator and re-records each section hash through the installer's own `engine.merge_aw_block` path, never touching native mirror files (`GEMINI.md`, `CLAUDE.md`) or any other manifest key; a behavioral guard test that drives `merge_aw_block` against this repo's live `AGENTS.md` and manifest with a perturbed generator and asserts the change lands with no warning (the symptom itself), plus synthesized-repo tests for the tool; a one-time reconciliation of this repo via the tool; contributor docs naming the tool as the owner of the managed block; a DECISIONS entry recording why `b4bvas`'s declined equality guard is now added. OUT: any change to `engine._apply_section_consent` (its four-case logic is correct, verified below), the full `aw install .` path and its raw self-commit, `GEMINI.md`'s missing block, any hand edit of `AGENTS.md` or the manifest.
 - Scope-Paths: tools/regen_agents_block.py, tests/test_agents_section_records.py, AGENTS.md, .aw/system/managed-sections.json, CONTRIBUTING.md, tools/README.md, DECISIONS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: l5t4vx
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: l5t4vx verified (set q3ogs0, attempt 1). [Scope reconciliation - in-scope-unmodified AGENTS.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-17 to-review (aw set): graduated from backlog q3ogs0; re-measured at HEAD 3812c4002 that both AGENTS.md section records are stale while on-disk equals the generator, that a perturbed generator does not land against the live manifest and does once reconciled in memory, and traced the staleness to joint generator+AGENTS.md commits that bypass the installer
