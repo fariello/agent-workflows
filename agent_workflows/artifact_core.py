@@ -472,16 +472,47 @@ def git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
             f"dst={dst_rel} ({resolved_dst}, inside={dst_inside}), root={repo_root} ({resolved_root})"
         )
 
-    (Path(repo_root) / dst_rel).parent.mkdir(parents=True, exist_ok=True)
+    actual_git_root = resolved_root
+    actual_src_arg = src_rel
+    actual_dst_arg = dst_rel
+
+    if not src_inside and not dst_inside:
+        try:
+            from agent_workflows import project_context
+
+            owner = project_context.record_owner_root(resolved_src)
+            if owner is not None:
+                ctx = project_context.resolve_project_context(target_repo=str(owner))
+                if (
+                    ctx.records_backend
+                    == project_context.RecordsBackend.COMPANION.value
+                ):
+                    gr = project_context.record_git_root(resolved_src)
+                    if gr is not None:
+                        actual_git_root = gr.resolve()
+                        actual_src_arg = str(resolved_src.relative_to(actual_git_root))
+                        actual_dst_arg = str(resolved_dst.relative_to(actual_git_root))
+        except Exception:
+            pass
+
+    resolved_dst.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        ["git", "-C", str(repo_root), "mv", "--", str(src_rel), str(dst_rel)],
+        [
+            "git",
+            "-C",
+            str(actual_git_root),
+            "mv",
+            "--",
+            str(actual_src_arg),
+            str(actual_dst_arg),
+        ],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         import shutil
 
-        shutil.move(str(Path(repo_root) / src_rel), str(Path(repo_root) / dst_rel))
+        shutil.move(str(resolved_src), str(resolved_dst))
 
 
 # --------------------------------------------------------------------------------------

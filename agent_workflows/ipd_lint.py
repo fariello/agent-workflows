@@ -2374,15 +2374,16 @@ def _review_stale_advisory(
 
     from agent_workflows import project_context
 
-    if project_context.record_owner_root(resolved_path) is not None:
-        return []
+    owner = project_context.record_owner_root(resolved_path)
+    if owner is not None:
+        try:
+            ctx = project_context.resolve_project_context(target_repo=str(owner))
+            if ctx.records_backend != project_context.RecordsBackend.COMPANION.value:
+                return []
+        except Exception:
+            return []
 
-    repo_root: Optional[Path] = None
-    for anc in [resolved_path] + list(resolved_path.parents):
-        if (anc / ".git").exists():
-            repo_root = anc
-            break
-
+    repo_root = project_context.record_git_root(resolved_path)
     if repo_root is None:
         return []
 
