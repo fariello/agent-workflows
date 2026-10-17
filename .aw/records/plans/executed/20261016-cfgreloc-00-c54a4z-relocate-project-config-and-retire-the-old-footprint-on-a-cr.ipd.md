@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test, spec or record work of its own.
 - Scope-Paths: .aw/records/plans/pending/20261016-cfgreloc-00-c54a4z-relocate-project-config-and-retire-the-old-footprint-on-a-cr.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 396ffd40cc17e644fb2946239463cd6c985b189f1860e7ba03b481d430883164
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: c54a4z
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set cfgreloc reached executed, so the runner (run run-20261016T221406Z-3466714) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: ppu39q, xvlemm, gjylny, 6u755v, ozr356.
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -37,6 +37,9 @@
 `aw install <repo> --preset <p> --relocate` moves an installed repository between the target-placed and home-placed config layouts as one journaled move-verify-switch-retire transaction, so exactly one `project.json` is authoritative afterwards, every policy key, cutover date and record survives, and the old AW-owned footprint is removed (tracked deletions staged, never committed). Without `--relocate` every cross-placement write path refuses before writing.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
