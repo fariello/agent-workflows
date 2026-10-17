@@ -1,5 +1,5 @@
 - Id: 9qvfie
-- Status: graduated
+- Status: done
 - Graduated-To: trimcarry
 - Set: 9qvfie
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Rollup of uncited trim-deleted test audit carrier-needed outcomes
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD e5jijr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-trimcarry-00-e5jijr-carry-the-uncited-trim-audit-carrier-needed-outcomes-to-reso.ipd.md, .aw/records/plans/executed/20261016-trimcarry-01-24h56i-restore-the-deleted-benchmark-runners-and-reports-tests-and.ipd.md, .aw/records/plans/executed/20261016-trimcarry-02-x9z0ve-restore-the-env-limited-run-evidence-completion-tests-with-a.ipd.md, .aw/records/plans/executed/20261016-trimcarry-03-8dyt88-re-measure-surviving-reach-for-every-rollup-key-and-pass-sha.ipd.md, .aw/records/plans/executed/20261016-trimcarry-04-we3kkb-classify-each-test-name-the-recreated-files-did-not-restore.ipd.md, .aw/records/plans/executed/20261016-trimcarry-05-rf1xxr-mutation-probe-the-reached-rollup-properties-on-a-bounded-bu.ipd.md, .aw/records/plans/executed/20261016-trimcarry-06-z2xs98-file-grouped-backlog-items-for-every-rollup-gap-and-reconcil.ipd.md); evidence .aw/records/plans/executed/20261016-trimcarry-00-e5jijr-carry-the-uncited-trim-audit-carrier-needed-outcomes-to-reso.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T145446Z-2140972: 24h56i, 8dyt88, e5jijr, rf1xxr, we3kkb, x9z0ve, z2xs98
 - 2026-10-15 created (aw backlog): Rollup of uncited trim-deleted test audit carrier-needed outcomes
 
