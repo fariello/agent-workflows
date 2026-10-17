@@ -1,5 +1,5 @@
 - Id: liybkg
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for run_analytics_export
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD 438gkf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-07-438gkf-restore-behavioral-test-coverage-for-run-analytics-export.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-07-438gkf-restore-behavioral-test-coverage-for-run-analytics-export.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: 438gkf
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_export
 
