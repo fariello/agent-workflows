@@ -166,6 +166,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261014-3jkm7y-01-w9l8ph-wire-the-release-artifact-manifest-gate-to-validate-the-work.ipd.md
 - Implementing the NOT-APPLICABLE gate state in `agent_workflows/release_readiness.py` (OQ-03 answer (b)): a prerequisite, not deferred work; this plan consumes it and waits on it via `- Item-Dependencies: state:backlog:done:v1re2z`.
   - Carrier: v1re2z
+  - Carrier-Evidence: .aw/records/backlog/done/20261015-uypgvi-01-v1re2z-readiness-absent-input-na.backlog.md
 - Retiring the 19 unproven `supported: true` booleans in `.aw/system/workflows/conformance/tools/host_matrix.json`.
   - Carrier: 8ru81x, 5gzno3
   - Carrier-Evidence: .aw/records/plans/executed/20261014-5gzno3-01-8ru81x-retire-unproven-supported-booleans-from-the-conformance-host.ipd.md
