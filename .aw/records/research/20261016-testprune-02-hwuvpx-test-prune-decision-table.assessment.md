@@ -1771,6 +1771,170 @@ Tests exceeding 2.0 seconds wall time during the baseline instrumented run targe
 | `tests/test_write_report_malformed_entry.py` | `test_well_formed_report_byte_identical_to_fixture` | `md_doc_prose` | `false-positive` | `none` | `keep` | Reads test execution artifact or test fixture markdown; does not pin production doc prose |
 | `tests/test_xdist_auto_workers.py` | `_load_conftest` | `sys_modules_check` | `false-positive` | `none` | `keep` | Harness module cache manipulation, mock blocker, or conftest loader |
 
+## 83nnyn baseline
+
+- **Run Directory**: `.aw/state/percov/83nnyn-base`
+- **Git HEAD**: `d3ef9d175b2d20312393e3fa30c94f553c149857`
+- **Host**: Linux 12-CPU
+- **Worker Count**: 6 xdist workers (`--dist=worksteal`)
+- **Instrumented Wall Time**: 1422.63s
+- **Python Version**: 3.14.6 (main, Jul  8 2026, 13:05:09) [GCC 13.3.0]
+- **Coverage Version**: 7.15.0 (core: `ctrace`, `patch = subprocess`)
+- **meta.json pytest_exit**: 1 (7 known pre-existing adjacent/environmental failures noted below)
+
+### Pre-existing Failures Recorded
+
+- `tests.test_clean_target_config_home.TestCleanTargetConfigHome::test_case_l_tracked_install_still_writes_target`
+- `tests.test_cli.Order15CliTests::test_install_legacy_repo_interactive_accept_migrates_to_aw`
+- `tests.test_cli.Order15CliTests::test_install_legacy_repo_interactive_decline_keeps_legacy`
+- `tests.test_docs_test_citations::test_published_docs_test_citations_exist`
+- `tests.test_install_report_truth.TestInstallReportTruth::test_second_install_nochange_leaves_clean_status_and_no_false_lines`
+- `tests.test_term.CliNeverLeaksTheInteractivityOverrideTests::test_early_exit_paths_and_nested_invocations`
+- `tests.test_testprune_tools::test_covctx_plugin_subprocess_context_propagation`
+- `tests/test_clean_target_config_home.py::TestCleanTargetConfigHome::test_case_l_tracked_install_still_writes_target`
+- `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_accept_migrates_to_aw`
+- `tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_decline_keeps_legacy`
+- `tests/test_docs_test_citations.py::test_published_docs_test_citations_exist`
+- `tests/test_install_report_truth.py::TestInstallReportTruth::test_second_install_nochange_leaves_clean_status_and_no_false_lines`
+- `tests/test_term.py::CliNeverLeaksTheInteractivityOverrideTests::test_early_exit_paths_and_nested_invocations`
+- `tests/test_testprune_tools.py::test_covctx_plugin_subprocess_context_propagation`
+
+### Suite Coverage Totals
+
+- **Total Collected Tests**: 9846
+- **No-Coverage Tests**: 458
+- **Covered Statements**: 126515 / 99474 (82.81%)
+- **Covered Branches**: 165366 / 40572 (74.62%)
+- **Tests with 0 Unique Lines**: 8043
+- **Tests with 0 Unique Arcs**: 7846
+
+### Core Tier Coverage Totals (`core_measure`)
+
+- **Core Covered Lines**: 35899 / 99474 (31.8%)
+- **Core Covered Branches**: 8678 / 40572 (21.4%)
+- **Zero Core Coverage Modules**: 0 / 197
+
+### Owner 83nnyn Test Count and Head
+
+Total tests assigned to `83nnyn`: 2635 across 288 modules.
+
+| Test Node ID | Module | Duration | Reason |
+| --- | --- | --- | --- |
+| `tests/test_agent_findings_severity.py::AgentFindingsSeverityTests::test_case_d_data_findings_fallback_omits_severity_breakdown` | `tests/test_agent_findings_severity.py` | 0.000s | defect-cited (wizzis); consolidate (identical peer) |
+| `tests/test_agent_findings_severity.py::AgentFindingsSeverityTests::test_case_e_clean_result_no_diagnostics_omits_severity_breakdown` | `tests/test_agent_findings_severity.py` | 0.000s | defect-cited (wizzis); consolidate (identical peer) |
+| `tests/test_agent_record_guard.py::AgentRecordGuardTests::test_guarded_serializer_substitutes_on_invalid_records` | `tests/test_agent_record_guard.py` | 0.000s | defect-cited (wqiofa); consolidate (identical peer) |
+| `tests/test_agent_record_guard.py::AgentRecordGuardTests::test_no_leak_property` | `tests/test_agent_record_guard.py` | 0.000s | defect-cited (wqiofa); consolidate (identical peer) |
+| `tests/test_agent_schema_paths.py::NormalizeRepoPathTests::test_relative_path_is_taken_relative_to_root` | `tests/test_agent_schema_paths.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agent_schema_paths.py::NormalizeRepoPathTests::test_symlinked_root_relativizes_a_resolved_path` | `tests/test_agent_schema_paths.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[ipd scaffold]` | `tests/test_agent_surface_conformance.py` | 0.967s | protected (family); defect-cited (f36de0, kjr5ol); consolidate (identical peer) |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[research new-comparison]` | `tests/test_agent_surface_conformance.py` | 1.118s | protected (family); defect-cited (f36de0, kjr5ol); consolidate (identical peer) |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[research new]` | `tests/test_agent_surface_conformance.py` | 1.009s | protected (family); defect-cited (f36de0, kjr5ol); consolidate (identical peer) |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[storage move]` | `tests/test_agent_surface_conformance.py` | 0.974s | protected (family); defect-cited (f36de0, kjr5ol); consolidate (identical peer) |
+| `tests/test_agy_failed_state_parity.py::test_cross_reader_agy_tool_state_parity[ACTIVE]` | `tests/test_agy_failed_state_parity.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agy_failed_state_parity.py::test_cross_reader_agy_tool_state_parity[CANCELED]` | `tests/test_agy_failed_state_parity.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agy_failed_state_parity.py::test_cross_reader_agy_tool_state_parity[ERROR]` | `tests/test_agy_failed_state_parity.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agy_failed_state_parity.py::test_cross_reader_agy_tool_state_parity[FAILED]` | `tests/test_agy_failed_state_parity.py` | 0.000s | consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_dangerous_and_add_dirs_flags` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_default_options` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_explicit_file_mode` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_explicit_ipd_mode` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_explicit_model` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+| `tests/test_agy_run.py::AgyRunArgParseTests::test_explicit_prompt_mode` | `tests/test_agy_run.py` | 0.000s | defect-cited (5s31xp); consolidate (identical peer) |
+
+### Per-Batch Target Durations (`junit.xml`)
+
+- **E-02 (descriptive_refusal_hoist)**: 2.081s
+  - `tests/test_descriptive_refusal_hoist.py`: 2.081s
+- **E-03 (statusline)**: 0.969s
+  - `tests/test_statusline_stop_tally.py`: 0.312s
+  - `tests/test_statusline_visible_width.py`: 0.506s
+  - `tests/test_statusline_ascii_mode.py`: 0.151s
+- **E-04 (usage_refusal)**: 42.806s
+  - `tests/test_usage_refusal_agent_record.py`: 42.806s
+- **E-05 (runner)**: 371.891s
+  - `tests/test_oc_runipd.py`: 222.258s
+  - `tests/test_runner_shared.py`: 44.458s
+  - `tests/test_agy_runipd_cli.py`: 38.202s
+  - `tests/test_finalize_sendback.py`: 5.131s
+  - `tests/test_orchestrator_retirement.py`: 14.310s
+  - `tests/test_runner_backlog_close_behavior.py`: 22.857s
+  - `tests/test_agy_failed_state_parity.py`: 0.015s
+  - `tests/test_lane_reaper_callshape.py`: 0.080s
+  - `tests/test_prior_attempt_projection.py`: 0.006s
+  - `tests/test_retry_class_mapping.py`: 0.005s
+  - `tests/test_run_cli_human_redaction.py`: 23.779s
+  - `tests/test_run_dir_outcomes_parent_is_guaranteed.py`: 0.097s
+  - `tests/test_run_progress_count.py`: 0.005s
+  - `tests/test_run_summary_visible_width.py`: 0.059s
+  - `tests/test_runner_safety_probe_memo.py`: 0.016s
+  - `tests/test_runs_flag_position_parity.py`: 0.613s
+- **E-06 (records)**: 162.388s
+  - `tests/test_status_set.py`: 43.253s
+  - `tests/test_backlog.py`: 2.860s
+  - `tests/test_group_verb_policy.py`: 12.507s
+  - `tests/test_research_index.py`: 1.073s
+  - `tests/test_attention.py`: 19.278s
+  - `tests/test_attention_blind_spot.py`: 6.813s
+  - `tests/test_attention_degraded_item.py`: 10.279s
+  - `tests/test_backlog_close_host_label.py`: 0.159s
+  - `tests/test_backlog_gate_follows_status.py`: 2.415s
+  - `tests/test_backlog_history_dedup_parity.py`: 3.275s
+  - `tests/test_backlog_transition_authority.py`: 1.207s
+  - `tests/test_history_date_clock_sidecar.py`: 2.032s
+  - `tests/test_history_label_parity.py`: 1.409s
+  - `tests/test_history_write_order.py`: 1.276s
+  - `tests/test_prompts_attention.py`: 0.020s
+  - `tests/test_releases_line_writers.py`: 8.922s
+  - `tests/test_specs_metadata_duplicate_bullet.py`: 0.017s
+  - `tests/test_index_check_agent_records.py`: 45.593s
+- **E-07 (ipd)**: 115.812s
+  - `tests/test_ipd_lifecycle_cli.py`: 39.140s
+  - `tests/test_ipd_lint.py`: 76.069s
+  - `tests/test_ipd_templates.py`: 0.034s
+  - `tests/test_lifecycle_dirs.py`: 0.019s
+  - `tests/test_lifecycle_gate_coverage.py`: 0.216s
+  - `tests/test_scaffold_history_clock.py`: 0.334s
+
+### Parametrize Census (Functions with >= 9 cases: 34)
+
+| Function | Cases |
+| --- | --- |
+| `tests/test_descriptive_refusal_hoist.py::test_all_five_routes_match_frozen_table_for_nonempty_verbs` | 900 |
+| `tests/test_usage_refusal_agent_record.py::test_handler_usage_refusal_across_modes` | 102 |
+| `tests/test_descriptive_refusal_hoist.py::test_all_five_routes_match_frozen_table_for_empty_verb` | 90 |
+| `tests/test_shared_flag_honored.py::test_parser_usage_refusal_fields_honored_required_leaves` | 69 |
+| `tests/test_usage_refusal_agent_record.py::test_required_arg_leaf_agent_mode` | 69 |
+| `tests/test_usage_refusal_agent_record.py::test_required_arg_leaf_json_mode` | 69 |
+| `tests/test_statusline_stop_tally.py::TestStatuslineStopTallyRendering::test_statusline_rectangular_with_badges` | 60 |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance` | 51 |
+| `tests/test_shared_flag_honored.py::test_json_flag_honored_read` | 51 |
+| `tests/test_shared_flag_honored.py::test_fields_flag_honored_read` | 51 |
+| `tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation` | 33 |
+| `tests/test_shared_flag_honored.py::test_json_flag_honored_mutation` | 33 |
+| `tests/test_shared_flag_honored.py::test_fields_flag_honored_mutation` | 33 |
+| `tests/test_statusline_visible_width.py::test_statusline_box_is_rectangular` | 32 |
+| `tests/test_live_conformance_sweep.py::test_help_scenario_exits_zero_and_documents_usage` | 24 |
+| `tests/test_live_conformance_sweep.py::test_usage_error_scenario_exits_two` | 24 |
+| `tests/test_family_root_agent_conformance.py::test_family_root_agent_conformance` | 23 |
+| `tests/test_exit_contract_conformance.py::test_live_safe_leaves_exit_contract_membership_cheap` | 21 |
+| `tests/test_live_conformance_sweep.py::test_no_color_scenario_is_plain_cheap_leaves` | 21 |
+| `tests/test_statusline_ascii_mode.py::TestStatuslineAsciiModePurity::test_format_statusline_lines_ascii_purity_swept_states` | 16 |
+| `tests/test_statusline_ascii_mode.py::TestStatuslineAsciiModePurity::test_statusline_class_ascii_purity_swept_states` | 16 |
+| `tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload` | 12 |
+| `tests/test_egress_policy.py::TestEgressPolicyLoader::test_unparseable_policy_raises` | 11 |
+| `tests/test_runner_delegation_and_host_independence.py::TestRunnerBacklogCloseDelegation::test_delegation_reexport_single_implementation_identity` | 11 |
+| `tests/test_egress_policy.py::TestEgressPolicyUnit::test_construction_refuses_malformed_entries` | 10 |
+| `tests/test_runs_repo_alias.py::test_repo_alias_parses_to_dir_attr` | 10 |
+| `tests/test_runs_repo_alias.py::test_dir_control_parses_to_dir_attr` | 10 |
+| `tests/test_group_verb_policy.py::test_group_setid_refusal` | 9 |
+| `tests/test_group_verb_policy.py::test_group_setid_warning` | 9 |
+| `tests/test_group_verb_policy.py::test_group_setid_quiet_at_warn_limit` | 9 |
+| `tests/test_group_verb_policy.py::test_group_setid_warn_not_refused_at_max` | 9 |
+| `tests/test_statusline_ascii_mode.py::TestStatuslineAsciiModePurity::test_progress_bar_visible_width_parity_and_ascii_purity` | 9 |
+| `tests/test_statusline_behavior.py::TestStatuslineHostileInputs::test_hostile_inputs_return_well_formed_rectangular_box` | 9 |
+| `tests/test_statusline_behavior.py::TestStatuslineFormatters::test_token_magnitude_boundaries` | 9 |
+
+
 ## Recorded deletions
 
 | Node ID | Category | Reason | Unique Lines Lost | Unique Arcs Lost | Justification / Behavioral Sibling | Child ID6 | Commit |
