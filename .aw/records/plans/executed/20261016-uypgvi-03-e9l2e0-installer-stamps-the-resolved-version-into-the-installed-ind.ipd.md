@@ -6,7 +6,7 @@
 - Scope: IN: (1) make the installer's per-member byte producer `engine._member_source_bytes` rewrite the two version stamps in the installed `index.md` to the same `read_version(source_root)` value it already writes into VERSION, on both the install path (`engine.install_all`) and the preview path (`engine.show_install_diffs`), which share that producer; (2) behavioral regression tests in `tests/test_installer.py` (git-tagged diverging source, non-git source, idempotent re-install, and the `gate_artifact_manifest` outcome on the installed target); (3) a `CHANGELOG.md` entry. OUT: `agent_workflows/release_readiness.py` (the gate's stamp/VERSION equality check is correct and is kept; it detected a real installer inconsistency); re-baking this repository's own `.aw/system/VERSION` or `index.md` (`make version-file`, a release-time act under RELEASING.md); `versioning.status()` classifications; the `Makefile` `version-file` target (already syncs both stamps).
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: e9l2e0
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: e9l2e0 verified (set uypgvi, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
