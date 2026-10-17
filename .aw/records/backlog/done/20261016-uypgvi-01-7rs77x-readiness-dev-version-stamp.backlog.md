@@ -1,5 +1,5 @@
 - Id: 7rs77x
-- Status: graduated
+- Status: done
 - Graduated-To: uypgvi
 - Set: uypgvi
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: release_readiness: artifact_manifest fails on a dev-checkout install because index.md WORKFLOWS-VERSION stamp differs from the resolved VERSION
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw oc run: IPD e9l2e0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-uypgvi-03-e9l2e0-installer-stamps-the-resolved-version-into-the-installed-ind.ipd.md); evidence .aw/records/plans/executed/20261016-uypgvi-03-e9l2e0-installer-stamps-the-resolved-version-into-the-installed-ind.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T205235Z-3335047: e9l2e0
 - 2026-10-16 created (aw backlog): release_readiness: artifact_manifest fails on a dev-checkout install because index.md WORKFLOWS-VERSION stamp differs from the resolved VERSION
 

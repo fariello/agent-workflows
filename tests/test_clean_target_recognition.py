@@ -219,12 +219,17 @@ class TestCleanTargetRecognition(unittest.TestCase):
         subprocess.run(
             ["git", "-C", str(path), "add", "README.md"], check=True, env=self.env
         )
-        subprocess.run(
-            ["git", "-C", str(path), "commit", "-m", "Clean residue"],
-            check=True,
-            capture_output=True,
+        diff_res = subprocess.run(
+            ["git", "-C", str(path), "diff", "--cached", "--quiet"],
             env=self.env,
         )
+        if diff_res.returncode != 0:
+            subprocess.run(
+                ["git", "-C", str(path), "commit", "-m", "Clean residue"],
+                check=True,
+                capture_output=True,
+                env=self.env,
+            )
         subprocess.run(
             ["git", "-C", str(path), "clean", "-fdx"],
             check=True,

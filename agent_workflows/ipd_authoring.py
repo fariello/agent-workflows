@@ -576,7 +576,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         pending = (
             _ctx.project_records_dir(repo_root)
             / "plans"
-            / _rp.target_subdir("plans", "to-review")
+            / (_rp.target_subdir("plans", "to-review") or "pending")
         )
         # IPD sk7ggr E-01: repository-wide mint. NOTE the previous per-tree set was `pending` ONLY, so
         # it did not even cover `executed/`; a fresh plan id6 could equal an executed plan's, which is
