@@ -1,5 +1,5 @@
 - Id: a48b4m
-- Status: graduated
+- Status: done
 - Graduated-To: cleantgt
 - Blocks-Release: next
 - Set: cleantgt
@@ -8,6 +8,7 @@
 - Summary: test_clean_target_recognition setUp fails: _strip_in_target_residue commits nothing after zero-delta install
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw oc run: IPD jl0bv0 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261016-cleantgt-01-jl0bv0-make-clean-target-recognition-setup-tolerate-a-zero-delta-re.ipd.md); evidence .aw/records/plans/executed/20261016-cleantgt-01-jl0bv0-make-clean-target-recognition-setup-tolerate-a-zero-delta-re.ipd.md
 - 2026-10-16 graduated (aw backlog): graduated by run run-20261016T212837Z-3381978: jl0bv0
 - 2026-10-16 created (aw backlog): test_clean_target_recognition setUp fails: _strip_in_target_residue commits nothing after zero-delta install
 

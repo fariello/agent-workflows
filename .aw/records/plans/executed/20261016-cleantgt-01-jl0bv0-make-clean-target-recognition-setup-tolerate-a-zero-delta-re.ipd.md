@@ -6,7 +6,7 @@
 - Scope: test-fixture-only change to `TestCleanTargetRecognition._strip_in_target_residue`; no production code.
 - Scope-Paths: tests/test_clean_target_recognition.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 01
 - Author: opencode
 - Id: jl0bv0
-- Approval: 2026-10-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: jl0bv0 verified (set cleantgt, attempt 1).
 - 2026-10-16 approved (aw set): status set to approved
 - 2026-10-16 reviewed (aw set): status set to reviewed
 - 2026-10-16 /plan-review (opencode/claude-opus): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
@@ -36,10 +36,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fixture fix
 
-- [ ] E-01 In `tests/test_clean_target_recognition.py`, change `TestCleanTargetRecognition._strip_in_target_residue` so that after `git rm -r --cached .` and `git add README.md` it runs `git -C <path> diff --cached --quiet` and only runs `git commit -m 'Clean residue'` when that exits nonzero (staged changes exist); keep the trailing `git clean -fdx` unchanged.
+- [x] E-01 In `tests/test_clean_target_recognition.py`, change `TestCleanTargetRecognition._strip_in_target_residue` so that after `git rm -r --cached .` and `git add README.md` it runs `git -C <path> diff --cached --quiet` and only runs `git commit -m 'Clean residue'` when that exits nonzero (staged changes exist); keep the trailing `git clean -fdx` unchanged.
   - Depends on: none
   - Expected outcome: setUp no longer raises `CalledProcessError` from `git commit` on a zero-delta install. Both call sites (`clean_repo`, preset `completely-clean-target`, and `local_repo`, preset `local-only`) are currently zero-delta (review demonstration: `git diff --cached --quiet` exited 0 at both sites in every setUp), so the commit is skipped at both today; if a future install does leave tracked residue, the guard's nonzero branch still commits it clean, preserving the helper's original intent.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -64,9 +64,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Adding `tests/test_clean_target_recognition.py` to `pyproject.toml` `testpaths` so the routine gate would have caught this: a gate-composition decision for the maintainer, not required by backlog `a48b4m`.
-  - Carrier-Declined: Gate-composition decision for the maintainer; not required by backlog a48b4m.
+  - Carrier-Declined: nothing is owed; measured at execution, `pyproject.toml` already sets `testpaths = ["tests"]`, so this module IS collected (by the thorough tier, `make test-all`/CI). It is only outside the bare-run core tier, and promoting a 58s subprocess-heavy module into the 30s-budgeted core tier is a tier-budget choice no finding here shows is needed.
 - Any production code change: F-2 shows production behavior is correct.
-  - Carrier-Declined: Production behavior is verified correct (F-2); no production change is owed.
+  - Carrier-Declined: scope boundary, not deferred work; F-2 measures production behavior as correct, so no production change is owed.
 
 ## Scope check
 
@@ -96,10 +96,14 @@ N/A: test-fixture-only change; no spec or user-facing doc describes this helper.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff` of `tests/test_clean_target_recognition.py` showing only the guarded commit in `_strip_in_target_residue`; pasted actual output of `python3 -m pytest -o addopts="" -q tests/test_clean_target_recognition.py` showing every collected test passed with zero failed and zero errors (in particular no setUp `CalledProcessError` from `Clean residue`), collected count re-derived at execution; pasted actual output of `python3 -m pytest -o addopts="" -q tests/test_clean_target_control_state.py tests/test_clean_target_zero_delta_e2e.py` with zero failures; pasted `N passed` summary line of bare `python3 -m pytest`.
   - Observed evidence:
-  - Result: pending
+    - `git diff tests/test_clean_target_recognition.py`: only `_strip_in_target_residue` changed; the `git commit -m 'Clean residue'` call is now wrapped in `if staged.returncode != 0:` after `git -C <path> diff --cached --quiet`; `git clean -fdx` unchanged.
+    - `python3 -m pytest -o addopts="" -q tests/test_clean_target_recognition.py` -> `.......  [100%]` / `7 passed in 57.42s` (7 collected, 0 failed, 0 errors).
+    - `python3 -m pytest -o addopts="" -q tests/test_clean_target_control_state.py tests/test_clean_target_zero_delta_e2e.py` -> `11 passed in 102.22s (0:01:42)`.
+    - `aw suite` (bare routine gate) -> `745 passed in 89.11s (0:01:29)`.
+  - Result: pass
 
 ## Approval and execution gate
 

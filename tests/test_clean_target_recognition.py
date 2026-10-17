@@ -219,11 +219,14 @@ class TestCleanTargetRecognition(unittest.TestCase):
         subprocess.run(
             ["git", "-C", str(path), "add", "README.md"], check=True, env=self.env
         )
-        diff_res = subprocess.run(
+        # A clean-target install is zero-delta (3m8aix), so the re-staged index
+        # usually equals HEAD; only commit when residue was actually staged.
+        staged = subprocess.run(
             ["git", "-C", str(path), "diff", "--cached", "--quiet"],
+            capture_output=True,
             env=self.env,
         )
-        if diff_res.returncode != 0:
+        if staged.returncode != 0:
             subprocess.run(
                 ["git", "-C", str(path), "commit", "-m", "Clean residue"],
                 check=True,
