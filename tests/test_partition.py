@@ -1432,3 +1432,165 @@ def test_cli_partition_backlog_excludes_active(
     captured_inc = capsys.readouterr()
     assert "bkl001" in captured_inc.out
     assert "bkl002" in captured_inc.out
+
+
+def test_cli_partition_ineligible_aggregated_diagnostics(
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Multiple ineligible items are aggregated with clear expected status and remedy hints."""
+    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+        "---\n"
+        "- Id: r20rid\n"
+        "- Set: revset (Review Set)\n"
+        "- Status: reviewed\n"
+        "- Item-Dependencies: none\n"
+        "---\n"
+        "# Plan R20\n"
+    )
+    (pending / "20261017-revset-02-44nfmd-plan-44n.ipd.md").write_text(
+        "---\n"
+        "- Id: 44nfmd\n"
+        "- Set: revset (Review Set)\n"
+        "- Status: reviewed\n"
+        "- Item-Dependencies: none\n"
+        "---\n"
+        "# Plan 44N\n"
+    )
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\n44nfmd\n"))
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--stdin",
+            "--dir",
+            str(plan_fixture_repo),
+        ]
+    )
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "selection is ineligible for runner dispatch (2 items):" in captured.err
+    assert "item r20rid must be in status 'approved' and not 'reviewed'" in captured.err
+    assert "item 44nfmd must be in status 'approved' and not 'reviewed'" in captured.err
+    assert "approve with aw ipd set approved r20rid 44nfmd --by-human" in captured.err
+    assert "pass --skip-ineligible to omit" in captured.err
+
+
+def test_cli_partition_skip_ineligible_flag(
+    plan_fixture_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--skip-ineligible warns on stderr and partitions the runnable subset."""
+    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+        "---\n"
+        "- Id: r20rid\n"
+        "- Set: revset (Review Set)\n"
+        "- Status: reviewed\n"
+        "- Item-Dependencies: none\n"
+        "---\n"
+        "# Plan R20\n"
+    )
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\npln001\n"))
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--stdin",
+            "--skip-ineligible",
+            "-n",
+            "1",
+            "--run",
+            "none",
+            "--dir",
+            str(plan_fixture_repo),
+        ]
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    assert (
+        "warning: item r20rid must be in status 'approved' and not 'reviewed' (skipping)"
+        in captured.err
+    )
+    assert "pln001" in captured.out
+    assert "r20rid" not in captured.out
+
+
+def test_partition_id6_highlighting_with_color(
+    plan_fixture_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When color is enabled, id6s and diagnostic elements carry ANSI styling."""
+    import argparse
+    from agent_workflows import partition
+    from agent_workflows.term import Term
+
+    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+        "---\n"
+        "- Id: r20rid\n"
+        "- Set: revset (Review Set)\n"
+        "- Status: reviewed\n"
+        "- Item-Dependencies: none\n"
+        "---\n"
+        "# Plan R20\n"
+    )
+
+    stderr_buf = io.StringIO()
+    monkeypatch.setattr("sys.stderr", stderr_buf)
+    colored_term = Term(stream=stderr_buf, color=True, depth="256")
+
+    args = argparse.Namespace(
+        dir=str(plan_fixture_repo),
+        artifact_type="plans",
+        selectors=["r20rid"],
+        shards=1,
+        max=None,
+        as_profile=None,
+        run=None,
+        model=None,
+        variant=None,
+        action=None,
+        order_by=None,
+        json=False,
+        agent=False,
+        stdin=False,
+        status=[],
+        status_not=[],
+        priority=[],
+        allow_partial_sets=False,
+        skip_ineligible=False,
+        with_dependencies=False,
+        include_active=False,
+    )
+
+    code = partition.run_partition(args, term=colored_term)
+    assert code == 2
+    err_text = stderr_buf.getvalue()
+    # id6 must be bold highlighted
+    assert "\033[1mr20rid\033[0m" in err_text
+    # Error label must be bold red
+    assert colored_term.colorize("Error:", "red", "bold") in err_text
+    # Remedy command and flag must be cyan
+    assert "\033[36maw ipd set approved r20rid --by-human\033[0m" in err_text
+    assert "\033[36m--skip-ineligible\033[0m" in err_text
+
+    # With color=False, verify no ANSI escapes are present
+    plain_buf = io.StringIO()
+    monkeypatch.setattr("sys.stderr", plain_buf)
+    plain_term = Term(stream=plain_buf, color=False)
+    code_plain = partition.run_partition(args, term=plain_term)
+    assert code_plain == 2
+    plain_text = plain_buf.getvalue()
+    assert "\033[" not in plain_text
+    assert (
+        "item r20rid with status 'reviewed' is ineligible for runner dispatch"
+        in plain_text
+    )
+    assert "item r20rid must be in status 'approved' and not 'reviewed'" in plain_text

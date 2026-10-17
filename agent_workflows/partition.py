@@ -999,6 +999,14 @@ def format_shard(
         raise ValueError(f"Unknown runner format: {run!r}")
 
 
+def _make_err_term(term: Optional[Term] = None) -> Term:
+    """Construct an error Term bound to sys.stderr honoring any color/depth override on term."""
+    if term is not None and getattr(term, "color", None) is not None:
+        depth = term.lifecycle_depth() if getattr(term, "color", False) else None
+        return Term(stream=sys.stderr, color=term.color, depth=depth)
+    return Term(stream=sys.stderr)
+
+
 def collect(
     repo_root: Path,
     artifact_type: str = "plans",
@@ -1013,6 +1021,8 @@ def collect(
     require_homogeneous_action: bool = False,
     include_active: bool = False,
     run_map: Optional[Dict[str, str]] = None,
+    skip_ineligible: bool = False,
+    term: Optional[Term] = None,
 ) -> List[_att.Item]:
     """Select candidate items honoring artifact type, selectors, filters, action, and ordering.
 
@@ -1096,6 +1106,9 @@ def collect(
     ]
 
     raw_candidates: List[_att.Item] = []
+    ineligible_items: List[Tuple[_att.Item, str]] = []
+    seen_ineligible_ids: Set[str] = set()
+
     if tokens is not None:
         for tok in tokens:
             res = _selectors.resolve(repo_root, artifact_type, tok)
@@ -1142,12 +1155,115 @@ def collect(
                     ):
                         continue
                     st = getattr(it, "status", None) or it.native_status
-                    raise ValueError(
-                        f"item {it.id!r} with status {st!r} is ineligible for runner dispatch (has no runnable next action)"
-                    )
+                    if it.id not in seen_ineligible_ids:
+                        seen_ineligible_ids.add(it.id)
+                        ineligible_items.append((it, st))
+                    continue
                 raw_candidates.append(it)
     else:
         raw_candidates = [it for it in items if _is_runnable(it)]
+
+    if ineligible_items:
+        err_term = _make_err_term(term)
+
+        def _expected_status_for(it: _att.Item) -> str:
+            if canon_type == "plans":
+                return "'to-review'" if action == "review" else "'approved'"
+            elif canon_type == "specs":
+                return "'to-review'" if action == "review" else "'approved'"
+            elif canon_type == "backlog":
+                return "'open'"
+            return "'approved'"
+
+        if skip_ineligible:
+            warn_label = err_term.colorize("warning:", "yellow", "bold")
+            for it, st in ineligible_items:
+                exp = _expected_status_for(it)
+                styled_id = err_term.colorize(it.id, "bold")
+                print(
+                    f"{warn_label} item {styled_id} must be in status {exp} and not {st!r} (skipping)",
+                    file=sys.stderr,
+                )
+        else:
+            lines: List[str] = []
+            if len(ineligible_items) == 1:
+                it, st = ineligible_items[0]
+                exp = _expected_status_for(it)
+                styled_id = err_term.colorize(it.id, "bold")
+                lines.append(
+                    f"item {styled_id} with status {st!r} is ineligible for runner dispatch: item {styled_id} must be in status {exp} and not {st!r}"
+                )
+            else:
+                lines.append(
+                    f"selection is ineligible for runner dispatch ({len(ineligible_items)} items):"
+                )
+                for it, st in ineligible_items:
+                    exp = _expected_status_for(it)
+                    styled_id = err_term.colorize(it.id, "bold")
+                    lines.append(
+                        f"  item {styled_id} must be in status {exp} and not {st!r}"
+                    )
+
+            skip_flag = err_term.colorize("--skip-ineligible", "cyan")
+            remedy_parts: List[str] = []
+
+            reviewed_plans = [
+                it.id
+                for it, st in ineligible_items
+                if canon_type == "plans" and (st or "").lower() == "reviewed"
+            ]
+            to_review_plans = [
+                it.id
+                for it, st in ineligible_items
+                if canon_type == "plans" and (st or "").lower() == "to-review"
+            ]
+            reviewed_specs = [
+                it.id
+                for it, st in ineligible_items
+                if canon_type == "specs" and (st or "").lower() == "reviewed"
+            ]
+
+            if reviewed_plans:
+                if len(reviewed_plans) <= 4:
+                    ids_str = " ".join(reviewed_plans)
+                    cmd = err_term.colorize(
+                        f"aw ipd set approved {ids_str} --by-human", "cyan"
+                    )
+                else:
+                    cmd = err_term.colorize(
+                        "aw ipd set approved <id6> --by-human for each", "cyan"
+                    )
+                remedy_parts.append(f"approve with {cmd}")
+
+            if to_review_plans and action != "review":
+                if len(to_review_plans) <= 4:
+                    ids_str = " ".join(to_review_plans)
+                    cmd = err_term.colorize(f"/plan-review {ids_str}", "cyan")
+                else:
+                    cmd = err_term.colorize("/plan-review <id6> for each", "cyan")
+                remedy_parts.append(f"review with {cmd}")
+
+            if reviewed_specs:
+                if len(reviewed_specs) <= 4:
+                    ids_str = " ".join(reviewed_specs)
+                    cmd = err_term.colorize(
+                        f"aw specs set {ids_str} --status approved --by-human", "cyan"
+                    )
+                else:
+                    cmd = err_term.colorize(
+                        "aw specs set <id6> --status approved --by-human for each",
+                        "cyan",
+                    )
+                remedy_parts.append(f"approve with {cmd}")
+
+            if remedy_parts:
+                lines.append(
+                    f"  remedy: {', or '.join(remedy_parts)}, or pass {skip_flag} to omit"
+                )
+            else:
+                lines.append(f"  remedy: pass {skip_flag} to omit")
+
+            raise ValueError("\n".join(lines))
 
     seen_ids: Set[str] = set()
     candidates: List[_att.Item] = []
@@ -1192,13 +1308,15 @@ def collect(
             for it in candidates
         }
         if action is not None:
+            err_term = term if term is not None else Term(stream=sys.stderr)
             for it in candidates:
                 it_act = _run_selection_policy.action_for_status(
                     spec_type, getattr(it, "status", None) or it.native_status
                 )
                 if it_act != action:
+                    styled_id = err_term.colorize(it.id, "bold")
                     raise ValueError(
-                        f"item {it.id!r} requires action {it_act!r}, which conflicts with requested --action {action!r}"
+                        f"item {styled_id} requires action {it_act!r}, which conflicts with requested --action {action!r}"
                     )
         elif require_homogeneous_action:
             if len(distinct_actions) > 1:
@@ -1282,6 +1400,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     statuses_not = list(getattr(args, "status_not", []) or [])
     priorities = list(getattr(args, "priority", []) or [])
     allow_partial_sets = bool(getattr(args, "allow_partial_sets", False))
+    skip_ineligible = bool(getattr(args, "skip_ineligible", False))
     include_active = bool(getattr(args, "include_active", False))
     run_map: Optional[Dict[str, str]] = None
     if not include_active:
@@ -1315,9 +1434,13 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 require_homogeneous_action=False,
                 include_active=include_active,
                 run_map=run_map,
+                skip_ineligible=skip_ineligible,
+                term=term,
             )
         except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
+            err_term = _make_err_term(term)
+            err_label = err_term.colorize("Error:", "red", "bold")
+            print(f"{err_label} {e}", file=sys.stderr)
             return 2
 
         with_dependencies = bool(getattr(args, "with_dependencies", False))
@@ -1351,13 +1474,16 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
         runnable_candidates = [it for it in candidates if it.id not in blocked_ids]
 
         if action_flag is not None:
+            err_term = _make_err_term(term)
             for it in runnable_candidates:
                 it_act = _run_selection_policy.action_for_status(
                     spec_type, getattr(it, "status", None) or it.native_status
                 )
                 if it_act != action_flag:
+                    err_label = err_term.colorize("Error:", "red", "bold")
+                    styled_id = err_term.colorize(it.id, "bold")
                     print(
-                        f"Error: item {it.id!r} requires action {it_act!r}, which conflicts with requested --action {action_flag!r}",
+                        f"{err_label} item {styled_id} requires action {it_act!r}, which conflicts with requested --action {action_flag!r}",
                         file=sys.stderr,
                     )
                     return 2
@@ -1466,9 +1592,13 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 require_homogeneous_action=True,
                 include_active=include_active,
                 run_map=run_map,
+                skip_ineligible=skip_ineligible,
+                term=term,
             )
         except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
+            err_term = _make_err_term(term)
+            err_label = err_term.colorize("Error:", "red", "bold")
+            print(f"{err_label} {e}", file=sys.stderr)
             return 2
 
     part_res = partition(

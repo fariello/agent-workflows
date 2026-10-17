@@ -4728,6 +4728,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Read artifact IDs explicitly from standard input.",
     )
     p_partition.add_argument(
+        "--skip-ineligible",
+        dest="skip_ineligible",
+        action="store_true",
+        default=False,
+        help="Warn on stderr and omit items that are ineligible for runner dispatch instead of refusing.",
+    )
+    p_partition.add_argument(
         "--allow-partial-sets",
         dest="allow_partial_sets",
         action="store_true",
