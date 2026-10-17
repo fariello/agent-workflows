@@ -35,38 +35,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: failing-first tests
 
-- [ ] E-01 Create `tests/test_agents_section_records.py` (module `pytestmark = pytest.mark.core`; all cases are in-process and use `tempfile`, so they fit the core budget). Import `tools.regen_agents_block` INSIDE each synthesized test (or a fixture they share), never at module top level, so the missing module fails only (b)-(e) and (a) still runs and fails on its own merits. Cases: (a) LIVE GUARD: load this repo's `.aw/system/managed-sections.json` with `manifest.load` into memory (never save), read this repo's `AGENTS.md`, build `engine.agents_managed_sections("aw")`, and for EACH section append one sentinel line to that section only; call `engine.merge_aw_block(text, perturbed, manifest=m, file_key="AGENTS.md", warnings=w)` and assert, per section, that the sentinel appears in the result and `w` is empty. Put this logic in a module-level helper `stale_section_keys(agents_text, manifest_obj) -> list[str]` (it perturbs a deep copy of the manifest, never the argument) and have the test assert it returns `[]`; on failure the message must name the remedy `python3 -m tools.regen_agents_block` and the stale keys. The helper is what V-02's mutation check calls. (b) SYNTHESIZED: in a `tempfile` repo with `.aw/system/` present, an `AGENTS.md` carrying foreign text above and below an `aw:block` whose sections equal the generator, a manifest whose two `AGENTS.md#aw:*` records are deliberately wrong plus one unrelated `files` entry, and a `GEMINI.md` with no block: calling the tool's `reconcile(repo_root)` leaves `AGENTS.md` byte-identical, makes each recorded hash equal `manifest.hash_content` of the on-disk body, leaves the unrelated entry and `GEMINI.md` byte-identical, and a second call reports no change. (c) SYNTHESIZED: with the managed region differing from the generator (simulating a generator edit), `reconcile` rewrites only the region between the markers to `engine.agents_managed_block(target_layout="aw")`, keeps foreign text identical (assert `parse_aw_block(result).before.strip("\n")` and `.after.strip("\n")` equal the originals', since `merge_aw_block` normalizes the blank-line separators), and records hashes; `reconcile(repo_root, check=True)` beforehand returns `stale: True` and leaves both files byte-identical (compare bytes and mtime). (d) SYNTHESIZED REFUSALS, one parametrized case each, every one raising/returning refused with `AGENTS.md` and the manifest byte-identical: two `aw:block` openers (`parse_aw_block(...).ambiguous`); no `/aw:block` closer with foreign text after the block (`parse_aw_block(...).drift`; measured at review: `merge_aw_block(..., manifest=None)` on such a file drops the trailing foreign text); an on-disk section whose slug is not in `agents_managed_sections` (measured at review: a `<!-- aw:extra -->` section is silently dropped by the rewrite); a legacy `AGENT-WORKFLOWS:BEGIN`/`END` marker (the merge would convert or append instead of refreshing); and an `AGENTS.md#aw:*` record carrying a decline tombstone (`Manifest.is_declined`; the `manifest=None` rewrite would resurrect the declined section). (e) SYNTHESIZED CLI: `main(["--dir", <tmp>, "--check"])` returns 1 on a stale record and 0 after `main(["--dir", <tmp>])`, and 2 on an ambiguous file. Run against the UNMODIFIED tree before E-02.
+- [x] E-01 Create `tests/test_agents_section_records.py` (module `pytestmark = pytest.mark.core`; all cases are in-process and use `tempfile`, so they fit the core budget). Import `tools.regen_agents_block` INSIDE each synthesized test (or a fixture they share), never at module top level, so the missing module fails only (b)-(e) and (a) still runs and fails on its own merits. Cases: (a) LIVE GUARD: load this repo's `.aw/system/managed-sections.json` with `manifest.load` into memory (never save), read this repo's `AGENTS.md`, build `engine.agents_managed_sections("aw")`, and for EACH section append one sentinel line to that section only; call `engine.merge_aw_block(text, perturbed, manifest=m, file_key="AGENTS.md", warnings=w)` and assert, per section, that the sentinel appears in the result and `w` is empty. Put this logic in a module-level helper `stale_section_keys(agents_text, manifest_obj) -> list[str]` (it perturbs a deep copy of the manifest, never the argument) and have the test assert it returns `[]`; on failure the message must name the remedy `python3 -m tools.regen_agents_block` and the stale keys. The helper is what V-02's mutation check calls. (b) SYNTHESIZED: in a `tempfile` repo with `.aw/system/` present, an `AGENTS.md` carrying foreign text above and below an `aw:block` whose sections equal the generator, a manifest whose two `AGENTS.md#aw:*` records are deliberately wrong plus one unrelated `files` entry, and a `GEMINI.md` with no block: calling the tool's `reconcile(repo_root)` leaves `AGENTS.md` byte-identical, makes each recorded hash equal `manifest.hash_content` of the on-disk body, leaves the unrelated entry and `GEMINI.md` byte-identical, and a second call reports no change. (c) SYNTHESIZED: with the managed region differing from the generator (simulating a generator edit), `reconcile` rewrites only the region between the markers to `engine.agents_managed_block(target_layout="aw")`, keeps foreign text identical (assert `parse_aw_block(result).before.strip("\n")` and `.after.strip("\n")` equal the originals', since `merge_aw_block` normalizes the blank-line separators), and records hashes; `reconcile(repo_root, check=True)` beforehand returns `stale: True` and leaves both files byte-identical (compare bytes and mtime). (d) SYNTHESIZED REFUSALS, one parametrized case each, every one raising/returning refused with `AGENTS.md` and the manifest byte-identical: two `aw:block` openers (`parse_aw_block(...).ambiguous`); no `/aw:block` closer with foreign text after the block (`parse_aw_block(...).drift`; measured at review: `merge_aw_block(..., manifest=None)` on such a file drops the trailing foreign text); an on-disk section whose slug is not in `agents_managed_sections` (measured at review: a `<!-- aw:extra -->` section is silently dropped by the rewrite); a legacy `AGENT-WORKFLOWS:BEGIN`/`END` marker (the merge would convert or append instead of refreshing); and an `AGENTS.md#aw:*` record carrying a decline tombstone (`Manifest.is_declined`; the `manifest=None` rewrite would resurrect the declined section). (e) SYNTHESIZED CLI: `main(["--dir", <tmp>, "--check"])` returns 1 on a stale record and 0 after `main(["--dir", <tmp>])`, and 2 on an ambiguous file. Run against the UNMODIFIED tree before E-02.
   - Depends on: none
   - Expected outcome: (a) FAILS on both sections with the case-3 warning (the live defect); (b)-(e) fail with an import error for `tools.regen_agents_block`. If (a) PASSES, someone has already reconciled the manifest: stop and re-measure before continuing (stop condition 2).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the tool
 
-- [ ] E-02 Create `tools/regen_agents_block.py` with `reconcile(repo_root: Path, *, check: bool = False) -> dict` and a `main(argv)` (`argparse`, `--check`, `--dir`, default repo root = cwd; exit 0 when current or reconciled, 1 when `--check` finds staleness, 2 when refused). Implementation: resolve layout with `engine.resolve_target_layout`, the file with `engine.resolve_agents_file`, the manifest path with `manifest.resolve_manifest_path`; refuse (exit 2, nothing written) when `parse_aw_block` reports `not found`, `ambiguous` or `drift`, when the file contains `engine.AGENTS_BEGIN` or `engine.AGENTS_END`, when any on-disk section slug is not among the desired slugs, or when `m.is_declined` is true for any `<rel>#aw:<slug>` key (each of these would make the `manifest=None` rewrite below lose foreign text, drop a section, or resurrect a declined one); compute `new_text` by `engine.merge_aw_block(existing, desired, manifest=None)` (the documented `manifest is None -> write desired` branch, so a stale record cannot hold the region back); then RECORD by calling `engine.merge_aw_block(new_text, desired, manifest=m, file_key=rel, warnings=w)`, which hits consent case 1 (disk equals desired) and records each hash through the installer's own code, so the tool never computes or writes a hash itself; assert `w` is empty. Write `AGENTS.md` only if `new_text != existing`, save the manifest with `manifest.save` only if a section record changed (compare `m.recorded_hash(key)` before and after the recording call), and return `{"file": rel, "stale": bool, "text_changed": bool, "records_changed": [keys], "refused": <reason or None>}`, where `stale` is `text_changed or bool(records_changed)`. With `check=True` run the same computation on an in-memory manifest and write NOTHING. When `text_changed`, print the slugs whose body changed, so overwriting a hand edit in the region is visible. Do NOT call `engine.update_agents_pointer` (it mirrors into `GEMINI.md`, measured: dry run reports "would be updated (appended pointer to existing GEMINI.md)"). Module docstring states it is repo-local developer tooling for the framework's own checkout, not shipped (`pyproject.toml` `packages = ["agent_workflows"]`).
+- [x] E-02 Create `tools/regen_agents_block.py` with `reconcile(repo_root: Path, *, check: bool = False) -> dict` and a `main(argv)` (`argparse`, `--check`, `--dir`, default repo root = cwd; exit 0 when current or reconciled, 1 when `--check` finds staleness, 2 when refused). Implementation: resolve layout with `engine.resolve_target_layout`, the file with `engine.resolve_agents_file`, the manifest path with `manifest.resolve_manifest_path`; refuse (exit 2, nothing written) when `parse_aw_block` reports `not found`, `ambiguous` or `drift`, when the file contains `engine.AGENTS_BEGIN` or `engine.AGENTS_END`, when any on-disk section slug is not among the desired slugs, or when `m.is_declined` is true for any `<rel>#aw:<slug>` key (each of these would make the `manifest=None` rewrite below lose foreign text, drop a section, or resurrect a declined one); compute `new_text` by `engine.merge_aw_block(existing, desired, manifest=None)` (the documented `manifest is None -> write desired` branch, so a stale record cannot hold the region back); then RECORD by calling `engine.merge_aw_block(new_text, desired, manifest=m, file_key=rel, warnings=w)`, which hits consent case 1 (disk equals desired) and records each hash through the installer's own code, so the tool never computes or writes a hash itself; assert `w` is empty. Write `AGENTS.md` only if `new_text != existing`, save the manifest with `manifest.save` only if a section record changed (compare `m.recorded_hash(key)` before and after the recording call), and return `{"file": rel, "stale": bool, "text_changed": bool, "records_changed": [keys], "refused": <reason or None>}`, where `stale` is `text_changed or bool(records_changed)`. With `check=True` run the same computation on an in-memory manifest and write NOTHING. When `text_changed`, print the slugs whose body changed, so overwriting a hand edit in the region is visible. Do NOT call `engine.update_agents_pointer` (it mirrors into `GEMINI.md`, measured: dry run reports "would be updated (appended pointer to existing GEMINI.md)"). Module docstring states it is repo-local developer tooling for the framework's own checkout, not shipped (`pyproject.toml` `packages = ["agent_workflows"]`).
   - Depends on: E-01
   - Expected outcome: E-01 (b)-(d) pass; (a) still fails (the live manifest is not yet reconciled).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: reconcile this repo
 
-- [ ] E-03 Run `python3 -m tools.regen_agents_block --check` (expect exit 1 naming both `AGENTS.md#aw:*` keys), then `python3 -m tools.regen_agents_block`, then `--check` again (expect exit 0). Commit `.aw/system/managed-sections.json` (and `AGENTS.md` only if the tool changed it, which happens only if another plan changed the generator first).
+- [x] E-03 Run `python3 -m tools.regen_agents_block --check` (expect exit 1 naming both `AGENTS.md#aw:*` keys), then `python3 -m tools.regen_agents_block`, then `--check` again (expect exit 0). Commit `.aw/system/managed-sections.json` (and `AGENTS.md` only if the tool changed it, which happens only if another plan changed the generator first).
   - Depends on: E-02
   - Expected outcome: `git diff -- .aw/system/managed-sections.json` shows exactly the `sha256` lines of the `AGENTS.md#aw:pointer` and `AGENTS.md#aw:reporting` entries moving to the hashes of the on-disk bodies; no other key moves; E-01 (a) now passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: documentation
 
-- [ ] E-04 Record the ownership rule: in `CONTRIBUTING.md` `### Regenerating Derivative Artifacts` add a bullet "**Managed AGENTS.md block (`<!-- aw:block -->` region) and its section hashes**: `python3 -m tools.regen_agents_block` after any change to the generator (`engine.agents_pointer_prose`, `reporting_contract`); never edit the region by hand or script it directly", and add `AGENTS.md` (managed region) to the **Generated** row of the classification table; add a `## \`regen_agents_block.py\`` section to `tools/README.md` with usage and exit codes; add the next free `DECISIONS.md` entry (re-derive; `D174` is highest at authoring, so `D175`) recording that `b4bvas`'s declined "guard test that this repo's pointer equals the generator" is now added, because its premise (F-7: "this fix self-heals on the next install") does not hold in a repo where the installer is not run, as `q3ogs0` measured.
+- [x] E-04 Record the ownership rule: in `CONTRIBUTING.md` `### Regenerating Derivative Artifacts` add a bullet "**Managed AGENTS.md block (`<!-- aw:block -->` region) and its section hashes**: `python3 -m tools.regen_agents_block` after any change to the generator (`engine.agents_pointer_prose`, `reporting_contract`); never edit the region by hand or script it directly", and add `AGENTS.md` (managed region) to the **Generated** row of the classification table; add a `## \`regen_agents_block.py\`` section to `tools/README.md` with usage and exit codes; add the next free `DECISIONS.md` entry (re-derive; `D174` is highest at authoring, so `D175`) recording that `b4bvas`'s declined "guard test that this repo's pointer equals the generator" is now added, because its premise (F-7: "this fix self-heals on the next install") does not hold in a repo where the installer is not run, as `q3ogs0` measured.
   - Depends on: E-03
   - Expected outcome: the three files carry the rule; `grep -n "regen_agents_block" CONTRIBUTING.md tools/README.md DECISIONS.md` hits each.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: suite
 
-- [ ] E-05 Run `python3 -m pytest tests/test_agents_section_records.py tests/test_section_consent.py -o addopts="" -q` and `python3 -m pytest tests/test_agents_block_target_neutral.py tests/test_askme_command_delivery.py -o addopts="" -m ""`, then the bare suite `python3 -m pytest`.
+- [x] E-05 Run `python3 -m pytest tests/test_agents_section_records.py tests/test_section_consent.py -o addopts="" -q` and `python3 -m pytest tests/test_agents_block_target_neutral.py tests/test_askme_command_delivery.py -o addopts="" -m ""`, then the bare suite `python3 -m pytest`.
   - Depends on: E-04
   - Expected outcome: 0 failed in each.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -139,30 +139,223 @@ Measured at HEAD `3812c4002` in this lane.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest tests/test_agents_section_records.py -o addopts="" -q` run BEFORE E-02, listing the failing test names: the live-guard case must fail with the case-3 warning naming `AGENTS.md#aw:pointer` and/or `AGENTS.md#aw:reporting`, and the synthesized cases must fail on the missing `tools.regen_agents_block` import.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_agents_section_records.py -o addopts="" -q
+    FAILED tests/test_agents_section_records.py::test_synthesized_refusals[two_openers-_setup_two_openers]
+    FAILED tests/test_agents_section_records.py::test_synthesized_refusals[drift_no_closer-_setup_drift_no_closer]
+    FAILED tests/test_agents_section_records.py::test_synthesized_reconcile_preserves_text_and_updates_hashes
+    FAILED tests/test_agents_section_records.py::test_synthesized_reconcile_rewrites_managed_region_and_preserves_foreign
+    FAILED tests/test_agents_section_records.py::test_live_agents_md_section_records_are_current
+    FAILED tests/test_agents_section_records.py::test_synthesized_refusals[declined_tombstone-_setup_declined_tombstone]
+    FAILED tests/test_agents_section_records.py::test_synthesized_refusals[legacy_marker-_setup_legacy_marker]
+    FAILED tests/test_agents_section_records.py::test_synthesized_refusals[unknown_slug-_setup_unknown_slug]
+    FAILED tests/test_agents_section_records.py::test_synthesized_cli - ModuleNotFoundError: No module named 'tools.regen_agents_block'
+    9 failed in 0.29s
 
-- [ ] V-02 validates E-02
+    Live-guard failure detail:
+    E   AssertionError: Stale section keys detected: ['AGENTS.md#aw:pointer', 'AGENTS.md#aw:reporting']
+    E     Warnings:
+    E     Warning: AGENTS.md#aw:pointer has manual modifications; kept your version, the regenerated section was NOT applied. To take the new version, delete that section (from its <!-- aw:pointer --> marker to the next marker) and re-run install.
+    E     Warning: AGENTS.md#aw:reporting has manual modifications; kept your version, the regenerated section was NOT applied. To take the new version, delete that section (from its <!-- aw:reporting --> marker to the next marker) and re-run install.
+    E     Remedy: run `python3 -m tools.regen_agents_block` to reconcile section hashes.
+    E   assert not ['AGENTS.md#aw:pointer', 'AGENTS.md#aw:reporting']
+
+    Synthesized failure detail:
+    E   ModuleNotFoundError: No module named 'tools.regen_agents_block'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the same command after E-02 showing the synthesized cases passing and only the live guard still failing; show from the passing case (b) output (pytest `-v` lines) that `GEMINI.md` and the unrelated manifest entry are byte-identical and every recorded hash equals `manifest.hash_content` of the on-disk body, and that every case (d) refusal left both files unchanged (the behavioral proof that the tool neither mirrors native files nor records anything the installer path would not); paste the guard mutation check (tempfile manifest copy with one hash restored to a stale value) showing the guard's helper reports that key.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_agents_section_records.py -o addopts="" -v
+    tests/test_agents_section_records.py::test_synthesized_refusals[unknown_slug-_setup_unknown_slug] PASSED [ 11%]
+    tests/test_agents_section_records.py::test_synthesized_reconcile_rewrites_managed_region_and_preserves_foreign PASSED [ 22%]
+    tests/test_agents_section_records.py::test_synthesized_refusals[two_openers-_setup_two_openers] PASSED [ 33%]
+    tests/test_agents_section_records.py::test_synthesized_reconcile_preserves_text_and_updates_hashes PASSED [ 44%]
+    tests/test_agents_section_records.py::test_synthesized_refusals[legacy_marker-_setup_legacy_marker] PASSED [ 55%]
+    tests/test_agents_section_records.py::test_synthesized_cli PASSED        [ 66%]
+    tests/test_agents_section_records.py::test_live_agents_md_section_records_are_current FAILED [ 77%]
+    tests/test_agents_section_records.py::test_synthesized_refusals[declined_tombstone-_setup_declined_tombstone] PASSED [ 88%]
+    tests/test_agents_section_records.py::test_synthesized_refusals[drift_no_closer-_setup_drift_no_closer] PASSED [100%]
+    FAILED tests/test_agents_section_records.py::test_live_agents_md_section_records_are_current
+    ========================= 1 failed, 8 passed in 0.34s ==========================
 
-- [ ] V-03 validates E-03
+    Passing case (b) assert tests: GEMINI.md and unrelated manifest entry are byte-identical and every recorded hash equals manifest.hash_content of the on-disk body. Case (d) refusals assert tests: all 5 refusal conditions left both files byte-identical.
+
+    Guard mutation check:
+    $ python3 -c "
+    from pathlib import Path
+    from agent_workflows import engine, manifest
+    from tests.test_agents_section_records import stale_section_keys
+    agents_text = Path('AGENTS.md').read_text(encoding='utf-8')
+    m = manifest.load(Path('.aw/system/managed-sections.json'))
+    desired = engine.agents_managed_sections('aw')
+    w = []
+    engine.merge_aw_block(agents_text, desired, manifest=m, file_key='AGENTS.md', warnings=w)
+    m.files['AGENTS.md#aw:pointer'].sha256 = '0fbbebcf7adb'
+    reported = stale_section_keys(agents_text, m)
+    print('Mutated manifest reported stale keys:', reported)
+    assert reported == ['AGENTS.md#aw:pointer']
+    print('Guard mutation check PASSED')
+    "
+    Mutated manifest reported stale keys: ['AGENTS.md#aw:pointer']
+    Guard mutation check PASSED
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `--check` output and exit code before (1, naming both keys) and after (0); paste `git diff -- AGENTS.md .aw/system/managed-sections.json` from before the commit showing only the two `AGENTS.md#aw:*` `sha256` lines moved (re-derive the live hashes; the property is that each recorded hash equals the on-disk body hash and no other key moved); paste the live-guard test now passing; paste the `aw commit` output.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m tools.regen_agents_block --check
+    Stale: AGENTS.md (records stale: AGENTS.md#aw:pointer, AGENTS.md#aw:reporting)
+    Exit code: 1
 
-- [ ] V-04 validates E-04
+    $ python3 -m tools.regen_agents_block
+    Reconciled AGENTS.md: re-recorded AGENTS.md#aw:pointer, AGENTS.md#aw:reporting
+    Exit code: 0
+
+    $ python3 -m tools.regen_agents_block --check
+    Up to date: AGENTS.md managed block and section records.
+    Exit code: 0
+
+    $ git diff -- AGENTS.md .aw/system/managed-sections.json
+    diff --git a/.aw/system/managed-sections.json b/.aw/system/managed-sections.json
+    index efbd7f436..fa3f0b2be 100644
+    --- a/.aw/system/managed-sections.json
+    +++ b/.aw/system/managed-sections.json
+    @@ -1210,13 +1210,13 @@
+           "host": "",
+           "kind": "section",
+           "logical_id": "pointer",
+    -      "sha256": "0fbbebcf7adb494ddd90bc28bc37e771f0675d1629b5433fa568f6d504c54c6b"
+    +      "sha256": "bc2566123cc6734243e580dac7d658fdba37230bd143cefbc877151d7ecd000d"
+         },
+         "AGENTS.md#aw:reporting": {
+           "host": "",
+           "kind": "section",
+           "logical_id": "reporting",
+    -      "sha256": "2ab6fbfba20990736e8f9445c14602c4029fc58bd37ccb5356fdc4bcaac87b96"
+    +      "sha256": "46970f75c6d377d7b6280eb07f05ff97f4a6ab3a305120fb5e433b1ad3469078"
+         }
+       },
+       "installed_version": "1.2.1",
+
+    $ python3 -m pytest tests/test_agents_section_records.py -o addopts="" -q
+    .........                                                                [100%]
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    9 passed in 0.42s
+
+    $ aw commit l5t4vx -m "reconcile AGENTS.md section records with generator and add guard" -- tools/regen_agents_block.py tests/test_agents_section_records.py .aw/system/managed-sections.json
+    aw commit: committed 3 path(s): b883c0402da80bac5db1efbe9c214fb680dc75c2
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the diffs of `CONTRIBUTING.md`, `tools/README.md`, `DECISIONS.md`; paste the highest decision number re-derived at execution and the number used; paste `git diff -- CONTRIBUTING.md tools/README.md | grep "^+" | grep -nP "[\x{2013}\x{2014}]"` returning nothing (these are contributor-facing docs).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff HEAD~1 CONTRIBUTING.md tools/README.md DECISIONS.md
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 1bafe745f..d75be415f 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -40,7 +40,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
+ | Category | Locations | Git Policy | Managing Tool |
+ |---|---|---|---|
+ | **Source** | `agent_workflows/`, `tools/`, `.aw/system/workflows/`, `tests/` | Tracked | Developers / git |
+-| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/research/INDEX.*` | Tracked | `aw install`, `aw index plans`, `aw index research`, `make version-file` |
++| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/research/INDEX.*`, `AGENTS.md` (managed region) | Tracked | `aw install`, `aw index plans`, `aw index research`, `make version-file`, `python3 -m tools.regen_agents_block` |
+ | **Records** | `.aw/records/` (`plans/`, `specs/`, `research/`, `backlog/`, `comms/`, `prompts/`) | Tracked (or companion-routed) | `aw ipd`, `aw backlog`, `aw research`, `aw specs` |
+ | **Config** | `.aw/config/config.json`, `.aw/config/local-leaks-allowlist.toml` | Tracked | `aw config`, `aw sanitize --configure` |
+ | **Local Config** | `.aw/config/local.json`, `~/.config/agent-workflows/` | Gitignored | `aw config`, user edits |
+@@ -49,6 +49,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 
-- [ ] V-05 validates E-05
+ Never hand-edit generated files. Use the owning CLI verb:
+
++- **Managed AGENTS.md block (`<!-- aw:block -->` region) and its section hashes**: `python3 -m tools.regen_agents_block` after any change to the generator (`engine.agents_pointer_prose`, `reporting_contract`); never edit the region by hand or script it directly.
+ - **Command Shims (`.opencode/commands/`, `.claude/commands/`)**: `aw install .` or `python3 install-workflows.py`.
+ - **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw index plans`. GENERATED,
+   GITIGNORED, LOCAL: not committed, absent in a fresh clone until you generate it, and absent in a new
+diff --git a/DECISIONS.md b/DECISIONS.md
+index 105bb5f6e..cb017ae71 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -2781,4 +2781,13 @@
+   2. *Procedure-only workflow:* Separate active instructions from historical rationale. `.aw/system/workflows/askme/askme.md` becomes a procedure-only runbook recognizing four request scopes (rewrite the previous question, ask a supplied question, examine specified records, use current conversation). Historical incidents and rationale are moved to sibling `rationale.md`. The workflow retains key safety invariants: the blocking-question tiebreak ("when genuinely unsure whether a blocking question is yours, ask"), reporting self-resolved decisions with hard-to-reverse ones flagged, the requirement that a gate or question must not assert the verdict it precedes, and shared-checkout authorship confirmation.
+   3. *Shared plain-language default:* Extend `reporting_contract.py` (`REPORTING_SECTION_TITLE = "## Communication and concise reporting"`) with a shared `COMMUNICATION` requirement (clear, concise, plain, precise, accurate, straightforward, jargon-free; applies across all authored documents including internal plans, specs, and prompts) and a `DECISIONS` exception to the routine reporting word cap (decision questions and explanations are not limited by the word cap). Align `engine.agents_pointer_prose()`, `docs/reporting-contract.md`, and `GUIDING_PRINCIPLES.md` P12/P13.
+ - **Applied:** `.aw/system/workflows/askme/askme.md`; `.aw/system/workflows/askme/rationale.md`; `.aw/system/workflows/askme/README.md`; `.aw/system/workflows/index.md`; `.opencode/commands/askme.md`; `.claude/commands/askme.md`; `agent_workflows/engine.py`; `agent_workflows/reporting_contract.py`; `agent_workflows/migration_inventory.py`; `docs/reporting-contract.md`; `GUIDING_PRINCIPLES.md`; `AGENTS.md`; `README.md`; `DECISIONS.md` (this entry); `CHANGELOG.md`; `tests/test_askme_command_delivery.py`; `.aw/records/specs/approved/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md`. Executed per IPD `er11a0` (Set `askmeplain`, Order 1, research `y0vcm9`).
++
++### D175. Guard AGENTS.md section records against staleness from joint generator edits
++
++- **Context:** In plan `b4bvas` (backlog `krwl3t`), installer managed section consent was updated so that on-disk sections matching desired generator content self-heal their manifest hashes on the next install. Plan `b4bvas` declined an automated test asserting this repository's own `AGENTS.md` section records match the generator on the premise that the installer would self-heal them. However, in this repository `aw install .` is measured unsafe to run due to full file synchronization and raw self-commit side effects (`b4bvas` F-6, `er11a0` E-07). Instead, changes to pointer or reporting prose land as joint commits editing generator code and `AGENTS.md` by script without re-recording hashes in `.aw/system/managed-sections.json`. Consequently, the hashes froze at stale values (`0fbbebcf` for pointer, `2ab6fbfb` for reporting), turning subsequent generator updates into manual modification warnings (consent case 3) and silently failing to land (backlog `q3ogs0`).
++- **Decision:**
++  1. *Repo-local reconciliation tool:* Introduce `tools/regen_agents_block.py` (`python3 -m tools.regen_agents_block`, supporting `--check` and `--dir`). It rewrites only the `<!-- aw:block -->` region of `AGENTS.md` to match `engine.agents_managed_sections("aw")`, refuses on malformed markers, drift, or decline tombstones, and re-records section hashes in `.aw/system/managed-sections.json` through `engine.merge_aw_block` (consent case 1). It does not touch `GEMINI.md` or unrelated manifest entries.
++  2. *Live guard test in core test tier:* Add `tests/test_agents_section_records.py` with a live behavioral guard that loads the live manifest and `AGENTS.md`, perturbs desired sections in memory, and asserts that `merge_aw_block` adopts each section without manual modification warnings. The test fails in routine CI/lane gates whenever generator or `AGENTS.md` edits leave recorded hashes stale, naming the one-line reconciliation command.
++- **Applied:** `tools/regen_agents_block.py`; `tests/test_agents_section_records.py`; `.aw/system/managed-sections.json`; `CONTRIBUTING.md`; `tools/README.md`; `DECISIONS.md` (this entry). Executed per IPD `l5t4vx` (Set `q3ogs0`, Order 1, backlog `q3ogs0`).
+diff --git a/tools/README.md b/tools/README.md
+index 1fffc0ffb..a0005ca52 100644
+--- a/tools/README.md
++++ b/tools/README.md
+@@ -477,3 +477,30 @@
+ # Diff an entire inventory list from lost_guard_census.py:
+ python3 tools/replay_coverage_diff.py diff 19313eed --from-json uncited_inventory.json --baseline /tmp/base --format json
+ '''
++
++## `regen_agents_block.py`
++
++`tools/regen_agents_block.py` regenerates the managed `<!-- aw:block -->` region of this repository's `AGENTS.md` from the generator (`engine.agents_managed_sections("aw")`) and re-records the section hashes in `.aw/system/managed-sections.json`.
++
++### Purpose
++
++In this repository, changes to pointer or reporting prose land as joint generator-plus-`AGENTS.md` commits where the full installer (`aw install .`) is not run. This repo-local tool provides a safe, focused path that rewrites only the managed block region between `<!-- aw:block -->` and `<!-- /aw:block -->`, keeping foreign header and footer text intact, and records updated section hashes in the manifest through `engine.merge_aw_block`. It never touches `GEMINI.md` or unrelated manifest entries.
++
++### Exit Codes
++
++- `0`: Success. The managed block and section hashes are up to date (or were cleanly reconciled).
++- `1`: Staleness detected under `--check`. Text or section hash records are out of step.
++- `2`: Refused. The file contains ambiguous block markers, legacy markers, drift (missing closer with trailing text), unknown section slugs, or declined tombstones.
++
++### Usage
++
++'''bash
++# Check if AGENTS.md or manifest records are stale (exit 1 if stale, 0 if current):
++python3 -m tools.regen_agents_block --check
++
++# Reconcile AGENTS.md managed block and manifest records in place:
++python3 -m tools.regen_agents_block
++
++# Run against a specific repository root directory:
++python3 -m tools.regen_agents_block --dir /path/to/repo --check
++'''
+
+Highest decision number re-derived: D174. Number used: D175.
+$ git diff -- CONTRIBUTING.md tools/README.md | grep "^+" | grep -nP "[\x{2013}\x{2014}]"
+(empty, exit 1)
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the summary lines of the two targeted runs and of bare `python3 -m pytest`, each showing 0 failed; any pre-existing failure must be named with its tracking backlog id and shown failing on main without this plan's changes.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest tests/test_agents_section_records.py tests/test_section_consent.py -o addopts="" -q
+    21 passed in 4.61s
+
+    $ python3 -m pytest tests/test_agents_block_target_neutral.py tests/test_askme_command_delivery.py -o addopts="" -m ""
+    8 passed in 21.90s
+
+    $ python3 -m pytest
+    902 passed in 79.21s (0:01:19)
+    0 failed across all three test runs.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
