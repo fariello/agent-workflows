@@ -6,9 +6,10 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/**/20261017-trimprobe-00-roi8f1-probe-the-319-budget-exhausted-rollup-keys-and-carry-every-u.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Coverage: pass
-- Coverage-Fingerprint: 021108d4a893c39db24dfa9124d8b9c0c4923d2c8fdeee81173fea5e0b403689
+- Coverage-Fingerprint: 3e5e837490288733d9267c48ab578ef659c0bc9a7a6d641b9ef6f3a610b6260c
 - Coverage-Checked: 2026-10-17 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: low
@@ -20,14 +21,16 @@
 - Id: roi8f1
 
 ## Workflow history
+- 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
+- 2026-10-17 coverage pass (aw oc run): fingerprint 3e5e83749028, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 coverage pass (aw oc run): fingerprint 021108d4a893, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-17 to-review (opencode): authored review-ready orchestrator graduating backlog `lrnh5f`.
 - 2026-10-17 draft (opencode): created.
 
 ## Goal
 
-Every one of the 319 keys ends with a measured guard verdict at one HEAD, and every key the surviving suite does not guard is carried by a live backlog item that names the deleted test file to mine.
+Every one of the 319 keys ends with a final verdict recorded in the Set findings doc: a measured guard verdict (`guarded`, `unguarded`, `unprovable`) for every key a probe plan started, a no-probe verdict (`key-gone`, `unguarded-unreached`, `unprovable`) from Order 01, or, only for a key a probe plan could not start before its 10,800s cap, `budget-exhausted` with the cumulative time. Every key that is not carrier-free (anything but `guarded` or `key-gone`, a residual `budget-exhausted` included) is carried by a live backlog item that names the deleted test file to mine. Order 01 (`g00ljy`) records a `### Capacity warning` when its `P3` estimate exceeds 7,200s, so any expected residue is visible before Orders 02 and 03 run.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -146,4 +149,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). EXECUTION CONTRACT: all open questions are resolved. Scope fence: `- Scope-Paths:` declares only this plan; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. This plan performs no work of its own: execute the children in Order (01 to 05), each under its own execution contract, and confirm each reaches `executed`. Never push. Under a runner, the runner retires this orchestrator once every child is `executed`.
+Execute only after explicit human approval (`Status: approved`). EXECUTION CONTRACT: all open questions are resolved. Paste the ACTUAL `aw find plans <id6>` output into each `V-*`; never record a child as executed that you did not observe there. Scope fence: `- Scope-Paths:` declares only this plan; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. This plan performs no work of its own: execute the children in Order (01 to 05), each under its own execution contract, and confirm each reaches `executed`. Commit only this plan's own lifecycle changes, path-scoped through the tooling (`aw commit <this plan> -- <this plan path>` or the lifecycle verb), never `git add -A`, never push. Under a runner, the runner retires this orchestrator once every child is `executed`; in an unmanaged run, finalize it with `aw ipd finalize` only after every `V-*` is `pass` and `aw ipd lint --phase pre-transition` conforms.
