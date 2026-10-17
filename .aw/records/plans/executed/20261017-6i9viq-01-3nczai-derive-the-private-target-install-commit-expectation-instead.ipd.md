@@ -6,7 +6,7 @@
 - Scope: IN: the literal count assertion in `test_case_l_tracked_install_still_writes_target` was ALREADY replaced, outside this plan, by commit 84cba788c ("fix(ci): derive test_case_l expectation ..."), with exactly the derived assertions this plan specified (install commit path set equals tracked installed path set, non-empty, contains `AGENTS.md` and `.aw/.gitignore`, clean `git status --porcelain`). This plan therefore (1) confirms the landed assertions match the specification and pass, and (2) performs the sensitivity proof that commit did not record (a deliberately partial commit and a stray untracked file each make the test fail), so the release-gated backlog item `6i9viq` closes on verified evidence. OUT: any further edit to the test (unless E-01 finds a divergence), any change to the installer, the payload, or other test cases; closing backlog `ioegmo` or its plan `im4afa` (a separate item; noted below).
 - Scope-Paths: tests/test_clean_target_config_home.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 02
 - Author: opencode
 - Id: 3nczai
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3nczai verified (set 6i9viq, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 - 2026-10-17 draft (opencode): created.
