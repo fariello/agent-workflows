@@ -516,7 +516,6 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
 
     def test_run_analyze_rebuild_behavior(self) -> None:
         """E-05: `aw runs analyze --rebuild` clears cache entries, preserves salt, removes stats cache, and leaves source runs immutable."""
-        import time
         from agent_workflows import run_dashboard as dash_mod
 
         # Initial run_analyze with rebuild=False to populate cache
@@ -577,8 +576,14 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         snapshot_before = _source_snapshot()
         self.assertTrue(len(snapshot_before) > 0)
 
-        # Pause briefly to ensure generated_at (ISO timestamp seconds) advances
-        time.sleep(1.05)
+        import dataclasses
+
+        entry1_before = dataclasses.replace(
+            entry1_before, generated_at="2000-01-01T00:00:00Z"
+        )
+        entry2_before = dataclasses.replace(
+            entry2_before, generated_at="2000-01-01T00:00:00Z"
+        )
 
         # Drive run_analyze with rebuild=True namespace built identical to rebuild=False
         args_rebuild = argparse.Namespace(

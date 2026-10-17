@@ -336,7 +336,7 @@ class BlockingRegistryCallerTests(unittest.TestCase):
                 self.assertEqual(waiter.stdout.readline().strip(), "waiting")
                 # Give it a real chance to wrongly fail fast. If blocking were broken, it would
                 # have exited by now with an exception.
-                time.sleep(1.0)
+                time.sleep(0.2)
                 self.assertIsNone(
                     waiter.poll(),
                     "the blocking acquire FAILED FAST instead of waiting: this is the "

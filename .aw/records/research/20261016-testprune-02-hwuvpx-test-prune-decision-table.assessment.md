@@ -2311,3 +2311,85 @@ Zero outcome differences found between `run_cli` and `run_cli_inproc` across all
 - `tests/test_installer.py` under pytest (`-n 6`, seed 123456): `149 passed in 42.27s`
 - `tests/test_installer.py` under `python3 -m unittest`: `Ran 149 tests in 270.696s; OK`
 - Template digest verification: `a2bf96fad5604a27b190031e2e4c0d55e90c499bb4789eb87fc79c6523e49a7f` (all test-level digests verified identical before and after test execution).
+
+## c8bfp9 E-07 time.sleep census and dispositions
+
+Census of `time.sleep(` in `tests/` re-derived at execution: 58 matches across `tests/` (57 active code occurrences across 23 files, plus 1 docstring reference in `tests/test_runner_peer_dependency.py:89`), plus 1 site in `tests/test_run_analytics_cli.py:581` eliminated during E-07 conversion (58 total original code call sites).
+
+### Per-Site Disposition Table
+
+| Site | File and Line | Snippet | Category | Disposition and Rationale |
+|---|---|---|---|---|
+| 1 | `tests/test_platform_lock.py:202` | `time.sleep(0.05)` | kept-poll | Reader/writer thread contention poll. Bounded short poll (<50ms). |
+| 2 | `tests/test_platform_lock.py:339` | `time.sleep(0.2)` | converted | Shortened from `1.0s` to `0.2s`. Verifies blocking acquire waits rather than failing fast; threshold unchanged. |
+| 3 | `tests/test_run_analytics_cli.py:581` | `time.sleep(1.05)` | converted (eliminated) | Replaced sleep with `dataclasses.replace(..., generated_at=...)` backdating earlier entry timestamps. Sleep completely eliminated (0s). |
+| 4 | `tests/test_hang_guard_budget.py:109` | `time.sleep(1.2)` | kept-synthetic | Generated synthetic child test script. Subject under test is hang guard wall-vs-CPU budget distinction. |
+| 5 | `tests/test_hang_guard_budget.py:164` | `time.sleep(1.5)` | kept-synthetic | Generated synthetic child test script for hang guard budget. |
+| 6 | `tests/test_hang_guard_budget.py:205` | `time.sleep(1.5)` | kept-synthetic | Generated synthetic child test script for hang guard budget. |
+| 7 | `tests/test_stall_progress_agy.py:170` | `time.sleep(10)` | kept-kill-target | Long-lived child process spawned to be reaped on stall watchdog timeout. Terminated upon trigger. |
+| 8 | `tests/test_stall_progress_agy.py:191` | `time.sleep(0.3)` | kept-poll | Polling wait for watchdog state transition. Bounded poll. |
+| 9 | `tests/test_stall_progress_agy.py:198` | `time.sleep(0.3)` | kept-poll | Polling wait for watchdog state transition. Bounded poll. |
+| 10 | `tests/test_stall_progress_agy.py:232` | `time.sleep(0.05)` | kept-poll | Short polling interval. |
+| 11 | `tests/test_stall_progress_agy.py:243` | `time.sleep(0.05)` | kept-poll | Short polling interval. |
+| 12 | `tests/test_stall_progress_agy.py:250` | `time.sleep(1)` | kept-kill-target | Spawned child process kill target. Terminated on test cleanup. |
+| 13 | `tests/test_turn_bounds.py:42` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed when turn bounds fire. |
+| 14 | `tests/test_turn_bounds.py:94` | `time.sleep(0.01)` | kept-synthetic | Child script streaming stdout lines with small yield. |
+| 15 | `tests/test_turn_bounds.py:166` | `time.sleep(0.2)` | kept-poll | Bounded wait for child to initialize before testing turn boundary. |
+| 16 | `tests/test_turn_bounds.py:223` | `time.sleep(0.05)` | kept-poll | Bounded wait for process termination. |
+| 17 | `tests/test_turn_bounds.py:458` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed by turn boundary enforcement. |
+| 18 | `tests/test_turn_bounds.py:482` | `time.sleep(0.05)` | kept-kill-target | Child process loop killed by turn boundary enforcement. |
+| 19 | `tests/test_runner_backlog_close_behavior.py:1095` | `time.sleep(0.05)` | kept-poll | Polling interval for backlog status check. |
+| 20 | `tests/test_capture_command_contract.py:258` | `time.sleep(2)` | kept-kill-target | Child process spawned as timeout/kill target. |
+| 21 | `tests/test_comms_broker.py:396` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 22 | `tests/test_concurrent_driver_guard.py:747` | `time.sleep(0.05)` | kept-kill-target | Child script loop in concurrent driver guard test. |
+| 23 | `tests/test_statusline_behavior.py:899` | `time.sleep(0.06)` | kept-poll | Poll wait for statusline refresh. |
+| 24 | `tests/test_hostcapgate_descriptor_freeze.py:56` | `time.sleep(0.001)` | kept-poll | Millisecond sleep to ensure distinct filesystem mtime. |
+| 25 | `tests/test_ipd_lifecycle_cli.py:1303` | `time.sleep(60)` | kept-kill-target | Long-lived child process holder killed in addCleanup. |
+| 26 | `tests/test_ipd_lifecycle_cli.py:1337` | `time.sleep(60)` | kept-kill-target | Long-lived child process holder killed in addCleanup. |
+| 27 | `tests/test_ipd_lifecycle_cli.py:1355` | `_time.sleep(sec)` | kept-cooperative | Custom sleep callback passed to `acquire_finalize_lock` for testing lock release handshake (~0.2s total). |
+| 28 | `tests/test_ipd_lifecycle_cli.py:1387` | `time.sleep(60)` | kept-kill-target | Child process holder killed in addCleanup. |
+| 29 | `tests/test_ipd_lifecycle_cli.py:1427` | `time.sleep(60)` | kept-kill-target | Child process holder killed in addCleanup. |
+| 30 | `tests/test_ipd_lifecycle_cli.py:1497` | `time.sleep(0.01)` | kept-synthetic | Child process loop waiting on sentinel. |
+| 31 | `tests/test_ipd_lifecycle_cli.py:1507` | `_time.sleep(0.02)` | kept-poll | Parent polling for child lock file creation. |
+| 32 | `tests/test_ipd_lifecycle_cli.py:1519` | `_time.sleep(sec)` | kept-cooperative | Custom sleep callback passed to `acquire_finalize_lock` for two-process lock handshake (~0.2s total). |
+| 33 | `tests/test_capture_command_stream_bounds.py:133` | `time.sleep(10)` | kept-kill-target | Child process spawned as stream bounds timeout target. |
+| 34 | `tests/test_lane_owner_record_anchoring.py:133` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 35 | `tests/test_deleted_test_replay.py:119` | `time.sleep(30)` | kept-synthetic | Synthetic test file written into temp repo to test slow replay timeout. |
+| 36 | `tests/test_core_tier_selection.py:108` | `time.sleep(0.05)` | kept-synthetic | Synthetic test file written to test core tier selection. |
+| 37 | `tests/test_oc_runipd.py:737` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 38 | `tests/test_oc_runipd.py:1699` | `time.sleep(60)` | kept-kill-target | Child process spawned as kill target. |
+| 39 | `tests/test_oc_runipd.py:1794` | `time.sleep(0.5)` | kept-poll | Bounded wait for process startup in review sweep test. |
+| 40 | `tests/test_comms_broker_registry.py:581` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 41 | `tests/test_comms_broker_registry.py:731` | `time.sleep(0.01)` | kept-poll | Thread cooperative yield. |
+| 42 | `tests/test_checkup.py:77` | `time.sleep(resp["sleep"])` | kept-mocked | Sleep in mock GitHub API handler (`resp["sleep"]` is 0.0 or mocked). |
+| 43 | `tests/test_suite_baseline_mode_gate.py:107` | `time.sleep(0.05)` | kept-synthetic | Synthetic test file written into temp repo. |
+| 44 | `tests/test_mutation_probe.py:201` | `time.sleep(5)` | kept-synthetic | Synthetic test file written into temp repo. |
+| 45 | `tests/test_placement_switch_plan.py:480` | `time.sleep(0.01)` | kept-poll | Filesystem sync interval. |
+| 46 | `tests/test_runner_peer_dependency.py:89` | `time.sleep(0.15)` | docstring | Docstring explanation of historical race condition (not code). |
+| 47 | `tests/test_ipdrunner_runagy_shim.py:486` | `time.sleep(2.0)` | kept-kill-target | Child script spawned as timeout test target. |
+| 48 | `tests/test_suite_slot_lock.py:66` | `time.sleep(hold_duration)` | converted | Shortened via parameter `hold_duration` from 3.0s to 1.4s. |
+| 49 | `tests/test_suite_slot_lock.py:98` | `time.sleep(0.15)` | converted | Heartbeat child script touch interval shortened from 0.2s to 0.15s (deadline from 4.0s to 1.8s). |
+| 50 | `tests/test_suite_slot_lock.py:105` | `time.sleep(1.8)` | converted | Control child script sleep shortened from 4.0s to 1.8s. |
+| 51 | `tests/test_suite_slot_lock.py:164` | `time.sleep(0.02)` | kept-poll | Poll for lock acquisition. |
+| 52 | `tests/test_suite_slot_lock.py:250` | `time.sleep(0.02)` | kept-poll | Poll for slot acquisition. |
+| 53 | `tests/test_suite_slot_lock.py:317` | `time.sleep(0.02)` | kept-poll | Poll for worker startup. |
+| 54 | `tests/test_suite_slot_lock.py:406` | `time.sleep(0.05)` | kept-poll | Poll wait for slot lock. |
+| 55 | `tests/test_suite_slot_lock.py:447` | `time.sleep(0.02)` | kept-poll | Poll wait for slot lock. |
+| 56 | `tests/test_runner_stop_triggers_e2e.py:136` | `time.sleep(45.0)` | kept-kill-target | Child process silence target killed when stop trigger fires. |
+| 57 | `tests/test_runner_stop_triggers_e2e.py:142` | `time.sleep(0.05)` | kept-poll | Polling interval. |
+| 58 | `tests/test_runner_stop_triggers_e2e.py:263` | `time.sleep(0.02)` | kept-poll | Polling for trigger file. |
+| 59 | `tests/test_runner_stop_triggers_e2e.py:280` | `time.sleep(0.02)` | kept-poll | Polling for stop trigger effect. |
+
+### Converted Tests Before and After Durations
+
+| Test Node ID / Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_run_analytics_cli.py::RunAnalyticsCliUxTests::test_run_analyze_rebuild_mode_rebuilds_outdated_index_records` | 1.49s | 0.40s | -1.09s (-73.2%) |
+| `tests/test_platform_lock.py::BlockingRegistryCallerTests::test_a_blocking_acquire_waits_for_the_holder_and_then_succeeds` | 1.33s | 0.55s | -0.78s (-58.6%) |
+| `tests/test_suite_slot_lock.py::test_slot_timeout_runs_anyway_with_warning` | 3.22s | 1.54s | -1.68s (-52.2%) |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_oc` | 3.86s | 2.15s | -1.71s (-44.3%) |
+| `tests/test_suite_slot_lock.py::test_stall_watchdog_heartbeat_e2e_agy` | 3.79s | 2.11s | -1.68s (-44.3%) |
+| **Module Total `tests/test_suite_slot_lock.py`** | **11.55s** | **6.69s** | **-4.86s (-42.1%)** |
+
+All timing behavior thresholds and guarantees remained unchanged (no timing assertions loosened).
+
