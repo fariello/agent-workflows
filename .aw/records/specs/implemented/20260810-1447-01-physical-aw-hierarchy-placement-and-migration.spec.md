@@ -142,6 +142,16 @@ The refusal (items 1 to 3 and 7 as refusal) is implemented by `ppu39q`; `--reloc
 6. Old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told).
 7. Refusal blockers: uncommitted or unmerged changes under the old `.aw/`, a non-empty destination not created by this transaction, a live lane, an unparseable `project.json`.
 
+### 8.2 Records-root switch on update
+
+The refusal (items 1 to 3) is implemented by `s07f73`; the relocation (item 4) is specified for Set `rbswitch` Orders 02 and 03 and until it ships every records-root switch that would orphan records refuses.
+
+1. A records-root switch is an update that keeps the authoritative config directory (`project_config_dir`) but changes the resolved records root. Today that is `repository` or `repository-untracked` versus `home` under `delivery_mode: tracked`; `repository` and `repository-untracked` resolve the same root and are not a switch.
+2. When the current records root holds record-bearing files (anything other than the installer scaffold `.gitkeep` and `README.md` and the generated `INDEX.json`, `INDEX.md` and `STATUS.md`), every install entry point (`resolve_policy_noninteractive`, `persist_project_policy`, and `aw install` after the interactive wizard, including `--dry-run`) refuses before any write, names both roots and the number of record files, and names the remedy. With nothing to orphan, the change proceeds as a plain policy update and the installer scaffolds the new root.
+3. A records-root switch to or from the companion backend that would orphan records refuses with a companion-specific message (backlog `n9vd2h`); with nothing to orphan it proceeds like any other.
+4. The deliberate move applies the Section 8.1 / 11.2 discipline to the `records` class alone: writer lock, per-item journal, copy and hash-verify, one atomic rewrite of `project.json` carrying every other key as the authority flip, source removal after it, resume and rollback, and old-side tracked removals and new-side tracked additions left STAGED and never committed.
+5. A full placement switch (Section 8.1) subsumes a records-root switch: when the config directory itself changes, the Section 8.1 refusal or relocation owns the request and this section's refusal does not fire.
+
 ## 9. Source checkout and packaging
 
 Ordinary installed projects materialize the packaged manifest beneath their resolved `.aw/system/`. The package, wheel, sdist, installer, version lookup, adapters, and tests consume one canonical system source.
@@ -261,6 +271,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-17 note (aw specs): Add Section 8.2 records-root switch on update (IPD s07f73, backlog wbz75c)
 - 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch on update (IPD ppu39q, backlog ui1aln)
 - 2026-10-16 note (aw specs): Amend Section 4 (clean-delta system/records/adapters complete) and Section 5 (clean-delta control state and worktrees under AW_HOME exception) per maintainer decisions 2026-10-15 (Set cleantgt, backlog kvwwt0)
 - 2026-10-12 note (aw specs): Amend Section 4 for clean-delta config and durable state placement under AW_HOME (IPD p425hv, backlog mbx0o4)

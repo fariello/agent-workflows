@@ -98,6 +98,35 @@ class PlacementSwitchRequired(InvalidPolicyError):
         self.reason = reason
 
 
+class RecordsRootSwitch(NamedTuple):
+    current_root: Path
+    target_root: Path
+    record_files: int
+    reason: str
+
+
+class RecordsRootSwitchRequired(InvalidPolicyError):
+    """Raised when an install/update would repoint the records root away from records."""
+
+    def __init__(
+        self,
+        message: str,
+        current_root: Path,
+        target_root: Path,
+        current_backend: Optional[str] = None,
+        target_backend: Optional[str] = None,
+        record_files: int = 0,
+        reason: str = "records",
+    ) -> None:
+        super().__init__(message)
+        self.current_root = current_root
+        self.target_root = target_root
+        self.current_backend = current_backend
+        self.target_backend = target_backend
+        self.record_files = record_files
+        self.reason = reason
+
+
 class IncompletePolicyError(PolicyError):
     """Raised when noninteractive execution is missing required policy choices."""
 
@@ -673,6 +702,137 @@ def config_placement_switch(
     return None
 
 
+# Files the installer scaffolds (.gitkeep, README.md) or that `aw index` /
+# `aw ipd board --write-index` regenerate (INDEX.json, INDEX.md, STATUS.md).
+# They carry no record content, so leaving them behind orphans nothing.
+_RECORDS_SCAFFOLD_NAMES = frozenset(
+    (".gitkeep", "README.md", "INDEX.json", "INDEX.md", "STATUS.md")
+)
+
+
+def _count_record_files(root: Path) -> int:
+    if not root.is_dir():
+        return 0
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        base = Path(dirpath)
+        # os.walk does not descend symlinked dirs; count them as one entry.
+        for d in dirnames:
+            if (base / d).is_symlink():
+                count += 1
+        for name in filenames:
+            if name in _RECORDS_SCAFFOLD_NAMES:
+                continue
+            p = base / name
+            if p.is_symlink() or p.is_file():
+                count += 1
+    return count
+
+
+def records_root_switch(
+    repo_path: str | Path,
+    policy: ProjectPolicy,
+    existing_policy: Optional[ProjectPolicy] = None,
+) -> Optional[RecordsRootSwitch]:
+    """Pure detector (no writes) for a records-root switch that would orphan records.
+
+    Returns RecordsRootSwitch(current_root, target_root, record_files, reason) when the
+    repository is installed, no full config placement switch applies, the records root
+    resolved by `policy` differs from the current one, and the current root holds
+    record-bearing files. Otherwise returns None.
+    """
+    from agent_workflows.project_context import (
+        project_config_dir,
+        resolve_project_context,
+    )
+
+    config_dir = Path(project_config_dir(repo_path, aw_home=policy.aw_home))
+    if not any(
+        (config_dir / candidate).exists()
+        for candidate in ("project.json", "local.json", "config.json", "policy.json")
+    ):
+        return None
+
+    if (
+        config_placement_switch(repo_path, policy, existing_policy=existing_policy)
+        is not None
+    ):
+        return None
+
+    current_ctx = resolve_project_context(
+        target_repo=str(repo_path), aw_home=policy.aw_home
+    )
+    target_ctx = resolve_project_context(
+        target_repo=str(repo_path),
+        aw_home=policy.aw_home,
+        delivery_mode=policy.delivery_mode,
+        records_backend=policy.records_backend,
+        preset=policy.preset,
+        role=policy.role,
+        companion_dir=policy.companion_dir,
+    )
+    current_root = Path(current_ctx.logical_roots["records"])
+    target_root = Path(target_ctx.logical_roots["records"])
+    if current_root.resolve() == target_root.resolve():
+        return None
+
+    record_files = _count_record_files(current_root)
+    if record_files == 0:
+        return None
+
+    companion = RecordsBackend.COMPANION.value
+    if current_ctx.records_backend == companion or policy.records_backend == companion:
+        reason = "companion"
+    else:
+        reason = "records"
+    return RecordsRootSwitch(
+        current_root=current_root,
+        target_root=target_root,
+        record_files=record_files,
+        reason=reason,
+    )
+
+
+def raise_if_records_root_switch(
+    repo_path: str | Path,
+    policy: ProjectPolicy,
+    existing_policy: Optional[ProjectPolicy] = None,
+) -> None:
+    """Raise RecordsRootSwitchRequired when `records_root_switch` reports a hit."""
+    switch = records_root_switch(repo_path, policy, existing_policy=existing_policy)
+    if switch is None:
+        return
+    from agent_workflows.project_context import resolve_project_context
+
+    old = resolve_project_context(
+        target_repo=str(repo_path), aw_home=policy.aw_home
+    ).records_backend
+    new = policy.records_backend
+    lead = (
+        f"Changing the records backend from {old} ({switch.current_root}) "
+        f"to {new} ({switch.target_root}) would leave {switch.record_files} record files"
+    )
+    if switch.reason == "companion":
+        message = (
+            f"{lead} behind and involves a companion repository, "
+            "which is not supported yet (backlog n9vd2h)."
+        )
+    else:
+        message = (
+            f"{lead} in {switch.current_root} where no reader looks. "
+            "Moving records between backends is not supported by reinstall yet (backlog wbz75c)."
+        )
+    raise RecordsRootSwitchRequired(
+        message,
+        current_root=switch.current_root,
+        target_root=switch.target_root,
+        current_backend=old,
+        target_backend=new,
+        record_files=switch.record_files,
+        reason=switch.reason,
+    )
+
+
 def resolve_policy_noninteractive(
     repo_path: str,
     existing_policy: Optional[ProjectPolicy] = None,
@@ -743,6 +903,7 @@ def resolve_policy_noninteractive(
                 target_preset=pol.preset,
                 reason=switch.reason,
             )
+        raise_if_records_root_switch(repo_path, pol, existing_policy=existing_policy)
         return pol
 
     # First install noninteractive resolution
@@ -1109,6 +1270,8 @@ def persist_project_policy(
             target_preset=policy.preset,
             reason=switch.reason,
         )
+
+    raise_if_records_root_switch(repo_path, policy)
 
     from agent_workflows.project_context import resolve_project_context
 
