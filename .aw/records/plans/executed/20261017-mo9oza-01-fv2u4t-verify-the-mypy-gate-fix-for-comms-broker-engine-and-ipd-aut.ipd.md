@@ -6,7 +6,7 @@
 - Scope: IN: (1) re-measure the mypy gate and the slow typecheck test at the executing HEAD; (2) remove the `mo9oza` bullet from the advisory comment above the "Run slow-marked tests" step in `.github/workflows/tests.yml`, keeping `continue-on-error: true` because the other owning item `denczr` is not done (its carrier plan `gbnrdf` is still pending); (3) one `Fixed:` bullet in `CHANGELOG.md`. OUT: any edit to `agent_workflows/comms_broker.py`, `agent_workflows/engine.py` or `agent_workflows/ipd_authoring.py` (already fixed by `b4acc832d`; if E-01 finds new errors there, this plan stops and reports rather than widening scope); flipping the slow step to fail-closed (owned by the flip condition, gated on `denczr`); `pyproject.toml` `[tool.mypy]` configuration; `tests/test_typecheck_gate.py` (it already asserts the outcome this item needs).
 - Scope-Paths: .github/workflows/tests.yml, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: fv2u4t
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fv2u4t verified (set mo9oza, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed
 - 2026-10-17 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
