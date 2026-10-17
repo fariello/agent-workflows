@@ -510,7 +510,7 @@ def _clean_delta_home_trees(repo_root: Path) -> Optional[dict[str, Any]]:
         # (a) Stored policy resolves as clean-delta
         if _is_clean_delta_install(repo):
             ctx = project_context.resolve_project_context(target_repo=str(repo))
-            phys = ctx.physical_classes
+            phys = ctx.physical_classes or {}
             system_path = Path(phys["system"])
             config_path = Path(phys["config_project"]).parent
             state_path = Path(phys["state_durable"]).parent

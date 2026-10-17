@@ -64,7 +64,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Adding `tests/test_clean_target_recognition.py` to `pyproject.toml` `testpaths` so the routine gate would have caught this: a gate-composition decision for the maintainer, not required by backlog `a48b4m`.
+  - Carrier-Declined: Gate-composition decision for the maintainer; not required by backlog a48b4m.
 - Any production code change: F-2 shows production behavior is correct.
+  - Carrier-Declined: Production behavior is verified correct (F-2); no production change is owed.
 
 ## Scope check
 

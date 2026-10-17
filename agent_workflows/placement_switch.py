@@ -824,7 +824,7 @@ def retire_footprint(
                     f"Cannot retire home footprint: records/ under {project_dir} still contains files."
                 )
 
-        actions: list[str] = []
+        actions = []
         for target_name in ("system", "state", "config"):
             target_path = project_dir / target_name
             if target_path.is_dir():

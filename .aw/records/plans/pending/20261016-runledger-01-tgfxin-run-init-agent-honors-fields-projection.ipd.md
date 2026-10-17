@@ -79,7 +79,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Converting `run_cli` error payloads to `aw.agent/v1` records and projecting them: a separate contract change across every `_emit_machine`/`_emit_error` site, explicitly deferred in the `_emit_error` docstring; the backlog item names only the success-record projection.
+  - Carrier-Declined: Separate contract change across _emit_machine/_emit_error sites; explicitly deferred in docstring.
 - Applying `--fields` to `--json` output: `--fields` is documented as "field projection for --agent output", so `--json` stays unprojected.
+  - Carrier-Declined: --fields is documented for --agent output only; --json stays unprojected by design.
 
 ## Scope check
 
