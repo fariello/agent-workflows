@@ -97,6 +97,8 @@ class SwitchItem:
         mode: Optional[int] = None,
         *,
         class_: Optional[str] = None,
+        source_git: Optional[str] = None,
+        dest_git: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         self.item_class = class_ if class_ is not None else item_class
@@ -107,6 +109,10 @@ class SwitchItem:
         self.sha256 = sha256
         self.size = size
         self.mode = mode
+        # Which git repository owns the source / destination path:
+        # "target", "companion", or None (AW_HOME or not staged). IPD xc8nae.
+        self.source_git = source_git
+        self.dest_git = dest_git
 
     @property
     def class_(self) -> str:
@@ -125,6 +131,8 @@ class SwitchItem:
             "sha256": self.sha256,
             "size": self.size,
             "mode": self.mode,
+            "source_git": self.source_git,
+            "dest_git": self.dest_git,
         }
 
 
@@ -138,12 +146,17 @@ class SwitchPlan:
     to_preset: str
     from_config_dir: Path
     to_config_dir: Path
-    direction: str  # "to-home", "to-target", or ""
+    direction: str  # "to-home", "to-target", "in-place", or ""
     items: List[SwitchItem] = field(default_factory=list)
     retire_side: Optional[str] = None  # "target", "home", or None
     blockers: List[str] = field(default_factory=list)
     warnings: Dict[str, int] = field(default_factory=dict)
     blocker_messages: Dict[str, str] = field(default_factory=dict)
+    # Companion fields (IPD xc8nae / Set cmpreloc). None/False for cfgreloc plans.
+    companion_dir: Optional[Path] = None
+    companion_action: Optional[str] = None  # "attach", "detach", or None
+    companion_create: bool = False
+    config_retrack: Optional[str] = None  # "untrack", "track", or None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -159,6 +172,12 @@ class SwitchPlan:
             "blocker_messages": dict(self.blocker_messages),
             "warnings": dict(self.warnings),
             "items": [item.to_dict() for item in self.items],
+            "companion_dir": (
+                str(self.companion_dir) if self.companion_dir is not None else None
+            ),
+            "companion_action": self.companion_action,
+            "companion_create": self.companion_create,
+            "config_retrack": self.config_retrack,
         }
 
     @classmethod
@@ -176,8 +195,11 @@ class SwitchPlan:
                     sha256=item_data.get("sha256"),
                     size=item_data.get("size"),
                     mode=item_data.get("mode"),
+                    source_git=item_data.get("source_git"),
+                    dest_git=item_data.get("dest_git"),
                 )
             )
+        comp_dir = data.get("companion_dir")
         return cls(
             repo=Path(data["repo"]),
             project_id=data["project_id"],
@@ -191,6 +213,10 @@ class SwitchPlan:
             blockers=data.get("blockers", []),
             warnings=data.get("warnings", {}),
             blocker_messages=data.get("blocker_messages", {}),
+            companion_dir=Path(comp_dir) if comp_dir else None,
+            companion_action=data.get("companion_action"),
+            companion_create=bool(data.get("companion_create", False)),
+            config_retrack=data.get("config_retrack"),
         )
 
 
@@ -243,6 +269,18 @@ def _run_git_read_only(repo: Path, args: List[str]) -> subprocess.CompletedProce
         env=env,
         check=False,
     )
+
+
+def _is_git_toplevel(path: Path) -> bool:
+    """True when `path` is the TOP of its own git repository (IPD xc8nae F-08).
+
+    A bare `rev-parse --git-dir` is not enough: it succeeds for a plain
+    directory nested inside some other repository.
+    """
+    res = _run_git_read_only(path, ["rev-parse", "--show-toplevel"])
+    if res.returncode != 0 or not res.stdout.strip():
+        return False
+    return _canonical_path(res.stdout.strip()) == _canonical_path(path)
 
 
 def _get_tracked_files(repo: Path) -> Set[str]:
@@ -338,6 +376,67 @@ def plan_placement_switch(
                     pass
         to_preset = getattr(new_policy, "preset", "")
 
+        companion_preset = Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+        old_is_companion = from_preset == companion_preset
+        new_is_companion = to_preset == companion_preset
+
+        # Resolve OLD side project context (physical roots, not placement labels;
+        # IPD xc8nae F-01).
+        old_ctx = resolve_project_context(target_repo=str(repo), aw_home=eff_aw_home)
+
+        # Resolve NEW side project context
+        new_ctx = resolve_project_context(
+            target_repo=str(repo),
+            delivery_mode=new_policy.delivery_mode,
+            records_backend=new_policy.records_backend,
+            preset=new_policy.preset,
+            role=new_policy.role,
+            companion_dir=new_policy.companion_dir,
+            aw_home=eff_aw_home,
+        )
+
+        old_companion_dir: Optional[Path] = (
+            Path(old_ctx.physical_classes["records"]).parent
+            if old_is_companion
+            else None
+        )
+        new_companion_dir: Optional[Path] = (
+            Path(new_ctx.physical_classes["records"]).parent
+            if new_is_companion
+            else None
+        )
+
+        # companion-to-companion runs BEFORE the not-a-placement-switch short
+        # circuit: config_placement_switch returns None for two companion
+        # policies, so a check placed after it would be unreachable (xc8nae E-01).
+        if (
+            old_is_companion
+            and new_is_companion
+            and old_companion_dir is not None
+            and new_companion_dir is not None
+            and _canonical_path(old_companion_dir) != _canonical_path(new_companion_dir)
+        ):
+            msg = (
+                f"Moving the companion binding from {old_companion_dir} to "
+                f"{new_companion_dir} is not a placement switch; use "
+                "`aw storage move` instead."
+            )
+            return SwitchPlan(
+                repo=repo,
+                project_id=derived_project_id,
+                from_preset=from_preset,
+                to_preset=to_preset,
+                from_config_dir=from_config_dir,
+                to_config_dir=from_config_dir,
+                direction="",
+                items=[],
+                retire_side=None,
+                blockers=[SwitchBlocker("companion-to-companion", msg)],
+                blocker_messages={"companion-to-companion": msg},
+                warnings={},
+                companion_dir=new_companion_dir,
+            )
+
         # Placement switch detection reuse
         switch = config_placement_switch(
             repo, new_policy, existing_policy=existing_policy
@@ -367,45 +466,28 @@ def plan_placement_switch(
                 warnings={},
             )
 
-        # Companion pair refusal check (short-circuit)
-        if (
-            from_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-            or to_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-        ):
-            return SwitchPlan(
-                repo=repo,
-                project_id=derived_project_id,
-                from_preset=from_preset,
-                to_preset=to_preset,
-                from_config_dir=from_config_dir,
-                to_config_dir=switch.target_dir,
-                direction="",
-                items=[],
-                retire_side=None,
-                blockers=[
-                    SwitchBlocker(
-                        "companion-unsupported",
-                        "Companion layout is unsupported (backlog n9vd2h).",
-                    )
-                ],
-                blocker_messages={
-                    "companion-unsupported": "Companion layout is unsupported (backlog n9vd2h)."
-                },
-                warnings={},
-            )
-
-        # Resolve OLD side project context
-        old_ctx = resolve_project_context(target_repo=str(repo), aw_home=eff_aw_home)
-
-        # Resolve NEW side project context
-        new_ctx = resolve_project_context(
-            target_repo=str(repo),
-            delivery_mode=new_policy.delivery_mode,
-            records_backend=new_policy.records_backend,
-            preset=new_policy.preset,
-            role=new_policy.role,
-            companion_dir=new_policy.companion_dir,
-            aw_home=eff_aw_home,
+        # Exactly one side companion: a companion attach or detach (IPD xc8nae).
+        # The census is fully populated; companion-unsupported stays as an
+        # ordinary interim blocker (E-02, F-10).
+        is_companion_switch = old_is_companion != new_is_companion
+        companion_action: Optional[str] = None
+        companion_dir: Optional[Path] = None
+        if is_companion_switch:
+            if new_is_companion:
+                companion_action = "attach"
+                companion_dir = new_companion_dir
+            else:
+                companion_action = "detach"
+                companion_dir = old_companion_dir
+        companion_create = bool(
+            companion_action == "attach"
+            and companion_dir is not None
+            and not companion_dir.exists()
+        )
+        companion_is_repo_top = bool(
+            companion_dir is not None
+            and companion_dir.is_dir()
+            and _is_git_toplevel(companion_dir)
         )
 
         to_config_dir = Path(new_ctx.physical_classes["config_project"]).parent
@@ -422,24 +504,59 @@ def plan_placement_switch(
 
         if is_from_in_target and not is_to_in_target:
             direction = "to-home"
-            retire_side = "target"
+            retire_side: Optional[str] = "target"
         elif not is_from_in_target and is_to_in_target:
             direction = "to-target"
             retire_side = "home"
+        elif is_companion_switch and is_from_in_target and is_to_in_target:
+            # Pairs (a)/(b): config directory unchanged, only records move.
+            direction = "in-place"
+            retire_side = None
         else:
             direction = ""
             retire_side = None
 
+        config_retrack: Optional[str] = None
+        if direction == "in-place":
+            config_retrack = "untrack" if companion_action == "attach" else "track"
+
         # Build items
         tracked_files = _get_tracked_files(repo)
+        companion_tracked_files: Set[str] = (
+            _get_tracked_files(companion_dir)
+            if companion_dir is not None and companion_is_repo_top
+            else set()
+        )
+        repo_res = repo.resolve()
+        companion_res = companion_dir.resolve() if companion_dir is not None else None
 
-        def is_tracked(file_path: Path) -> bool:
+        def git_owner(file_path: Optional[Path]) -> Optional[str]:
+            """Return which git repository owns a path: target, companion, or None."""
+            if file_path is None:
+                return None
             try:
                 resolved_f = file_path.resolve()
-                if repo in resolved_f.parents or resolved_f == repo.resolve():
-                    rel = resolved_f.relative_to(repo.resolve()).as_posix()
-                    return rel in tracked_files
             except OSError:
+                return None
+            if companion_res is not None and (
+                companion_res in resolved_f.parents or resolved_f == companion_res
+            ):
+                return "companion"
+            if repo_res in resolved_f.parents or resolved_f == repo_res:
+                return "target"
+            return None
+
+        def is_tracked(file_path: Path) -> bool:
+            owner = git_owner(file_path)
+            try:
+                resolved_f = file_path.resolve()
+                if owner == "companion" and companion_res is not None:
+                    rel = resolved_f.relative_to(companion_res).as_posix()
+                    return rel in companion_tracked_files
+                if owner == "target":
+                    rel = resolved_f.relative_to(repo_res).as_posix()
+                    return rel in tracked_files
+            except (OSError, ValueError):
                 pass
             return False
 
@@ -607,6 +724,46 @@ def plan_placement_switch(
                     )
         items.extend(runtime_items)
 
+        # Companion census adjustments (IPD xc8nae E-01).
+        if direction == "in-place":
+            # Pairs (a)/(b): durable and runtime state live in the same target
+            # directory on both sides (F-01), so they are not items.
+            items = [
+                it
+                for it in items
+                if it.item_class not in ("state_durable", "state_runtime")
+            ]
+            if companion_action == "detach":
+                attach_rec = old_durable_root / "companion_attachment.json"
+                if attach_rec.exists() or attach_rec.is_symlink():
+                    a_sha, a_size, a_mode = _calc_file_meta(attach_rec)
+                    items.append(
+                        SwitchItem(
+                            item_class="state_durable",
+                            source=attach_rec,
+                            destination=None,
+                            kind="discard",
+                            tracked=is_tracked(attach_rec),
+                            sha256=a_sha,
+                            size=a_size,
+                            mode=a_mode,
+                        )
+                    )
+
+        # Which git repository owns each source and destination. Computed for
+        # cfgreloc plans too, so the executor has one staging rule.
+        for it in items:
+            it.source_git = git_owner(it.source) if it.source else None
+            it.dest_git = git_owner(it.destination)
+            if (
+                it.item_class == "config_project"
+                and new_is_companion
+                and companion_action == "attach"
+            ):
+                # The in-tree project.json must end untracked, as a fresh
+                # companion install leaves it (F-02): never staged.
+                it.dest_git = None
+
         # Blockers detection
         blockers: List[SwitchBlocker] = []
         blocker_messages: Dict[str, str] = {}
@@ -616,13 +773,104 @@ def plan_placement_switch(
                 blockers.append(SwitchBlocker(bid, msg))
                 blocker_messages[bid] = msg
 
+        if is_companion_switch:
+            add_blocker(
+                "companion-unsupported",
+                "Companion placement switches are planned but the executor does not "
+                "yet support them (backlog n9vd2h).",
+            )
+
         # Blocker: dirty-aw-tree
-        res_aw = _run_git_read_only(repo, ["status", "--porcelain", "--", ".aw"])
-        if res_aw.returncode == 0 and res_aw.stdout.strip():
+        if old_is_companion:
+            # A fresh companion install leaves exactly `?? .aw/config/project.json`
+            # untracked by design (F-02, F-07); exclude that one entry only.
+            res_aw = _run_git_read_only(
+                repo, ["status", "--porcelain", "-uall", "--", ".aw"]
+            )
+            aw_lines = [
+                line
+                for line in res_aw.stdout.splitlines()
+                if line.strip() and line != "?? .aw/config/project.json"
+            ]
+        else:
+            res_aw = _run_git_read_only(repo, ["status", "--porcelain", "--", ".aw"])
+            aw_lines = [line for line in res_aw.stdout.splitlines() if line.strip()]
+        if res_aw.returncode == 0 and aw_lines:
             add_blocker(
                 "dirty-aw-tree",
                 "Working tree under .aw is dirty (uncommitted changes or untracked non-ignored files).",
             )
+
+        # Companion blockers (IPD xc8nae E-02)
+        if is_companion_switch and companion_dir is not None:
+            if companion_dir.exists() and not companion_is_repo_top:
+                add_blocker(
+                    "companion-not-git",
+                    f"Companion directory {companion_dir} exists but is not the top of "
+                    "its own git repository; the switch will not `git init` a "
+                    "directory you already own.",
+                )
+            if companion_is_repo_top:
+                res_c = _run_git_read_only(companion_dir, ["status", "--porcelain"])
+                if res_c.returncode == 0 and res_c.stdout.strip():
+                    add_blocker(
+                        "companion-dirty",
+                        f"Companion repository {companion_dir} has uncommitted changes "
+                        "or untracked files; commit or clean the companion first.",
+                    )
+                    for line in res_c.stdout.splitlines():
+                        prefix = line[:2]
+                        if "U" in prefix or prefix in ("AA", "DD"):
+                            add_blocker(
+                                "companion-unmerged",
+                                f"Companion repository {companion_dir} has unmerged "
+                                "conflicts.",
+                            )
+                            break
+            if companion_action == "attach":
+                from agent_workflows import storage
+
+                try:
+                    storage.validate_companion_preflight(
+                        repo,
+                        companion_dir,
+                        backend="companion",
+                        aw_home=str(eff_aw_home),
+                    )
+                except (
+                    storage.StorageSecurityError,
+                    storage.IdentityConflictError,
+                ) as exc:
+                    add_blocker("companion-preflight", str(exc))
+
+                # destination-not-empty over <companion>/records/**: every file
+                # already there must be a hash-identical destination of a move.
+                comp_records = companion_dir / "records"
+                if comp_records.is_dir():
+                    planned: Dict[Path, Optional[str]] = {
+                        it.destination: it.sha256
+                        for it in items
+                        if it.kind == "move" and it.destination is not None
+                    }
+                    for root, dirs, files in os.walk(comp_records, followlinks=False):
+                        dirs.sort()
+                        hit = None
+                        for fname in sorted(files):
+                            if fname in ("INDEX.json", "INDEX.md"):
+                                continue
+                            fp = Path(root) / fname
+                            f_sha, _, _ = _calc_file_meta(fp)
+                            if fp not in planned or planned[fp] != f_sha:
+                                hit = fp
+                                break
+                        if hit is not None:
+                            add_blocker(
+                                "destination-not-empty",
+                                f"Companion records tree already contains {hit}, which "
+                                "is not a hash-identical copy of a planned record; two "
+                                "projects' records are never merged.",
+                            )
+                            break
 
         # Blocker: unmerged
         res_all = _run_git_read_only(repo, ["status", "--porcelain"])
@@ -762,6 +1010,26 @@ def plan_placement_switch(
             if moved_records:
                 warnings["records-become-tracked-candidates"] = len(moved_records)
 
+        # Companion warnings (IPD xc8nae E-02)
+        if direction == "in-place" and companion_action == "attach":
+            leaving = [
+                it
+                for it in items
+                if it.item_class == "records"
+                and it.kind == "move"
+                and it.tracked
+                and it.source_git == "target"
+            ]
+            if leaving:
+                # They stay in the public target's git history; the switch
+                # cannot rewrite history.
+                warnings["records-leave-target-history"] = len(leaving)
+            warnings["config-becomes-untracked"] = 1
+        if companion_action == "detach":
+            # The companion repository, its identity file and .gitignore are
+            # left on disk, as storage.detach_companion does.
+            warnings["companion-left-in-place"] = 1
+
         return SwitchPlan(
             repo=repo,
             project_id=derived_project_id,
@@ -772,9 +1040,13 @@ def plan_placement_switch(
             direction=direction,
             items=items,
             retire_side=retire_side,
-            blockers=blockers,
+            blockers=list(blockers),
             warnings=warnings,
             blocker_messages=blocker_messages,
+            companion_dir=companion_dir,
+            companion_action=companion_action,
+            companion_create=companion_create,
+            config_retrack=config_retrack,
         )
     finally:
         if prev_env_aw_home is not None:
