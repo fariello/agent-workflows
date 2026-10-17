@@ -7888,22 +7888,28 @@ def _confirm_relocation(
     to_preset: str,
     to_config_dir: Path,
     assume_yes: bool,
+    *,
+    direction: Optional[str] = None,
 ) -> bool:
     """Relocation confirmation gate (spec Section 8 & E-02). Defaults NO for interactive."""
     if assume_yes:
         return True
     is_interactive = _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
+    if direction in ("records-to-home", "records-to-target"):
+        target_desc = "home" if direction == "records-to-home" else "repository"
+        prompt_subject = f"Relocate records for {repo_root} to {target_desc}?"
+    else:
+        prompt_subject = (
+            f"Relocate config for {repo_root} from {from_preset} ({from_config_dir}) "
+            f"to {to_preset} ({to_config_dir})?"
+        )
     if not is_interactive:
         term.status(
             "warn",
-            f"Relocate config for {repo_root} from {from_preset} ({from_config_dir}) "
-            f"to {to_preset} ({to_config_dir})? (declining: non-interactive; pass --yes to proceed)",
+            f"{prompt_subject} (declining: non-interactive; pass --yes to proceed)",
         )
         return False
-    prompt = (
-        f"Relocate config for {repo_root} from {from_preset} ({from_config_dir}) "
-        f"to {to_preset} ({to_config_dir})? [y/N] "
-    )
+    prompt = f"{prompt_subject} [y/N] "
     try:
         answer = input(prompt).strip().lower()
     except EOFError:
@@ -8625,6 +8631,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     explicit_backend=getattr(args, "records_backend", None),
                     explicit_companion=getattr(args, "companion_dir", None),
                     allow_placement_switch=is_relocate,
+                    allow_records_switch=is_relocate,
                 )
                 switch = config_placement_switch(
                     str(repo_root), policy, existing_policy=existing_policy
@@ -8685,24 +8692,39 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                         switch_plan = placement_switch.plan_placement_switch(
                             str(repo_root), policy
                         )
-                        term.line(placement_switch.render_plan(switch_plan, term=term))
-                        if switch_plan.blockers:
-                            term.status(
-                                "fail",
-                                f"{repo_root}: placement switch blocked by: {', '.join(switch_plan.blockers)}",
-                            )
-                            return 1
-                        if getattr(args, "dry_run", False):
-                            term.status(
-                                "ok",
-                                "[DRY RUN] No changes written to filesystem or Git state.",
-                            )
-                            continue
-                        relocating = True
                 else:
-                    raise_if_records_root_switch(
-                        str(repo_root), policy, existing_policy=existing_policy
-                    )
+                    if not is_relocate:
+                        raise_if_records_root_switch(
+                            str(repo_root), policy, existing_policy=existing_policy
+                        )
+                    else:
+                        from agent_workflows.install_wizard import records_root_switch
+
+                        if (
+                            records_root_switch(
+                                str(repo_root), policy, existing_policy=existing_policy
+                            )
+                            is not None
+                        ):
+                            switch_plan = placement_switch.plan_records_root_switch(
+                                str(repo_root), policy
+                            )
+
+                if switch_plan is not None:
+                    term.line(placement_switch.render_plan(switch_plan, term=term))
+                    if switch_plan.blockers:
+                        term.status(
+                            "fail",
+                            f"{repo_root}: placement switch blocked by: {', '.join(switch_plan.blockers)}",
+                        )
+                        return 1
+                    if getattr(args, "dry_run", False):
+                        term.status(
+                            "ok",
+                            "[DRY RUN] No changes written to filesystem or Git state.",
+                        )
+                        continue
+                    relocating = True
             except PolicyCancelledError:
                 term.status("skip", f"{repo_root}: install cancelled; nothing written.")
                 returncode = 1
@@ -8742,6 +8764,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     to_preset=switch_plan.to_preset,
                     to_config_dir=switch_plan.to_config_dir,
                     assume_yes=getattr(args, "yes", False),
+                    direction=switch_plan.direction,
                 )
             else:
                 confirmed = _confirm_install(
@@ -8760,20 +8783,65 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if not kept_legacy and policy is not None:
             if relocating:
                 try:
-                    switch_result = placement_switch.execute_placement_switch(
-                        str(repo_root), policy
-                    )
+                    if switch_plan.direction in (
+                        "records-to-home",
+                        "records-to-target",
+                    ):
+                        switch_result = placement_switch.execute_records_root_switch(
+                            str(repo_root), policy
+                        )
+                    else:
+                        switch_result = placement_switch.execute_placement_switch(
+                            str(repo_root), policy
+                        )
                 except placement_switch.PlacementSwitchError as exc:
                     term.status("fail", str(exc))
                     returncode = 1
                     continue
 
-                term.status(
-                    "ok",
-                    f"{repo_root}: completed placement switch from {switch_result.from_preset} to {switch_result.to_preset} (transaction {switch_result.transaction_id}).",
-                )
+                if switch_result.direction in ("records-to-home", "records-to-target"):
+                    term.status(
+                        "ok",
+                        f"{repo_root}: completed records root switch (transaction {switch_result.transaction_id}).",
+                    )
+                else:
+                    term.status(
+                        "ok",
+                        f"{repo_root}: completed placement switch from {switch_result.from_preset} to {switch_result.to_preset} (transaction {switch_result.transaction_id}).",
+                    )
                 term.status("info", f"Receipt written to {switch_result.receipt_path}")
-                if switch_result.direction == "to-home":
+                if switch_result.direction == "records-to-home":
+                    import subprocess
+                    from agent_workflows.project_context import resolve_project_context
+
+                    res_diff = subprocess.run(
+                        ["git", "diff", "--cached", "--name-only"],
+                        cwd=str(repo_root),
+                        capture_output=True,
+                        text=True,
+                    )
+                    staged_count = len(
+                        [line for line in res_diff.stdout.splitlines() if line.strip()]
+                    )
+                    new_ctx = resolve_project_context(
+                        target_repo=str(repo_root),
+                        aw_home=policy.aw_home,
+                        preset=policy.preset,
+                        records_backend=policy.records_backend,
+                        delivery_mode=policy.delivery_mode,
+                        role=policy.role,
+                    )
+                    records_dir = new_ctx.physical_classes["records"]
+                    term.line(
+                        f"{staged_count} tracked record files were removed from the target and left staged; "
+                        f"review with git status and commit when ready. Records now live in {records_dir} and are no longer versioned by this repository."
+                    )
+                elif switch_result.direction == "records-to-target":
+                    n = switch_result.items_moved
+                    term.line(
+                        f"{n} record files were staged as added; commit them when ready."
+                    )
+                elif switch_result.direction == "to-home":
                     import subprocess
                     from agent_workflows.project_context import resolve_project_context
 
