@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Code hardening
 
-- [ ] E-01 In `work_cmd.run_work_begin`, change the `except ValueError:` fallback (`plan_rel = str(plan_path)`) to `plan_rel = plan_path.resolve().as_posix()` so the out-of-root lease value is an absolute POSIX path on every platform, matching the in-root branch's `.replace("\\", "/")` normalization. Leave the in-root branch and the `aw commit` fallback (`plan_rel = plan_path.name`, which feeds `_in_scope`/commit-message derivation, not a lease) unchanged.
+- [x] E-01 In `work_cmd.run_work_begin`, change the `except ValueError:` fallback (`plan_rel = str(plan_path)`) to `plan_rel = plan_path.resolve().as_posix()` so the out-of-root lease value is an absolute POSIX path on every platform, matching the in-root branch's `.replace("\\", "/")` normalization. Leave the in-root branch and the `aw commit` fallback (`plan_rel = plan_path.name`, which feeds `_in_scope`/commit-message derivation, not a lease) unchanged.
   - Depends on: none
   - Expected outcome: `git diff agent_workflows/work_cmd.py` shows only the fallback line changed inside `run_work_begin`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression tests
 
-- [ ] E-02 Create `tests/test_work_begin_plan_path_outside_root.py` with a test that, in a temp git repo with temp `HOME`/`AW_HOME` and `AW_NO_REEXEC=1`, installs the preset, scaffolds a child plan (`aw ipd scaffold --kind child --title ... --set ... --order 1 --priority low --work-kind chore --apply`), runs `aw ipd dependencies set <id6> none`, runs `python -m agent_workflows.cli work begin <id6>` as a subprocess, and asserts: exit code 0; stdout+stderr contain no `ValueError`/`Traceback`; the lease at `<AW_HOME>/projects/<project_id>/state/work/<id6>/work-lease.json` (`project_id` from `resolve_project_context(...).project_id`, as the mirrored test does) exists and parses as JSON, its `plan_path` is absolute, contains no backslash, `Path(plan_path).resolve()` equals the scaffolded plan's resolved path under `<AW_HOME>/projects/<project_id>/records/plans/pending/`, and `plan_id` equals the id6. Run it for BOTH clean-delta presets the bug names, `completely-clean-target` and `local-only` (one test per preset, or `subTest`), since both route records to `AW_HOME` (`project_schema` preset placements). Mirror the setup of `tests/test_clean_target_zero_delta_e2e.py` (`TestCleanTargetZeroDeltaE2E.setUp`).
+- [x] E-02 Create `tests/test_work_begin_plan_path_outside_root.py` with a test that, in a temp git repo with temp `HOME`/`AW_HOME` and `AW_NO_REEXEC=1`, installs the preset, scaffolds a child plan (`aw ipd scaffold --kind child --title ... --set ... --order 1 --priority low --work-kind chore --apply`), runs `aw ipd dependencies set <id6> none`, runs `python -m agent_workflows.cli work begin <id6>` as a subprocess, and asserts: exit code 0; stdout+stderr contain no `ValueError`/`Traceback`; the lease at `<AW_HOME>/projects/<project_id>/state/work/<id6>/work-lease.json` (`project_id` from `resolve_project_context(...).project_id`, as the mirrored test does) exists and parses as JSON, its `plan_path` is absolute, contains no backslash, `Path(plan_path).resolve()` equals the scaffolded plan's resolved path under `<AW_HOME>/projects/<project_id>/records/plans/pending/`, and `plan_id` equals the id6. Run it for BOTH clean-delta presets the bug names, `completely-clean-target` and `local-only` (one test per preset, or `subTest`), since both route records to `AW_HOME` (`project_schema` preset placements). Mirror the setup of `tests/test_clean_target_zero_delta_e2e.py` (`TestCleanTargetZeroDeltaE2E.setUp`).
   - Depends on: E-01
   - Expected outcome: the new test passes against the fixed code.
-  - Execution state: pending
-- [ ] E-03 In the same module add an in-root counterpart: a temp repo installed with no `--preset` (`install . -y --no-interactive`, the tracked-records default), plan scaffolded under `<repo>/.aw/records/plans/pending/`, `work begin <id6>` exits 0, and the lease at `<repo>/.aw/state/work/<id6>/work-lease.json` has `plan_path` equal to the repo-relative POSIX path `.aw/records/plans/pending/<file>` (not absolute), and no `work-lease.json` exists under `AW_HOME`. (Measured at review HEAD `01cee44b9` in a `/tmp` scratch: lease at that path, `"plan_path": ".aw/records/plans/pending/20261016-qset-01-5jlb52-p-two.ipd.md"`.)
+  - Execution state: performed
+- [x] E-03 In the same module add an in-root counterpart: a temp repo installed with no `--preset` (`install . -y --no-interactive`, the tracked-records default), plan scaffolded under `<repo>/.aw/records/plans/pending/`, `work begin <id6>` exits 0, and the lease at `<repo>/.aw/state/work/<id6>/work-lease.json` has `plan_path` equal to the repo-relative POSIX path `.aw/records/plans/pending/<file>` (not absolute), and no `work-lease.json` exists under `AW_HOME`. (Measured at review HEAD `01cee44b9` in a `/tmp` scratch: lease at that path, `"plan_path": ".aw/records/plans/pending/20261016-qset-01-5jlb52-p-two.ipd.md"`.)
   - Depends on: E-02
   - Expected outcome: the in-root test passes, proving the guard did not regress the relative form.
-  - Execution state: pending
-- [ ] E-04 Mutation proof (TEMPORARY, MUST NOT be committed): replace the try/except in `run_work_begin` with the pre-fix `plan_rel = str(plan_path.relative_to(repo_root))`, run the new module and capture the failure of the out-of-root tests (both presets) while the in-root test still passes, then restore the E-01 code with `git diff` confirming only E-01's change remains. Note honestly: on POSIX `str(plan_path)` already contains no backslash, so the no-backslash assertion cannot distinguish E-01 from the `3d80673c1` fallback on Linux; the mutation proof targets the guard itself, not E-01's normalization.
+  - Execution state: performed
+- [x] E-04 Mutation proof (TEMPORARY, MUST NOT be committed): replace the try/except in `run_work_begin` with the pre-fix `plan_rel = str(plan_path.relative_to(repo_root))`, run the new module and capture the failure of the out-of-root tests (both presets) while the in-root test still passes, then restore the E-01 code with `git diff` confirming only E-01's change remains. Note honestly: on POSIX `str(plan_path)` already contains no backslash, so the no-backslash assertion cannot distinguish E-01 from the `3d80673c1` fallback on Linux; the mutation proof targets the guard itself, not E-01's normalization.
   - Depends on: E-03
   - Expected outcome: out-of-root tests fail on the reverted code with `ValueError` in the captured output; in-root test passes on it; all pass on the restored code; `git diff agent_workflows/work_cmd.py` again shows only E-01.
-  - Execution state: pending
-- [ ] E-05 Add the CHANGELOG bullet and run the final regression gates.
+  - Execution state: performed
+- [x] E-05 Add the CHANGELOG bullet and run the final regression gates.
   - Depends on: E-04
   - Expected outcome: `CHANGELOG.md` gains, under `## 2.0.0 (pending)`, the line "- Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository." (matching the file's `- Fixed:` style; no em or en dashes, user-facing prose). `python3 -m pytest -o addopts="" -q tests/test_work_begin_plan_path_outside_root.py tests/test_clean_target_zero_delta_e2e.py tests/test_work_gate_severity.py` passes, and bare `python3 -m pytest` shows zero failures that do not also fail at the execution base commit (compare by test name; re-derive at execution, not from a count recorded here). The new module is not in `pyproject.toml` `testpaths`, so the bare gate does not run it; the narrowed run above is what covers it.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,26 +120,140 @@ CHANGELOG bullet (E-05). No spec change: no spec describes the lease `plan_path`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff agent_workflows/work_cmd.py` showing only the `except ValueError:` fallback in `run_work_begin` changed to `plan_path.resolve().as_posix()`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```diff
+diff --git a/agent_workflows/work_cmd.py b/agent_workflows/work_cmd.py
+index 60258455e..5f46f5996 100644
+--- a/agent_workflows/work_cmd.py
++++ b/agent_workflows/work_cmd.py
+@@ -366,7 +366,7 @@ def run_work_begin(args: argparse.Namespace) -> int:
+     try:
+         plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
+     except ValueError:
+-        plan_rel = str(plan_path)
++        plan_rel = plan_path.resolve().as_posix()
+
+     lease = {
+         "plan_id": plan_id,
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted actual pytest output of `python3 -m pytest -o addopts="" -v tests/test_work_begin_plan_path_outside_root.py` showing the out-of-root test PASSED for both `completely-clean-target` and `local-only`, plus the observed lease JSON `plan_path` value (produced by the `aw work begin` subprocess the test drives via `work_cmd.run_work_begin`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <PYTHON>
+cachedir: .pytest_cache
+Using --randomly-seed=1825542077
+rootdir: .
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only PASSED [ 33%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target PASSED [ 66%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records PASSED [100%]
+
+============================== 3 passed in 17.47s ==============================
+```
+Observed lease JSON `plan_path` values:
+- `completely-clean-target`: `<AW_HOME>/projects/repo-45a2a8/records/plans/pending/20261017-regset-01-ou6hli-regression-probe-plan-completely-clean-target.ipd.md` (absolute POSIX path, no backslashes, resolves to plan file)
+- `local-only`: `<AW_HOME>/projects/repo-1f8a00/records/plans/pending/20261017-regset-01-l01bh0-regression-probe-plan-local-only.ipd.md` (absolute POSIX path, no backslashes, resolves to plan file)
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: same pytest output showing the in-root test PASSED, with the observed relative `plan_path` value pasted.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records PASSED [100%]
+```
+Observed lease JSON `plan_path` value:
+- `tracked-records`: `.aw/records/plans/pending/20261017-inrootset-01-874jo9-in-root-probe-plan.ipd.md` (relative POSIX path matching `.aw/records/plans/pending/<file>`, no lease under AW_HOME)
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted pytest output from the reverted-code run showing the out-of-root test(s) FAILED with `ValueError` in the captured subprocess output and the in-root test PASSED, pasted passing output after restore, and `git diff agent_workflows/work_cmd.py` showing only E-01's change remains.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Reverted code failed with ValueError on out-of-root presets while in-root passed; all passed on restored code.
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <PYTHON>
+cachedir: .pytest_cache
+Using --randomly-seed=3827819373
+rootdir: .
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target FAILED [ 33%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records PASSED [ 66%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only FAILED [100%]
+
+=================================== FAILURES ===================================
+_ TestWorkBeginPlanPathOutsideRoot.test_plan_path_outside_root_completely_clean_target _
+...
+ValueError: '<AW_HOME>/projects/repo-b2bd84/records/plans/pending/20261017-regset-01-tu0ii3-regression-probe-plan-completely-clean-target.ipd.md' is not in the subpath of '<REPO>'
+___ TestWorkBeginPlanPathOutsideRoot.test_plan_path_outside_root_local_only ____
+...
+ValueError: '<AW_HOME>/projects/repo-2a1c71/records/plans/pending/20261017-regset-01-6690sa-regression-probe-plan-local-only.ipd.md' is not in the subpath of '<REPO>'
+=========================== short test summary info ============================
+FAILED tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target
+FAILED tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only
+========================= 2 failed, 1 passed in 25.30s =========================
+```
+Restored-code passing output:
+```
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only PASSED [ 33%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records PASSED [ 66%]
+tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target PASSED [100%]
+============================== 3 passed in 28.05s ==============================
+```
+Restored git diff shows only E-01:
+```diff
+diff --git a/agent_workflows/work_cmd.py b/agent_workflows/work_cmd.py
+index 60258455e..5f46f5996 100644
+--- a/agent_workflows/work_cmd.py
++++ b/agent_workflows/work_cmd.py
+@@ -366,7 +366,7 @@ def run_work_begin(args: argparse.Namespace) -> int:
+     try:
+         plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
+     except ValueError:
+-        plan_rel = str(plan_path)
++        plan_rel = plan_path.resolve().as_posix()
+
+     lease = {
+         "plan_id": plan_id,
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the `git diff CHANGELOG.md` hunk, a dash scan of the added line showing no U+2014/U+2013, the pasted summary line of the narrowed pytest run, and the bare `python3 -m pytest` summary line with any failing names compared against the same names at the execution base commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHANGELOG.md updated without em/en dashes; narrowed and bare pytest runs passed with 0 test failures.
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5b43b4da4..0faacce70 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
++- Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.
+ - Fixed: Commands acting on a record stored in a companion records repository now find the owning repository, so plan dependency checks, spec history, id6 collision checks, and rename hints work there.
+ - Fixed: `aw install` no longer leaves two project configs when switching between `private-target` and `completely-clean-target`/`local-only`. It refuses by default and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves config, records and install history and retires the old files, and companion switches still refuse.
+ - Fixed: `aw runs decisions` and `aw runs questions` now emit a JSON object under `--agent` and `--json`, and `aw runs evidence`, `aw runs verify-ledger` and `aw runs show` report the ledger as a repository-relative path.
+```
+```
+Dash scan check on added line:
+Has em dash (U+2014): False, Has en dash (U+2013): False
+
+Narrowed pytest run summary line:
+19 passed in 53.84s
+
+Bare python3 -m pytest summary line:
+748 passed in 87.20s (0:01:27) (zero failed tests; wall time budget advisory on core tier)
+Failing test names: None (0 failing tests).
+```
+  - Result: pass
+
 
 ## Approval and execution gate
 
