@@ -8649,30 +8649,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                         else str(switch.current_dir)
                     )
                     if not is_relocate:
-                        if (
-                            existing_policy
-                            and existing_policy.preset
-                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-                        ) or (
-                            policy
-                            and policy.preset
-                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-                        ):
-                            from_p = (
-                                existing_policy.preset
-                                if existing_policy
-                                else cur_preset
-                            ) or str(switch.current_dir)
-                            msg = (
-                                f"Switching config placement from {from_p} to {policy.preset} "
-                                f"involves a companion repository and is not supported yet (backlog n9vd2h)."
-                            )
-                        else:
-                            msg = (
-                                f"Switching config placement from {from_desc} "
-                                f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
-                                f"Preview with --relocate --dry-run, then rerun with --relocate."
-                            )
+                        msg = (
+                            f"Switching config placement from {from_desc} "
+                            f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
+                            f"Preview with --relocate --dry-run, then rerun with --relocate."
+                        )
                         raise PlacementSwitchRequired(
                             msg,
                             current_dir=switch.current_dir,
@@ -8682,6 +8663,18 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                             reason=switch.reason,
                         )
                     else:
+                        if (
+                            policy.preset
+                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+                            and not (
+                                getattr(policy, "companion_dir", None) or ""
+                            ).strip()
+                        ):
+                            term.status(
+                                "fail",
+                                f"{repo_root}: a switch to public-target-private-companion needs --companion-dir <path>",
+                            )
+                            return 1
                         switch_plan = placement_switch.plan_placement_switch(
                             str(repo_root), policy
                         )
@@ -8801,7 +8794,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     )
 
             # Atomic installation step: Materialize companion + Persist policy + Install bundle
-            if getattr(policy, "companion_dir", None):
+            if not relocating and getattr(policy, "companion_dir", None):
                 from agent_workflows import storage
 
                 comp_p = Path(policy.companion_dir).expanduser().resolve()

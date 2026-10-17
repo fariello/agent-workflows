@@ -188,7 +188,7 @@ class TestCompanionCensus(unittest.TestCase):
         self.assertEqual(plan.config_retrack, "untrack")
         self.assertEqual(plan.companion_dir, newcomp)
         self.assertTrue(plan.companion_create)
-        self.assertEqual(plan.blockers, ["companion-unsupported"])
+        self.assertEqual(plan.blockers, [])
 
         it = _record_item(plan)
         self.assertEqual(it.kind, "move")
@@ -232,7 +232,7 @@ class TestCompanionCensus(unittest.TestCase):
         self.assertIsNone(plan.retire_side)
         self.assertEqual(plan.config_retrack, "track")
         self.assertFalse(plan.companion_create)
-        self.assertEqual(plan.blockers, ["companion-unsupported"])
+        self.assertEqual(plan.blockers, [])
 
         it = _record_item(plan)
         self.assertEqual(it.source, rec)
@@ -257,7 +257,7 @@ class TestCompanionCensus(unittest.TestCase):
         self.assertEqual(plan.companion_action, "detach")
         self.assertEqual(plan.retire_side, "target")
         self.assertIsNone(plan.config_retrack)
-        self.assertEqual(plan.blockers, ["companion-unsupported"])
+        self.assertEqual(plan.blockers, [])
 
         it = _record_item(plan)
         self.assertEqual(it.source, rec)
@@ -293,7 +293,7 @@ class TestCompanionCensus(unittest.TestCase):
         self.assertEqual(plan.retire_side, "home")
         self.assertIsNone(plan.config_retrack)
         self.assertTrue(plan.companion_create)
-        self.assertEqual(plan.blockers, ["companion-unsupported"])
+        self.assertEqual(plan.blockers, [])
 
         it = _record_item(plan)
         self.assertEqual(it.source, rec)
@@ -322,7 +322,7 @@ class TestCompanionCensus(unittest.TestCase):
         s.init_repo(existing)
         plan = s.plan(COMP, existing)
         self.assertFalse(plan.companion_create)
-        self.assertEqual(plan.blockers, ["companion-unsupported"])
+        self.assertEqual(plan.blockers, [])
 
 
 class TestCompanionBlockers(unittest.TestCase):
@@ -341,9 +341,7 @@ class TestCompanionBlockers(unittest.TestCase):
         plain = s.root / "plain"
         plain.mkdir()
         plan = s.plan(COMP, plain)
-        self.assertEqual(
-            sorted(plan.blockers), ["companion-not-git", "companion-unsupported"]
-        )
+        self.assertEqual(plan.blockers, ["companion-not-git"])
         self.assertTrue(plan.items)
 
     def test_companion_not_git_nested_in_unrelated_repo(self) -> None:
@@ -354,9 +352,7 @@ class TestCompanionBlockers(unittest.TestCase):
         nested = other / "comp"
         nested.mkdir()
         plan = s.plan(COMP, nested)
-        self.assertEqual(
-            sorted(plan.blockers), ["companion-not-git", "companion-unsupported"]
-        )
+        self.assertEqual(plan.blockers, ["companion-not-git"])
 
     def test_companion_dirty(self) -> None:
         s = self.s
@@ -365,9 +361,7 @@ class TestCompanionBlockers(unittest.TestCase):
         s.init_repo(existing)
         (existing / "stray.txt").write_text("x\n", encoding="utf-8")
         plan = s.plan(COMP, existing)
-        self.assertEqual(
-            sorted(plan.blockers), ["companion-dirty", "companion-unsupported"]
-        )
+        self.assertEqual(plan.blockers, ["companion-dirty"])
         self.assertIn("commit or clean", plan.blocker_messages["companion-dirty"])
 
     def test_companion_unmerged(self) -> None:
@@ -401,9 +395,7 @@ class TestCompanionBlockers(unittest.TestCase):
         s.git(existing, "add", "-A")
         s.git(existing, "commit", "-q", "-m", "y")
         plan = s.plan(COMP, existing)
-        self.assertEqual(
-            sorted(plan.blockers), ["companion-unsupported", "destination-not-empty"]
-        )
+        self.assertEqual(plan.blockers, ["destination-not-empty"])
 
     def test_companion_preflight_identity_conflict(self) -> None:
         s = self.s
@@ -418,9 +410,7 @@ class TestCompanionBlockers(unittest.TestCase):
         s.git(existing, "add", "-A")
         s.git(existing, "commit", "-q", "-m", "ident")
         plan = s.plan(COMP, existing)
-        self.assertEqual(
-            sorted(plan.blockers), ["companion-preflight", "companion-unsupported"]
-        )
+        self.assertEqual(plan.blockers, ["companion-preflight"])
         self.assertIn(
             "someone-else-000000", plan.blocker_messages["companion-preflight"]
         )
@@ -468,7 +458,7 @@ class TestCompanionBlockers(unittest.TestCase):
         s.install(PRIV)
         for new in (LOCAL, CLEAN):
             plan = s.plan(new)
-            self.assertNotIn("companion-unsupported", plan.blockers, new)
+            self.assertEqual(plan.blockers, [])
             self.assertIsNone(plan.companion_action)
             self.assertIsNone(plan.companion_dir)
             self.assertIsNone(plan.config_retrack)
@@ -477,7 +467,7 @@ class TestCompanionBlockers(unittest.TestCase):
             self.assertEqual(it.source_git, "target")
             self.assertIsNone(it.dest_git)
 
-    def test_cfgreloc_to_target_has_no_companion_unsupported(self) -> None:
+    def test_cfgreloc_to_target_has_no_companion_fields(self) -> None:
         s = self.s
         s.install(LOCAL)
         plan = s.plan(PRIV)

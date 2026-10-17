@@ -1,7 +1,7 @@
 """Companion-pair execution tests for placement switch (IPD fo08zx / Set cmpreloc).
 
 Comprehensive test coverage for companion placement switches:
-- Case (0): without allow_companion, execute_placement_switch refuses naming companion-unsupported.
+- Case (0): default execute_placement_switch for pair (a) completes.
 - Case (1): happy paths for representative pairs (a), (b), (c), (d).
 - Case (2): resume across all fault points for pairs (a) and (c).
 - Case (3): rollback pre-sources-removed across all fault points for pairs (a) and (d).
@@ -254,8 +254,8 @@ class _Scratch:
 class TestPlacementSwitchCompanionExecute(unittest.TestCase):
     """Behavioral tests for companion placement switch execution, resume, and rollback."""
 
-    def test_case_0_without_allow_companion_refuses(self) -> None:
-        """Case (0): without allow_companion, execute_placement_switch refuses naming companion-unsupported."""
+    def test_case_0_default_execute_pair_a_completes(self) -> None:
+        """Case (0): default execute_placement_switch for pair (a) completes without extra opt-in."""
         with tempfile.TemporaryDirectory() as td:
             s = _Scratch(Path(td))
             s.install(PRIV)
@@ -264,20 +264,11 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
             comp = s.root / "comp"
             pol = s.policy(COMP, companion_dir=comp)
 
-            pre_repo_snap = _take_tree_snapshot(s.repo)
-            pre_aw_home_snap = _take_tree_snapshot(s.aw_home)
-            pre_repo_status = _git_status(s.repo, s.env)
-
-            with self.assertRaises(PlacementSwitchError) as ctx:
-                execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
-
-            self.assertIn("companion-unsupported", str(ctx.exception))
-            self.assertFalse(comp.exists())
-            self.assertEqual(pre_repo_snap, _take_tree_snapshot(s.repo))
-            self.assertEqual(pre_aw_home_snap, _take_tree_snapshot(s.aw_home))
-            self.assertEqual(pre_repo_status, _git_status(s.repo, s.env))
-            pid = s.derive_project_id()
-            self.assertFalse((s.aw_home / "placement-switches" / pid).exists())
+            result = execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
+            self.assertEqual(result.from_preset, PRIV)
+            self.assertEqual(result.to_preset, COMP)
+            self.assertTrue(comp.exists())
+            self.assertTrue(result.receipt_path.exists())
 
     def test_case_1_happy_path_pair_a(self) -> None:
         """Case (1)(a): private-target -> companion with nonexistent companion path."""
@@ -293,9 +284,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
 
             rev_target_before = s.rev_count(s.repo)
 
-            result = execute_placement_switch(
-                s.repo, pol, aw_home=s.aw_home, allow_companion=True
-            )
+            result = execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
 
             # 1. Exactly one project.json for the project
             all_projs = (
@@ -401,9 +390,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
             rev_comp_before = s.rev_count(s.companion)
 
             pol = s.policy(PRIV)
-            result = execute_placement_switch(
-                s.repo, pol, aw_home=s.aw_home, allow_companion=True
-            )
+            result = execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
 
             # 1. Exactly one project.json
             all_projs = (
@@ -492,9 +479,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
 
             pid = s.derive_project_id()
             pol = s.policy(LOCAL)
-            result = execute_placement_switch(
-                s.repo, pol, aw_home=s.aw_home, allow_companion=True
-            )
+            result = execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
 
             # 1. Exactly one project.json
             all_projs = (
@@ -571,9 +556,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
             rev_comp_before = s.rev_count(comp)
 
             pol = s.policy(COMP, companion_dir=comp)
-            result = execute_placement_switch(
-                s.repo, pol, aw_home=s.aw_home, allow_companion=True
-            )
+            result = execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
 
             # 1. Exactly one project.json
             all_projs = (
@@ -670,7 +653,6 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
                         pol,
                         aw_home=s.aw_home,
                         fault_injection=fp,
-                        allow_companion=True,
                     )
                 self.assertIn(f"Fault injected: {fp}", str(ctx.exception))
 
@@ -738,7 +720,6 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
                         pol,
                         aw_home=s.aw_home,
                         fault_injection=fp,
-                        allow_companion=True,
                     )
                 self.assertIn(f"Fault injected: {fp}", str(ctx.exception))
 
@@ -802,7 +783,6 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
                         pol,
                         aw_home=s.aw_home,
                         fault_injection=fp,
-                        allow_companion=True,
                     )
 
                 rollback_placement_switch(s.repo, aw_home=s.aw_home)
@@ -854,7 +834,6 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
                         pol,
                         aw_home=s.aw_home,
                         fault_injection=fp,
-                        allow_companion=True,
                     )
 
                 rollback_placement_switch(s.repo, aw_home=s.aw_home)
@@ -890,9 +869,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
             pol = s.policy(COMP, companion_dir=comp)
 
             with self.assertRaises(PlacementSwitchError) as ctx:
-                execute_placement_switch(
-                    s.repo, pol, aw_home=s.aw_home, allow_companion=True
-                )
+                execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
             self.assertIn("companion-dirty", str(ctx.exception))
             self.assertEqual(_take_tree_snapshot(s.repo), pre_repo_snap)
             self.assertEqual(_take_tree_snapshot(s.aw_home), pre_aw_home_snap)
@@ -929,9 +906,7 @@ class TestPlacementSwitchCompanionExecute(unittest.TestCase):
             pol = s.policy(COMP, companion_dir=comp)
 
             with self.assertRaises(PlacementSwitchError) as ctx:
-                execute_placement_switch(
-                    s.repo, pol, aw_home=s.aw_home, allow_companion=True
-                )
+                execute_placement_switch(s.repo, pol, aw_home=s.aw_home)
             self.assertIn("companion-preflight", str(ctx.exception))
             self.assertEqual(_take_tree_snapshot(s.repo), pre_repo_snap)
             self.assertEqual(_take_tree_snapshot(s.aw_home), pre_aw_home_snap)

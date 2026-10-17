@@ -136,11 +136,11 @@ A fresh install creates the current `setup-repo` action under `state/durable/act
 
 ### 8.1 Placement switch on update
 
-The placement switch transaction and CLI opt-in flags (`--relocate`, `--relocate-resume`, `--relocate-rollback`) are implemented by `ozr356` (Set `cfgreloc` Orders 02 to 05); companion switches continue to refuse (backlog `n9vd2h`).
+The placement switch transaction and CLI opt-in flags (`--relocate`, `--relocate-resume`, `--relocate-rollback`) are implemented by `ozr356` (Set `cfgreloc` Orders 02 to 05) and extended to companion presets by Set `cmpreloc` (IPDs `cmpreloc-01`, `02`, `03`, graduating backlog `n9vd2h`).
 
 1. A placement switch is any update whose resolved `config/project.json` directory differs from the authoritative one (`project_config_dir`).
 2. Without explicit opt-in (`aw install --relocate`) every entry point refuses before any write and names the remedy.
-3. Supported pairs in this release are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`) and between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh); companion switches refuse (backlog `n9vd2h`).
+3. Supported pairs are between `private-target` and the home-placed presets (`completely-clean-target`, `local-only`), between the two home-placed presets only when their config directory differs (it does not today, so that pair is a same-placement refresh), and between `public-target-private-companion` and each of the target-placed and home-placed presets (`private-target`, `completely-clean-target`, `local-only`). Switching into `public-target-private-companion` requires `--companion-dir <path>` pointing to a valid, clean git repository matching companion identity rules. Staged changes in target and companion repositories are preserved without committing. Detaching a companion leaves the companion repository in place without modifying its git history. Moving records between two companion directories remains a storage-level operation via `aw storage move`.
 4. The switch applies the Section 11.2 transaction discipline (writer lock, per-item journal, verify before switch, switch last, resume, rollback, independent check) to classes `config_project`, `state_durable` (durable install history only) and `records`, with `config_local` re-derived, `system` and host adapters re-materialized by the install that follows, and `state_runtime` plus worktree lanes not carried (a live or work-holding lane blocks); because the two sides may be on different filesystems and the old side must stay fully authoritative until the switch, items are COPIED and hash-verified before the switch and their sources removed only after it, so no permanent twin remains (the Section 11.2 no-twin outcome, reached as copy-verify-switch-remove rather than an in-place move).
 5. The authority flip is a single atomic write of the merged new `project.json` (all `cutovers`, `setids` and unknown keys carried) followed by removal of every old config file `project_config_dir` keys on (`project.json`, `local.json`, `config.json`, `policy.json`); rollback is available until the old footprint is retired, after which the remedy is a switch back.
 6. Old-side tracked files are removed with `git rm` and left STAGED, never committed, and moved records become untracked when leaving the target (the operator is told).
@@ -275,6 +275,7 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 
 ## Workflow history
 
+- 2026-10-17 note (aw specs): Amend Section 8.1 for companion placement switches on update (IPDs yb0j31, p5q4k3, y1e2m9, graduating backlog n9vd2h)
 - 2026-10-17 note (aw specs): Add Section 8.2 records-root switch on update (IPD s07f73, backlog wbz75c)
 - 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch CLI flags and transaction execution (IPD ozr356, backlog ui1aln)
 - 2026-10-16 note (aw specs): Amend Section 8.1 for placement switch on update (IPD ppu39q, backlog ui1aln)

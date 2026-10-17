@@ -245,7 +245,7 @@ class TestPlacementSwitchPlan(unittest.TestCase):
             self.assertIn("not-a-placement-switch", plan.blockers)
 
     def test_companion_request_is_a_placement_switch(self) -> None:
-        """(4) Companion policy on private-target is planned as pair (a), still gated by 'companion-unsupported'.
+        """(4) Companion policy on private-target is planned as pair (a).
 
         IPD xc8nae replaced the empty short-circuit plan with a full census; the
         behavior kept is that a companion request is recognized as a placement
@@ -269,9 +269,8 @@ class TestPlacementSwitchPlan(unittest.TestCase):
             self.assertEqual(plan.direction, "in-place")
             self.assertEqual(plan.companion_action, "attach")
             self.assertNotEqual(plan.items, [])
-            self.assertIn("companion-unsupported", plan.blockers)
+            self.assertEqual(plan.blockers, [])
             self.assertNotIn("not-a-placement-switch", plan.blockers)
-            self.assertIn("n9vd2h", plan.blocker_messages["companion-unsupported"])
 
     def test_project_id_mismatch_on_copied_checkout(self) -> None:
         """(5) Copied checkout with stale local.json triggers 'project-id-mismatch'."""

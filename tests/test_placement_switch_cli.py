@@ -786,8 +786,8 @@ execute_placement_switch(repo, policy, fault_injection=fault)
             )
             self.assertEqual(r.returncode, 0, f"install failed: {r.stdout}\n{r.stderr}")
 
-    def test_case_7_companion_target_refusals(self) -> None:
-        """(7) Companion target: with --relocate --dry-run refuses naming companion-unsupported; without --relocate names n9vd2h and no --relocate."""
+    def test_case_7_companion_target_support(self) -> None:
+        """(7) Companion target: with --relocate --dry-run exits 0 with preview; without --relocate names --relocate and does not name n9vd2h."""
         with tempfile.TemporaryDirectory() as td:
             tpath = Path(td)
             aw_home = tpath / "aw_home"
@@ -797,7 +797,34 @@ execute_placement_switch(repo, policy, fault_injection=fault)
 
             repo, env = self._create_fixture_repo(tpath, aw_home, xdg_home)
 
-            # With --relocate --dry-run -> companion-unsupported
+            comp = tpath / "comp"
+            comp.mkdir()
+            subprocess.run(
+                ["git", "init", "-b", "main", str(comp)],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"],
+                cwd=str(comp),
+                check=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=str(comp),
+                check=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-m", "init"],
+                cwd=str(comp),
+                check=True,
+                env=env,
+            )
+
+            # With --relocate --dry-run -> exits 0 and prints companion preview
             r_reloc = subprocess.run(
                 [
                     sys.executable,
@@ -807,6 +834,8 @@ execute_placement_switch(repo, policy, fault_injection=fault)
                     str(repo),
                     "--preset",
                     "public-target-private-companion",
+                    "--companion-dir",
+                    str(comp),
                     "--relocate",
                     "--dry-run",
                     "-y",
@@ -817,11 +846,18 @@ execute_placement_switch(repo, policy, fault_injection=fault)
                 text=True,
                 timeout=120,
             )
-            self.assertEqual(r_reloc.returncode, 1)
+            self.assertEqual(
+                r_reloc.returncode,
+                0,
+                f"dry-run failed: {r_reloc.stdout}\n{r_reloc.stderr}",
+            )
             output_reloc = r_reloc.stdout + r_reloc.stderr
-            self.assertIn("companion-unsupported", output_reloc)
+            self.assertIn("[DRY RUN]", output_reloc)
+            self.assertIn("Companion directory:", output_reloc)
+            self.assertIn("Companion action:    attach", output_reloc)
+            self.assertNotIn("companion-unsupported", output_reloc)
 
-            # Without --relocate -> names n9vd2h and does NOT contain --relocate
+            # Without --relocate -> names --relocate and does NOT contain n9vd2h
             r_plain = subprocess.run(
                 [
                     sys.executable,
@@ -831,6 +867,8 @@ execute_placement_switch(repo, policy, fault_injection=fault)
                     str(repo),
                     "--preset",
                     "public-target-private-companion",
+                    "--companion-dir",
+                    str(comp),
                     "-y",
                     "--no-interactive",
                 ],
@@ -841,5 +879,5 @@ execute_placement_switch(repo, policy, fault_injection=fault)
             )
             self.assertEqual(r_plain.returncode, 1)
             output_plain = r_plain.stdout + r_plain.stderr
-            self.assertIn("n9vd2h", output_plain)
-            self.assertNotIn("--relocate", output_plain)
+            self.assertIn("--relocate", output_plain)
+            self.assertNotIn("n9vd2h", output_plain)

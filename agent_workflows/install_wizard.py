@@ -896,20 +896,11 @@ def resolve_policy_noninteractive(
             repo_path, pol, existing_policy=existing_policy
         )
         if switch is not None and not allow_placement_switch:
-            if (
-                existing_policy.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-                or pol.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-            ):
-                msg = (
-                    f"Switching config placement from {existing_policy.preset} to {pol.preset} "
-                    f"involves a companion repository and is not supported yet (backlog n9vd2h)."
-                )
-            else:
-                msg = (
-                    f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
-                    f"to {pol.preset} ({switch.target_dir}) moves project config, records and install history. "
-                    f"Preview with --relocate --dry-run, then rerun with --relocate."
-                )
+            msg = (
+                f"Switching config placement from {existing_policy.preset} ({switch.current_dir}) "
+                f"to {pol.preset} ({switch.target_dir}) moves project config, records and install history. "
+                f"Preview with --relocate --dry-run, then rerun with --relocate."
+            )
             raise PlacementSwitchRequired(
                 msg,
                 current_dir=switch.current_dir,
@@ -1279,21 +1270,11 @@ def persist_project_policy(
             if cur_preset
             else str(switch.current_dir)
         )
-        if (
-            cur_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-            or policy.preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
-        ):
-            from_p = cur_preset or str(switch.current_dir)
-            msg = (
-                f"Switching config placement from {from_p} to {policy.preset} "
-                f"involves a companion repository and is not supported yet (backlog n9vd2h)."
-            )
-        else:
-            msg = (
-                f"Switching config placement from {from_desc} "
-                f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
-                f"Preview with --relocate --dry-run, then rerun with --relocate."
-            )
+        msg = (
+            f"Switching config placement from {from_desc} "
+            f"to {policy.preset} ({switch.target_dir}) moves project config, records and install history. "
+            f"Preview with --relocate --dry-run, then rerun with --relocate."
+        )
         raise PlacementSwitchRequired(
             msg,
             current_dir=switch.current_dir,

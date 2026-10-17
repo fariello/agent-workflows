@@ -442,7 +442,6 @@ def plan_placement_switch(
     new_policy: ProjectPolicy,
     *,
     aw_home: Optional[str | Path] = None,
-    allow_companion: bool = False,
 ) -> SwitchPlan:
     """Pure planner for cross-placement preset switches (spec Section 8.1).
 
@@ -576,8 +575,7 @@ def plan_placement_switch(
             )
 
         # Exactly one side companion: a companion attach or detach (IPD xc8nae).
-        # The census is fully populated; companion-unsupported stays as an
-        # ordinary interim blocker (E-02, F-10).
+        # The census is fully populated (IPD xc8nae / Set cmpreloc).
         is_companion_switch = old_is_companion != new_is_companion
         companion_action: Optional[str] = None
         companion_dir: Optional[Path] = None
@@ -835,13 +833,6 @@ def plan_placement_switch(
             if bid not in blocker_messages:
                 blockers.append(SwitchBlocker(bid, msg))
                 blocker_messages[bid] = msg
-
-        if is_companion_switch and not allow_companion:
-            add_blocker(
-                "companion-unsupported",
-                "Companion placement switches are planned but the executor does not "
-                "yet support them (backlog n9vd2h).",
-            )
 
         # Blocker: dirty-aw-tree
         if old_is_companion:
@@ -3274,7 +3265,6 @@ def execute_placement_switch(
     *,
     aw_home: Optional[str | Path] = None,
     fault_injection: Optional[str] = None,
-    allow_companion: bool = False,
 ) -> SwitchResult:
     """Execute a placement switch transaction (spec Section 8.1)."""
     valid_faults = {
@@ -3313,9 +3303,7 @@ def execute_placement_switch(
                 "Resume it with resume_placement_switch or roll it back with rollback_placement_switch."
             )
 
-        plan = plan_placement_switch(
-            repo, new_policy, aw_home=eff_aw_home, allow_companion=allow_companion
-        )
+        plan = plan_placement_switch(repo, new_policy, aw_home=eff_aw_home)
         if plan.blockers:
             msgs = [f"- {b}: {plan.blocker_messages.get(b, '')}" for b in plan.blockers]
             raise PlacementSwitchError("Placement switch blocked:\n" + "\n".join(msgs))
@@ -3727,6 +3715,57 @@ def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
         f"  Tracked target files that will be staged as removed: {tracked_removals}"
     )
 
+    if plan.companion_action is not None:
+        lines.append(f"  Companion directory: {plan.companion_dir}")
+        lines.append(f"  Companion action:    {plan.companion_action}")
+        if plan.companion_action == "attach" and plan.companion_dir is not None:
+            comp_rec = plan.companion_dir / "records"
+            if comp_rec.is_dir():
+                lines.append(
+                    "  Companion records:   already contains records (will merge)"
+                )
+            else:
+                lines.append(
+                    "  Companion records:   created (records/ will be created)"
+                )
+        if plan.companion_create:
+            lines.append("  Companion repository will be created and git-initialized")
+        if plan.config_retrack == "untrack":
+            lines.append("  project.json will be untracked in the target")
+        elif plan.config_retrack == "track":
+            lines.append("  project.json will be tracked again")
+
+        # Count staged items per repository
+        target_staged = 0
+        if plan.retire_side == "target":
+            target_staged += tracked_removals
+        else:
+            target_staged += sum(
+                1
+                for it in plan.items
+                if it.source_git == "target"
+                and it.tracked
+                and it.kind in ("move", "discard")
+            )
+        target_staged += sum(
+            1 for it in plan.items if it.dest_git == "target" and it.kind == "move"
+        )
+        if plan.config_retrack in ("untrack", "track"):
+            target_staged += 1
+
+        companion_staged = sum(
+            1 for it in plan.items if it.dest_git == "companion" and it.kind == "move"
+        ) + sum(
+            1
+            for it in plan.items
+            if it.source_git == "companion"
+            and it.tracked
+            and it.kind in ("move", "discard")
+        )
+        lines.append(
+            f"  Staged counts per repository: target: {target_staged} staged, companion: {companion_staged} staged"
+        )
+
     # Per-class counts of move / discard / rewrite items
     class_order = [
         "config_project",
@@ -3791,6 +3830,17 @@ def render_plan(plan: SwitchPlan, term: Optional[Any] = None) -> str:
         lines.append("")
         lines.append(f"Warnings ({len(plan.warnings)}):")
         for w_name, w_count in sorted(plan.warnings.items()):
-            lines.append(f"  [WARNING] {w_name}: {w_count}")
+            desc = ""
+            if w_name == "records-leave-target-history":
+                desc = f": {w_count} tracked records remain in target git history; the switch cannot rewrite history"
+            elif w_name == "companion-left-in-place":
+                desc = ": the companion repository is left on disk without deleting companion data"
+            elif w_name == "config-becomes-untracked":
+                desc = ": project.json becomes untracked in the target"
+            elif w_name == "records-become-tracked-candidates":
+                desc = f": {w_count} records moved to target become tracked candidates"
+            else:
+                desc = f": {w_count}"
+            lines.append(f"  [WARNING] {w_name}{desc}")
 
     return "\n".join(lines)
