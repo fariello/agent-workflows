@@ -2279,4 +2279,35 @@ Zero outcome differences found between `run_cli` and `run_cli_inproc` across all
 - `tests/test_checkup.py`: 17 passed in 1.25s; top test 0.47s (`test_concurrency_lock_busy`).
 - F-9 confirmed: `doctor` slowness on the live repository checkout was driven entirely by records tree traversal (resolved by E-02 seeded fixture project), not host-binary or network probes.
 
+## c8bfp9 E-06 cached setup fixtures and templates
 
+### Implementation Summary
+
+1. **Bare Git Repository Template (`tests/repo_template.py`)**:
+   - Extended `get_template_repo()` to configure `commit.gpgsign=false` alongside `user.name` and `user.email`.
+   - Added `directory_content_digest(root: Path) -> str` helper to compute deterministic SHA256 directory tree hashes for isolation verification.
+   - Updated `tests/support.py`'s `init_repo(path: Path) -> Path` to delegate directly to `copy_template_repo(path)`, replacing 5 sequential git subprocesses (`git init -q`, `git rev-parse`, three `git config` calls) per invocation across the entire test suite.
+
+2. **Installed Project Template (`tests/conformance_matrix.py`)**:
+   - Added process-singleton `get_installed_project_template() -> InstalledProjectTemplate` and `get_installed_project_dir() -> Path` with automatic lazy initialization and cleanup.
+
+3. **Template Caching in Slow Test Suites (`tests/test_installer.py`)**:
+   - `InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering`: Cached the initial setup install in `template_repo` and cloned into each of the 7 cases; asserted `digest_before == digest_after` to prove zero template mutation across runs.
+   - `UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered`: Cached pre-install templates per distinct initial `.gitignore` state; asserted digest equality for all templates after runs.
+   - `UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly`: Cached the initial install in `drift-template` and cloned into each case; asserted `digest_before == digest_after`.
+
+### Measured Durations Before and After
+
+| Test Node ID / Module | Duration Before (s) | Duration After (s) | Delta (s) |
+|---|---|---|---|
+| `tests/test_installer.py::InstallPreservationTests::test_every_existing_file_state_is_handled_without_clobbering` | 22.89s | 8.95s | -13.94s (-60.9%) |
+| `tests/test_installer.py::UntrackedGitignoreInstallTests::test_the_users_gitignore_is_managed_without_being_clobbered` | 15.72s | 11.76s | -3.96s (-25.2%) |
+| `tests/test_installer.py::UninstallApplyTests::test_every_consent_mode_disposes_of_a_drifted_file_correctly` | 12.34s | 8.31s | -4.03s (-32.7%) |
+| `tests/test_installer.py::InstallerEndToEndTests::test_gitignored_opencode_does_not_abort` | 2.40s | 2.43s | +0.03s |
+| **Combined 4 Tests Wall Time** | **26.65s** | **14.96s** | **-11.69s (-43.9%)** |
+
+### Module Summary Lines
+
+- `tests/test_installer.py` under pytest (`-n 6`, seed 123456): `149 passed in 42.27s`
+- `tests/test_installer.py` under `python3 -m unittest`: `Ran 149 tests in 270.696s; OK`
+- Template digest verification: `a2bf96fad5604a27b190031e2e4c0d55e90c499bb4789eb87fc79c6523e49a7f` (all test-level digests verified identical before and after test execution).

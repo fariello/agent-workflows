@@ -1341,6 +1341,26 @@ def get_seeded_project_dir() -> Path:
     return get_seeded_project_template().template_dir
 
 
+_INSTALLED_TEMPLATE: Optional[InstalledProjectTemplate] = None
+
+
+def get_installed_project_template() -> InstalledProjectTemplate:
+    """Return process-singleton installed project template, initializing lazily."""
+    global _INSTALLED_TEMPLATE
+    if _INSTALLED_TEMPLATE is not None and _INSTALLED_TEMPLATE.template_dir.is_dir():
+        return _INSTALLED_TEMPLATE
+
+    tmp_root = Path(tempfile.mkdtemp(prefix="aw_installed_template_"))
+    atexit.register(shutil.rmtree, str(tmp_root), ignore_errors=True)
+    _INSTALLED_TEMPLATE = build_installed_project_template(tmp_root)
+    return _INSTALLED_TEMPLATE
+
+
+def get_installed_project_dir() -> Path:
+    """Return the Path to the template_dir of the installed project template."""
+    return get_installed_project_template().template_dir
+
+
 # --------------------------------------------------------------------------------------------------
 # Semantic-fact extraction (fact-parity gate)
 # --------------------------------------------------------------------------------------------------

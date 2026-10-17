@@ -38,12 +38,14 @@ import argparse
 import io
 import os
 import re
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from tests.repo_template import directory_content_digest
 from tests.support import REPO_ROOT, git, init_repo, run_installer, SOURCE_WORKFLOWS
 
 # The install engine now lives in the agent_workflows package (IPD-2). Import it directly
@@ -1174,16 +1176,19 @@ class InstallPreservationTests(unittest.TestCase):
     def test_every_existing_file_state_is_handled_without_clobbering(self):
         wrong = []
         exception_row_broken = 0
+        template_repo = init_repo(self.base / "preserve-template")
+        first = run_installer(template_repo)
+        self.assertEqual(
+            first.returncode, 0, f"the SETUP install failed: {first.stderr}"
+        )
+        digest_before = directory_content_digest(template_repo)
+
         for index, (case, seed, flags, rel, expected, changes, why) in enumerate(
             self.CASES
         ):
-            repo = init_repo(self.base / f"preserve-{index}")
-            # Install once so the installer's own files exist; this is what makes a second run the
-            # interesting one (it has to distinguish its own output from a user edit).
-            first = run_installer(repo)
+            repo = self.base / f"preserve-{index}"
+            shutil.copytree(template_repo, repo, symlinks=True)
             problems = []
-            if first.returncode != 0:
-                problems.append(f"the SETUP install failed: {first.stderr}")
             for path_rel, content in seed.items():
                 path = repo / path_rel
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -1273,6 +1278,10 @@ class InstallPreservationTests(unittest.TestCase):
             "files nobody asked for. If only the dry-run row fails, `--dry-run` is writing. FIX: "
             f"check the exit codes in the failures too, since a preserved file plus a non-zero exit "
             f"is a crash wearing protection's clothing.\n" + "\n".join(wrong),
+        )
+        digest_after = directory_content_digest(template_repo)
+        self.assertEqual(
+            digest_before, digest_after, "Template repo was mutated during test runs"
         )
 
     def test_customization_detection_predicates(self):
@@ -2436,6 +2445,7 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
 
     def test_the_users_gitignore_is_managed_without_being_clobbered(self):
         wrong = []
+        installed_templates: dict[str | None, tuple[Path, str]] = {}
         for index, (
             case,
             initial,
@@ -2444,13 +2454,21 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
             user_lines,
             why,
         ) in enumerate(self.STATES):
-            repo = init_repo(self.base / f"gi-{index}")
+            if initial not in installed_templates:
+                t_repo = init_repo(self.base / f"gi-template-{index}")
+                if initial is not None:
+                    (t_repo / ".gitignore").write_text(initial, encoding="utf-8")
+                INS.install_into_repo(t_repo, self.source, yes=True, no_color=True)
+                installed_templates[initial] = (
+                    t_repo,
+                    directory_content_digest(t_repo),
+                )
+            t_repo, _ = installed_templates[initial]
+            repo = self.base / f"gi-{index}"
+            shutil.copytree(t_repo, repo, symlinks=True)
             gi = repo / ".gitignore"
-            if initial is not None:
-                gi.write_text(initial, encoding="utf-8")
             problems = []
 
-            INS.install_into_repo(repo, self.source, yes=True, no_color=True)
             actions = []
             if operation == "install-twice":
                 first = gi.read_text(encoding="utf-8")
@@ -2516,6 +2534,13 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
             f"THEIRS, and the framework owns only what is inside its markers.\n"
             + "\n".join(wrong),
         )
+        for _init_key, (t_repo, digest_before) in installed_templates.items():
+            digest_after = directory_content_digest(t_repo)
+            self.assertEqual(
+                digest_before,
+                digest_after,
+                "Template repo was mutated during test runs",
+            )
 
     def test_the_installed_patterns_really_do_make_git_ignore_files(self):
         """Kept separate: the END-TO-END effect against real git, not the file's text.
@@ -2767,9 +2792,13 @@ class UninstallApplyTests(unittest.TestCase):
         )
         wrong = []
         exception_broken = 0
+        template_repo = init_repo(self.base / "drift-template")
+        INS.install_into_repo(template_repo, self.source, yes=True, no_color=True)
+        digest_before = directory_content_digest(template_repo)
+
         for index, (case, kwargs, shims, why) in enumerate(cases):
-            repo = init_repo(self.base / f"drift-{index}")
-            INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+            repo = self.base / f"drift-{index}"
+            shutil.copytree(template_repo, repo, symlinks=True)
             for rel, (content, _survives) in shims.items():
                 (repo / rel).write_text(content, encoding="utf-8")
             INS.uninstall_repo(repo, use_git=True, **kwargs)
@@ -2820,6 +2849,10 @@ class UninstallApplyTests(unittest.TestCase):
             "lost edits they never mentioned; if only the DECIDER row fails, the callback's answer is "
             "not being bound to the file it was asked about, which means an interactive user's `keep` "
             f"can delete the wrong file.\n" + "\n".join(wrong),
+        )
+        digest_after = directory_content_digest(template_repo)
+        self.assertEqual(
+            digest_before, digest_after, "Template repo was mutated during test runs"
         )
 
     def test_uninstall_removes_framework_and_manifest_while_keeping_user_files(self):
