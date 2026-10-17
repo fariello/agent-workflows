@@ -35,30 +35,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restored behavioral test module
 
-- [ ] E-01 Create `tests/test_migration_inventory_shared.py` from `git show 19313eed^:tests/test_migration_inventory_shared.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `igefrj`, findings `b1mx2w`, plan `94wi2f`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes and the table-driven structure as recovered (pytest collects them and applies the module mark). The recovered file contains no `inspect`/`ast`/source-reading or symbol-identity assertions, so nothing is removed. Disposition rule if a recovered test or an added value fails at execution HEAD (none did at review): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue. No subprocess, no filesystem writes outside a temporary directory: every test reads the in-repo `SOURCE_WORKFLOWS` and the existing fixture `tests/fixtures/workflow-src/plan-review`.
+- [x] E-01 Create `tests/test_migration_inventory_shared.py` from `git show 19313eed^:tests/test_migration_inventory_shared.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `igefrj`, findings `b1mx2w`, plan `94wi2f`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes and the table-driven structure as recovered (pytest collects them and applies the module mark). The recovered file contains no `inspect`/`ast`/source-reading or symbol-identity assertions, so nothing is removed. Disposition rule if a recovered test or an added value fails at execution HEAD (none did at review): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue. No subprocess, no filesystem writes outside a temporary directory: every test reads the in-repo `SOURCE_WORKFLOWS` and the existing fixture `tests/fixtures/workflow-src/plan-review`.
   - Depends on: none
   - Expected outcome: the file exists, is collected by a bare `python3 -m pytest` (it carries the `core` marker), and every recovered test passes (15 at authoring and at review; the count is context, not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Inventory and report tests (`InventoryCompletenessTests`, recovered): the eight-row mutation table over `check_completeness`, the live-inventory shape table, `render_agent_report` parses as JSON with `ok` True and `count` equal to the inventory size, and the alias-distinguishability test. ADD: `build_inventory(SOURCE_WORKFLOWS).dispositions["setup-repo"].to_dict()` equals `{"subject": "setup-repo", "kind": "command", "family": "setup-repo", "canonical_package": "setup-repo", "execution_mode": "guided", "interaction": "interactive", "risk": "medium", "skill_decision": "thin-entry", "orchestration_decision": "orchestrator", "evidence_level": "artifact", "aliases": [], "migration_owner": "order-15", "is_alias": False}`; the report's `dispositions["plan-review-long"]` has `is_alias` True and `canonical_package` `plan-review`, and its top-level key set is exactly `{"count", "dispositions", "findings", "ok", "repo_local"}` with `dispositions` keys sorted; `InventoryResult(dispositions={}, findings=["x"])` has `ok` False and `to_dict()` equal to `{"ok": False, "count": 0, "dispositions": {}, "findings": ["x"], "repo_local": []}` (this reaches `InventoryResult.ok` under `negate-return` and `InventoryResult.to_dict` / `Disposition.to_dict` with a falsifiable value). The `repo_local` key was added by commit `9adcff119` (`release_readiness: disposition a managed repo's own workflow rows as repo-local (snhhw2)`), after the authoring HEAD `ddc7f543b`; the values above were re-measured at review HEAD `805dd2fae`. Re-measure every added value at execution HEAD before asserting it and apply the disposition rule in E-01 if one changed.
+- [x] E-02 Inventory and report tests (`InventoryCompletenessTests`, recovered): the eight-row mutation table over `check_completeness`, the live-inventory shape table, `render_agent_report` parses as JSON with `ok` True and `count` equal to the inventory size, and the alias-distinguishability test. ADD: `build_inventory(SOURCE_WORKFLOWS).dispositions["setup-repo"].to_dict()` equals `{"subject": "setup-repo", "kind": "command", "family": "setup-repo", "canonical_package": "setup-repo", "execution_mode": "guided", "interaction": "interactive", "risk": "medium", "skill_decision": "thin-entry", "orchestration_decision": "orchestrator", "evidence_level": "artifact", "aliases": [], "migration_owner": "order-15", "is_alias": False}`; the report's `dispositions["plan-review-long"]` has `is_alias` True and `canonical_package` `plan-review`, and its top-level key set is exactly `{"count", "dispositions", "findings", "ok", "repo_local"}` with `dispositions` keys sorted; `InventoryResult(dispositions={}, findings=["x"])` has `ok` False and `to_dict()` equal to `{"ok": False, "count": 0, "dispositions": {}, "findings": ["x"], "repo_local": []}` (this reaches `InventoryResult.ok` under `negate-return` and `InventoryResult.to_dict` / `Disposition.to_dict` with a falsifiable value). The `repo_local` key was added by commit `9adcff119` (`release_readiness: disposition a managed repo's own workflow rows as repo-local (snhhw2)`), after the authoring HEAD `ddc7f543b`; the values above were re-measured at review HEAD `805dd2fae`. Re-measure every added value at execution HEAD before asserting it and apply the disposition rule in E-01 if one changed.
   - Depends on: E-01
   - Expected outcome: all recovered and added inventory/report tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Shared-harness tests (`SharedHarnessTests`, recovered): the two-family resolution table (every lens through `assess`, every persona through `advise`, one digest per family, digests differ across families, catalog rows carry the harness digest, no reserved keys contributed); every `HARNESS_RESERVED_KEYS` key is refused by `assert_no_lens_fork`; a forking `LensModule` subclass is refused by `register_lens`. ADD: `build_assess_harness(...).resolve_lens("no-such-lens")` and `build_advise_harness(...).resolve_persona("no-such-persona")` each raise `InventoryError` naming `unknown lens concern` / `unknown persona`; a forking `PersonaModule` subclass whose `contribution()` adds `evidence` is refused by `register_persona` with `HarnessForkError`; `assess.lenses["security"].contribution()` equals `{"concern": "security", "lens_body": ".aw/system/workflows/assess/lenses/security.md", "rubric_focus": "Assess security posture and propose an IPD.", "lead_personas": []}`; `advise.personas["skeptic"].contribution()` has key set `{"persona", "persona_body", "charter"}` with `persona` `skeptic` and `persona_body` `.aw/system/workflows/advise/personas/skeptic.md`; `assess.catalog_rows()[0]` has `command` `assess-accessibility`, `harness` `assess`, `member` `accessibility`, `kind` `lens`, and `advise.catalog_rows()[0]` has `command` `advise-architect`, `kind` `persona`; `assess.harness.compiled()["manifest"]["id"]` is `assess` and `advise.harness.compiled()["manifest"]["id"]` is `advise` (this reaches `SharedHarness.compiled` and `_harness_ir` with a falsifiable value).
+- [x] E-03 Shared-harness tests (`SharedHarnessTests`, recovered): the two-family resolution table (every lens through `assess`, every persona through `advise`, one digest per family, digests differ across families, catalog rows carry the harness digest, no reserved keys contributed); every `HARNESS_RESERVED_KEYS` key is refused by `assert_no_lens_fork`; a forking `LensModule` subclass is refused by `register_lens`. ADD: `build_assess_harness(...).resolve_lens("no-such-lens")` and `build_advise_harness(...).resolve_persona("no-such-persona")` each raise `InventoryError` naming `unknown lens concern` / `unknown persona`; a forking `PersonaModule` subclass whose `contribution()` adds `evidence` is refused by `register_persona` with `HarnessForkError`; `assess.lenses["security"].contribution()` equals `{"concern": "security", "lens_body": ".aw/system/workflows/assess/lenses/security.md", "rubric_focus": "Assess security posture and propose an IPD.", "lead_personas": []}`; `advise.personas["skeptic"].contribution()` has key set `{"persona", "persona_body", "charter"}` with `persona` `skeptic` and `persona_body` `.aw/system/workflows/advise/personas/skeptic.md`; `assess.catalog_rows()[0]` has `command` `assess-accessibility`, `harness` `assess`, `member` `accessibility`, `kind` `lens`, and `advise.catalog_rows()[0]` has `command` `advise-architect`, `kind` `persona`; `assess.harness.compiled()["manifest"]["id"]` is `assess` and `advise.harness.compiled()["manifest"]["id"]` is `advise` (this reaches `SharedHarness.compiled` and `_harness_ir` with a falsifiable value).
   - Depends on: E-01
   - Expected outcome: all recovered and added shared-harness tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Rollup tests (`SharedHarnessTests`, recovered): the three confirmed-rollup rows (first-seen order `("security", "bugs")`, de-duplication with cost 2, `None` meaning every live lens with cost equal to the lens count), an unconfirmed rollup raising `RollupConfirmationError`, and an unknown lens raising `InventoryError`. ADD: `plan_rollup(assess, ["security"], confirmed=True, cost_per_member=3).estimated_cost_units` is 3 (the multiplier branch).
+- [x] E-04 Rollup tests (`SharedHarnessTests`, recovered): the three confirmed-rollup rows (first-seen order `("security", "bugs")`, de-duplication with cost 2, `None` meaning every live lens with cost equal to the lens count), an unconfirmed rollup raising `RollupConfirmationError`, and an unknown lens raising `InventoryError`. ADD: `plan_rollup(assess, ["security"], confirmed=True, cost_per_member=3).estimated_cost_units` is 3 (the multiplier branch).
   - Depends on: E-01
   - Expected outcome: all recovered and added rollup tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Plan-review view tests (`PlanReviewCollapseTests`, recovered): the three-row drift table (untampered shows no drift in either view; tampering one view drifts only that view), parity of the one package (`plan_review_parity(...).ok`, `aliases_ok`, `PLAN_REVIEW_ALIAS` in aliases, parity digest equals `views.semantic_digest()`, descriptor carries `takes_argument`), byte-identical recompilation, the `plan_review_views_from_ir` seam matching `compile_plan_review` on both view digests, and `view_digest("no-such-view")` raising `InventoryError`. ADD: `compile_plan_review(FIXTURE_PKG).semantic_digest()` is a 64-character lowercase hex string, equals `workflow_profile.semantic_digest(views.compiled)`, and differs from the `assess` harness digest (every recovered assertion on it compares two calls of the same method, so a constant or `None` return survived the review sweep); and a `PlanReviewViews` built with `dataclasses.replace(views, aliases=())` yields `plan_review_parity(...).aliases_ok` False, `ok` False, and a `reason` containing `expected canonical 'plan-review' with alias 'plan-review-long'` (the failing branch the recovered file never drives); and `compile_plan_review` on an empty `tempfile.TemporaryDirectory()` (the classes are `unittest.TestCase`, which cannot take the pytest `tmp_path` fixture) raises `InventoryError` naming `plan-review package failed to load`.
+- [x] E-05 Plan-review view tests (`PlanReviewCollapseTests`, recovered): the three-row drift table (untampered shows no drift in either view; tampering one view drifts only that view), parity of the one package (`plan_review_parity(...).ok`, `aliases_ok`, `PLAN_REVIEW_ALIAS` in aliases, parity digest equals `views.semantic_digest()`, descriptor carries `takes_argument`), byte-identical recompilation, the `plan_review_views_from_ir` seam matching `compile_plan_review` on both view digests, and `view_digest("no-such-view")` raising `InventoryError`. ADD: `compile_plan_review(FIXTURE_PKG).semantic_digest()` is a 64-character lowercase hex string, equals `workflow_profile.semantic_digest(views.compiled)`, and differs from the `assess` harness digest (every recovered assertion on it compares two calls of the same method, so a constant or `None` return survived the review sweep); and a `PlanReviewViews` built with `dataclasses.replace(views, aliases=())` yields `plan_review_parity(...).aliases_ok` False, `ok` False, and a `reason` containing `expected canonical 'plan-review' with alias 'plan-review-long'` (the failing branch the recovered file never drives); and `compile_plan_review` on an empty `tempfile.TemporaryDirectory()` (the classes are `unittest.TestCase`, which cannot take the pytest `tmp_path` fixture) raises `InventoryError` naming `plan-review package failed to load`.
   - Depends on: E-01
   - Expected outcome: all recovered and added plan-review tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,30 +121,195 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` showing only `tests/test_migration_inventory_shared.py` added; paste `python3 -m pytest --collect-only -q | rg -c test_migration_inventory_shared` showing a nonzero count under the bare (core) selection; paste the bare `python3 -m pytest` summary line showing it passed.
   - Observed evidence:
-  - Result: pending
+    - `git status --short`:
+      ```
+      ?? tests/test_migration_inventory_shared.py
+      ```
+    - `python3 -m pytest --collect-only -q | rg -c test_migration_inventory_shared`:
+      ```
+      1
+      ```
+      (and `python3 -m pytest --collect-only -q | rg test_migration_inventory_shared` outputs `tests/test_migration_inventory_shared.py: 24`).
+    - Bare `python3 -m pytest` / `aw suite` summary:
+      ```
+      984 passed in 29.02s
+      ```
+      (Note: bare `python3 -m pytest` reported `984 passed in 31.88s` with `CORE TIER BUDGET EXCEEDED` under host load average 7.85 on 12 CPUs, tracked under pre-existing release-gated backlog `o58dro`; under `aw suite` with bounded 6 workers: `984 passed in 29.02s` exit 0).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing every `InventoryCompletenessTests` test as PASSED, including the added `to_dict` and failing-result tests; paste the failure produced by scratch-mutating `InventoryResult.ok` to `return bool(self.findings)` and the failure produced by scratch-mutating `Disposition.to_dict` to `return None` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_migration_inventory_shared.py -k InventoryCompletenessTests -o addopts="" -v`:
+      ```
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_an_alias_is_distinguishable_from_an_independent_workflow PASSED [ 16%]
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_the_agent_report_is_machine_readable_json PASSED [ 33%]
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_every_inventory_defect_produces_its_own_named_finding PASSED [ 50%]
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_failing_inventory_result_ok_and_to_dict PASSED [ 66%]
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_the_live_inventorys_shape_is_what_the_plan_claims PASSED [ 83%]
+      tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_disposition_to_dict_and_agent_report_shape PASSED [100%]
+      ======================= 6 passed, 18 deselected in 0.21s =======================
+      ```
+    - Scratch mutation of `InventoryResult.ok` to `return bool(self.findings)`:
+      ```
+      =================================== FAILURES ===================================
+      __ InventoryCompletenessTests.test_the_agent_report_is_machine_readable_json ___
+      ...
+      >       self.assertTrue(obj["ok"], obj.get("findings"))
+      E       AssertionError: False is not true : []
+      ...
+      ___ InventoryCompletenessTests.test_failing_inventory_result_ok_and_to_dict ____
+      ...
+      >       self.assertFalse(failing.ok)
+      E       AssertionError: True is not false
+      =========================== short test summary info ============================
+      FAILED tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_the_agent_report_is_machine_readable_json
+      FAILED tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_failing_inventory_result_ok_and_to_dict
+      ================== 2 failed, 4 passed, 18 deselected in 0.27s ==================
+      ```
+    - Scratch mutation of `Disposition.to_dict` to `return None`:
+      ```
+      =================================== FAILURES ===================================
+      __ InventoryCompletenessTests.test_disposition_to_dict_and_agent_report_shape __
+      ...
+      >       self.assertEqual(
+                  setup_repo.to_dict(),
+      ...
+      E       AssertionError: None != {'subject': 'setup-repo', 'kind': 'comman[302 chars]alse}
+      =========================== short test summary info ============================
+      FAILED tests/test_migration_inventory_shared.py::InventoryCompletenessTests::test_disposition_to_dict_and_agent_report_shape
+      ================== 1 failed, 5 passed, 18 deselected in 0.27s ==================
+      ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every `SharedHarnessTests` harness test as PASSED, including the added unknown-member, persona-fork, contribution and catalog-row tests; paste the failures produced by scratch-mutating `assert_no_lens_fork` to `return None` as its first statement, `HarnessRegistry.register_persona` to skip its `assert_no_lens_fork` call, and `HarnessRegistry.catalog_rows` to `return None` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_migration_inventory_shared.py -k SharedHarnessTests -o addopts="" -v`:
+      ```
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_contribution_redefining_a_reserved_key_is_refused PASSED [ 10%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_registering_a_forking_persona_is_refused_at_registration_time PASSED [ 20%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_an_unconfirmed_rollup_is_refused PASSED [ 30%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_confirmed_rollup_with_custom_cost_multiplier PASSED [ 40%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_registering_a_forking_lens_is_refused_at_REGISTRATION_time PASSED [ 50%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_confirmed_rollup_resolves_its_members_and_quotes_their_cost PASSED [ 60%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_unknown_lens_and_persona_resolution_is_refused PASSED [ 70%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_each_family_resolves_every_member_through_its_ONE_harness PASSED [ 80%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_rollup_naming_an_unknown_lens_is_refused PASSED [ 90%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_member_contributions_catalog_rows_and_compiled_manifest PASSED [100%]
+      ====================== 10 passed, 14 deselected in 0.26s =======================
+      ```
+    - Scratch mutation of `assert_no_lens_fork` to `return None` as first statement:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_registering_a_forking_persona_is_refused_at_registration_time
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_registering_a_forking_lens_is_refused_at_REGISTRATION_time
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_contribution_redefining_a_reserved_key_is_refused
+      ================== 3 failed, 7 passed, 14 deselected in 0.29s ==================
+      ```
+    - Scratch mutation of `HarnessRegistry.register_persona` skipping `assert_no_lens_fork`:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_registering_a_forking_persona_is_refused_at_registration_time
+      ================== 1 failed, 9 passed, 14 deselected in 0.31s ==================
+      ```
+    - Scratch mutation of `HarnessRegistry.catalog_rows` returning `None`:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_member_contributions_catalog_rows_and_compiled_manifest
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_each_family_resolves_every_member_through_its_ONE_harness
+      ================== 2 failed, 8 passed, 14 deselected in 0.29s ==================
+      ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing every rollup test as PASSED; paste the failure produced by scratch-mutating `plan_rollup` to remove its `if not confirmed: raise ...` gate (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_migration_inventory_shared.py -k "rollup" -o addopts="" -v`:
+      ```
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_rollup_naming_an_unknown_lens_is_refused PASSED [ 25%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_a_confirmed_rollup_resolves_its_members_and_quotes_their_cost PASSED [ 50%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_an_unconfirmed_rollup_is_refused PASSED [ 75%]
+      tests/test_migration_inventory_shared.py::SharedHarnessTests::test_confirmed_rollup_with_custom_cost_multiplier PASSED [100%]
+      ======================= 4 passed, 20 deselected in 0.23s =======================
+      ```
+    - Scratch mutation of `plan_rollup` removing `if not confirmed: raise ...` gate:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::SharedHarnessTests::test_an_unconfirmed_rollup_is_refused
+      ================== 1 failed, 3 passed, 20 deselected in 0.87s ==================
+      ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` output listing every `PlanReviewCollapseTests` test as PASSED, including the added parity-failure, load-failure and digest-value tests; paste the failures produced by scratch-mutating `detect_view_drift` to negate its return and `plan_review_parity` to set `aliases_ok = True` unconditionally (each reverted afterwards); paste the failure produced by scratch-mutating `PlanReviewViews.semantic_digest` to `return None`; paste the per-key reach listing from Required tests (25 keys, nonzero executed lines, `missing_lines` empty except the one documented `plan_review_parity` line); paste a final empty `git diff agent_workflows/` and a `git status --short` showing no `.coverage` or other scratch file.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_migration_inventory_shared.py -k PlanReviewCollapseTests -o addopts="" -v`:
+      ```
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_semantic_digest_conforms_to_format_and_workflow_profile PASSED [ 12%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_a_tampered_view_drifts_and_only_that_view_drifts PASSED [ 25%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_one_package_yields_both_names_sharing_the_digest_and_the_arguments PASSED [ 37%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_compile_plan_review_raises_on_empty_directory PASSED [ 50%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_an_unknown_view_name_is_refused PASSED [ 62%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_the_from_ir_seam_produces_the_same_views_as_compiling PASSED [ 75%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_recompiling_the_same_package_is_byte_identical PASSED [ 87%]
+      tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_plan_review_parity_reports_failure_when_aliases_missing PASSED [100%]
+      ======================= 8 passed, 16 deselected in 0.35s =======================
+      ```
+    - Scratch mutation of `detect_view_drift` to negate return:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_recompiling_the_same_package_is_byte_identical
+      FAILED tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_a_tampered_view_drifts_and_only_that_view_drifts
+      ================== 2 failed, 6 passed, 16 deselected in 0.39s ==================
+      ```
+    - Scratch mutation of `plan_review_parity` setting `aliases_ok = True` unconditionally:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_plan_review_parity_reports_failure_when_aliases_missing
+      ================== 1 failed, 7 passed, 16 deselected in 0.40s ==================
+      ```
+    - Scratch mutation of `PlanReviewViews.semantic_digest` returning `None`:
+      ```
+      FAILED tests/test_migration_inventory_shared.py::PlanReviewCollapseTests::test_semantic_digest_conforms_to_format_and_workflow_profile
+      ================== 1 failed, 7 passed, 16 deselected in 0.88s ==================
+      ```
+    - Per-key reach listing from `cov.json` across all 25 keys:
+      ```
+      _harness_ir: executed=2, missing=[]
+      HarnessRegistry.catalog_rows: executed=7, missing=[]
+      plan_rollup: executed=16, missing=[]
+      build_assess_harness: executed=9, missing=[]
+      plan_review_parity: executed=13, missing=[1163]
+      build_advise_harness: executed=9, missing=[]
+      Disposition.to_dict: executed=1, missing=[]
+      _plan_review_views_from_ir: executed=5, missing=[]
+      PlanReviewViews.view_digest: executed=6, missing=[]
+      InventoryResult.to_dict: executed=1, missing=[]
+      LensModule.contribution: executed=1, missing=[]
+      assert_no_lens_fork: executed=3, missing=[]
+      PersonaModule.contribution: executed=1, missing=[]
+      compile_plan_review: executed=5, missing=[]
+      HarnessRegistry.register_lens: executed=2, missing=[]
+      HarnessRegistry.register_persona: executed=2, missing=[]
+      HarnessRegistry.resolve_lens: executed=3, missing=[]
+      HarnessRegistry.resolve_persona: executed=3, missing=[]
+      render_agent_report: executed=2, missing=[]
+      InventoryResult.ok: executed=1, missing=[]
+      PlanReviewViews.semantic_digest: executed=1, missing=[]
+      SharedHarness.compiled: executed=1, missing=[]
+      SharedHarness.semantic_digest: executed=1, missing=[]
+      detect_view_drift: executed=1, missing=[]
+      plan_review_views_from_ir: executed=1, missing=[]
+      ```
+    - Final empty `git diff agent_workflows/`:
+      ```
+      $ git diff agent_workflows/
+      (empty)
+      ```
+    - `git status --short`:
+      ```
+      $ git status --short
+      ?? tests/test_migration_inventory_shared.py
+      ```
+  - Result: pass
 
 ## Approval and execution gate
 
