@@ -3010,3 +3010,56 @@ Census of tests exceeding 2.0s call duration in warm full suite runs (total: 610
 | `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_in_root_tracked_records` | 5.40s | Integration boundary validation under multi-process environment |
 | `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_completely_clean_target` | 2.86s | Integration boundary validation under multi-process environment |
 | `tests/test_work_begin_plan_path_outside_root.py::TestWorkBeginPlanPathOutsideRoot::test_plan_path_outside_root_local_only` | 3.69s | Integration boundary validation under multi-process environment |
+
+
+## vgus66 Verification and Regression Proof (Finalization)
+
+### Classification Counts per Category
+- **Total Test Modules**: 589
+- **Total Retained Tests Collected**: 8,622 (down from 9,801 baseline, net reduction: -1,179 tests, -12.0%)
+- **Structure-Pin Deletions (`tv72xy`)**: 85 tests deleted across 26 modules (all in categories `structure`, `name-shape`, `arch-freeze`).
+- **Consolidation into Parameterized/Accumulate Tests (`83nnyn`)**: 20 modules consolidated (966 test cases folded into compact accumulate/matrix tables with zero lost lines or arcs).
+- **In-Process Optimization & Slow-Test Census (`c8bfp9`)**: 109 test files converted/optimized, 0 deletions, 610 slow tests censused and justified.
+- **Verification and Regression Proof (`vgus66`)**: 20 sampled mutations executed and verified (0 survived, all caught by retained tests; 2 defect-citing structure pins excluded as not-applicable), 3 randomized runs clean (0 flakes).
+
+### Tests Kept Despite Matching Delete/Redundancy Criterion
+Tests having zero unique statements and zero unique branches in the per-test coverage matrix that were retained with compelling behavioral justifications:
+1. **Behavioral Contract Guards**: Tests asserting specific CLI error messages, exit codes, or user-facing diagnostics (e.g. `tests/test_usage_refusal_agent_record.py` leaf-command refusal checks). While the underlying CLI dispatch lines are exercised by other integration tests, these tests guard user contract stability.
+2. **Subprocess and Conformance Matrix Tests**: Conformance tests in `tests/test_live_conformance_sweep.py` and `tests/conformance_matrix.py` asserting format compliance across machine output modes (`--json`, `--agent`, `--fields`).
+3. **Cross-Process & Concurrency Contention**: Tests in `tests/test_suite_slot_lock.py` and `tests/test_concurrent_driver_guard.py` verifying multi-process coordination, watchdog timeouts, and file locks where code paths overlap but timing behaviors are distinct.
+4. **Parameter Boundary Invariants**: Tests in `tests/test_statusline_stop_tally.py` and `tests/test_statusline_ascii_mode.py` sweeping all badge combinations to verify box-drawing rectangularity and pure ASCII encoding across all states.
+
+### Flake Dispositions
+Three full test runs of all 8,622 tests with `pytest-randomly` enabled using distinct seeds:
+- Run 1 (seed=101161): 8611 passed, 5 skipped, 2 xfailed, 4 xpassed in 699.87s
+- Run 2 (seed=20261017): 8611 passed, 5 skipped, 2 xfailed, 4 xpassed in 663.17s
+- Run 3 (seed=839201): 8611 passed, 5 skipped, 2 xfailed, 4 xpassed in 681.42s
+- **Flake Dispositions**: Zero flakes detected (0 failures across all 3 randomized runs).
+
+### Mutation Spot-Check Results (IPD vgus66 E-05)
+| ID | Child | Node ID | Production Symbol | Mutation | Original Fails | Retained Fails | Revert Verified |
+|---|---|---|---|---|---|---|---|
+| mut-01 | 83nnyn | `tests/test_descriptive_refusal_hoist.py::test_all_five_routes_match_frozen_table_for_nonempty_verbs` | `attention_contract.refuse_unsafe_descriptive` | Invert newline check | Yes (FAILED) | Yes (`test_refuse_unsafe_descriptive_accumulate_table`) | Yes (clean) |
+| mut-02 | 83nnyn | `tests/test_group_verb_policy.py::test_group_setid_refusal` | `config.check_setid_length_policy` | Bypass max_length check | Yes (FAILED) | Yes (`test_group_setid_refusal`) | Yes (clean) |
+| mut-03 | 83nnyn | `tests/test_oc_runipd.py::HeartbeatFormattingTests::test_heartbeat_idle_formatting_over_60s` | `render_stream.format_compact_duration` | Mutate minute format string | Yes (FAILED) | Yes (`HeartbeatFormattingTests::test_heartbeat_idle_formatting`) | Yes (clean) |
+| mut-04 | 83nnyn | `tests/test_runs_repo_alias.py::test_dir_control_parses_to_dir_attr` | `cli._build_parser.runs_sub` | Alter dest argument to `dir_other` | Yes (FAILED) | Yes (`test_dir_control_parses_to_dir_attr`) | Yes (clean) |
+| mut-05 | 83nnyn | `tests/test_statusline_ascii_mode.py::TestStatuslineAsciiModePurity::test_format_statusline_lines_ascii_purity_swept_states` | `render_stream.format_statusline_lines` | Emit Unicode corner in ASCII mode | Yes (FAILED) | Yes (`test_format_statusline_lines_ascii_purity_swept_states`) | Yes (clean) |
+| mut-06 | 83nnyn | `tests/test_statusline_stop_tally.py::TestStatuslineStopTallyRendering::test_statusline_rectangular_with_badges` | `render_stream.format_statusline_lines` | Off-by-one in bottom padding | Yes (FAILED) | Yes (`test_statusline_rectangular_with_badges`) | Yes (clean) |
+| mut-07 | 83nnyn | `tests/test_usage_refusal_agent_record.py::test_required_arg_leaf_agent_mode` | `renderers.emit_usage_refusal` | Mutate status to `failed` | Yes (FAILED) | Yes (`test_required_arg_leaf_modes`) | Yes (clean) |
+| mut-08 | 83nnyn | `tests/test_usage_refusal_agent_record.py::test_required_arg_leaf_json_mode` | `renderers.emit_usage_refusal` | Mutate exit_code to 3 | Yes (FAILED) | Yes (`test_required_arg_leaf_modes`) | Yes (clean) |
+| mut-09 | c8bfp9 | `tests/test_agent_checked_count.py::HumanCheckedCountTests::test_research_check_refs_reports_files_on_dangling_tree` | `research_refs.run_check_refs` | Mutate message prefix `in` vs `across` | Yes (FAILED) | Yes (`test_research_check_refs_reports_files_on_dangling_tree`) | Yes (clean) |
+| mut-10 | c8bfp9 | `tests/test_attention_degraded_item.py::AttentionDegradedItemTests::test_board_renders_degraded_item_under_blocked` | `attention.render_board` | Mutate header marker `#` vs `##` | Yes (FAILED) | Yes (`test_board_renders_degraded_item_under_blocked`) | Yes (clean) |
+| mut-11 | c8bfp9 | `tests/test_attention_degraded_item.py::AttentionDegradedItemTests::test_paths_flag_prints_degraded_path` | `attention.run_attention_command` | Omit writing path on `--paths` | Yes (FAILED) | Yes (`test_paths_flag_prints_degraded_path`) | Yes (clean) |
+| mut-12 | c8bfp9 | `tests/test_attention_degraded_item.py::AttentionDegradedItemTests::test_safety_property_no_false_release_blocker` | `attention.scan` | Assign false `blocks_release` | Yes (FAILED) | Yes (`test_safety_property_no_false_release_blocker`) | Yes (clean) |
+| mut-13 | c8bfp9 | `tests/test_check_severity_tally.py::CheckSeverityTallyTests::test_exit_code_independence` | `artifact_core.drift_exit_code` | Force exit 0 on error drift | Yes (FAILED) | Yes (`test_exit_code_independence`) | Yes (clean) |
+| mut-14 | c8bfp9 | `tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_nonexistent_and_file_and_state_only` | `project_context.diagnose_project_search_failure` | Alter error string | Yes (FAILED) | Yes (`test_attention_explicit_dir_nonexistent_and_file_and_state_only`) | Yes (clean) |
+| mut-15 | c8bfp9 | `tests/test_handoff_ready_gate.py::TestBacklogSetterSubprocess::test_both_spellings_refuse_identically_on_not_ready_and_write_nothing` | `check_engine.evaluate_handoff_ready` | Mutate code `missing-handoff` | Yes (FAILED) | Yes (`test_both_spellings_refuse_identically_on_not_ready_and_write_nothing`) | Yes (clean) |
+| mut-16 | c8bfp9 | `tests/test_handoff_ready_gate.py::TestPredicateUnit::test_ready_case_1_ready_set_with_passing_orchestrator` | `check_engine.evaluate_handoff_ready` | Return `ready=False` | Yes (FAILED) | Yes (`test_ready_case_1_ready_set_with_passing_orchestrator`) | Yes (clean) |
+| mut-17 | c8bfp9 | `tests/test_handoff_ready_gate.py::TestProductionAndIsolation::test_isolated_lane_graduates_against_lane_plans_with_separate_gate_dir` | `status_set.run_set_command` | Pass `gate_root` instead of `repo_root` | Yes (FAILED) | Yes (`test_isolated_lane_graduates_against_lane_plans_with_separate_gate_dir`) | Yes (clean) |
+| mut-18 | c8bfp9 | `tests/test_spec_setter_refuses_when_handoff_is_not_ready` | `status_set.run_set_command` | Bypass `not handoff_res.ready` check | Yes (FAILED) | Yes (`test_spec_setter_refuses_when_handoff_is_not_ready`) | Yes (clean) |
+| mut-19 | c8bfp9 | `tests/test_spec_setter_succeeds_when_handoff_is_ready` | `status_set.run_set_command` | Force `not handoff_res.ready` refusal | Yes (FAILED) | Yes (`test_spec_setter_succeeds_when_handoff_is_ready`) | Yes (clean) |
+| mut-20 | c8bfp9 | `tests/test_index_write_agent_records.py::IndexWriteSubprocessTests::test_unsupported_type_specs` | `cli._run_noun_verb` | Change status `failed` vs `cannot-run` | Yes (FAILED) | Yes (`test_unsupported_type_specs`) | Yes (clean) |
+
+#### Excluded Defect-Citing Tests (tv72xy Structure Pins)
+- `tests/test_orchestrator_retirement.py::OrchestratorRetirementRowAuditAndHonestRecord::` (citing `kjqqzf`): Structure-pin deletion asserting internal structure of retirement audit. Excluded as not-applicable per E-04/E-05 (refactor/structure pin, no production behavioral change).
+- `tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::` (citing `1fzist`): Structure-pin deletion asserting constant length `len(VERIFY_ABSENCE_CODES) == 4`. Excluded as not-applicable per E-04/E-05 (internal constant census).
