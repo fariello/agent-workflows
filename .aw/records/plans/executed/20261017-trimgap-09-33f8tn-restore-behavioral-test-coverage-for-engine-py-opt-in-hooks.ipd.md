@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_engine_restored_behavior.py`, that drives the 12 keys through their public call surfaces (or, for the two private helpers with no cheaper public surface, through their nearest public caller) and asserts on real return values, written files and file contents. The 12 keys: `create_dependency_gate_hook`, `create_precommit_scope_gate_hook`, `create_prepush_authorization_gate_hook`, `_wire_optin_precommit_hook` (reached through the two `create_*_gate_hook` wrappers that delegate to it), `_merge_tree` (reached through `migrate_local_lanes_to_untracked`), `validate_shim_grammar`, `is_stale_shim_customized`, `is_shim_customized`, `is_shim_customized_vs_expected`, `_shim_is_user_modified`, `agents_pointer_block`, `agents_managed_block`. EXCLUDES any change to `agent_workflows/engine.py` or any other production file, EXCLUDES editing or un-slowing `tests/test_installer.py`, and EXCLUDES the 8 `budget-exhausted` engine keys (`prune_stale`, `migrate_local_lanes_to_untracked` as its own key, `create_setup_artifacts`, `classify_git_state`, `resolve_source_root`, `shim_body`, `strip_description_and_normalize`, `_ensure_untracked_gitignore`), which belong to backlog item `lrnh5f`.
 - Scope-Paths: tests/test_engine_restored_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 33f8tn
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 33f8tn verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-trimgap-09-33f8tn-restore-behavioral-test-coverage-for-engine-py-opt-in-hooks.review.md
 
@@ -35,35 +35,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: new behavioral test module
 
-- [ ] E-01 Create `tests/test_engine_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.engine` and `agent_workflows.manifest`, and `SOURCE_WORKFLOWS` from `tests.support`. Use `tmp_path` only, and `use_git=False` for every hook-wiring call, so the module spawns no subprocess and runs in well under one second. Add a module docstring naming backlog `7df9md`, findings `b1mx2w`, and the deleted source files `tests/test_command_shims.py` and `tests/test_comms.py` at `19313eed^`.
+- [x] E-01 Create `tests/test_engine_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.engine` and `agent_workflows.manifest`, and `SOURCE_WORKFLOWS` from `tests.support`. Use `tmp_path` only, and `use_git=False` for every hook-wiring call, so the module spawns no subprocess and runs in well under one second. Add a module docstring naming backlog `7df9md`, findings `b1mx2w`, and the deleted source files `tests/test_command_shims.py` and `tests/test_comms.py` at `19313eed^`.
   - Depends on: none
   - Expected outcome: the file exists, is collected by a bare `python3 -m pytest` (it carries the `core` marker), and imports cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a parametrized test over the three opt-in hook installers, `engine.create_dependency_gate_hook`, `engine.create_precommit_scope_gate_hook` and `engine.create_prepush_authorization_gate_hook`, each paired with its hook id (`ipd-dependency-statement-gate`, `aw-precommit-scope-gate`, `aw-prepush-authorization-gate`). For each, assert, in a fresh `tmp_path` per case: (a) OPT-OUT: `install=False` returns `{"created": [], "skipped": [], "notes": []}` and no `.pre-commit-config.yaml` exists; (b) DRY-RUN with no config: `install=True, dry_run=True` writes nothing and returns a note containing `would create .pre-commit-config.yaml` and the hook id; (c) FRESH CREATE: `install=True` returns `created == [".pre-commit-config.yaml"]` and the file contains the hook id and parses as YAML with a top-level `repos` list; (d) IDEMPOTENT: a second `install=True` returns `skipped` naming `already wired`, and the file is byte-identical to after (c); (e) NO-CLOBBER APPEND: with a pre-existing user config `repos:\n  - repo: https://example.invalid/user-hook\n    rev: v1\n    hooks:\n      - id: user-hook\n`, `install=True` returns a note starting `appended the`, the user's original text survives as a prefix of the new file, and the result still parses as YAML whose flattened hook-id list (`[h["id"] for r in doc["repos"] for h in r["hooks"]]`) is exactly `["user-hook", <hook id>]` (so the new hook appears once). Do NOT count raw-text occurrences of the hook id: the `ipd-dependency-statement-gate` block names its id twice (in `id:` and in `entry:`), so a raw substring count is 2 even on a correct fresh create (measured at review); (f) DRY-RUN APPEND: on the same kind of pre-existing config, `dry_run=True` returns a `would append` note and the file is byte-unchanged. The two `create_*_gate_hook` wrappers that delegate to `_wire_optin_precommit_hook` are what reach that private helper.
+- [x] E-02 Add a parametrized test over the three opt-in hook installers, `engine.create_dependency_gate_hook`, `engine.create_precommit_scope_gate_hook` and `engine.create_prepush_authorization_gate_hook`, each paired with its hook id (`ipd-dependency-statement-gate`, `aw-precommit-scope-gate`, `aw-prepush-authorization-gate`). For each, assert, in a fresh `tmp_path` per case: (a) OPT-OUT: `install=False` returns `{"created": [], "skipped": [], "notes": []}` and no `.pre-commit-config.yaml` exists; (b) DRY-RUN with no config: `install=True, dry_run=True` writes nothing and returns a note containing `would create .pre-commit-config.yaml` and the hook id; (c) FRESH CREATE: `install=True` returns `created == [".pre-commit-config.yaml"]` and the file contains the hook id and parses as YAML with a top-level `repos` list; (d) IDEMPOTENT: a second `install=True` returns `skipped` naming `already wired`, and the file is byte-identical to after (c); (e) NO-CLOBBER APPEND: with a pre-existing user config `repos:\n  - repo: https://example.invalid/user-hook\n    rev: v1\n    hooks:\n      - id: user-hook\n`, `install=True` returns a note starting `appended the`, the user's original text survives as a prefix of the new file, and the result still parses as YAML whose flattened hook-id list (`[h["id"] for r in doc["repos"] for h in r["hooks"]]`) is exactly `["user-hook", <hook id>]` (so the new hook appears once). Do NOT count raw-text occurrences of the hook id: the `ipd-dependency-statement-gate` block names its id twice (in `id:` and in `entry:`), so a raw substring count is 2 even on a correct fresh create (measured at review); (f) DRY-RUN APPEND: on the same kind of pre-existing config, `dry_run=True` returns a `would append` note and the file is byte-unchanged. The two `create_*_gate_hook` wrappers that delegate to `_wire_optin_precommit_hook` are what reach that private helper.
   - Depends on: E-01
   - Expected outcome: 3 parametrized cases, each asserting the six behaviors above, pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a test of `engine.migrate_local_lanes_to_untracked` that reaches `_merge_tree` through its collision branch: in `tmp_path`, create both `.aw/records/comms/local/` and `.aw/records/comms/untracked/`, with `local/inbox/a.md` (unique), `local/inbox/b.md` = `OLD`, `untracked/inbox/b.md` = `NEW`, and a nested `local/inbox/deep/c.md` (unique, in a directory absent from `untracked`). Call `migrate_local_lanes_to_untracked(tmp_path, {})` and assert: the return value contains `.aw/records/comms/untracked`; `untracked/inbox/a.md` and `untracked/inbox/deep/c.md` now exist with their original contents; `untracked/inbox/b.md` still reads `NEW` (no clobber); `local/inbox/b.md` still exists reading `OLD` (the collided file is left behind, not deleted); and the emptied `local/inbox/deep/` directory no longer exists. Add a second case with no collision (only `local/` present, containing one file) asserting `local/` is gone, `untracked/` holds the file, and a second call is a no-op that leaves the file in place.
+- [x] E-03 Add a test of `engine.migrate_local_lanes_to_untracked` that reaches `_merge_tree` through its collision branch: in `tmp_path`, create both `.aw/records/comms/local/` and `.aw/records/comms/untracked/`, with `local/inbox/a.md` (unique), `local/inbox/b.md` = `OLD`, `untracked/inbox/b.md` = `NEW`, and a nested `local/inbox/deep/c.md` (unique, in a directory absent from `untracked`). Call `migrate_local_lanes_to_untracked(tmp_path, {})` and assert: the return value contains `.aw/records/comms/untracked`; `untracked/inbox/a.md` and `untracked/inbox/deep/c.md` now exist with their original contents; `untracked/inbox/b.md` still reads `NEW` (no clobber); `local/inbox/b.md` still exists reading `OLD` (the collided file is left behind, not deleted); and the emptied `local/inbox/deep/` directory no longer exists. Add a second case with no collision (only `local/` present, containing one file) asserting `local/` is gone, `untracked/` holds the file, and a second call is a no-op that leaves the file in place.
   - Depends on: E-01
   - Expected outcome: both merge cases pass, demonstrating non-clobbering recursive merge, emptied-directory removal, and idempotency.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add shim-grammar tests mined from the deleted `CommandShimsTests.test_validate_shim_grammar_positive_for_dispatcher_and_aliases` and `test_validate_shim_grammar_negative_cases` (at `19313eed^:tests/test_command_shims.py`). POSITIVE: with `workflows = engine.parse_manifest(SOURCE_WORKFLOWS)`, `engine.validate_shim_grammar(engine.aw_dispatcher_shim(workflows, tool, target_layout=layout), tool)` is True for every `tool` in (`opencode`, `claude`) and `layout` in (`aw`, `legacy`); and every non-README member of `engine.generate_shim_members(workflows, SOURCE_WORKFLOWS, target_layout="aw")` validates for its tool (`claude` when the path starts with `.claude`, else `opencode`), with the member set asserted non-empty so the loop cannot pass vacuously. NEGATIVE, one parametrized row each, each asserting False: empty string; whitespace only; unknown tool name; missing opening fence; missing closing fence; no `description:`; OpenCode without `agent:`; Claude with `agent: build`; no workflow-body reference; Claude `argument-hint:` with no `$ARGUMENTS`; `$ARGUMENTS` without the `If the user provided arguments` clause. ONE DEFECT PER ROW AGAINST A VALID CONTROL: build each negative row (other than empty, whitespace, and unknown tool) by applying exactly one defect to one of these minimal fixtures, each of which the test also asserts is True (all four measured True at review): `OC = "---\ndescription: test\nagent: build\n---\nRead and execute @.aw/system/workflows/verify/verify.md.\n"` (tool `opencode`); `CL` = `OC` without the `agent: build` line (tool `claude`); `CL_HINT` = `CL` with `argument-hint: "[args]"` added to the front matter and `If the user provided arguments, use them: $ARGUMENTS` appended to the body (tool `claude`); `OC_ARGS` = `OC` with that same arguments line appended (tool `opencode`). The `argument-hint` row drops the arguments line from `CL_HINT`; the `$ARGUMENTS`-without-clause row replaces the arguments line in `OC_ARGS` with `Just args $ARGUMENTS`. The MISSING CLOSING FENCE row must remove the SECOND `---` line (for example `"\n".join(l for i, l in enumerate(OC.splitlines()) if i != 3)`); do NOT restore the deleted test's `valid_oc.replace("---\n", "", 1)` input for this row, because that removes the FIRST fence and so duplicates the missing-opening-fence row while leaving the closing-fence branch of `validate_shim_grammar` unguarded (measured at review: the resulting text starts with `description:`). Restore the other deleted inputs verbatim where they match this shape.
+- [x] E-04 Add shim-grammar tests mined from the deleted `CommandShimsTests.test_validate_shim_grammar_positive_for_dispatcher_and_aliases` and `test_validate_shim_grammar_negative_cases` (at `19313eed^:tests/test_command_shims.py`). POSITIVE: with `workflows = engine.parse_manifest(SOURCE_WORKFLOWS)`, `engine.validate_shim_grammar(engine.aw_dispatcher_shim(workflows, tool, target_layout=layout), tool)` is True for every `tool` in (`opencode`, `claude`) and `layout` in (`aw`, `legacy`); and every non-README member of `engine.generate_shim_members(workflows, SOURCE_WORKFLOWS, target_layout="aw")` validates for its tool (`claude` when the path starts with `.claude`, else `opencode`), with the member set asserted non-empty so the loop cannot pass vacuously. NEGATIVE, one parametrized row each, each asserting False: empty string; whitespace only; unknown tool name; missing opening fence; missing closing fence; no `description:`; OpenCode without `agent:`; Claude with `agent: build`; no workflow-body reference; Claude `argument-hint:` with no `$ARGUMENTS`; `$ARGUMENTS` without the `If the user provided arguments` clause. ONE DEFECT PER ROW AGAINST A VALID CONTROL: build each negative row (other than empty, whitespace, and unknown tool) by applying exactly one defect to one of these minimal fixtures, each of which the test also asserts is True (all four measured True at review): `OC = "---\ndescription: test\nagent: build\n---\nRead and execute @.aw/system/workflows/verify/verify.md.\n"` (tool `opencode`); `CL` = `OC` without the `agent: build` line (tool `claude`); `CL_HINT` = `CL` with `argument-hint: "[args]"` added to the front matter and `If the user provided arguments, use them: $ARGUMENTS` appended to the body (tool `claude`); `OC_ARGS` = `OC` with that same arguments line appended (tool `opencode`). The `argument-hint` row drops the arguments line from `CL_HINT`; the `$ARGUMENTS`-without-clause row replaces the arguments line in `OC_ARGS` with `Just args $ARGUMENTS`. The MISSING CLOSING FENCE row must remove the SECOND `---` line (for example `"\n".join(l for i, l in enumerate(OC.splitlines()) if i != 3)`); do NOT restore the deleted test's `valid_oc.replace("---\n", "", 1)` input for this row, because that removes the FIRST fence and so duplicates the missing-opening-fence row while leaving the closing-fence branch of `validate_shim_grammar` unguarded (measured at review: the resulting text starts with `description:`). Restore the other deleted inputs verbatim where they match this shape.
   - Depends on: E-01
   - Expected outcome: 4 positive dispatcher combinations, the full generated alias set, and 11 negative rows pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add shim-customization tests. (a) `engine.is_shim_customized` and `engine.is_stale_shim_customized` return False for the generated OpenCode and Claude dispatcher shims and for every generated alias shim, and return True for the same dispatcher shim with an appended hand-written line (for example `my own extra instruction`), for content lacking any `Read and execute @...` line, and False for empty content (`is_stale_shim_customized("")`). (b) `engine.is_shim_customized_vs_expected(x, x)` is False; it stays False when only the `description:` line differs; it is True when a body line is added. (c) `engine._shim_is_user_modified` across its three regimes, building `engine.InstallPlan(source_root=SOURCE_WORKFLOWS, repo_root=tmp_path, dry_run=True, backup=False, prune=False, manifest=...)` (the dataclass is frozen, so pass `manifest` at construction): NO MANIFEST: a generated shim is NOT modified and foreign text IS modified; MANIFEST WITH A RECORDED HASH: choose rows where the hash answer DISAGREES with the structural answer, otherwise removing the manifest branch would leave every row green. Record FOREIGN text (for example `manifest.Manifest().record(rel, "foreign text\n")`); then on-disk content equal to that recorded foreign text is NOT modified (structural fallback alone would say modified), and the generated Claude dispatcher shim on disk under that same `rel` IS modified because it differs from the recorded hash (structural fallback alone would say not modified). Both measured at review: `False` and `True` respectively, against fallback answers `True` and `False`. MANIFEST WITHOUT AN ENTRY for the path: falls back to the structural answer (generated NOT modified, foreign IS modified).
+- [x] E-05 Add shim-customization tests. (a) `engine.is_shim_customized` and `engine.is_stale_shim_customized` return False for the generated OpenCode and Claude dispatcher shims and for every generated alias shim, and return True for the same dispatcher shim with an appended hand-written line (for example `my own extra instruction`), for content lacking any `Read and execute @...` line, and False for empty content (`is_stale_shim_customized("")`). (b) `engine.is_shim_customized_vs_expected(x, x)` is False; it stays False when only the `description:` line differs; it is True when a body line is added. (c) `engine._shim_is_user_modified` across its three regimes, building `engine.InstallPlan(source_root=SOURCE_WORKFLOWS, repo_root=tmp_path, dry_run=True, backup=False, prune=False, manifest=...)` (the dataclass is frozen, so pass `manifest` at construction): NO MANIFEST: a generated shim is NOT modified and foreign text IS modified; MANIFEST WITH A RECORDED HASH: choose rows where the hash answer DISAGREES with the structural answer, otherwise removing the manifest branch would leave every row green. Record FOREIGN text (for example `manifest.Manifest().record(rel, "foreign text\n")`); then on-disk content equal to that recorded foreign text is NOT modified (structural fallback alone would say modified), and the generated Claude dispatcher shim on disk under that same `rel` IS modified because it differs from the recorded hash (structural fallback alone would say not modified). Both measured at review: `False` and `True` respectively, against fallback answers `True` and `False`. MANIFEST WITHOUT AN ENTRY for the path: falls back to the structural answer (generated NOT modified, foreign IS modified).
   - Depends on: E-01
   - Expected outcome: all customization assertions pass; each of the three `_shim_is_user_modified` regimes has at least one True and one False row, and the recorded-hash regime's rows disagree with `is_stale_shim_customized` on the same content.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add managed-block tests, mined from the deleted `PointerBlockTests.test_agents_block_has_check_inbox_clause` (`19313eed^:tests/test_comms.py`). (a) `engine.agents_pointer_block()` starts with `engine.AGENTS_BEGIN`, ends with `engine.AGENTS_END` plus a newline, and contains `.agents/comms/untracked/inbox/` and `UNTRUSTED`; `agents_pointer_block(target_layout="aw")` contains `.aw/records/comms/untracked/inbox/` instead. (b) `engine.agents_managed_block(target_layout="aw")` has first line `<!-- aw:block -->` and last line `<!-- /aw:block -->`, contains the `aw:pointer` and `aw:reporting` section openers in that order, does NOT contain the legacy `AGENTS_BEGIN` marker, and is stable when rendered twice (equal output). Do not assert on any other prose wording: these assertions are the observable contract a consumer (the installer and uninstaller) parses, not text pinning.
+- [x] E-06 Add managed-block tests, mined from the deleted `PointerBlockTests.test_agents_block_has_check_inbox_clause` (`19313eed^:tests/test_comms.py`). (a) `engine.agents_pointer_block()` starts with `engine.AGENTS_BEGIN`, ends with `engine.AGENTS_END` plus a newline, and contains `.agents/comms/untracked/inbox/` and `UNTRUSTED`; `agents_pointer_block(target_layout="aw")` contains `.aw/records/comms/untracked/inbox/` instead. (b) `engine.agents_managed_block(target_layout="aw")` has first line `<!-- aw:block -->` and last line `<!-- /aw:block -->`, contains the `aw:pointer` and `aw:reporting` section openers in that order, does NOT contain the legacy `AGENTS_BEGIN` marker, and is stable when rendered twice (equal output). Do not assert on any other prose wording: these assertions are the observable contract a consumer (the installer and uninstaller) parses, not text pinning.
   - Depends on: E-01
   - Expected outcome: pointer-block and managed-block assertions pass for both layouts.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,35 +129,148 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat` showing only `tests/test_engine_restored_behavior.py` added; paste the bare `python3 -m pytest` summary line showing it passed with the new module's tests included (for example via `python3 -m pytest --collect-only -q | rg test_engine_restored_behavior | wc -l` being nonzero) and the core-tier wall time under budget.
   - Observed evidence:
-  - Result: pending
+    `git diff --stat --no-index /dev/null tests/test_engine_restored_behavior.py`:
+    ```
+     .../null => tests/test_engine_restored_behavior.py | 434 +++++++++++++++++++++
+     1 file changed, 434 insertions(+)
+    ```
+    `python3 -m pytest --collect-only -q tests/test_engine_restored_behavior.py`:
+    ```
+    tests/test_engine_restored_behavior.py: 22
+    ```
+    `aw suite` (bare core-tier test suite):
+    ```
+    775 passed in 28.38s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing the three parametrized hook cases as PASSED, and paste the mutation spot-check failure produced by disabling the `hook_id in existing` idempotency check in `_wire_optin_precommit_hook` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    Three parametrized cases passed:
+    ```
+    tests/test_engine_restored_behavior.py::test_optin_hook_installer[dependency_gate] PASSED [ 27%]
+    tests/test_engine_restored_behavior.py::test_optin_hook_installer[prepush_authorization_gate] PASSED [ 31%]
+    tests/test_engine_restored_behavior.py::test_optin_hook_installer[precommit_scope_gate] PASSED [ 50%]
+    ```
+    Mutation spot-check failure (`_wire_optin_precommit_hook` idempotency disabled):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_optin_hook_installer[precommit_scope_gate]
+    FAILED tests/test_engine_restored_behavior.py::test_optin_hook_installer[prepush_authorization_gate]
+    ================== 2 failed, 1 passed, 19 deselected in 0.39s ==================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing both lane-merge cases as PASSED, and paste the failure produced by mutating `_merge_tree` to move a file even when `dest.exists()` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    Both lane-merge cases passed:
+    ```
+    tests/test_engine_restored_behavior.py::test_migrate_local_lanes_collision_preserves_old_and_moves_uniques PASSED [ 72%]
+    tests/test_engine_restored_behavior.py::test_migrate_local_lanes_no_collision_idempotent PASSED [ 95%]
+    ```
+    Mutation spot-check failure (`_merge_tree` moving file when `dest.exists()`):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_migrate_local_lanes_collision_preserves_old_and_moves_uniques
+    E   AssertionError: assert 'OLD' == 'NEW'
+    E     - NEW
+    E     + OLD
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing the positive cases and all 11 negative rows as PASSED, and the failure produced by making `validate_shim_grammar` return True immediately (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    Positive cases and all 11 negative rows passed:
+    ```
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_positive PASSED [100%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[empty_string] PASSED [ 22%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[whitespace_only] PASSED [ 13%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[unknown_tool] PASSED [ 90%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[missing_opening_fence] PASSED [  9%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[missing_closing_fence] PASSED [ 63%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[no_description] PASSED [ 54%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[opencode_without_agent] PASSED [ 45%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[claude_with_agent] PASSED [ 77%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[no_workflow_body_reference] PASSED [ 86%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[claude_argument_hint_without_arguments] PASSED [ 68%]
+    tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[arguments_without_clause] PASSED [ 81%]
+    ```
+    Mutation spot-check failure (`validate_shim_grammar` returning True early):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[whitespace_only]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[unknown_tool]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[missing_opening_fence]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[opencode_without_agent]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[claude_argument_hint_without_arguments]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[claude_with_agent]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[no_description]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[missing_closing_fence]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[no_workflow_body_reference]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[empty_string]
+    FAILED tests/test_engine_restored_behavior.py::test_validate_shim_grammar_negative[arguments_without_clause]
+    ====================== 11 failed, 11 deselected in 0.45s =======================
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` output listing the customization tests, including all three `_shim_is_user_modified` regimes, as PASSED; the failure produced by making `is_stale_shim_customized` return False immediately; and the failure produced by deleting the `if manifest is not None and manifest.recorded_hash(...)` branch of `_shim_is_user_modified` so it always returns the structural answer (both reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    Customization tests passed:
+    ```
+    tests/test_engine_restored_behavior.py::test_is_shim_customized_predicates PASSED [ 59%]
+    tests/test_engine_restored_behavior.py::test_is_shim_customized_vs_expected PASSED [ 36%]
+    tests/test_engine_restored_behavior.py::test_shim_is_user_modified_three_regimes PASSED [ 40%]
+    ```
+    Mutation spot-check failure (`is_stale_shim_customized` returning False):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_is_shim_customized_predicates
+    E       assert False is True
+    ```
+    Mutation spot-check failure (`_shim_is_user_modified` manifest branch deleted):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_shim_is_user_modified_three_regimes
+    E       assert True is False
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the `-v` output listing the pointer-block and managed-block tests as PASSED, the 12 per-function `percent_covered` values from the Reach command in Required tests (each greater than 0), the failure produced by making `agents_managed_block` return `""` (reverted afterwards), and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+    Pointer-block and managed-block tests passed:
+    ```
+    tests/test_engine_restored_behavior.py::test_agents_pointer_block PASSED [ 18%]
+    tests/test_engine_restored_behavior.py::test_agents_managed_block PASSED [  4%]
+    ```
+    12 per-function `percent_covered` values from Reach:
+    ```
+    create_dependency_gate_hook: 95.83333333333333%
+    create_precommit_scope_gate_hook: 100.0%
+    create_prepush_authorization_gate_hook: 100.0%
+    _wire_optin_precommit_hook: 95.65217391304348%
+    _merge_tree: 100.0%
+    validate_shim_grammar: 100.0%
+    is_stale_shim_customized: 92.3076923076923%
+    is_shim_customized: 100.0%
+    is_shim_customized_vs_expected: 100.0%
+    _shim_is_user_modified: 100.0%
+    agents_pointer_block: 100.0%
+    agents_managed_block: 100.0%
+    ```
+    Mutation spot-check failure (`agents_managed_block` returning `""`):
+    ```
+    FAILED tests/test_engine_restored_behavior.py::test_agents_managed_block
+    E   IndexError: list index out of range
+    ```
+    Final git diff agent_workflows/:
+    ```
+    $ git diff agent_workflows/
+    (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

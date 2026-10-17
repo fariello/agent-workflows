@@ -1,5 +1,5 @@
 - Id: 7df9md
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for engine
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD 33f8tn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-09-33f8tn-restore-behavioral-test-coverage-for-engine-py-opt-in-hooks.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-09-33f8tn-restore-behavioral-test-coverage-for-engine-py-opt-in-hooks.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053744Z-500206: 33f8tn
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for engine
 
