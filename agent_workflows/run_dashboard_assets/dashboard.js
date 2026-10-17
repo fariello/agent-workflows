@@ -684,8 +684,6 @@
     const r = h('button', { class: 'btn', type: 'button' }, 'Reset');
     r.addEventListener('click', () => { S = clone(DEFAULT); render(); });
     TOP.appendChild(r);
-    const c = h('a', { class: 'btn', href: 'report.html', style: 'text-decoration:none' }, 'Classic report');
-    TOP.appendChild(c);
   }
   function renderTabs() {
     TABBAR.innerHTML = '';
@@ -834,12 +832,12 @@
     ['tool_calls', 'Tools (median)'], ['t_read', 'Reads'], ['t_edit', 'Edits'], ['t_shell', 'Shell'],
     ['error_rate', 'Tool err %'], ['cost_sum', 'Total cost'], ['tok_sum', 'Total tokens'],
   ];
-  function matrix(rows, dim, limit) {
+  function matrix(rows, dim, limit, opts) {
     const g = topGroups(rows, dim, limit || 30);
     const data = [];
-    g.forEach((list, key) => {
+    const summarize = (list, key) => {
       const known = list.filter((r) => r.outcome !== 'unknown');
-      data.push({
+      return {
         key: key, rows: list, n: list.length,
         success: known.length ? share(known, (r) => r.outcome === 'success') : null,
         total_tokens: agg(list, 'total_tokens', 'median').v,
@@ -855,8 +853,12 @@
         error_rate: agg(list, 'error_rate', 'sum').v,
         cost_sum: agg(list, 'cost', 'sum').v,
         tok_sum: agg(list, 'total_tokens', 'sum').v,
-      });
-    });
+      };
+    };
+    g.forEach((list, key) => data.push(summarize(list, key)));
+    // The TOTAL row is computed over every row in the selection, not by adding up the group cells:
+    // a sum of medians is not a median, so medians and rates are re-derived for the whole set.
+    const total = opts && opts.total ? summarize(rows, 'Total') : null;
     const fmts = { n: 'num', success: 'pct', total_tokens: 'tok', output: 'tok', cost: 'usd', usd_per_mtok: 'usd', wall: 'dur', steps: 'num', tool_calls: 'num', t_read: 'num', t_edit: 'num', t_shell: 'num', error_rate: 'pct', cost_sum: 'usd', tok_sum: 'tok' };
     const max = {};
     MATRIX_COLS.forEach((c) => { max[c[0]] = Math.max.apply(null, data.map((d) => d[c[0]] || 0).concat([0])); });
@@ -875,6 +877,11 @@
       hd += '</tr>';
     });
     hd += '</tbody>';
+    if (total) {
+      hd += '<tfoot><tr class="total"><td>Total (all ' + esc(DIMS[dim] ? DIMS[dim].label.toLowerCase() : dim) + 's)</td>';
+      MATRIX_COLS.forEach((c) => { hd += '<td class="num">' + esc(fmt(total[c[0]], fmts[c[0]])) + '</td>'; });
+      hd += '</tr></tfoot>';
+    }
     t.innerHTML = hd;
     const w = h('div', { class: 'tablewrap' });
     w.appendChild(t);
@@ -910,7 +917,7 @@
     g.appendChild(p3);
     MAIN.appendChild(g);
     const p4 = panel('Stage summary');
-    p4.appendChild(matrix(CUR, 'stage'));
+    p4.appendChild(matrix(CUR, 'stage', 30, { total: true }));
     MAIN.appendChild(p4);
   };
 
@@ -1393,8 +1400,62 @@
     ['t_edit', 'Edits', 'num'], ['t_shell', 'Shell', 'num'], ['tool_errors', 'Errors', 'num'],
   ];
   const PAGE = 100;
+  // Queue ITEMS (one per plan per run), including items with no session at all.
+  const ITEMS_RAW = RAW.items || {};
+  const ITEMS = [];
+  (ITEMS_RAW.run || []).forEach((_, i) => {
+    const it = {};
+    for (const k in ITEMS_RAW) it[k] = ITEMS_RAW[k][i];
+    ITEMS.push(it);
+  });
+  const END_LABEL = { ok: 'Completed OK', failed: 'Ended in a fail state', 'not-completed': 'Not completed' };
+  const END_HELP = {
+    ok: 'executed, reviewed, approved (or already landed / retired)',
+    failed: 'ran and ended failed: fail-gate, fail-verify, blocked, partial, substantially-complete, merge refused...',
+    'not-completed': 'never finished: still queued or running, interrupted, not run, or blocked on a dependency',
+  };
+  // An item counts when its run, plan and set pass the CURRENT filters. Session-only facets
+  // (model, stage, outcome...) cannot apply to an item with no session, so an item is kept when
+  // ANY of its sessions passes them, or when it has none and no such facet is set.
+  function itemEnds() {
+    const sessKeys = new Set(CUR_SESS.map((r) => r.run + '|' + r.id6));
+    const itemDims = ['set', 'id6', 'host', 'action'];
+    const sessionFacetSet = Object.keys(S.f).some((d) => S.f[d] && S.f[d].length && itemDims.indexOf(d) < 0);
+    const counts = { ok: 0, failed: 0, 'not-completed': 0 };
+    const kept = [];
+    ITEMS.forEach((it) => {
+      for (const d of itemDims) { const v = S.f[d]; if (v && v.length && v.indexOf(String(it[d] || '(none)')) < 0) return; }
+      if (S.from && (!it.date || it.date < S.from)) return;
+      if (S.to && (!it.date || it.date > S.to)) return;
+      if (S.q && (it.run + ' ' + it.set + ' ' + it.id6).toLowerCase().indexOf(S.q.toLowerCase()) < 0) return;
+      if (sessionFacetSet && !sessKeys.has(it.run + '|' + it.id6)) return;
+      counts[it.end] = (counts[it.end] || 0) + 1;
+      kept.push(it);
+    });
+    return { counts: counts, kept: kept };
+  }
+  function itemEndPanel() {
+    const res = itemEnds();
+    const total = res.kept.length;
+    const p = panel('How the queue items ended', 'One count per plan per run (its final status after every attempt). Items that never got an attempt are included, so this can exceed the attempt count.');
+    const kp = h('div', { class: 'kpis' });
+    ['ok', 'failed', 'not-completed'].forEach((k) => {
+      const d = h('div', { class: 'kpi end-' + k, 'data-tip': END_HELP[k] });
+      d.innerHTML = '<div class="k">' + esc(END_LABEL[k]) + '</div><div class="v">' + res.counts[k].toLocaleString() + '</div><div class="s">' + fmt(total ? res.counts[k] / total : null, 'pct') + ' of ' + total.toLocaleString() + ' items</div>';
+      kp.appendChild(d);
+    });
+    p.appendChild(kp);
+    const st = {};
+    res.kept.forEach((it) => { if (it.end !== 'ok') { const k = it.end + '|' + (it.status || '(none)'); st[k] = (st[k] || 0) + 1; } });
+    const keys = Object.keys(st).sort((a, b) => st[b] - st[a]);
+    if (keys.length) {
+      p.appendChild(h('div', { class: 'hint' }, 'Statuses: ' + keys.map((k) => { const sp = k.split('|'); return esc(sp[1]) + ' ' + st[k] + ' (' + esc(sp[0] === 'failed' ? 'fail' : 'not completed') + ')'; }).join(', ')));
+    }
+    return p;
+  }
   VIEWS.table = function () {
     const c = S.tb;
+    MAIN.appendChild(itemEndPanel());
     const p = panel(null);
     const hdr = h('div', { class: 'row' });
     hdr.appendChild(h('h2', { style: 'margin:0;flex:1' }, esc(S.grain === 'session' ? 'Sessions' : S.grain === 'attempt' ? 'Attempts' : 'Plan runs')));

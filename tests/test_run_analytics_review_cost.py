@@ -629,3 +629,55 @@ class RunStartRecordingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ItemEndStateTests(unittest.TestCase):
+    """Queue items are classified completed-OK / failed / not-completed from their final status."""
+
+    def test_classification(self) -> None:
+        cases = {
+            "executed": "ok",
+            "reviewed": "ok",
+            "approved": "ok",
+            "already-landed": "ok",
+            "fail-gate": "failed",
+            "fail-verify": "failed",
+            "blocked": "failed",
+            "partial": "failed",
+            "substantially-complete": "failed",
+            "merge-refused": "failed",
+            "queued": "not-completed",
+            "running": "not-completed",
+            "interrupted": "not-completed",
+            "dependency-blocked": "not-completed",
+            "fail-depend": "not-completed",
+            "": "not-completed",
+        }
+        for status, want in cases.items():
+            self.assertEqual(dash.item_end_state(status), want, status)
+
+    def test_payload_carries_every_queue_item_including_unattempted(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            run = _review_run(Path(td) / "runs", "run-20260910T000000Z-items")
+            state = json.loads((run / "state.json").read_text())
+            state["queue"][1]["status"] = "fail-gate"
+            state["queue"].append(
+                {
+                    "id6": "cccccc",
+                    "action": "execute",
+                    "status": "queued",
+                    "attempts": [],
+                }
+            )
+            (run / "state.json").write_text(json.dumps(state))
+            rows, info = dash.collect_rows([run], cache_path=None)
+            payload = dash.build_payload(rows, info)
+            ends = dict(zip(payload["items"]["id6"], payload["items"]["end"]))
+            self.assertEqual(
+                ends, {"aaaaaa": "ok", "bbbbbb": "failed", "cccccc": "not-completed"}
+            )
+            self.assertNotIn("items", payload["info"])
+            # Session rows carry their item's end state too.
+            self.assertEqual(
+                {r["item_end"] for r in rows if r["id6"] == "bbbbbb"}, {"failed"}
+            )

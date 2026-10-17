@@ -134,3 +134,23 @@ table.t th.sorted.asc::after { content: " \25B4"; }
 table.t.tk th.grp { text-align: center; border-left: 1px solid var(--line); }
 table.t.tk td.gs { border-left: 1px solid var(--line); }
 table.t.tk thead tr:nth-child(2) th { top: 27px; }
+
+/* Item end-state cards (Sessions tab). */
+.kpi.end-ok .v { color: var(--good); }
+.kpi.end-failed .v { color: var(--bad); }
+.kpi.end-not-completed .v { color: var(--warn); }
+table.t tfoot td { position: sticky; bottom: 0; background: var(--panel); font-weight: 650;
+  border-top: 2px solid var(--line); border-bottom: 0; }
+
+/* Thin, theme-colored scrollbars instead of the system default. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+:root { --scroll: rgba(102, 112, 133, .38); --scroll-hover: rgba(102, 112, 133, .62); }
+@media (prefers-color-scheme: dark) {
+  :root { --scroll: rgba(152, 162, 179, .30); --scroll-hover: rgba(152, 162, 179, .55); }
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 10px;
+  border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-hover); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }

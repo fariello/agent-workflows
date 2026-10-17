@@ -204,8 +204,8 @@ and unattributed time separately, so overlapping intervals are never double coun
 
 ## Analyses that REFUSE, and why a refusal is the right answer
 
-Some analyses come back `cannot-determine` with an observed sample size, and the report renders those
-as a first-class refusal panel rather than as an empty chart. This is deliberate. An empty chart reads
+Some analyses come back `cannot-determine` with an observed sample size, and `aw runs query` returns
+that refusal (exit 2, with the observed n) rather than a number. This is deliberate. An empty chart reads
 as "we measured zero", which is a stronger and falser claim than silence; omitting the analysis is
 indistinguishable from an oversight; and plotting the three points that do exist is a fabrication.
 
@@ -298,9 +298,8 @@ that a static scan of the document finds zero network references. What was NOT t
 any particular browser engine, so treat "works offline" as a property of the bundle rather than a
 promise about your browser.
 
-Large corpora degrade gracefully rather than hanging: the payload is stored columnar and compressed,
-plotted series are pre-binned so DOM node count does not grow with row count, and the raw data view
-paginates.
+Large corpora stay usable: the data is embedded once as columns, the dashboard draws charts from
+grouped values rather than one element per row, and the session table pages 100 rows at a time.
 
 ## Sharing data: export tiers and what each one really contains
 
@@ -388,9 +387,9 @@ pair every scan with a control proving the scan can fail.
 | `aw runs analyze --path` exits 2 | no report published yet; run `aw runs analyze` first |
 | a run is reported skipped | that run's inputs were unreadable or its entry was contended; rerun, and if it persists inspect that run directory |
 | every run rebuilds each time | the runs are not terminal (still live or resumable), which is correct behavior, not a cache failure |
-| a chart is a refusal panel instead of a chart | the analysis was under-powered; check the reported n |
+| a query refuses with `cannot-determine`, or a dashboard median shows `-` | the group is under-powered; check the reported n |
 | a cost is absent | the provider recorded none and no price entry covers that model; absence is deliberate, not an error |
-| the report opens but is unstyled | the packaged browser assets are missing from your install; reinstall the package |
+| the dashboard opens but is unstyled | the packaged browser assets are missing from your install; reinstall the package |
 | numbers changed with no code change | the corpus changed; the cache is derived from the run directories and they are mutable |
 
 ## Compatibility

@@ -57,6 +57,8 @@ __all__ = [
 
 DASHBOARD_SCHEMA_VERSION = 8
 ASSETS_DIRNAME = "run_dashboard_assets"
+#: The browser assets the dashboard inlines; packaging tests assert each ships in wheel and sdist.
+REQUIRED_ASSETS: tuple[str, ...] = ("dashboard.css", "dashboard.js")
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"
 
@@ -676,6 +678,32 @@ _FAIL = {
 }
 
 
+#: Item END STATES for "how did the queue items finish": completed OK, ended in a failure state, or
+#: never completed. Keyed on the queue item's final ``status`` (the runner's verdict for the item,
+#: after every attempt), not on one attempt's disposition.
+_ITEM_OK = frozenset({"executed", "reviewed", "approved", "already-landed", "retired"})
+_ITEM_NOT_COMPLETED = frozenset(
+    {"queued", "running", "not-run", "interrupted", "dependency-blocked", "fail-depend"}
+)
+
+
+def item_end_state(status: str | None) -> str:
+    """``ok``, ``failed`` or ``not-completed`` for a queue item's final status.
+
+    ``not-completed`` is an item the run never finished: still queued or running when the run ended,
+    interrupted, not run, or blocked on an unmet dependency (it never got its turn). Every other
+    terminal status that is not a clean success (``fail-*``, ``blocked``, ``partial``,
+    ``substantially-complete``, merge refusals) is ``failed``: the item ran and ended in a fail state.
+    """
+
+    s = (status or "").strip()
+    if s in _ITEM_OK:
+        return "ok"
+    if not s or s in _ITEM_NOT_COMPLETED:
+        return "not-completed"
+    return "failed"
+
+
 def _outcome(disposition: str | None, role: str, verification: str | None) -> str:
     """Collapse the many dispositions into success / partial / failed / unknown for comparison."""
 
@@ -1213,6 +1241,7 @@ def collect_rows(
         cpath = Path(cache_path) if cache_path else None
     cache = _StatsCache(cpath)
     rows: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     live: set[str] = set()
     runs_without_state = 0
     total = len(run_dirs)
@@ -1253,6 +1282,36 @@ def collect_rows(
         run_ctx = _run_context(run_dir, state)
         first_row = len(rows)
         queue = state.get("queue") if isinstance(state.get("queue"), list) else []
+        # One record per QUEUE ITEM, including items that never got an attempt (and so have no
+        # session row): those are exactly the items a run did not complete.
+        run_date = (
+            _dt.datetime.fromtimestamp(run_start, _dt.timezone.utc).strftime("%Y-%m-%d")
+            if run_start
+            else ""
+        )
+        for item in queue:
+            if not isinstance(item, Mapping):
+                continue
+            n_att = len(
+                [
+                    a
+                    for a in (item.get("attempts") or [])
+                    if isinstance(a, Mapping) and a.get("number")
+                ]
+            )
+            items.append(
+                {
+                    "run": run_id,
+                    "id6": str(item.get("id6") or ""),
+                    "set": str(item.get("setid") or ""),
+                    "action": str(item.get("action") or "execute"),
+                    "status": str(item.get("status") or ""),
+                    "end": item_end_state(item.get("status")),
+                    "attempts": n_att,
+                    "host": host,
+                    "date": run_date,
+                }
+            )
         by_item_attempt: dict[tuple[str, int], dict[str, Any]] = {}
         by_item_attempt_att: dict[tuple[str, int], Mapping[str, Any]] = {}
         for item in queue:
@@ -1285,6 +1344,7 @@ def collect_rows(
                     "disposition": str(disposition or "(none)"),
                     "verification": str(verification or ""),
                     "item_status": str(item.get("status") or ""),
+                    "item_end": item_end_state(item.get("status")),
                     "host": host,
                     "model": main_model,
                     "model_source": main_model_source,
@@ -1368,6 +1428,7 @@ def collect_rows(
                     "disposition": "(none)",
                     "verification": "",
                     "item_status": "",
+                    "item_end": "not-completed",
                     "host": host,
                     "model": synth_model,
                     "model_source": synth_source,
@@ -1425,6 +1486,7 @@ def collect_rows(
         "sessions": len(live),
         "cache_hits": cache.hits,
         "cache_misses": cache.misses,
+        "items": items,
     }
     return rows, info
 
@@ -1449,6 +1511,7 @@ COLUMNS: tuple[str, ...] = (
         "outcome",
         "verification",
         "item_status",
+        "item_end",
         "host",
         "model",
         "model_source",
@@ -1542,11 +1605,24 @@ def build_payload(
                     names.append(name)
                 row_sparse.extend((index[name], int(n)))
             out.append(row_sparse)
+    item_list = list(info.get("items") or [])
+    item_cols = (
+        "run",
+        "id6",
+        "set",
+        "action",
+        "status",
+        "end",
+        "attempts",
+        "host",
+        "date",
+    )
     return {
         "schema": DASHBOARD_SCHEMA_VERSION,
         "generated_label": generated_label,
         "generated_at": generated_at,
-        "info": dict(info),
+        "info": {k: v for k, v in info.items() if k != "items"},
+        "items": {c: [it.get(c) for it in item_list] for c in item_cols},
         "n": len(rows),
         "columns": cols,
         "tool_names": tool_names,
@@ -1575,6 +1651,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "outcome",
     "verification",
     "item_status",
+    "item_end",
     "host",
     "model",
     "model_source",
@@ -1638,7 +1715,7 @@ def attempt_facts_jsonl(
             {
                 "record": "header",
                 "schema": ATTEMPT_FACTS_SCHEMA_VERSION,
-                "info": dict(info),
+                "info": {k: v for k, v in info.items() if k != "items"},
             },
             sort_keys=True,
         )
@@ -1671,7 +1748,7 @@ def render_dashboard(
 ) -> str:
     """The whole self-contained dashboard document. Refuses to return one with a network reference."""
 
-    from agent_workflows import run_analytics_spa as spa
+    from agent_workflows import run_analytics_html as spa
 
     data = spa.escape_json_for_script(
         json.dumps(payload, separators=(",", ":"), sort_keys=True)
@@ -1682,12 +1759,14 @@ def render_dashboard(
         '<meta name="referrer" content="no-referrer">\n'
         f"<title>{spa.escape_text(title)}</title>\n"
         f"<style>{_asset('dashboard.css')}</style>\n</head>\n<body>\n"
-        '<div id="app"><noscript>This dashboard needs JavaScript. The classic report is '
-        '<a href="report.html">report.html</a>.</noscript></div>\n'
+        '<div id="app"><noscript>This dashboard needs JavaScript. The same data is available '
+        'without it through <code>aw runs query</code>.</noscript></div>\n'
         f'<script type="application/json" id="dash-data">{data}</script>\n'
         f"<script>{_asset('dashboard.js')}</script>\n</body>\n</html>\n"
     )
     violations = spa.scan_for_network_references(doc)
     if violations:
-        raise spa.SpaError(f"dashboard contains network references: {violations}")
+        raise spa.HtmlSafetyError(
+            f"dashboard contains network references: {violations}"
+        )
     return doc

@@ -2,7 +2,7 @@
 
 Asserts packaging properties that the existing ship-vs-dev wheel guard does not reach:
 1. Browser assets: positive, per-asset presence and non-emptiness in both wheel and sdist.
-2. Honesty guard: REQUIRED_BROWSER_ASSETS kept honest against run_analytics_spa declarations.
+2. Honesty guard: REQUIRED_BROWSER_ASSETS kept honest against run_dashboard declarations.
 3. Measured-hazard arm: probe demonstration that hatchling silently drops gitignored assets.
 4. Sdist distribution contents: sdist allowlist carries browser assets, analytics/layout modules,
    and the bundled system data tree.
@@ -28,15 +28,16 @@ from pathlib import Path
 from tests.support import REPO_ROOT
 
 #: The browser assets that MUST ship, named explicitly.
-#: Kept honest against run_analytics_spa by test_declared_assets_match_the_module.
+#: Kept honest against run_dashboard by test_declared_assets_match_the_module.
 REQUIRED_BROWSER_ASSETS = (
-    "agent_workflows/run_analytics_assets/app.css",
-    "agent_workflows/run_analytics_assets/app.js",
+    "agent_workflows/run_dashboard_assets/dashboard.css",
+    "agent_workflows/run_dashboard_assets/dashboard.js",
 )
 
 #: Protected analytics and layout modules that must ship in both distributions (PR-001).
 PROTECTED_MODULES = (
-    "agent_workflows/run_analytics_spa.py",
+    "agent_workflows/run_dashboard.py",
+    "agent_workflows/run_analytics_html.py",
     "agent_workflows/run_analytics_report.py",
     "agent_workflows/layout_migration.py",
     "agent_workflows/layout_inventory.py",
@@ -111,7 +112,7 @@ class WheelPackagingDistributionTests(unittest.TestCase):
             f"browser asset(s) missing from the wheel: {missing}. A gitignored or "
             f"out-of-package asset is dropped SILENTLY by hatchling at exit 0, so this positive "
             f"assertion is the only thing that catches it. Present assets: "
-            f"{[n for n in self.names if 'run_analytics_assets' in n]}",
+            f"{[n for n in self.names if 'run_dashboard_assets' in n]}",
         )
 
     def test_wheel_browser_assets_are_non_empty(self):
@@ -136,8 +137,8 @@ class WheelPackagingDistributionTests(unittest.TestCase):
         )
 
     def test_declared_assets_match_the_module(self):
-        """E-02: Honesty guard ensuring REQUIRED_BROWSER_ASSETS matches run_analytics_spa."""
-        from agent_workflows.run_analytics_spa import ASSETS_DIRNAME, REQUIRED_ASSETS
+        """E-02: Honesty guard ensuring REQUIRED_BROWSER_ASSETS matches run_dashboard."""
+        from agent_workflows.run_dashboard import ASSETS_DIRNAME, REQUIRED_ASSETS
 
         expected = {
             f"agent_workflows/{ASSETS_DIRNAME}/{name}" for name in REQUIRED_ASSETS
@@ -148,7 +149,7 @@ class WheelPackagingDistributionTests(unittest.TestCase):
         self.assertEqual(
             declared,
             expected,
-            f"REQUIRED_BROWSER_ASSETS out of sync with run_analytics_spa module! "
+            f"REQUIRED_BROWSER_ASSETS out of sync with run_dashboard module! "
             f"Missing from test: {diff_missing}, Unexpected in test: {diff_extra}",
         )
         print(f"honesty guard verified: declared={declared}, expected={expected}")
@@ -277,7 +278,7 @@ class SdistPackagingDistributionTests(unittest.TestCase):
             [],
             f"browser asset(s) missing from the sdist: {missing}. The sdist `include` is an "
             f"explicit allowlist, so an asset outside /agent_workflows is absent even when the "
-            f"wheel carries it. Present: {[n for n in self.names if 'run_analytics_assets' in n]}",
+            f"wheel carries it. Present: {[n for n in self.names if 'run_dashboard_assets' in n]}",
         )
         print(f"sdist browser assets verified: {REQUIRED_BROWSER_ASSETS}")
 

@@ -16,7 +16,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import run_analytics_cli as analytics_cli
-from agent_workflows import run_analytics_spa as spa
+from agent_workflows import run_analytics_html as spa
 from agent_workflows import run_dashboard as dash
 from agent_workflows import verifier_corroboration as vc
 
@@ -394,7 +394,7 @@ class AnalyzePublishesDashboardTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_bundle_has_dashboard_and_classic_report(self) -> None:
+    def test_bundle_has_dashboard_and_no_classic_report(self) -> None:
         args = argparse.Namespace(
             dir=str(self.repo),
             path=False,
@@ -417,16 +417,18 @@ class AnalyzePublishesDashboardTests(unittest.TestCase):
         latest = self.runs / "analytics" / "latest"
         index = (latest / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="dash-data"', index)
-        self.assertTrue((latest / analytics_cli.CLASSIC_REPORT_FILENAME).is_file())
+        self.assertFalse((latest / "report.html").exists())
         manifest = json.loads((latest / "manifest.json").read_text(encoding="utf-8"))
         names = {f["name"] for f in manifest["files"]}
-        self.assertTrue({"index.html", "report.html", "analysis.json"} <= names)
+        self.assertTrue({"index.html", "attempts.jsonl", "analysis.json"} <= names)
+        self.assertNotIn("report.html", names)
+        self.assertNotIn("report.html", index)
         m = re.search(r'id="dash-data">(.*?)</script>', index, re.DOTALL)
         assert m is not None
         data = json.loads(m.group(1))
         self.assertEqual(data["n"], 4)
 
-    def test_dashboard_failure_falls_back_to_classic(self) -> None:
+    def test_dashboard_failure_publishes_a_named_failure_page(self) -> None:
         from unittest import mock
 
         from agent_workflows import run_dashboard
@@ -436,7 +438,9 @@ class AnalyzePublishesDashboardTests(unittest.TestCase):
             run_dashboard, "collect_rows", side_effect=RuntimeError("x")
         ):
             docs = analytics_cli._bundle_documents(self.repo, [], generated_label="t")
-        self.assertEqual(docs["index.html"], docs["report.html"])
+        self.assertNotIn("report.html", docs)
+        self.assertIn("RuntimeError: x", docs["index.html"])
+        self.assertIn("aw runs query", docs["index.html"])
         self.assertNotIn(run_dashboard.ATTEMPT_FACTS_FILENAME, docs)
 
 

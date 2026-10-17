@@ -114,7 +114,7 @@ class BundleFile:
     """ONE file in the bundle: its name, its bytes, and its digest.
 
     Bytes rather than a source path, deliberately. The caller has already rendered the document in
-    memory (see :func:`agent_workflows.run_analytics_spa.render_document`), and reading it back from
+    memory (see :func:`agent_workflows.run_dashboard.render_dashboard`), and reading it back from
     a staging path would introduce a window in which the bytes on disk and the bytes in the manifest
     could differ.
     """
@@ -489,7 +489,7 @@ def verify_bundle(directory: Path | str) -> list[str]:
     """Every discrepancy between a bundle and its manifest. Empty means sound.
 
     Returns the FINDINGS so a failure names what is wrong, which is the same reason
-    :func:`~agent_workflows.run_analytics_spa.scan_for_network_references` returns matches.
+    :func:`~agent_workflows.run_analytics_html.scan_for_network_references` returns matches.
     """
 
     root = Path(directory).expanduser()
