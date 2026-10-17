@@ -6,7 +6,7 @@
 - Scope: Change only the CLI-layer rendering in `run_cli._emit_not_a_ledger` so the message is composed from the repo-relative path plus `exc.detail`, in both human and machine modes; leave `NotALedgerError` (store layer, which has no repo root) unchanged. Add behavioral regression tests driving the real CLI.
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_runs_machine_output_paths.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: aan0nv
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: aan0nv verified (set kv7tj0, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (review record `.aw/records/reviews/20261017-kv7tj0-01-aan0nv-render-the-aw-runs-not-a-ledger-refusal-message-with-a-repo.review.md`)
 
