@@ -57,6 +57,7 @@ shown before anything is unlinked.
 | `aw runs analyze --list` | no | list published artifacts and the cache summary |
 | `aw runs analyze --rebuild` | yes | discard cached entries and recompute |
 | `aw runs analyze --keep-snapshot LABEL` | yes | also publish an immutable labeled snapshot |
+| `aw runs analyze --since WHEN --until WHEN` | yes | publish a report covering only runs started in that window |
 | `aw runs query <view>` | no | structured facts, findings and refusals |
 | `aw runs export` | only with `--apply` | build an inspectable, tiered bundle |
 | `aw runs submit` | writes a local receipt | would transmit a bundle; refuses today |
@@ -67,6 +68,47 @@ so asking where the report is never triggers a sweep.
 Exit codes are the same three everywhere in this feature: 0 the work completed, 1 a domain finding
 (for example a sweep that completed but skipped a run it could not read), 2 cannot-run (a usage error,
 a disallowed query, or a refused slice).
+
+## Limiting the dates a report covers
+
+`--since` and `--until` restrict a sweep to runs that STARTED inside a window. Each accepts a date
+(`2026-10-01`), a timestamp (`2026-10-01T06:00:00Z`), or a relative span (`30d`, `2w`, `6m`), the
+same grammar `aw runs --since` uses. `--since` is inclusive. A bare date given to `--until` includes
+that whole day, so `--since 2026-10-01 --until 2026-10-31` is all of October; a full timestamp is used
+exactly. A window that ends before it starts is refused (exit 2) and nothing is published.
+
+A run's start comes from its `state.json` `created_at`, or from the timestamp in its directory name.
+A run with neither cannot be placed in a window, so when a window is set it is left out and the count
+of such runs is reported, rather than being kept or dropped silently.
+
+With a window (or explicit run targets) BOTH documents in the bundle cover only the selected runs, and
+the dashboard header states the window. Without one, the report covers every run, as before. The
+dashboard also has its own date range and quick ranges (last 7, 30 or 90 days, latest month) in the
+side panel, which narrow the view further without re-running anything; those quick ranges count back
+from the newest day in the data, not from today.
+
+## Tokens and cost in the dashboard
+
+The dashboard's **Tokens and cost** tab shows each kind of token on its own:
+
+- **In + out**: input plus output, the tokens the model actually processed fresh.
+- **Input**: uncached prompt tokens.
+- **Output**: generated tokens.
+- **Cached**: tokens read from the prompt cache.
+- **Cache writes**: tokens written to the cache.
+- **Total**: all of the above.
+
+For each you can choose any of count, total, average, median and p90, shown for the whole selection
+and split by a dimension. The default split is **Agent**, meaning the host and model together (for
+example `oc / claude-opus`); any other dimension, such as model, stage or week, works too. The unit
+selector at the top switches every figure between per session, per plan attempt and per plan run.
+
+Costs appear beside the counts. The total is the cost the host recorded. Hosts record one cost per
+step, not one per token kind, so the per-kind costs are APPORTIONED: the recorded cost is split in
+proportion to each kind's token count times the price in effect that day, and the parts always add up
+to the recorded total. Sessions with no recorded cost (all Antigravity sessions today) get no split
+rather than an invented one. Cache writes and reasoning tokens have no known price, so they are counted
+but never priced. Each session row also carries these values in the CSV download.
 
 ## The agent surface
 

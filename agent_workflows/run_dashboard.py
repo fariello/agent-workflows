@@ -566,6 +566,68 @@ def _resolve_log(run_dir: Path, value: Any) -> Path | None:
     return raw if raw.is_file() else None
 
 
+def _agent_label(host: str, model: str) -> str:
+    """The AGENT a row belongs to: which host ran which model, as one groupable label.
+
+    A model id alone pools the same model across OpenCode and Antigravity, and a host alone pools
+    every model a host ran; "agent" is the pair, which is what a maintainer means when comparing
+    agents. An unrecorded model already carries its host (``(unrecorded, oc)``), so it is not
+    repeated.
+    """
+
+    host = host or "unknown"
+    model = model or UNRECORDED
+    if model.startswith("(unrecorded"):
+        return model
+    return "{0} / {1}".format(host, model)
+
+
+def split_cost(
+    cost: float | None,
+    *,
+    input_tokens: float,
+    output_tokens: float,
+    cache_read_tokens: float,
+    at: float | None,
+) -> tuple[dict[str, float | None], str]:
+    """Split a RECORDED session cost into input / output / cache-read parts.
+
+    Returns ``(parts, method)``. Host logs record ONE cost per step, never a per-component one, so
+    the split is an APPORTIONMENT: each component is weighted by its token count times the rate of
+    the price era covering ``at`` (``run_analytics_pricing.MEASURED_SCHEDULE``), and the weights are
+    scaled so the parts sum EXACTLY to the recorded cost. The recorded total is never altered.
+
+    NO RECORDED COST, NO SPLIT. A row without a recorded cost (every Antigravity row, which reports
+    none) returns ``None`` parts and method ``none`` rather than an estimate priced at another
+    model's rates. Cache WRITES carry no rate column (measured zero in the corpus), so they never
+    receive a share; reasoning tokens likewise have no recoverable rate.
+    """
+
+    empty: dict[str, float | None] = {
+        "cost_input": None,
+        "cost_output": None,
+        "cost_cache_read": None,
+    }
+    if cost is None or at is None:
+        return empty, "none"
+    from agent_workflows import run_analytics_pricing as pricing
+
+    instant = _dt.datetime.fromtimestamp(at, _dt.timezone.utc)
+    era = pricing.MEASURED_SCHEDULE.era_for(instant=instant)
+    if era is None:
+        return empty, "none"
+    rates = era.rates
+    weights = {
+        "cost_input": max(0.0, input_tokens) * rates.input_per_mtok,
+        "cost_output": max(0.0, output_tokens) * rates.output_per_mtok,
+        "cost_cache_read": max(0.0, cache_read_tokens) * rates.cache_read_per_mtok,
+    }
+    total = sum(weights.values())
+    if total <= 0:
+        return empty, "none"
+    return {k: cost * w / total for k, w in weights.items()}, "apportioned"
+
+
 def _row_from_stats(
     base: Mapping[str, Any],
     stats: Mapping[str, Any],
@@ -612,8 +674,20 @@ def _row_from_stats(
     )
     cats = stats.get("categories") or {}
     cmds = stats.get("commands") or {}
+    parts, split_method = split_cost(
+        cost,
+        input_tokens=inp,
+        output_tokens=out,
+        cache_read_tokens=cread,
+        at=start if start is not None else base.get("run_start"),
+    )
+    row.update(parts)
     row.update(
         {
+            "agent": _agent_label(
+                str(base.get("host") or ""), str(base.get("model") or "")
+            ),
+            "cost_split": split_method,
             "input": inp,
             "output": out,
             "reasoning": rsn,
@@ -871,10 +945,15 @@ COLUMNS: tuple[str, ...] = (
         "host",
         "model",
         "model_source",
+        "agent",
         "date",
         "start",
         "wall",
         "cost",
+        "cost_input",
+        "cost_output",
+        "cost_cache_read",
+        "cost_split",
         "input",
         "output",
         "reasoning",
@@ -915,7 +994,7 @@ def build_payload(
             if isinstance(v, float):
                 v = (
                     round(v, 6)
-                    if c == "cost"
+                    if c.startswith("cost")
                     else (round(v, 3) if not v.is_integer() else int(v))
                 )
             cols[c].append(v)

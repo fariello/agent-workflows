@@ -3297,6 +3297,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs analyze --list           # list artifacts and the cache summary\n"
             "  aw runs analyze --rebuild        # ignore cached entries and recompute\n"
             "  aw runs analyze --open           # publish, then open in the default browser\n"
+            "  aw runs analyze --since 30d      # only runs from the last 30 days\n"
+            "  aw runs analyze --since 2026-10-01 --until 2026-10-31   # one month\n"
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 analyzed, 1 one or more runs skipped, 2 cannot-run/usage error.\n"
@@ -3348,6 +3350,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--open",
         action="store_true",
         help="Open the report in the default browser. OFF by default; nothing launches without it.",
+    )
+    _p_runs_analyze.add_argument(
+        "--since",
+        default=None,
+        metavar="WHEN",
+        help=(
+            "Only include runs that started at or after WHEN: a date (2026-10-01), a timestamp, "
+            "or a relative span (30d, 2w, 6m). The published report covers only those runs."
+        ),
+    )
+    _p_runs_analyze.add_argument(
+        "--until",
+        default=None,
+        metavar="WHEN",
+        help=(
+            "Only include runs that started before WHEN. A bare date includes that whole day "
+            "(--until 2026-10-31 keeps October 31)."
+        ),
     )
     _p_runs_analyze.add_argument(
         "--limit",

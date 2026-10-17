@@ -38,7 +38,7 @@
     r.week = weekOf(r.date);
     r.month = r.date ? r.date.slice(0, 7) : '';
     r.sessions = 1;
-    ['set', 'id6', 'kind', 'model', 'host', 'disposition', 'verification', 'item_status', 'action', 'role'].forEach((k) => {
+    ['set', 'id6', 'kind', 'model', 'host', 'agent', 'disposition', 'verification', 'item_status', 'action', 'role'].forEach((k) => {
       if (r[k] === null || r[k] === undefined || r[k] === '') r[k] = '(none)';
     });
     ROWS.push(r);
@@ -47,6 +47,7 @@
   // ---------------------------------------------------------------- dimensions
   const DIMS = {
     stage: { label: 'Stage', help: 'review / execute turn, or the verify, gate-answer and defect re-ask sessions around it' },
+    agent: { label: 'Agent', help: 'host and model together, e.g. "oc / claude-opus"; the unit to compare agents by' },
     model: { label: 'Model' },
     host: { label: 'Host' },
     outcome: { label: 'Outcome', help: 'success / partial / failed, collapsed from the driver disposition or verifier verdict' },
@@ -64,8 +65,8 @@
     date: { label: 'Day' },
     run: { label: 'Run' },
   };
-  const FACETS = ['stage', 'host', 'model', 'outcome', 'restart', 'disposition', 'set', 'token_source'];
-  const GROUPABLE = ['model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
+  const FACETS = ['stage', 'agent', 'host', 'model', 'outcome', 'restart', 'disposition', 'set', 'token_source'];
+  const GROUPABLE = ['agent', 'model', 'host', 'stage', 'outcome', 'restart', 'disposition', 'action', 'role', 'set', 'kind', 'verification', 'token_source', 'month', 'week', 'id6', 'run'];
 
   // ---------------------------------------------------------------- metrics
   const HAS_TOK = (r) => r.token_source !== 'none';
@@ -92,14 +93,20 @@
   function num(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }
 
   metric('total_tokens', 'Total tokens (incl. cache reads)', 'tok', HAS_TOK, 'Tokens');
-  metric('fresh_tokens', 'Fresh tokens (input + output)', 'tok', HAS_TOK, 'Tokens');
+  metric('fresh_tokens', 'In + out tokens (input + output)', 'tok', HAS_TOK, 'Tokens');
   metric('input', 'Input tokens (uncached)', 'tok', HAS_TOK, 'Tokens');
   metric('output', 'Output tokens', 'tok', HAS_TOK, 'Tokens');
   metric('reasoning', 'Reasoning tokens', 'tok', HAS_TOK, 'Tokens');
-  metric('cache_read', 'Cache-read tokens', 'tok', HAS_TOK, 'Tokens');
+  metric('cache_read', 'Cached tokens (cache reads)', 'tok', HAS_TOK, 'Tokens');
+  metric('cache_write', 'Cache-write tokens', 'tok', HAS_TOK, 'Tokens');
   ratio('cache_share', 'Cache-read share of tokens', 'pct', 'cache_read', 'total_tokens', HAS_TOK, 'Tokens');
   ratio('tokens_per_step', 'Tokens per LLM step', 'tok', 'total_tokens', 'steps', (r) => HAS_TOK(r) && HAS_LOG(r), 'Tokens');
   metric('cost', 'Cost, USD (host-recorded)', 'usd', (r) => r.cost !== null && r.cost !== undefined, 'Cost and time');
+  const HAS_SPLIT = (r) => r.cost_input !== null && r.cost_input !== undefined;
+  metric('cost_fresh', 'Cost of in + out tokens, USD', 'usd', HAS_SPLIT, 'Cost and time', { get: (r) => (HAS_SPLIT(r) ? num(r.cost_input) + num(r.cost_output) : null) });
+  metric('cost_input', 'Cost of input tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
+  metric('cost_output', 'Cost of output tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
+  metric('cost_cache_read', 'Cost of cached tokens, USD', 'usd', HAS_SPLIT, 'Cost and time');
   ratio('usd_per_mtok', 'Cost per million tokens', 'usd', 'cost', 'total_tokens', (r) => r.cost !== null && r.cost !== undefined && HAS_TOK(r), 'Cost and time', 1e6);
   metric('wall', 'Wall time', 'dur', (r) => r.wall !== null && r.wall !== undefined, 'Cost and time');
   metric('tool_seconds', 'Time inside tools', 'dur', HAS_LOG, 'Cost and time');
@@ -244,9 +251,11 @@
     o._terr = {};
     SUMS.forEach((k) => { o[k] = 0; });
     let cost = null, wall = null, start = null, anyLog = false, src = 'none', maxAtt = 0, anyRecovery = false;
+    const parts = { cost_input: null, cost_output: null, cost_cache_read: null };
     list.forEach((r) => {
       SUMS.forEach((k) => { o[k] += num(r[k]); });
       if (r.cost !== null && r.cost !== undefined) cost = (cost || 0) + r.cost;
+      for (const pk in parts) if (r[pk] !== null && r[pk] !== undefined) parts[pk] = (parts[pk] || 0) + r[pk];
       if (r.wall !== null && r.wall !== undefined) wall = (wall || 0) + r.wall;
       if (r.start && (!start || r.start < start)) start = r.start;
       if (r.has_log) anyLog = true;
@@ -256,7 +265,8 @@
       for (const t in r._tools) o._tools[t] = (o._tools[t] || 0) + r._tools[t];
       for (const t in r._terr) o._terr[t] = (o._terr[t] || 0) + r._terr[t];
     });
-    o.cost = cost; o.wall = wall; o.start = start; o.has_log = anyLog; o.token_source = src;
+    o.cost = cost; o.wall = wall;
+    for (const pk in parts) o[pk] = parts[pk]; o.start = start; o.has_log = anyLog; o.token_source = src;
     o.attempt = maxAtt;
     o.restart = anyRecovery ? 'recovery' : (maxAtt > 1 ? 'retry' : 'first attempt');
     o.stage = main.action || main.stage;
@@ -291,6 +301,7 @@
     sc: { x: 'tool_calls', y: 'total_tokens', color: 'model', logx: true, logy: true },
     tl: { by: 'model', norm: true },
     rk: { by: 'model' },
+    tk: { by: 'agent', stats: ['sum', 'mean', 'median'], view: 'tokens' },
     tb: { sort: 'start', dir: -1, page: 0 },
   };
   let S = clone(DEFAULT);
@@ -301,7 +312,7 @@
       if (!h) return;
       const o = JSON.parse(h);
       S = Object.assign(clone(DEFAULT), o);
-      ['cmp', 'tr', 'sc', 'tl', 'rk', 'tb'].forEach((k) => { S[k] = Object.assign(clone(DEFAULT[k]), o[k] || {}); });
+      ['cmp', 'tr', 'sc', 'tl', 'rk', 'tb', 'tk'].forEach((k) => { S[k] = Object.assign(clone(DEFAULT[k]), o[k] || {}); });
       S.f = o.f || {};
     } catch (e) { S = clone(DEFAULT); }
   }
@@ -601,6 +612,7 @@
   // ---------------------------------------------------------------- shell: header, tabs, sidebar
   const TABS = [
     ['overview', 'Overview'],
+    ['tokens', 'Tokens and cost'],
     ['compare', 'Compare'],
     ['waste', 'Retries and failures'],
     ['trend', 'Trends'],
@@ -627,7 +639,9 @@
     const info = RAW.info || {};
     TOP.innerHTML =
       '<h1>Run analytics</h1><span class="meta">' + esc(N.toLocaleString()) + ' sessions from ' +
-      esc(String(info.runs || 0)) + ' runs' + (RAW.generated_at ? ', generated ' + esc(RAW.generated_at) : '') +
+      esc(String(info.runs || 0)) + ' runs' +
+      (info.window ? ' started ' + esc((info.window.since || 'any time').slice(0, 10)) + ' to ' + esc(info.window.until ? 'before ' + info.window.until.slice(0, 10) : 'now') : '') +
+      (RAW.generated_at ? ', generated ' + esc(RAW.generated_at) : '') +
       '</span><span class="spacer"></span>';
     TOP.appendChild(sel('Unit', S.grain, grainOpts, (v) => { S.grain = v; render(); },
       'What one row means. Session: a single agent conversation. Attempt: a plan turn plus its verify / gate / re-ask sessions. Plan: every attempt of one plan in one run.'));
@@ -645,6 +659,17 @@
       TABBAR.appendChild(b);
     });
   }
+  // Relative windows anchor on the LATEST day in the data, not on today, so a dashboard opened
+  // weeks after it was published still means "the last 30 days of this corpus".
+  const LAST_DAY = ROWS.reduce((m, r) => (r.date && r.date > m ? r.date : m), '');
+  function dayShift(d, n) { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+  const DATE_PRESETS = [
+    ['7 days', () => (LAST_DAY ? [dayShift(LAST_DAY, -6), LAST_DAY] : ['', ''])],
+    ['30 days', () => (LAST_DAY ? [dayShift(LAST_DAY, -29), LAST_DAY] : ['', ''])],
+    ['90 days', () => (LAST_DAY ? [dayShift(LAST_DAY, -89), LAST_DAY] : ['', ''])],
+    ['latest month', () => (LAST_DAY ? [LAST_DAY.slice(0, 7) + '-01', LAST_DAY] : ['', ''])],
+    ['all', () => ['', '']],
+  ];
   const facetOpen = {};
   function renderSide() {
     SIDE.innerHTML = '';
@@ -665,6 +690,13 @@
     t.addEventListener('change', () => { S.to = t.value; render(); });
     dw.appendChild(f); dw.appendChild(t);
     dates.appendChild(dw);
+    const pr = h('div', { class: 'presets' });
+    DATE_PRESETS.forEach((p) => {
+      const b = h('button', { type: 'button', class: 'more' }, esc(p[0]));
+      b.addEventListener('click', () => { const w = p[1](); S.from = w[0]; S.to = w[1]; render(); });
+      pr.appendChild(b);
+    });
+    dates.appendChild(pr);
     SIDE.appendChild(dates);
 
     FACETS.forEach((dim) => {
@@ -844,6 +876,131 @@
     const p4 = panel('Stage summary');
     p4.appendChild(matrix(CUR, 'stage'));
     MAIN.appendChild(p4);
+  };
+
+  // ---------------------------------------------------------------- tokens and cost
+  // Every token component on its own (in + out, input, output, cached, cache writes, total) and the
+  // matching costs, with count / total / mean / median / p90, overall and split by a dimension
+  // (by default the AGENT: host plus model).
+  const TOK_COMPONENTS = [
+    { k: 'fresh_tokens', label: 'In + out', cost: 'cost_fresh', color: '#3b6fd8' },
+    { k: 'input', label: 'Input', cost: 'cost_input', color: '#1ea4b8' },
+    { k: 'output', label: 'Output', cost: 'cost_output', color: '#e0822d' },
+    { k: 'cache_read', label: 'Cached (reads)', cost: 'cost_cache_read', color: '#2e9e6a' },
+    { k: 'cache_write', label: 'Cache writes', cost: null, color: '#8a5cc7' },
+    { k: 'total_tokens', label: 'Total', cost: 'cost', color: '#6b7a8f' },
+  ];
+  const TK_STATS = [['count', 'Count'], ['sum', 'Total'], ['mean', 'Average'], ['median', 'Median'], ['p90', 'p90']];
+  function statOf(rows, mk, stat) {
+    if (stat === 'count') {
+      const m = MET[mk];
+      let n = 0;
+      rows.forEach((r) => { const v = m.get(r); if (v !== null && isFinite(v)) n++; });
+      return n;
+    }
+    return agg(rows, mk, stat).v;
+  }
+  function tkTable(groups, dim, measure, stats) {
+    const comps = TOK_COMPONENTS.filter((c) => measure === 'tokens' || c.cost);
+    const key = (c) => (measure === 'tokens' ? c.k : c.cost);
+    const kind = measure === 'tokens' ? 'tok' : 'usd';
+    const t = h('table', { class: 't tk' });
+    let s = '<thead><tr><th rowspan="2">' + esc(dim ? (DIMS[dim] ? DIMS[dim].label : dim) : '') + '</th><th rowspan="2" class="num">Rows</th>';
+    comps.forEach((c) => { s += '<th colspan="' + stats.length + '" class="grp">' + esc(c.label) + '</th>'; });
+    s += '</tr><tr>';
+    comps.forEach(() => stats.forEach((st) => { s += '<th class="num">' + esc(TK_STATS.find((x) => x[0] === st)[1]) + '</th>'; }));
+    s += '</tr></thead><tbody>';
+    const cells = groups.map((g) => comps.map((c) => stats.map((st) => statOf(g.rows, key(c), st))));
+    const max = comps.map((c, ci) => stats.map((st, si) => Math.max.apply(null, cells.map((row) => row[ci][si] || 0).concat([0]))));
+    groups.forEach((g, gi) => {
+      const attrs = dim ? ' class="click" data-f="' + esc(dim) + '" data-v="' + esc(g.key) + '" data-tip="click to filter to ' + esc(g.key) + '"' : '';
+      s += '<tr' + attrs + '><td>' + (dim ? '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:' + colorFor(dim, g.key) + '"></i>' : '') + esc(trunc(g.key, 44)) + '</td><td class="num">' + g.rows.length.toLocaleString() + '</td>';
+      comps.forEach((c, ci) => stats.forEach((st, si) => {
+        const v = cells[gi][ci][si];
+        const pct = max[ci][si] && groups.length > 1 ? Math.max(0, Math.min(100, ((v || 0) / max[ci][si]) * 100)) : 0;
+        s += '<td class="num cellbar' + (si === 0 ? ' gs' : '') + '"><div class="b" style="width:' + pct.toFixed(1) + '%"></div><span>' + esc(fmt(v, st === 'count' ? 'num' : kind)) + '</span></td>';
+      }));
+      s += '</tr>';
+    });
+    t.innerHTML = s + '</tbody>';
+    const w = h('div', { class: 'tablewrap' });
+    w.appendChild(t);
+    return w;
+  }
+  VIEWS.tokens = function () {
+    const c = S.tk;
+    if (!Array.isArray(c.stats) || !c.stats.length) c.stats = ['sum', 'mean', 'median'];
+    const rows = CUR;
+    const unit = S.grain === 'session' ? 'session' : S.grain === 'attempt' ? 'attempt' : 'plan run';
+
+    // Headline cards: one per component, total plus typical size and what it cost.
+    const kp = h('div', { class: 'kpis' });
+    TOK_COMPONENTS.forEach((comp) => {
+      const tot = agg(rows, comp.k, 'sum').v;
+      const cs = comp.cost ? agg(rows, comp.cost, 'sum').v : null;
+      const k = h('div', { class: 'kpi' });
+      k.innerHTML = '<div class="k"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:' + comp.color + '"></i>' + esc(comp.label) + ' tokens</div><div class="v">' + esc(fmt(tot, 'tok')) + '</div><div class="s">' +
+        esc('avg ' + fmt(agg(rows, comp.k, 'mean').v, 'tok') + ', median ' + fmt(agg(rows, comp.k, 'median').v, 'tok') + ' per ' + unit) + '<br>' +
+        esc(comp.cost ? 'cost ' + fmt(cs, 'usd') + (comp.k === 'total_tokens' ? ' recorded' : ' apportioned') : 'no rate: not priced') + '</div>';
+      kp.appendChild(k);
+    });
+    MAIN.appendChild(kp);
+
+    const p = panel('Tokens and cost, by component', 'Each token kind on its own: <b>in + out</b> (input plus output), <b>input</b> (uncached prompt tokens), <b>output</b>, <b>cached</b> (cache reads) and <b>cache writes</b>. ' +
+      '<b>Total</b> cost is what the host recorded. Hosts record one cost per step, not per token kind, so the per-kind costs are <b>apportioned</b>: the recorded cost is split by token count times the rate in effect that day, and the parts add up exactly to the recorded cost. Rows with no recorded cost (all Antigravity sessions) have no cost split. Click a row to filter to it.');
+    const row = h('div', { class: 'row' });
+    row.appendChild(sel('Split by', c.by, dimOpts([['', '(no split: overall only)']]), (v) => { c.by = v; render(); }));
+    row.appendChild(sel('Show', c.view, [['tokens', 'Token counts'], ['cost', 'Costs'], ['both', 'Both']], (v) => { c.view = v; render(); }));
+    const sw = h('div', { class: 'ctl' });
+    sw.appendChild(document.createTextNode('Statistics'));
+    const sb = h('div', { class: 'statpick' });
+    TK_STATS.forEach((st) => {
+      const lab = h('label');
+      const cb = h('input', { type: 'checkbox' });
+      cb.checked = c.stats.indexOf(st[0]) >= 0;
+      cb.addEventListener('change', () => {
+        const on = TK_STATS.map((x) => x[0]).filter((x) => (x === st[0] ? cb.checked : c.stats.indexOf(x) >= 0));
+        c.stats = on.length ? on : [st[0]];
+        render();
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(' ' + st[1]));
+      sb.appendChild(lab);
+    });
+    sw.appendChild(sb);
+    row.appendChild(sw);
+    p.appendChild(row);
+    const measures = c.view === 'both' ? ['tokens', 'cost'] : [c.view === 'cost' ? 'cost' : 'tokens'];
+    const overall = [{ key: 'All selected rows', rows: rows }];
+    measures.forEach((m) => {
+      p.appendChild(h('h3', null, esc((m === 'tokens' ? 'Token counts' : 'Costs, USD') + ': overall')));
+      p.appendChild(tkTable(overall, '', m, c.stats));
+      if (c.by) {
+        const gs = [];
+        topGroups(rows, c.by, 40).forEach((list, key) => gs.push({ key: key, rows: list }));
+        p.appendChild(h('h3', null, esc((m === 'tokens' ? 'Token counts' : 'Costs, USD') + ' by ' + DIMS[c.by].label.toLowerCase())));
+        p.appendChild(tkTable(gs, c.by, m, c.stats));
+      }
+    });
+    p.appendChild(h('p', { class: 'hint' }, esc('Count is the number of ' + unit + 's with a value for that column. Average and median are per ' + unit + '; switch the unit at the top to compare per plan attempt or per plan run.')));
+    MAIN.appendChild(p);
+
+    if (c.by) {
+      const g = h('div', { class: 'grid2' });
+      const gs = [];
+      topGroups(rows, c.by, 16).forEach((list, key) => gs.push({ key: key, rows: list }));
+      const tparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'cache_read', 'cache_write'].indexOf(x.k) >= 0).map((x) => ({ key: x.k, label: x.label, color: x.color }));
+      const p2 = panel('Token mix by ' + DIMS[c.by].label.toLowerCase(), 'Share of each group\'s tokens by kind.');
+      p2.appendChild(h('div', { class: 'chart' }, stacked(gs, tparts, (list, pp) => sumOf(list.filter(HAS_TOK), pp.key), true, (v) => fmt(v, 'tok'), c.by)));
+      p2.appendChild(h('div', null, legend(tparts)));
+      g.appendChild(p2);
+      const cparts = TOK_COMPONENTS.filter((x) => ['input', 'output', 'cache_read'].indexOf(x.k) >= 0).map((x) => ({ key: x.cost, label: x.label, color: x.color }));
+      const p3 = panel('Cost by ' + DIMS[c.by].label.toLowerCase(), 'Apportioned cost per token kind, absolute so groups compare by spend.');
+      p3.appendChild(h('div', { class: 'chart' }, stacked(gs, cparts, (list, pp) => sumOf(list.filter(HAS_SPLIT), pp.key), false, (v) => fmt(v, 'usd'), c.by)));
+      p3.appendChild(h('div', null, legend(cparts)));
+      g.appendChild(p3);
+      MAIN.appendChild(g);
+    }
   };
 
   VIEWS.compare = function () {
@@ -1102,7 +1259,7 @@
   const TABLE_COLS = [
     ['date', 'Date', 'txt'], ['run', 'Run', 'mono'], ['set', 'Set', 'txt'], ['id6', 'Plan', 'mono'], ['stage', 'Stage', 'txt'],
     ['attempt', 'Att.', 'num'], ['model', 'Model', 'txt'], ['host', 'Host', 'txt'], ['outcome', 'Outcome', 'pill'],
-    ['disposition', 'Disposition', 'txt'], ['total_tokens', 'Tokens', 'tok'], ['output', 'Output', 'tok'], ['cost', 'Cost', 'usd'],
+    ['disposition', 'Disposition', 'txt'], ['total_tokens', 'Tokens', 'tok'], ['input', 'Input', 'tok'], ['output', 'Output', 'tok'], ['cache_read', 'Cached', 'tok'], ['cost', 'Cost', 'usd'],
     ['wall', 'Time', 'dur'], ['steps', 'Steps', 'num'], ['tool_calls', 'Tools', 'num'], ['t_read', 'Reads', 'num'],
     ['t_edit', 'Edits', 'num'], ['t_shell', 'Shell', 'num'], ['tool_errors', 'Errors', 'num'],
   ];
@@ -1172,8 +1329,8 @@
   };
 
   function downloadCsv() {
-    const cols = ['run', 'set', 'id6', 'kind', 'stage', 'action', 'role', 'attempt', 'restart', 'model', 'host', 'outcome', 'disposition', 'verification', 'date',
-      'total_tokens', 'input', 'output', 'reasoning', 'cache_read', 'cost', 'wall', 'steps', 'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'token_source']
+    const cols = ['run', 'set', 'id6', 'kind', 'stage', 'action', 'role', 'attempt', 'restart', 'agent', 'model', 'host', 'outcome', 'disposition', 'verification', 'date',
+      'total_tokens', 'fresh_tokens', 'input', 'output', 'reasoning', 'cache_read', 'cache_write', 'cost', 'cost_input', 'cost_output', 'cost_cache_read', 'cost_split', 'wall', 'steps', 'tool_calls', 'tool_errors', 'tool_seconds', 'files_read', 'files_edited', 'token_source']
       .concat(CATS.map((c) => 't_' + c)).concat(SHELL.map((c) => 'sh_' + c));
     const q = (v) => { v = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     const lines = [cols.join(',')];
@@ -1198,7 +1355,7 @@
     const kv = [['Stage', base.stage], ['Attempt', base.attempt + ' of ' + base.attempts_total + (base.recovery ? ' (recovery)' : '')], ['Model', base.model + (base.model_source ? ' (from ' + base.model_source + ')' : '')],
       ['Host', base.host], ['Outcome', base.outcome], ['Disposition', base.disposition], ['Verifier', base.verification || '-'], ['Item status', base.item_status], ['Date', base.date],
       ['Tokens', fmt(base.total_tokens, 'tok') + ' total; ' + fmt(base.input, 'tok') + ' in, ' + fmt(base.output, 'tok') + ' out, ' + fmt(base.reasoning, 'tok') + ' reasoning, ' + fmt(base.cache_read, 'tok') + ' cache read'],
-      ['Token source', base.token_source], ['Cost', fmt(base.cost, 'usd')], ['Wall time', fmt(base.wall, 'dur')], ['Time in tools', fmt(base.tool_seconds, 'dur')],
+      ['Token source', base.token_source], ['Cost', fmt(base.cost, 'usd') + (HAS_SPLIT(base) ? ' (' + fmt(base.cost_input, 'usd') + ' input, ' + fmt(base.cost_output, 'usd') + ' output, ' + fmt(base.cost_cache_read, 'usd') + ' cached; apportioned)' : '')], ['Wall time', fmt(base.wall, 'dur')], ['Time in tools', fmt(base.tool_seconds, 'dur')],
       ['LLM steps', base.steps], ['Tool calls', base.tool_calls + ' (' + base.tool_errors + ' errors)'], ['Files read / edited', base.files_read + ' / ' + base.files_edited]];
     kv.forEach((x) => { s += '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
     s += '</dl>';

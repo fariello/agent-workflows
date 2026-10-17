@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -462,7 +463,128 @@ def _resolve_run_dirs(
     return run_viewer.resolve_target_runs_detailed(targets, repo)
 
 
-def _render_report_html(repo: Path, *, generated_label: str) -> str:
+_RUN_STAMP_RE = re.compile(r"(\d{8})T(\d{6})")
+_DATE_ONLY_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2}|\d{8}|\d{4}/\d{2}/\d{2})\s*$")
+
+
+class DateWindowError(ValueError):
+    """A --since/--until value could not be parsed, or the window is empty by construction."""
+
+
+def parse_date_window(
+    since: str | None, until: str | None, *, now: Any = None
+) -> tuple[Any, Any]:
+    """Parse ``--since``/``--until`` into aware UTC datetimes ``(start, end)``; either may be None.
+
+    ``start`` is INCLUSIVE and ``end`` EXCLUSIVE. A DATE-ONLY ``--until`` (``2026-10-01``) means "up
+    to and including that whole day", so it is advanced by one day; a full timestamp is taken as is.
+    Both accept what ``aw runs --since`` accepts (dates, timestamps, relative specs like ``30d``),
+    because one parser owns the grammar (``run_viewer.parse_since_timestamp``).
+    """
+
+    import datetime as _dt
+
+    from agent_workflows import run_viewer
+
+    def _one(spec: str | None, *, end: bool) -> Any:
+        if spec is None or not str(spec).strip():
+            return None
+        try:
+            value = run_viewer.parse_since_timestamp(str(spec), now=now)
+        except ValueError as exc:
+            flag = "--until" if end else "--since"
+            raise DateWindowError(f"{flag}: {exc}") from None
+        if end and _DATE_ONLY_RE.match(str(spec)):
+            value = value + _dt.timedelta(days=1)
+        return value
+
+    start = _one(since, end=False)
+    stop = _one(until, end=True)
+    if start is not None and stop is not None and stop <= start:
+        raise DateWindowError(
+            f"--until ({until}) is not after --since ({since}); the window would select nothing"
+        )
+    return start, stop
+
+
+def run_started_at(run_dir: Path) -> Any:
+    """When a run started, as an aware UTC datetime, or None when nothing records it.
+
+    Reads ``state.json`` ``created_at`` first, then the ``YYYYMMDDTHHMMSS`` stamp every driver run
+    directory name carries. Deliberately cheap: a date-filtered sweep must not pay for a full run
+    summary per directory just to decide whether to skip it.
+    """
+
+    import datetime as _dt
+
+    try:
+        state = json.loads((Path(run_dir) / "state.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+    created = state.get("created_at") if isinstance(state, dict) else None
+    if created:
+        try:
+            value = _dt.datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+            return value if value.tzinfo else value.replace(tzinfo=_dt.timezone.utc)
+        except ValueError:
+            pass
+    m = _RUN_STAMP_RE.search(Path(run_dir).name)
+    if m:
+        try:
+            return _dt.datetime.strptime(
+                m.group(1) + m.group(2), "%Y%m%d%H%M%S"
+            ).replace(tzinfo=_dt.timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def filter_runs_by_window(
+    run_dirs: Sequence[Path], start: Any, end: Any
+) -> tuple[list[Path], int]:
+    """Keep the runs whose start falls in ``[start, end)``. Returns ``(kept, undated_dropped)``.
+
+    A run with NO recorded start cannot be placed in a window, so when a window is set it is
+    EXCLUDED and counted, never silently kept (it might be outside) or silently lost (the count is
+    reported). With no window every run is kept.
+    """
+
+    if start is None and end is None:
+        return list(run_dirs), 0
+    kept: list[Path] = []
+    undated = 0
+    for run_dir in run_dirs:
+        at = run_started_at(run_dir)
+        if at is None:
+            undated += 1
+            continue
+        if start is not None and at < start:
+            continue
+        if end is not None and at >= end:
+            continue
+        kept.append(run_dir)
+    return kept, undated
+
+
+def _window_label(start: Any, end: Any) -> dict[str, Any]:
+    """The serializable description of a date window, or an empty dict when there is none."""
+
+    import datetime as _dt
+
+    if start is None and end is None:
+        return {}
+    out: dict[str, Any] = {}
+    if start is not None:
+        out["since"] = start.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if end is not None:
+        out["until"] = end.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        out["until_semantics"] = "exclusive"
+    return out
+
+
+def _render_report_html(
+    repo: Path, *, generated_label: str, run_ids: Any = None
+) -> str:
     """The report document, rendered by Order 07's SPA over Order 08's own query views.
 
     WHY THIS FUNCTION EXISTS, stated plainly because it closes a gap between two plans that both
@@ -524,6 +646,12 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         entries = query_mod._cache_entries(repo)
     except Exception:
         pass
+    if run_ids is not None:
+        # A DATE WINDOW (or explicit targets) scopes the document to the runs it selected. The cache
+        # keeps every run ever analyzed, so without this the classic report would silently show the
+        # whole corpus beside a dashboard showing only the window.
+        wanted = {str(r) for r in run_ids}
+        entries = [e for e in entries if str(e.get("run_id") or "") in wanted]
 
     rows: list[dict[str, Any]] = []
     attempt_population: list[dict[str, Any]] = []
@@ -1081,7 +1209,13 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
 CLASSIC_REPORT_FILENAME = "report.html"
 
 
-def _render_dashboard_html(repo: Path, run_dirs: Any, *, generated_label: str) -> str:
+def _render_dashboard_html(
+    repo: Path,
+    run_dirs: Any,
+    *,
+    generated_label: str,
+    window: dict[str, Any] | None = None,
+) -> str:
     """runsdash (`97i0ao`): the drill-down dashboard over every analyzed run's session logs."""
 
     import datetime as _dt
@@ -1089,6 +1223,10 @@ def _render_dashboard_html(repo: Path, run_dirs: Any, *, generated_label: str) -
     from agent_workflows import run_dashboard as dash_mod
 
     rows, info = dash_mod.collect_rows(list(run_dirs), repo=repo)
+    info = dict(info)
+    if window:
+        # Shown in the dashboard header so a reader knows the page is a window, not the corpus.
+        info["window"] = dict(window)
     payload = dash_mod.build_payload(
         rows,
         info,
@@ -1099,7 +1237,12 @@ def _render_dashboard_html(repo: Path, run_dirs: Any, *, generated_label: str) -
 
 
 def _bundle_documents(
-    repo: Path, run_dirs: Any, *, generated_label: str
+    repo: Path,
+    run_dirs: Any,
+    *,
+    generated_label: str,
+    window: dict[str, Any] | None = None,
+    scoped: bool = False,
 ) -> dict[str, str]:
     """The bundle's HTML documents: the dashboard as ``index.html`` plus the classic ``report.html``.
 
@@ -1109,16 +1252,27 @@ def _bundle_documents(
 
     from agent_workflows import run_analytics_report as report_mod
 
-    classic = _render_report_html(repo, generated_label=generated_label)
+    run_ids = [Path(r).name for r in run_dirs] if scoped else None
+    classic = _render_report_html(
+        repo, generated_label=generated_label, run_ids=run_ids
+    )
     try:
-        index = _render_dashboard_html(repo, run_dirs, generated_label=generated_label)
+        index = _render_dashboard_html(
+            repo, run_dirs, generated_label=generated_label, window=window
+        )
     except Exception:
         index = classic
     return {report_mod.INDEX_FILENAME: index, CLASSIC_REPORT_FILENAME: classic}
 
 
 def _publish_snapshot(
-    repo: Path, label: str, report: Any, run_dirs: Any = ()
+    repo: Path,
+    label: str,
+    report: Any,
+    run_dirs: Any = (),
+    *,
+    window: dict[str, Any] | None = None,
+    scoped: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """Publish an IMMUTABLE snapshot of this sweep. Returns ``(published, refusal_message)``.
 
@@ -1133,7 +1287,13 @@ def _publish_snapshot(
 
     from agent_workflows import run_analytics_report as report_mod
 
-    documents = _bundle_documents(repo, run_dirs, generated_label=f"snapshot {label}")
+    documents = _bundle_documents(
+        repo,
+        run_dirs,
+        generated_label=f"snapshot {label}",
+        window=window,
+        scoped=scoped,
+    )
     analysis = json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
     try:
         published = report_mod.publish_snapshot(
@@ -1191,6 +1351,23 @@ def run_analyze(args: argparse.Namespace) -> int:
             ),
             args,
         )
+
+    try:
+        win_start, win_end = parse_date_window(
+            getattr(args, "since", None), getattr(args, "until", None)
+        )
+    except DateWindowError as exc:
+        return _emit(
+            _cannot_run("runs analyze", str(exc), next_cmd="aw runs analyze --help"),
+            args,
+        )
+    window = _window_label(win_start, win_end)
+    undated_excluded = 0
+    if window:
+        run_dirs, undated_excluded = filter_runs_by_window(run_dirs, win_start, win_end)
+    # The bundle is SCOPED to the selected runs whenever the caller narrowed the corpus (a window or
+    # explicit targets); a bare sweep keeps the classic report over every cached run, as before.
+    scoped = bool(window) or bool(list(getattr(args, "targets", None) or []))
 
     try:
         ctx = select_output(args)
@@ -1261,6 +1438,12 @@ def run_analyze(args: argparse.Namespace) -> int:
         f"analyzed {totals.get('total', 0)} run(s): {totals.get('hit', 0)} cached, "
         f"{totals.get('rebuild', 0)} rebuilt, {skipped} skipped"
     )
+    if window:
+        summary += " in window {0} .. {1}".format(
+            window.get("since", "start"), window.get("until", "now")
+        )
+        if undated_excluded:
+            summary += f" ({undated_excluded} undated run(s) excluded)"
 
     if is_human:
         term.step_cue("Publishing report bundle...", stream=ctx.stderr)
@@ -1281,7 +1464,13 @@ def run_analyze(args: argparse.Namespace) -> int:
         published = report_mod.publish_bundle(
             report_mod.resolve_report_dir(repo),
             {
-                **_bundle_documents(repo, run_dirs, generated_label="latest"),
+                **_bundle_documents(
+                    repo,
+                    run_dirs,
+                    generated_label="latest",
+                    window=window,
+                    scoped=scoped,
+                ),
                 "analysis.json": json.dumps(report.to_dict(), indent=2, sort_keys=True)
                 + "\n",
             },
@@ -1309,7 +1498,12 @@ def run_analyze(args: argparse.Namespace) -> int:
     snapshot: dict[str, Any] = {}
     if snapshot_label:
         published, refusal = _publish_snapshot(
-            repo, str(snapshot_label), report, run_dirs
+            repo,
+            str(snapshot_label),
+            report,
+            run_dirs,
+            window=window,
+            scoped=scoped,
         )
         if refusal:
             return _emit(
@@ -1328,6 +1522,10 @@ def run_analyze(args: argparse.Namespace) -> int:
     analysis_rel = _repo_rel(analysis_file, repo) if analysis_file.exists() else None
 
     data: dict[str, Any] = {"totals": dict(totals), "findings": skipped}
+    if window:
+        data["window"] = dict(
+            window, runs=len(run_dirs), undated_excluded=undated_excluded
+        )
     if snapshot:
         data["snapshot"] = snapshot
     if report_published:
@@ -1361,6 +1559,16 @@ def run_analyze(args: argparse.Namespace) -> int:
             )
     if report_refusal:
         evidence.append(Evidence("report_refusal", report_refusal, "measured"))
+    if window:
+        evidence.append(
+            Evidence(
+                "window",
+                "{0}..{1}".format(window.get("since", ""), window.get("until", "")),
+                "measured",
+            )
+        )
+        if undated_excluded:
+            evidence.append(Evidence("undated_excluded", undated_excluded, "measured"))
 
     next_actions = [NextAction("aw runs query overview", "inspect")]
     if report_rel and not report_refusal:

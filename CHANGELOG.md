@@ -24,6 +24,8 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `aw runs analyze --since WHEN --until WHEN` publishes a report covering only runs started in that window, and the dashboard gains quick date ranges (last 7, 30 or 90 days, latest month).
+- Added: a **Tokens and cost** dashboard tab showing in + out, input, output, cached and cache-write tokens separately, each with count, total, average, median and p90, plus their costs, overall and split by agent (host and model) or any other dimension.
 - Fixed: `aw install --records-backend <new>` on an installed repository no longer silently leaves existing records where no reader looks: it refuses when records would be orphaned, and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves them.
 - Fixed: `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows.
 - Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.
