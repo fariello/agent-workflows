@@ -366,7 +366,7 @@ def run_work_begin(args: argparse.Namespace) -> int:
     try:
         plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
     except ValueError:
-        plan_rel = str(plan_path)
+        plan_rel = plan_path.resolve().as_posix()
 
     lease = {
         "plan_id": plan_id,
