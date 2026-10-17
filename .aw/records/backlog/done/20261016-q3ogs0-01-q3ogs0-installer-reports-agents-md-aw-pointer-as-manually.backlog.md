@@ -1,5 +1,5 @@
 - Id: q3ogs0
-- Status: graduated
+- Status: done
 - Graduated-To: q3ogs0
 - Blocks-Release: next
 - Set: q3ogs0
@@ -8,6 +8,7 @@
 - Summary: Installer reports AGENTS.md#aw:pointer as manually modified due to stale recorded section hash (recurrence of krwl3t)
 
 ## Workflow history
+- 2026-10-17 done (aw backlog): closed by aw agy run: IPD l5t4vx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-q3ogs0-01-l5t4vx-keep-this-repo-s-agents-md-section-records-in-step-with-join.ipd.md); evidence .aw/records/plans/executed/20261017-q3ogs0-01-l5t4vx-keep-this-repo-s-agents-md-section-records-in-step-with-join.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: l5t4vx
 - 2026-10-16 created (aw backlog): Installer reports AGENTS.md#aw:pointer as manually modified due to stale recorded section hash (recurrence of krwl3t)
 
