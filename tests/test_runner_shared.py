@@ -35,6 +35,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 import pathlib
 import re
 import sys
@@ -42,13 +43,16 @@ import tempfile
 import unittest
 from typing import Any
 from unittest import mock
-
 import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from support import REPO_ROOT, load_module  # noqa: E402
+from tests.repo_template import copy_template_repo
+
+# Scrub AW_CONFIG_DIR so unittest without conftest does not leak ambient agent config
+os.environ.pop("AW_CONFIG_DIR", None)
 
 pytestmark = pytest.mark.core
 
@@ -399,15 +403,10 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         """A throwaway repo with one commit on `main` and a lane branch off it."""
         import subprocess
 
-        repo = tmp / "repo"
-        repo.mkdir()
+        repo = copy_template_repo(tmp / "repo")
         run = lambda *a: subprocess.run(  # noqa: E731 - terse local helper
             list(a), cwd=repo, check=True, capture_output=True, text=True
         )
-        run("git", "init", "-q", "-b", "main")
-        run("git", "config", "user.email", "test@example.invalid")
-        run("git", "config", "user.name", "Test")
-        run("git", "config", "commit.gpgsign", "false")
         (repo / "base.txt").write_text("base\n", encoding="utf-8")
         run("git", "add", "base.txt")
         run("git", "commit", "-qm", "base")
@@ -576,6 +575,9 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 self.assertEqual(overlap(repo, ["orig.txt"]), ["orig.txt"])
                 self.assertEqual(
                     overlap(repo, ["orig.txt", "dest.txt"]), ["dest.txt", "orig.txt"]
+                )
+                self.assertEqual(
+                    overlap(repo, ["dest.txt", "unrelated.txt"]), ["dest.txt"]
                 )
                 # Disjoint dirt is still ignored, and no incoming files is never blocked.
                 self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
@@ -1955,17 +1957,10 @@ None.
     def make_repo(self, root: pathlib.Path, id6: str = "pol001"):
         import subprocess
 
-        repo = root / "repo"
-        repo.mkdir(parents=True)
-        for cmd in (
-            ["git", "init", "-q"],
-            ["git", "config", "user.email", "test@example.invalid"],
-            ["git", "config", "user.name", "Test"],
-        ):
-            subprocess.run(cmd, cwd=repo, check=True)
+        repo = copy_template_repo(root / "repo")
         (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
         pending = repo / ".aw" / "records" / "plans" / "pending"
-        pending.mkdir(parents=True)
+        pending.mkdir(parents=True, exist_ok=True)
         (pending / f"20260913-polarity-01-{id6}-probe.ipd.md").write_text(
             self.PLAN.format(id6=id6), encoding="utf-8"
         )
@@ -2896,14 +2891,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         import subprocess
 
         with tempfile.TemporaryDirectory() as tmp:
-            repo = pathlib.Path(tmp) / "repo"
-            repo.mkdir()
-            for cmd in (
-                ["git", "init", "-q"],
-                ["git", "config", "user.email", "t@example.invalid"],
-                ["git", "config", "user.name", "T"],
-            ):
-                subprocess.run(cmd, cwd=repo, check=True)
+            repo = copy_template_repo(pathlib.Path(tmp) / "repo")
             (repo / "a.txt").write_text("a\n", encoding="utf-8")
             subprocess.run(["git", "add", "a.txt"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
@@ -3078,14 +3066,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
     def _dispatch_repo(root: pathlib.Path) -> pathlib.Path:
         import subprocess
 
-        repo = root / "repo"
-        repo.mkdir(parents=True)
-        for cmd in (
-            ["git", "init", "-q", "-b", "main"],
-            ["git", "config", "user.email", "test@example.invalid"],
-            ["git", "config", "user.name", "Test"],
-        ):
-            subprocess.run(cmd, cwd=repo, check=True)
+        repo = copy_template_repo(root / "repo")
         (repo / "a.txt").write_text("a\n", encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
@@ -3180,14 +3161,7 @@ def _make_lane_fixture_repo(root: pathlib.Path) -> pathlib.Path:
     """
     import subprocess
 
-    repo = root / "repo"
-    repo.mkdir(parents=True)
-    for cmd in (
-        ["git", "init", "-q", "-b", "main"],
-        ["git", "config", "user.email", "test@example.invalid"],
-        ["git", "config", "user.name", "Test"],
-    ):
-        subprocess.run(cmd, cwd=repo, check=True)
+    repo = copy_template_repo(root / "repo")
     (repo / "f.txt").write_text("one\n", encoding="utf-8")
     subprocess.run(["git", "add", "f.txt"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True)
@@ -4137,19 +4111,12 @@ def _repo_with_pending_plan(root: pathlib.Path, id6: str) -> pathlib.Path:
     """A throwaway repo holding one pending plan for `id6`. FIXTURES ONLY, never a real lane."""
     import subprocess
 
-    repo = root / "repo"
-    repo.mkdir(parents=True)
-    for cmd in (
-        ["git", "init", "-q", "-b", "main"],
-        ["git", "config", "user.email", "test@example.invalid"],
-        ["git", "config", "user.name", "Test"],
-    ):
-        subprocess.run(cmd, cwd=repo, check=True)
+    repo = copy_template_repo(root / "repo")
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
     pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True)
+    pending.mkdir(parents=True, exist_ok=True)
     (pending / "20260906-demo-01-{0}-demo.ipd.md".format(id6)).write_text(
         "# IPD: demo\n\n- Id: {0}\n- Status: approved\n".format(id6), encoding="utf-8"
     )
@@ -5387,7 +5354,7 @@ class DanglingCommitSearchTests(unittest.TestCase):
         return helper
 
     def _make_repo(self, root: pathlib.Path) -> pathlib.Path:
-        """A throwaway repo with initial commit on main and no reflogs."""
+        """Kept repo builder: explicitly sets core.logAllRefUpdates=false to test dangling ref and commit collection without reflogs."""
         import subprocess
 
         repo = root / "repo"

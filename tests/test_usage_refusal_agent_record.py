@@ -88,41 +88,86 @@ def test_exclusion_set_size_and_members() -> None:
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)
-def test_required_arg_leaf_agent_mode(leaf: str) -> None:
-    """Case 1: Every required-arg leaf emits a valid cannot-run record under --agent."""
-    rc, out, err = _capture_cli(leaf.split() + ["--agent"])
-    assert rc == 2
-    assert out.strip() != "", f"Empty stdout for leaf '{leaf}'"
+def test_required_arg_leaf_modes(leaf: str) -> None:
+    """Every required-arg leaf emits valid cannot-run outputs under both --agent and --json modes."""
+    failures = []
 
-    lines = [line for line in out.strip().splitlines() if line.strip()]
-    rec = json.loads(lines[-1])
+    # Mode 1: --agent
+    try:
+        rc, out, err = _capture_cli(leaf.split() + ["--agent"])
+        if rc != 2:
+            failures.append(f"mode=agent exit code expected 2, got {rc}")
+        elif not out.strip():
+            failures.append(f"mode=agent empty stdout for leaf '{leaf}'")
+        else:
+            lines = [line for line in out.strip().splitlines() if line.strip()]
+            rec = json.loads(lines[-1])
+            val_errs = agent_schema.validate_agent_record(rec)
+            if val_errs:
+                failures.append(
+                    f"mode=agent schema validation failed for leaf '{leaf}': {val_errs}"
+                )
+            if rec.get("kind") != "error":
+                failures.append(
+                    f"mode=agent rec['kind'] expected 'error', got {rec.get('kind')!r}"
+                )
+            if rec.get("outcome") != "cannot-run":
+                failures.append(
+                    f"mode=agent rec['outcome'] expected 'cannot-run', got {rec.get('outcome')!r}"
+                )
+            if rec.get("exit") != 2:
+                failures.append(
+                    f"mode=agent rec['exit'] expected 2, got {rec.get('exit')!r}"
+                )
+            expected_next = f"aw {leaf} --help"
+            if rec.get("next") != expected_next:
+                failures.append(
+                    f"mode=agent rec['next'] expected {expected_next!r}, got {rec.get('next')!r}"
+                )
+            if "/home/" in out:
+                failures.append(
+                    f"mode=agent unsanitized /home/ path in stdout: {out!r}"
+                )
+            if "/tmp/" in out:
+                failures.append(f"mode=agent unsanitized /tmp/ path in stdout: {out!r}")
+    except Exception as exc:
+        failures.append(f"mode=agent raised {exc}")
 
-    val_errs = agent_schema.validate_agent_record(rec)
-    assert val_errs == [], f"Schema validation failed for leaf '{leaf}': {val_errs}"
+    # Mode 2: --json
+    try:
+        rc, out, err = _capture_cli(leaf.split() + ["--json"])
+        if rc != 2:
+            failures.append(f"mode=json exit code expected 2, got {rc}")
+        elif not out.strip():
+            failures.append(f"mode=json empty stdout for leaf '{leaf}'")
+        else:
+            data = json.loads(out)
+            if not isinstance(data, dict):
+                failures.append(f"mode=json expected dict, got {type(data).__name__}")
+            else:
+                if data.get("status") != "cannot-run":
+                    failures.append(
+                        f"mode=json data['status'] expected 'cannot-run', got {data.get('status')!r}"
+                    )
+                if data.get("exit_code") != 2:
+                    failures.append(
+                        f"mode=json data['exit_code'] expected 2, got {data.get('exit_code')!r}"
+                    )
+                if "next_actions" not in data:
+                    failures.append("mode=json missing 'next_actions' in data")
+                else:
+                    expected_cmd = f"aw {leaf} --help"
+                    if not any(
+                        a.get("command") == expected_cmd for a in data["next_actions"]
+                    ):
+                        failures.append(
+                            f"mode=json next_actions missing command {expected_cmd!r}: {data['next_actions']}"
+                        )
+    except Exception as exc:
+        failures.append(f"mode=json raised {exc}")
 
-    assert rec["kind"] == "error"
-    assert rec["outcome"] == "cannot-run"
-    assert rec["exit"] == 2
-    assert rec["next"] == f"aw {leaf} --help"
-
-    # Leak checks: no machine-identifying absolute paths
-    assert "/home/" not in out, f"Unsanitized /home/ path in stdout: {out!r}"
-    assert "/tmp/" not in out, f"Unsanitized /tmp/ path in stdout: {out!r}"
-
-
-@pytest.mark.parametrize("leaf", REQUIRED_LEAVES)
-def test_required_arg_leaf_json_mode(leaf: str) -> None:
-    """Case 2: Every required-arg leaf emits a cannot-run JSON object under --json."""
-    rc, out, err = _capture_cli(leaf.split() + ["--json"])
-    assert rc == 2
-    assert out.strip() != "", f"Empty stdout for leaf '{leaf}' under --json"
-
-    data = json.loads(out)
-    assert isinstance(data, dict)
-    assert data["status"] == "cannot-run"
-    assert data["exit_code"] == 2
-    assert "next_actions" in data
-    assert any(a.get("command") == f"aw {leaf} --help" for a in data["next_actions"])
+    if failures:
+        pytest.fail(f"Leaf '{leaf}' mode failure(s):\n" + "\n".join(failures))
 
 
 def test_human_control_ipd_scaffold() -> None:

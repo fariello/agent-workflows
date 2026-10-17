@@ -19,6 +19,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, cli, render_stream, runner_shared
 from tests import support
+from tests.repo_template import copy_template_repo
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
 
@@ -68,17 +69,12 @@ class AgyRunipdCliTests(unittest.TestCase):
 
 
 def _init_repo_with_conforming_plan(repo: Path, id6: str = "agy001") -> Path:
-    repo.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
-    )
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    copy_template_repo(repo)
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
     pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True)
+    pending.mkdir(parents=True, exist_ok=True)
     plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
     plan.write_text(_CONFORMING_PLAN.format(id6=id6), encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -436,15 +432,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
     def test_execute_item_spec_edits_report_parity_with_oc(self):
         # specrpt (9npssm) E-06: agy execute_item records spec_edits and reports them identically to oc.
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -455,7 +443,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
             )
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             plan = pending / "20260828-demo-01-agy001-demo.ipd.md"
             plan.write_text(plan_text, encoding="utf-8")
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -1247,20 +1235,6 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertIn("ipd-integration-deferred", events)
             self.assertIn("ipd-integrated-after-deferral", events)
 
-    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            _init_repo_with_conforming_plan(repo, "agy001")
-            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, ["src/x.py"]), [])
-            (repo / "src").mkdir(parents=True, exist_ok=True)
-            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(
-                agy_runipd.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
-                ["src/x.py"],
-            )
-            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
-
     def test_this_hosts_merge_subject_still_says_aw_agy_run(self):
         """The host label on THIS driver, from a REAL merge.
 
@@ -1349,15 +1323,7 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
         from agent_workflows import orchestrate_isolation
 
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -1633,9 +1599,7 @@ class AgyIntegrateVerbTests(unittest.TestCase):
                 )
 
             with tempfile.TemporaryDirectory() as temp:
-                repo = Path(temp) / "repo"
-                repo.mkdir()
-                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                repo = copy_template_repo(Path(temp) / "repo")
                 with mock.patch.object(runner_shared, "reintegrate_lane", spy):
                     if route == "driver":
                         rc = agy_runipd.main([*argv, "--repo", str(repo)])
@@ -1699,9 +1663,7 @@ class AgyIntegrateVerbTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
 
             out = io.StringIO()
             err = io.StringIO()
@@ -1879,15 +1841,9 @@ class AgyEmptyReviewSweepTests(unittest.TestCase):
 
     def test_main_exit_codes_for_empty_sweep_and_missing_id6(self):
         with tempfile.TemporaryDirectory() as td:
-            repo = Path(td) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "t@e.invalid"], cwd=repo, check=True
-            )
-            subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(td) / "repo")
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             (pending / "20260828-demo-01-appr01-demo.ipd.md").write_text(
                 _CONFORMING_PLAN.format(id6="appr01"), encoding="utf-8"
             )

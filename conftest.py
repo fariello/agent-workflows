@@ -26,6 +26,7 @@ import atexit as _atexit
 import faulthandler as _faulthandler
 import importlib.util
 import os
+from pathlib import Path
 import shutil as _shutil
 import signal as _signal
 import subprocess
@@ -735,6 +736,14 @@ def _ensure_xdist_then_reexec() -> None:
     # Re-exec the exact same pytest command now that the plugin is present, so the
     # `-n auto` in addopts is honored on this very run.
     os.execv(sys.executable, [sys.executable, "-m", "pytest", *sys.argv[1:]])
+
+
+@pytest.fixture
+def template_repo(tmp_path: Path) -> Path:
+    """Provide a fresh copy of the process-cached git repository template (IPD 83nnyn E-09)."""
+    from tests.repo_template import copy_template_repo
+
+    return copy_template_repo(tmp_path / "repo")
 
 
 _ensure_xdist_then_reexec()

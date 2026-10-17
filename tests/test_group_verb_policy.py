@@ -15,7 +15,6 @@ from __future__ import annotations
 import io
 from pathlib import Path
 import re
-import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
@@ -24,6 +23,8 @@ from agent_workflows import artifact_types, cli, command_surface as cs, config, 
 from agent_workflows import research_contract as R
 
 
+from tests.repo_template import copy_template_repo
+
 GROUP_TYPES = sorted(
     t for t, verbs in artifact_types.TYPE_BACKENDS.items() if "group" in verbs
 )
@@ -31,8 +32,9 @@ GROUP_TYPES = sorted(
 
 @pytest.fixture
 def temp_git_repo(tmp_path: Path) -> Path:
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    return tmp_path
+    repo = tmp_path / "repo"
+    copy_template_repo(repo)
+    return repo
 
 
 def _run_group(artifact_type: str, setid: str, repo_dir: Path) -> tuple[int, str, str]:
@@ -57,26 +59,31 @@ def test_group_verb_policy_sanity():
     assert config.SETID_MAX_LENGTH_DEFAULT == 24
 
 
-@pytest.mark.parametrize("artifact_type", GROUP_TYPES)
-def test_group_setid_refusal(artifact_type: str, temp_git_repo: Path):
+def test_group_setid_refusal(temp_git_repo: Path):
     """(a) REFUSAL: a setid of length SETID_MAX_LENGTH_DEFAULT + 1 (25 chars)
     exits 2 with the 'error:' prefix, names the length and maximum, and short-circuits
     before selector resolution (no unmatched selector error).
     """
     max_len = config.SETID_MAX_LENGTH_DEFAULT
     setid = "a" * (max_len + 1)
-    rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+    failures: list[str] = []
+    for artifact_type in GROUP_TYPES:
+        why = f"artifact_type={artifact_type}, len={len(setid)}, max_len={max_len}"
+        rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+        if rc != 2:
+            failures.append(f"[{artifact_type}] rc={rc} != 2; why: {why}")
+        if f"is {len(setid)} characters" not in out:
+            failures.append(f"[{artifact_type}] missing length in out; why: {why}")
+        if f"{max_len}-character maximum" not in out:
+            failures.append(f"[{artifact_type}] missing max_len in out; why: {why}")
+        if not out.startswith("error:"):
+            failures.append(f"[{artifact_type}] not starting with error:; why: {why}")
+        if "zzzzzz" in out:
+            failures.append(f"[{artifact_type}] zzzzzz unexpectedly in out; why: {why}")
+    assert not failures, "setid refusal failures:\n" + "\n".join(failures)
 
-    assert rc == 2
-    assert f"is {len(setid)} characters" in out
-    assert f"{max_len}-character maximum" in out
-    assert out.startswith("error:")
-    # Short-circuits before selector lookup, so the unmatched-selector error is absent
-    assert "zzzzzz" not in out
 
-
-@pytest.mark.parametrize("artifact_type", GROUP_TYPES)
-def test_group_setid_warning(artifact_type: str, temp_git_repo: Path):
+def test_group_setid_warning(temp_git_repo: Path):
     """(b) WARNING: a setid of length SETID_WARN_LENGTH_DEFAULT + 1 (15 chars)
     prints a warning with the 'note:' prefix, names the length and 'strongly preferred',
     and does NOT contain '{max_len}-character maximum'. The command exits 2 because
@@ -85,20 +92,28 @@ def test_group_setid_warning(artifact_type: str, temp_git_repo: Path):
     warn_len = config.SETID_WARN_LENGTH_DEFAULT
     max_len = config.SETID_MAX_LENGTH_DEFAULT
     setid = "a" * (warn_len + 1)
-    rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+    failures: list[str] = []
+    for artifact_type in GROUP_TYPES:
+        why = f"artifact_type={artifact_type}, len={len(setid)}, warn_len={warn_len}, max_len={max_len}"
+        rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+        if rc != 2:
+            failures.append(f"[{artifact_type}] rc={rc} != 2; why: {why}")
+        if "note:" not in out:
+            failures.append(f"[{artifact_type}] note: not in out; why: {why}")
+        if f"is {len(setid)} characters" not in out:
+            failures.append(f"[{artifact_type}] missing length in out; why: {why}")
+        if "strongly preferred" not in out:
+            failures.append(
+                f"[{artifact_type}] missing strongly preferred in out; why: {why}"
+            )
+        if f"{max_len}-character maximum" in out:
+            failures.append(f"[{artifact_type}] unexpected max-len in out; why: {why}")
+        if "zzzzzz" not in out:
+            failures.append(f"[{artifact_type}] missing selector in out; why: {why}")
+    assert not failures, "setid warning failures:\n" + "\n".join(failures)
 
-    # Command exits 2 because selector resolution fails after warning emission
-    assert rc == 2
-    assert "note:" in out
-    assert f"is {len(setid)} characters" in out
-    assert "strongly preferred" in out
-    assert f"{max_len}-character maximum" not in out
-    # Selector resolution failed after the warning
-    assert "zzzzzz" in out
 
-
-@pytest.mark.parametrize("artifact_type", GROUP_TYPES)
-def test_group_setid_quiet_at_warn_limit(artifact_type: str, temp_git_repo: Path):
+def test_group_setid_quiet_at_warn_limit(temp_git_repo: Path):
     """(c1) QUIET BOUNDARY 1: a setid of length SETID_WARN_LENGTH_DEFAULT (14 chars)
     emits neither 'note:' nor 'error:' from the length guard. Only the unmatched-selector
     error is emitted.
@@ -106,30 +121,52 @@ def test_group_setid_quiet_at_warn_limit(artifact_type: str, temp_git_repo: Path
     warn_len = config.SETID_WARN_LENGTH_DEFAULT
     max_len = config.SETID_MAX_LENGTH_DEFAULT
     setid = "a" * warn_len
-    rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+    failures: list[str] = []
+    for artifact_type in GROUP_TYPES:
+        why = f"artifact_type={artifact_type}, len={len(setid)}, warn_len={warn_len}, max_len={max_len}"
+        rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+        if rc != 2:
+            failures.append(f"[{artifact_type}] rc={rc} != 2; why: {why}")
+        if "note:" in out:
+            failures.append(f"[{artifact_type}] unexpected note: in out; why: {why}")
+        if "characters" in out:
+            failures.append(
+                f"[{artifact_type}] unexpected characters in out; why: {why}"
+            )
+        if "strongly preferred" in out:
+            failures.append(
+                f"[{artifact_type}] unexpected strongly preferred in out; why: {why}"
+            )
+        if f"{max_len}-character maximum" in out:
+            failures.append(f"[{artifact_type}] unexpected max-len in out; why: {why}")
+        if "zzzzzz" not in out:
+            failures.append(f"[{artifact_type}] missing selector in out; why: {why}")
+    assert not failures, "setid quiet at warn limit failures:\n" + "\n".join(failures)
 
-    assert rc == 2
-    assert "note:" not in out
-    assert "characters" not in out
-    assert "strongly preferred" not in out
-    assert f"{max_len}-character maximum" not in out
-    assert "zzzzzz" in out
 
-
-@pytest.mark.parametrize("artifact_type", GROUP_TYPES)
-def test_group_setid_warn_not_refused_at_max(artifact_type: str, temp_git_repo: Path):
+def test_group_setid_warn_not_refused_at_max(temp_git_repo: Path):
     """(c2) QUIET BOUNDARY 2: a setid of length SETID_MAX_LENGTH_DEFAULT (24 chars)
     warns ('note:', names length) but is NOT refused (no '{max_len}-character maximum').
     """
     max_len = config.SETID_MAX_LENGTH_DEFAULT
     setid = "a" * max_len
-    rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
-
-    assert rc == 2
-    assert "note:" in out
-    assert f"is {len(setid)} characters" in out
-    assert f"{max_len}-character maximum" not in out
-    assert "zzzzzz" in out
+    failures: list[str] = []
+    for artifact_type in GROUP_TYPES:
+        why = f"artifact_type={artifact_type}, len={len(setid)}, max_len={max_len}"
+        rc, out, _ = _run_group(artifact_type, setid, temp_git_repo)
+        if rc != 2:
+            failures.append(f"[{artifact_type}] rc={rc} != 2; why: {why}")
+        if "note:" not in out:
+            failures.append(f"[{artifact_type}] note: not in out; why: {why}")
+        if f"is {len(setid)} characters" not in out:
+            failures.append(f"[{artifact_type}] missing length in out; why: {why}")
+        if f"{max_len}-character maximum" in out:
+            failures.append(f"[{artifact_type}] unexpected max-len in out; why: {why}")
+        if "zzzzzz" not in out:
+            failures.append(f"[{artifact_type}] missing selector in out; why: {why}")
+    assert not failures, "setid warn not refused at max failures:\n" + "\n".join(
+        failures
+    )
 
 
 def _seed_research_record(

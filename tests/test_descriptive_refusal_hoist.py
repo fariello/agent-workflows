@@ -1,4 +1,4 @@
-"""Behavioral baseline and post-hoist validation for refuse_unsafe_descriptive (IPD 685iq8).
+"""Behavioral baseline and post-hoist validation for refuse_unsafe_descriptive (IPD 685iq8, 83nnyn).
 
 Tests observable behavior and return values across all five helper routes:
 - attention_contract.refuse_unsafe_descriptive (public hoisted owner)
@@ -7,11 +7,11 @@ Tests observable behavior and return values across all five helper routes:
 - status_set._refuse_unsafe_descriptive (retained delegating alias)
 - research_cmd._refuse_unsafe_descriptive (retained delegating alias)
 
+Tabulated accumulate test (P16): case id first, expected literal, trailing why.
 Does not inspect source or assert on code structure.
 """
 
 import argparse
-from typing import Optional
 import pytest
 
 from agent_workflows import (
@@ -31,21 +31,13 @@ VAL_EMPTY = ""
 VAL_NEWLINE = "a\nb"
 VAL_CR = "a\rb"
 VAL_BELL = "a\x07b"
+VAL_LEN300 = "x" * 300
+VAL_LEN301 = "x" * 301
 VAL_LEN340 = "x" * 340
 VAL_LEN1200 = "x" * 1200
 VAL_LATE_CTRL = "a" * 500 + "\x07" + "b"
 
-TEST_VALUES = [
-    VAL_NONE,
-    VAL_OK,
-    VAL_EMPTY,
-    VAL_NEWLINE,
-    VAL_CR,
-    VAL_BELL,
-    VAL_LEN340,
-    VAL_LEN1200,
-    VAL_LATE_CTRL,
-]
+REPRESENTATIVE_VERB = "aw backlog new"
 
 REAL_NONEMPTY_VERBS = [
     "aw backlog new",
@@ -60,36 +52,69 @@ REAL_NONEMPTY_VERBS = [
     "aw research set-outcome",
 ]
 
-# 18-row literal table of (bound_length, value) -> expected SUFFIX
-# Captured from the unmodified specs copy with verb="" and flag="--test-flag".
-FROZEN_SUFFIX_TABLE = {
-    # bound_length=True
-    (True, VAL_NONE): None,
-    (True, VAL_OK): None,
-    (True, VAL_EMPTY): None,
-    (True, VAL_NEWLINE): "--test-flag must not contain embedded newlines",
-    (True, VAL_CR): "--test-flag must not contain embedded newlines",
-    (True, VAL_BELL): "--test-flag must not contain control characters",
+# Literal suffixes for (bound_length, val_label, value)
+# Captured from unmodified specs copy with verb="" and flag="--test-flag".
+VALUE_SPECS = [
+    ("val_none", VAL_NONE, None, None, "None descriptive value is always accepted"),
+    ("val_ok", VAL_OK, None, None, "simple safe string accepted"),
+    ("val_empty", VAL_EMPTY, None, None, "empty string accepted"),
     (
-        True,
+        "val_newline",
+        VAL_NEWLINE,
+        "--test-flag must not contain embedded newlines",
+        "--test-flag must not contain embedded newlines",
+        "embedded newline rejected in both modes",
+    ),
+    (
+        "val_cr",
+        VAL_CR,
+        "--test-flag must not contain embedded newlines",
+        "--test-flag must not contain embedded newlines",
+        "embedded carriage return rejected in both modes",
+    ),
+    (
+        "val_bell",
+        VAL_BELL,
+        "--test-flag must not contain control characters",
+        "--test-flag must not contain control characters",
+        "control bell rejected in both modes",
+    ),
+    (
+        "val_len300",
+        VAL_LEN300,
+        None,
+        None,
+        "exact 300 char boundary accepted in both modes",
+    ),
+    (
+        "val_len301",
+        VAL_LEN301,
+        "--test-flag exceeds maximum length of 300 characters (301 > 300)",
+        None,
+        "301 char boundary rejected only when bound_length=True",
+    ),
+    (
+        "val_len340",
         VAL_LEN340,
-    ): "--test-flag exceeds maximum length of 300 characters (340 > 300)",
+        "--test-flag exceeds maximum length of 300 characters (340 > 300)",
+        None,
+        "340 char overlength rejected only when bound_length=True",
+    ),
     (
-        True,
+        "val_len1200",
         VAL_LEN1200,
-    ): "--test-flag exceeds maximum length of 300 characters (1200 > 300)",
-    (True, VAL_LATE_CTRL): "--test-flag must not contain control characters",
-    # bound_length=False
-    (False, VAL_NONE): None,
-    (False, VAL_OK): None,
-    (False, VAL_EMPTY): None,
-    (False, VAL_NEWLINE): "--test-flag must not contain embedded newlines",
-    (False, VAL_CR): "--test-flag must not contain embedded newlines",
-    (False, VAL_BELL): "--test-flag must not contain control characters",
-    (False, VAL_LEN340): None,
-    (False, VAL_LEN1200): None,
-    (False, VAL_LATE_CTRL): "--test-flag must not contain control characters",
-}
+        "--test-flag exceeds maximum length of 300 characters (1200 > 300)",
+        None,
+        "1200 char overlength rejected only when bound_length=True",
+    ),
+    (
+        "val_late_ctrl",
+        VAL_LATE_CTRL,
+        "--test-flag must not contain control characters",
+        "--test-flag must not contain control characters",
+        "late control char past bound rejected in both modes",
+    ),
+]
 
 ALL_FIVE_ROUTES = [
     ("attention_contract", attention_contract.refuse_unsafe_descriptive),
@@ -105,70 +130,64 @@ def test_public_hoisted_helper_exists():
     assert callable(attention_contract.refuse_unsafe_descriptive)
 
 
-@pytest.mark.parametrize("route_name,route_fn", ALL_FIVE_ROUTES)
-@pytest.mark.parametrize("verb", REAL_NONEMPTY_VERBS)
-@pytest.mark.parametrize("bound_length", [True, False])
-@pytest.mark.parametrize("val", TEST_VALUES)
-def test_all_five_routes_match_frozen_table_for_nonempty_verbs(
-    route_name: str, route_fn, verb: str, bound_length: bool, val: Optional[str]
-):
-    """Every route must match the frozen literal table for all nonempty verbs."""
-    expected_suffix = FROZEN_SUFFIX_TABLE[(bound_length, val)]
-    expected_msg = f"{verb}: {expected_suffix}" if expected_suffix is not None else None
+def test_refuse_unsafe_descriptive_accumulate_table():
+    """Table-driven accumulate test across all five routes, boundary cases, and verbs."""
+    failures = []
 
-    actual = route_fn(verb, FLAG, val, bound_length=bound_length)
-    assert actual == expected_msg
+    # 1. Every route x representative verb + empty verb x bound_length True/False x every value spec (including 300/301 boundary)
+    verbs_to_test = [
+        ("rep_verb", REPRESENTATIVE_VERB),
+        ("empty_verb", ""),
+    ]
 
+    for route_name, route_fn in ALL_FIVE_ROUTES:
+        for verb_label, verb in verbs_to_test:
+            for bound_length in [True, False]:
+                bound_label = "bound_true" if bound_length else "bound_false"
+                for (
+                    val_label,
+                    val,
+                    expected_suffix_true,
+                    expected_suffix_false,
+                    why,
+                ) in VALUE_SPECS:
+                    suffix = (
+                        expected_suffix_true if bound_length else expected_suffix_false
+                    )
+                    expected_msg = (
+                        f"{verb}: {suffix}" if (verb and suffix is not None) else suffix
+                    )
+                    case_id = (
+                        f"hoist-{route_name}-{verb_label}-{bound_label}-{val_label}"
+                    )
 
-@pytest.mark.parametrize("route_name,route_fn", ALL_FIVE_ROUTES)
-@pytest.mark.parametrize("bound_length", [True, False])
-@pytest.mark.parametrize("val", TEST_VALUES)
-def test_all_five_routes_match_frozen_table_for_empty_verb(
-    route_name: str, route_fn, bound_length: bool, val: Optional[str]
-):
-    """Post-hoist pin: every route emits UNPREFIXED message for empty verb.
+                    actual = route_fn(verb, FLAG, val, bound_length=bound_length)
+                    if actual != expected_msg:
+                        failures.append(
+                            f"[{case_id}] route={route_name} verb={verb!r} bound={bound_length} "
+                            f"val_label={val_label} expected={expected_msg!r} got={actual!r} why={why}"
+                        )
 
-    Replaces pre-hoist divergence test. The empty verb yields exactly suffix
-    with no leading ': ' separator from all five routes.
-    """
-    expected_suffix = FROZEN_SUFFIX_TABLE[(bound_length, val)]
-    actual = route_fn("", FLAG, val, bound_length=bound_length)
-    assert actual == expected_suffix
+    # 2. Every verb in REAL_NONEMPTY_VERBS against one rejecting value (VAL_NEWLINE, bound_length=True)
+    for route_name, route_fn in ALL_FIVE_ROUTES:
+        for verb in REAL_NONEMPTY_VERBS:
+            verb_slug = verb.replace(" ", "_").replace("-", "_")
+            case_id = f"hoist-{route_name}-verb_{verb_slug}-bound_true-val_newline"
+            expected_msg = f"{verb}: --test-flag must not contain embedded newlines"
+            why = "every verb renders prefix on rejection"
 
+            actual = route_fn(verb, FLAG, VAL_NEWLINE, bound_length=True)
+            if actual != expected_msg:
+                failures.append(
+                    f"[{case_id}] route={route_name} verb={verb!r} bound=True "
+                    f"expected={expected_msg!r} got={actual!r} why={why}"
+                )
 
-@pytest.mark.parametrize("route_name,route_fn", ALL_FIVE_ROUTES)
-def test_bound_length_asymmetry_survived(route_name: str, route_fn):
-    """Pin that bound_length asymmetry survived across all five routes (zllcnv design point).
-
-    A 340-character value returns a length-naming message under bound_length=True
-    and None under bound_length=False.
-    A 1200-character value also returns length-naming under bound_length=True and None under bound_length=False.
-    A late control character ('a'*500 + '\x07' + 'b') returns control character refusal in both modes.
-    """
-    verb = "aw test"
-    # 340 characters
-    bounded_340 = route_fn(verb, FLAG, VAL_LEN340, bound_length=True)
-    unbounded_340 = route_fn(verb, FLAG, VAL_LEN340, bound_length=False)
-    assert (
-        bounded_340
-        == f"{verb}: --test-flag exceeds maximum length of 300 characters (340 > 300)"
-    )
-    assert unbounded_340 is None
-
-    # 1200 characters
-    bounded_1200 = route_fn(verb, FLAG, VAL_LEN1200, bound_length=True)
-    unbounded_1200 = route_fn(verb, FLAG, VAL_LEN1200, bound_length=False)
-    assert (
-        bounded_1200
-        == f"{verb}: --test-flag exceeds maximum length of 300 characters (1200 > 300)"
-    )
-    assert unbounded_1200 is None
-
-    # Late control character past 300 chars: refused in BOTH modes
-    bounded_late = route_fn(verb, FLAG, VAL_LATE_CTRL, bound_length=True)
-    unbounded_late = route_fn(verb, FLAG, VAL_LATE_CTRL, bound_length=False)
-    assert bounded_late == f"{verb}: --test-flag must not contain control characters"
-    assert unbounded_late == f"{verb}: --test-flag must not contain control characters"
+    if failures:
+        pytest.fail(
+            f"{len(failures)} descriptive refusal case(s) failed:\n"
+            + "\n".join(failures)
+        )
 
 
 def test_releases_run_new_cli_empty_verb_single_prefix(tmp_path, capsys):

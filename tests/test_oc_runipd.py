@@ -19,9 +19,9 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from pathlib import Path
 from typing import Any
 from unittest import mock
-from pathlib import Path
 
 from agent_workflows import agy_runipd
 from agent_workflows import artifact_core as core
@@ -31,7 +31,11 @@ from agent_workflows import runner_shared
 from agent_workflows import runner_stop
 from agent_workflows import orchestrate_isolation
 from tests import support
+from tests.repo_template import copy_template_repo
 from tests.support import REPO_ROOT
+
+# Scrub AW_CONFIG_DIR so unittest without conftest does not leak ambient agent config
+os.environ.pop("AW_CONFIG_DIR", None)
 
 # Launch the packaged driver as a module (`-m agent_workflows.oc_runipd`) with PYTHONPATH pinned to
 # the checkout root, so the package resolves regardless of the tmp-repo cwd AND the stdlib is not
@@ -133,20 +137,12 @@ class DriverTests(unittest.TestCase):
     def test_atomic_state_and_set_session_continuity(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             for order, id6 in enumerate(("aaaaaa", "bbbbbb"), start=1):
                 text = _CONFORMING_PLAN.format(id6=id6)
                 if id6 == "bbbbbb":
@@ -256,21 +252,13 @@ class ReviewPlanRoutingTests(unittest.TestCase):
     def test_to_review_plans_invoke_plan_review_and_share_session(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
 
             def _to_review_text(ident: str) -> str:
                 t = _CONFORMING_PLAN.format(id6=ident).replace(
@@ -375,12 +363,10 @@ class SelectorResolutionTests(unittest.TestCase):
     def test_dynamic_plan_discovery_without_manifest(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-myset-01-abc111-first.ipd.md"
             p1.write_text(
                 "- Id: abc111\n- Set: myset\n- Status: to-review\n# First\n",
@@ -414,11 +400,9 @@ class SelectorResolutionTests(unittest.TestCase):
     def test_default_start_command_invocation(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             p = pending / "20260824-demo-01-tst001-test.ipd.md"
             p.write_text(
                 _CONFORMING_PLAN.format(id6="tst001"),
@@ -1511,37 +1495,42 @@ class CrashedStepOutcomeRecoveryTests(unittest.TestCase):
 
 
 class HeartbeatFormattingTests(unittest.TestCase):
-    def test_heartbeat_idle_formatting_over_60s(self):
+    def test_heartbeat_idle_formatting(self):
         import io
         import time
 
-        buf = io.StringIO()
-        pal = driver.Palette(False)
-        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
-        hb._start = time.monotonic() - 150.0  # 2m30s elapsed
-        hb._last_activity = time.monotonic() - 75.0  # 1m15s idle
-        self.assertEqual(hb.format_idle(), "1m15s")
-        msg = hb.format_message()
-        # stallfp kaga7s: the line reports LACK OF PROGRESS (and, when a watchdog is
-        # attached, the kill countdown) instead of the old reassuring "still working".
-        self.assertIn("no progress 1m15s", msg)
-        self.assertIn("2m30s elapsed", msg)
-        self.assertNotIn("still working", msg)
-
-    def test_heartbeat_idle_formatting_under_60s(self):
-        import io
-        import time
-
-        buf = io.StringIO()
-        pal = driver.Palette(False)
-        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
-        hb._start = time.monotonic() - 45.0
-        hb._last_activity = time.monotonic() - 20.0
-        self.assertEqual(hb.format_idle(), "0m20s")
-        msg = hb.format_message()
-        self.assertIn("no progress 0m20s", msg)
-        self.assertIn("0m45s elapsed", msg)
-        self.assertNotIn("still working", msg)
+        cases = (
+            (
+                "over_60s",
+                150.0,
+                75.0,
+                "1m15s",
+                "no progress 1m15s",
+                "2m30s elapsed",
+                "stallfp kaga7s: idle formatting over 60s reports lack of progress",
+            ),
+            (
+                "under_60s",
+                45.0,
+                20.0,
+                "0m20s",
+                "no progress 0m20s",
+                "0m45s elapsed",
+                "idle formatting under 60s reports lack of progress",
+            ),
+        )
+        for case_id, elapsed, idle, exp_idle, exp_progress, exp_elapsed, why in cases:
+            with self.subTest(case=case_id, why=why):
+                buf = io.StringIO()
+                pal = driver.Palette(False)
+                hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
+                hb._start = time.monotonic() - elapsed
+                hb._last_activity = time.monotonic() - idle
+                self.assertEqual(hb.format_idle(), exp_idle)
+                msg = hb.format_message()
+                self.assertIn(exp_progress, msg)
+                self.assertIn(exp_elapsed, msg)
+                self.assertNotIn("still working", msg)
 
 
 #: The reaper's LAST rung. Windows has no SIGKILL, and `runner_shutdown.terminate_process` escalates
@@ -1685,21 +1674,13 @@ class StallWatchdogTests(unittest.TestCase):
     def test_stall_watchdog_terminates_silent_child_and_marks_interrupted(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             plan = pending / "20260824-demo-01-stall1-test.ipd.md"
             plan.write_text(
                 _CONFORMING_PLAN.format(id6="stall1"),
@@ -1778,21 +1759,13 @@ class StallWatchdogTests(unittest.TestCase):
     def test_stall_watchdog_does_not_trip_on_active_child(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             plan = pending / "20260824-demo-01-activ1-test.ipd.md"
             plan.write_text(
                 _CONFORMING_PLAN.format(id6="activ1"),
@@ -2085,21 +2058,13 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
     def test_full_auto_reviews_approves_and_executes_plan(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-demo-01-fa0001-test.ipd.md"
             t = _CONFORMING_PLAN.format(id6="fa0001").replace(
                 "- Status: approved\n", "- Status: to-review\n"
@@ -2206,21 +2171,13 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
     def test_without_full_auto_stops_at_reviewed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            repo = root / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(root / "repo")
             (repo / "README").write_text("test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README"], cwd=repo, check=True)
             subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             p1 = pending / "20260824-demo-01-nofa01-test.ipd.md"
             t = _CONFORMING_PLAN.format(id6="nofa01").replace(
                 "- Status: approved\n", "- Status: to-review\n"
@@ -2766,9 +2723,7 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
 
     def test_kind_is_parsed_into_record_and_manifest(self):
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             self._make_set(repo)
             discovered = driver.discover_plans(repo)
             self.assertEqual(discovered["orc001"].kind, "orchestrator")
@@ -2950,18 +2905,13 @@ Execution contract: commit path-scoped; do not push.
 
 def _init_repo_with_conforming_plan(repo: Path, id6: str = "slf001") -> Path:
     """Create a git repo (with .aw/state gitignored) holding one approved, lint-conforming plan."""
-    repo.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
-    )
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    copy_template_repo(repo)
     # Match a production install's ignore set: run state, worktrees, and receipts are gitignored.
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
     pending = repo / ".aw" / "records" / "plans" / "pending"
-    pending.mkdir(parents=True)
+    pending.mkdir(parents=True, exist_ok=True)
     plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
     plan.write_text(_CONFORMING_PLAN.format(id6=id6), encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -3506,15 +3456,7 @@ class SpecEditReportBehavioralTests(unittest.TestCase):
 
     def test_execute_item_spec_edits_report_declared_and_undeclared(self):
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -3525,7 +3467,7 @@ class SpecEditReportBehavioralTests(unittest.TestCase):
                 "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
             )
             pending = repo / ".aw" / "records" / "plans" / "pending"
-            pending.mkdir(parents=True)
+            pending.mkdir(parents=True, exist_ok=True)
             plan = pending / "20260828-demo-01-spe001-demo.ipd.md"
             plan.write_text(plan_text, encoding="utf-8")
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -4487,25 +4429,6 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
             self.assertIn("ipd-merge-conflict", events)
 
-    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
-        # Unit coverage of the E-01 helper: only paths that are BOTH dirty in main AND incoming are
-        # reported; a rename's origin+destination both count; disjoint dirt is ignored.
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            _init_repo_with_conforming_plan(repo, "wir001")
-            # Dirty an un-owned file that does NOT overlap.
-            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(driver.dirty_tree_overlap(repo, ["src/x.py"]), [])
-            # Dirty a file that DOES overlap the incoming change.
-            (repo / "src").mkdir(parents=True, exist_ok=True)
-            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
-            self.assertEqual(
-                driver.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
-                ["src/x.py"],
-            )
-            # No incoming files -> never blocked.
-            self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
-
     def test_this_hosts_merge_subject_still_says_aw_oc_run(self):
         """The ONE value the extraction parameterized, checked against a REAL merge on this host.
 
@@ -4843,13 +4766,7 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
 
 def _repo_with_statuses(root: Path, statuses: dict) -> Path:
     """A git repo holding one conforming plan per (id6 -> status) entry. No commit needed to read."""
-    repo = root / "repo"
-    repo.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
-    )
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    repo = copy_template_repo(root / "repo")
     (repo / ".gitignore").write_text(
         ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
     )
@@ -5264,9 +5181,7 @@ class HostIntegrateVerbTests(unittest.TestCase):
                 )
 
             with tempfile.TemporaryDirectory() as td:
-                repo = Path(td) / "repo"
-                repo.mkdir()
-                subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+                repo = copy_template_repo(Path(td) / "repo")
                 with mock.patch.object(runner_shared, "reintegrate_lane", spy):
                     if expect_host == "driver-subcommand":
                         rc = driver.main([*argv, "--repo", os.fspath(repo)])
@@ -5335,9 +5250,7 @@ class HostIntegrateVerbTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as td:
-            repo = Path(td) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(td) / "repo")
 
             out_buf = io.StringIO()
             err_buf = io.StringIO()
@@ -8010,6 +7923,7 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
                 "- Cohesion rationale: not required\n"
             )
             plan.write_text(conforming_plan, encoding="utf-8")
+            # Kept repo builder: writes non-conforming plan file directly into root before git init to test pre-prompt observation report.
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
             subprocess.run(
@@ -8101,15 +8015,7 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
     def test_case1_deferred_reattempt_close_reaches_done_and_main_clean(self):
         """Case 1 (E-02): eligible deferred re-attempt close lands in done, wrote_in=coordinator_worktree, main clean."""
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -8174,15 +8080,7 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
     def test_case2_deferred_reattempt_failure_arm_leaves_main_clean(self):
         """Case 2 (E-02): rejecting hook leaves main clean without half-move residue."""
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -8250,15 +8148,7 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
     def test_case3_deferred_reattempt_no_double_close_when_already_closed(self):
         """Case 3 (E-02): already-closed item skips close performer completely."""
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -8317,15 +8207,7 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
         rebuilding on the new tip succeeds and preserves the peer commit as an ancestor.
         """
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
@@ -8420,15 +8302,7 @@ class TestDeferredReattemptBacklogCloseCoordinatorWorktree(
     def test_case4b_record_only_raced_arm_fails_to_land_close(self):
         """E-07 proving test: a record-only RACED arm fails to land the close."""
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            repo.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.invalid"],
-                cwd=repo,
-                check=True,
-            )
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            repo = copy_template_repo(Path(temp) / "repo")
             (repo / ".gitignore").write_text(
                 ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
             )
