@@ -6,7 +6,7 @@
 - Scope: IN: a new module `agent_workflows/question_inbox.py` with the question and answer file schemas, `write_question` (called by the driver at park time), `write_answer` (the only answer writer), `read_open_questions`, `read_answers`, run-scoped question ids (`<position>-<id6>-a<attempt>-<worker question_id>`), question status transitions (`open`/`answered`/`stale`) through one writer, the artifact content hash (R5.6), and the `human_answer` ledger entry; wiring `write_question` into the park branch. Also writes the `open-questions.md` projection at park time (R4a.1) from the same data. OUT: consuming answers (Order 04), the CLI (Order 05), channels (Orders 09-11).
 - Scope-Paths: agent_workflows/question_inbox.py, agent_workflows/runner_shared.py, agent_workflows/set_records.py, tests/test_question_inbox.py
 - Item-Dependencies: executed:epsti7
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mtmqlm
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-17 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mtmqlm verified (set qchan, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/set_records.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
