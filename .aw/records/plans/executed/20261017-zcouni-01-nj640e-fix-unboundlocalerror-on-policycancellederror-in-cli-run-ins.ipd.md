@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/cli.py`, import `PolicyCancelledError` unconditionally in `cli._run_install` (at function entry before the repository iteration loop) so the `except PolicyCancelledError:` exception handler is always bound regardless of whether `kept_legacy` is True or False. In `tests/test_cli.py`, remove the `@pytest.mark.xfail` quarantine decorator from `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy` and provide mocked interactive input (`io.StringIO("\n")`) so it runs cleanly without reading captured stdin. Add a dedicated test verifying that when `kept_legacy` is True and the user presses CTRL-C at the final install confirmation (which the real `_confirm_install` translates into `PolicyCancelledError`), `_run_install` reports `install cancelled; nothing written.`, writes nothing, and exits 1 without raising `UnboundLocalError`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: nj640e
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: nj640e verified (set zcouni, attempt 1).
 - 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
