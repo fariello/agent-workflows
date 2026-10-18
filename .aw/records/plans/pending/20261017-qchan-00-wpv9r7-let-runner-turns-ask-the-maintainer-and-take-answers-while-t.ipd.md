@@ -22,6 +22,7 @@
 - Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): design input: until this Set lands, `Attended: required` plans run by opening an INTERACTIVE agent session (`aw work begin`, and the runners pause at a terminal) - DECISIONS D176, backlog rfofos. When runner turns can ask questions, attended plans should be able to run as ordinary turns through this channel, with the interactive hand-off kept as the fallback; keep the two consistent.
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-10-17 coverage pass (aw oc run): fingerprint b85cde20cc6e, model uri/its_direct/pt3-claude-opus-5.5-1m-us

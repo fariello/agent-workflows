@@ -23562,15 +23562,29 @@ TERMINAL_QUEUE_STATUSES: frozenset[str] = frozenset(("executed",))
 ATTENDED_REQUIRED_CODE: str = "attended-session-required"
 
 
-def hold_attended_plan(q_entry: dict[str, Any], plan_path: Path | None) -> bool:
-    """Never dispatch an EXECUTE of a plan that declares `- Attended: required`.
+#: Queue-entry key marking an execute of an `Attended: required` plan that this run will hand to an
+#: INTERACTIVE session at a terminal instead of a headless turn (backlog `rfofos`, DECISIONS D176).
+ATTENDED_KEY: str = "attended"
+
+
+def hold_attended_plan(
+    q_entry: dict[str, Any], plan_path: Path | None, *, interactive: bool = False
+) -> bool:
+    """Route an EXECUTE of a plan that declares `- Attended: required`, at queue build.
 
     Such a plan needs a human present while it runs (it asks the maintainer live questions), and a
-    runner turn cannot ask. Dispatching it anyway was measured to burn a turn that does the read-only
-    first step, marks everything else blocked, and files a "run this attended" proposal stub (`lkn1zt`
-    -> `ee3htj`, 2026-10-17). So the entry is frozen `not-run` with `needs_input` and a refusal naming
-    the attended route, at queue build, for zero tokens. A REVIEW of the plan is unaffected.
-    Returns True when the entry was held.
+    HEADLESS runner turn cannot ask. Dispatching one headless was measured to burn a turn that does
+    the read-only first step, marks everything else blocked, and files a "run this attended" stub
+    (`lkn1zt` -> `ee3htj`, 2026-10-17).
+
+    ``interactive`` (the run is at a terminal with no ``--unattended``): the entry stays QUEUED and is
+    marked :data:`ATTENDED_KEY`. When its turn comes the runner pauses the queue and opens an
+    interactive agent session for it (:func:`run_attended_turn`), then carries on. This is the interim
+    route until runner turns can ask questions themselves (Set ``qchan``); see DECISIONS D176.
+
+    Otherwise (nobody can answer): frozen `not-run` with `needs_input` and a refusal naming the
+    attended route, for zero tokens. A REVIEW of the plan is unaffected either way.
+    Returns True when the entry was HELD (not when it was marked for an interactive session).
     """
     if q_entry.get("action") != "execute" or plan_path is None:
         return False
@@ -23582,6 +23596,14 @@ def hold_attended_plan(q_entry: dict[str, Any], plan_path: Path | None) -> bool:
         return False
     if not _schema.plan_requires_attended(text):
         return False
+    if interactive:
+        q_entry[ATTENDED_KEY] = True
+        return False
+    _freeze_attended_hold(q_entry)
+    return True
+
+
+def _freeze_attended_hold(q_entry: dict[str, Any]) -> None:
     id6 = str(q_entry.get("id6") or "")
     q_entry["status"] = "not-run"
     q_entry[NEEDS_INPUT_KEY] = True
@@ -23592,9 +23614,163 @@ def hold_attended_plan(q_entry: dict[str, Any], plan_path: Path | None) -> bool:
             f"plan {id6} declares `- Attended: required`: it needs a human present while it runs, "
             "so no runner turn was spent on it"
         ),
-        remedy=f"run it by hand in an attended session: aw work begin {id6}",
+        remedy=(
+            f"run it at a terminal, where the runner opens an interactive session for it, or: "
+            f"aw work begin {id6}"
+        ),
+    )
+
+
+def remark_attended_on_requeue(item: dict[str, Any]) -> None:
+    """A resume re-queuing an item HELD as attended re-marks it, so it is never dispatched headless.
+
+    ``--retry-incomplete`` flips ``not-run`` back to ``queued``. Without this, a held attended plan
+    would then run as an ordinary headless turn. Re-marked, the dispatch-time check either opens an
+    interactive session (a terminal is present) or holds it again.
+    """
+
+    refusal = item.get("refusal") if isinstance(item.get("refusal"), Mapping) else {}
+    if refusal.get("code") == ATTENDED_REQUIRED_CODE:
+        item[ATTENDED_KEY] = True
+        item[NEEDS_INPUT_KEY] = False
+
+
+def run_is_interactive_now(state: Mapping[str, Any]) -> bool:
+    """Whether THIS process can open an interactive session: a terminal and no frozen --unattended."""
+
+    opts = state.get("options") if isinstance(state.get("options"), Mapping) else {}
+    return is_interactive_run(
+        argparse.Namespace(
+            unattended=bool(opts.get("unattended")),
+            full_auto=bool(opts.get("full_auto")),
+        )
+    )
+
+
+def hold_attended_if_unattended(
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    *,
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> bool:
+    """At DISPATCH, hold an attended item when nobody is at the terminal (a resumed run, cron).
+
+    The queue-build decision can be stale: a run started at a terminal may be resumed unattended.
+    Returns True when the item was held (the caller saves state and continues the loop).
+    """
+
+    if not item.get(ATTENDED_KEY) or run_is_interactive_now(state):
+        return False
+    _freeze_attended_hold(item)
+    item.pop(ATTENDED_KEY, None)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "attended-held",
+            "id6": item.get("id6"),
+            "reason": "no terminal",
+        },
     )
     return True
+
+
+def run_attended_turn(
+    state: Mapping[str, Any],
+    run_dir: Path,
+    item: Mapping[str, Any],
+    prompt_path: Path,
+    attempt_no: int,
+    *,
+    work_dir: Path | None,
+    host: str,
+    binary: str | None,
+    model: str | None = None,
+    agent: str | None = None,
+    variant: str | None = None,
+    extra_env: Mapping[str, str] | None = None,
+) -> tuple[int, str | None, Path, list[str]]:
+    """Pause the queue and run one attended item in an INTERACTIVE session; same 4-tuple as a turn.
+
+    The session opens in the item's worktree (or the repository) with a first message naming the
+    plan, saying the maintainer is present, and pointing at the runner prompt (which carries the
+    required outcome path). The runner then scores, verifies, finalizes and integrates the item
+    exactly as it would a headless turn, and continues the queue. Backlog ``rfofos``; D176.
+    """
+
+    from agent_workflows import attended_session as att
+
+    id6 = str(item.get("id6") or "")
+    cwd = Path(work_dir) if work_dir else Path(str(state.get("repo") or "."))
+    outcome = None
+    try:
+        m = re.search(
+            r"Required JSON outcome:\s*(\S+)",
+            Path(prompt_path).read_text(encoding="utf-8"),
+        )
+        outcome = m.group(1) if m else None
+    except OSError:
+        outcome = None
+    prompt = (
+        att.execute_prompt(id6, outcome_path=outcome)
+        + f" The full runner prompt is in {prompt_path}."
+    )
+    argv = att.build_interactive_argv(
+        host,
+        workdir=cwd,
+        prompt=prompt,
+        binary=binary,
+        model=model,
+        variant=variant,
+        agent=agent,
+    )
+    log_path = attempt_log_path(run_dir, dict(item), attempt_no)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    started = utc_now()
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": started,
+            "event": "attended-session-start",
+            "id6": id6,
+            "host": host,
+            "cwd": str(cwd),
+        },
+    )
+    print(
+        f"\n[aw] pausing the queue: {id6} needs you present. Opening {host} in {cwd}.\n"
+        "[aw] answer its questions there; exit the session when it is done and the run will continue.\n",
+        file=sys.stderr,
+        flush=True,
+    )
+    rc = att.run_interactive_session(argv, cwd=cwd, env=att.child_env(extra_env))
+    ended = utc_now()
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "attended_session": True,
+                    "host": host,
+                    "argv0": argv[0],
+                    "exit_code": rc,
+                    "started_at": started,
+                    "ended_at": ended,
+                }
+            )
+            + "\n"
+        )
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {"at": ended, "event": "attended-session-end", "id6": id6, "exit_code": rc},
+    )
+    print(
+        f"[aw] {id6}: attended session ended (exit {rc}); continuing the run.",
+        file=sys.stderr,
+        flush=True,
+    )
+    return rc, None, log_path, list(argv)
 
 
 def initial_queue_status(status: str | None, *, action: str | None = None) -> str:
@@ -35535,7 +35711,7 @@ def initialize_run_core(
             }
             if id6 in rereview_ids:
                 q_entry["rereview"] = True
-            hold_attended_plan(q_entry, p_path)
+            hold_attended_plan(q_entry, p_path, interactive=is_interactive_run(args))
             queue.append(q_entry)
         else:
             # artdispatch 8l8dgb E-03: Typed non-plan artifact (spec or backlog)
@@ -42479,7 +42655,10 @@ def execute_item_core(
                         f"plan {item['id6']} needs a human present while it runs; the runner "
                         f"marked it `Attended: required`, so later runs skip it: {filing_res.blocked_by}"
                     )
-                    p_remedy = f"run it by hand in an attended session: aw work begin {item['id6']}"
+                    p_remedy = (
+                        "run it at a terminal, where the runner opens an interactive session for "
+                        f"it, or: aw work begin {item['id6']}"
+                    )
                 elif filing_res.filed:
                     p_reason = (
                         f"the agent proposed a {filing_res.size} {filing_res.kind} change: "

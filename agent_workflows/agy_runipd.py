@@ -3132,6 +3132,26 @@ def execute_item(
         session_id: str | None,
         use_continue: bool,
     ) -> tuple[int, str | None, Path, list[str]]:
+        if item.get(runner_shared.ATTENDED_KEY):
+            # rfofos / D176: an `Attended: required` plan at a terminal runs in an INTERACTIVE
+            # session with the maintainer, then the normal post-turn path scores and lands it.
+            opts = state.get("options") or {}
+            return runner_shared.run_attended_turn(
+                state,
+                run_dir,
+                item,
+                prompt_path,
+                attempt_no,
+                work_dir=work_dir,
+                host="agy",
+                binary=opts.get("agy_executable") or opts.get("agy") or "agy",
+                model=opts.get("explicit_model") or opts.get("model"),
+                variant=opts.get("effort"),
+                extra_env={
+                    "AW_RUN_ID": str(state.get("run_id") or ""),
+                    "AW_ITEM_ID6": str(item.get("id6") or ""),
+                },
+            )
         return run_agy_turn(
             state,
             run_dir,
@@ -3313,6 +3333,7 @@ def run_queue(
                 # below and by then `item["status"]` no longer says the item was `integration-blocked`.
                 # The pass selects on durable lane facts plus this recorded prior disposition, and
                 # E-04's hold-back restores exactly this value rather than inventing one.
+                runner_shared.remark_attended_on_requeue(item)
                 item["requeue_from_status"] = item["status"]
                 item["status"] = "queued"
                 item["recovery_next"] = True
@@ -3675,6 +3696,11 @@ def run_queue(
             runnable,
             save_state=save_state,
             append_jsonl=append_jsonl,
+        ):
+            save_state(run_dir, state)
+            continue
+        if runner_shared.hold_attended_if_unattended(
+            run_dir, state, runnable, save_state=save_state, append_jsonl=append_jsonl
         ):
             save_state(run_dir, state)
             continue

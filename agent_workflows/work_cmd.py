@@ -382,6 +382,76 @@ def run_work_begin(args: argparse.Namespace) -> int:
         f"aw work begin: validated {plan_path.name}; allocated worktree {handle.path} "
         f"(branch {handle.branch}, base {handle.base_commit[:12]})"
     )
+    return _open_work_session(
+        args, repo_root, plan_id, Path(handle.path), handle.branch
+    )
+
+
+def _default_session_host(repo_root: Path) -> list[str]:
+    """Hosts to try, preferred first: the runner profiles' default runner, if one is set."""
+
+    try:
+        from agent_workflows import runner_profiles
+
+        runner = runner_profiles.load().default_runner
+        return [runner] if runner else []
+    except Exception:
+        return []
+
+
+def _open_work_session(
+    args: argparse.Namespace, repo_root: Path, plan_id: str, worktree: Path, branch: str
+) -> int:
+    """Open an interactive agent session in ``worktree``, told to execute ``plan_id``.
+
+    Only at a terminal (``term.is_interactive``, which honors ``--no-interactive``,
+    ``AW_NONINTERACTIVE`` and ``CI``) and only without ``--no-session``. Otherwise print the exact
+    command, so nothing is left to work out by hand. Backlog ``rfofos``; DECISIONS D176.
+    """
+
+    from agent_workflows import attended_session as att
+    from agent_workflows import term
+
+    host = getattr(args, "host", None)
+    binary = getattr(args, "host_bin", None)
+    if host is None:
+        host = (
+            att.pick_host(_default_session_host(repo_root))
+            if binary is None
+            else "opencode"
+        )
+    prompt = att.execute_prompt(plan_id)
+    if host is None:
+        print(
+            "aw work begin: no agent found on PATH (looked for opencode, claude, agy); start one in "
+            f"{worktree} and ask it to execute plan {plan_id}"
+        )
+        return 0
+    argv = att.build_interactive_argv(
+        host, workdir=worktree, prompt=prompt, binary=binary
+    )
+    if getattr(args, "no_session", False) or not term.is_interactive():
+        import shlex
+
+        print(
+            "aw work begin: to execute it, run: cd "
+            + shlex.quote(str(worktree))
+            + " && "
+            + " ".join(shlex.quote(a) for a in argv)
+        )
+        return 0
+    print(
+        f"aw work begin: opening {host} in {worktree} to execute plan {plan_id} ...",
+        flush=True,
+    )
+    rc = att.run_interactive_session(argv, cwd=worktree, env=att.child_env())
+    if rc == 127:
+        print(f"aw work begin: could not start {argv[0]} (not found)")
+        return 2
+    print(
+        f"aw work begin: the {host} session ended (exit {rc}). The worktree {worktree} "
+        f"(branch {branch}) is kept; to continue there: cd {worktree} && {argv[0]}"
+    )
     return 0
 
 

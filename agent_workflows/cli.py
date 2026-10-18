@@ -2512,7 +2512,10 @@ def _build_parser() -> argparse.ArgumentParser:
             "command rather than warning, so execution cannot begin against a plan that does not "
             "conform. Then an isolated git worktree is allocated with a recorded lease, so the work "
             "happens off the shared checkout and the lease says who holds it. Use this instead of "
-            "hand-creating a worktree: it is the same validation the repository gates on later."
+            "hand-creating a worktree: it is the same validation the repository gates on later. "
+            "At a terminal it then OPENS AN INTERACTIVE AGENT SESSION in that worktree, already told "
+            "to execute the plan, so a plan that needs you present (`Attended: required`) is one "
+            "command. Pass --no-session to stop after allocating the worktree."
         ),
     )
     p_work_begin.add_argument(
@@ -2520,6 +2523,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_work_begin.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_work_begin.add_argument(
+        "--no-session",
+        dest="no_session",
+        action="store_true",
+        help="Only validate and allocate the worktree; do not open an agent session.",
+    )
+    p_work_begin.add_argument(
+        "--host",
+        choices=("opencode", "claude", "agy"),
+        default=None,
+        help=(
+            "Agent to open (default: the runner profiles' default runner, else the first of "
+            "opencode, claude, agy found on PATH)."
+        ),
+    )
+    p_work_begin.add_argument(
+        "--host-bin",
+        dest="host_bin",
+        default=None,
+        metavar="PATH",
+        help="Path to the agent binary (default: the host's name on PATH).",
     )
 
     p_test = sub.add_parser(
