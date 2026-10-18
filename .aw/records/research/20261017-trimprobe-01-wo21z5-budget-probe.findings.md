@@ -1044,4 +1044,271 @@ The 3 `P3` keys past the 7,200s cumulative mark in queue order are:
 | `key-gone` | 0 | n/a | Key absent or qualname span not found at HEAD (final verdict) |
 | `unprovable` | 0 | n/a | No applicable mutation operator (final verdict) |
 | **Total** | **319** | **16843.68** | All 319 budget-exhausted candidate keys partitioned or decided |
+## Budget probe results
 
+| Key | Partition | Operator | Selection | Collected | Survivor | Control | Final verdict | Reason | wall_s |
+|---|---|---|---|---|---|---|---|---|---|
+| `agent_workflows/attention.py::_gate_ref_display` | `P2` | `return-none` | files | 76 | survived | killed | unguarded |  | 39.60 |
+| `agent_workflows/benchmark_ablations.py::AblationScheduler.__init__` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 4.87 |
+| `agent_workflows/benchmark_ablations.py::AblationTrialSpec.cell_key` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 10.31 |
+| `agent_workflows/benchmark_ablations.py::compute_paired_comparison.cell_key` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.27 |
+| `agent_workflows/benchmark_corpus.py::SeededTask.workspace_seed_path` | `P2` | `return-none` | files | 14 | survived | killed | unguarded | overwrote 1 | 13.39 |
+| `agent_workflows/benchmark_corpus.py::load_corpus` | `P2` | `return-none` | files | 14 | survived | killed | unguarded | overwrote 1 | 11.79 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.to_dict` | `P2` | `return-none` | files | 14 | survived | killed | unguarded | overwrote 1 | 10.17 |
+| `agent_workflows/benchmark_metrics.py::MetricSummary.to_dict` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 8.78 |
+| `agent_workflows/benchmark_reports.py::BenchmarkReport.to_dict` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 3.58 |
+| `agent_workflows/benchmark_reports.py::BenchmarkRunRecord.to_dict` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.27 |
+| `agent_workflows/benchmark_reports.py::format_json_report` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.15 |
+| `agent_workflows/benchmark_runners.py::TrialResult.to_dict` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 12.28 |
+| `agent_workflows/benchmark_thresholds.py::GateEvaluationResult.to_dict` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 11.35 |
+| `agent_workflows/benchmark_thresholds.py::SignedRevisionEvent.verify_signature` | `P2` | `negate-return` | node-ids | 1 | killed | n/a | guarded |  | 5.17 |
+| `agent_workflows/check_engine.py::check_push_authorization` | `P2` | `return-none` | files | 25 | survived | killed | unguarded |  | 27.80 |
+| `agent_workflows/clean_delta.py::CleanDeltaManager.__init__` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 6.55 |
+| `agent_workflows/clean_delta.py::compute_target_delta` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.98 |
+| `agent_workflows/clean_delta.py::resolve_system_provider` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.03 |
+| `agent_workflows/clean_delta.py::snapshot_target_state` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 10.13 |
+| `agent_workflows/clean_delta.py::validate_host_evidence` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.95 |
+| `agent_workflows/discovery.py::_scan_children` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 8.73 |
+| `agent_workflows/discovery.py::discover` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.81 |
+| `agent_workflows/discovery.py::discover.add_target` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 8.22 |
+| `agent_workflows/discovery.py::submodule_paths` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 9.14 |
+| `agent_workflows/engine.py::strip_description_and_normalize` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.10 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.05 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::check` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 3.96 |
+| `agent_workflows/hooks/ipd_dependency_statement_gate.py::main` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.30 |
+| `agent_workflows/hooks/prepush_authorization_gate.py::check` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 3.98 |
+| `agent_workflows/hooks/prepush_authorization_gate.py::main` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.05 |
+| `agent_workflows/hooks/status_untooled_gate.py::check` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.43 |
+| `agent_workflows/hooks/status_untooled_gate.py::main` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.87 |
+| `agent_workflows/host_launchers.py::host_result_can_finalize` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 4.61 |
+| `agent_workflows/prompts.py::inject_metadata_id6` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 12.50 |
+| `agent_workflows/readiness_recheck.py::_run_stale_findings` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 4.42 |
+| `agent_workflows/research_cmd.py::_set_priority_line` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 5.07 |
+| `agent_workflows/review_findings.py::append_round_resolving_stale` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 4.84 |
+| `agent_workflows/review_findings.py::stale_escalated_findings` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 4.19 |
+| `agent_workflows/run_analytics_report.py::read_manifest` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 9.11 |
+| `agent_workflows/run_engine.py::RunEngine.complete_run` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 23.19 |
+| `agent_workflows/run_freeze.py::diff_requirements` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 3.94 |
+| `agent_workflows/run_ledger_store.py::UnparseableLineError.__init__` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 11.33 |
+| `agent_workflows/set_records.py::render_open_questions` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 4.11 |
+| `agent_workflows/storage.py::_remote_reachable` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 7.47 |
+| `agent_workflows/storage.py::acknowledge_remote_durability` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.52 |
+| `agent_workflows/storage.py::init_records_storage` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 6.50 |
+| `agent_workflows/verify_roles.py::check_self_verification` | `P2` | `raise` | node-ids | 1 | killed | n/a | guarded |  | 4.33 |
+| `agent_workflows/backlog.py::blocks_release_of_item` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 7.54 |
+| `agent_workflows/benchmark_manifest.py::BenchmarkManifest.digest` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 11.10 |
+| `agent_workflows/benchmark_reports.py::BenchmarkRunRecord.digest` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 5.23 |
+| `agent_workflows/benchmark_reports.py::format_markdown_report.fmt_metric` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 5.23 |
+| `agent_workflows/cli.py::_oc_profile_default` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 13.37 |
+| `agent_workflows/cli.py::_oc_profile_list` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 13.11 |
+| `agent_workflows/cli.py::_oc_profile_remove` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 9.22 |
+| `agent_workflows/host_adapters.py::validate_skill_package` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 4.76 |
+| `agent_workflows/host_runner.py::classify_worker_state` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 4.01 |
+| `agent_workflows/host_runner.py::worker_state_to_ledger` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 4.13 |
+| `agent_workflows/layout_migration.py::MigrationManager._raw_move` | `P2` | `raise` | node-ids | 2 | killed | n/a | guarded |  | 9.38 |
+| `agent_workflows/plan_readiness.py::_prepend_history_entry` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 8.06 |
+| `agent_workflows/plan_readiness.py::cite_review_entry` | `P2` | `return-none` | files | 23 | survived | killed | unguarded |  | 65.37 |
+| `agent_workflows/plan_readiness.py::format_recheck_history_entry` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 9.75 |
+| `agent_workflows/run_engine.py::RunEngine.record_verifier_decision` | `P2` | `raise` | node-ids | 2 | killed | n/a | guarded |  | 16.40 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.recover` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 10.49 |
+| `agent_workflows/runner_shared.py::extract_suite_failures` | `P2` | `return-none` | node-ids | 1 | killed | n/a | guarded |  | 105.87 |
+| `agent_workflows/set_records.py::render_decisions` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 19.97 |
+| `agent_workflows/term.py::Term.format_preview` | `P2` | `return-none` | node-ids | 2 | killed | n/a | guarded |  | 9.45 |
+| `agent_workflows/artifact_refs.py::dead_filename_citations` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 9.24 |
+| `agent_workflows/artifact_refs.py::dead_filename_citations._type_appropriate` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 11.99 |
+| `agent_workflows/benchmark_reports.py::generate_benchmark_report` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 6.15 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_success` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 7.34 |
+| `agent_workflows/project_registry.py::find_project` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 12.45 |
+| `agent_workflows/pwatch.py::main` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 12.12 |
+| `agent_workflows/run_cli.py::_run_finalize` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 31.48 |
+| `agent_workflows/runner_shared.py::_compose_revalidation_excuses` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 112.00 |
+| `agent_workflows/runner_shared.py::attributed_away_failure_ids` | `P2` | `return-none` | files | 19 | survived | killed | unguarded |  | 372.34 |
+| `agent_workflows/runner_shared.py::revalidation_baseline_for` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 77.28 |
+| `agent_workflows/storage.py::_canonical_path` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 6.99 |
+| `agent_workflows/storage.py::get_storage_status` | `P2` | `return-none` | node-ids | 3 | killed | n/a | guarded |  | 5.19 |
+| `agent_workflows/storage.py::validate_storage_boundaries` | `P2` | `raise` | node-ids | 3 | killed | n/a | guarded |  | 7.45 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_completed` | `P2` | `return-false` | node-ids | 4 | killed | n/a | guarded |  | 3.75 |
+| `agent_workflows/host_capability_registry.py::render_probe_commands` | `P2` | `return-none` | node-ids | 4 | killed | n/a | guarded |  | 7.77 |
+| `agent_workflows/layout_migration.py::MigrationManager._load_transaction` | `P2` | `return-none` | node-ids | 4 | killed | n/a | guarded |  | 7.78 |
+| `agent_workflows/run_cli.py::_run_evidence` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 15.44 |
+| `agent_workflows/run_viewer.py::format_step_line` | `P2` | `return-none` | node-ids | 4 | killed | n/a | guarded |  | 9.27 |
+| `agent_workflows/benchmark_thresholds.py::ThresholdPolicy.get_thresholds` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 5.35 |
+| `agent_workflows/project_context.py::get_default_aw_home` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 21.35 |
+| `agent_workflows/run_cli.py::_run_cancel` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 28.82 |
+| `agent_workflows/run_cli.py::_run_record` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 24.57 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.verify_chain` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 12.84 |
+| `agent_workflows/run_viewer.py::repair_run` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 14.40 |
+| `agent_workflows/runner_shared.py::new_failures_since_baseline` | `P2` | `return-none` | node-ids | 5 | killed | n/a | guarded |  | 106.39 |
+| `agent_workflows/benchmark_metrics.py::wilson_score_interval` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 4.45 |
+| `agent_workflows/benchmark_runners.py::RunnerDouble.__init__` | `P2` | `raise` | node-ids | 6 | killed | n/a | guarded |  | 5.23 |
+| `agent_workflows/benchmark_runners.py::TrialResult.is_pending` | `P2` | `return-false` | node-ids | 6 | killed | n/a | guarded |  | 3.68 |
+| `agent_workflows/benchmark_scorer.py::_claimed_complete` | `P2` | `negate-return` | node-ids | 6 | killed | n/a | guarded |  | 5.11 |
+| `agent_workflows/benchmark_scorer.py::_get` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 4.11 |
+| `agent_workflows/cli.py::_run_layout` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 17.25 |
+| `agent_workflows/cli.py::_run_show` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 15.84 |
+| `agent_workflows/runner_shared.py::normalize_failure_id` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 88.07 |
+| `agent_workflows/artifact_rename.py::_update_or_inject_set_metadata` | `P2` | `raise` | node-ids | 7 | killed | n/a | guarded |  | 15.98 |
+| `agent_workflows/benchmark_manifest.py::Ceilings.as_dict` | `P2` | `return-none` | node-ids | 7 | killed | n/a | guarded |  | 4.33 |
+| `agent_workflows/benchmark_manifest.py::Ceilings.digest` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 10.56 |
+| `agent_workflows/benchmark_manifest.py::_canonical_json` | `P2` | `return-none` | node-ids | 7 | killed | n/a | guarded |  | 4.03 |
+| `agent_workflows/benchmark_manifest.py::_digest` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 10.02 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.adapter_digest` | `P2` | `return-none` | files | 14 | survived | survived | unprovable | control survived; overwrote 1 | 10.23 |
+| `agent_workflows/check_engine.py::_summarize_paths` | `P2` | `return-none` | node-ids | 7 | killed | n/a | guarded |  | 18.86 |
+| `agent_workflows/layout_migration.py::MigrationManager._is_removable_leftover` | `P2` | `return-none` | node-ids | 7 | killed | n/a | guarded |  | 15.02 |
+| `agent_workflows/run_cli.py::_run_verify_ledger` | `P2` | `return-none` | node-ids | 7 | killed | n/a | guarded |  | 19.33 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.build_rerun_command` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 5.12 |
+| `agent_workflows/comms.py::validate_envelope_header` | `P2` | `return-none` | files | 40 | survived | killed | unguarded |  | 23.60 |
+| `agent_workflows/readiness_recheck.py::_resolve` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 23.47 |
+| `agent_workflows/run_analytics_report.py::_build_manifest` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 19.17 |
+| `agent_workflows/run_analytics_report.py::_order_key` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 15.23 |
+| `agent_workflows/run_analytics_report.py::publish_bundle` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 14.21 |
+| `agent_workflows/runner_profile_wizard.py::opencode_argv_fields` | `P2` | `return-none` | node-ids | 8 | killed | n/a | guarded |  | 22.83 |
+| `agent_workflows/benchmark_runners.py::RunnerAdapter.__init__` | `P2` | `raise` | node-ids | 9 | killed | n/a | guarded |  | 7.71 |
+| `agent_workflows/benchmark_runners.py::get_adapter` | `P2` | `return-none` | node-ids | 9 | killed | n/a | guarded |  | 6.24 |
+| `agent_workflows/host_capability_registry.py::evaluate_negative_probe` | `P2` | `return-none` | node-ids | 9 | killed | n/a | guarded |  | 10.46 |
+| `agent_workflows/run_analytics_report.py::BundleFile.__post_init__` | `P2` | `raise` | node-ids | 9 | killed | n/a | guarded |  | 16.24 |
+| `agent_workflows/cli.py::_run_plans` | `P2` | `return-none` | node-ids | 10 | killed | n/a | guarded |  | 16.46 |
+| `agent_workflows/comms.py::parse_envelope_header` | `P2` | `return-none` | node-ids | 10 | killed | n/a | guarded |  | 5.58 |
+| `agent_workflows/host_runner.py::run_worker_process` | `P2` | `return-none` | node-ids | 10 | killed | n/a | guarded |  | 8.00 |
+| `agent_workflows/runner_shared.py::SuiteCheckResult.failing_text` | `P2` | `return-none` | node-ids | 10 | killed | n/a | guarded |  | 65.41 |
+| `agent_workflows/cli.py::_oc_profile_add` | `P2` | `return-none` | node-ids | 11 | killed | n/a | guarded |  | 14.73 |
+| `agent_workflows/discovery.py::_is_excluded` | `P2` | `negate-return` | node-ids | 11 | killed | n/a | guarded |  | 131.47 |
+| `agent_workflows/layout_migration.py::MigrationManager._git_toplevel` | `P2` | `return-none` | node-ids | 11 | killed | n/a | guarded |  | 17.63 |
+| `agent_workflows/layout_migration.py::MigrationManager._perform_move` | `P2` | `raise` | node-ids | 11 | killed | n/a | guarded |  | 21.84 |
+| `agent_workflows/layout_migration.py::MigrationManager._records_root_for_backend` | `P2` | `return-none` | node-ids | 11 | killed | n/a | guarded |  | 16.82 |
+| `agent_workflows/run_analytics_config.py::_telemetry_section` | `P2` | `return-none` | node-ids | 11 | killed | n/a | guarded |  | 80.00 |
+| `agent_workflows/run_analytics_findings.py::assert_no_causal_language` | `P2` | `raise` | files | 59 | survived | killed | unguarded |  | 20.57 |
+| `agent_workflows/run_analytics_findings.py::build_finding` | `P2` | `return-none` | files | 59 | survived | killed | unguarded |  | 22.28 |
+| `agent_workflows/run_analytics_findings.py::findings_from_results` | `P2` | `return-none` | files | 59 | survived | killed | unguarded |  | 21.53 |
+| `agent_workflows/run_analytics_spa.py::_render_findings` | `P2` | `return-none` | files | 59 | invalid | n/a | unprovable | target file not found | 0.93 |
+| `agent_workflows/run_analytics_spa.py::_render_pricing` | `P2` | `return-none` | files | 59 | invalid | n/a | unprovable | target file not found | 0.78 |
+| `agent_workflows/run_analytics_spa.py::_render_refusals` | `P2` | `return-none` | files | 59 | invalid | n/a | unprovable | target file not found | 0.89 |
+| `agent_workflows/run_analytics_spa.py::refusal_from_result` | `P2` | `return-none` | files | 59 | invalid | n/a | unprovable | target file not found | 0.82 |
+| `agent_workflows/artifact_rename.py::_existing_type_id6s` | `P2` | `return-none` | files | 50 | survived | survived | unprovable | control survived | 48.07 |
+| `agent_workflows/artifact_rename.py::_id6_write_message` | `P2` | `return-none` | node-ids | 12 | killed | n/a | guarded |  | 19.79 |
+| `agent_workflows/artifact_rename.py::_update_frontmatter_metadata` | `P2` | `raise` | node-ids | 12 | killed | n/a | guarded |  | 27.52 |
+| `agent_workflows/artifact_rename.py::find_target_record` | `P2` | `return-none` | node-ids | 12 | killed | n/a | guarded |  | 20.68 |
+| `agent_workflows/engine.py::classify_git_state` | `P2` | `return-none` | node-ids | 12 | killed | n/a | guarded |  | 94.14 |
+| `agent_workflows/ipd_lifecycle.py::classify_commit_refusal` | `P2` | `return-none` | files | 117 | survived | killed | unguarded |  | 72.16 |
+| `agent_workflows/run_analytics_spa.py::scan_for_network_references` | `P2` | `return-none` | files | 59 | invalid | n/a | unprovable | target file not found | 0.91 |
+| `agent_workflows/runner_shared.py::format_merge_conflict_reason` | `P2` | `return-none` | node-ids | 12 | killed | n/a | guarded |  | 140.18 |
+| `agent_workflows/term.py::Term.severity_label` | `P2` | `return-none` | node-ids | 12 | killed | n/a | guarded |  | 24.13 |
+| `agent_workflows/duration.py::parse_age_duration` | `P2` | `return-none` | node-ids | 13 | killed | n/a | guarded |  | 18.08 |
+| `agent_workflows/host_capability_registry.py::_parse_iso_utc` | `P2` | `return-none` | node-ids | 13 | killed | n/a | guarded |  | 14.48 |
+| `agent_workflows/layout_migration.py::MigrationManager.plan_migration` | `P2` | `return-none` | node-ids | 13 | killed | n/a | guarded |  | 36.63 |
+| `agent_workflows/run_analytics_cache.py::decode_envelope` | `P2` | `return-none` | node-ids | 6 | killed | n/a | guarded |  | 21.67 |
+| `agent_workflows/run_analytics_privacy.py::_project_number_map` | `P2` | `return-none` | files | 47 | survived | killed | unguarded |  | 23.17 |
+| `agent_workflows/artifact_rename.py::run_group_generic` | `P2` | `return-none` | node-ids | 14 | killed | n/a | guarded |  | 21.80 |
+| `agent_workflows/check_engine.py::_receipt_is_live` | `P2` | `negate-return` | node-ids | 14 | killed | n/a | guarded |  | 21.47 |
+| `agent_workflows/attention.py::_color_dep_id` | `P2` | `return-none` | node-ids | 15 | killed | n/a | guarded |  | 114.88 |
+| `agent_workflows/run_analytics_cache.py::_publish` | `P2` | `return-none` | node-ids | 13 | killed | n/a | guarded |  | 12.64 |
+| `agent_workflows/run_analytics_cache.py::decide` | `P2` | `return-none` | node-ids | 14 | killed | n/a | guarded |  | 14.12 |
+| `agent_workflows/run_analytics_cache.py::load_entry` | `P2` | `return-none` | node-ids | 14 | killed | n/a | guarded |  | 15.60 |
+| `agent_workflows/run_analytics_cache.py::run_is_terminal` | `P2` | `negate-return` | node-ids | 14 | killed | n/a | guarded |  | 12.66 |
+| `agent_workflows/run_analytics_cache.py::update_cache` | `P2` | `return-none` | node-ids | 14 | killed | n/a | guarded |  | 15.84 |
+| `agent_workflows/run_analytics_privacy.py::pseudonymize` | `P2` | `return-none` | node-ids | 14 | killed | n/a | guarded |  | 14.35 |
+| `agent_workflows/runner_shared.py::resolve_run_dir` | `P2` | `return-none` | node-ids | 16 | killed | n/a | guarded |  | 47.82 |
+| `agent_workflows/check_engine.py::_resolve_edge` | `P2` | `return-none` | node-ids | 17 | killed | n/a | guarded |  | 151.67 |
+| `agent_workflows/comms.py::validate_ack` | `P2` | `return-none` | node-ids | 17 | killed | n/a | guarded |  | 7.34 |
+| `agent_workflows/doctor.py::probe_attention` | `P2` | `return-none` | node-ids | 17 | killed | n/a | guarded |  | 55.23 |
+| `agent_workflows/run_ledger_store.py::RedactionPolicy.__init__` | `P2` | `raise` | node-ids | 17 | killed | n/a | guarded |  | 11.07 |
+| `agent_workflows/check_engine.py::_check_untooled_plan_transition` | `P2` | `return-none` | node-ids | 18 | killed | n/a | guarded |  | 328.67 |
+| `agent_workflows/workflow_compiler.py::_compile_step_packets` | `P2` | `return-none` | node-ids | 18 | killed | n/a | guarded |  | 10.21 |
+| `agent_workflows/orchestrate_isolation.py::analyze_concurrency_eligibility` | `P2` | `return-none` | node-ids | 19 | killed | n/a | guarded |  | 5.88 |
+| `agent_workflows/layout_inventory.py::_flatten_records_subpath` | `P2` | `return-none` | node-ids | 20 | killed | n/a | guarded |  | 17.46 |
+| `agent_workflows/run_viewer.py::_state_setids` | `P2` | `return-none` | node-ids | 20 | killed | n/a | guarded |  | 36.03 |
+| `agent_workflows/review_findings.py::parse_review_text` | `P2` | `return-none` | node-ids | 22 | killed | n/a | guarded |  | 45.18 |
+| `agent_workflows/runner_shared.py::materialize_merge_result` | `P2` | `return-none` | node-ids | 22 | killed | n/a | guarded |  | 373.03 |
+| `agent_workflows/doctor.py::probe_artifacts` | `P2` | `return-none` | node-ids | 23 | killed | n/a | guarded |  | 50.58 |
+| `agent_workflows/host_capability_registry.py::EvidenceRecord.__post_init__` | `P2` | `raise` | node-ids | 23 | killed | n/a | guarded |  | 10.03 |
+| `agent_workflows/artifact_rename.py::run_rename_generic` | `P2` | `return-none` | node-ids | 24 | killed | n/a | guarded |  | 19.05 |
+| `agent_workflows/check_engine.py::load_emitted_layout` | `P2` | `return-none` | node-ids | 24 | killed | n/a | guarded |  | 73.20 |
+| `agent_workflows/run_analytics_privacy.py::_project_label_list` | `P2` | `return-none` | node-ids | 22 | killed | n/a | guarded |  | 20.70 |
+| `agent_workflows/runner_shared.py::_relative_revalidation_verdict` | `P2` | `return-none` | node-ids | 24 | killed | n/a | guarded |  | 394.53 |
+| `agent_workflows/layout_inventory.py::build_migration_map` | `P2` | `return-none` | node-ids | 25 | killed | n/a | guarded |  | 17.99 |
+| `agent_workflows/artifact_rename.py::compute_target_name` | `P2` | `return-none` | node-ids | 26 | killed | n/a | guarded |  | 32.09 |
+| `agent_workflows/comms.py::parse_not_before` | `P2` | `return-none` | node-ids | 27 | killed | n/a | guarded |  | 13.88 |
+| `agent_workflows/doctor.py::probe_environment` | `P2` | `return-none` | node-ids | 27 | killed | n/a | guarded |  | 73.82 |
+| `agent_workflows/run_analytics_privacy.py::_project_scalar` | `P2` | `return-none` | node-ids | 25 | killed | n/a | guarded |  | 16.63 |
+| `agent_workflows/work_cmd.py::_resolve_plan` | `P2` | `return-none` | node-ids | 30 | killed | n/a | guarded |  | 40.03 |
+| `agent_workflows/ipd_lifecycle.py::_working_tree_path_is_owned` | `P2` | `return-none` | node-ids | 31 | killed | n/a | guarded |  | 47.04 |
+| `agent_workflows/work_cmd.py::run_commit` | `P2` | `return-none` | node-ids | 31 | killed | n/a | guarded |  | 26.78 |
+| `agent_workflows/check_engine.py::evaluate_handoff_ready` | `P2` | `return-none` | node-ids | 32 | killed | n/a | guarded |  | 34.74 |
+| `agent_workflows/layout_inventory.py::_legacy_class` | `P2` | `return-none` | node-ids | 32 | killed | n/a | guarded |  | 14.91 |
+| `agent_workflows/layout_inventory.py::_walk` | `P2` | `return-none` | node-ids | 32 | killed | n/a | guarded |  | 22.12 |
+| `agent_workflows/engine.py::create_setup_artifacts` | `P2` | `return-none` | node-ids | 33 | killed | n/a | guarded |  | 387.97 |
+| `agent_workflows/engine.py::migrate_local_lanes_to_untracked` | `P2` | `return-none` | files | 99 | survived | killed | unguarded |  | 965.31 |
+| `agent_workflows/engine.py::prune_stale` | `P2` | `return-none` | node-ids | 33 | killed | n/a | guarded |  | 342.62 |
+| `agent_workflows/layout_inventory.py::_git_state` | `P2` | `return-none` | node-ids | 33 | killed | n/a | guarded |  | 16.15 |
+| `agent_workflows/check_engine.py::check_from_spec_dangling` | `P2` | `return-none` | node-ids | 34 | killed | n/a | guarded |  | 287.06 |
+| `agent_workflows/host_adapters.py::build_skill_package` | `P2` | `return-none` | node-ids | 35 | killed | n/a | guarded |  | 260.02 |
+| `agent_workflows/run_evidence.py::get_git_dirty_digest` | `P2` | `return-none` | node-ids | 35 | killed | n/a | guarded |  | 133.08 |
+| `agent_workflows/work_cmd.py::_recover_commit_flags` | `P2` | `return-none` | node-ids | 35 | killed | n/a | guarded |  | 35.06 |
+| `agent_workflows/migration_inventory.py::Disposition.validate` | `P2` | `return-none` | node-ids | 36 | killed | n/a | guarded |  | 147.50 |
+| `agent_workflows/migration_inventory.py::check_completeness` | `P2` | `return-none` | node-ids | 36 | killed | n/a | guarded |  | 134.92 |
+| `agent_workflows/host_adapters.py::build_host_adapter` | `P2` | `return-none` | node-ids | 37 | killed | n/a | guarded |  | 233.01 |
+| `agent_workflows/migration_inventory.py::_command_disposition` | `P2` | `return-none` | node-ids | 38 | killed | n/a | guarded |  | 144.31 |
+| `agent_workflows/migration_inventory.py::enumerate_subjects` | `P2` | `return-none` | node-ids | 38 | killed | n/a | guarded |  | 175.30 |
+| `agent_workflows/runner_shared.py::classify_recovery_disposition` | `P2` | `return-none` | node-ids | 38 | killed | n/a | guarded |  | 637.63 |
+| `agent_workflows/comms.py::is_filename_safe` | `P2` | `return-false` | node-ids | 39 | killed | n/a | guarded |  | 18.13 |
+| `agent_workflows/migration_inventory.py::build_inventory` | `P2` | `return-none` | node-ids | 39 | killed | n/a | guarded |  | 163.07 |
+| `agent_workflows/engine.py::shim_body` | `P2` | `return-none` | node-ids | 40 | killed | n/a | guarded |  | 221.63 |
+| `agent_workflows/check_engine.py::_is_grandfathered_plan` | `P2` | `negate-return` | node-ids | 42 | killed | n/a | guarded |  | 188.79 |
+| `agent_workflows/term.py::Term.format_empty_result` | `P2` | `return-none` | node-ids | 45 | killed | n/a | guarded |  | 25.50 |
+| `agent_workflows/run_ledger_store.py::RunLedgerStore.read_records` | `P2` | `return-none` | node-ids | 47 | killed | n/a | guarded |  | 53.11 |
+| `agent_workflows/run_ledger_store.py::classify_jsonl_file` | `P2` | `return-none` | node-ids | 47 | killed | n/a | guarded |  | 38.88 |
+| `agent_workflows/run_ledger_store.py::is_ledger_shaped` | `P2` | `return-none` | node-ids | 47 | killed | n/a | guarded |  | 49.84 |
+| `agent_workflows/run_evidence.py::get_worktree_path` | `P2` | `return-none` | node-ids | 54 | killed | n/a | guarded |  | 179.95 |
+| `agent_workflows/run_ledger_store.py::compute_record_hash` | `P2` | `return-none` | node-ids | 56 | killed | n/a | guarded |  | 183.37 |
+| `agent_workflows/runner_shared.py::path_is_within_analytics` | `P2` | `negate-return` | node-ids | 56 | killed | n/a | guarded |  | 55.93 |
+| `agent_workflows/check_engine.py::_walk_plan_lifecycle_history` | `P2` | `return-none` | node-ids | 58 | killed | n/a | guarded |  | 45.24 |
+| `agent_workflows/ipd_lifecycle.py::_plan_status_event_groups` | `P2` | `return-none` | node-ids | 58 | killed | n/a | guarded |  | 46.30 |
+| `agent_workflows/runner_shared.py::resolve_prior_lane` | `P2` | `return-none` | node-ids | 59 | killed | n/a | guarded |  | 635.95 |
+| `agent_workflows/worktree_lease.py::lane_id_from_branch` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/plans_refs.py::apply_renames` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_ipd_draft_ready` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_plan_priority_required` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_review_decision_unescalated` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_review_finding_unescalated` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/doctor.py::_infer_artifact_type` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_evidence.py::validate_evidence` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_spec_criteria_uncovered` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/plans_refs.py::_dirs` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_ledger_schema.py::validate_record` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::_plan_disposition` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/leak_sanitizer.py::scan_text` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_evidence.py::_porcelain_paths` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_baseline_ambiguity` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_evidence.py::dirty_within` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_names` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::check_release_gate_consistency` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::begin` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/record_history.py::_endpoint_id6` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/record_history.py::append_rename` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/record_history.py::record_rename` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_evidence.py::get_git_head` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/research_cmd.py::build_frontmatter` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/ipd_schema.py::_parse_item_dependency_edge` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/render_stream.py::format_spec_impact_announcement` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/runner_shared.py::spec_impacts_for_queue` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::_execution_cohesive_committed_paths` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/attention.py::_shared_gate_ref` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/attention.py::render_table` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/engine.py::resolve_source_root` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/attention.py::_render_table_row` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/backlog.py::run_new` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/research_contract.py::validate_frontmatter` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/selectors.py::resolve_for_mutation` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/runner_shared.py::expand_selectors` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/ipd_lifecycle.py::finalize_precheck` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/check_engine.py::evaluate_review_finding_escalation` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/runner_shared.py::route_recovery_turn` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.__init__` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.start` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceSampler.stop` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.accelerators` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.disk` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.__init__` | `P2` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._emit` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_accelerators` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
+| **P2 subtotal** | `P2` | | | | | | **263 keys** (budget-exhausted: 47, guarded: 188, unguarded: 14, unprovable: 14) | | **11130.81s** |
