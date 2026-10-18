@@ -35,49 +35,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: emit the record
 
-- [ ] E-01 In `agent_workflows/run_cli.py`, add a helper `_emit_result(args, payload, exit_code)` beside `_emit_machine`. When `--agent` (or `as_agent`) is active AND `exit_code in (EXIT_OK, EXIT_INCOMPLETE)` AND `payload` is a dict, it builds `rec = {**payload, "schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": _agent_cmd(args), "exit": exit_code, "outcome": "ok" if exit_code == EXIT_OK else "findings", "verified": True, "complete": True}` (envelope keys placed last so they always win over a same-named payload key) and hands it to `_emit_agent_record(args, rec)`, the ONE `--agent` record emitter plan `2t033b` E-01 adds for exactly this reuse (it applies `_redact_output`, recursive `agent_schema.redact_home_paths` plus ANSI stripping on every string value at any depth, the `--fields` projection via `agent_schema.filter_record_fields` with comma-string normalization, and `agent_schema.render_guarded_jsonl_record`). Do NOT re-implement that sequence here (P8, one emitter). Every other case (`--json`, any other exit code, a non-dict payload) calls `_emit_machine(args, payload)` unchanged. `_agent_cmd(args)` and `_emit_agent_record(args, rec)` are both added by `2t033b` E-01, which this plan depends on (`executed:2t033b`); if either is absent when this plan executes, add it exactly as `2t033b` E-01 specifies.
+- [x] E-01 In `agent_workflows/run_cli.py`, add a helper `_emit_result(args, payload, exit_code)` beside `_emit_machine`. When `--agent` (or `as_agent`) is active AND `exit_code in (EXIT_OK, EXIT_INCOMPLETE)` AND `payload` is a dict, it builds `rec = {**payload, "schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": _agent_cmd(args), "exit": exit_code, "outcome": "ok" if exit_code == EXIT_OK else "findings", "verified": True, "complete": True}` (envelope keys placed last so they always win over a same-named payload key) and hands it to `_emit_agent_record(args, rec)`, the ONE `--agent` record emitter plan `2t033b` E-01 adds for exactly this reuse (it applies `_redact_output`, recursive `agent_schema.redact_home_paths` plus ANSI stripping on every string value at any depth, the `--fields` projection via `agent_schema.filter_record_fields` with comma-string normalization, and `agent_schema.render_guarded_jsonl_record`). Do NOT re-implement that sequence here (P8, one emitter). Every other case (`--json`, any other exit code, a non-dict payload) calls `_emit_machine(args, payload)` unchanged. `_agent_cmd(args)` and `_emit_agent_record(args, rec)` are both added by `2t033b` E-01, which this plan depends on (`executed:2t033b`); if either is absent when this plan executes, add it exactly as `2t033b` E-01 specifies.
   - Depends on: none
   - Expected outcome: `_emit_result` exists and calls `_emit_agent_record` (no second copy of the redact / `--fields` / guarded-render sequence in `run_cli.py`); no call site changed yet; `python3 -m pytest tests/test_run_cli_error_payload_keys.py tests/test_run_init.py -o addopts="" -q` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Route the READ leaves' success emits through `_emit_result`, computing the exit code BEFORE emitting: `_run_show` (rc `0 if evaluation.is_complete else 1`), `_run_evidence` (rc `1 if any_invalid else 0`), `_run_verify_ledger` clean-chain branch (rc `0` when `evidence_val.ok and evaluation.is_complete`, else `1`; the broken-chain exit-5 payload is untouched), and `_emit_projection` success branch (rc `exit_code`, already computed). Each function's return value is unchanged.
+- [x] E-02 Route the READ leaves' success emits through `_emit_result`, computing the exit code BEFORE emitting: `_run_show` (rc `0 if evaluation.is_complete else 1`), `_run_evidence` (rc `1 if any_invalid else 0`), `_run_verify_ledger` clean-chain branch (rc `0` when `evidence_val.ok and evaluation.is_complete`, else `1`; the broken-chain exit-5 payload is untouched), and `_emit_projection` success branch (rc `exit_code`, already computed). Each function's return value is unchanged.
   - Depends on: E-01
   - Expected outcome: `runs show|evidence|verify-ledger|decisions|questions <id> --agent` each print one line that `validate_agent_record` accepts, with `exit` equal to the process exit code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Route the STATE leaves' success emits through `_emit_result`: `_run_status` (rc computed from `snapshot.state` before the emit using the existing tail logic: `EXIT_OK` for `STATE_COMPLETE`, `EXIT_BLOCKED` for `STATE_CANCELLED`, else `EXIT_INCOMPLETE`), `_run_next` (rc `EXIT_OK` when terminal or `runnable_ids` is non-empty, else `EXIT_BLOCKED`), `_run_resume` success branch (rc `EXIT_OK`). The exit-3 cases fall through `_emit_result` to the unchanged bare `_emit_machine` path, because `aw.agent/v1` caps `exit` at (0, 1, 2).
+- [x] E-03 Route the STATE leaves' success emits through `_emit_result`: `_run_status` (rc computed from `snapshot.state` before the emit using the existing tail logic: `EXIT_OK` for `STATE_COMPLETE`, `EXIT_BLOCKED` for `STATE_CANCELLED`, else `EXIT_INCOMPLETE`), `_run_next` (rc `EXIT_OK` when terminal or `runnable_ids` is non-empty, else `EXIT_BLOCKED`), `_run_resume` success branch (rc `EXIT_OK`). The exit-3 cases fall through `_emit_result` to the unchanged bare `_emit_machine` path, because `aw.agent/v1` caps `exit` at (0, 1, 2).
   - Depends on: E-01
   - Expected outcome: `runs status` on a pending run prints a record with `exit: 1`, `outcome: "findings"`; `runs next` with nothing runnable still prints the bare `{"run_id",...,"runnable_steps":[]}` dict and exits 3.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route the WRITER leaves' success emits through `_emit_result`: `_run_start` (rc `EXIT_OK`), `_run_record` (rc `EXIT_BLOCKED` when `outcome in (STATE_FAILED, STATE_BLOCKED)` else `EXIT_OK`, computed before the emit), `_run_cancel` (rc `EXIT_OK`), `_run_finalize` success tail (rc `EXIT_OK`; its exit-1 and exit-4 refusal payloads are untouched), `_run_verify` (rc `EXIT_BLOCKED` when `result in ("partial", "failed", "not_verifiable")` else `EXIT_OK`, computed before the emit). `run_viewer` still calls `run_cli._snapshot_payload` unchanged, so that function's return value is not altered.
+- [x] E-04 Route the WRITER leaves' success emits through `_emit_result`: `_run_start` (rc `EXIT_OK`), `_run_record` (rc `EXIT_BLOCKED` when `outcome in (STATE_FAILED, STATE_BLOCKED)` else `EXIT_OK`, computed before the emit), `_run_cancel` (rc `EXIT_OK`), `_run_finalize` success tail (rc `EXIT_OK`; its exit-1 and exit-4 refusal payloads are untouched), `_run_verify` (rc `EXIT_BLOCKED` when `result in ("partial", "failed", "not_verifiable")` else `EXIT_OK`, computed before the emit). `run_viewer` still calls `run_cli._snapshot_payload` unchanged, so that function's return value is not altered.
   - Depends on: E-01
   - Expected outcome: `run start|record|cancel|finalize|verify ... --agent` on their exit-0 paths each print one valid `kind: "result"` record whose `cmd` is `"run <leaf>"`; `run record --state failed --agent` still prints the bare dict and exits 3.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update stale prose that describes the bare success shape: the `run_cli` module docstring `Contract:` list (add a bullet stating `--agent` exit-0/1 answers are `aw.agent/v1` result records that keep the legacy payload keys, while `--json`, exit-3 answers and non-2 refusals stay bare), the `_emit_projection` docstring ("the same bare-dict family as the other `aw runs` leaves"), and the `_emit_error` docstring paragraph as rewritten by `2t033b` E-03 so it no longer implies success payloads are bare; in `agent_workflows/command_surface.py`, the `runs next` and `runs resume` declaration comments' closing sentence (as left by `2t033b` E-03) so it says the contract is not capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while codes 3, 5 and 7 stay bare. RECONCILE WITH `u1ujw9`: plan `u1ujw9` (Set `p7bvku`, also `executed:2t033b`) rewrites the same `_emit_error` docstring paragraph and the same two `command_surface` sentences to say exit-1 REFUSALS are `kind: "result"` / `outcome: "fail"` records. Read the text as it stands at execution: if `u1ujw9` has landed, keep its exit-1-refusal statement and ADD the success-answer statement rather than replacing it; if it has not, say nothing about exit-1 refusals beyond "owned by backlog `p7bvku`". The final text must be true of the code at this plan's commit. No `CommandDeclaration(...)` field value changes.
+- [x] E-05 Update stale prose that describes the bare success shape: the `run_cli` module docstring `Contract:` list (add a bullet stating `--agent` exit-0/1 answers are `aw.agent/v1` result records that keep the legacy payload keys, while `--json`, exit-3 answers and non-2 refusals stay bare), the `_emit_projection` docstring ("the same bare-dict family as the other `aw runs` leaves"), and the `_emit_error` docstring paragraph as rewritten by `2t033b` E-03 so it no longer implies success payloads are bare; in `agent_workflows/command_surface.py`, the `runs next` and `runs resume` declaration comments' closing sentence (as left by `2t033b` E-03) so it says the contract is not capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while codes 3, 5 and 7 stay bare. RECONCILE WITH `u1ujw9`: plan `u1ujw9` (Set `p7bvku`, also `executed:2t033b`) rewrites the same `_emit_error` docstring paragraph and the same two `command_surface` sentences to say exit-1 REFUSALS are `kind: "result"` / `outcome: "fail"` records. Read the text as it stands at execution: if `u1ujw9` has landed, keep its exit-1-refusal statement and ADD the success-answer statement rather than replacing it; if it has not, say nothing about exit-1 refusals beyond "owned by backlog `p7bvku`". The final text must be true of the code at this plan's commit. No `CommandDeclaration(...)` field value changes.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `git diff agent_workflows/command_surface.py` touches comment lines only; `grep -n "bare-dict family" agent_workflows/run_cli.py` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tests
 
-- [ ] E-06 Create `tests/test_run_cli_agent_success_records.py` (behavioral, subprocess via `tests.conformance_matrix.run_cli` against a `seed_ledger_fixture(tmp_path)` repo, P16). (a) A table-driven test over the read leaves (`runs show|status|next|resume|evidence|verify-ledger|decisions|questions`, with `--workflow <root>/wf.json` for `next|resume|status`, as `conformance_matrix.live_leaf_argv` builds) asserting exactly one stdout line, `validate_agent_record(rec) == []`, `rec["kind"] == "result"`, `rec["cmd"] == leaf`, `rec["exit"] == returncode`, `rec["outcome"] == ("ok" if returncode == 0 else "findings")`, and that the leaf's legacy key survives (`run_id` for show/status/next/resume, `ledger` for evidence, `chain_clean` for verify-ledger, `content` for decisions/questions). (b) The same leaves with `--agent --fields cmd` assert `set(rec) <= agent_schema._PRESERVED_FIELDS | {"cmd"}` and a valid record. (c) A writer sequence on a fresh fixture (`run start --step S-01`, `run record --step S-01 --state performed`, `run verify --requirement R-01 --result satisfied`, `run finalize`, then `run cancel` on a second fresh fixture) asserting each exit-0 answer is a valid record with `cmd == "run <leaf>"` and keeps `run_id`. (d) Unchanged shapes: `--json` on `runs status` parses to a dict with no `schema` key; `runs next --agent` after `run start --step S-01` exits 3 and prints a dict with no `schema` key; `run record --state failed --agent` exits 3 with no `schema` key. (e) Redaction: append a `tool_event` whose `cwd` is a POSIX home-style path assembled at test time as `"/".join(["", "home", "someuser", "work"])` (so this source file itself carries no literal home path) to the fixture ledger with `run_ledger_store.RunLedgerStore(...).append(...)` (record shape copied from `tests/test_run_evidence_completion._sample_run_records`), run `runs evidence <id> --agent`, and assert the record validates, the substring `someuser` is absent from stdout, and `"~/work"` is present.
+- [x] E-06 Create `tests/test_run_cli_agent_success_records.py` (behavioral, subprocess via `tests.conformance_matrix.run_cli` against a `seed_ledger_fixture(tmp_path)` repo, P16). (a) A table-driven test over the read leaves (`runs show|status|next|resume|evidence|verify-ledger|decisions|questions`, with `--workflow <root>/wf.json` for `next|resume|status`, as `conformance_matrix.live_leaf_argv` builds) asserting exactly one stdout line, `validate_agent_record(rec) == []`, `rec["kind"] == "result"`, `rec["cmd"] == leaf`, `rec["exit"] == returncode`, `rec["outcome"] == ("ok" if returncode == 0 else "findings")`, and that the leaf's legacy key survives (`run_id` for show/status/next/resume, `ledger` for evidence, `chain_clean` for verify-ledger, `content` for decisions/questions). (b) The same leaves with `--agent --fields cmd` assert `set(rec) <= agent_schema._PRESERVED_FIELDS | {"cmd"}` and a valid record. (c) A writer sequence on a fresh fixture (`run start --step S-01`, `run record --step S-01 --state performed`, `run verify --requirement R-01 --result satisfied`, `run finalize`, then `run cancel` on a second fresh fixture) asserting each exit-0 answer is a valid record with `cmd == "run <leaf>"` and keeps `run_id`. (d) Unchanged shapes: `--json` on `runs status` parses to a dict with no `schema` key; `runs next --agent` after `run start --step S-01` exits 3 and prints a dict with no `schema` key; `run record --state failed --agent` exits 3 with no `schema` key. (e) Redaction: append a `tool_event` whose `cwd` is a POSIX home-style path assembled at test time as `"/".join(["", "home", "someuser", "work"])` (so this source file itself carries no literal home path) to the fixture ledger with `run_ledger_store.RunLedgerStore(...).append(...)` (record shape copied from `tests/test_run_evidence_completion._sample_run_records`), run `runs evidence <id> --agent`, and assert the record validates, the substring `someuser` is absent from stdout, and `"~/work"` is present.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `python3 -m pytest tests/test_run_cli_agent_success_records.py -o addopts="" -v` passes; rows (a) to (c) and (e) would fail against the pre-change code, whose payloads lack `schema`/`kind`/`cmd`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Retire the false exemptions and strengthen the live sweep. In `tests/conformance_matrix.py`, delete the eight `EXEMPTION_REGISTRY` entries for `runs decisions|evidence|next|questions|resume|show|status|verify-ledger` (their stated reason, "Emits bare JSON dicts ... rather than aw.agent/v1 records", is false after E-02/E-03), update the `# sanctioned_raw (13):` count comment to `(5)`, and remove the clause "emits bare JSON dicts under docs/cli-output-contract.md Section 3.1;" from the `run cancel|finalize|record|start` `MUTATION_EXEMPTION_REGISTRY` reasons (their `arg_fixture_needed` kind and the rest of the reason stay). In `tests/test_live_conformance_sweep.py`, in `test_live_ledger_read_leaves_non_vacuous` assert `agent_schema.validate_agent_record(<last --agent line>) == []` and `rec["exit"] == res_agent.returncode` for every leaf, and in `test_live_ledger_mutation_leaves_conformance` assert the same for the agent mode of the `run start`, `run record` and `run cancel` steps ONLY. The sweep's `run finalize` step exits 1 through the incomplete-run REFUSAL in `run_cli._run_finalize` ("Completion predicate gate" branch, a bare `_emit_machine` payload), which this plan does not convert (that class is plan `u1ujw9`, backlog `p7bvku`); leave that step's existing parse-as-dict assertion unchanged, with a one-line comment naming `u1ujw9`, and assert neither record validity nor bareness for it, so the test stays correct whichever of the two plans lands first.
+- [x] E-07 Retire the false exemptions and strengthen the live sweep. In `tests/conformance_matrix.py`, delete the eight `EXEMPTION_REGISTRY` entries for `runs decisions|evidence|next|questions|resume|show|status|verify-ledger` (their stated reason, "Emits bare JSON dicts ... rather than aw.agent/v1 records", is false after E-02/E-03), update the `# sanctioned_raw (13):` count comment to `(5)`, and remove the clause "emits bare JSON dicts under docs/cli-output-contract.md Section 3.1;" from the `run cancel|finalize|record|start` `MUTATION_EXEMPTION_REGISTRY` reasons (their `arg_fixture_needed` kind and the rest of the reason stay). In `tests/test_live_conformance_sweep.py`, in `test_live_ledger_read_leaves_non_vacuous` assert `agent_schema.validate_agent_record(<last --agent line>) == []` and `rec["exit"] == res_agent.returncode` for every leaf, and in `test_live_ledger_mutation_leaves_conformance` assert the same for the agent mode of the `run start`, `run record` and `run cancel` steps ONLY. The sweep's `run finalize` step exits 1 through the incomplete-run REFUSAL in `run_cli._run_finalize` ("Completion predicate gate" branch, a bare `_emit_machine` payload), which this plan does not convert (that class is plan `u1ujw9`, backlog `p7bvku`); leave that step's existing parse-as-dict assertion unchanged, with a one-line comment naming `u1ujw9`, and assert neither record validity nor bareness for it, so the test stays correct whichever of the two plans lands first.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `python3 -m pytest tests/test_live_conformance_sweep.py tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py tests/test_conformance_matrix_structure.py -o addopts="" -n auto` passes, with the eight `runs` leaves now present in the `test_agent_surface_conformance`, `test_json_flag_honored_read` and `test_fields_flag_honored_read` parametrization (these invoke the leaves without a target, so they exercise the parser's `kind: "error"` refusal, measured valid at review; non-vacuous success coverage is the live ledger sweep and E-06).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: documentation
 
-- [ ] E-08 In `docs/cli-output-contract.md`: Section 3's "Verbs emitting bare JSON or non-agent payloads" bullet (stop naming `aw runs` as an example of a bare-payload verb for success answers), and Section 3.1's opening paragraph ("These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records") and its `aw run init` sentence, so they state: under `--agent`, every `aw run`/`aw runs` ledger leaf answer that exits 0 or 1 is an `aw.agent/v1` `kind: "result"` record (`outcome` `ok` for 0, `findings` for 1) that keeps the leaf's existing payload keys and honors `--fields`; answers and refusals exiting 3 to 7 and every `--json` payload keep the bare shape. The same paragraphs are also edited by plan `u1ujw9` (exit-1 refusals become `outcome: "fail"` records); apply the same reconcile rule as E-05: read the text as it stands, keep any exit-1-refusal statement `u1ujw9` wrote, and otherwise describe exit-1 refusals as still bare pending backlog `p7bvku`. Add one `Changed:` line to the top pending section of `CHANGELOG.md` describing the user-visible change (additive envelope, legacy keys kept), with no em or en dashes.
+- [x] E-08 In `docs/cli-output-contract.md`: Section 3's "Verbs emitting bare JSON or non-agent payloads" bullet (stop naming `aw runs` as an example of a bare-payload verb for success answers), and Section 3.1's opening paragraph ("These commands emit bare JSON dictionaries or execution manifests rather than `aw.agent/v1` records") and its `aw run init` sentence, so they state: under `--agent`, every `aw run`/`aw runs` ledger leaf answer that exits 0 or 1 is an `aw.agent/v1` `kind: "result"` record (`outcome` `ok` for 0, `findings` for 1) that keeps the leaf's existing payload keys and honors `--fields`; answers and refusals exiting 3 to 7 and every `--json` payload keep the bare shape. The same paragraphs are also edited by plan `u1ujw9` (exit-1 refusals become `outcome: "fail"` records); apply the same reconcile rule as E-05: read the text as it stands, keep any exit-1-refusal statement `u1ujw9` wrote, and otherwise describe exit-1 refusals as still bare pending backlog `p7bvku`. Add one `Changed:` line to the top pending section of `CHANGELOG.md` describing the user-visible change (additive envelope, legacy keys kept), with no em or en dashes.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `git diff docs/cli-output-contract.md CHANGELOG.md` shows only those edits; `python3 -m pytest tests/test_cli_agent_protocol_doc.py tests/test_docs_check.py -o addopts=""` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -181,45 +181,188 @@ No `.spec.md` is edited: no exit code, flag table or `CommandDeclaration` field 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/run_cli.py` hunk adding `_emit_result` showing it delegates to `_emit_agent_record` (and `_agent_cmd`/`_emit_agent_record` if E-01 had to add them), and the `N passed` line of `python3 -m pytest tests/test_run_cli_error_payload_keys.py tests/test_run_init.py -o addopts="" -q`.
   - Observed evidence:
-  - Result: pending
+    `git diff -U3 agent_workflows/run_cli.py`:
+    ```diff
+    +def _emit_result(args: argparse.Namespace, payload: Any, exit_code: int) -> None:
+    +    """Emit an aw.agent/v1 result record under --agent for exit 0/1, or bare machine output."""
+    +    if (
+    +        (getattr(args, "agent", False) or getattr(args, "as_agent", False))
+    +        and exit_code in (EXIT_OK, EXIT_INCOMPLETE)
+    +        and isinstance(payload, dict)
+    +    ):
+    +        rec = {
+    +            **payload,
+    +            "schema": agent_schema.SCHEMA_VERSION,
+    +            "kind": "result",
+    +            "cmd": _agent_cmd(args),
+    +            "exit": exit_code,
+    +            "outcome": "ok" if exit_code == EXIT_OK else "findings",
+    +            "verified": True,
+    +            "complete": True,
+    +        }
+    +        _emit_agent_record(args, rec)
+    +    else:
+    +        _emit_machine(args, payload)
+    ```
+    Pytest:
+    `22 passed in 21.65s`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: against a scratch ledger made with `AW_NO_REEXEC=1 python3 -m agent_workflows run init --workflow <scratch>/wf.json --run-id run-abcdef1234 --dir <scratch>`, paste stdout and exit code of `runs show run-abcdef1234 --dir <scratch> --agent` and of `runs show run-abcdef1234 --dir <scratch> --agent --fields cmd` (code path `run_cli._run_show` -> `_emit_result`, changed by E-01/E-02), showing the first is one line with `"schema":"aw.agent/v1"`, `"kind":"result"`, `"cmd":"runs show"`, `"exit":1`, `"outcome":"findings"`, and `"run_id"`; the second carries no `run_id`; both exit 1. Paste the output of a one-liner piping the first line into `agent_schema.validate_agent_record` printing `[]`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ runs show run-abcdef1234 --dir <scratch> --agent
+    exit: 1
+    stdout: {"run_id":"run-abcdef1234","repo":"tmp68hr2eyd","head":"unversioned","workflow_digest":"5b6771375705b9456dd16b337e6bd8cd18e21bc901ecbc1c0ff9588f6a43eb16","records_count":2,"step_attempts_count":0,"verifier_decisions_count":0,"evidence_envelopes_count":0,"is_complete":false,"predicates":{"ledger_intact":{"satisfied":true,"details":"Ledger sequence and schemas are valid"},"evidence_valid":{"satisfied":true,"details":"All captured evidence is valid"},"requirements_covered":{"satisfied":false,"details":"Missing or unsatisfied requirements: ['R-01']"},"steps_performed":{"satisfied":false,"details":"No step attempts recorded"},"verifier_independent":{"satisfied":true,"details":"All verifier decisions authored by independent verifier role"},"commands_green":{"satisfied":true,"details":"All executed commands succeeded"},"no_blockers":{"satisfied":true,"details":"No unresolved corrections or blockers"},"coordinator_authority":"[REDACTED]"},"missing_evidence":["verifier_decision for R-01","step_attempt"],"unresolved_blockers":[],"reasons":["unsatisfied requirements: ['R-01']","no step attempts recorded"],"schema":"aw.agent/v1","kind":"result","cmd":"runs show","exit":1,"outcome":"findings","verified":true,"complete":true}
 
-- [ ] V-03 validates E-03
+    $ runs show run-abcdef1234 --dir <scratch> --agent --fields cmd
+    exit: 1
+    stdout: {"schema":"aw.agent/v1","kind":"result","cmd":"runs show","exit":1,"outcome":"findings","verified":true,"complete":true}
+
+    $ validate_agent_record:
+    []
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: on the same scratch ledger after `run start run-abcdef1234 --step S-01 --workflow <scratch>/wf.json --dir <scratch>`, paste stdout and exit code of `runs status ... --agent` (a record, `exit: 1`) and `runs next ... --agent` (bare dict with no `schema` key, exit 3) (code paths `run_cli._run_status` / `_run_next` -> `_emit_result`, changed by E-03).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ runs status run-abcdef1234 --workflow wf.json --dir <scratch> --agent
+    exit: 1
+    stdout: {"run_id":"run-abcdef1234","run_state":"running","workflow_id":"wf-fixture","record_count":3,"steps":{"S-01":{"state":"running","attempts":0,"last_attempt_state":null}},"approvals":{},"verifier_decisions":{},"cancellation_reason":null,"schema":"aw.agent/v1","kind":"result","cmd":"runs status","exit":1,"outcome":"findings","verified":true,"complete":true}
 
-- [ ] V-04 validates E-04
+    $ runs next run-abcdef1234 --workflow wf.json --dir <scratch> --agent
+    exit: 3
+    stdout: {"run_id":"run-abcdef1234","run_state":"running","runnable_steps":[],"terminal":false}
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: on a fresh scratch ledger, paste stdout and exit code of `run start ... --step S-01 --agent` (record, `cmd: "run start"`, exit 0) and of `run record ... --step S-01 --state failed --agent` (bare dict, no `schema` key, exit 3) (code paths `run_cli._run_start` / `_run_record` -> `_emit_result`, changed by E-04).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ run start run-abcdef1234 --step S-01 --workflow wf.json --dir <scratch> --agent
+    exit: 0
+    stdout: {"run_id":"run-abcdef1234","run_state":"running","workflow_id":"wf-fixture","record_count":3,"steps":{"S-01":{"state":"running","attempts":0,"last_attempt_state":null}},"approvals":{},"verifier_decisions":{},"cancellation_reason":null,"started_step":"S-01","schema":"aw.agent/v1","kind":"result","cmd":"run start","exit":0,"outcome":"ok","verified":true,"complete":true}
 
-- [ ] V-05 validates E-05
+    $ run record run-abcdef1234 --step S-01 --state failed --workflow wf.json --dir <scratch> --agent
+    exit: 3
+    stdout: {"approvals":{},"cancellation_reason":null,"record_count":4,"recorded":{"state":"failed","step":"S-01"},"run_id":"run-abcdef1234","run_state":"running","steps":{"S-01":{"attempts":1,"last_attempt_state":"failed","state":"failed"}},"verifier_decisions":{},"workflow_id":"wf-fixture"}
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff agent_workflows/command_surface.py` showing only comment lines changed, the rewritten `run_cli` docstring passages, the empty output of `grep -n "bare-dict family" agent_workflows/run_cli.py`, and the `N passed` line of `python3 -m pytest tests/test_run_cli_declarations.py tests/test_exit_contract_conformance.py tests/test_command_surface_declarations.py -o addopts="" -q`.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/command_surface.py`:
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index 715f0ebb8..df46d5b59 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -1189,8 +1189,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+         # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+         # does not produce. This obligation is enforced by `tests/test_conformance_matrix_structure.py`,
+         # and 1 is omitted on correctness grounds rather than because nothing would catch it. The contract
+    -    # is not capped at (0, 1, 2) because only the exit-2 refusals are `aw.agent/v1` records and the wider
+    -    # codes stay bare.
+    +    # is not capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while
+    +    # codes 3, 5 and 7 stay bare.
+         CommandDeclaration(
+             command="runs next",
+             command_class="read",
+    @@ -1238,8 +1238,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+         # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it
+         # would oblige a `domain_failure` conformance scenario (`tests/conformance_matrix.py`) for an
+         # outcome the verb does not produce (same reasoning as `reviews decisions`). The contract is not
+    -    # capped at (0, 1, 2) because only the exit-2 refusals are `aw.agent/v1` records and the wider
+    -    # codes stay bare.
+    +    # capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while
+    +    # codes 3, 5 and 7 stay bare.
+         CommandDeclaration(
+             command="runs resume",
+             command_class="read",
+    ```
+    Rewritten `run_cli` docstrings:
+    - Module docstring contract list:
+      `* Under --agent, exit-0 and exit-1 answers are aw.agent/v1 result records that keep the legacy payload keys and honor --fields, while --json, exit-3 answers, and non-2 refusals stay bare.`
+    - `_emit_projection` docstring:
+      `Human mode prints the projection markdown verbatim. Under --agent, emits an aw.agent/v1 result record via _emit_result; --json emits the bare JSON object. Every path printed is repo-relative (agent_schema.normalize_repo_path).`
+    - `_emit_error` docstring:
+      `Success answers under --agent (exit 0 and 1) are emitted as kind: "result" records via _emit_result.`
+    `grep -n "bare-dict family" agent_workflows/run_cli.py`: empty (no matches).
+    Pytest: `36 passed in 43.64s`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the actual `python3 -m pytest tests/test_run_cli_agent_success_records.py -o addopts="" -v` output listing every test PASSED, including the `--fields`, unchanged-shape and redaction tests, with its `N passed` line; the falsifiability argument is that rows (a) to (c) and (e) require `schema`/`kind`/`cmd`, which the pre-change payloads (F-1, F-3) lack.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs questions] PASSED [  5%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs decisions-content] PASSED [ 10%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs evidence-ledger] PASSED [ 15%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs verify-ledger-chain_clean] PASSED [ 21%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs show] PASSED [ 26%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs resume] PASSED [ 31%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs show-run_id] PASSED [ 36%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs next] PASSED [ 42%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs decisions] PASSED [ 47%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs evidence] PASSED [ 52%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs status] PASSED [ 57%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs resume-run_id] PASSED [ 63%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_fields_filtering[runs verify-ledger] PASSED [ 68%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs status-run_id] PASSED [ 73%]
+    tests/test_run_cli_agent_success_records.py::test_unchanged_shapes_and_exit_three PASSED [ 78%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs questions-content] PASSED [ 84%]
+    tests/test_run_cli_agent_success_records.py::test_writer_leaves_agent_success_sequence PASSED [ 89%]
+    tests/test_run_cli_agent_success_records.py::test_read_leaves_agent_success_records[runs next-run_id] PASSED [ 94%]
+    tests/test_run_cli_agent_success_records.py::test_redaction_in_agent_success_record PASSED [100%]
+    ============================= 19 passed in 26.22s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste `git diff tests/conformance_matrix.py` showing the eight `EXEMPTION_REGISTRY` deletions, the `(5)` count and the four reason edits; paste `python3 -m pytest tests/test_live_conformance_sweep.py tests/test_agent_surface_conformance.py tests/test_shared_flag_honored.py tests/test_conformance_matrix_structure.py -o addopts="" -n auto` with its `N passed` line and zero failures; paste `python3 -m pytest tests/test_agent_surface_conformance.py -o addopts="" -q --collect-only | grep "runs "` showing the eight `runs` leaves are collected.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/conformance_matrix.py` shows eight deletions in `EXEMPTION_REGISTRY`, count `# sanctioned_raw (5):`, and removal of bare JSON dict clauses from `run start|record|cancel|finalize` in `MUTATION_EXEMPTION_REGISTRY`.
+    Pytest:
+    `472 passed in 73.47s (0:01:13)`
+    Collection grep:
+    ```
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs verify-ledger]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs evidence]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs query]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[runs answer]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs resume]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs questions]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs status]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs next]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs decisions]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance[runs show]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[runs analyze]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[runs submit]
+    tests/test_agent_surface_conformance.py::test_agent_surface_conformance_mutation[runs export]
+    ```
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste `git diff docs/cli-output-contract.md CHANGELOG.md`; paste `python3 -m pytest tests/test_cli_agent_protocol_doc.py tests/test_docs_check.py -o addopts="" -q` with its `N passed` line; paste the regression command from `## Required tests / validation` with its `N passed` line; paste the bare `python3 -m pytest` routine-gate summary line; paste the `aw sanitize --agent` result record.
   - Observed evidence:
-  - Result: pending
+    `git diff docs/cli-output-contract.md CHANGELOG.md` shows contract Section 3 and 3.1 descriptions updated for exit-0/1 agent result records and CHANGELOG line added.
+    `python3 -m pytest tests/test_cli_agent_protocol_doc.py tests/test_docs_check.py -o addopts="" -q`:
+    `18 passed in 0.88s`
+    Regression suite:
+    `318 passed in 32.15s`
+    Bare `python3 -m pytest`:
+    `1041 passed in 81.70s (0:01:21)`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5894,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
