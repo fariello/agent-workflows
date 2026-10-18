@@ -30156,6 +30156,7 @@ def make_integration_validation_runner(
         measured = True
         suite_passed = False
         collected_nothing = False
+        budget_only_red = False
         suite_cached = False
         suite_digest: str | None = None
         try:
@@ -30190,6 +30191,21 @@ def make_integration_validation_runner(
                     f"signal for integration, which integration_is_earned owns separately: {reason}"
                 )
                 failures = []
+            elif (
+                not passed
+                and bool(getattr(result, "budget_only", False))
+                and not failures
+            ):
+                # Post-merge revalidation defers a budget-only red as unmeasured instead of refusing
+                # it as combined-red (sa629y E-02). A tree whose tests all pass failed only on the
+                # core-tier wall-time budget, which is a property of host load rather than code.
+                measured = False
+                budget_only_red = True
+                reason = (
+                    "every collected test passed, and the post-merge suite run failed ONLY on the "
+                    "core-tier wall-time budget (a property of host load, not of the merged code); "
+                    f"this is therefore not a combined-red verdict: {reason}"
+                )
         except Exception as exc:  # noqa: BLE001
             # DELIBERATE blind catch: an exception from the suite must be an honest REFUSAL that leaves
             # the lane preserved, never a traceback that aborts the run mid-integration.
@@ -30218,7 +30234,7 @@ def make_integration_validation_runner(
             "cached": suite_cached,
             "digest": suite_digest,
         }
-        if isinstance(cache, dict) and tree_id:
+        if isinstance(cache, dict) and tree_id and not budget_only_red:
             cache[tree_id] = measurement
 
         passed, reason, comparison = _relative_revalidation_verdict(item, measurement)
@@ -46498,6 +46514,7 @@ class SuiteCheckResult(NamedTuple):
     cached: bool = False
     digest: str | None = None
     slot: dict[str, Any] | None = None
+    budget_only: bool = False
 
     @property
     def failing_text(self) -> str:
@@ -46585,6 +46602,14 @@ def run_suite_check(
             slot=None,
         )
 
+    budget_only = False
+    with contextlib.suppress(Exception):
+        budget_only = bool(
+            suite_cache.is_budget_only_failure(
+                res.exit_code, res.stdout, res.stderr, res.failures
+            )
+        )
+
     return SuiteCheckResult(
         passing=res.passed,
         exit_code=res.exit_code,
@@ -46597,6 +46622,7 @@ def run_suite_check(
         cached=res.cached,
         digest=res.digest,
         slot=res.slot,
+        budget_only=budget_only,
     )
 
 

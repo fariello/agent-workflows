@@ -1746,6 +1746,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-18 note (aw specs): plan sa629y (backlog o58dro) routes a post-merge revalidation whose every test passed and whose only failure is the enforced core-tier wall-time budget to the existing harness-side merge-unchecked refusal (l2mzxn), which defers and ends terminal at merge-needs-human when --integration-retry-limit is spent; this is not a "non-passing combined revalidation" in Section 2.1's sense, because Section 2.1 grounds that exclusion in repetition not fixing the condition, and host load is fixed by repetition; a budget-only red is never treated as a pass
 - 2026-10-16 note (aw specs): AMENDED 2026-10-16 (plan jmogmv, backlog jt7ns3): Sections 5.5 and 5.6 align corrupt run state handling with maintainer ruling 2026-10-15 (exit 2 everywhere, recovery guidance, drop exit 4)
 - 2026-10-16 note (aw specs): sync Section 5.5 retry policy table and verification_retry_decision bullet for verifier-transport-error (IPD yd4tqw, from backlog jodcz3)
 - 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)

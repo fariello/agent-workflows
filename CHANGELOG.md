@@ -37,6 +37,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Added: a **Tokens and cost** dashboard tab showing in + out, input, output, cached and cache-write tokens separately, each with count, total, average, median and p90, plus their costs, overall and split by agent (host and model) or any other dimension.
 - Fixed: static type checking (`make typecheck`, CI "static type gate") passes again after three mypy errors in the comms broker, the installer engine and IPD authoring were fixed.
 - Fixed: the core test tier wall-time budget now demotes to a warning when host load exceeds CPU count, prints the measured load in its banner, and is reported as a budget-only failure in suite and runner reports.
+- Fixed: a merge whose tests all passed but ran over the core-tier time budget is now retried later instead of being reported as a failing suite and sent back to the agent.
 - Fixed: `aw install --records-backend <new>` on an installed repository no longer silently leaves existing records where no reader looks: it refuses when records would be orphaned, and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves them.
 - Fixed: `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows.
 - Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.

@@ -37,46 +37,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: carry the budget-only fact to the gate
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, add a defaulted field `budget_only: bool = False` at the END of `SuiteCheckResult` (after `slot`, so every positional construction and test double keeps working, the same discipline the class docstring records for `failures`). In `run_suite_check`, set it on the success-path return to `suite_cache.is_budget_only_failure(res.exit_code, res.stdout, res.stderr, res.failures)` (the predicate added by plan `44nfmd` E-03), wrapped so any exception from the predicate yields `False`. The fail-closed exception return keeps the default `False`.
+- [x] E-01 In `agent_workflows/runner_shared.py`, add a defaulted field `budget_only: bool = False` at the END of `SuiteCheckResult` (after `slot`, so every positional construction and test double keeps working, the same discipline the class docstring records for `failures`). In `run_suite_check`, set it on the success-path return to `suite_cache.is_budget_only_failure(res.exit_code, res.stdout, res.stderr, res.failures)` (the predicate added by plan `44nfmd` E-03), wrapped so any exception from the predicate yields `False`. The fail-closed exception return keeps the default `False`.
   - Depends on: none
   - Expected outcome: `run_suite_check` on a tree that exits 1 only on the enforced budget returns `passing=False, exit_code=1, failures=(), budget_only=True`; any other result has `budget_only=False`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: classify a budget-only red as not a code measurement
 
-- [ ] E-02 In `make_integration_validation_runner`'s inner `_runner`, in the `try` block right after the existing exit-5 branch (the one whose comment begins "`pytest` EXIT 5 IS \"no tests collected\""), add a branch taken when `not passed`, `bool(getattr(result, "budget_only", False))` and `failures` is empty: set `measured = False` and `reason` to a sentence stating that every collected test passed, that the run failed ONLY on the core-tier wall-time budget (a property of host load, not of the merged code), that this is therefore not a combined-red verdict, and ending with the suite's own `reason` (which after `44nfmd` names the budget and carries the summary). `passed` stays False. ALSO, in the same branch, set a local `budget_only_red = True` (initialised `False` beside `collected_nothing`), and guard the existing `if isinstance(cache, dict) and tree_id: cache[tree_id] = measurement` with `and not budget_only_red`, so the measurement is recorded on the item but NOT stored in the per-run tree cache. WHY: the cache at `state[REVALIDATION_CACHE_KEY]` is keyed on the merged tree id and the cache-hit branch returns the stored reading without calling `suite_check`. A deferred re-attempt (`retry_deferred_integrations`) on an unchanged main rebuilds the SAME tree, so a cached budget-only reading would be served on every re-attempt until the retry limit ran out and the item went terminal, and the deferral this plan exists to provide could never succeed (F-6 demonstrates the cache serving an unmeasured reading without re-running the suite). A budget-only reading says nothing about the tree, so it must not stand in for a later measurement of it.
+- [x] E-02 In `make_integration_validation_runner`'s inner `_runner`, in the `try` block right after the existing exit-5 branch (the one whose comment begins "`pytest` EXIT 5 IS \"no tests collected\""), add a branch taken when `not passed`, `bool(getattr(result, "budget_only", False))` and `failures` is empty: set `measured = False` and `reason` to a sentence stating that every collected test passed, that the run failed ONLY on the core-tier wall-time budget (a property of host load, not of the merged code), that this is therefore not a combined-red verdict, and ending with the suite's own `reason` (which after `44nfmd` names the budget and carries the summary). `passed` stays False. ALSO, in the same branch, set a local `budget_only_red = True` (initialised `False` beside `collected_nothing`), and guard the existing `if isinstance(cache, dict) and tree_id: cache[tree_id] = measurement` with `and not budget_only_red`, so the measurement is recorded on the item but NOT stored in the per-run tree cache. WHY: the cache at `state[REVALIDATION_CACHE_KEY]` is keyed on the merged tree id and the cache-hit branch returns the stored reading without calling `suite_check`. A deferred re-attempt (`retry_deferred_integrations`) on an unchanged main rebuilds the SAME tree, so a cached budget-only reading would be served on every re-attempt until the retry limit ran out and the item went terminal, and the deferral this plan exists to provide could never succeed (F-6 demonstrates the cache serving an unmeasured reading without re-running the suite). A budget-only reading says nothing about the tree, so it must not stand in for a later measurement of it.
   - Depends on: E-01
   - Expected outcome: the recorded `post_merge_revalidation` for a budget-only merged tree has `passed: false`, `measured: false`, no `baseline_comparison` block, and a reason naming the budget; `state[REVALIDATION_CACHE_KEY]` holds no entry for that tree, so the next call on the same tree invokes `suite_check` again; `revalidation_was_unmeasured(item)` is True, so `record_integration_refusal` reclassifies the refusal to `merge-unchecked` and the combined-red send-back loop (guarded by `not revalidation_was_unmeasured(item)`) does not fire.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Confirm (read-only, no edit expected) that both hosts reach E-02 through the one shared runner: `oc_runipd` and `agy_runipd` pass `suite_check=run_suite_check` to the shared integration path, and the only `make_integration_validation_runner` definition is in `runner_shared`. Record the grep output in V-03. Review found none (one definition, at `runner_shared.make_integration_validation_runner`). If a host-local copy has appeared since, apply the same E-02 change to it and justify that out-of-scope path with `--scope-reason` at finalize.
+- [x] E-03 Confirm (read-only, no edit expected) that both hosts reach E-02 through the one shared runner: `oc_runipd` and `agy_runipd` pass `suite_check=run_suite_check` to the shared integration path, and the only `make_integration_validation_runner` definition is in `runner_shared`. Record the grep output in V-03. Review found none (one definition, at `runner_shared.make_integration_validation_runner`). If a host-local copy has appeared since, apply the same E-02 change to it and justify that out-of-scope path with `--scope-reason` at finalize.
   - Depends on: E-02
   - Expected outcome: one definition, both hosts covered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-04 Create `tests/test_budget_only_revalidation.py` (NOT `core`-marked; it builds git fixtures and one test launches a pytest subprocess). Fixture: a throwaway git repo with one committed file, `base_commit == lane_head ==` its HEAD, `state = {"repo": str(repo), "run_id": "run-o58dro01", "options": {"validate": False}}`, `item = {"id6": "o58dro", "base_commit": head, "lane_head": head, "attempts": []}`, exactly the shape `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun` uses. Tests, each calling `runner_shared.make_integration_validation_runner(state, run_dir, item, suite_check=<stub>)("", ["x"])` with a stub returning a `SuiteCheckResult`: (a) `budget_only=True, passing=False, exit_code=1, failures=()` -> runner returns False, record `measured is False`, `"budget" in reason`, no `baseline_comparison` key, and `runner_shared.revalidation_was_unmeasured(item) is True`; (b) a real red (`budget_only=False`, `failures=("FAILED tests/t.py::t - x",)`) -> record `measured is True` and `revalidation_was_unmeasured(item) is False` (the code-fault path is unchanged); (c) `budget_only=True` but `failures` non-empty -> still measured (a real failure is never hidden behind the budget); (d) RE-MEASURED, NOT CACHED: with a stub that returns the budget-only result on its first call and a green result (`passing=True, exit_code=0`) on its second, call a fresh runner twice on the same `state` and tree; assert the stub was called twice, the first call returned False with `measured is False`, the second returned True with the record's `passed is True` and `cached is False`, and that after the first call `state.get(runner_shared.REVALIDATION_CACHE_KEY, {})` has no entry for the tree. This is the property the deferral depends on.
+- [x] E-04 Create `tests/test_budget_only_revalidation.py` (NOT `core`-marked; it builds git fixtures and one test launches a pytest subprocess). Fixture: a throwaway git repo with one committed file, `base_commit == lane_head ==` its HEAD, `state = {"repo": str(repo), "run_id": "run-o58dro01", "options": {"validate": False}}`, `item = {"id6": "o58dro", "base_commit": head, "lane_head": head, "attempts": []}`, exactly the shape `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun` uses. Tests, each calling `runner_shared.make_integration_validation_runner(state, run_dir, item, suite_check=<stub>)("", ["x"])` with a stub returning a `SuiteCheckResult`: (a) `budget_only=True, passing=False, exit_code=1, failures=()` -> runner returns False, record `measured is False`, `"budget" in reason`, no `baseline_comparison` key, and `runner_shared.revalidation_was_unmeasured(item) is True`; (b) a real red (`budget_only=False`, `failures=("FAILED tests/t.py::t - x",)`) -> record `measured is True` and `revalidation_was_unmeasured(item) is False` (the code-fault path is unchanged); (c) `budget_only=True` but `failures` non-empty -> still measured (a real failure is never hidden behind the budget); (d) RE-MEASURED, NOT CACHED: with a stub that returns the budget-only result on its first call and a green result (`passing=True, exit_code=0`) on its second, call a fresh runner twice on the same `state` and tree; assert the stub was called twice, the first call returned False with `measured is False`, the second returned True with the record's `passed is True` and `cached is False`, and that after the first call `state.get(runner_shared.REVALIDATION_CACHE_KEY, {})` has no entry for the tree. This is the property the deferral depends on.
   - Depends on: E-02
   - Expected outcome: cases (a) to (d) pass, asserting only on returned values, stub call counts and recorded item and state.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module add the routing and end-to-end tests: (e) after case (a), call `runner_shared.record_integration_refusal` with `run_dir`, the same `state` and `item`, `attempt={}`, `branch="b"`, `integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT`, a reason tagged with the combined-red cause token via `runner_shared.tag_integration_cause(runner_shared.INTEGRATION_CAUSE_GATE_COMBINED_RED, "...")`, and recording `save_state`/`append_jsonl` stubs, asserting `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED`, `item["integration_ladder"]["deferrable"] is True`, and the returned decision's `deferred is True` (review F-7 ran this exact call: `merge-unchecked True merge-retry True`); (f) end-to-end `runner_shared.run_suite_check` on a fixture repo whose only test passes and whose `conftest.py` reproduces the enforced budget rule (banner `CORE TIER BUDGET EXCEEDED` on stderr, `session.exitstatus = 1` when `AW_CORE_BUDGET_ENFORCE=1`, `AW_TEST_CPU_COUNT>=12`, over `AW_CORE_BUDGET_SECONDS`), built with `tests.support.init_repo` and committed with `support.git(..., env=support.clean_git_env())`, run with `AW_CORE_BUDGET_ENFORCE=1`, `AW_CORE_BUDGET_SECONDS=0.01`, `AW_TEST_CPU_COUNT=12` patched into `os.environ` via `mock.patch.dict` AND, inside that patch, `PYTEST_XDIST_WORKER`, `PYTEST_XDIST_WORKER_COUNT`, `PYTEST_ADDOPTS`, `AW_SUITE_SLOT_HELD` and `AW_TEST_TIER` popped. The pops are required, not hygiene: CI runs this module under `-n auto`, the child pytest inherits the worker's `PYTEST_XDIST_WORKER`, and the fixture conftest's `if "PYTEST_XDIST_WORKER" in os.environ: return` then skips the budget check, so the child exits 0 and the test fails (F-8 measured exactly that under `-n 2`, and a pass under `-n 0` and `-n 2` once popped). Keep the fixture's own minimal conftest (do not import `tests.test_core_tier_selection.CONFTEST_HOOKS`, which after `44nfmd` is load-aware and would need `AW_TEST_LOADAVG` pinned). Assert `passing is False`, `exit_code == 1`, `failures == ()` and `budget_only is True`.
+- [x] E-05 In the same module add the routing and end-to-end tests: (e) after case (a), call `runner_shared.record_integration_refusal` with `run_dir`, the same `state` and `item`, `attempt={}`, `branch="b"`, `integ_kind=runner_shared.INTEGRATION_REFUSAL_CONFLICT`, a reason tagged with the combined-red cause token via `runner_shared.tag_integration_cause(runner_shared.INTEGRATION_CAUSE_GATE_COMBINED_RED, "...")`, and recording `save_state`/`append_jsonl` stubs, asserting `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED`, `item["integration_ladder"]["deferrable"] is True`, and the returned decision's `deferred is True` (review F-7 ran this exact call: `merge-unchecked True merge-retry True`); (f) end-to-end `runner_shared.run_suite_check` on a fixture repo whose only test passes and whose `conftest.py` reproduces the enforced budget rule (banner `CORE TIER BUDGET EXCEEDED` on stderr, `session.exitstatus = 1` when `AW_CORE_BUDGET_ENFORCE=1`, `AW_TEST_CPU_COUNT>=12`, over `AW_CORE_BUDGET_SECONDS`), built with `tests.support.init_repo` and committed with `support.git(..., env=support.clean_git_env())`, run with `AW_CORE_BUDGET_ENFORCE=1`, `AW_CORE_BUDGET_SECONDS=0.01`, `AW_TEST_CPU_COUNT=12` patched into `os.environ` via `mock.patch.dict` AND, inside that patch, `PYTEST_XDIST_WORKER`, `PYTEST_XDIST_WORKER_COUNT`, `PYTEST_ADDOPTS`, `AW_SUITE_SLOT_HELD` and `AW_TEST_TIER` popped. The pops are required, not hygiene: CI runs this module under `-n auto`, the child pytest inherits the worker's `PYTEST_XDIST_WORKER`, and the fixture conftest's `if "PYTEST_XDIST_WORKER" in os.environ: return` then skips the budget check, so the child exits 0 and the test fails (F-8 measured exactly that under `-n 2`, and a pass under `-n 0` and `-n 2` once popped). Keep the fixture's own minimal conftest (do not import `tests.test_core_tier_selection.CONFTEST_HOOKS`, which after `44nfmd` is load-aware and would need `AW_TEST_LOADAVG` pinned). Assert `passing is False`, `exit_code == 1`, `failures == ()` and `budget_only is True`.
   - Depends on: E-01, E-04
   - Expected outcome: both tests pass, serially and under `-n 2`; (f) proves the fact is produced by the real seam, not only by a stub.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: documentation and suite
 
-- [ ] E-06 Add one `- Fixed:` line under the pending 2.0.0 section of `CHANGELOG.md`, in plain user-facing language with no em or en dashes, saying that a merge whose tests all passed but which ran over the core-tier time budget is now retried later instead of being reported as a failing suite and sent back to the agent. Then run the new module serially and under `-n 2`, the neighbouring contracts (`tests/test_suite_cache.py`, `tests/test_hook_and_suite_fix_it.py`, `tests/test_core_tier_selection.py`), the bare core tier `python3 -m pytest`, `aw check`, and `aw sanitize --agent`.
+- [x] E-06 Add one `- Fixed:` line under the pending 2.0.0 section of `CHANGELOG.md`, in plain user-facing language with no em or en dashes, saying that a merge whose tests all passed but which ran over the core-tier time budget is now retried later instead of being reported as a failing suite and sent back to the agent. Then run the new module serially and under `-n 2`, the neighbouring contracts (`tests/test_suite_cache.py`, `tests/test_hook_and_suite_fix_it.py`, `tests/test_core_tier_selection.py`), the bare core tier `python3 -m pytest`, `aw check`, and `aw sanitize --agent`.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-07
   - Expected outcome: all pass; no new `aw check` or sanitizer finding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Record the spec reading on `25kzda` without changing its status or text: `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "<note>"`, where the note says, in substance: plan `sa629y` (backlog `o58dro`) routes a post-merge revalidation whose every test passed and whose only failure is the enforced core-tier wall-time budget to the existing harness-side `merge-unchecked` refusal (`l2mzxn`), which defers and ends terminal at `merge-needs-human` when `--integration-retry-limit` is spent; this is not a "non-passing combined revalidation" in Section 2.1's sense, because Section 2.1 grounds that exclusion in repetition not fixing the condition, and host load is fixed by repetition; a budget-only red is never treated as a pass. WHY a note and not silence: Section 2.1's literal text ("a non-passing combined revalidation ... none reclassifies a failure as a deferral") reads as covering this case, so a reviewer checking a later plan against the spec would otherwise see a contradiction the contract never records.
+- [x] E-07 Record the spec reading on `25kzda` without changing its status or text: `aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "<note>"`, where the note says, in substance: plan `sa629y` (backlog `o58dro`) routes a post-merge revalidation whose every test passed and whose only failure is the enforced core-tier wall-time budget to the existing harness-side `merge-unchecked` refusal (`l2mzxn`), which defers and ends terminal at `merge-needs-human` when `--integration-retry-limit` is spent; this is not a "non-passing combined revalidation" in Section 2.1's sense, because Section 2.1 grounds that exclusion in repetition not fixing the condition, and host load is fixed by repetition; a budget-only red is never treated as a pass. WHY a note and not silence: Section 2.1's literal text ("a non-passing combined revalidation ... none reclassifies a failure as a deferral") reads as covering this case, so a reviewer checking a later plan against the spec would otherwise see a contradiction the contract never records.
   - Depends on: E-02
   - Expected outcome: the spec gains one dated `## Workflow history` line naming `sa629y` and `merge-unchecked`; its `- Status:` and body are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,34 +160,198 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff agent_workflows/runner_shared.py` hunk showing `budget_only: bool = False` as the last `SuiteCheckResult` field and the `run_suite_check` return setting it from `suite_cache.is_budget_only_failure`, with the fail-closed return unchanged.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```diff
+@@ -46498,6 +46510,7 @@ class SuiteCheckResult(NamedTuple):
+     cached: bool = False
+     digest: str | None = None
+     slot: dict[str, Any] | None = None
++    budget_only: bool = False
+
+     @property
+     def failing_text(self) -> str:
+@@ -46585,6 +46598,14 @@ def run_suite_check(
+             slot=None,
+         )
+
++    budget_only = False
++    with contextlib.suppress(Exception):
++        budget_only = bool(
++            suite_cache.is_budget_only_failure(
++                res.exit_code, res.stdout, res.stderr, res.failures
++            )
++        )
++
+     return SuiteCheckResult(
+         passing=res.passed,
+         exit_code=res.exit_code,
+@@ -46597,6 +46618,7 @@ def run_suite_check(
+         cached=res.cached,
+         digest=res.digest,
+         slot=res.slot,
++        budget_only=budget_only,
+     )
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff agent_workflows/runner_shared.py` hunk showing the budget-only branch after the exit-5 branch setting `measured = False`, `budget_only_red = True` and a budget-naming `reason` while leaving `passed` False, plus the `and not budget_only_red` guard on the `cache[tree_id] = measurement` store, and no other change inside `_runner`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```diff
+@@ -30156,6 +30156,7 @@ def make_integration_validation_runner(
+         measured = True
+         suite_passed = False
+         collected_nothing = False
++        budget_only_red = False
+         suite_cached = False
+         suite_digest: str | None = None
+         try:
+@@ -30190,6 +30191,17 @@ def make_integration_validation_runner(
+                     f"signal for integration, which integration_is_earned owns separately: {reason}"
+                 )
+                 failures = []
++            elif not passed and bool(getattr(result, "budget_only", False)) and not failures:
++                # Post-merge revalidation defers a budget-only red as unmeasured instead of refusing
++                # it as combined-red (sa629y E-02). A tree whose tests all pass failed only on the
++                # core-tier wall-time budget, which is a property of host load rather than code.
++                measured = False
++                budget_only_red = True
++                reason = (
++                    "every collected test passed, and the post-merge suite run failed ONLY on the "
++                    "core-tier wall-time budget (a property of host load, not of the merged code); "
++                    f"this is therefore not a combined-red verdict: {reason}"
++                )
+         except Exception as exc:  # noqa: BLE001
+             # DELIBERATE blind catch: an exception from the suite must be an honest REFUSAL that leaves
+             # the lane preserved, never a traceback that aborts the run mid-integration.
+@@ -30218,7 +30230,7 @@ def make_integration_validation_runner(
+             "cached": suite_cached,
+             "digest": suite_digest,
+         }
+-        if isinstance(cache, dict) and tree_id:
++        if isinstance(cache, dict) and tree_id and not budget_only_red:
+             cache[tree_id] = measurement
+
+         passed, reason, comparison = _relative_revalidation_verdict(item, measurement)
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `rg -n "def make_integration_validation_runner|suite_check=run_suite_check" agent_workflows/` showing one definition in `runner_shared.py` and both hosts passing `run_suite_check`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```
+agent_workflows/agy_runipd.py
+1852:        run_suite_check=run_suite_check,
+1866:        suite_check=run_suite_check,
+3179:        run_suite_check=run_suite_check,
+4239:        args, integrate=integrate_lane_branch, suite_check=run_suite_check
+
+agent_workflows/oc_runipd.py
+1649:        run_suite_check=run_suite_check,
+1663:        suite_check=run_suite_check,
+3592:        run_suite_check=run_suite_check,
+5158:        args, integrate=integrate_lane_branch, suite_check=run_suite_check
+
+agent_workflows/runner_shared.py
+12435:            make_validation_runner(state, run_dir, item, suite_check=run_suite_check),
+29950:def make_integration_validation_runner(
+37575:        state, run_dir, item, suite_check=run_suite_check
+43647:                run_suite_check=run_suite_check,
+43769:                            state, run_dir, item, suite_check=run_suite_check
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" -v tests/test_budget_only_revalidation.py` showing cases (a) to (d) PASSED, with case (d) asserting two stub calls and a second-call pass on the same tree (code path: `runner_shared.make_integration_validation_runner` `_runner`, changed by E-02).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+```
+tests/test_budget_only_revalidation.py::test_case_a_budget_only_red_is_unmeasured PASSED [ 16%]
+tests/test_budget_only_revalidation.py::test_case_d_remeasured_not_cached PASSED [ 33%]
+tests/test_budget_only_revalidation.py::test_case_f_end_to_end_run_suite_check_budget_only PASSED [ 50%]
+tests/test_budget_only_revalidation.py::test_case_b_real_red_is_measured PASSED [ 66%]
+tests/test_budget_only_revalidation.py::test_case_c_budget_only_with_failures_is_measured PASSED [ 83%]
+tests/test_budget_only_revalidation.py::test_case_e_routing_defers_as_merge_unchecked PASSED [100%]
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: the same pasted run showing cases (e) and (f) PASSED (code paths: `runner_shared.record_integration_refusal` reclassification; `runner_shared.run_suite_check` -> `suite_cache.run_full_suite` on the fixture repo), with a summary line showing 0 failed; plus a second pasted run of the module with `-n 2` showing 0 failed (proves (f) holds inside an xdist worker, as CI runs it).
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+```
+============================== 6 passed in 4.00s ===============================
+```
+Parallel run with `-n 2`:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1292656711
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/sa629y
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+created: 2/2 workersinitialized: 1/2 workersinitialized: 2/2 workersready: 1/2 workers      ready: 2/2 workerscollecting: 1/2 workers2 workers [6 items]
+......                                                                   [100%]
+============================== 6 passed in 3.24s ===============================
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff CHANGELOG.md` showing one `- Fixed:` line; pasted tails of `python3 -m pytest -o addopts="" -n 2 tests/test_budget_only_revalidation.py`, `python3 -m pytest -o addopts="" tests/test_suite_cache.py tests/test_hook_and_suite_fix_it.py tests/test_core_tier_selection.py` and of the bare `python3 -m pytest` (each `N passed`, zero failed); the `aw check` summary with no new error; and the `aw sanitize --agent` result record with status pass.
   - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+```diff
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,6 +37,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+ - Added: a **Tokens and cost** dashboard tab showing in + out, input, output, cached and cache-write tokens separately, each with count, total, average, median and p90, plus their costs, overall and split by agent (host and model) or any other dimension.
+ - Fixed: static type checking (`make typecheck`, CI "static type gate") passes again after three mypy errors in the comms broker, the installer engine and IPD authoring were fixed.
+ - Fixed: the core test tier wall-time budget now demotes to a warning when host load exceeds CPU count, prints the measured load in its banner, and is reported as a budget-only failure in suite and runner reports.
++- Fixed: a merge whose tests all passed but ran over the core-tier time budget is now retried later instead of being reported as a failing suite and sent back to the agent.
+ - Fixed: `aw install --records-backend <new>` on an installed repository no longer silently leaves existing records where no reader looks: it refuses when records would be orphaned, and `--relocate` (with `--dry-run` preview, `--relocate-resume`, `--relocate-rollback`) moves them.
+ - Fixed: `aw releases readiness` no longer reports a false `workflow_disposition` NO-GO in a managed repository that adds its own workflows.
+ - Fixed: `aw work begin` no longer crashes on clean-delta installs (`completely-clean-target`, `local-only`) whose plans live outside the repository.
+```
+Tail of `tests/test_budget_only_revalidation.py`:
+```
+============================== 6 passed in 3.24s ===============================
+```
+Tail of neighbouring contracts:
+```
+======================== 38 passed in 93.51s (0:01:33) =========================
+```
+Tail of bare `python3 -m pytest`:
+```
+1111 passed in 66.42s (0:01:06)
+```
+`aw check` summary:
+```
+Evidence
+  plans  36   specs  19   prompts  3   research  128   backlog  26   walkthroughs  26   roadmaps  1   comms  1   releases  1   reviews  1213   other  1461
+  errors  3   warnings  2   info  83
+(All 3 errors are pre-existing across ioegmo and qchan-04; 0 new errors)
+```
+`aw sanitize --agent`:
+```json
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5897,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: pasted `git diff` of the `25kzda` spec showing exactly one added `## Workflow history` line naming `sa629y` and `merge-unchecked`, and pasted `grep -n "^- Status:" <spec>` still reading `approved`.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+index bcc7550cc..32ed6f3ec 100644
+--- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
++++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+@@ -1746,6 +1746,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+ ## Workflow history
+
++- 2026-10-18 note (aw specs): plan sa629y (backlog o58dro) routes a post-merge revalidation whose every test passed and whose only failure is the enforced core-tier wall-time budget to the existing harness-side merge-unchecked refusal (l2mzxn), which defers and ends terminal at merge-needs-human when --integration-retry-limit is spent; this is not a "non-passing combined revalidation" in Section 2.1's sense, because Section 2.1 grounds that exclusion in repetition not fixing the condition, and host load is fixed by repetition; a budget-only red is never treated as a pass
+ - 2026-10-16 note (aw specs): AMENDED 2026-10-16 (plan jmogmv, backlog jt7ns3): Sections 5.5 and 5.6 align corrupt run state handling with maintainer ruling 2026-10-15 (exit 2 everywhere, recovery guidance, drop exit 4)
+ - 2026-10-16 note (aw specs): sync Section 5.5 retry policy table and verification_retry_decision bullet for verifier-transport-error (IPD yd4tqw, from backlog jodcz3)
+ - 2026-10-16 note (aw specs): re-review of reviewed/approved plans via oc/agy review (plan ggsdrl)
+```
+Status line check:
+```
+4:- Status: approved
+```
+  - Result: pass
 
 ## Approval and execution gate
 
