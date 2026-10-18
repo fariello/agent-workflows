@@ -6,7 +6,7 @@
 - Scope: Under `--agent` only, when a ledger leaf's answer exits 0 or 1, emit it as one validated `aw.agent/v1` `kind: "result"` record that keeps every existing top-level payload key (additive envelope: `schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`), is home-path-redacted and ANSI-free, and honors `--fields`. Leave `--json`, human output, every refusal payload (owned by `2t033b` for exit 2 and `p7bvku` for 1/3/4/5/6/7), and every success-shaped payload that exits 3 unchanged. Retire the now-false `sanctioned_raw` conformance exemptions, strengthen the live ledger sweep to validate the records, and update the docs, comments and CHANGELOG that describe the bare shape.
 - Scope-Paths: agent_workflows/run_cli.py, agent_workflows/command_surface.py, tests/test_run_cli_agent_success_records.py, tests/test_live_conformance_sweep.py, tests/conformance_matrix.py, docs/cli-output-contract.md, CHANGELOG.md
 - Item-Dependencies: executed:2t033b
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode
 - Id: 2jzld4
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2jzld4 verified (set nyvyb4, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-nyvyb4-01-2jzld4-run-cli-agent-success-payloads-become-aw-agent-v1-result-rec.review.md
 
