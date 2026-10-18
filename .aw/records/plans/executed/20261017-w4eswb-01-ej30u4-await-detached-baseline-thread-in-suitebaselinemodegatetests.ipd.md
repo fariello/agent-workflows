@@ -5,8 +5,9 @@
 - Concern: test suite baseline mode gate timeout under xdist CPU contention
 - Scope: tests/test_suite_baseline_mode_gate.py
 - Scope-Paths: tests/test_suite_baseline_mode_gate.py
+- Scope-Exceeded: .aw/records/backlog/open/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md (defect-report contract requires a durable backlog carrier for the unrelated load-sensitive test_core_tier_selection failure observed twice in this plan's required routine gate run recording only, no c...)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +17,9 @@
 - Highest E allocated: 02
 - Author: Gabriele Fariello <gabriele.fariello@gmail.com>
 - Id: ej30u4
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: ej30u4 verified (set w4eswb, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md: defect-report contract requires a durable backlog carrier for the unrelated load-sensitive test_core_tier_selection failure observed twice in this plan's required routine gate run; recording only, no code change]
 - 2026-10-18 approved (aw set): status set to approved
 
 - 2026-10-18 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
