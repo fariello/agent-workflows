@@ -1896,7 +1896,21 @@ def render_stranded_lane_section(drift: List[core.Drift]) -> str:
 # --------------------------------------------------------------------------------------
 
 
-def render_json(items: List[Item], drift: List[core.Drift]) -> str:
+def render_json(
+    items: List[Item],
+    drift: List[core.Drift],
+    repo_root: Path | None = None,
+    parked_questions: List[Dict[str, Any]] | None = None,
+) -> str:
+    if parked_questions is None:
+        if repo_root is not None:
+            pq_map = get_parked_question_counts(repo_root)
+            parked_questions = [
+                {"run_id": rid, "count": cnt} for rid, cnt in sorted(pq_map.items())
+            ]
+        else:
+            parked_questions = []
+
     obj = {
         "schema_version": SCHEMA_VERSION,
         "mapping_version": MAPPING_VERSION,
@@ -1944,6 +1958,9 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
             for d in drift
             if d.rule in (LANE_STRANDED_RULE, LANE_UNKNOWN_RULE, LANE_SUPERSEDED_RULE)
         ],
+        # qchan-06 (`y1vjzp`) E-05: live runs holding parked questions. APPENDED, never a
+        # repurposed key, [] when none.
+        "parked_questions": parked_questions if parked_questions is not None else [],
     }
     # canonical: fixed key order (insertion order above), 2-space indent, sorted item keys off, LF, final newline
     return json.dumps(obj, indent=2, ensure_ascii=True) + "\n"
@@ -2164,6 +2181,8 @@ def parse_readiness_filters(raw_readiness: Sequence[str] | None) -> set[str]:
 _RUN_STATUS_ALIASES = {
     # Canonical runner item statuses (identity mappings so selector_vocabulary and filters see them)
     "running": "running",
+    "awaiting-human": "awaiting-human",
+    "question": "awaiting-human",
     "queued": "queued",
     "failed": "failed",
     "executed": "executed",
@@ -2820,23 +2839,24 @@ def _resolve_run_lifecycle(run_state: str | None) -> LS.Resolved:
 
 _RUN_PRIORITY_ORDER: Dict[str, int] = {
     "running": 20,
-    "merge-retry": 19,
-    "interrupted": 18,
-    "merge-unchecked": 17,
-    "queued": 16,
-    "reviewed": 15,
-    "approved": 14,
-    "executed": 13,
-    "already-landed": 12,
-    "fail-gate": 11,
-    "fail-depend": 10,
-    "fail-lane": 9,
-    "fail-begin": 8,
-    "fail-merge": 7,
-    "fail-verify": 6,
-    "failed": 5,
-    "not-run": 4,
-    "retired": 3,
+    "awaiting-human": 19,
+    "merge-retry": 18,
+    "interrupted": 17,
+    "merge-unchecked": 16,
+    "queued": 15,
+    "reviewed": 14,
+    "approved": 13,
+    "executed": 12,
+    "already-landed": 11,
+    "fail-gate": 10,
+    "fail-depend": 9,
+    "fail-lane": 8,
+    "fail-begin": 7,
+    "fail-merge": 6,
+    "fail-verify": 5,
+    "failed": 4,
+    "not-run": 3,
+    "retired": 2,
 }
 
 
@@ -2898,6 +2918,44 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
             continue
 
     return run_map
+
+
+def get_parked_question_counts(repo_root: Path) -> Dict[str, int]:
+    """Scan active runner sessions and return a mapping of run id to parked question count.
+
+    Only live runs (whose driver process currently holds driver.lock) are inspected (spec 6kwd2e R4a.6, qchan-06 y1vjzp E-05).
+    Runs with zero parked questions are omitted.
+    """
+    from agent_workflows import run_viewer
+    from agent_workflows import runner_shared
+
+    counts: Dict[str, int] = {}
+    target_root = _resolve_runs_repo_root(repo_root)
+    try:
+        runs = run_viewer.discover_run_dirs(target_root)
+    except Exception:
+        return counts
+
+    live_runs = [
+        r for r in runs if run_viewer.driver_holder_state(r) == run_viewer.HOLDER_LIVE
+    ]
+    if not live_runs:
+        return counts
+
+    for run_dir in live_runs:
+        state_file = run_dir / "state.json"
+        if not state_file.is_file():
+            continue
+        try:
+            state_data = json.loads(state_file.read_text(encoding="utf-8"))
+            cnt = runner_shared.parked_question_count(state_data)
+            if cnt > 0:
+                run_id = state_data.get("run_id") or run_dir.name
+                counts[str(run_id)] = cnt
+        except Exception:
+            continue
+
+    return counts
 
 
 # Status words whose 8-character TRUNCATION collides with another real status, mapped to a distinct
@@ -4749,7 +4807,7 @@ def run(args) -> int:
         return get_renderer(ctx).emit(res, ctx)
 
     if fmt == "json" or ctx.is_json:
-        sys.stdout.write(render_json(items, drift))
+        sys.stdout.write(render_json(items, drift, repo_root=repo_root))
     else:
         # Color only for a real TTY (should_color honors NO_COLOR/FORCE_COLOR/TERM/isatty);
         # --no-color forces plain, which also yields the machine-readable [tree] form.
@@ -4973,6 +5031,16 @@ def run(args) -> int:
                 footer_lines.append(term.color256(_chk_line, 214, bold=True))
             else:
                 footer_lines.append(_chk_line)
+        except Exception:
+            pass
+
+        try:
+            parked_counts = get_parked_question_counts(repo_root)
+            for rid, cnt in sorted(parked_counts.items()):
+                q_noun = "question" if cnt == 1 else "questions"
+                footer_lines.append(
+                    f"run {rid}: {cnt} {q_noun} waiting; answer with aw runs answer {rid}"
+                )
         except Exception:
             pass
 

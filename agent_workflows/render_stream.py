@@ -1676,6 +1676,7 @@ def format_statusline_lines(
     items_failed: int | None = None,
     cwd: str | Path | None = None,
     run_id: str | None = None,
+    parked_questions: int | None = None,
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
@@ -1825,6 +1826,47 @@ def format_statusline_lines(
             w_cache += needed_stop_w - col5_w
             col5_w = needed_stop_w
 
+    has_questions = parked_questions is not None and parked_questions >= 1
+    if has_questions:
+        n_q = parked_questions
+        q_noun = "question" if n_q == 1 else "questions"
+        sep_q = " · " if use_unicode else " - "
+        q_prefix = f"? {n_q} {q_noun}{sep_q}"
+        vis_prefix = _T.visible_width(q_prefix)
+        r_str = str(run_id) if run_id else ""
+        full_hint = f"aw runs answer {r_str}".strip() if r_str else "aw runs answer"
+        min_hint = "aw runs answer"
+        full_badge_text = f"{q_prefix}{full_hint}"
+        vis_full = _T.visible_width(full_badge_text)
+
+        if s_vis > 0:
+            span34 = col3_w + 1 + col4_w
+            min_span34 = vis_prefix + len(min_hint) + 2
+            ideal_span34 = vis_full + 2
+            target_span34 = max(min_span34, min(ideal_span34, 65))
+            if span34 < target_span34:
+                diff = target_span34 - span34
+                col3_w += diff
+                if activity_cell:
+                    pad3 = max(0, col3_w - activity_w)
+                    left3 = pad3 // 2
+                    right3 = pad3 - left3
+                    plain_activity = _strip_ansi(activity_cell)
+                    h3 = (" " * left3) + plain_activity + (" " * right3)
+                else:
+                    h3 = _pad_to(
+                        act_str, col3_w, align="center", use_unicode=use_unicode
+                    )
+                v3 = _pad_to(art_str, col3_w, align="center", use_unicode=use_unicode)
+        else:
+            min_col5 = vis_prefix + len(min_hint) + 2
+            ideal_col5 = vis_full + 2
+            target_col5 = max(min_col5, min(ideal_col5, 65))
+            if col5_w < target_col5:
+                diff = target_col5 - col5_w
+                w_cache += diff
+                col5_w = target_col5
+
     h_tot = _pad_to("Tokens", w_tot, align="right", use_unicode=use_unicode)
     h_in = _pad_to("In", w_in, align="right", use_unicode=use_unicode)
     h_out = _pad_to("Out", w_out, align="right", use_unicode=use_unicode)
@@ -1958,31 +2000,79 @@ def format_statusline_lines(
         bot_seg2_plain = c_h * col2_w
         bot_seg2_color = c_h * col2_w
 
-    # Bottom-Right Stop Badge:
-    if s_vis > 0:
-        rem_stop = col5_w - s_vis
-        pad_stop_r = 1
-        pad_stop_l = max(0, rem_stop - pad_stop_r)
-        bot_seg5_plain = f"{c_h * pad_stop_l}{plain_stop}{c_h * pad_stop_r}"
-        bot_seg5_color = (
-            f"{c_h * pad_stop_l}{colored_stop}{bdr_color}{c_h * pad_stop_r}"
-        )
+    bot_seg34_plain = f"{c_h * col3_w}{c_bm}{c_h * col4_w}"
+    bot_seg34_color = f"{c_h * col3_w}{bdr_color}{c_bm}{c_h * col4_w}"
+
+    if has_questions:
+        c_q = _sgr256(214, bold=True, depth=tier) if color_enabled else ""
+        if s_vis > 0:
+            span34 = col3_w + 1 + col4_w
+            max_avail = span34 - 2 if span34 >= 4 else span34
+            if vis_full <= max_avail:
+                badge_text = full_badge_text
+            else:
+                avail_hint = max_avail - vis_prefix
+                avail_hint = max(avail_hint, len(min_hint))
+                truncated_hint = _T.truncate_visible(full_hint, avail_hint)
+                badge_text = f"{q_prefix}{truncated_hint}"
+
+            vis_q = _T.visible_width(badge_text)
+            rem_q = span34 - vis_q
+            pad_q_r = 1 if rem_q >= 2 else (1 if rem_q == 1 else 0)
+            pad_q_l = max(0, rem_q - pad_q_r)
+
+            colored_q = f"{c_q}{badge_text}{bdr_color}" if color_enabled else badge_text
+            bot_seg34_plain = f"{c_h * pad_q_l}{badge_text}{c_h * pad_q_r}"
+            bot_seg34_color = f"{c_h * pad_q_l}{colored_q}{c_h * pad_q_r}"
+
+            rem_stop = col5_w - s_vis
+            pad_stop_r = 1
+            pad_stop_l = max(0, rem_stop - pad_stop_r)
+            bot_seg5_plain = f"{c_h * pad_stop_l}{plain_stop}{c_h * pad_stop_r}"
+            bot_seg5_color = (
+                f"{c_h * pad_stop_l}{colored_stop}{bdr_color}{c_h * pad_stop_r}"
+            )
+        else:
+            max_avail = col5_w - 2 if col5_w >= 4 else col5_w
+            if vis_full <= max_avail:
+                badge_text = full_badge_text
+            else:
+                avail_hint = max_avail - vis_prefix
+                avail_hint = max(avail_hint, len(min_hint))
+                truncated_hint = _T.truncate_visible(full_hint, avail_hint)
+                badge_text = f"{q_prefix}{truncated_hint}"
+
+            vis_q = _T.visible_width(badge_text)
+            rem_q = col5_w - vis_q
+            pad_q_r = 1 if rem_q >= 2 else (1 if rem_q == 1 else 0)
+            pad_q_l = max(0, rem_q - pad_q_r)
+
+            colored_q = f"{c_q}{badge_text}{bdr_color}" if color_enabled else badge_text
+            bot_seg5_plain = f"{c_h * pad_q_l}{badge_text}{c_h * pad_q_r}"
+            bot_seg5_color = f"{c_h * pad_q_l}{colored_q}{c_h * pad_q_r}"
     else:
-        bot_seg5_plain = c_h * col5_w
-        bot_seg5_color = c_h * col5_w
+        if s_vis > 0:
+            rem_stop = col5_w - s_vis
+            pad_stop_r = 1
+            pad_stop_l = max(0, rem_stop - pad_stop_r)
+            bot_seg5_plain = f"{c_h * pad_stop_l}{plain_stop}{c_h * pad_stop_r}"
+            bot_seg5_color = (
+                f"{c_h * pad_stop_l}{colored_stop}{bdr_color}{c_h * pad_stop_r}"
+            )
+        else:
+            bot_seg5_plain = c_h * col5_w
+            bot_seg5_color = c_h * col5_w
 
     bot_border_plain = (
         f"{c_bl}{bot_seg01_plain}{c_bm}"
         f"{bot_seg2_plain}{c_bm}"
-        f"{c_h * col3_w}{c_bm}"
-        f"{c_h * col4_w}{c_bm}"
+        f"{bot_seg34_plain}{c_bm}"
         f"{bot_seg5_plain}{c_br}"
     )
     bot_border_color = (
         f"{bdr_color}{c_bl}{bot_seg01_color}{bdr_color}{c_bm}"
         f"{bdr_color}{bot_seg2_color}{bdr_color}{c_bm}"
-        f"{bdr_color}{c_h * col3_w}{bdr_color}{c_bm}"
-        f"{bdr_color}{c_h * col4_w}{bdr_color}{c_bm}"
+        f"{bdr_color}{bot_seg34_color}{bdr_color}{c_bm}"
         f"{bdr_color}{bot_seg5_color}{bdr_color}{c_br}{reset}"
     )
 
@@ -2082,6 +2172,7 @@ def format_statusline(
     items_failed: int | None = None,
     cwd: str | Path | None = None,
     run_id: str | None = None,
+    parked_questions: int | None = None,
 ) -> str:
     """Format the 4-line unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
@@ -2111,6 +2202,7 @@ def format_statusline(
         items_failed=items_failed,
         cwd=cwd,
         run_id=run_id,
+        parked_questions=parked_questions,
     )
     return "\n".join(lines)
 
@@ -2313,6 +2405,15 @@ class Statusline:
             if dir_name.startswith("run-"):
                 run_id = dir_name
 
+        parked_questions = None
+        if self.state is not None:
+            try:
+                from agent_workflows import runner_shared
+
+                parked_questions = runner_shared.parked_question_count(self.state)
+            except Exception:
+                parked_questions = None
+
         return format_statusline_lines(
             now_ts=now_wall,
             run_start_ts=run_wall,
@@ -2339,6 +2440,7 @@ class Statusline:
             items_failed=failed,
             cwd=cwd,
             run_id=run_id,
+            parked_questions=parked_questions,
         )
 
     def render_line(self) -> str:
@@ -2542,6 +2644,15 @@ def print_final_statusline(
     if not cwd:
         cwd = os.getcwd()
 
+    parked_questions = None
+    if state is not None:
+        try:
+            from agent_workflows import runner_shared
+
+            parked_questions = runner_shared.parked_question_count(state)
+        except Exception:
+            parked_questions = None
+
     top, l1, l2, bot = format_statusline_lines(
         now_ts=now_wall,
         run_start_ts=run_start_ts,
@@ -2568,6 +2679,7 @@ def print_final_statusline(
         items_failed=failed if queue else None,
         cwd=cwd,
         run_id=run_id,
+        parked_questions=parked_questions,
     )
 
     stream.write(f"{top}\n{l1}\n{l2}\n{bot}\n")
