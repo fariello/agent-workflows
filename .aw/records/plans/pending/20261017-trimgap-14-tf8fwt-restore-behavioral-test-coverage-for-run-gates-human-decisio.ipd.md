@@ -93,6 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261017-trimgap-05-5jevb2-restore-behavioral-test-coverage-for-run-packet-step-packets.ipd.md
 - Restoring `tests/test_migration_complex.py`, the other deleted file the backlog item names, is owned by the `migration_complex` item; it reaches `run_gates` only through `migration_complex` callers and explicitly leaves the `run_gates` contract to this item.
   - Carrier: pdemar
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-trimgap-08-pdemar-restore-behavioral-test-coverage-for-migration-complex-coord.ipd.md
 
 ## Scope check
 
