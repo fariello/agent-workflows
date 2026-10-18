@@ -3339,8 +3339,14 @@ class RunsAgentStreamAndRefusalTests(TestCase):
                 if name == "invalid_since":
                     self.assertNotIn(str(Path.home()), out_agent)
                     self.assertNotIn(str(Path.home()), out_json)
-                    self.assertIn("~/bad-spec-date", rec_agent["error"])
-                    self.assertIn("~/bad-spec-date", rec_json["error"])
+                    self.assertTrue(
+                        "~/bad-spec-date" in rec_agent["error"]
+                        or "~\\bad-spec-date" in rec_agent["error"]
+                    )
+                    self.assertTrue(
+                        "~/bad-spec-date" in rec_json["error"]
+                        or "~\\bad-spec-date" in rec_json["error"]
+                    )
 
                 # Test human mode
                 out_h, err_h, code_h = self._run_cmd(

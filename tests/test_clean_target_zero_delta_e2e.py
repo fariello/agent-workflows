@@ -282,9 +282,8 @@ class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
             text=True,
             check=True,
         ).stdout
-        self.assertIn(
-            str(expected_wt_dir),
-            wt_list,
+        self.assertTrue(
+            str(expected_wt_dir) in wt_list or expected_wt_dir.as_posix() in wt_list,
             f"git worktree list should include {expected_wt_dir}",
         )
         # - validated a plan that lives ONLY in home records
@@ -359,6 +358,11 @@ class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
         ).stdout.strip()
         self.assertNotIn(
             str(expected_wt_dir),
+            wt_list_after,
+            "lane worktree must be unregistered after uninstall",
+        )
+        self.assertNotIn(
+            expected_wt_dir.as_posix(),
             wt_list_after,
             "lane worktree must be unregistered after uninstall",
         )

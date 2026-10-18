@@ -51668,7 +51668,7 @@ def reconcile_agent_user_config(
             sandbox_files: set[str] = set()
             for p in sandbox_dir.rglob("*"):
                 if p.is_file():
-                    sandbox_files.add(str(p.relative_to(sandbox_dir)))
+                    sandbox_files.add(p.relative_to(sandbox_dir).as_posix())
 
             seed_files = set(handle.seed_hashes.keys())
 

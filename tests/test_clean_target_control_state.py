@@ -479,8 +479,10 @@ class TestCleanTargetControlState(unittest.TestCase):
             ]
             self.assertEqual(len(saved_lines), 1)
             saved_line = saved_lines[0]
-            self.assertIn(
-                "Saved record: <project home>/state/checkup/last.json", saved_line
+            self.assertTrue(
+                "Saved record: <project home>/state/checkup/last.json" in saved_line
+                or "Saved record: <project home>/state\\checkup\\last.json"
+                in saved_line
             )
             # Must not contain absolute machine paths
             self.assertNotIn(str(self.fake_aw_home), saved_line)

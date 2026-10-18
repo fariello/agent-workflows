@@ -521,6 +521,10 @@ def test_runners_inprocess_handler_restoration_after_clean_exit(
         signal.signal(signal.SIGTERM, old_term)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="os.kill with SIGTERM terminates process unconditionally on Windows",
+)
 def test_runners_inprocess_handler_restoration_after_sigterm(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

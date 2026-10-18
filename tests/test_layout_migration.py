@@ -989,7 +989,7 @@ class Order04MigrationSafetyTests(unittest.TestCase):
         for src_rel, content in manifest_sources:
             p = self.repo / src_rel
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(content, encoding="utf-8")
+            p.write_bytes(content.encode("utf-8"))
             import hashlib
 
             h = hashlib.sha256(content.encode("utf-8")).hexdigest()

@@ -355,15 +355,18 @@ class TestProjectContextResolver(unittest.TestCase):
 
         with mock.patch.dict(os.environ, clean_env, clear=True):
             ctx = resolve_project_context(target_repo=self.target_repo)
-            expected_aw_home = str(custom_aw_home.resolve())
-            self.assertEqual(ctx.effective_aw_home, expected_aw_home)
+            self.assertEqual(
+                Path(ctx.effective_aw_home).resolve(),
+                custom_aw_home.resolve(),
+            )
             self.assertEqual(
                 ctx.provenance["effective_aw_home"]["source"],
                 PrecedenceLevel.GLOBAL_DEFAULTS.value,
             )
-            self.assertIn(
-                str(aw_cfg / "config.json"),
-                ctx.provenance["effective_aw_home"]["detail"],
+            detail = ctx.provenance["effective_aw_home"]["detail"]
+            self.assertTrue(
+                str(aw_cfg / "config.json") in detail
+                or (aw_cfg / "config.json").as_posix() in detail
             )
 
             # Seed <custom_aw_home>/projects/<ctx.project_id>/config/project.json
@@ -449,8 +452,8 @@ class TestProjectContextResolver(unittest.TestCase):
             with mock.patch.dict(os.environ, env_override, clear=True):
                 ctx_override = resolve_project_context(target_repo=self.target_repo)
                 self.assertEqual(
-                    ctx_override.effective_aw_home,
-                    str(override_aw_home.resolve()),
+                    Path(ctx_override.effective_aw_home).resolve(),
+                    override_aw_home.resolve(),
                 )
                 self.assertEqual(ctx_override.records_backend, "repository")
                 self.assertEqual(

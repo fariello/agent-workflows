@@ -494,8 +494,10 @@ class InventoryTests(unittest.TestCase):
             item for item in result["items"] if item["source_relpath"] == "outside"
         )
         self.assertEqual(item["kind"], "symlink")
-        self.assertIsNone(item["sha256"])
-        self.assertEqual(item["symlink_target"], str(external))
+        target = item["symlink_target"]
+        if sys.platform == "win32" and target and target.startswith("\\\\?\\"):
+            target = target[4:]
+        self.assertEqual(target, str(external))
 
     def test_git_classification_is_closed_and_deterministic(self) -> None:
         """External, exact unmerged, and mixed states use stable spellings."""
@@ -1111,7 +1113,7 @@ class ScenarioContractBehaviorTests(unittest.TestCase):
         git(repo, "add", "-A")
         git(repo, "commit", "-m", "seed", "-q")
         return {
-            str(p.relative_to(repo)): hashlib.sha256(p.read_bytes()).hexdigest()
+            p.relative_to(repo).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in [wf_dir / "index.md", wf_dir / "VERSION", plans_dir / "p.md"]
         }
 

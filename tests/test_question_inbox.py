@@ -195,6 +195,12 @@ if m_req:
 """
     script_path.write_text(script_content, encoding="utf-8")
     script_path.chmod(0o755)
+    if sys.platform == "win32":
+        cmd_path = root / "fake_agent.cmd"
+        cmd_path.write_text(
+            f'@"{sys.executable}" "{script_path}" %*\n', encoding="utf-8"
+        )
+        return cmd_path
     return script_path
 
 

@@ -1379,7 +1379,7 @@ def persist_project_policy(
         unknown_fields=existing_unknown if existing_unknown else None,
     )
     tmp_proj = config_dir / ".tmp_project.json"
-    with open(tmp_proj, "w", encoding="utf-8") as f:
+    with open(tmp_proj, "w", encoding="utf-8", newline="\n") as f:
         json.dump(proj_schema.to_dict(), f, indent=2)
         f.write("\n")
     os.replace(tmp_proj, proj_json)
@@ -1479,7 +1479,7 @@ def persist_project_policy(
             unknown_fields=existing_local_unknown if existing_local_unknown else None,
         )
     tmp_local = local_json.parent / ".tmp_local.json"
-    with open(tmp_local, "w", encoding="utf-8") as f:
+    with open(tmp_local, "w", encoding="utf-8", newline="\n") as f:
         json.dump(local_schema.to_dict(), f, indent=2)
         f.write("\n")
     os.replace(tmp_local, local_json)

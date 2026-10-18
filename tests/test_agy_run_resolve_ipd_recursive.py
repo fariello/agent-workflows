@@ -233,10 +233,14 @@ class TestAgyRunResolveIpdRecursive(unittest.TestCase):
             agy_run.resolve_ipd(self.root, "dd44ee", ("executed",))
         msg = str(ctx.exception)
         self.assertIn("IPD reference 'dd44ee' is ambiguous:", msg)
-        rel1 = str(self.dup_plan_top.relative_to(self.root))
-        rel2 = str(self.dup_plan_shard.relative_to(self.root))
-        self.assertIn(rel1, msg)
-        self.assertIn(rel2, msg)
+        rel1 = self.dup_plan_top.relative_to(self.root).as_posix()
+        rel2 = self.dup_plan_shard.relative_to(self.root).as_posix()
+        self.assertTrue(
+            rel1 in msg or str(self.dup_plan_top.relative_to(self.root)) in msg
+        )
+        self.assertTrue(
+            rel2 in msg or str(self.dup_plan_shard.relative_to(self.root)) in msg
+        )
 
     def test_08b_preserved_exact_path_and_disallowed_state(self) -> None:
         """(8b) Preserved semantics: exact existing path resolves; disallowed state raises."""

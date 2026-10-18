@@ -295,6 +295,12 @@ class TestFixFirstEndToEnd(unittest.TestCase):
                 encoding="utf-8",
             )
             posix_bin.chmod(posix_bin.stat().st_mode | stat.S_IEXEC)
+            if os.name == "nt":
+                win_cmd = bin_dir / "pre-commit.cmd"
+                win_cmd.write_text(
+                    f'@echo off\r\n"{sys.executable}" "{shim_py}" %*\r\n',
+                    encoding="utf-8",
+                )
             old_path = os.environ.get("PATH", "")
             os.environ["PATH"] = f"{bin_dir}{os.pathsep}{old_path}"
 

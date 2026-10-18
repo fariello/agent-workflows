@@ -964,13 +964,14 @@ def nonsurveyable_root_refusal(
     )
 
 
-def _derive_project_id(target_repo: str) -> str:
+def _derive_project_id(target_repo: str | Path) -> str:
     """Derive deterministic project ID from target_repo path."""
-    repo_name = Path(target_repo).name or "project"
+    target_str = _canonical_path(target_repo)
+    repo_name = Path(target_str).name or "project"
     clean_slug = re.sub(r"[^a-zA-Z0-9_-]", "-", repo_name).strip("-").lower()
     import hashlib
 
-    path_hash = hashlib.sha256(target_repo.encode("utf-8")).hexdigest()[:6]
+    path_hash = hashlib.sha256(target_str.encode("utf-8")).hexdigest()[:6]
     return f"{clean_slug}-{path_hash}"
 
 

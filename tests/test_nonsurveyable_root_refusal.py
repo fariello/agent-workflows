@@ -467,11 +467,15 @@ class NonsurveyableRootRefusalTests(unittest.TestCase):
                 self.assertFalse(refusal_git.may_proceed)
                 self.assertIsNotNone(refusal_git.next_action)
                 self.assertEqual(refusal_git.next_action.command, "aw install .")
-                self.assertIn(
-                    f"aw install {git_child.as_posix()}", refusal_git.human_message
+                self.assertTrue(
+                    f"aw install {git_child.as_posix()}" in refusal_git.human_message
+                    or f"aw install {str(git_child)}" in refusal_git.human_message
                 )
                 self.assertNotIn(
                     f"aw install {polluted_tmp.as_posix()}\n", refusal_git.human_message
+                )
+                self.assertNotIn(
+                    f"aw install {str(polluted_tmp)}\n", refusal_git.human_message
                 )
 
                 # Real project child inside polluted temp root
