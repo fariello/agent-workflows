@@ -1,5 +1,5 @@
 - Id: otc788
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for clean_delta
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw agy run: IPD dwjfu4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-13-dwjfu4-restore-behavioral-test-coverage-for-clean-delta-adapter-man.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-13-dwjfu4-restore-behavioral-test-coverage-for-clean-delta-adapter-man.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053813Z-512749: dwjfu4
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for clean_delta
 
