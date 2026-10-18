@@ -6,7 +6,7 @@
 - Scope: Update `Order15CliTests.test_install_legacy_repo_interactive_accept_migrates_to_aw` in `tests/test_cli.py` to mock `sys.stdin` with `io.StringIO("\n\n")` (supplying interactive answers to subsequent prompts without reading from captured stdin) instead of patching `sys.stdin.isatty` directly, assert the install's observable outcome (exit code 0 and the legacy `.agents/workflows` tree removed), and remove the `@pytest.mark.xfail` quarantine decorator so the test executes and passes cleanly under pytest-xdist. OUT: the sibling `test_install_legacy_repo_interactive_decline_keeps_legacy` (backlog `zcouni`) and any production change.
 - Scope-Paths: tests/test_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 02
 - Author: antigravity
 - Id: s56tsu
+- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-17 to-review (antigravity): authored from backlog q2cgcu with findings, checklist, and validation.

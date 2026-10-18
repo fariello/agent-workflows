@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/runner_shared.py`, make `execute_item_core`, `integrate_retired_lane`, and `reattempt_deferred_integrations` read the operator-facing reason from `item["integration_deferral"]` (the value `record_integration_refusal` has just written, already reclassified and token-stripped) for the stderr line, the `render_record_integration_refusal` refusal reason, and the rung-3 operator question. Add behavioral tests covering the first-attempt execute refusal on both hosts, the retired-lane refusal, the deferred re-attempt prompt, and a measured-red non-regression control in `tests/test_unmeasured_refusal_console.py`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_unmeasured_refusal_console.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: h8peam
+- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
 - 2026-10-17 draft (antigravity): created.

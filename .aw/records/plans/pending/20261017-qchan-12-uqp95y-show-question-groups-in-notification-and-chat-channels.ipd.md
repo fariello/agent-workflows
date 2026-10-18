@@ -6,7 +6,7 @@
 - Scope: IN: extending `OutboundQuestion` and `OutboundBatch` in `agent_workflows/notify/core.py` with question group metadata (`group_id`, member question IDs, raiser artifact id6s, unblock count, total member count); updating `build_batch` to accept `question_inbox.QuestionGroup` objects and render one entry per deduplicated group with the group answer command (`aw runs answer <run_id> --group <group_id>`); updating `dispatch_checkpoint` to consume `question_inbox.group_open_questions(run_dir, state)`, track every member question in `notify/sent.jsonl`, and send ONE acknowledgement per answered group instead of one per member; updating `agent_workflows/notify/registry.py` and `apply_inbound` in `notify/core.py` to register and route inbound group events to `question_inbox.write_group_answer`; updating `agent_workflows/notify/webhook.py` to add the group fields to the `aw.notify/v1` JSON; updating `TelegramChannel.send` in `agent_workflows/notify/telegram.py` so full mode sends one message per group and registers its routes with the `group_id` (without this no channel ever creates a group route, so inbound group routing would be unreachable); a CHANGELOG line and the terse/full-mode description in `docs/notifications.md` (written by `mrlblc`, hence the dependency); and behavioral tests in `tests/test_notify_groups.py`. OUT: implementing `group_open_questions` or `write_group_answer` (owned by `jshwxb`, executed); the Telegram receiver, poller, verification and offset handling (owned by `qrup8m`, executed; only `TelegramChannel.send`'s full-mode loop and its route registration change here); `aw notify` CLI commands and the creation of `docs/notifications.md` (owned by `mrlblc`).
 - Scope-Paths: agent_workflows/notify/core.py, agent_workflows/notify/registry.py, agent_workflows/notify/webhook.py, agent_workflows/notify/telegram.py, tests/test_notify_groups.py, CHANGELOG.md, docs/notifications.md
 - Item-Dependencies: executed:jshwxb, executed:txl556, executed:qrup8m, executed:mrlblc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: antigravity
 - Id: uqp95y
+- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 
 - 2026-10-18 to-review (antigravity): authored review-ready from backlog 4brk8a.

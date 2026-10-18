@@ -6,7 +6,7 @@
 - Scope: tests/test_suite_baseline_mode_gate.py
 - Scope-Paths: tests/test_suite_baseline_mode_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 02
 - Author: Gabriele Fariello <gabriele.fariello@gmail.com>
 - Id: ej30u4
+- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 approved (aw set): status set to approved
 
 - 2026-10-18 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 - 2026-10-17 draft (Gabriele Fariello <gabriele.fariello@gmail.com>): created via `aw ipd scaffold --from-backlog w4eswb`.
