@@ -6,7 +6,7 @@
 - Scope: IN: `agent_workflows/notify/telegram.py` implementing the Order 09 `Channel` protocol over `urllib.request` (`getMe`, `getWebhookInfo`, `sendMessage`, `getUpdates`, `answerCallbackQuery`, optional `editMessageReplyMarkup` to clear buttons once answered); the receiver thread with the per-bot user-level lock, takeover when the holder exits, start-of-run drain, offset file, backoff with jitter honoring `retry_after`, stop-and-report on 409/401/403, refusal to run while a webhook is set; routing every inbound event through Order 09's `core.apply_inbound` (verification, event dedup, registry lookup, and the single answer writer, `channel=telegram`); acknowledgements of consumed and stale answers delivered through Order 09's `dispatch_checkpoint`; the token never logged (redacted from every error, event and traceback). OUT: setup, pairing and listen commands (Order 11); a cross-machine receiver (one bot per machine is the documented rule).
 - Scope-Paths: agent_workflows/notify/telegram.py, agent_workflows/notify/core.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_notify_telegram.py, tests/fake_telegram.py
 - Item-Dependencies: executed:txl556
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qrup8m
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qrup8m verified (set qchan, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
