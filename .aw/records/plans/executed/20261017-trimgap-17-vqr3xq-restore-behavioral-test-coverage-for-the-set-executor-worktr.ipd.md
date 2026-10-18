@@ -6,7 +6,7 @@
 - Scope: Restore four deleted test modules from `19313eed^` at their original paths, minus code-pinning tests, marked `core`, and add residual tests for three keys the restored files reach without asserting on (`SkillPackage.to_dict` is not reached at all; `SkillPackage.resource_paths` and `HostAdapter.advertises_supported` survive early-return mutation, F-04). The 41 keys: `ipd_set_executor.disposition_pass`, `build_lanes`, `routing_config_from_mapping`, `RoutingConfig.resolve`, `make_authorization_record`, `classify_node_work`, `classify_node_work._is_coding`, `classify_node_work._is_prose`, `AuthorizationLedger.proposals`, `AuthorizationLedger.authorized_decisions`, `ready_lanes`, `plan_wave`, `authorize_mutation`; `set_lifecycle.derive_progress`, `stale_evidence_seqs_after_integration`, `make_invalidation_records`, `terminal_transition_allowed`, `resume_or_report`; `host_launchers.plan_launch`, `verify_fresh`, `enforce_model_binding`, `resume_task_packet`; `worktree_lease.LeaseTable.__init__`, `LeaseTable.claim`, `LeaseTable.release`, `LeaseTable.owner_of`, `assert_worker_scope`, `allocate_session`, `path_is_worker_forbidden`; `host_adapters.SkillPackage.to_dict`, `SkillPackage.resource_paths`, `resolve_role_target`, `HostAdapter.advertises_supported`; `ipd_set_plan._run_resume_report`, `run_execute_set`, `_resolve_repo_and_plans`; `agy_verifier.AgySessionDouble.invoke`, `finalize_run`; `set_state.derive_set_state`; `set_records.write_local_projections`; `host_runner.validate_terminal_envelope`. EXCLUDES any production change; EXCLUDES `tests/test_migration_compact_shims.py`, which plan `syzi9i` owns.
 - Scope-Paths: tests/test_ipd_set_executor.py, tests/test_exec_set_workflow.py, tests/test_host_runner.py, tests/test_host_adapters_skills.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: vqr3xq
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vqr3xq verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
