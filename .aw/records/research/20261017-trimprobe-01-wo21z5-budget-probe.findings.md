@@ -1369,3 +1369,168 @@ The 3 `P3` keys past the 7,200s cumulative mark in queue order are:
 | `agent_workflows/storage.py::validate_companion_preflight` | `P4` | `return-none` | candidate-files | 508 | killed | n/a | guarded |  | 329.13 |
 | **P4 subtotal** | `P4` | | | | | | **17 keys** (budget-exhausted: 0, guarded: 16, unguarded: 0, unprovable: 1) | | **8459.79s** |
 
+## Filing plan
+
+Grouped filing plan for every non-guarded key from the 319 budget-exhausted candidate keys (Set `trimprobe`, Order 05 `b83dpg`). Groups are ranked by gap key count descending. The top 15 groups are filed individually under `--set trimgap`; all remaining groups (ranks 16 through 52) are rolled into a single residual rollup backlog item.
+
+| Group | Module | Keys covered | Counts | Remedy Shape | Dedupe Judgement | Work-Kind | Priority | Justification | Action |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | `agent_workflows/check_engine.py` | `check_ipd_draft_ready`, `check_plan_priority_required`, `check_review_decision_unescalated`, ... (10 keys) | 10 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 2 | `agent_workflows/run_analytics_telemetry.py` | `ResourceSampler.__init__`, `ResourceSampler.start`, `ResourceSampler.stop`, ... (8 keys) | 8 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 3 | `agent_workflows/run_analytics_spa.py` | `_render_findings`, `_render_pricing`, `_render_refusals`, ... (5 keys) | 5 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | filed |
+| 4 | `agent_workflows/ipd_lifecycle.py` | `_baseline_ambiguity`, `begin`, `_execution_cohesive_committed_paths`, ... (4 keys) | 4 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 5 | `agent_workflows/run_analytics_telemetry.py` | `_validate_label_list`, `_validate_tool_versions`, `node_pseudonym`, ... (4 keys) | 4 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 6 | `agent_workflows/run_evidence.py` | `validate_evidence`, `_porcelain_paths`, `dirty_within`, ... (4 keys) | 4 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 7 | `agent_workflows/attention.py` | `_shared_gate_ref`, `render_table`, `_render_table_row` | 3 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 8 | `agent_workflows/benchmark_manifest.py` | `BenchmarkManifest.digest`, `Ceilings.digest`, `_digest` | 3 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | filed |
+| 9 | `agent_workflows/record_history.py` | `_endpoint_id6`, `append_rename`, `record_rename` | 3 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 10 | `agent_workflows/run_analytics_findings.py` | `assert_no_causal_language`, `build_finding`, `findings_from_results` | 3 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 11 | `agent_workflows/runner_shared.py` | `spec_impacts_for_queue`, `expand_selectors`, `route_recovery_turn` | 3 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 12 | `agent_workflows/benchmark_corpus.py` | `SeededTask.workspace_seed_path`, `load_corpus` | 2 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | filed |
+| 13 | `agent_workflows/benchmark_runners.py` | `TrialResult.to_dict`, `RunnerAdapter.adapter_digest` | 2 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | filed |
+| 14 | `agent_workflows/config.py` | `findings_gate_threshold`, `read_review_findings_gate` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 15 | `agent_workflows/ipd_lint.py` | `lint_file`, `check_item_dependencies` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | filed |
+| 16 | `agent_workflows/ipd_schema.py` | `_parse_item_dependency_edge`, `parse_item_dependencies` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 17 | `agent_workflows/plans_refs.py` | `apply_renames`, `_dirs` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 18 | `agent_workflows/render_stream.py` | `Palette.status`, `_status_glyph_char` | 2 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 19 | `agent_workflows/result_types.py` | `CommandResult.to_agent_record`, `select_output` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 20 | `agent_workflows/run_analytics_config.py` | `_coerce_bool`, `parse_telemetry_settings` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 21 | `agent_workflows/term.py` | `stdin_is_interactive`, `is_interactive` | 2 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 22 | `agent_workflows/agent_schema.py` | `validate_agent_record` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 23 | `agent_workflows/artifact_rename.py` | `_existing_type_id6s` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 24 | `agent_workflows/attention.py` | `_gate_ref_display` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 25 | `agent_workflows/backlog.py` | `run_new` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 26 | `agent_workflows/benchmark_ablations.py` | `AblationTrialSpec.cell_key` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 27 | `agent_workflows/benchmark_manifest.py` | `BenchmarkManifest.to_dict` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 28 | `agent_workflows/benchmark_metrics.py` | `MetricSummary.to_dict` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 29 | `agent_workflows/benchmark_thresholds.py` | `GateEvaluationResult.to_dict` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 30 | `agent_workflows/check_engine.py` | `_review_index` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 31 | `agent_workflows/check_engine.py` | `check_push_authorization` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 32 | `agent_workflows/cli.py` | `_dispatch` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 33 | `agent_workflows/comms.py` | `validate_envelope_header` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 34 | `agent_workflows/doctor.py` | `_infer_artifact_type` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 35 | `agent_workflows/engine.py` | `resolve_source_root` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 36 | `agent_workflows/engine.py` | `migrate_local_lanes_to_untracked` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 37 | `agent_workflows/ipd_lifecycle.py` | `classify_commit_refusal` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 38 | `agent_workflows/leak_sanitizer.py` | `scan_text` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 39 | `agent_workflows/plan_readiness.py` | `cite_review_entry` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 40 | `agent_workflows/project_context.py` | `_resolve_effective_aw_home` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 41 | `agent_workflows/render_stream.py` | `format_spec_impact_announcement` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 42 | `agent_workflows/renderers.py` | `BaseRenderer.emit` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 43 | `agent_workflows/research_cmd.py` | `build_frontmatter` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 44 | `agent_workflows/research_contract.py` | `validate_frontmatter` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 45 | `agent_workflows/run_analytics_privacy.py` | `_project_number_map` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 46 | `agent_workflows/run_analytics_telemetry.py` | `TelemetryCollector._observe_tool_versions` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 47 | `agent_workflows/run_ledger_schema.py` | `validate_record` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 48 | `agent_workflows/runner_shared.py` | `attributed_away_failure_ids` | 1 keys | restore behavioral coverage | non-owned | chore | low | Absent behavioral test coverage without observed regression is chore with low priority by default. | rolled-up |
+| 49 | `agent_workflows/selectors.py` | `resolve_for_mutation` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 50 | `agent_workflows/storage.py` | `get_git_common_dir` | 1 keys | investigate probe | non-owned | chore | low | Investigation of probe applicability for unprovable keys is chore with low priority by default. | rolled-up |
+| 51 | `agent_workflows/verify_roles.py` | `check_role_action` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+| 52 | `agent_workflows/worktree_lease.py` | `lane_id_from_branch` | 1 keys | probe then restore | non-owned | chore | low | Deferred mutation probing and test restoration for unprobed keys is preventive maintenance; no live regression observed. | rolled-up |
+
+## Filed items
+
+Filed backlog items for the top 15 groups and the residual rollup item under `--set trimgap`:
+
+| Item Id | File Path | Scope | Work-Kind | Priority | Summary |
+|---|---|---|---|---|---|
+| `lzg859` | `.aw/worktrees/b83dpg` | Group 1 (agent_workflows/check_engine.py) | `chore` | `low` | Probe then restore behavioral test coverage for check_engine |
+| `zd8l04` | `.aw/worktrees/b83dpg` | Group 2 (agent_workflows/run_analytics_telemetry.py) | `chore` | `low` | Probe then restore behavioral test coverage for run_analytics_telemetry |
+| `aaud70` | `.aw/worktrees/b83dpg` | Group 3 (agent_workflows/run_analytics_spa.py) | `chore` | `low` | Investigate probe applicability for run_analytics_spa |
+| `gcpj15` | `.aw/worktrees/b83dpg` | Group 4 (agent_workflows/ipd_lifecycle.py) | `chore` | `low` | Probe then restore behavioral test coverage for ipd_lifecycle |
+| `gmfupc` | `.aw/worktrees/b83dpg` | Group 5 (agent_workflows/run_analytics_telemetry.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_telemetry |
+| `i2g20d` | `.aw/worktrees/b83dpg` | Group 6 (agent_workflows/run_evidence.py) | `chore` | `low` | Probe then restore behavioral test coverage for run_evidence |
+| `1n4qco` | `.aw/worktrees/b83dpg` | Group 7 (agent_workflows/attention.py) | `chore` | `low` | Probe then restore behavioral test coverage for attention |
+| `g5ypvb` | `.aw/worktrees/b83dpg` | Group 8 (agent_workflows/benchmark_manifest.py) | `chore` | `low` | Investigate probe applicability for benchmark_manifest |
+| `hrz4cv` | `.aw/worktrees/b83dpg` | Group 9 (agent_workflows/record_history.py) | `chore` | `low` | Probe then restore behavioral test coverage for record_history |
+| `6ntz8v` | `.aw/worktrees/b83dpg` | Group 10 (agent_workflows/run_analytics_findings.py) | `chore` | `low` | Restore behavioral test coverage for run_analytics_findings |
+| `l2zsa9` | `.aw/worktrees/b83dpg` | Group 11 (agent_workflows/runner_shared.py) | `chore` | `low` | Probe then restore behavioral test coverage for runner_shared |
+| `3hurk1` | `.aw/worktrees/b83dpg` | Group 12 (agent_workflows/benchmark_corpus.py) | `chore` | `low` | Restore behavioral test coverage for benchmark_corpus |
+| `l9ssp6` | `.aw/worktrees/b83dpg` | Group 13 (agent_workflows/benchmark_runners.py) | `chore` | `low` | Investigate probe applicability for benchmark_runners |
+| `yvmxs9` | `.aw/worktrees/b83dpg` | Group 14 (agent_workflows/config.py) | `chore` | `low` | Probe then restore behavioral test coverage for config |
+| `kkzvca` | `.aw/worktrees/b83dpg` | Group 15 (agent_workflows/ipd_lint.py) | `chore` | `low` | Probe then restore behavioral test coverage for ipd_lint |
+| `nzc6dm` | `.aw/worktrees/b83dpg` | Residual Rollup (Groups 16-52) | `chore` | `low` | Residual rollup of remaining budget probe gaps across 37 module groups |
+
+No group was filed as `bug` because zero regressions or user-visible broken behaviors were observed across the Set; all items represent absent behavioral test coverage or deferred mutation probing (chore with low priority by default). Consequently, no item carries `- Blocks-Release: next`.
+
+## Reconciliation
+
+Set-wide reconciliation accounting for all 319 budget-exhausted candidate keys from backlog `lrnh5f`.
+
+### (a) 319-Key Reconciliation Table
+
+| Candidate Key Population / Verdict | Count | Partition / Resolution | Carrier or Carrier-Free Disposition |
+|---|---:|---|---|
+| `guarded` (P2) | 188 | Probed in Order 02 (`lictgf`); mutant killed by surviving suite | Carrier-free (`guarded`) |
+| `guarded` (P3) | 14 | Probed in Order 03 (`f4pbs5`); mutant killed by surviving suite | Carrier-free (`guarded`) |
+| `guarded` (P4) | 16 | Probed in Order 04 (`pr6lo9`); mutant killed by surviving suite | Carrier-free (`guarded`) |
+| `key-gone` | 0 | All 319 keys present at HEAD | Carrier-free (`key-gone`) |
+| Group 1: `agent_workflows/check_engine.py` [probe then restore] | 10 | Budget exhausted under run cap | Backlog item `lzg859` |
+| Group 2: `agent_workflows/run_analytics_telemetry.py` [probe then restore] | 8 | Budget exhausted under run cap | Backlog item `zd8l04` |
+| Group 3: `agent_workflows/run_analytics_spa.py` [investigate probe] | 5 | Control survived or target unprovable | Backlog item `aaud70` |
+| Group 4: `agent_workflows/ipd_lifecycle.py` [probe then restore] | 4 | Budget exhausted under run cap | Backlog item `gcpj15` |
+| Group 5: `agent_workflows/run_analytics_telemetry.py` [restore behavioral coverage] | 4 | Mutation survived in surviving suite | Backlog item `gmfupc` |
+| Group 6: `agent_workflows/run_evidence.py` [probe then restore] | 4 | Budget exhausted under run cap | Backlog item `i2g20d` |
+| Group 7: `agent_workflows/attention.py` [probe then restore] | 3 | Budget exhausted under run cap | Backlog item `1n4qco` |
+| Group 8: `agent_workflows/benchmark_manifest.py` [investigate probe] | 3 | Control survived or target unprovable | Backlog item `g5ypvb` |
+| Group 9: `agent_workflows/record_history.py` [probe then restore] | 3 | Budget exhausted under run cap | Backlog item `hrz4cv` |
+| Group 10: `agent_workflows/run_analytics_findings.py` [restore behavioral coverage] | 3 | Mutation survived in surviving suite | Backlog item `6ntz8v` |
+| Group 11: `agent_workflows/runner_shared.py` [probe then restore] | 3 | Budget exhausted under run cap | Backlog item `l2zsa9` |
+| Group 12: `agent_workflows/benchmark_corpus.py` [restore behavioral coverage] | 2 | Mutation survived in surviving suite | Backlog item `3hurk1` |
+| Group 13: `agent_workflows/benchmark_runners.py` [investigate probe] | 2 | Control survived or target unprovable | Backlog item `l9ssp6` |
+| Group 14: `agent_workflows/config.py` [probe then restore] | 2 | Budget exhausted under run cap | Backlog item `yvmxs9` |
+| Group 15: `agent_workflows/ipd_lint.py` [probe then restore] | 2 | Budget exhausted under run cap | Backlog item `kkzvca` |
+| Residual Groups 16-52 (37 module groups) | 43 | Unreached (2), unprovable (7), unguarded (7), budget-exhausted (27) | Residual backlog item `nzc6dm` |
+| **Total Candidate Keys** | **319** | **All 319 budget-exhausted candidate keys accounted for** | **Reconciles exactly: 218 carrier-free + 58 top-15 filed + 43 residual = 319** |
+
+### (b) Per-Partition Wall-Time Table
+
+| Partition | Keys | Total Wall Time (s) | Verdict Counts | Responsible Child IPD |
+|---|---:|---:|---|---|
+| `P2` | 263 | 11130.81 | guarded: 188, budget-exhausted: 47, unguarded: 14, unprovable: 14 | `lictgf` (Order 02) |
+| `P3` | 37 | 10845.88 | guarded: 14, budget-exhausted: 17, unguarded: 4, unprovable: 2 | `f4pbs5` (Order 03) |
+| `P4` | 17 | 8459.79 | guarded: 16, budget-exhausted: 0, unguarded: 0, unprovable: 1 | `pr6lo9` (Order 04) |
+| `unguarded-unreached` | 2 | n/a | unguarded-unreached: 2 | `g00ljy` (Order 01 baseline) |
+| **Total** | **319** | **30436.48** | **guarded: 218, budget-exhausted: 64, unguarded: 18, unprovable: 17, unguarded-unreached: 2** | **Set trimprobe complete** |
+
+### (c) Set trimprobe Commit Footprint Audit
+
+For each child IPD in Set `trimprobe` (`g00ljy`, `lictgf`, `f4pbs5`, `pr6lo9`), git commits and diffs against parent 1:
+
+```sh
+for id6 in g00ljy lictgf f4pbs5 pr6lo9; do
+  git log --format='%h %p %s' --grep="($id6)" --grep="lane $id6 " HEAD
+done
+```
+
+Commit list and diff verification:
+- `f98fa0d5a` `integrate(aw agy run): merge verified lane g00ljy to main` -> `git diff --stat f98fa0d5a^1 f98fa0d5a -- agent_workflows tests` -> empty (0 files changed)
+- `e7702b6d5` `lifecycle(g00ljy): finalize g00ljy -> executed` -> `git diff --stat e7702b6d5^1 e7702b6d5 -- agent_workflows tests` -> empty (0 files changed)
+- `d416e8d8f` `work(g00ljy): Re-measure HEAD reach for the 319 budget-exhausted keys and build the probe queue` -> `git diff --stat d416e8d8f^1 d416e8d8f -- agent_workflows tests` -> empty (0 files changed)
+- `f371fbe11` `integrate(aw oc run): merge verified lane g00ljy to main` -> `git diff --stat f371fbe11^1 f371fbe11 -- agent_workflows tests` -> empty (0 files changed)
+- `d9ed1bcc6` `integrate(aw agy run): merge verified lane lictgf to main` -> `git diff --stat d9ed1bcc6^1 d9ed1bcc6 -- agent_workflows tests` -> empty (0 files changed)
+- `0eb2ecf74` `lifecycle(lictgf): finalize lictgf -> executed` -> `git diff --stat 0eb2ecf74^1 0eb2ecf74 -- agent_workflows tests` -> empty (0 files changed)
+- `5312e8638` `work(lictgf): Mutation-probe the budget-exhausted keys with small surviving selections` -> `git diff --stat 5312e8638^1 5312e8638 -- agent_workflows tests` -> empty (0 files changed)
+- `cb60e5c80` `integrate(aw oc run): merge verified lane lictgf to main` -> `git diff --stat cb60e5c80^1 cb60e5c80 -- agent_workflows tests` -> empty (0 files changed)
+- `918c30558` `integrate(aw agy run): merge verified lane f4pbs5 to main` -> `git diff --stat 918c30558^1 918c30558 -- agent_workflows tests` -> empty (0 files changed)
+- `b9b7404c9` `lifecycle(f4pbs5): finalize f4pbs5 -> executed` -> `git diff --stat b9b7404c9^1 b9b7404c9 -- agent_workflows tests` -> empty (0 files changed)
+- `c7da1e9ca` `work(f4pbs5): Mutation-probe the budget-exhausted keys with large surviving selections` -> `git diff --stat c7da1e9ca^1 c7da1e9ca -- agent_workflows tests` -> empty (0 files changed)
+- `da2918b79` `lifecycle(pr6lo9): finalize pr6lo9 -> executed` -> `git diff --stat da2918b79^1 da2918b79 -- agent_workflows tests` -> empty (0 files changed)
+- `92b2b4f27` `work(pr6lo9): Mutation-probe the subprocess-only budget-exhausted keys` -> `git diff --stat 92b2b4f27^1 92b2b4f27 -- agent_workflows tests` -> empty (0 files changed)
+- `789e1ace5` `integrate(aw oc run): merge verified lane pr6lo9 to main` -> `git diff --stat 789e1ace5^1 789e1ace5 -- agent_workflows tests` -> empty (0 files changed)
+
+All diffs are empty. The Set's own commits changed zero production code and zero test files.
+
+### (d) Diagnostic Rule Delta (aw check --agent)
+
+Comparison of `aw check --agent` per-rule counts between `check-before.jsonl` (captured at 2026-10-18T09:33:36Z) and post-filing:
+
+| Rule | Before | After | Delta | Note |
+|---|---:|---:|---:|---|
+| `check.identity-absent-from-name` | 1 | 1 | +0 | Pre-existing |
+| `check.lifecycle-transition-unvalidated` | 7 | 7 | +0 | Pre-existing |
+| `check.scope-drift` | 1 | 1 | +0 | Pre-existing |
+| `check.source-test-citation-dangling` | 42 | 42 | +0 | Pre-existing |
+| `check.spec-criteria-uncovered` | 2 | 2 | +0 | Pre-existing |
+| `check.system-layout-missing` | 1 | 1 | +0 | Pre-existing |
+| **Total** | **54** | **54** | **+0** | **0 new findings on files authored by this plan** |
