@@ -91,6 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261017-o58dro-01-sa629y-budget-only-post-merge-red-defers-as-unmeasured.ipd.md
 - End-to-end host-level proof of budget-only revalidation deferral and re-attempt: designed in plan `xc1xh9` (graduated from backlog item `vtcqpf`).
   - Carrier: xc1xh9
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-vtcqpf-01-xc1xh9-prove-end-to-end-that-a-budget-only-post-merge-red-is-never.ipd.md
 - Load-aware budget enforcement in bare pytest and send-back wording: designed in plan `44nfmd` (Set `48hjbx`).
   - Carrier: 44nfmd
 - Seam regression tests under the default demotion: designed in plan `t54fet` (Set `m8d13e`).
