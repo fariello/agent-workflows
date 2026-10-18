@@ -341,6 +341,7 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     report_discarded_user_config as report_discarded_user_config,
     report_discarded_aw_home as report_discarded_aw_home,
+    report_red_ci_warning as report_red_ci_warning,
 )
 from agent_workflows.runner_shared import (
     report_run_spec_edits as report_run_spec_edits,
@@ -4678,6 +4679,7 @@ def run_queue(
     if state.get("lanes_summary"):
         print(state["lanes_summary"])
     print(render_continuation_hint(state, run_dir))
+    report_red_ci_warning(state)
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half of the shutdown report. `emit_shutdown_report`
     # is the SAME idempotent routine the signal handlers use, so the normal and signal paths cannot
@@ -5740,6 +5742,7 @@ def main(argv: list[str] | None = None) -> int:
                 # what a run WILL do before it launches, so the model/variant it will launch with
                 # belongs here more than anywhere else.
                 print_launch_identity(run_dir)
+                report_red_ci_warning(run_dir)
                 return 0
             # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
             install_stop_triggers(run_dir)
@@ -5956,6 +5959,7 @@ def main(argv: list[str] | None = None) -> int:
                     # specvis st5klo E-03: the DriverError path, likewise wired and labelled (OQ-01).
                     report_run_spec_edits(state, partial=True)
                     print(render_continuation_hint(state, run_dir))
+                    report_red_ci_warning(state)
             except Exception:
                 pass
         print(f"runipd: {exc}", file=sys.stderr)

@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from agent_workflows import agy_runipd, checkup, cli, config, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, checkup, config, oc_runipd, runner_shared
 
 
 PLAN_TEMPLATE = """# IPD: Test plan {id6}
@@ -324,16 +324,15 @@ def test_pure_decide_red_ci_gate_verdicts() -> None:
         }
     }
 
-    # (a) red beyond N -> REFUSE
-    d_refuse = runner_shared.decide_red_ci_gate(
+    # (a) red beyond N -> ALLOW-WITH-WARNING (proceeds with warning, does not refuse)
+    d_red = runner_shared.decide_red_ci_gate(
         rec_red, interval=100, exempt_sets=["cihealth"], queue=q_normal
     )
-    assert d_refuse.verdict == runner_shared.RED_CI_REFUSE
-    assert not d_refuse.proceed
-    assert "abc1234" in d_refuse.message
-    assert "105" in d_refuse.message
-    assert "--allow-red-ci" in d_refuse.message
-    assert "ci_red_exempt_sets" in d_refuse.message
+    assert d_red.verdict == runner_shared.RED_CI_ALLOW_WITH_WARNING
+    assert d_red.proceed
+    assert "abc1234" in d_red.message
+    assert "105" in d_red.message
+    assert "[RUN-RED-CI]" in d_red.message
 
     # (b) red beyond N with override -> ALLOW-WITH-WARNING
     d_override = runner_shared.decide_red_ci_gate(
@@ -356,12 +355,13 @@ def test_pure_decide_red_ci_gate_verdicts() -> None:
     assert d_exempt.proceed
     assert d_exempt.exempt is True
 
-    # (d2) mixed queue -> REFUSE
+    # (d2) mixed queue -> ALLOW-WITH-WARNING
     d_mixed = runner_shared.decide_red_ci_gate(
         rec_red, interval=100, exempt_sets=["cihealth"], queue=q_mixed
     )
-    assert d_mixed.verdict == runner_shared.RED_CI_REFUSE
-    assert not d_mixed.proceed
+    assert d_mixed.verdict == runner_shared.RED_CI_ALLOW_WITH_WARNING
+    assert d_mixed.proceed
+    assert "[RUN-RED-CI]" in d_mixed.message
 
     # (e) missing record and UNKNOWN status -> ALLOW-WITH-WARNING
     d_missing = runner_shared.decide_red_ci_gate(
@@ -396,7 +396,7 @@ def test_pure_decide_red_ci_gate_verdicts() -> None:
     assert d_pass.verdict == runner_shared.RED_CI_ALLOW
     assert d_pass.proceed
 
-    # (g2) stale record with caller-recounted commits_since_last_pass > N -> REFUSE
+    # (g2) stale record with caller-recounted commits_since_last_pass > N -> ALLOW-WITH-WARNING
     d_recounted = runner_shared.decide_red_ci_gate(
         rec_within,
         interval=100,
@@ -404,7 +404,8 @@ def test_pure_decide_red_ci_gate_verdicts() -> None:
         queue=q_normal,
         commits_since_last_pass=105,
     )
-    assert d_recounted.verdict == runner_shared.RED_CI_REFUSE
+    assert d_recounted.verdict == runner_shared.RED_CI_ALLOW_WITH_WARNING
+    assert d_recounted.proceed
     assert d_recounted.commits_since_last_pass == 105
 
 
@@ -413,7 +414,7 @@ def test_pure_decide_red_ci_gate_verdicts() -> None:
 # --------------------------------------------------------------------------------------
 
 
-def test_case_a_and_a2_red_beyond_n_refuses_and_aw_runs_shows_it(
+def test_case_a_and_a2_red_beyond_n_warns_at_start_and_end_and_runs(
     tmp_path: Path,
 ) -> None:
     host_bin, spawn_log = _make_fake_host(tmp_path)
@@ -427,7 +428,7 @@ def test_case_a_and_a2_red_beyond_n_refuses_and_aw_runs_shows_it(
         commits_since_last_pass=3,
     )
 
-    # (a) Normal start refuses, spawns no agent, records durable refusal
+    # (a) Normal start does NOT refuse: runs to completion, spawns agent, warns at start and end
     rc, out, err = _run_host_main(
         oc_runipd,
         [
@@ -435,43 +436,36 @@ def test_case_a_and_a2_red_beyond_n_refuses_and_aw_runs_shows_it(
             "--repo",
             str(repo),
             "--unattended",
+            "--no-isolate-worktree",
+            "--retry-budget",
+            "0",
             "--run-id",
-            "run-refused-a",
+            "run-warned-a",
         ],
         host_bin=host_bin,
     )
-    assert rc == 2
-    assert _spawn_count(spawn_log) == 0
+    assert rc != 2
+    assert _spawn_count(spawn_log) >= 1
     assert pass_short in err
     assert "3 commit(s)" in err
-    assert "--allow-red-ci" in err
-    assert "ci_red_exempt_sets" in err
+    assert "[RUN-RED-CI]" in err
+    # Verify warning appears at start and again at the end (at least 2 occurrences)
+    assert err.count("[RUN-RED-CI]") >= 2
+    assert err.count("=" * 80) >= 4
 
-    run_dir = repo / ".aw" / "records" / "runs" / "run-refused-a"
+    run_dir = repo / ".aw" / "records" / "runs" / "run-warned-a"
     events = [
         json.loads(line)
         for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    gate_events = [
-        e for e in events if e.get("event") in ("red-ci-refused", "red-ci-gate")
-    ]
+    gate_events = [e for e in events if e.get("event") == "red-ci-warning"]
     assert len(gate_events) == 1
-    assert gate_events[0]["proceed"] is False
-    assert gate_events[0]["code"] == "red-ci"
+    assert gate_events[0]["proceed"] is True
     assert gate_events[0]["last_passing_commit"] == pass_short
 
-    # Verify `aw runs` surfaces the refusal
-    runs_out, runs_err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(runs_out), contextlib.redirect_stderr(runs_err):
-        runs_rc = cli.main(["runs", "--repo", str(repo), "run-refused-a"])
-    assert runs_rc == 0
-    rendered_runs = runs_out.getvalue()
-    assert "[red-ci]" in rendered_runs
-    assert pass_short in rendered_runs
-    assert "--allow-red-ci" in rendered_runs
-
-    # (a2) --prepare-only also refuses before returning a prepared run
+    # (a2) --prepare-only also proceeds without refusing, printing warning at start and end
+    count_before_prep = _spawn_count(spawn_log)
     rc_prep, _out_prep, err_prep = _run_host_main(
         oc_runipd,
         [
@@ -481,13 +475,14 @@ def test_case_a_and_a2_red_beyond_n_refuses_and_aw_runs_shows_it(
             "--unattended",
             "--prepare-only",
             "--run-id",
-            "run-refused-prep",
+            "run-warned-prep",
         ],
         host_bin=host_bin,
     )
-    assert rc_prep == 2
-    assert _spawn_count(spawn_log) == 0
+    assert rc_prep == 0
+    assert _spawn_count(spawn_log) == count_before_prep  # prepare-only spawns no agent
     assert pass_short in err_prep
+    assert err_prep.count("[RUN-RED-CI]") >= 2
 
 
 # --------------------------------------------------------------------------------------
@@ -633,7 +628,7 @@ def test_case_d_exempt_set_runs_and_mixed_queue_refused(tmp_path: Path) -> None:
         commits_since_last_pass=3,
     )
 
-    # Mixed queue (`all` selects both `cihealth` and `other`) -> refused, no agent spawned
+    # Mixed queue (`all` selects both `cihealth` and `other`) -> warns and runs
     rc_mixed, _out_m, err_m = _run_host_main(
         oc_runipd,
         [
@@ -641,13 +636,16 @@ def test_case_d_exempt_set_runs_and_mixed_queue_refused(tmp_path: Path) -> None:
             "--repo",
             str(repo),
             "--unattended",
+            "--no-isolate-worktree",
+            "--retry-budget",
+            "0",
             "--run-id",
             "run-mixed",
         ],
         host_bin=host_bin,
     )
-    assert rc_mixed == 2
-    assert _spawn_count(spawn_log) == 0
+    assert rc_mixed != 2
+    assert _spawn_count(spawn_log) >= 1
     assert "[RUN-RED-CI]" in err_m
 
     # Exempt-only selection (`cihealth`) -> allowed with no flag, agent spawned
@@ -821,15 +819,19 @@ def test_case_g_and_g2_within_n_runs_and_stale_record_crossing_n_refused(
             "--repo",
             str(repo),
             "--unattended",
+            "--no-isolate-worktree",
+            "--retry-budget",
+            "0",
             "--run-id",
             "run-stale-crossed",
         ],
         host_bin=host_bin,
     )
-    assert rc_g2 == 2
-    assert _spawn_count(spawn_log) == count_after_g  # unchanged: no new agent spawned
+    assert rc_g2 != 2
+    assert _spawn_count(spawn_log) > count_after_g
     assert "5 commit(s)" in err_g2
     assert shas[1][:7] in err_g2
+    assert "[RUN-RED-CI]" in err_g2
 
 
 # --------------------------------------------------------------------------------------
@@ -854,24 +856,28 @@ def test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override(
         commits_since_last_pass=3,
     )
 
-    # (i) --full-auto alone does NOT override the red-CI gate on either host
+    # (i) --full-auto warns at start and end and runs on either host
     rc_fa, _out_fa, err_fa = _run_host_main(
         host_mod,
         [
             "tst001",
             "--repo",
             str(repo),
+            "--unattended",
+            "--no-isolate-worktree",
+            "--retry-budget",
+            "0",
             "--full-auto",
             "--run-id",
-            "run-full-auto-refused",
+            "run-full-auto-warned",
         ],
         host_bin=host_bin,
     )
-    assert rc_fa == 2
-    assert _spawn_count(spawn_log) == 0
+    assert rc_fa != 2
+    assert _spawn_count(spawn_log) >= 1
     assert "[RUN-RED-CI]" in err_fa
 
-    # (h) --agent refusal emits aw.agent/v1 JSON record with refusal.code == "red-ci"
+    # (h) --agent runs and emits aw.agent/v1 JSON record with red_ci_warning
     rc_ag_ref, out_ag_ref, _err_ag_ref = _run_host_main(
         host_mod,
         [
@@ -879,19 +885,20 @@ def test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override(
             "--repo",
             str(repo),
             "--unattended",
+            "--prepare-only",
             "--agent",
             "--run-id",
-            "run-agent-refused",
+            "run-agent-prepared",
         ],
         host_bin=host_bin,
     )
-    assert rc_ag_ref == 2
-    assert _spawn_count(spawn_log) == 0
+    assert rc_ag_ref == 0
     rec_ref = json.loads(out_ag_ref.strip())
     assert rec_ref["schema"] == "aw.agent/v1"
-    assert rec_ref["refusal"]["code"] == "red-ci"
-    assert rec_ref["refusal"]["last_passing_commit"] == pass_short
-    assert rec_ref["refusal"]["commits_since_last_pass"] == 3
+    assert rec_ref["outcome"] == "ok"
+    assert "red_ci_warning" in rec_ref
+    assert pass_short in rec_ref["red_ci_warning"]
+    assert "3 commit(s)" in rec_ref["red_ci_warning"]
 
     # (h) --agent with --allow-red-ci override runs and emits aw.agent/v1 record carrying override
     _rc_ag_ov, out_ag_ov, _err_ag_ov = _run_host_main(
@@ -917,3 +924,68 @@ def test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override(
     assert rec_ov["schema"] == "aw.agent/v1"
     assert rec_ov["red_ci_override"]["reason"] == "fixing X"
     assert rec_ov["red_ci_override"]["last_passing_commit"] == pass_short
+
+
+def test_red_ci_warning_banner_formatting_and_colors() -> None:
+    msg = (
+        "WARNING: [RUN-RED-CI] CI has not passed in 618 commit(s) "
+        "(threshold: 100; CI status: FAILING; last passing commit: 3a8d2b2)."
+    )
+
+    # 1. Plain formatting (color=False)
+    plain_lines = runner_shared.format_red_ci_warning_banner(msg, color=False)
+    assert len(plain_lines) == 3
+    assert plain_lines[0] == "=" * 80
+    assert plain_lines[1] == msg
+    assert plain_lines[2] == "=" * 80
+    assert "\033[" not in "".join(plain_lines)
+
+    # 2. Bold red formatting (color=True)
+    styled_lines = runner_shared.format_red_ci_warning_banner(msg, color=True)
+    assert len(styled_lines) == 3
+    for line in styled_lines:
+        assert line.startswith("\033[1;31m")
+        assert line.endswith("\033[0m")
+    assert msg in styled_lines[1]
+
+
+@pytest.mark.parametrize("host_mod", [oc_runipd, agy_runipd])
+def test_red_ci_warning_banner_printed_at_start_and_end_both_hosts(
+    tmp_path: Path, host_mod: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sub_tmp = tmp_path / host_mod.__name__
+    sub_tmp.mkdir(parents=True, exist_ok=True)
+    host_bin, spawn_log = _make_fake_host(sub_tmp)
+    repo, first_sha, tip_sha, _ = _setup_repo(sub_tmp, interval=2, extra_commits=3)
+    pass_short = first_sha[:7]
+    _write_checkup_record(
+        repo,
+        commit=tip_sha,
+        status="FAILING",
+        last_passing_commit=pass_short,
+        commits_since_last_pass=3,
+    )
+
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    _rc, _out, err = _run_host_main(
+        host_mod,
+        [
+            "tst001",
+            "--repo",
+            str(repo),
+            "--unattended",
+            "--no-isolate-worktree",
+            "--retry-budget",
+            "0",
+            "--run-id",
+            "run-color-warn",
+        ],
+        host_bin=host_bin,
+    )
+
+    assert _spawn_count(spawn_log) >= 1
+    # Check warning banner at start and end
+    assert err.count("[RUN-RED-CI]") >= 2
+    # Check bold red ANSI escape is present in the output
+    assert "\033[1;31m" in err
+    assert "=" * 80 in err

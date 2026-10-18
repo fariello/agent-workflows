@@ -799,6 +799,7 @@ from agent_workflows.runner_shared import (
     report_driver_committed_reviews as report_driver_committed_reviews,
     report_discarded_user_config as report_discarded_user_config,
     report_discarded_aw_home as report_discarded_aw_home,
+    report_red_ci_warning as report_red_ci_warning,
     report_run_spec_edits as report_run_spec_edits,
     spec_edit_record as spec_edit_record,
     spec_edit_summary as spec_edit_summary,
@@ -3880,6 +3881,7 @@ def run_queue(
         print(state["lanes_summary"])
     hint = render_continuation_hint(state, run_dir)
     print(hint)
+    report_red_ci_warning(state)
     state["_summary_table_printed"] = True
     # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half, through the SAME idempotent shared routine the
     # signal handlers use, so the two paths cannot drift and whichever fires first suppresses the
@@ -4470,6 +4472,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"State directory: {run_dir}")
             if args.prepare_only:
                 print_status(run_dir)
+                report_red_ci_warning(run_dir)
                 return 0
             # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
             install_stop_triggers(run_dir)
@@ -4639,6 +4642,7 @@ def main(argv: list[str] | None = None) -> int:
                     report_run_spec_edits(state, partial=True)
                     hint = render_continuation_hint(state, run_dir)
                     print(hint)
+                    report_red_ci_warning(state)
             except Exception:
                 pass
         print(f"runagy: {exc}", file=sys.stderr)

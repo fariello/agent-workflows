@@ -22599,26 +22599,14 @@ def decide_red_ci_gate(
             override_reason=cleaned_override,
         )
 
-    exempt_hint = (
-        f" (configured exempt Sets: {', '.join(sorted(exempt_norm))})"
-        if exempt_norm
-        else " (configure `ci_red_exempt_sets` in `.aw/config/project.json`)"
-    )
-    remedy = (
-        "Two ways forward: (1) fix CI on the tracked branch or run only an exempt "
-        f"CI-repair Set listed in `ci_red_exempt_sets`{exempt_hint}; or "
-        '(2) pass `--allow-red-ci "<why>"` (non-empty justification required) '
-        "to override the red-CI stop for this run."
-    )
     msg = (
-        f"[RUN-RED-CI] Refusing to start new run work: CI has not passed in "
+        f"WARNING: [RUN-RED-CI] CI has not passed in "
         f"{count} commit(s) (threshold: {interval}; CI status: {status}; "
-        f"last passing commit: {last_pass or 'unknown'}). {remedy}"
+        f"last passing commit: {last_pass or 'unknown'})."
     )
     return RedCiGateDecision(
-        verdict=RED_CI_REFUSE,
+        verdict=RED_CI_ALLOW_WITH_WARNING,
         message=msg,
-        remedy=remedy,
         code=RED_CI_REFUSAL_CODE,
         status=status,
         last_passing_commit=last_pass,
@@ -22628,6 +22616,32 @@ def decide_red_ci_gate(
 
 
 evaluate_red_ci_gate = decide_red_ci_gate
+
+
+def format_red_ci_warning_banner(
+    warning: str,
+    *,
+    term: Any = None,
+    stream: Any = None,
+    color: bool | None = None,
+) -> list[str]:
+    """Format a prominent red-CI warning banner in bold red letters."""
+    from agent_workflows import term as _term
+
+    eff_term = term
+    if eff_term is None:
+        eff_stream = stream if stream is not None else sys.stderr
+        eff_term = _term.Term(stream=eff_stream, color=color)
+
+    border = "=" * 80
+    raw_lines = [border]
+    for line in str(warning).splitlines():
+        line = line.strip()
+        if line:
+            raw_lines.append(line)
+    raw_lines.append(border)
+
+    return [eff_term.colorize(line, "bold", "red") for line in raw_lines]
 
 
 def is_agent_mode(args: Any) -> bool:
@@ -22803,13 +22817,85 @@ def enforce_red_ci_gate(
 
     if decision.verdict == RED_CI_ALLOW_WITH_WARNING:
         state["red_ci_warning"] = decision.message
+        _save(eff_run_dir, state)
+        _append(
+            eff_run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "red-ci-warning",
+                "proceed": True,
+                "code": decision.code,
+                "status": decision.status,
+                "last_passing_commit": decision.last_passing_commit,
+                "commits_since_last_pass": decision.commits_since_last_pass,
+                "interval": decision.interval,
+                "warning": decision.message,
+            },
+        )
         if warn_fn is not None:
-            warn_fn(decision.message)
+            if "[RUN-RED-CI]" in decision.message:
+                for line in format_red_ci_warning_banner(
+                    decision.message, stream=sys.stderr
+                ):
+                    warn_fn(line)
+            else:
+                warn_fn(decision.message)
         elif not is_agent_mode(args):
-            print(decision.message, file=sys.stderr)
+            if "[RUN-RED-CI]" in decision.message:
+                for line in format_red_ci_warning_banner(
+                    decision.message, stream=sys.stderr
+                ):
+                    print(line, file=sys.stderr)
+            else:
+                print(decision.message, file=sys.stderr)
         return decision
 
     return decision
+
+
+def report_red_ci_warning(
+    state_or_run_dir: Mapping[str, Any] | Path | str | None,
+    *,
+    stream: Any = None,
+) -> list[str]:
+    """Print the red-CI warning banner at the end of the run if red CI was detected."""
+    if state_or_run_dir is None:
+        return []
+    state: Mapping[str, Any] | None = None
+    if isinstance(state_or_run_dir, (str, Path)):
+        p = Path(state_or_run_dir)
+        st_file = p / "state.json" if p.is_dir() else p
+        if st_file.is_file():
+            try:
+                state = json.loads(st_file.read_text(encoding="utf-8"))
+            except Exception:
+                state = None
+    elif isinstance(state_or_run_dir, Mapping):
+        state = state_or_run_dir
+
+    if not state or not isinstance(state, Mapping):
+        return []
+
+    options = state.get("options") or {}
+    if (
+        bool(options.get("as_agent"))
+        or bool(options.get("agent"))
+        or bool(state.get("as_agent"))
+        or bool(state.get("agent"))
+    ):
+        return []
+
+    warning = state.get("red_ci_warning")
+    if not warning or not isinstance(warning, str):
+        return []
+    if "[RUN-RED-CI]" not in warning:
+        return []
+
+    out = stream if stream is not None else sys.stderr
+    lines = format_red_ci_warning_banner(warning, stream=out)
+    for line in lines:
+        print(line, file=out)
+    return lines
 
 
 def emit_agent_run_refusal_record(
