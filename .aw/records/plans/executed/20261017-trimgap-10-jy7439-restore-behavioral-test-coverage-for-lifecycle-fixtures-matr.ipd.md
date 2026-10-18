@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_lifecycle_fixtures.py` from `19313eed^:tests/test_lifecycle_fixtures.py` as a core-tier behavioral module that drives the 21 keys through `run_fixture`, `run_all_fixtures`, `make_isolated_env`, `seed_legacy_tree` and `IsolatedEnv`, and asserts on returned `FixtureOutcome` fields, environment-variable state and the file system; plus one small added class covering the four behaviors the deleted file never asserted directly (an unknown fixture name is refused, `activate_aw_home` followed by `cleanup` restores a caller's prior `AW_HOME`, `run_fixture` removes the isolated tree it created, and a refuse-before-mutation fixture whose refusal DID write to the repo reports `mutated=True` and fails). The 21 keys: `run_clean_install`, `run_legacy_update`, `run_partial_state`, `run_customized_file`, `run_interrupted_update`, `run_rollback`, `run_downgrade_warning`, `run_no_network`, `run_no_credential`, `run_multi_host_discovery`, `run_unsupported_host`, `run_fixture`, `run_all_fixtures`, `make_isolated_env`, `seed_legacy_tree`, `_migrator`, `_snapshot_tree`, `_sha`, `IsolatedEnv.activate_aw_home`, `IsolatedEnv.restore_aw_home`, `IsolatedEnv.cleanup`. EXCLUDES any change to `agent_workflows/lifecycle_fixtures.py` or any other production file (see F-05 and Deferred for the one latent defect found), and EXCLUDES `tests/test_core_module_coverage.py`, whose existing `test_lifecycle_fixtures` smoke test stays as is.
 - Scope-Paths: tests/test_lifecycle_fixtures.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: jy7439
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jy7439 verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the module into the core tier
 
-- [ ] E-01 Restore the file with `git show 19313eed^:tests/test_lifecycle_fixtures.py > tests/test_lifecycle_fixtures.py`, then add `import pytest` and a module-level `pytestmark = pytest.mark.core` (the pattern `tests/test_backlog.py` uses for `unittest.TestCase` classes) so the bare core-tier gate collects it. Extend the module docstring with one paragraph naming backlog `lzn56i`, findings `b1mx2w` and `hpjj44`, and the trim commit `19313eed` it was restored from. Make no other change to the restored content. Disposition rule if a restored test fails at execution HEAD (none did at authoring, F-03, nor at review, F-09): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Restore the file with `git show 19313eed^:tests/test_lifecycle_fixtures.py > tests/test_lifecycle_fixtures.py`, then add `import pytest` and a module-level `pytestmark = pytest.mark.core` (the pattern `tests/test_backlog.py` uses for `unittest.TestCase` classes) so the bare core-tier gate collects it. Extend the module docstring with one paragraph naming backlog `lzn56i`, findings `b1mx2w` and `hpjj44`, and the trim commit `19313eed` it was restored from. Make no other change to the restored content. Disposition rule if a restored test fails at execution HEAD (none did at authoring, F-03, nor at review, F-09): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists, imports cleanly, and bare `python3 -m pytest --collect-only -q` lists it as selected by the core tier with every restored test (17 at authoring and review).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Append one `unittest.TestCase` class `IsolatedEnvLifecycleTests` with exactly four tests (add `import os` and `from unittest import mock` to the imports). (a) `test_unknown_fixture_name_is_refused`: `lf.run_fixture("no-such-fixture")` raises `ValueError` whose message contains `"clean-install"` (the known-names list `run_fixture` prints). (b) `test_activate_then_cleanup_restores_prior_aw_home`: set `os.environ["AW_HOME"]` to a sentinel string, call `lf.make_isolated_env()`, call `env.activate_aw_home()` and assert `os.environ["AW_HOME"] == str(env.aw_home)`, call `env.cleanup()` and assert `os.environ["AW_HOME"]` equals the sentinel again and `env.base_dir.exists()` is False; restore the original value in a `finally`/`addCleanup`. (c) `test_run_fixture_removes_its_isolated_tree`: wrap `lf.make_isolated_env` with `unittest.mock.patch.object(lf, "make_isolated_env", spy)` where `spy` calls the real function and records the returned env; call `lf.run_fixture("clean-install")` and assert `.passed`; then assert exactly one env was made and its `base_dir.exists()` is False. This is the guard for `run_fixture`'s `finally: env.cleanup()`, which F-08 shows no restored test catches. (d) `test_a_refusal_that_mutated_the_repo_is_reported_as_mutated`: make an env with `lf.make_isolated_env()` (`addCleanup(env.cleanup)`), patch `lf.hcr.render_probe_commands` with a function accepting `**kwargs` that writes `env.target_repo / "stray.txt"` and then raises `ValueError`, call `lf.run_unsupported_host(env)`, and assert `outcome.mutated is True`, `outcome.passed is False` and `outcome.evidence["no_mutation"] is False`. This is the guard for `_snapshot_tree`, the before/after comparison every refuse-before-mutation verdict rests on; F-09 shows that making it return `{}` survives every other test, because the real refusals never write. Do NOT add any test asserting what `cleanup` does to `AW_HOME` when `activate_aw_home` was never called (F-05: that behavior is a latent defect and must not be pinned).
+- [x] E-02 Append one `unittest.TestCase` class `IsolatedEnvLifecycleTests` with exactly four tests (add `import os` and `from unittest import mock` to the imports). (a) `test_unknown_fixture_name_is_refused`: `lf.run_fixture("no-such-fixture")` raises `ValueError` whose message contains `"clean-install"` (the known-names list `run_fixture` prints). (b) `test_activate_then_cleanup_restores_prior_aw_home`: set `os.environ["AW_HOME"]` to a sentinel string, call `lf.make_isolated_env()`, call `env.activate_aw_home()` and assert `os.environ["AW_HOME"] == str(env.aw_home)`, call `env.cleanup()` and assert `os.environ["AW_HOME"]` equals the sentinel again and `env.base_dir.exists()` is False; restore the original value in a `finally`/`addCleanup`. (c) `test_run_fixture_removes_its_isolated_tree`: wrap `lf.make_isolated_env` with `unittest.mock.patch.object(lf, "make_isolated_env", spy)` where `spy` calls the real function and records the returned env; call `lf.run_fixture("clean-install")` and assert `.passed`; then assert exactly one env was made and its `base_dir.exists()` is False. This is the guard for `run_fixture`'s `finally: env.cleanup()`, which F-08 shows no restored test catches. (d) `test_a_refusal_that_mutated_the_repo_is_reported_as_mutated`: make an env with `lf.make_isolated_env()` (`addCleanup(env.cleanup)`), patch `lf.hcr.render_probe_commands` with a function accepting `**kwargs` that writes `env.target_repo / "stray.txt"` and then raises `ValueError`, call `lf.run_unsupported_host(env)`, and assert `outcome.mutated is True`, `outcome.passed is False` and `outcome.evidence["no_mutation"] is False`. This is the guard for `_snapshot_tree`, the before/after comparison every refuse-before-mutation verdict rests on; F-09 shows that making it return `{}` survives every other test, because the real refusals never write. Do NOT add any test asserting what `cleanup` does to `AW_HOME` when `activate_aw_home` was never called (F-05: that behavior is a latent defect and must not be pinned).
   - Depends on: E-01
   - Expected outcome: all four added tests pass at HEAD (observed in F-04, F-08 and F-09).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: confirm the keys are guarded
 
-- [ ] E-03 Run the module alone (`python3 -m pytest tests/test_lifecycle_fixtures.py -o addopts="" -v`) and confirm every test (17 restored plus 4 added at review) passes with no skips.
+- [x] E-03 Run the module alone (`python3 -m pytest tests/test_lifecycle_fixtures.py -o addopts="" -v`) and confirm every test (17 restored plus 4 added at review) passes with no skips.
   - Depends on: E-02
   - Expected outcome: every collected test passed, no skips (21 at review; the bar is all-pass, not the count).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Mutation spot-check, scratch edits to `agent_workflows/lifecycle_fixtures.py` never committed, one at a time, rerunning the module after each and reverting before the next: (a) in `run_unsupported_host`, set `refused = False` in the `except ValueError` branch; (b) in `run_customized_file`, delete the `mig.register_human_file(rel)` call; (c) in `run_downgrade_warning`, set `mutated=True`; (d) in `run_clean_install`, delete the `mig.apply(preview)` call; (e) in `IsolatedEnv.restore_aw_home`, make the body `os.environ.pop("AW_HOME", None)` unconditionally; (f) in `run_fixture`, replace the `finally` body `env.cleanup()` with `pass`; (g) in `_sha`, return `os.urandom(8).hex()`; (h) remove the `FIXTURE_ROLLBACK: run_rollback,` entry from `FIXTURE_RUNNERS`; (i) make `seed_legacy_tree` return before writing anything; (j) make `_snapshot_tree` return `{}` as its first statement. Then confirm `git diff agent_workflows/` is empty.
+- [x] E-04 Mutation spot-check, scratch edits to `agent_workflows/lifecycle_fixtures.py` never committed, one at a time, rerunning the module after each and reverting before the next: (a) in `run_unsupported_host`, set `refused = False` in the `except ValueError` branch; (b) in `run_customized_file`, delete the `mig.register_human_file(rel)` call; (c) in `run_downgrade_warning`, set `mutated=True`; (d) in `run_clean_install`, delete the `mig.apply(preview)` call; (e) in `IsolatedEnv.restore_aw_home`, make the body `os.environ.pop("AW_HOME", None)` unconditionally; (f) in `run_fixture`, replace the `finally` body `env.cleanup()` with `pass`; (g) in `_sha`, return `os.urandom(8).hex()`; (h) remove the `FIXTURE_ROLLBACK: run_rollback,` entry from `FIXTURE_RUNNERS`; (i) make `seed_legacy_tree` return before writing anything; (j) make `_snapshot_tree` return `{}` as its first statement. Then confirm `git diff agent_workflows/` is empty.
   - Depends on: E-03
   - Expected outcome (pre-observed at HEAD, F-08): each mutation turns at least one test red: (a) `FailBeforeMutationTests::test_unsupported_host_refused_before_mutation`; (b) `LifecycleFixturePassTests::test_customized_file_passes`; (c) `DowngradeWarningTests::test_downgrade_warns_and_is_refused_without_corruption`; (d) `LifecycleFixturePassTests::test_clean_install_passes` and `NoUnmanagedDriftTests::test_clean_install_rerun_is_no_op`; (e) `IsolatedEnvLifecycleTests::test_activate_then_cleanup_restores_prior_aw_home`; (f) `IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree`; (g) `LifecycleFixturePassTests::test_customized_file_passes`; (h) `LifecycleFixtureRegistryTests::test_every_fixture_has_a_runner`; (i) `LifecycleFixturePassTests::test_legacy_update_passes`; (j) `IsolatedEnvLifecycleTests::test_a_refusal_that_mutated_the_repo_is_reported_as_mutated` (F-09). If any mutation survives at execution time, report it in V-04 as a failure rather than marking pass. The production diff is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: core-tier fit
 
-- [ ] E-05 Run bare `python3 -m pytest` and confirm it passes with the new module included, recording the wall time against the core-tier budget (30s, enforced by `conftest.pytest_sessionfinish`, IPD `hguae9`). If the budget line fires, rerun once to separate host load from this module's cost (F-06, F-09) and report both runs plus the module's own `--durations=5` slice. A budget overrun attributable to host load or pre-existing tests (backlog `o58dro`) is reported, not fixed here; do not un-mark the module to make the budget.
+- [x] E-05 Run bare `python3 -m pytest` and confirm it passes with the new module included, recording the wall time against the core-tier budget (30s, enforced by `conftest.pytest_sessionfinish`, IPD `hguae9`). If the budget line fires, rerun once to separate host load from this module's cost (F-06, F-09) and report both runs plus the module's own `--durations=5` slice. A budget overrun attributable to host load or pre-existing tests (backlog `o58dro`) is reported, not fixed here; do not un-mark the module to make the budget.
   - Depends on: E-03
   - Expected outcome: the summary line reports passed; the module's own serial cost stays near the 2.3s observed in F-03.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -138,30 +138,279 @@ N/A: this plan restores tests only and changes no behavior, CLI surface, or cont
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` showing only `tests/test_lifecycle_fixtures.py` added (besides this plan); paste a diff of `19313eed^:tests/test_lifecycle_fixtures.py` against the new file showing only the `pytest` import, the `pytestmark` line and the provenance paragraph (plus E-02's appended class); paste `python3 -m pytest --collect-only -q | rg test_lifecycle_fixtures` showing the line `tests/test_lifecycle_fixtures.py: <N>` (the bare core tier selects the module), and state that N matches the `-v` count in V-03.
   - Observed evidence:
-  - Result: pending
+    `git status --short` output:
+    ```
+    M .aw/records/plans/pending/20261017-trimgap-10-jy7439-restore-behavioral-test-coverage-for-lifecycle-fixtures-matr.ipd.md
+    ?? tests/test_lifecycle_fixtures.py
+    ```
+    `git diff 19313eed^:tests/test_lifecycle_fixtures.py tests/test_lifecycle_fixtures.py` output:
+    ```diff
+    diff --git a/tests/test_lifecycle_fixtures.py b/tests/test_lifecycle_fixtures.py
+    index c5f912a80..50713a5b6 100644
+    --- a/tests/test_lifecycle_fixtures.py
+    +++ b/tests/test_lifecycle_fixtures.py
+    @@ -5,15 +5,24 @@ fail-before-mutation fixtures (``no-credential``, ``unsupported-host``) fail BEF
+     mutation (assert ``mutated is False``); and a rerun shows no unmanaged drift (the migrator's
+     own idempotent no-op preview, asserted by the fixtures that mutate).
 
-- [ ] V-02 validates E-02
+    +Restored from trim commit `19313eed` to resolve backlog item `lzn56i` and findings
+    +`b1mx2w` and `hpjj44`.
+    +
+     Stdlib ``unittest`` (repository convention).
+     """
+
+     from __future__ import annotations
+
+    +import os
+     import unittest
+    +from unittest import mock
+    +
+    +import pytest
+
+     from agent_workflows import lifecycle_fixtures as lf
+
+    +pytestmark = pytest.mark.core
+    +
+
+     class LifecycleFixtureRegistryTests(unittest.TestCase):
+         def test_all_eleven_named_fixtures_present(self):
+    @@ -132,5 +141,63 @@ class IsolationTests(unittest.TestCase):
+                 env.cleanup()
+
+
+    +class IsolatedEnvLifecycleTests(unittest.TestCase):
+    +    def test_unknown_fixture_name_is_refused(self):
+    +        with self.assertRaises(ValueError) as ctx:
+    +            lf.run_fixture("no-such-fixture")
+    +        self.assertIn("clean-install", str(ctx.exception))
+    +
+    +    def test_activate_then_cleanup_restores_prior_aw_home(self):
+    +        prior = os.environ.get("AW_HOME")
+    +
+    +        def _restore():
+    +            if prior is None:
+                os.environ.pop("AW_HOME", None)
+            else:
+                os.environ["AW_HOME"] = prior
+
+        self.addCleanup(_restore)
+        sentinel = "/sentinel-aw-home-path"
+        os.environ["AW_HOME"] = sentinel
+        env = lf.make_isolated_env()
+        env.activate_aw_home()
+        self.assertEqual(os.environ["AW_HOME"], str(env.aw_home))
+        env.cleanup()
+        self.assertEqual(os.environ["AW_HOME"], sentinel)
+        self.assertFalse(env.base_dir.exists())
+
+    def test_run_fixture_removes_its_isolated_tree(self):
+        created_envs = []
+        real_make_env = lf.make_isolated_env
+
+        def spy(*args, **kwargs):
+            env = real_make_env(*args, **kwargs)
+            created_envs.append(env)
+            return env
+
+        with mock.patch.object(lf, "make_isolated_env", side_effect=spy):
+            outcome = lf.run_fixture("clean-install")
+        self.assertTrue(outcome.passed)
+        self.assertEqual(len(created_envs), 1)
+        self.assertFalse(created_envs[0].base_dir.exists())
+
+    def test_a_refusal_that_mutated_the_repo_is_reported_as_mutated(self):
+        env = lf.make_isolated_env()
+        self.addCleanup(env.cleanup)
+
+        def _mutating_render(**kwargs):
+            (env.target_repo / "stray.txt").write_text("stray", encoding="utf-8")
+            raise ValueError("simulated probe failure after stray write")
+
+        with mock.patch.object(
+            lf.hcr, "render_probe_commands", side_effect=_mutating_render
+        ):
+            outcome = lf.run_unsupported_host(env)
+
+        self.assertTrue(outcome.mutated)
+        self.assertFalse(outcome.passed)
+        self.assertFalse(outcome.evidence["no_mutation"])
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+    `python3 -m pytest --collect-only -q | rg test_lifecycle_fixtures` output:
+    ```
+    tests/test_lifecycle_fixtures.py: 21
+    ```
+    N = 21 matches the 21 tests passed in `-v` count in V-03.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the added `IsolatedEnvLifecycleTests` class source and the `-v` lines for its four tests showing PASSED; confirm by inspection that no test asserts `AW_HOME` state after `cleanup` without a prior `activate_aw_home`.
   - Observed evidence:
-  - Result: pending
+    Added class source:
+    ```python
+    class IsolatedEnvLifecycleTests(unittest.TestCase):
+        def test_unknown_fixture_name_is_refused(self):
+            with self.assertRaises(ValueError) as ctx:
+                lf.run_fixture("no-such-fixture")
+            self.assertIn("clean-install", str(ctx.exception))
 
-- [ ] V-03 validates E-03
+        def test_activate_then_cleanup_restores_prior_aw_home(self):
+            prior = os.environ.get("AW_HOME")
+
+            def _restore():
+                if prior is None:
+                    os.environ.pop("AW_HOME", None)
+                else:
+                    os.environ["AW_HOME"] = prior
+
+            self.addCleanup(_restore)
+            sentinel = "/sentinel-aw-home-path"
+            os.environ["AW_HOME"] = sentinel
+            env = lf.make_isolated_env()
+            env.activate_aw_home()
+            self.assertEqual(os.environ["AW_HOME"], str(env.aw_home))
+            env.cleanup()
+            self.assertEqual(os.environ["AW_HOME"], sentinel)
+            self.assertFalse(env.base_dir.exists())
+
+        def test_run_fixture_removes_its_isolated_tree(self):
+            created_envs = []
+            real_make_env = lf.make_isolated_env
+
+            def spy(*args, **kwargs):
+                env = real_make_env(*args, **kwargs)
+                created_envs.append(env)
+                return env
+
+            with mock.patch.object(lf, "make_isolated_env", side_effect=spy):
+                outcome = lf.run_fixture("clean-install")
+            self.assertTrue(outcome.passed)
+            self.assertEqual(len(created_envs), 1)
+            self.assertFalse(created_envs[0].base_dir.exists())
+
+        def test_a_refusal_that_mutated_the_repo_is_reported_as_mutated(self):
+            env = lf.make_isolated_env()
+            self.addCleanup(env.cleanup)
+
+            def _mutating_render(**kwargs):
+                (env.target_repo / "stray.txt").write_text("stray", encoding="utf-8")
+                raise ValueError("simulated probe failure after stray write")
+
+            with mock.patch.object(
+                lf.hcr, "render_probe_commands", side_effect=_mutating_render
+            ):
+                outcome = lf.run_unsupported_host(env)
+
+            self.assertTrue(outcome.mutated)
+            self.assertFalse(outcome.passed)
+            self.assertFalse(outcome.evidence["no_mutation"])
+    ```
+    `-v` lines for its four tests:
+    ```
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_a_refusal_that_mutated_the_repo_is_reported_as_mutated PASSED [  4%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_activate_then_cleanup_restores_prior_aw_home PASSED [  9%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree PASSED [ 14%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_unknown_fixture_name_is_refused PASSED [ 19%]
+    ```
+    Confirmation: Confirmed by inspection that no test asserts `AW_HOME` state after `cleanup` without a prior `activate_aw_home`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every collected test as PASSED and the summary line.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_lifecycle_fixtures.py -o addopts="" -v` output:
+    ```
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_a_refusal_that_mutated_the_repo_is_reported_as_mutated PASSED [  4%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_activate_then_cleanup_restores_prior_aw_home PASSED [  9%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree PASSED [ 14%]
+    tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_unknown_fixture_name_is_refused PASSED [ 19%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_no_network_passes PASSED [ 23%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_rollback_passes PASSED [ 28%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_clean_install_passes PASSED [ 33%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_customized_file_passes PASSED [ 38%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_partial_state_passes PASSED [ 42%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_multi_host_discovery_passes PASSED [ 47%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_legacy_update_passes PASSED [ 52%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_interrupted_update_passes PASSED [ 57%]
+    tests/test_lifecycle_fixtures.py::NoUnmanagedDriftTests::test_clean_install_rerun_is_no_op PASSED [ 61%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixtureRegistryTests::test_all_eleven_named_fixtures_present PASSED [ 66%]
+    tests/test_lifecycle_fixtures.py::LifecycleFixtureRegistryTests::test_every_fixture_has_a_runner PASSED [ 71%]
+    tests/test_lifecycle_fixtures.py::IsolationTests::test_env_isolated_from_real_home PASSED [ 76%]
+    tests/test_lifecycle_fixtures.py::RunAllTests::test_run_all_fixtures_pass PASSED [ 80%]
+    tests/test_lifecycle_fixtures.py::FailBeforeMutationTests::test_no_credential_fails_before_mutation PASSED [ 85%]
+    tests/test_lifecycle_fixtures.py::FailBeforeMutationTests::test_unsupported_host_refused_before_mutation PASSED [ 90%]
+    tests/test_lifecycle_fixtures.py::FailBeforeMutationTests::test_fail_before_mutation_set PASSED [ 95%]
+    tests/test_lifecycle_fixtures.py::DowngradeWarningTests::test_downgrade_warns_and_is_refused_without_corruption PASSED [100%]
+    ============================== 21 passed in 2.46s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste, for each of the 10 scratch mutations (a) through (j), the failing test id and assertion message from the rerun; then paste the empty output of `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+    - Mutation (a): in `run_unsupported_host`, set `refused = False`:
+      Failing test: `tests/test_lifecycle_fixtures.py::FailBeforeMutationTests::test_unsupported_host_refused_before_mutation`
+      Assertion message: `AssertionError: False is not true`
+    - Mutation (b): in `run_customized_file`, delete `mig.register_human_file(rel)`:
+      Failing test: `tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_customized_file_passes`
+      Assertion message: `AssertionError: False is not true : {'file': '.claude/commands/README.md', 'preserved': False, 'unchanged': False}`
+    - Mutation (c): in `run_downgrade_warning`, set `mutated=True`:
+      Failing test: `tests/test_lifecycle_fixtures.py::DowngradeWarningTests::test_downgrade_warns_and_is_refused_without_corruption`
+      Assertion message: `AssertionError: True is not false`
+    - Mutation (d): in `run_clean_install`, delete `mig.apply(preview)`:
+      Failing test: `tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_clean_install_passes`
+      Assertion message: `AssertionError: False is not true`
+      (Also failed: `NoUnmanagedDriftTests::test_clean_install_rerun_is_no_op`: `AssertionError: 56 != 0`, `IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree`: `AssertionError: False is not true`)
+    - Mutation (e): in `IsolatedEnv.restore_aw_home`, set `os.environ.pop("AW_HOME", None)` unconditionally:
+      Failing test: `tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_activate_then_cleanup_restores_prior_aw_home`
+      Assertion message: `KeyError: 'AW_HOME'` on `self.assertEqual(os.environ["AW_HOME"], sentinel)`
+    - Mutation (f): in `run_fixture`, replace `finally` body `env.cleanup()` with `pass`:
+      Failing test: `tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree`
+      Assertion message: `AssertionError: True is not false` on `self.assertFalse(created_envs[0].base_dir.exists())`
+    - Mutation (g): in `_sha`, return `os.urandom(8).hex()`:
+      Failing test: `tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_customized_file_passes`
+      Assertion message: `AssertionError: False is not true : {'file': '.claude/commands/README.md', 'preserved': True, 'unchanged': False}`
+    - Mutation (h): remove `FIXTURE_ROLLBACK: run_rollback,` entry from `FIXTURE_RUNNERS`:
+      Failing test: `tests/test_lifecycle_fixtures.py::LifecycleFixtureRegistryTests::test_every_fixture_has_a_runner`
+      Assertion message: `AssertionError: 'rollback' not found in {'clean-install': ...}`
+    - Mutation (i): make `seed_legacy_tree` return before writing anything:
+      Failing test: `tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_legacy_update_passes`
+      Assertion message: `AssertionError: False is not true`
+    - Mutation (j): make `_snapshot_tree` return `{}` as its first statement:
+      Failing test: `tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_a_refusal_that_mutated_the_repo_is_reported_as_mutated`
+      Assertion message: `AssertionError: False is not true` on `self.assertTrue(outcome.mutated)`
+    Output of `git diff agent_workflows/`:
+    ```
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the bare `python3 -m pytest` summary line and wall time, any `CORE TIER BUDGET` line verbatim with the rerun if one fired, and the module's `--durations=5` output.
   - Observed evidence:
-  - Result: pending
+    Bare `python3 -m pytest` summary line:
+    ```
+    1213 passed in 28.45s
+    ```
+    Core tier budget line:
+    None fired (28.45s was under the 30.00s core tier budget).
+    `python3 -m pytest tests/test_lifecycle_fixtures.py -o addopts="" --durations=5` output:
+    ```
+    ============================= slowest 5 durations ==============================
+    0.93s call     tests/test_lifecycle_fixtures.py::RunAllTests::test_run_all_fixtures_pass
+    0.20s call     tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_customized_file_passes
+    0.16s call     tests/test_lifecycle_fixtures.py::IsolatedEnvLifecycleTests::test_run_fixture_removes_its_isolated_tree
+    0.15s call     tests/test_lifecycle_fixtures.py::NoUnmanagedDriftTests::test_clean_install_rerun_is_no_op
+    0.15s call     tests/test_lifecycle_fixtures.py::LifecycleFixturePassTests::test_clean_install_passes
+    ============================== 21 passed in 2.51s ==============================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
