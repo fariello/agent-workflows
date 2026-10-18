@@ -187,7 +187,7 @@ class WorkCommitRoutesThroughSharedHelperTest(unittest.TestCase):
             len(recorded), 1, f"Expected 1 call to offer_commit, got {len(recorded)}"
         )
         repo_root, paths, kwargs = recorded[0]
-        self.assertEqual(repo_root, self.root)
+        self.assertEqual(Path(repo_root).resolve(), Path(self.root).resolve())
         self.assertEqual(paths, ["src/feature.py"])
         self.assertEqual(kwargs.get("on_unrelated_staged"), "scope")
         show = subprocess.run(
@@ -230,7 +230,7 @@ class WorkCommitRoutesThroughSharedHelperTest(unittest.TestCase):
             len(recorded), 1, f"Expected 1 call to offer_commit, got {len(recorded)}"
         )
         repo_root, paths, kwargs = recorded[0]
-        self.assertEqual(repo_root, self.root)
+        self.assertEqual(Path(repo_root).resolve(), Path(self.root).resolve())
         self.assertEqual(paths, ["src/feature.py"])
         self.assertEqual(kwargs.get("on_unrelated_staged"), "scope")
         show = subprocess.run(
