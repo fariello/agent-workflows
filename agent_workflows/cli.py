@@ -9839,9 +9839,12 @@ def _format_cleanup_root(
 ) -> str:
     plural = "file" if n == 1 else "files"
     home_dir = str(Path.home())
+    resolved_home = str(Path.home().resolve())
     display_root = root
     if display_root.startswith(home_dir):
         display_root = "~" + display_root[len(home_dir) :]
+    elif display_root.startswith(resolved_home):
+        display_root = "~" + display_root[len(resolved_home) :]
     target = Path(root) if Path(root).is_absolute() else repo_root / root
     if target.is_file() or not (
         is_records or root.startswith((".aw/records", ".agents"))
@@ -9853,11 +9856,14 @@ def _format_cleanup_root(
 def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
     """Report what a normal + deep uninstall WOULD do, changing nothing."""
     home_dir = str(Path.home())
+    resolved_home = str(Path.home().resolve())
 
     def _fmt(p: Path | str) -> str:
         s = str(p)
         if s.startswith(home_dir):
             return "~" + s[len(home_dir) :]
+        if s.startswith(resolved_home):
+            return "~" + s[len(resolved_home) :]
         return s
 
     plan = engine.plan_uninstall(repo_root)

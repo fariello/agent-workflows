@@ -518,7 +518,10 @@ class TestCleanTargetControlState(unittest.TestCase):
             "options": {"execution_profile": "hardened"},
             "repo": str(self.clean_repo),
             "run_id": "testrun",
-            "host_capabilities": {"supports_os_sandbox": True},
+            "host_capabilities": {
+                "descriptor": {"supports_os_sandbox": True},
+                "supports_os_sandbox": True,
+            },
         }
         item = {"id6": "it0001"}
         with self.assertRaises(SandboxProfileError) as cm:

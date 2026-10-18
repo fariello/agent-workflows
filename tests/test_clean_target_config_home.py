@@ -43,7 +43,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
     def setUp(self) -> None:
         ipd_lifecycle.clear_checkout_control_root_cache()
         self.test_dir = tempfile.TemporaryDirectory()
-        self.base = Path(self.test_dir.name)
+        self.base = Path(self.test_dir.name).resolve()
         self.repo = self.base / "repo"
         self.repo.mkdir()
         self.home = self.base / "fake_home"

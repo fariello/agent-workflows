@@ -27,7 +27,7 @@ class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
     def setUp(self) -> None:
         ipd_lifecycle.clear_checkout_control_root_cache()
         self.test_dir = tempfile.TemporaryDirectory()
-        self.base = Path(self.test_dir.name)
+        self.base = Path(self.test_dir.name).resolve()
         self.repo = self.base / "repo"
         self.repo.mkdir()
         self.home = self.base / "fake_home"
@@ -310,8 +310,8 @@ class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
         st_root = runner_shared.state_root(self.repo)
         expected_runs_dir = self.aw_home / "projects" / project_id / "records" / "runs"
         self.assertEqual(
-            st_root,
-            expected_runs_dir,
+            st_root.resolve(),
+            expected_runs_dir.resolve(),
             f"state_root {st_root} should equal {expected_runs_dir}",
         )
         runs = list(st_root.glob("run-*"))

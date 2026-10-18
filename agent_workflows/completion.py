@@ -459,7 +459,7 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
                 cands = _node_candidates(child)
                 sub_specs = " ".join(f"'{s}'" for s in cands)
                 if sub_specs:
-                    lines.append(f"{indent}        _values 'subcommand' {sub_specs} ;;")
+                    lines.append(f"{indent}        _values 'subcommand' {sub_specs}")
             lines.append(f"{indent}        ;;")
         if depth > 1:
             parent_cands = _node_candidates(node)

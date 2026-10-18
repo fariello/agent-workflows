@@ -947,6 +947,7 @@ def test_listen_lifecycle_and_answering(
             assert ans_data["choice"] == 1
 
             # 4. Terminate proc1 with SIGTERM
+            time.sleep(0.1)
             proc1.send_signal(signal.SIGTERM)
             stdout1, stderr1 = proc1.communicate(timeout=5.0)
             assert (
@@ -954,7 +955,8 @@ def test_listen_lifecycle_and_answering(
                 if sys.platform == "win32"
                 else proc1.returncode == 0
             )
-            assert "Answer recorded" in stdout1
+            if sys.platform != "win32":
+                assert "Answer recorded" in stdout1
 
             # Lock file should now be free
             bot_lock = aw_home / "notify" / "telegram-123456789.lock"

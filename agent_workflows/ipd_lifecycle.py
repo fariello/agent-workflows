@@ -31,6 +31,8 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import time
 from functools import lru_cache
@@ -3667,37 +3669,57 @@ def _resolve_index_lock_path(repo_root: Path) -> Optional[Path]:
 
 def _is_lockfile_open_by_live_process(lock_path: Path) -> Optional[bool]:
     """Return True if a live same-UID process holds ``lock_path`` open, False if none does,
-    or None when ``/proc`` is unavailable."""
+    or None when live process inspection is unavailable."""
     proc_root = Path("/proc")
-    if not proc_root.is_dir():
-        return None
-    try:
-        target_stat = lock_path.stat()
-        target_key = (target_stat.st_dev, target_stat.st_ino)
-    except OSError:
-        return False
-    uid = os.getuid() if hasattr(os, "getuid") else None
-    try:
-        entries = list(os.scandir(proc_root))
-    except OSError:
-        return None
-    for entry in entries:
-        if not entry.name.isdigit():
-            continue
+    if proc_root.is_dir():
         try:
-            if uid is not None and entry.stat(follow_symlinks=False).st_uid != uid:
-                continue
-            fd_dir = proc_root / entry.name / "fd"
-            for fd_entry in os.scandir(fd_dir):
-                try:
-                    st = fd_entry.stat(follow_symlinks=True)
-                    if (st.st_dev, st.st_ino) == target_key:
-                        return True
-                except OSError:
-                    continue
+            target_stat = lock_path.stat()
+            target_key = (target_stat.st_dev, target_stat.st_ino)
         except OSError:
-            continue
-    return False
+            return False
+        uid = os.getuid() if hasattr(os, "getuid") else None
+        try:
+            entries = list(os.scandir(proc_root))
+        except OSError:
+            return None
+        for entry in entries:
+            if not entry.name.isdigit():
+                continue
+            try:
+                if uid is not None and entry.stat(follow_symlinks=False).st_uid != uid:
+                    continue
+                fd_dir = proc_root / entry.name / "fd"
+                for fd_entry in os.scandir(fd_dir):
+                    try:
+                        st = fd_entry.stat(follow_symlinks=True)
+                        if (st.st_dev, st.st_ino) == target_key:
+                            return True
+                    except OSError:
+                        continue
+            except OSError:
+                continue
+        return False
+
+    if sys.platform == "darwin":
+        try:
+            res = subprocess.run(
+                ["lsof", "-t", "--", str(lock_path)],
+                capture_output=True,
+                timeout=1.0,
+            )
+            return res.returncode == 0 and bool(res.stdout.strip())
+        except Exception:
+            return None
+
+    if sys.platform == "win32":
+        try:
+            with lock_path.open("r+b"):
+                pass
+            return False
+        except OSError:
+            return True
+
+    return None
 
 
 def _clear_stale_or_wait_index_lock(
@@ -3705,7 +3727,7 @@ def _clear_stale_or_wait_index_lock(
     *,
     max_wait_seconds: float = 2.0,
     poll_seconds: float = 0.05,
-    stale_age_seconds: float = 5.0,
+    stale_age_seconds: float = 2.0,
 ) -> Optional[str]:
     """Wait briefly for a live ``index.lock`` holder or reclaim an orphaned 0-byte ``index.lock``.
 

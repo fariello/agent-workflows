@@ -35307,12 +35307,11 @@ def ensure_frozen_host_capabilities(
     from agent_workflows import host_sandbox_profile as _hsp
 
     frozen = state.get("host_capabilities")
-    if (
-        isinstance(frozen, dict)
-        and "descriptor" in frozen
-        and isinstance(frozen["descriptor"], dict)
-    ):
-        return _hsp.HostSandboxCapabilities.from_dict(frozen["descriptor"])
+    if isinstance(frozen, dict):
+        if "descriptor" in frozen and isinstance(frozen["descriptor"], dict):
+            return _hsp.HostSandboxCapabilities.from_dict(frozen["descriptor"])
+        if "supports_os_sandbox" in frozen:
+            return _hsp.HostSandboxCapabilities.from_dict(frozen)
 
     # Absence is self-healing: measure once on demand and freeze into state.
     probe_fn = (

@@ -23,7 +23,7 @@ class CliShowCommandTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.mkdtemp(prefix="aw_test_show_")
-        self.repo_root = Path(self.temp_dir)
+        self.repo_root = Path(self.temp_dir).resolve()
 
         # 1. Plans (displayed by aw show)
         plans_dir = self.repo_root / ".aw" / "records" / "plans" / "pending"

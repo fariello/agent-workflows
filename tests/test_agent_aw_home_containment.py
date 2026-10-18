@@ -57,7 +57,7 @@ requires_symlink = pytest.mark.skipif(
 def test_find_project_honors_aw_home():
     """Cell (a): find_project honors AW_HOME when aw_home and registry_data omitted."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         aw_home = tmp / "aw_home"
         cfg = aw_home / "config"
         cfg.mkdir(parents=True)
@@ -95,7 +95,7 @@ def test_registry_seeding_and_discard_changes():
     Events carry key names and no path or timestamp values.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_home = tmp / "real_aw"
         (real_home / "config").mkdir(parents=True)
         orig_reg = {
@@ -182,7 +182,7 @@ def test_registry_seeding_and_discard_changes():
 def test_incidental_scratch_project_discard():
     """Cell (c): Discard of incidental scratch project mint_run_dir under sandbox AW_HOME."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_home = tmp / "real_aw"
         (real_home / "config").mkdir(parents=True)
         (real_home / "projects").mkdir(parents=True)
@@ -228,7 +228,7 @@ def test_incidental_scratch_project_discard():
 def test_pass_through_home_clean_delta_and_lane_agent_dir():
     """Cell (d): Pass-through for home-backend, clean-delta, and lane agent_dir."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_home = tmp / "real_aw"
         (real_home / "config").mkdir(parents=True)
         (real_home / "projects").mkdir(parents=True)
@@ -344,7 +344,7 @@ def test_pass_through_home_clean_delta_and_lane_agent_dir():
 def test_self_containing_run_dir():
     """Cell (e): run_dir under <real>/projects/<pid>/records/runs/ is reachable through link."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_home = tmp / "real_aw"
         (real_home / "config").mkdir(parents=True)
         (real_home / "config" / "registry.json").write_text("{}", encoding="utf-8")
@@ -383,7 +383,7 @@ def test_self_containing_run_dir():
 def test_fail_open_on_symlink_error():
     """Cell (f): Fail-open when os.symlink raises OSError."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_home = tmp / "real_aw"
         (real_home / "config").mkdir(parents=True)
         (real_home / "config" / "registry.json").write_text("{}", encoding="utf-8")
@@ -415,7 +415,7 @@ def test_fail_open_on_symlink_error():
 def test_report_discarded_aw_home_output_and_silence():
     """Cell (g): report_discarded_aw_home output and silence when there are no events."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         run_dir = tmp / "run"
         run_dir.mkdir()
 
@@ -471,7 +471,7 @@ def test_incident_end_to_end_per_host(capsys):
     agent-aw-home-discarded event exists, stderr carries DISCARDED line, sandbox deleted.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         real_aw = tmp / "real_aw"
         (real_aw / "config").mkdir(parents=True)
         (real_aw / "projects").mkdir(parents=True)
@@ -593,7 +593,7 @@ sys.exit(0)
 def test_prepare_none_inherits_driver_aw_home_per_host():
     """E-07: When prepare_agent_aw_home returns None, child observes inherited AW_HOME unchanged."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+        tmp = Path(tmpdir).resolve()
         driver_aw_home = tmp / "driver_aw_home"
         driver_aw_home.mkdir()
         observed_oc = tmp / "observed_oc.txt"

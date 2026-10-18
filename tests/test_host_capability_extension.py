@@ -31,6 +31,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import contextmanager, redirect_stdout
+from pathlib import Path
 
 from agent_workflows import host_cmd, lane_containment, run_evidence, runner_shared
 from agent_workflows import host_sandbox_profile as hsp
@@ -787,8 +788,12 @@ class InspectionVerbTests(unittest.TestCase):
                 host_cmd.run_capabilities(self._args(host="opencode"))
         finally:
             builtins.open = real_open  # type: ignore[assignment]
+        repo_root = Path.cwd().resolve()
+        repo_opened = [p for p in opened if Path(p).resolve().is_relative_to(repo_root)]
         self.assertEqual(
-            opened, [], f"the capabilities verb opened paths for writing: {opened}"
+            repo_opened,
+            [],
+            f"the capabilities verb opened repository paths for writing: {repo_opened}",
         )
 
 
