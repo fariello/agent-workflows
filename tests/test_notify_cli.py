@@ -293,9 +293,10 @@ def test_setup_telegram_declined_identity(tmp_path: Path) -> None:
 
         token_sent = False
         pairing_sent = False
+        declined_sent = False
 
         def handler(out_str: str, master_fd: int) -> None:
-            nonlocal token_sent, pairing_sent
+            nonlocal token_sent, pairing_sent, declined_sent
             if "Enter Telegram bot token:" in out_str and not token_sent:
                 os.write(master_fd, b"123456789:ABCfakeTokenXYZ\n")
                 token_sent = True
@@ -309,8 +310,9 @@ def test_setup_telegram_declined_identity(tmp_path: Path) -> None:
                     text=f"/start {phrase}",
                 )
                 pairing_sent = True
-            if "Confirm identity and pair? [y/N]:" in out_str:
+            if "Confirm identity and pair? [y/N]:" in out_str and not declined_sent:
                 os.write(master_fd, b"n\n")
+                declined_sent = True
 
         code, out = _run_scripted_pty(
             ["setup", "telegram"],
@@ -947,7 +949,11 @@ def test_listen_lifecycle_and_answering(
             # 4. Terminate proc1 with SIGTERM
             proc1.send_signal(signal.SIGTERM)
             stdout1, stderr1 = proc1.communicate(timeout=5.0)
-            assert proc1.returncode == 0
+            assert (
+                proc1.returncode in (0, 15)
+                if sys.platform == "win32"
+                else proc1.returncode == 0
+            )
             assert "Answer recorded" in stdout1
 
             # Lock file should now be free

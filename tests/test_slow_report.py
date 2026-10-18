@@ -105,7 +105,7 @@ class SlowReportBehaviorTests(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
+            root = Path(tmpdir).resolve()
             (root / "conftest.py").write_text(_HOOK_CONFTEST, encoding="utf-8")
             tests_dir = root / "tests"
             tests_dir.mkdir(parents=True)
@@ -124,9 +124,11 @@ class SlowReportBehaviorTests(unittest.TestCase):
                     sys.executable,
                     "-m",
                     "pytest",
+                    "--rootdir",
+                    str(root),
                     "-o",
                     "addopts=",
-                    str(tests_dir / "test_sample.py"),
+                    "tests/test_sample.py",
                 ],
                 cwd=root,
                 env=env,
@@ -152,7 +154,7 @@ class SlowReportBehaviorTests(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
+            root = Path(tmpdir).resolve()
             (root / "conftest.py").write_text(_HOOK_CONFTEST, encoding="utf-8")
             tests_dir = root / "tests"
             tests_dir.mkdir(parents=True)
@@ -173,9 +175,11 @@ class SlowReportBehaviorTests(unittest.TestCase):
                     sys.executable,
                     "-m",
                     "pytest",
+                    "--rootdir",
+                    str(root),
                     "-o",
                     "addopts=",
-                    str(tests_dir / "test_sample.py"),
+                    "tests/test_sample.py",
                 ],
                 cwd=root,
                 env=env,

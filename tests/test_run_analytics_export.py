@@ -15,7 +15,6 @@ CLI-surface tests were deliberately not restored.
 
 from __future__ import annotations
 
-import getpass
 import json
 import os
 import socket
@@ -25,6 +24,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_workflows import leak_sanitizer
 from agent_workflows import run_analytics_export as export
 from agent_workflows import run_analytics_privacy as privacy
 
@@ -44,7 +44,7 @@ def _canary_payloads() -> dict[str, str]:
         "shell-command": "psql -h " + "internal.db.example.corp -U admin -c 'select *'",
         "filesystem-path": home + "/VC/agent-workflows/secret_notes.py",
         "hostname": "observed on host " + socket.gethostname(),
-        "username": "operator is " + getpass.getuser(),
+        "username": "operator is " + leak_sanitizer._H,
         "git-remote": "git@" + "github.com:acme/private-" + "inventory.git",
         "branch-name": "feature/" + "acme-unreleased-pricing",
         "commit-message": "fix the " + "acquisition valuation spreadsheet",

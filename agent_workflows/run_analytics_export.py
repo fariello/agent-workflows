@@ -607,8 +607,10 @@ def build_manifest(root: Path | str) -> list[ExportManifestEntry]:
 
     base = Path(root)
     entries: list[ExportManifestEntry] = []
-    for path in sorted(p for p in base.rglob("*") if p.is_file()):
-        rel = str(path.relative_to(base))
+    files = [p for p in base.rglob("*") if p.is_file()]
+    files.sort(key=lambda p: p.relative_to(base).as_posix())
+    for path in files:
+        rel = path.relative_to(base).as_posix()
         if rel == "manifest.json":
             continue
         entries.append(

@@ -585,7 +585,7 @@ class WorktreeLeaseV02(unittest.TestCase):
             capture_output=True,
             text=True,
         ).stdout
-        self.assertIn(str(h.path), listing)
+        self.assertIn(h.path.as_posix().lower(), listing.replace("\\", "/").lower())
         WL.teardown_worktree(self.root, h)
         self.assertFalse(h.path.exists())
 

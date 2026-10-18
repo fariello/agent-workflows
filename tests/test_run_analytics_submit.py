@@ -54,7 +54,7 @@ def test_a_bare_urlopen_would_have_leaked_a_local_file():
         path = fh.name
     try:
         # A bare urlopen RESOLVES a local file. This is what a naive submit would have shipped.
-        leaked = urllib.request.urlopen("file://" + path).read().decode()
+        leaked = urllib.request.urlopen(Path(path).as_uri()).read().decode()
         assert "LOCAL-FILE-CONTENT-THAT-MUST-NOT-TRAVEL" in leaked
         assert urllib.request.urlopen("data:text/plain,hello").read() == b"hello"
     finally:

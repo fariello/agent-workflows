@@ -755,7 +755,7 @@ class CompatMigrator:
                     backup_p.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(p, backup_p)
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(content, encoding="utf-8")
+                p.write_bytes(content.encode("utf-8"))
             # preserve-human / resume / noop: write nothing.
 
         # Record the version + hashes for EVERY generated file we own (whether written this run or

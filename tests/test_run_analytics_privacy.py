@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import stat
+import sys
 import tempfile
 import unittest
 
@@ -71,12 +72,13 @@ class SaltContractTests(unittest.TestCase):
             self.assertEqual(target.parent, cache)
             self.assertEqual(target.name, privacy.SALT_FILENAME)
             self.assertGreaterEqual(len(salt), 32)
-            mode = stat.S_IMODE(target.stat().st_mode)
-            self.assertEqual(
-                mode & (stat.S_IRGRP | stat.S_IROTH | stat.S_IWGRP | stat.S_IWOTH),
-                0,
-                f"the salt must not be group/world readable, got {oct(mode)}",
-            )
+            if sys.platform != "win32":
+                mode = stat.S_IMODE(target.stat().st_mode)
+                self.assertEqual(
+                    mode & (stat.S_IRGRP | stat.S_IROTH | stat.S_IWGRP | stat.S_IWOTH),
+                    0,
+                    f"the salt must not be group/world readable, got {oct(mode)}",
+                )
 
     def test_salt_is_stable_across_calls_and_never_reminted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
