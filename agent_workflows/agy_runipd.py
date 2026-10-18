@@ -3392,6 +3392,13 @@ def run_queue(
             save_state(run_dir, state)
             state = load_state(run_dir)
             register_signal_report(run_dir, state)
+        # qchan-09 (txl556) E-03: dispatch notifications for parked questions and acknowledgements
+        with contextlib.suppress(Exception):
+            from agent_workflows.notify import core as notify_core
+
+            notify_core.dispatch_checkpoint(
+                run_dir, state, Path(state.get("repo") or Path.cwd())
+            )
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
         # of stalling the queue, while independent items keep running.
@@ -3756,6 +3763,12 @@ def run_queue(
         exit_reason = f"STOPPED (Level {wind_down.level}: {runner_stop.LEVEL_NAMES.get(wind_down.level, 'wind-down')})"
     elif stopped_at_checkpoint:
         exit_reason = "STOPPED (at checkpoint)"
+    with contextlib.suppress(Exception):
+        from agent_workflows.notify import core as notify_core
+
+        notify_core.dispatch_checkpoint(
+            run_dir, state, Path(state.get("repo") or Path.cwd())
+        )
     print(
         render_run_summary_table(
             state,
