@@ -4634,7 +4634,7 @@ def render_run_summary_table(
         if outcome_str == "COMPLETED"
         else (
             c_red
-            if outcome_str == STRANDED_OUTCOME
+            if (outcome_str == STRANDED_OUTCOME or "RUNAWAY" in outcome_str)
             else (
                 c_yellow
                 if (
