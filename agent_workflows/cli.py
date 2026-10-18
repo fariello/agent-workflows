@@ -285,21 +285,21 @@ _DESCRIPTIONS = {
     # must agree or the help text asserts a read-only surface that writes.
     #
     # THE COUNT KEEPS GOING STALE, WHICH IS WHY THE NAMES LEAD. This string has already said "ONE
-    # exception" (pre-Order 08) and "TWO exceptions" (Order 08), each true only until the next
-    # mutating verb landed. Four are named here, so a fifth is a visible omission rather than an
-    # off-by-one in prose.
+    # exception" (pre-Order 08), "TWO exceptions" (Order 08), and "FOUR" (Order 09), each true only
+    # until the next mutating verb landed. Five are named here, so a sixth is a visible omission
+    # rather than an off-by-one in prose.
     "runs": (
         "Inspect driver execution runs and run ledgers (the READING half of the run surface): bare "
         "'aw runs' renders the run table, and the leaves are 'show' (run state and completion "
         "predicates), 'status', 'next', 'resume', 'evidence' (captured provenance envelopes and tool "
         "events), 'verify-ledger' (hash chain integrity and evidence validity), 'decisions', "
-        "'questions', 'list', the analytics pair 'analyze' and 'query', and the data-sharing pair "
-        "'export' and 'submit'. Read-only, with FOUR exceptions, named rather than counted: the "
-        "opt-in 'repair' verb; 'analyze', which updates the analytics cache and publishes the local "
+        "'questions', 'list', the analytics pair 'analyze' and 'query', the data-sharing pair "
+        "'export' and 'submit', and 'answer'. Read-only, with FIVE exceptions, named rather than counted: "
+        "the opt-in 'repair' verb; 'analyze', which updates the analytics cache and publishes the local "
         "report inside the reserved, gitignored analytics/ namespace; 'export', which writes a "
-        "sensitivity-tiered bundle there (previewing by default, writing only under --apply); and "
+        "sensitivity-tiered bundle there (previewing by default, writing only under --apply); "
         "'submit', which would transmit one and today refuses as unavailable because no endpoint is "
-        "approved."
+        "approved; and 'answer', which writes human answers to a live or finished run's open questions."
     ),
     "runs show": (
         "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate status. "
@@ -2798,9 +2798,10 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         (
             "questions",
-            "Show a Set run's unresolved deferred questions (read-only).",
-            "Print the unresolved questions recorded for a Set run, read from the run's durable "
-            "open-questions projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Read-only. "
+            "Show a run's unresolved deferred questions (read-only).",
+            "Print the unresolved questions recorded for a run, read from <run-dir>/open-questions.md "
+            "for a runner run, or from the durable open-questions projection under "
+            ".aw/workflow-artifacts/<workflow>/<run-id>/ for a Set run. Read-only. "
             "Exit 0 found, 1 none open, 2 no such run projection.",
         ),
     )
@@ -3038,6 +3039,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "\n"
         "  aw runs repair <run-id>          # MUTATES: reconcile a crashed run's `running` step\n"
         "  aw runs repair --help            # what repair decides, and what it refuses to do\n"
+        "  aw runs answer [<run-id>] [<qid>] # MUTATES: answer a live or finished run's open questions\n"
         "\n"
         "ANALYTICS\n"
         "  aw runs analyze [<target> ...]   # MUTATES: update the analytics cache, publish the report\n"
@@ -3067,17 +3069,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "  ordinary report having verified nothing. A bare `aw runs` in a repository with no runs is\n"
         "  still exit 0: asking for everything and finding nothing is not a failed request.\n"
     )
-    # runanalytics Order 08 (`mm5p3v`) E-02, then Order 09 (`ixis0c`) E-01. This text has already
-    # said "ONE exception" (when only `repair` mutated) and "TWO" (when `analyze` landed), each true
-    # only until the next mutating verb arrived. So the four are NAMED, and the count is stated with
-    # them rather than instead of them: a help string that understates what a command writes is a
-    # correctness defect, and a bare count is the part that silently rots.
+    # runanalytics Order 08 (`mm5p3v`) E-02, then Order 09 (`ixis0c`) E-01, then Order 05 (`8u071n`)
+    # E-01. This text has already said "ONE exception" (when only `repair` mutated), "TWO" (when
+    # `analyze` landed), and "FOUR" (Order 09), each true only until the next mutating verb arrived.
+    # So the five are NAMED, and the count is stated with them rather than instead of them: a help
+    # string that understates what a command writes is a correctness defect, and a bare count is the
+    # part that silently rots.
     _RUNS_DESCRIPTION = (
         "Inspect driver execution runs under .aw/records/runs/ and display a unified "
         "summary of the ending status of each IPD step in each run, and inspect run LEDGERS "
         "(show/status/next/resume/evidence/verify-ledger/decisions/questions). This is the READING "
         "half of the run surface; the writing verbs live under `aw run` "
-        "(start/record/cancel/finalize). Read-only, with FOUR exceptions, named rather than counted. "
+        "(start/record/cancel/finalize). Read-only, with FIVE exceptions, named rather than counted. "
         "First, the `repair` verb "
         "(`aw runs repair <run-id>`) durably reconciles a run abandoned without a terminal status, "
         "so a step a crashed driver left as `running` stops being reported `abandoned?`; run "
@@ -3089,6 +3092,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "`--by-human` attestation naming the tier. Fourth, `aw runs submit` would transmit a bundle "
         "to a configured endpoint and today refuses as `unavailable`, because this repository "
         "approves no endpoint, retention policy or deletion method; it writes only a local receipt. "
+        "Fifth, `aw runs answer` records human answers to a live or finished run's open questions, "
+        "writing only through the shared question-and-answer inbox writer. "
         "`aw runs query` is read-only. No bundle is anonymous and nothing is ever submitted for you."
     )
 
@@ -3646,6 +3651,67 @@ def _build_parser() -> argparse.ArgumentParser:
         "--actor",
         default=None,
         help="Who attested, recorded as provenance in the local receipt.",
+    )
+
+    # ---- spec 6kwd2e Order 05 (`8u071n`) E-01: the ANSWER leaf under `aw runs` ------------------
+    # Registered directly on `runs_sub` (not via `_register_run_leaf`, which adds a required
+    # single `target` positional and would make both positionals mandatory).
+    _p_runs_answer = runs_sub.add_parser(
+        "answer",
+        parents=[common],
+        help="MUTATES: answer open questions for a live or finished run.",
+        description=(
+            "Answer open questions for a live or finished run. "
+            "In interactive mode, questions are presented one at a time and answers are written "
+            "through the shared question inbox writer. In non-interactive mode, specific questions "
+            "can be answered with --answer or --choice, or open questions can be listed. "
+            "Exit 0 recorded or questions listed, 1 nothing open or already answered, 2 cannot-run/usage error."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs answer                   # prompt to answer across live runs\n"
+            "  aw runs answer <run-id>          # answer open questions for one run\n"
+            "  aw runs answer <run-id> <qid> --answer 'Use option A'\n"
+            "  aw runs answer <run-id> <qid> --choice 1\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 recorded or questions listed, 1 nothing open or already answered, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent emits aw.agent/v1 result record.\n"
+        ),
+    )
+    _p_runs_answer.add_argument(
+        "run_id",
+        nargs="?",
+        default=None,
+        metavar="run-id",
+        help="Run ID to answer questions for (default: prompt across live runs).",
+    )
+    _p_runs_answer.add_argument(
+        "question_id",
+        nargs="?",
+        default=None,
+        metavar="question_id",
+        help="Specific question ID to answer (required with --answer or --choice).",
+    )
+    _p_runs_answer.add_argument(
+        "--dir",
+        "--repo",
+        dest="dir",
+        default=argparse.SUPPRESS,
+        help="Repo root directory (default: current directory).",
+    )
+    _runs_answer_mode = _p_runs_answer.add_mutually_exclusive_group()
+    _runs_answer_mode.add_argument(
+        "--answer",
+        default=None,
+        help="Free-text answer to record.",
+    )
+    _runs_answer_mode.add_argument(
+        "--choice",
+        type=int,
+        default=None,
+        help="Option number to select.",
     )
 
     p_research = sub.add_parser(

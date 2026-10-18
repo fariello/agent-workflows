@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `aw runs answer` command to answer a live or finished run's open questions interactively or via flags (`--answer`, `--choice`), writing answers through the question inbox and emitting `aw.agent/v1` result records under `--agent`. `aw runs questions` now also resolves runner run directories to inspect `<run_dir>/open-questions.md`.
 - Added: `aw runs analyze --since WHEN --until WHEN` publishes a report covering only runs started in that window, and the dashboard gains quick date ranges (last 7, 30 or 90 days, latest month).
 - Fixed: run analytics counted Antigravity thinking tokens twice (Antigravity includes thinking in its output count). Output now shows the visible part only.
 - Changed: per-kind costs are split step by step using the rates that reproduce each step's recorded cost, and include a separate thinking share billed at the output rate. Thinking tokens now count toward "in + out" and the total.
