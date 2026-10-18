@@ -5,8 +5,9 @@
 - Concern: When post-merge revalidation is unmeasured (`measured: False`, e.g. a harness fault, a suite that raised, or a budget-only red), `runner_shared.record_integration_refusal` reclassifies the refusal kind to `merge-unchecked` and writes the reclassified, token-stripped explanation to `item["integration_deferral"]`, but three operator-facing surfaces still carry the raw gate reason ("[aw-integration-cause=gate-combined-red] integration gate did not pass (integration_failed_combined_red) ... (per-lane-green + combined-red)"): the stderr console line in `execute_item_core` and in `integrate_retired_lane`, the structured `item["refusal"]["reason"]` written by `render_record_integration_refusal` in `execute_item_core` (which additionally asserts "measured the merged tree and it was RED"), and the rung-3 prompt in `ask_operator_about_integration` on a deferred re-attempt. Each misleads the operator into thinking the code failed revalidation when the gate could not measure, and the console and prompt surfaces also leak the internal cause token.
 - Scope: In `agent_workflows/runner_shared.py`, make `execute_item_core`, `integrate_retired_lane`, and `reattempt_deferred_integrations` read the operator-facing reason from `item["integration_deferral"]` (the value `record_integration_refusal` has just written, already reclassified and token-stripped) for the stderr line, the `render_record_integration_refusal` refusal reason, and the rung-3 operator question. Add behavioral tests covering the first-attempt execute refusal on both hosts, the retired-lane refusal, the deferred re-attempt prompt, and a measured-red non-regression control in `tests/test_unmeasured_refusal_console.py`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_unmeasured_refusal_console.py
+- Scope-Exceeded: .aw/records/backlog/open/20261018-8hs2kx-01-8hs2kx-tests-test-oc-runipd-py-selffinalizewiringtests-te.backlog.md (the runner's defect-report contract requires filing a backlog item for each finding this records a load-sensitive flaky test observed while running this plan's E-05 regression modules)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +18,9 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: h8peam
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: h8peam verified (set geajrj, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261018-8hs2kx-01-8hs2kx-tests-test-oc-runipd-py-selffinalizewiringtests-te.backlog.md: the runner's defect-report contract requires filing a backlog item for each finding; this records a load-sensitive flaky test observed while running this plan's E-05 regression modules]
 - 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
