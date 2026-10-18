@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `aw runs answer` command to answer a live or finished run's open questions interactively or via flags (`--answer`, `--choice`), writing answers through the question inbox and emitting `aw.agent/v1` result records under `--agent`. `aw runs questions` now also resolves runner run directories to inspect `<run_dir>/open-questions.md`.
 - Added: `aw runs analyze --since WHEN --until WHEN` publishes a report covering only runs started in that window, and the dashboard gains quick date ranges (last 7, 30 or 90 days, latest month).
 - Changed: the run-analytics bundle no longer includes the older `report.html` page; the dashboard (`index.html`) is the only report, alongside `analysis.json` and `attempts.jsonl`.
 - Added: the dashboard's Stage summary has a Total row, and the Sessions tab shows how many queue items completed OK, ended in a fail state, or were not completed. Scrollbars are now thin and match the page theme.

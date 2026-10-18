@@ -10,6 +10,7 @@ awoptimize Order 04 (`yndh7k`) E-04, Order 07 (`7yqm1v`) E-03.
   * `aw runs evidence <target>`      - list and validate captured evidence envelopes and tool events.
   * `aw runs verify-ledger <target>` - verify SHA-256 hash chaining and evidence validity.
   * `aw runs decisions|questions <run-id>` - a Set run's durable projections.
+  * `aw runs answer [<run-id>] [<qid>]`   - answer open questions for a live or finished run.
   * `aw runs [<target> ...]` / `aw runs list` - the driver-run viewer table (in `run_viewer`).
 
 `aw run` WRITES (the ledger transaction handlers, also here):
@@ -33,12 +34,14 @@ Contract:
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 from pathlib import Path
 import re
 import secrets
 import shutil
 import sys
+import unicodedata
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 from agent_workflows import (
@@ -125,10 +128,12 @@ def run_cli(args: argparse.Namespace) -> int:
         return _run_decisions(args)
     if sub == "questions":
         return _run_questions(args)
+    if sub == "answer":
+        return _run_answer(args)
     _print_human(
         "usage: aw run {init|start|record|verify|cancel|finalize} <run-id-or-path> "
         "[--agent|--json] [--dir <dir>]\n"
-        "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
+        "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|answer|list} "
         "<run-id-or-path> [--agent|--json] [--dir <dir>]"
     )
     return EXIT_INVALID_INVOCATION
@@ -228,9 +233,79 @@ def _run_decisions(args: argparse.Namespace) -> int:
     )
 
 
+def _resolve_runner_run_dir(run_id_or_path: str, repo_root: Path) -> Optional[Path]:
+    """Resolve a run identifier or directory path to a runner run directory holding state.json."""
+    from agent_workflows import runner_shared
+
+    if not run_id_or_path:
+        return None
+    root = runner_shared.state_root(repo_root)
+    cand = Path(run_id_or_path)
+    if cand.is_dir() and (cand / "state.json").is_file():
+        return cand.resolve()
+    cand_under_repo = (repo_root / cand).resolve()
+    if cand_under_repo.is_dir() and (cand_under_repo / "state.json").is_file():
+        return cand_under_repo
+    cand_under_root = (root / cand).resolve()
+    if cand_under_root.is_dir() and (cand_under_root / "state.json").is_file():
+        return cand_under_root
+    cand_named = (root / run_id_or_path).resolve()
+    if cand_named.is_dir() and (cand_named / "state.json").is_file():
+        return cand_named
+    return None
+
+
 def _run_questions(args: argparse.Namespace) -> int:
-    """Print a Set run's unresolved questions (read-only). Exit 0 open / 1 none / 2 missing."""
+    """Print a Set run or runner run's unresolved questions (read-only). Exit 0 open / 1 none / 2 missing."""
     from agent_workflows import set_records
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    target = getattr(args, "target", None)
+    if target:
+        runner_dir = _resolve_runner_run_dir(str(target), repo_root)
+        if runner_dir is not None:
+            proj_path = runner_dir / set_records.OPEN_QUESTIONS_FILE
+            rel_path = agent_schema.normalize_repo_path(proj_path, repo_root)
+            if not proj_path.is_file():
+                empty_text = "_No unresolved questions._\n"
+                if _machine(args):
+                    _emit_machine(
+                        args,
+                        {
+                            "ok": True,
+                            "projection": "questions",
+                            "run_id": str(target),
+                            "path": rel_path,
+                            "empty": True,
+                            "entry_ids": [],
+                            "content": empty_text,
+                            "exit_code": 1,
+                        },
+                    )
+                else:
+                    _print_human(empty_text, end="")
+                return 1
+
+            text = proj_path.read_text(encoding="utf-8")
+            empty = "_No unresolved questions._" in text
+            exit_code = 1 if empty else 0
+            if _machine(args):
+                _emit_machine(
+                    args,
+                    {
+                        "ok": True,
+                        "projection": "questions",
+                        "run_id": str(target),
+                        "path": rel_path,
+                        "empty": empty,
+                        "entry_ids": _projection_entry_ids(text),
+                        "content": text,
+                        "exit_code": exit_code,
+                    },
+                )
+            else:
+                _print_human(text, end="" if text.endswith("\n") else "\n")
+            return exit_code
 
     return _emit_projection(
         args,
@@ -239,6 +314,315 @@ def _run_questions(args: argparse.Namespace) -> int:
         "open-questions",
         "_No unresolved questions._",
     )
+
+
+def _clean_worker_text(text: Any) -> str:
+    """Sanitize worker-authored text for display: pass through term.strip_ansi and strip non-newline/tab control characters."""
+    if not isinstance(text, str):
+        text = str(text) if text is not None else ""
+    from agent_workflows import term
+
+    cleaned = term.strip_ansi(text)
+    cleaned = agent_schema._ANSI_ESCAPE_RE.sub("", cleaned)
+    chars: list[str] = []
+    for ch in cleaned:
+        if ch in ("\n", "\t"):
+            chars.append(ch)
+            continue
+        code = ord(ch)
+        if code < 32 or code == 127 or unicodedata.category(ch) == "Cc":
+            continue
+        chars.append(ch)
+    return "".join(chars)
+
+
+def _emit_answer_record(
+    args: argparse.Namespace,
+    exit_code: int,
+    answer: Optional[Dict[str, Any]] = None,
+    questions: Optional[List[Dict[str, Any]]] = None,
+    error: Optional[str] = None,
+) -> int:
+    """Emit an aw.agent/v1 result record under --agent or pretty-printed JSON under --json."""
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    outcome = "ok" if exit_code == 0 else ("fail" if exit_code == 1 else "error")
+    rec: Dict[str, Any] = {
+        "schema": agent_schema.SCHEMA_VERSION,
+        "kind": "result",
+        "cmd": "runs answer",
+        "exit": exit_code,
+        "outcome": outcome,
+        "verified": exit_code == 0,
+        "complete": exit_code == 0,
+    }
+    if answer is not None:
+        clean_ans = dict(answer)
+        for k, v in clean_ans.items():
+            if isinstance(v, (str, Path)):
+                clean_ans[k] = agent_schema.normalize_repo_path(v, repo_root)
+        rec["answer"] = clean_ans
+    if questions is not None:
+        clean_qs: List[Dict[str, Any]] = []
+        for q in questions:
+            clean_q = dict(q)
+            for k, v in clean_q.items():
+                if isinstance(v, (str, Path)):
+                    clean_q[k] = agent_schema.normalize_repo_path(v, repo_root)
+            clean_qs.append(clean_q)
+        rec["questions"] = clean_qs
+    if error is not None:
+        rec["error"] = agent_schema.normalize_repo_path(error, repo_root)
+
+    rec = _redact_output(rec)
+    rec = _sanitize_agent_value(rec)
+
+    if getattr(args, "agent", False) or getattr(args, "as_agent", False):
+        sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+    elif getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(json.dumps(rec, indent=2, sort_keys=True, ensure_ascii=False))
+    return exit_code
+
+
+def _run_answer(args: argparse.Namespace) -> int:
+    """Answer open questions for a live or finished run. Spec 6kwd2e R9.5, R4a.2."""
+    from agent_workflows import question_inbox, run_viewer, runner_shared, term
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    run_id_arg = getattr(args, "run_id", None)
+    qid_arg = getattr(args, "question_id", None)
+    ans_flag = getattr(args, "answer", None)
+    choice_flag = getattr(args, "choice", None)
+    is_machine = _machine(args)
+
+    # Validate flag dependencies: --answer or --choice requires both run_id and question_id
+    if ans_flag is not None or choice_flag is not None:
+        if not run_id_arg or not qid_arg:
+            msg = "--answer/--choice requires both <run-id> and <question_id>"
+            if is_machine:
+                return _emit_answer_record(args, exit_code=2, error=msg)
+            _print_human(f"error: {msg}")
+            return 2
+
+    # Resolve run directory if run_id_arg was provided
+    run_dir: Optional[Path] = None
+    if run_id_arg:
+        run_dir = _resolve_runner_run_dir(run_id_arg, repo_root)
+        if run_dir is None:
+            msg = f"unknown run: {run_id_arg}"
+            if is_machine:
+                return _emit_answer_record(args, exit_code=2, error=msg)
+            _print_human(f"error: {msg}")
+            return 2
+
+    # Enumerate live runs when run_id is omitted
+    root = runner_shared.state_root(repo_root)
+    live_runs: list[tuple[Path, str]] = []
+    if run_dir is None and root.is_dir():
+        for child in sorted(root.iterdir()):
+            if child.is_dir() and (child / "state.json").is_file():
+                holder = run_viewer.driver_holder_state(child)
+                if holder in (run_viewer.HOLDER_LIVE, run_viewer.HOLDER_UNKNOWN):
+                    if question_inbox.read_open_questions(child):
+                        live_runs.append((child, holder))
+
+    # If --answer or --choice is given, write one answer directly (non-interactive form)
+    if ans_flag is not None or choice_flag is not None:
+        assert run_dir is not None
+        assert qid_arg is not None
+        res = question_inbox.write_answer(
+            run_dir,
+            qid_arg,
+            answer=ans_flag,
+            choice=choice_flag,
+            channel="cli",
+            sender=getpass.getuser(),
+            actor="human",
+        )
+        if res.status == "recorded":
+            exit_code = 0
+        elif res.status == "already":
+            exit_code = 1
+        else:  # rejected
+            if (
+                "malformed question_id" in res.reason
+                or "unknown question_id" in res.reason
+            ):
+                exit_code = 2
+            else:
+                exit_code = 1
+
+        if is_machine:
+            return _emit_answer_record(
+                args,
+                exit_code=exit_code,
+                answer={
+                    "run_id": run_dir.name,
+                    "question_id": qid_arg,
+                    "status": res.status,
+                    "reason": res.reason,
+                },
+            )
+        if res.status == "recorded":
+            _print_human("recorded")
+        elif res.status == "already":
+            _print_human("already answered")
+        else:
+            _print_human(res.reason)
+        return exit_code
+
+    # Non-interactive listing: when stdin is not interactive (or --no-interactive) or in machine mode
+    interactive_mode = term.is_interactive() and not is_machine
+
+    if not interactive_mode:
+        # Collect questions to list
+        all_qs: list[dict[str, Any]] = []
+        if run_dir is not None:
+            all_qs = question_inbox.read_open_questions(run_dir)
+            if qid_arg:
+                all_qs = [q for q in all_qs if q.get("question_id") == qid_arg]
+        else:
+            for r_dir, holder in live_runs:
+                all_qs.extend(question_inbox.read_open_questions(r_dir))
+
+        exit_code = 0 if all_qs else 1
+        if is_machine:
+            qs_payload = [
+                {
+                    "run_id": q.get("run_id", ""),
+                    "question_id": q.get("question_id", ""),
+                    "artifact_id6": q.get("artifact_id6", ""),
+                    "text": q.get("text", ""),
+                    "options": q.get("options"),
+                    "allow_free_text": bool(q.get("allow_free_text", True)),
+                    "gates_verdict": bool(q.get("gates_verdict", True)),
+                }
+                for q in all_qs
+            ]
+            return _emit_answer_record(args, exit_code=exit_code, questions=qs_payload)
+
+        if not all_qs:
+            _print_human("no open questions found")
+            return 1
+
+        for q in all_qs:
+            qid = q.get("question_id", "")
+            art_id6 = q.get("artifact_id6", "")
+            run_id = q.get("run_id", "")
+            clean_text = _clean_worker_text(q.get("text", ""))
+            _print_human(f"[{run_id}] {qid} (artifact: {art_id6}):")
+            _print_human(f"  {clean_text}")
+            opts = q.get("options")
+            if opts:
+                _print_human("  Options:")
+                for idx, opt in enumerate(opts, 1):
+                    _print_human(f"    {idx}. {_clean_worker_text(opt)}")
+            ev = q.get("evidence", [])
+            if ev:
+                ev_str = ", ".join(_clean_worker_text(str(e)) for e in ev)
+                _print_human(f"  Evidence: {ev_str}")
+        return 0
+
+    # Interactive form: term.is_interactive() is True and no answer flag was given
+    runs_to_process: list[tuple[Path, str | None]] = []
+    if run_dir is not None:
+        runs_to_process = [(run_dir, None)]
+    else:
+        runs_to_process = [(r, h) for r, h in live_runs]
+
+    if not runs_to_process:
+        _print_human("no open questions found across live runs")
+        return 1
+
+    recorded_count = 0
+    interrupted = False
+
+    for r_dir, holder in runs_to_process:
+        if run_dir is None:
+            label = f"Run: {r_dir.name}"
+            if holder == run_viewer.HOLDER_UNKNOWN:
+                label += " (liveness unknown)"
+            _print_human(label)
+
+        open_qs = question_inbox.read_open_questions(r_dir)
+        if qid_arg:
+            open_qs = [q for q in open_qs if q.get("question_id") == qid_arg]
+
+        for q in open_qs:
+            qid = q["question_id"]
+            art_id6 = q.get("artifact_id6", "")
+            raw_text = q.get("text", "")
+            clean_text = _clean_worker_text(raw_text)
+            options = q.get("options")
+            allow_free_text = bool(q.get("allow_free_text", True))
+            evidence = q.get("evidence", [])
+
+            _print_human(f"\n--- Question: {qid} (Artifact: {art_id6}) ---")
+            _print_human(clean_text)
+            if options:
+                _print_human("Options:")
+                for idx, opt in enumerate(options, 1):
+                    _print_human(f"  {idx}. {_clean_worker_text(opt)}")
+            if evidence:
+                ev_summary = ", ".join(_clean_worker_text(str(e)) for e in evidence)
+                _print_human(f"Evidence: {ev_summary}")
+
+            while True:
+                try:
+                    user_line = input("Answer (Enter to skip): ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    interrupted = True
+                    break
+
+                if not user_line:
+                    # Empty line skips the question
+                    break
+
+                selected_choice: Optional[int] = None
+                selected_answer: Optional[str] = None
+                if options:
+                    try:
+                        val_int = int(user_line)
+                        if 1 <= val_int <= len(options):
+                            selected_choice = val_int - 1
+                        elif val_int == 0 and len(options) > 0 and user_line == "0":
+                            selected_choice = 0
+                    except ValueError:
+                        pass
+
+                if selected_choice is not None:
+                    pass
+                else:
+                    if not allow_free_text:
+                        _print_human(
+                            "Free-text answer not allowed. Please enter an option number (or Enter to skip)."
+                        )
+                        continue
+                    selected_answer = user_line
+
+                ans_res = question_inbox.write_answer(
+                    r_dir,
+                    qid,
+                    answer=selected_answer,
+                    choice=selected_choice,
+                    channel="cli",
+                    sender=getpass.getuser(),
+                    actor="human",
+                )
+                if ans_res.status == "recorded":
+                    _print_human("recorded")
+                    recorded_count += 1
+                elif ans_res.status == "already":
+                    _print_human("already answered")
+                else:
+                    _print_human(ans_res.reason)
+                break
+
+            if interrupted:
+                break
+        if interrupted:
+            break
+
+    return 0 if recorded_count > 0 else 1
 
 
 def _machine(args: argparse.Namespace) -> bool:
