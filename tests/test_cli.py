@@ -682,10 +682,6 @@ class Order15CliTests(CliTestBase):
         self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
         self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="flaky: zcouni - UnboundLocalError on PolicyCancelledError",
-    )
     def test_install_legacy_repo_interactive_decline_keeps_legacy(self):
         from unittest import mock
 
@@ -694,16 +690,38 @@ class Order15CliTests(CliTestBase):
         (repo / ".agents" / "workflows" / "VERSION").write_text(
             "0.1.0\n", encoding="utf-8"
         )
-        with mock.patch("sys.stdin.isatty", return_value=True):
+        with mock.patch("sys.stdin", io.StringIO("\n")):
             with mock.patch(
                 "agent_workflows.cli._ask_policy", return_value=False
             ) as mock_ask:
                 code, out = _run(["install", str(repo)])
+        self.assertEqual(code, 0, out)
         mock_ask.assert_called_once()
         self.assertEqual(mock_ask.call_args[1]["key"], "migrate_layout")
         self.assertEqual(mock_ask.call_args[1]["builtin_default"], True)
         self.assertIn("legacy .agents/ layout is deprecated", out)
         self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
+        self.assertFalse((repo / ".aw" / "system").exists())
+
+    def test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error(
+        self,
+    ):
+        from unittest import mock
+
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        with mock.patch("agent_workflows.cli._ask_policy", return_value=False):
+            with mock.patch("sys.stdin", io.StringIO("")):
+                with mock.patch("builtins.input", side_effect=KeyboardInterrupt):
+                    code, out = _run(["install", str(repo)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("install cancelled; nothing written.", out)
+        self.assertNotIn("FAIL", out)
+        self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
+        self.assertFalse((repo / ".agents" / "workflows" / "index.md").exists())
 
     @pytest.mark.xfail(
         strict=False,

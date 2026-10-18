@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/cli.py`, import `PolicyCancelledError` unconditionally in `cli._run_install` (at function entry before the repository iteration loop) so the `except PolicyCancelledError:` exception handler is always bound regardless of whether `kept_legacy` is True or False. In `tests/test_cli.py`, remove the `@pytest.mark.xfail` quarantine decorator from `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy` and provide mocked interactive input (`io.StringIO("\n")`) so it runs cleanly without reading captured stdin. Add a dedicated test verifying that when `kept_legacy` is True and the user presses CTRL-C at the final install confirmation (which the real `_confirm_install` translates into `PolicyCancelledError`), `_run_install` reports `install cancelled; nothing written.`, writes nothing, and exits 1 without raising `UnboundLocalError`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: nj640e
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: nj640e verified (set zcouni, attempt 1).
 - 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
@@ -36,25 +36,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Unconditional import in _run_install
 
-- [ ] E-01 In `agent_workflows/cli.py` within `_run_install`, add `from agent_workflows.install_wizard import PolicyCancelledError` as the first statement of the function body (before the `targets = ...` line, so before the repository iteration loop and before `_handle_legacy_migration`), and REMOVE `PolicyCancelledError,` from the inner `from agent_workflows.install_wizard import (...)` list inside `if not kept_legacy:` so the name has exactly one binding. Leave both `except PolicyCancelledError:` handlers (the policy-wizard one and the final-confirmation one) unchanged.
+- [x] E-01 In `agent_workflows/cli.py` within `_run_install`, add `from agent_workflows.install_wizard import PolicyCancelledError` as the first statement of the function body (before the `targets = ...` line, so before the repository iteration loop and before `_handle_legacy_migration`), and REMOVE `PolicyCancelledError,` from the inner `from agent_workflows.install_wizard import (...)` list inside `if not kept_legacy:` so the name has exactly one binding. Leave both `except PolicyCancelledError:` handlers (the policy-wizard one and the final-confirmation one) unchanged.
   - Depends on: none
   - Expected outcome: `PolicyCancelledError` is bound on every path through `_run_install`. A cancellation at the final confirmation on the legacy path reports `install cancelled; nothing written.` and returns 1; any OTHER exception from that `try` now propagates as itself instead of as `UnboundLocalError` (demonstrated at review on a scratch copy: KeyboardInterrupt case `EXIT 1` with the cancelled line and no `.agents/workflows/index.md` written; OSError case raises `OSError`; a non-legacy cancellation still exits 1 with the cancelled line).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Test unquarantine and regression coverage
 
-- [ ] E-02 In `tests/test_cli.py`, remove the `@pytest.mark.xfail(strict=False, reason="flaky: zcouni - UnboundLocalError on PolicyCancelledError")` decorator from `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy`, and replace `with mock.patch("sys.stdin.isatty", return_value=True):` with `with mock.patch("sys.stdin", io.StringIO("\n")):` (module-level `io` and `mock` are already imported) so the one remaining prompt (`_confirm_install`'s "Proceed and install into ...? [Y/n]") reads the in-memory newline instead of an ambient stream. Add `self.assertEqual(code, 0, out)` after the `_run` call and `self.assertFalse((repo / ".aw" / "system").exists())` beside the existing assertions, keeping the existing `mock_ask` and VERSION assertions. Do NOT touch the sibling `test_install_legacy_repo_interactive_accept_migrates_to_aw` (owned by plan `s56tsu`).
+- [x] E-02 In `tests/test_cli.py`, remove the `@pytest.mark.xfail(strict=False, reason="flaky: zcouni - UnboundLocalError on PolicyCancelledError")` decorator from `Order15CliTests.test_install_legacy_repo_interactive_decline_keeps_legacy`, and replace `with mock.patch("sys.stdin.isatty", return_value=True):` with `with mock.patch("sys.stdin", io.StringIO("\n")):` (module-level `io` and `mock` are already imported) so the one remaining prompt (`_confirm_install`'s "Proceed and install into ...? [Y/n]") reads the in-memory newline instead of an ambient stream. Add `self.assertEqual(code, 0, out)` after the `_run` call and `self.assertFalse((repo / ".aw" / "system").exists())` beside the existing assertions, keeping the existing `mock_ask` and VERSION assertions. Do NOT touch the sibling `test_install_legacy_repo_interactive_accept_migrates_to_aw` (owned by plan `s56tsu`).
   - Depends on: E-01
   - Expected outcome: the test owns its stdin and asserts its outcome: exit 0, the deprecation warning printed, `.agents/workflows/VERSION` kept, no `.aw/system` created (demonstrated at review on the same inputs: `EXIT 0`, deprecation line present, VERSION kept, `.aw/system` absent); the quarantine decorator is gone.
-  - Execution state: pending
-- [ ] E-03 In `tests/test_cli.py` within `Order15CliTests`, add `test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error`. Build the same legacy fixture as E-02 (`.agents/workflows/VERSION`), then run `_run(["install", str(repo)])` under `mock.patch("agent_workflows.cli._ask_policy", return_value=False)` (so `kept_legacy` is True), `mock.patch("sys.stdin", io.StringIO(""))`, and `mock.patch("builtins.input", side_effect=KeyboardInterrupt)`. This drives the REAL `_confirm_install`, whose `except KeyboardInterrupt:` raises `PolicyCancelledError`; it follows the existing precedent `InstallAtomicWizardTests.test_install_ctrl_c_preset_prompt_writes_zero_files_and_skips_cleanly`. Assert: the call returns normally (an `UnboundLocalError` would propagate out of `_run` and fail the test), `code == 1`, `"install cancelled; nothing written."` is in the output, `"FAIL"` is not, `.agents/workflows/VERSION` still exists, and `.agents/workflows/index.md` was NOT written (nothing installed).
+  - Execution state: performed
+- [x] E-03 In `tests/test_cli.py` within `Order15CliTests`, add `test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error`. Build the same legacy fixture as E-02 (`.agents/workflows/VERSION`), then run `_run(["install", str(repo)])` under `mock.patch("agent_workflows.cli._ask_policy", return_value=False)` (so `kept_legacy` is True), `mock.patch("sys.stdin", io.StringIO(""))`, and `mock.patch("builtins.input", side_effect=KeyboardInterrupt)`. This drives the REAL `_confirm_install`, whose `except KeyboardInterrupt:` raises `PolicyCancelledError`; it follows the existing precedent `InstallAtomicWizardTests.test_install_ctrl_c_preset_prompt_writes_zero_files_and_skips_cleanly`. Assert: the call returns normally (an `UnboundLocalError` would propagate out of `_run` and fail the test), `code == 1`, `"install cancelled; nothing written."` is in the output, `"FAIL"` is not, `.agents/workflows/VERSION` still exists, and `.agents/workflows/index.md` was NOT written (nothing installed).
   - Depends on: E-01
   - Expected outcome: the test passes after E-01 and FAILS with `UnboundLocalError` against the pre-change `cli.py` (demonstrated at review: pre-change `RAISED UnboundLocalError: cannot access local variable 'PolicyCancelledError' ...`; post-change `EXIT 1`, cancelled line present, `index.md` absent).
-  - Execution state: pending
-- [ ] E-04 Run the regression set. `tests/test_cli.py` carries module-level `pytestmark = pytest.mark.slow`, so every targeted run needs `-m "slow or not slow"` and the bare core gate never collects these tests (it is a no-regression gate only). Run: (a) `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k "Order15CliTests or InstallAtomicWizardTests"`; (b) three repeated concurrent runs `for i in 1 2 3; do python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests; done`; (c) the bare core gate `python3 -m pytest`.
+  - Execution state: performed
+- [x] E-04 Run the regression set. `tests/test_cli.py` carries module-level `pytestmark = pytest.mark.slow`, so every targeted run needs `-m "slow or not slow"` and the bare core gate never collects these tests (it is a no-regression gate only). Run: (a) `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k "Order15CliTests or InstallAtomicWizardTests"`; (b) three repeated concurrent runs `for i in 1 2 3; do python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests; done`; (c) the bare core gate `python3 -m pytest`.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: (a) zero failures, and the two zcouni tests report PASSED (not XPASS/XFAIL); (b) every run reports zero failures, with at most the one `s56tsu`-owned test still XPASS if that plan has not landed; (c) zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,22 +120,48 @@ N/A: no specification or documentation changes are required. The documented beha
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff agent_workflows/cli.py` showing `from agent_workflows.install_wizard import PolicyCancelledError` as the first statement of `cli._run_install` and `PolicyCancelledError,` removed from the inner import list, with both `except PolicyCancelledError:` handlers unchanged.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `git diff agent_workflows/cli.py`:
+    ```
+    @@ -8756,6 +8756,8 @@ def _handle_legacy_migration(
+     def _run_install(args: argparse.Namespace, term: Term) -> int:
+    +    from agent_workflows.install_wizard import PolicyCancelledError
+    +
+         targets = args.targets if getattr(args, "targets", None) else []
+    @@ -8866,7 +8868,6 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
+                 from agent_workflows.install_wizard import (
+                     PlacementSwitchRequired,
+    -                PolicyCancelledError,
+                     PolicyError,
+    ```
+    Both `except PolicyCancelledError:` handlers are untouched (not in the diff).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff tests/test_cli.py` showing removal of the zcouni `@pytest.mark.xfail` from `test_install_legacy_repo_interactive_decline_keeps_legacy`, the `mock.patch("sys.stdin", io.StringIO("\n"))` replacement, and the added exit-code and `.aw/system` assertions; and paste the output of `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k test_install_legacy_repo_interactive_decline_keeps_legacy` showing the test `PASSED` (not XPASS).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `git diff tests/test_cli.py` (excerpt): removed `@pytest.mark.xfail(strict=False, reason="flaky: zcouni - UnboundLocalError on PolicyCancelledError")`; `-        with mock.patch("sys.stdin.isatty", return_value=True):` / `+        with mock.patch("sys.stdin", io.StringIO("\n")):`; `+        self.assertEqual(code, 0, out)`; `+        self.assertFalse((repo / ".aw" / "system").exists())`.
+    Run output:
+    ```
+    PASSED tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_decline_keeps_legacy
+    PASSED tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error
+    ======================= 2 passed, 63 deselected in 5.09s =======================
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff tests/test_cli.py` showing the new `test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error`; paste the output of `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error` showing `PASSED`; AND paste the same command's output with ONLY `agent_workflows/cli.py` reverted to the pre-change version (e.g. `git stash push -- agent_workflows/cli.py`, run, `git stash pop`) showing the test FAILING with `UnboundLocalError`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `git diff tests/test_cli.py` adds `test_install_legacy_repo_interactive_decline_cancellation_handles_policy_cancelled_error` (patches `_ask_policy`->False, `sys.stdin`->`io.StringIO("")`, `builtins.input`->`KeyboardInterrupt`; asserts code 1, cancelled line, no FAIL, VERSION kept, no index.md). Post-change: `PASSED ...decline_cancellation_handles_policy_cancelled_error` (see V-02 run, `2 passed`). Pre-change control (cli.py restored to HEAD via a file copy instead of stash, then reinstated):
+    ```
+    E           UnboundLocalError: cannot access local variable 'PolicyCancelledError' where it is not associated with a value
+    agent_workflows/cli.py:9040: UnboundLocalError
+    ======================= 1 failed, 64 deselected in 3.35s =======================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the summary line of E-04 (a), the summary line of each of the three E-04 (b) runs, and the summary line of the bare `python3 -m pytest` run (c), each showing zero failures and errors.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) `================ 12 passed, 52 deselected, 1 xpassed in 31.11s =================` (the XPASS is the s56tsu-owned `test_install_legacy_repo_interactive_accept_migrates_to_aw`).
+    (b) `5 passed, 1 xpassed in 6.78s` / `5 passed, 1 xpassed in 6.64s` / `5 passed, 1 xpassed in 7.13s`.
+    (c) bare `python3 -m pytest`: `1675 passed, 11 warnings in 61.84s (0:01:01)`.
+  - Result: pass
 
 ## Approval and execution gate
 
