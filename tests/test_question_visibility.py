@@ -19,7 +19,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Self
 from unittest import mock
 
 from agent_workflows import attention as att
@@ -80,7 +79,7 @@ class _HolderProcess:
                     self.proc.wait(timeout=5)
             self.proc = None
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> _HolderProcess:  # noqa: PYI034
         self.start()
         return self
 

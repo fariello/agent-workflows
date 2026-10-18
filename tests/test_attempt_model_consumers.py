@@ -125,8 +125,10 @@ class AttemptModelConsumerTests(unittest.TestCase):
         rows, _ = dash.collect_rows([run_dir], cache_path=None)
         main_row = next(r for r in rows if r["role"] == "main")
         verify_row = next(r for r in rows if r["role"] == "verify")
-        self.assertEqual(main_row["model"], "executor-model")
-        self.assertEqual(verify_row["model"], "verifier-model")
+        self.assertEqual(main_row["model"], "Executor Model")
+        self.assertEqual(verify_row["model"], "Verifier Model")
+        self.assertEqual(main_row["model_id"], "uri/executor-model")
+        self.assertEqual(verify_row["model_id"], "uri/verifier-model")
         self.assertNotEqual(main_row["model"], verify_row["model"])
 
     def test_case_b_attempt_grain_fact_takes_attempt_model(self) -> None:
@@ -211,7 +213,8 @@ class AttemptModelConsumerTests(unittest.TestCase):
             sessions=["01-tst001-attempt-1.jsonl"],
         )
         rows, _ = dash.collect_rows([run_dir], cache_path=None)
-        self.assertEqual(rows[0]["model"], "historical-model")
+        self.assertEqual(rows[0]["model"], "Historical Model")
+        self.assertEqual(rows[0]["model_id"], "uri/historical-model")
         self.assertEqual(rows[0]["model_source"], "options")
 
         run_facts = analytics.build_run_facts(run_dir)
@@ -261,7 +264,8 @@ class AttemptModelConsumerTests(unittest.TestCase):
         v_rows = [r for r in rows if r["role"] == "verify"]
         self.assertTrue(len(v_rows) >= 1)
         v_row = v_rows[0]
-        self.assertEqual(v_row["model"], "verifier-model")
+        self.assertEqual(v_row["model"], "Verifier Model")
+        self.assertEqual(v_row["model_id"], "uri/verifier-model")
 
     def test_case_g_unrecorded_model_retains_labeled_sentinel_per_row(self) -> None:
         """Case (g): A row resolving no model carries (unrecorded, <host>) rather than bare unrecorded."""

@@ -950,7 +950,7 @@ def test_listen_lifecycle_and_answering(
             proc1.send_signal(signal.SIGTERM)
             stdout1, stderr1 = proc1.communicate(timeout=5.0)
             assert (
-                proc1.returncode in (0, 15)
+                proc1.returncode in (0, 1)
                 if sys.platform == "win32"
                 else proc1.returncode == 0
             )

@@ -577,6 +577,36 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="positional argument required",
         reason="Requires plan positional argument.",
     ),
+    "notify disable": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires channel positional argument.",
+    ),
+    "notify listen": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="configured telegram required",
+        reason="Requires configured Telegram channel to run listener.",
+    ),
+    "notify setup command": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires command argument.",
+    ),
+    "notify setup telegram": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="interactive terminal required",
+        reason="Interactive setup wizard requiring TTY input; does not run non-interactively.",
+    ),
+    "notify setup webhook": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="flag required",
+        reason="Requires --url or --url-stdin flag.",
+    ),
+    "notify test": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="configured channel required",
+        reason="Requires configured channel to dispatch test notification.",
+    ),
 }
 
 # --------------------------------------------------------------------------------------------------

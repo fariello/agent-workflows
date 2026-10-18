@@ -170,8 +170,8 @@ class TestRunExitEquivalenceSweep(unittest.TestCase):
         self.assertEqual(total, expected_total)
         self.assertTrue(diffs, "Equivalence sweep difference set must not be empty")
         self.assertTrue(
-            all(d[2] is True for d in diffs),
-            "Every differing combination must have needs_input=True",
+            all(d[2] is True or d[0] == "awaiting-human" for d in diffs),
+            "Every differing combination must have needs_input=True or status == awaiting-human",
         )
         self.assertTrue(
             all((d[4], d[5]) == (1, 3) for d in diffs),

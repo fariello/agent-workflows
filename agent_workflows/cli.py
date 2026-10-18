@@ -3396,7 +3396,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _p_runs_analyze.add_argument(
         "--since",
-        default=None,
+        default=argparse.SUPPRESS,
         metavar="WHEN",
         help=(
             "Only include runs that started at or after WHEN: a date (2026-10-01), a timestamp, "

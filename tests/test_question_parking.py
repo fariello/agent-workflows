@@ -108,24 +108,73 @@ def _create_plan_file(
     plans_dir.mkdir(parents=True, exist_ok=True)
     plan_path = plans_dir / f"20261017-{setid}-{order:02d}-{id6}-plan.ipd.md"
 
+    dep_line = (
+        f"- Item-Dependencies: {', '.join(dependencies)}\n"
+        if dependencies
+        else "- Item-Dependencies: none\n"
+    )
     content = f"""# IPD: Test Plan {id6}
 
+- Date: 2026-10-17
 - Kind: child
+- Concern: Test concern for plan {id6}.
+- Scope: Test scope for plan {id6}.
+- Scope-Paths: README.md
 - Status: {status}
 - Set: {setid}
 - Order: {order}
-- Id: {id6}
+- Highest E allocated: 01
+- Author: test
 - Priority: {priority}
 - Work-Kind: {work_kind}
-"""
-    if dependencies:
-        dep_str = ", ".join(dependencies)
-        content += f"- Item-Dependencies: {dep_str}\n"
-    content += """- Scope-Paths: README.md
+- Id: {id6}
+{dep_line}
+## Workflow history
+- 2026-10-17 {status} (test): created.
+
+## Goal
+Test goal for plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
+### Task group 1: work
 - [ ] E-01 Perform task
-- [ ] V-01 Verify task
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+None.
+
+## Findings
+None.
+
+## Proposed changes (ordered, validatable)
+1. E-01 do work.
+
+## Deferred / out of scope (with reason)
+None.
+
+## Scope check
+None.
+
+## Required tests / validation
+None.
+
+## Spec / documentation sync
+None.
+
+## Open questions
+None.
+
+## Validation and cross-check (verify before reporting done)
+- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- Size assessment: standard
+- Cohesion rationale: not required
 """
     plan_path.write_text(content, encoding="utf-8")
     if commit:
@@ -776,9 +825,12 @@ def test_drain_exit_codes_and_summary_a8_a38_v04(
     state_1["options"]["opencode" if runner_name == "oc" else "agy"] = str(fake_bin)
     runner_shared.save_state(run_dir, state_1)
 
-    with mock.patch.dict(
-        os.environ, {"FAKE_PAYLOAD_MAP_JSON": json.dumps(payload_map_1)}
-    ), coordinator_role():
+    with (
+        mock.patch.dict(
+            os.environ, {"FAKE_PAYLOAD_MAP_JSON": json.dumps(payload_map_1)}
+        ),
+        coordinator_role(),
+    ):
         rc_1 = driver_module.run_queue(run_dir, state_1)
 
     assert rc_1 == 3, f"Expected exit code 3 for parked-only queue, got {rc_1}"
@@ -865,9 +917,12 @@ def test_drain_exit_codes_and_summary_a8_a38_v04(
     state_2["options"]["opencode" if runner_name == "oc" else "agy"] = str(fake_bin)
     runner_shared.save_state(run_dir_2, state_2)
 
-    with mock.patch.dict(
-        os.environ, {"FAKE_PAYLOAD_MAP_JSON": json.dumps(payload_map_2)}
-    ), coordinator_role():
+    with (
+        mock.patch.dict(
+            os.environ, {"FAKE_PAYLOAD_MAP_JSON": json.dumps(payload_map_2)}
+        ),
+        coordinator_role(),
+    ):
         rc_2 = driver_module.run_queue(run_dir_2, state_2)
 
     assert (

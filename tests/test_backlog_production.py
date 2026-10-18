@@ -135,7 +135,7 @@ None.
 1. E-01 do work.
 
 ## Deferred / out of scope (with reason)
-- None.
+None.
 
 ## Scope check
 - None.

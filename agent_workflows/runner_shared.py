@@ -9451,6 +9451,11 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
         "not a failure: the item's lane work was found already on HEAD at dispatch (mergeskip gate "
         "`8k0z40`); retrying would re-dispatch a paid turn for work that is already landed",
     ),
+    (
+        "awaiting-human",
+        False,
+        "parked awaiting human answers to emergent questions (spec 6kwd2e); not a host failure to retry without human action",
+    ),
     # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
     (
         "fail-gate",
