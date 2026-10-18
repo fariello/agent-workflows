@@ -3743,6 +3743,7 @@ class InboxFooterNudgeTests(unittest.TestCase):
                 "items",
                 "violations",
                 "stranded_lanes",
+                "parked_questions",
             ],
         )
         self.assertEqual(obj["schema_version"], 5)

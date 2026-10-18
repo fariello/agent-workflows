@@ -23829,6 +23829,102 @@ def report_parked_drain_summary(run_dir: Path, state: Mapping[str, Any]) -> None
         print(f"  • {msg}")
 
 
+def parked_question_count(state: dict[str, Any] | None) -> int:
+    """Return the number of OPEN gating questions across queue items whose status is awaiting-human.
+
+    Pure, reads state only with no file I/O (spec 6kwd2e R4a.3, qchan-06 y1vjzp E-01).
+    Counted from the run-scoped qids (item['question_ids']) stored on each parked item,
+    falling back to len(item['questions']) when no qids are stored; never a count of parked items.
+    """
+    if not isinstance(state, dict):
+        return 0
+    queue = state.get("queue")
+    if isinstance(queue, list):
+        items_to_check = queue
+    elif isinstance(state.get("items"), dict):
+        items_to_check = list(state["items"].values())
+    else:
+        return 0
+    total = 0
+    for item in items_to_check:
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") == AWAITING_HUMAN_STATUS:
+            qids = item.get("question_ids")
+            if qids is not None:
+                total += len(qids)
+            else:
+                qs = item.get("questions")
+                if qs is not None:
+                    total += len(qs)
+    return total
+
+
+def ring_bell_on_first_park(
+    run_dir: Path | str,
+    state: dict[str, Any],
+    *,
+    stream: Any,
+) -> bool:
+    """Emit a terminal bell on the first park of a run (spec 6kwd2e R4a.4, R4a.5, qchan-06 y1vjzp E-02).
+
+    Writes one BEL ('\\a') to stream (sys.stdout) ONLY when all hold:
+    - state.get("bell_rung") is falsy
+    - stream.isatty() is True
+    - options["output_mode"] is 'clean'
+    - run is not in agent mode (--as-agent)
+
+    Before writing, sets state["bell_rung"] = True and persists it with save_state.
+    Never raises into the park branch: an OSError writing is swallowed and recorded as a bell-failed event.
+    Returns True if the bell was emitted, False otherwise.
+    """
+    if not isinstance(state, dict):
+        return False
+    if state.get("bell_rung"):
+        return False
+
+    is_tty = False
+    try:
+        is_tty = bool(stream.isatty())
+    except Exception:
+        is_tty = False
+    if not is_tty:
+        return False
+
+    options = state.get("options") or {}
+    output_mode = options.get("output_mode", "clean")
+    if output_mode != "clean":
+        return False
+
+    is_agent = (
+        bool(options.get("as_agent"))
+        or bool(options.get("agent"))
+        or bool(state.get("as_agent"))
+        or bool(state.get("agent"))
+    )
+    if is_agent:
+        return False
+
+    state["bell_rung"] = True
+    p_run_dir = Path(run_dir)
+    save_state(p_run_dir, state)
+
+    try:
+        stream.write("\a")
+        stream.flush()
+        return True
+    except OSError as err:
+        append_jsonl(
+            p_run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "bell-failed",
+                "error": str(err),
+            },
+        )
+        return False
+
+
 def consume_answers(
     run_dir: Path | str,
     state: dict[str, Any],
@@ -34408,6 +34504,9 @@ def initialize_run_core(
         "options": {
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
+            "as_agent": bool(
+                getattr(args, "as_agent", False) or getattr(args, "agent", False)
+            ),
             "verbosity": getattr(args, "verbosity", 0) or 0,
             "stall_timeout": stall_timeout,
             "turn_ceiling": turn_ceiling,
@@ -40760,6 +40859,7 @@ def execute_item_core(
 
                 update_awaiting_upstream(state)
                 save_state(run_dir, state)
+                ring_bell_on_first_park(run_dir, state, stream=sys.stdout)
 
                 reached_success = False
                 finish_resolved = resolve_item_lifecycle(disposition)
@@ -42448,6 +42548,7 @@ def execute_item_core(
 
                 update_awaiting_upstream(state)
                 save_state(run_dir, state)
+                ring_bell_on_first_park(run_dir, state, stream=sys.stdout)
 
                 finish_resolved = resolve_item_lifecycle(disposition)
                 finish = (
