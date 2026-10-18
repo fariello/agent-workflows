@@ -4838,10 +4838,10 @@ AUTOMATIC STATUS ROUTING:
   - approved:  Executes the plan step-by-step according to the execution runbook.
 
 RED-CI GATE:
-  A new run refuses to start when the saved checkup record shows CI has not passed
-  in `ci_checkup_interval_commits` commits, unless every queued item belongs to an
-  exempt Set (`ci_red_exempt_sets`) or `--allow-red-ci "<why>"` is supplied on
-  `start` (see `start --help` for full policy flags).
+  A prominent warning banner is printed at run start and again at run end when
+  the saved checkup record shows CI has not passed in `ci_checkup_interval_commits`
+  commits, unless every queued item belongs to an exempt Set (`ci_red_exempt_sets`).
+  An explicit reason can also be supplied via `--allow-red-ci "<why>"`.
 
 LAUNCH IDENTITY (model / variant / agent):
   Give it directly, or name a saved profile with the `as` clause:
