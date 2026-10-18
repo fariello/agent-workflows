@@ -6,7 +6,7 @@
 - Scope: Restore ten deleted test modules from `19313eed^` at their original paths, minus code-pinning tests, with `core` markers on the cheapest tests reaching each key, and add residual tests for the two keys whose wrong value no restored test detects (`record_history._synthetic_key`, the `True` polarity of `Resolution.is_unique`, F-04). Review added `tests/test_help_token.py` (guards `_rewrite_help_token` against an identity mutation), a second core marker for `RecheckResult.holding`, and removal of the document-text `ContractConsistencyTests` class (F-04, E-01, E-04). The 13 keys: `record_history._synthetic_key`, `read_renames_for`; `run_state.is_legal_edge`; `cli._nv_resolve_types`, `_rewrite_help_token`, `_run_noun_verb`; `research_cmd.plan_set_priority`; `runner_shared.gate_answer_needs_human_remedy`; `research_refs.plan_reference_rewrites`; `selectors.Resolution.is_unique`; `artifact_refs._rp_type_facet`; `plan_readiness.RecheckResult.holding`; `run_engine.RunEngine.run_state`. EXCLUDES any production change; EXCLUDES `tests/test_cli_help_and_errors.py` and `tests/test_selector_resolver_parity.py` (F-05).
 - Scope-Paths: tests/test_help_token.py, tests/test_artifact_rename.py, tests/test_artifact_group.py, tests/test_rename_ledger.py, tests/test_research_priority.py, tests/test_reference_matcher_parity.py, tests/test_selector_resolver_matrix.py, tests/test_plan_readiness_recheck.py, tests/test_gate_answer_wiring.py, tests/test_run_state_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: 9gjvrq
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9gjvrq verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
