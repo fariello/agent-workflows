@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the deleted module-level tests
 
-- [ ] E-01 Create `tests/test_run_analytics_submit.py` from `git show 19313eed^:tests/test_run_analytics_submit.py`, keeping everything from the top of the file through the end of `test_no_network_call_happens_on_the_unavailable_path` (the E-06 transport, E-07 validation/receipt and E-08 consent sections, with the `_bundle` helper and the `no_network` context manager) and deleting the `# --- E-01: the two leaves` `cli.main` section through end of file (Finding F-02). Add a module-level `pytestmark = pytest.mark.core` after the imports so the core-tier hook (`conftest.pytest_collection_modifyitems`) selects the file on a bare `python3 -m pytest`, and append one module-docstring sentence naming backlog `gjmiuw`, findings `b1mx2w`, and source revision `19313eed^`. Keep every other restored test body unchanged, including `test_a_bare_urlopen_would_have_leaked_a_local_file` (it demonstrates the stdlib vulnerability so the refusal tests are not vacuous). Disposition rule if a kept restored test fails at execution HEAD (none did at authoring, F-03): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Create `tests/test_run_analytics_submit.py` from `git show 19313eed^:tests/test_run_analytics_submit.py`, keeping everything from the top of the file through the end of `test_no_network_call_happens_on_the_unavailable_path` (the E-06 transport, E-07 validation/receipt and E-08 consent sections, with the `_bundle` helper and the `no_network` context manager) and deleting the `# --- E-01: the two leaves` `cli.main` section through end of file (Finding F-02). Add a module-level `pytestmark = pytest.mark.core` after the imports so the core-tier hook (`conftest.pytest_collection_modifyitems`) selects the file on a bare `python3 -m pytest`, and append one module-docstring sentence naming backlog `gjmiuw`, findings `b1mx2w`, and source revision `19313eed^`. Keep every other restored test body unchanged, including `test_a_bare_urlopen_would_have_leaked_a_local_file` (it demonstrates the stdlib vulnerability so the refusal tests are not vacuous). Disposition rule if a kept restored test fails at execution HEAD (none did at authoring, F-03): do not mark the item performed until it is dispositioned. Record the failure in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists with the `core` marker and no `cli.main` section; a bare `python3 -m pytest --collect-only -q` lists `tests/test_run_analytics_submit.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Prune the restored file to behavioral tests of this module only. Delete `test_no_retry_queue_or_daemon_exists_anywhere_in_the_module`, which greps the module's source text and is code-pinning (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"); no-retry stays guarded by the restored `test_server_rejection_does_not_retry` and `test_timeout_and_cancellation_do_not_retry`, which count opener calls. Replace `test_no_code_path_requires_a_tty_or_asserts_humanity`, which greps source through the deleted `tests.test_run_analytics_export._code_lines` helper, with a test keeping only its behavioral tail: `submit.Attestation(tier="metrics", destination=ENDPOINT).to_dict()` has `tty_required is False` and `mechanism == "explicit-attestation-flag"`. Delete `test_no_network_call_happens_while_building_a_bundle`, which calls only `run_analytics_export` functions and reaches no key of this module (that coverage belongs to backlog `liybkg`).
+- [x] E-02 Prune the restored file to behavioral tests of this module only. Delete `test_no_retry_queue_or_daemon_exists_anywhere_in_the_module`, which greps the module's source text and is code-pinning (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"); no-retry stays guarded by the restored `test_server_rejection_does_not_retry` and `test_timeout_and_cancellation_do_not_retry`, which count opener calls. Replace `test_no_code_path_requires_a_tty_or_asserts_humanity`, which greps source through the deleted `tests.test_run_analytics_export._code_lines` helper, with a test keeping only its behavioral tail: `submit.Attestation(tier="metrics", destination=ENDPOINT).to_dict()` has `tty_required is False` and `mechanism == "explicit-attestation-flag"`. Delete `test_no_network_call_happens_while_building_a_bundle`, which calls only `run_analytics_export` functions and reaches no key of this module (that coverage belongs to backlog `liybkg`).
   - Depends on: E-01
   - Expected outcome: no test in the file reads production source or imports from a deleted test module, and every remaining restored test passes (the exact collected count is recorded in V-02; it is on the order of the 37 items F-03 measured, since parametrized tests expand).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: residual branch coverage
 
-- [ ] E-03 Append tests covering the 11 lines the restored subset leaves unexecuted (F-04), each asserting a value observed at authoring by direct call: (a) `submit.url_policy_refusal("http://127.0.0.1:8/x", allow_loopback_http=True)` returns `None`, while `submit.url_policy_refusal("http://example.org/x", allow_loopback_http=True)` returns `"plain http is refused; submission requires https"` (loopback http is the only http exception, and only for a loopback host); (b) `submit.url_policy_refusal("gopherx://h/")` returns `"unsupported scheme 'gopherx'; submission requires https"`; (c) `submit.url_policy_refusal("https:///path")` returns `"url has no host"`; (d) `submit.build_restricted_opener(allow_loopback_http=True)` has handler class names exactly `["HTTPDefaultErrorHandler", "HTTPErrorProcessor", "HTTPHandler", "HTTPSHandler", "RefusingRedirectHandler"]` (sorted), still with no `FileHandler`, `DataHandler` or `FTPHandler`; (e) an `urllib.request.OpenerDirector` whose only handler's `https_open` raises `SubmitRefusal("redirect-refused", ...)` makes `submit.open_url("https://a.example/x", opener=...)` raise `SubmitRefusal` with `code == "redirect-refused"` (re-raised unchanged, not re-wrapped as `transport-failed`); (f) `submit._redact_url("http://[::1")` returns `"<unparseable url>"` and `submit._redact_url("no-scheme")` returns `"<url>"`; (g) on a bundle from the file's `_bundle` helper, overwriting `manifest.json` with `[1,2]` makes `submit.validate_bundle` raise `code == "manifest-unreadable"` with summary `"manifest.json is not a JSON object"`, and replacing its `files` list with `["notobj"]` raises `code == "manifest-unreadable"` with summary `"a manifest file entry is not an object"`; (h) `submit.submit_bundle(<bundle with manifest.json deleted>, endpoint={"url": ENDPOINT}, tier="metrics")` returns `status == "refused"`, `code == "manifest-missing"`, `transmitted is False`, and `receipt["destination"] == "https://analytics.example.org"` (validation runs before attestation and before any transport, and the refusal result carries a redacted receipt); (i) a successful attested submission through a counting stub opener (the restored `test_receipt_never_records_the_secret` stub shape, appending each `request.full_url` to a list) returns `status == submit.STATUS_SUBMITTED` with exactly one opener call, so a double send on the SUCCESS path is guarded (Finding F-06: the restored tests count calls only on the two failure paths). Re-measure each value at execution HEAD before asserting it; if one has changed, apply the E-01 disposition rule.
+- [x] E-03 Append tests covering the 11 lines the restored subset leaves unexecuted (F-04), each asserting a value observed at authoring by direct call: (a) `submit.url_policy_refusal("http://127.0.0.1:8/x", allow_loopback_http=True)` returns `None`, while `submit.url_policy_refusal("http://example.org/x", allow_loopback_http=True)` returns `"plain http is refused; submission requires https"` (loopback http is the only http exception, and only for a loopback host); (b) `submit.url_policy_refusal("gopherx://h/")` returns `"unsupported scheme 'gopherx'; submission requires https"`; (c) `submit.url_policy_refusal("https:///path")` returns `"url has no host"`; (d) `submit.build_restricted_opener(allow_loopback_http=True)` has handler class names exactly `["HTTPDefaultErrorHandler", "HTTPErrorProcessor", "HTTPHandler", "HTTPSHandler", "RefusingRedirectHandler"]` (sorted), still with no `FileHandler`, `DataHandler` or `FTPHandler`; (e) an `urllib.request.OpenerDirector` whose only handler's `https_open` raises `SubmitRefusal("redirect-refused", ...)` makes `submit.open_url("https://a.example/x", opener=...)` raise `SubmitRefusal` with `code == "redirect-refused"` (re-raised unchanged, not re-wrapped as `transport-failed`); (f) `submit._redact_url("http://[::1")` returns `"<unparseable url>"` and `submit._redact_url("no-scheme")` returns `"<url>"`; (g) on a bundle from the file's `_bundle` helper, overwriting `manifest.json` with `[1,2]` makes `submit.validate_bundle` raise `code == "manifest-unreadable"` with summary `"manifest.json is not a JSON object"`, and replacing its `files` list with `["notobj"]` raises `code == "manifest-unreadable"` with summary `"a manifest file entry is not an object"`; (h) `submit.submit_bundle(<bundle with manifest.json deleted>, endpoint={"url": ENDPOINT}, tier="metrics")` returns `status == "refused"`, `code == "manifest-missing"`, `transmitted is False`, and `receipt["destination"] == "https://analytics.example.org"` (validation runs before attestation and before any transport, and the refusal result carries a redacted receipt); (i) a successful attested submission through a counting stub opener (the restored `test_receipt_never_records_the_secret` stub shape, appending each `request.full_url` to a list) returns `status == submit.STATUS_SUBMITTED` with exactly one opener call, so a double send on the SUCCESS path is guarded (Finding F-06: the restored tests count calls only on the two failure paths). Re-measure each value at execution HEAD before asserting it; if one has changed, apply the E-01 disposition rule.
   - Depends on: E-02
   - Expected outcome: the new tests pass, module line coverage rises from 94 percent to 100 percent (any remaining missed line named and explained in V-03), and the success-path double-send mutation from F-06 turns a test red.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -80,6 +80,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The deleted file's `cli.main` section (`runs export` / `runs submit` leaves) and `tests/test_run_analytics_privacy_boundary.py` primarily exercise `run_analytics_export` and `run_analytics_cli`, and add no line of this module's coverage beyond what E-01/E-02 reach (F-04). Backlog `liybkg` (run_analytics_export) names the same three deleted files to mine and is the carrier for the export-side tests; if it restores the CLI section it should do so into its own test file, since this plan owns `tests/test_run_analytics_submit.py`.
   - Carrier: liybkg
+  - Carrier-Evidence: .aw/records/backlog/done/20261016-trimgap-01-liybkg-restore-behavioral-test-coverage-for-run-analytics.backlog.md
 - `tests/test_run_analytics_wizard.py` covers `run_analytics_wizard`, whose group 16 was rolled up into the residual backlog item.
   - Carrier: q86fxm
 
@@ -113,20 +114,218 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` (after deleting any coverage data file) showing only `tests/test_run_analytics_submit.py` added; paste a diff of `git show 19313eed^:tests/test_run_analytics_submit.py` against the new file showing the only differences are the `pytestmark` line, the docstring sentence, the removed `cli.main` section, and the E-02 and E-03 changes; paste `python3 -m pytest --collect-only -q | rg test_run_analytics_submit` showing the module is selected by the bare core tier; paste the bare `python3 -m pytest` summary line and wall time within budget; paste the `url_policy_refusal` (return `None` immediately), `redirect_request` (skip policy check) and `attestation_refusal` (return `None` when `yes` is true) mutation failures, each reverted afterwards; paste `aw sanitize --agent` showing no `fail` on the file.
   - Observed evidence:
-  - Result: pending
+    `git status --short` before editing plan:
+    ```
+    ?? tests/test_run_analytics_submit.py
+    ```
 
-- [ ] V-02 validates E-02
+    `git show 19313eed^:tests/test_run_analytics_submit.py` vs `tests/test_run_analytics_submit.py` diff summary:
+    ```
+    --- 19313eed^:tests/test_run_analytics_submit.py
+    +++ tests/test_run_analytics_submit.py
+    @@ -12,2 +12,4 @@
+     EXISTING harness (``lifecycle_fixtures.run_no_network``) rather than a hand-rolled mock.
+    +
+    +Restored from revision 19313eed^ to address backlog gjmiuw and findings b1mx2w.
+     """
+    @@ -29,2 +31,4 @@
+     from agent_workflows import run_analytics_submit as submit
+    +
+    +pytestmark = pytest.mark.core
+    @@ -154,26 +158,0 @@
+    -def test_no_retry_queue_or_daemon_exists_anywhere_in_the_module():
+    ...
+    @@ -427,24 +408,7 @@
+    -def test_no_code_path_requires_a_tty_or_asserts_humanity():
+    -    from tests.test_run_analytics_export import _code_lines
+    ...
+    +def test_no_code_path_requires_a_tty_or_asserts_humanity():
+    +    """The attestation records that no TTY was needed and explicit flag mechanism."""
+    +    att = submit.Attestation(tier="metrics", destination=ENDPOINT).to_dict()
+    +    assert att["tty_required"] is False
+    +    assert att["mechanism"] == "explicit-attestation-flag"
+    @@ -498,394 +462,107 @@
+    -def test_no_network_call_happens_while_building_a_bundle(tmp_path):
+    ...
+    -# --- E-01: the two leaves, exercised through the REAL cli entry point ---
+    ...
+    +# --- E-03: residual branch coverage ---
+    ```
+
+    `python3 -m pytest --collect-only -q | rg test_run_analytics_submit`:
+    ```
+    tests/test_run_analytics_submit.py: 44
+    ```
+
+    Bare `python3 -m pytest` summary line (and `aw suite` full suite):
+    ```
+    1041 passed in 73.94s (0:01:13)  # baseline before test added (host load average 14.23 on 12 CPUs)
+    1085 passed in 48.58s            # aw suite with 44 tests added
+    ```
+
+    `url_policy_refusal` return `None` immediately mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_url_policy_refusal_residual_branches
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[gopher://example.org/x-gopher]
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[ftp://example.org/x-ftp]
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[file:///etc/passwd-file]
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[file:///etc/passwd]
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[-empty]
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[http://example.org/x-https]
+    FAILED tests/test_run_analytics_submit.py::test_open_url_refuses_a_file_target_with_an_actionable_message
+    FAILED tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[data:text/plain,hello-data]
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[ftp://h/x]
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[data:text/plain,x]
+    FAILED tests/test_run_analytics_submit.py::test_open_url_refuses_a_data_target
+    12 failed, 32 passed in 0.81s
+    ```
+
+    `redirect_request` skip policy check mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[file:///etc/passwd]
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[ftp://h/x]
+    FAILED tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[data:text/plain,x]
+    3 failed, 41 passed in 0.60s
+    ```
+
+    `attestation_refusal` return `None` when `yes` is true mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_yes_alone_never_authorizes
+    E       assert None is not None
+    1 failed, 43 passed in 0.89s
+    ```
+
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5893,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_code_lines|getsource|import ast|agent_workflows/run_analytics_submit.py" tests/test_run_analytics_submit.py` showing no hit (no source read remains); paste `rg -n "^def test_no_retry_queue|^def test_no_network_call_happens_while_building" tests/test_run_analytics_submit.py` showing no hit; paste the `-o addopts="" -v` output listing every restored test, including the replacement attestation test, as PASSED with the collected count; paste the failure from a scratch mutation making `submit_bundle` retry `open_url` once after a `SubmitRefusal` (reverted afterwards), showing no-retry on failure is still guarded after the source-grep test was removed.
   - Observed evidence:
-  - Result: pending
+    `rg -n "_code_lines|getsource|import ast|agent_workflows/run_analytics_submit.py" tests/test_run_analytics_submit.py`:
+    ```
+    (exit code 1, 0 hits)
+    ```
 
-- [ ] V-03 validates E-03
+    `rg -n "^def test_no_retry_queue|^def test_no_network_call_happens_while_building" tests/test_run_analytics_submit.py`:
+    ```
+    (exit code 1, 0 hits)
+    ```
+
+    `python3 -m pytest tests/test_run_analytics_submit.py -o addopts="" -v`:
+    ```
+    tests/test_run_analytics_submit.py::test_tier_mismatch_is_refused PASSED [  2%]
+    tests/test_run_analytics_submit.py::test_attestation_is_not_transferable_across_tier_or_destination PASSED [  4%]
+    tests/test_run_analytics_submit.py::test_the_no_network_harness_would_actually_catch_a_connection PASSED [  6%]
+    tests/test_run_analytics_submit.py::test_receipt_never_records_the_secret PASSED [  9%]
+    tests/test_run_analytics_submit.py::test_open_url_reraises_submit_refusal_unchanged PASSED [ 11%]
+    tests/test_run_analytics_submit.py::test_validation_accepts_a_wellformed_bundle PASSED [ 13%]
+    tests/test_run_analytics_submit.py::test_submission_is_unavailable_when_no_endpoint_is_configured PASSED [ 15%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[remove-manifest-manifest-missing] PASSED [ 18%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[delete-file-file-missing] PASSED [ 20%]
+    tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[file:///etc/passwd] PASSED [ 22%]
+    tests/test_run_analytics_submit.py::test_submit_bundle_success_path_does_not_double_send PASSED [ 25%]
+    tests/test_run_analytics_submit.py::test_present_attestation_records_attribution_without_a_tty PASSED [ 27%]
+    tests/test_run_analytics_submit.py::test_no_code_path_requires_a_tty_or_asserts_humanity PASSED [ 29%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[http://example.org/x-https] PASSED [ 31%]
+    tests/test_run_analytics_submit.py::test_restricted_opener_carries_no_file_data_or_ftp_handler PASSED [ 34%]
+    tests/test_run_analytics_submit.py::test_missing_auth_is_refused_and_names_the_env_var PASSED [ 36%]
+    tests/test_run_analytics_submit.py::test_a_bare_urlopen_would_have_leaked_a_local_file PASSED [ 38%]
+    tests/test_run_analytics_submit.py::test_open_url_refuses_a_data_target PASSED [ 40%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[file:///etc/passwd-file] PASSED [ 43%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[ftp://example.org/x-ftp] PASSED [ 45%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[gopher://example.org/x-gopher] PASSED [ 47%]
+    tests/test_run_analytics_submit.py::test_yes_alone_never_authorizes PASSED [ 50%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[data:text/plain,hello-data] PASSED [ 52%]
+    tests/test_run_analytics_submit.py::test_build_restricted_opener_loopback_http_handlers PASSED [ 54%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[bad-version-schema-unknown] PASSED [ 56%]
+    tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[ftp://h/x] PASSED [ 59%]
+    tests/test_run_analytics_submit.py::test_policy_refuses_every_non_https_target_with_an_actionable_message[-empty] PASSED [ 61%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[tamper-file-checksum-mismatch] PASSED [ 63%]
+    tests/test_run_analytics_submit.py::test_redact_url_unparseable_and_no_scheme PASSED [ 65%]
+    tests/test_run_analytics_submit.py::test_a_redirect_to_a_forbidden_target_is_refused[data:text/plain,x] PASSED [ 68%]
+    tests/test_run_analytics_submit.py::test_validate_bundle_non_mapping_manifest_and_files PASSED [ 70%]
+    tests/test_run_analytics_submit.py::test_raw_tier_cannot_be_submitted PASSED [ 72%]
+    tests/test_run_analytics_submit.py::test_server_rejection_does_not_retry PASSED [ 75%]
+    tests/test_run_analytics_submit.py::test_open_url_refuses_a_file_target_with_an_actionable_message PASSED [ 77%]
+    tests/test_run_analytics_submit.py::test_oversized_bundle_is_refused PASSED [ 79%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[corrupt-manifest-manifest-unreadable] PASSED [ 81%]
+    tests/test_run_analytics_submit.py::test_absent_attestation_refuses PASSED [ 84%]
+    tests/test_run_analytics_submit.py::test_url_policy_refusal_residual_branches PASSED [ 86%]
+    tests/test_run_analytics_submit.py::test_submit_bundle_manifest_missing_returns_refusal_result PASSED [ 88%]
+    tests/test_run_analytics_submit.py::test_timeout_and_cancellation_do_not_retry PASSED [ 90%]
+    tests/test_run_analytics_submit.py::test_no_network_call_happens_on_the_unavailable_path PASSED [ 93%]
+    tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[hostile-path-manifest-hostile-path] PASSED [ 95%]
+    tests/test_run_analytics_submit.py::test_a_redirect_to_a_permitted_https_target_is_allowed PASSED [ 97%]
+    tests/test_run_analytics_submit.py::test_scheme_unhandled_refusal_wraps_the_bare_attributeerror PASSED [100%]
+    ============================== 44 passed in 0.51s ==============================
+    ```
+
+    `submit_bundle` retry `open_url` once after `SubmitRefusal` mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_timeout_and_cancellation_do_not_retry
+    FAILED tests/test_run_analytics_submit.py::test_server_rejection_does_not_retry
+    E       AssertionError: the submission was retried
+    E       assert 2 == 1
+    2 failed, 42 passed in 0.54s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every E-03 test as PASSED; paste the `--cov=agent_workflows.run_analytics_submit --cov-report=term-missing` output and, for any line still missed, name it and why it is unreachable or not one of the 14 keys; paste the failure from a scratch mutation making `validate_bundle` skip the checksum comparison, from one making `url_policy_refusal` drop the no-host check, and from one making `submit_bundle` call `open_url` a second time after a successful send, naming the E-03 (i) test that fails (all reverted afterwards); paste a final empty `git diff agent_workflows/` and a `git status --short` with no coverage data file.
   - Observed evidence:
-  - Result: pending
+    E-03 test cases passed in `-v` run:
+    ```
+    tests/test_run_analytics_submit.py::test_url_policy_refusal_residual_branches PASSED [ 86%]
+    tests/test_run_analytics_submit.py::test_build_restricted_opener_loopback_http_handlers PASSED [ 54%]
+    tests/test_run_analytics_submit.py::test_open_url_reraises_submit_refusal_unchanged PASSED [ 11%]
+    tests/test_run_analytics_submit.py::test_redact_url_unparseable_and_no_scheme PASSED [ 65%]
+    tests/test_run_analytics_submit.py::test_validate_bundle_non_mapping_manifest_and_files PASSED [ 70%]
+    tests/test_run_analytics_submit.py::test_submit_bundle_manifest_missing_returns_refusal_result PASSED [ 88%]
+    tests/test_run_analytics_submit.py::test_submit_bundle_success_path_does_not_double_send PASSED [ 25%]
+    ```
+
+    `--cov=agent_workflows.run_analytics_submit --cov-report=term-missing`:
+    ```
+    Name                                      Stmts   Miss  Cover   Missing
+    -----------------------------------------------------------------------
+    agent_workflows/run_analytics_submit.py     177      0   100%
+    -----------------------------------------------------------------------
+    TOTAL                                       177      0   100%
+    ```
+    100% line coverage achieved; 0 missed lines across all 14 keys.
+
+    `validate_bundle` skip checksum comparison mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_each_validation_failure_class_has_a_code_and_a_remedy[tamper-file-checksum-mismatch]
+    E       Failed: DID NOT RAISE <class 'agent_workflows.run_analytics_submit.SubmitRefusal'>
+    1 failed, 43 passed in 0.55s
+    ```
+
+    `url_policy_refusal` drop no-host check mutation failure:
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_url_policy_refusal_residual_branches
+    E       AssertionError: assert None == 'url has no host'
+    1 failed, 43 passed in 1.05s
+    ```
+
+    `submit_bundle` call `open_url` a second time after successful send mutation failure (E-03 (i) fails):
+    ```
+    FAILED tests/test_run_analytics_submit.py::test_submit_bundle_success_path_does_not_double_send
+    E       AssertionError: assert 2 == 1
+    1 failed, 43 passed in 3.37s
+    ```
+
+    Final empty `git diff agent_workflows/` and clean status:
+    ```
+    git diff agent_workflows/ (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
