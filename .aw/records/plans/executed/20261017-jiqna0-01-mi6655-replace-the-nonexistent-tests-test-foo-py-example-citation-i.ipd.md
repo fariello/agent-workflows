@@ -6,7 +6,7 @@
 - Scope: Replace the single `tests/test_foo.py` example in each of the two developer-facing documents with a real, existing test file (`tests/test_core_tier_selection.py`, the test module that exercises exactly the explicit-path behavior the sentence describes). No code, no tests, no other documents change.
 - Scope-Paths: CONTRIBUTING.md, AGENTS.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: mi6655
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mi6655 verified (set jiqna0, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Readiness go-pending-approval. Review record .aw/records/reviews/20261017-jiqna0-01-mi6655-replace-the-nonexistent-tests-test-foo-py-example-citation-i.review.md
 
@@ -36,21 +36,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the two citations
 
-- [ ] E-01 In `CONTRIBUTING.md`, in the paragraph beginning "`make test` (or bare `python3 -m pytest`) runs the core test tier", replace `python3 -m pytest tests/test_foo.py` with `python3 -m pytest tests/test_core_tier_selection.py`. Change nothing else in the paragraph.
+- [x] E-01 In `CONTRIBUTING.md`, in the paragraph beginning "`make test` (or bare `python3 -m pytest`) runs the core test tier", replace `python3 -m pytest tests/test_foo.py` with `python3 -m pytest tests/test_core_tier_selection.py`. Change nothing else in the paragraph.
   - Depends on: none
   - Expected outcome: `CONTRIBUTING.md` no longer contains `tests/test_foo.py`; the sentence cites `tests/test_core_tier_selection.py`.
-  - Execution state: pending
-- [ ] E-02 In `AGENTS.md`, in the repo-local "Repository development contract" section (BELOW the `<!-- /aw:block -->` marker), in the paragraph beginning "HOW TO RUN THE SUITE: run the routine gate BARE", replace `python3 -m pytest tests/test_foo.py` with `python3 -m pytest tests/test_core_tier_selection.py`. Do not touch any text inside the managed `<!-- aw:block -->` region.
+  - Execution state: performed
+- [x] E-02 In `AGENTS.md`, in the repo-local "Repository development contract" section (BELOW the `<!-- /aw:block -->` marker), in the paragraph beginning "HOW TO RUN THE SUITE: run the routine gate BARE", replace `python3 -m pytest tests/test_foo.py` with `python3 -m pytest tests/test_core_tier_selection.py`. Do not touch any text inside the managed `<!-- aw:block -->` region.
   - Depends on: none
   - Expected outcome: `AGENTS.md` no longer contains `tests/test_foo.py`; the sentence cites `tests/test_core_tier_selection.py`; the managed block is byte-identical to before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Demonstrate the example now works
 
-- [ ] E-03 Run the corrected example command `python3 -m pytest tests/test_core_tier_selection.py` and the routine gate `python3 -m pytest`, capturing the summary lines.
+- [x] E-03 Run the corrected example command `python3 -m pytest tests/test_core_tier_selection.py` and the routine gate `python3 -m pytest`, capturing the summary lines.
   - Depends on: E-01, E-02
   - Expected outcome: the example command collects and runs tests (no "file or directory not found"), and the routine gate passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,18 +111,66 @@ The change is itself a documentation fix to CONTRIBUTING.md and AGENTS.md. No sp
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `rg -n "test_foo|test_core_tier_selection" CONTRIBUTING.md` showing zero `test_foo` matches and one `test_core_tier_selection` match, plus pasted `git diff -- CONTRIBUTING.md` showing a single-line change limited to the path token.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ~~~
+    $ rg -n "test_foo|test_core_tier_selection" CONTRIBUTING.md
+    148:`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. The budget is not enforced when the 1-minute load average exceeds the CPU count, and the budget banner prints the measured load. Running an explicit path (e.g. `python3 -m pytest tests/test_core_tier_selection.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
+
+    $ git diff -- CONTRIBUTING.md
+    diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+    index 9cf84c384..5623c6b52 100644
+    --- a/CONTRIBUTING.md
+    +++ b/CONTRIBUTING.md
+    @@ -145,7 +145,7 @@ layout migration, pypi_links) or the workflow tools (`scan_secrets.py`, `run_che
+     make test
+     ```
+
+    -`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. The budget is not enforced when the 1-minute load average exceeds the CPU count, and the budget banner prints the measured load. Running an explicit path (e.g. `python3 -m pytest tests/test_foo.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
+    +`make test` (or bare `python3 -m pytest`) runs the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. The budget is not enforced when the 1-minute load average exceeds the CPU count, and the budget banner prints the measured load. Running an explicit path (e.g. `python3 -m pytest tests/test_core_tier_selection.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). Install the test dependencies with `pip install '.[test]'`.
+
+
+     If you need the guaranteed no-dependency serial runner (for a minimal environment, or to
+    ~~~
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `rg -n "test_foo|test_core_tier_selection" AGENTS.md` showing zero `test_foo` matches and one `test_core_tier_selection` match located after the `<!-- /aw:block -->` line, plus pasted `git diff -- AGENTS.md` showing a single-line change limited to the path token.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    ~~~
+    $ rg -n "test_foo|test_core_tier_selection" AGENTS.md
+    304:HOW TO RUN THE SUITE: run the routine gate BARE, as `python3 -m pytest` (or `make test`). The root `conftest.py` hook selects the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. Running an explicit path (e.g. `python3 -m pytest tests/test_core_tier_selection.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). `addopts` supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. The xdist auto hook caps all runs at six workers and half the available CPUs. Do NOT pass another `-q`, which hides the `N passed` summary line this contract requires you to paste, or `-p no:randomly`, which disables order randomization. For per-test counts from a narrowed run, clear the defaults with `python3 -m pytest -o addopts=""`.
+
+    $ git diff -- AGENTS.md
+    diff --git a/AGENTS.md b/AGENTS.md
+    index 54bb990d4..388fe80c0 100644
+    --- a/AGENTS.md
+    +++ b/AGENTS.md
+    @@ -301,7 +301,7 @@ THIS SECTION IS REPO-LOCAL AND MUST NOT BE INSTALLED INTO A MANAGED TARGET REPO.
+     deliberately BELOW the `<!-- /aw:block -->` marker, outside every managed block, because it contains
+     developer rules and contracts specific to the agent-workflows repository itself.
+
+    -HOW TO RUN THE SUITE: run the routine gate BARE, as `python3 -m pytest` (or `make test`). The root `conftest.py` hook selects the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. Running an explicit path (e.g. `python3 -m pytest tests/test_foo.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). `addopts` supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. The xdist auto hook caps all runs at six workers and half the available CPUs. Do NOT pass another `-q`, which hides the `N passed` summary line this contract requires you to paste, or `-p no:randomly`, which disables order randomization. For per-test counts from a narrowed run, clear the defaults with `python3 -m pytest -o addopts=""`.
+    +HOW TO RUN THE SUITE: run the routine gate BARE, as `python3 -m pytest` (or `make test`). The root `conftest.py` hook selects the core test tier (budgeted under 30s wall time on 6 workers) that covers every first-party module and declared leaf command. The core tier is the runner merge gate. Running an explicit path (e.g. `python3 -m pytest tests/test_core_tier_selection.py` or `python3 -m pytest tests/`) runs everything non-slow in that path without marker deselection. Run `make test-all` or `aw suite --thorough` for the thorough tier (used before git push, in CI, and before release). `addopts` supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. The xdist auto hook caps all runs at six workers and half the available CPUs. Do NOT pass another `-q`, which hides the `N passed` summary line this contract requires you to paste, or `-p no:randomly`, which disables order randomization. For per-test counts from a narrowed run, clear the defaults with `python3 -m pytest -o addopts=""`.
+
+     ### Repository execution references
+     - Release review and tags: Never create or push a git tag, a GitHub Release, or a registry/PyPI upload except inside release-review Section 9 after an explicit human GO (see `RELEASING.md`); no ad-hoc `git tag` or `git push --follow-tags`. See `CONTRIBUTING.md` and the .aw/records/plans README for detail.
+    ~~~
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest summary line from `python3 -m pytest tests/test_core_tier_selection.py` showing tests collected and passed (no "file or directory not found"), the pasted `N passed` summary line from bare `python3 -m pytest`, and pasted `aw sanitize --agent` result record.
   - Observed evidence:
-  - Result: pending
+    ~~~
+    $ python3 -m pytest tests/test_core_tier_selection.py
+    11 passed in 6.85s
+
+    $ python3 -m pytest
+    969 passed in 109.72s (0:01:49)
+
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5881,"findings":0,"evidence":["leak-scan"],"next":null}
+    ~~~
+  - Result: pass
 
 ## Approval and execution gate
 
