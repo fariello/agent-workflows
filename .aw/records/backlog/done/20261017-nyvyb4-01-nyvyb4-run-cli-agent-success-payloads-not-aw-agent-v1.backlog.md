@@ -1,5 +1,5 @@
 - Id: nyvyb4
-- Status: graduated
+- Status: done
 - Graduated-To: nyvyb4
 - Set: nyvyb4
 - Priority: low
@@ -7,5 +7,6 @@
 - Summary: run_cli --agent SUCCESS payloads on aw run/aw runs leaves (status, show, next, resume, evidence, verify-ledger, decisions, questions, record, cancel, finalize, verify) are bare dicts, not aw.agent/v1 records, and ignore --fields; jndec6 converts only error payloads
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw agy run: IPD 2jzld4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-nyvyb4-01-2jzld4-run-cli-agent-success-payloads-become-aw-agent-v1-result-rec.ipd.md); evidence .aw/records/plans/executed/20261017-nyvyb4-01-2jzld4-run-cli-agent-success-payloads-become-aw-agent-v1-result-rec.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T153208Z-3336986: 2jzld4
 - 2026-10-17 created (aw backlog): run_cli --agent SUCCESS payloads on aw run/aw runs leaves (status, show, next, resume, evidence, verify-ledger, decisions, questions, record, cancel, finalize, verify) are bare dicts, not aw.agent/v1 records, and ignore --fields; jndec6 converts only error payloads
