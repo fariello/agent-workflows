@@ -6,7 +6,7 @@
 - Scope: Add one new behavioral test module that drives each of the three runner seams against a throwaway git fixture repository whose only test passes but always overruns a deliberately tiny core-tier budget, asserting the seam reports green with the budget at its default (unset) enforcement, plus a positive control per seam proving the fixture really trips the budget when enforcement is explicitly requested (so the green results are not vacuous). It does NOT change production code, the 30s budget value, core-marker membership, the bare-`pytest` enforcement rule (carried by plan `44nfmd`), or the send-back wording (also `44nfmd`).
 - Scope-Paths: tests/test_runner_seams_core_budget.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: t54fet
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t54fet verified (set m8d13e, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
