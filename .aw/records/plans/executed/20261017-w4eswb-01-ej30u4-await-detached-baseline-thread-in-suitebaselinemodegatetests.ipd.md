@@ -5,8 +5,9 @@
 - Concern: test suite baseline mode gate timeout under xdist CPU contention
 - Scope: tests/test_suite_baseline_mode_gate.py
 - Scope-Paths: tests/test_suite_baseline_mode_gate.py
+- Scope-Exceeded: .aw/records/backlog/open/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md (defect-report contract requires a durable backlog carrier for the unrelated load-sensitive test_core_tier_selection failure observed twice in this plan's required routine gate run recording only, no c...)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +17,9 @@
 - Highest E allocated: 02
 - Author: Gabriele Fariello <gabriele.fariello@gmail.com>
 - Id: ej30u4
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: ej30u4 verified (set w4eswb, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md: defect-report contract requires a durable backlog carrier for the unrelated load-sensitive test_core_tier_selection failure observed twice in this plan's required routine gate run; recording only, no code change]
 - 2026-10-18 approved (aw set): status set to approved
 
 - 2026-10-18 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
@@ -35,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Test harness synchronization and unquarantine
 
-- [ ] E-01 In `tests/test_suite_baseline_mode_gate.py`:
+- [x] E-01 In `tests/test_suite_baseline_mode_gate.py`:
   1. Update `SuiteBaselineModeGateTests._fake_oc_agent_commits_in_worktree` to accept an optional `active_baselines: list[runner_shared.SuiteBaselineRun] | None = None` parameter and remove `time.sleep(0.05)` (and its "Short yield" comment), instead iterating over `active_baselines or []` and joining each baseline's `_drain` thread with a bounded timeout (`b_run._drain.join(timeout=10.0)`). Callers that pass nothing (`test_validation_on_skips_suite_baseline`) then wait for nothing.
   2. In `SuiteBaselineModeGateTests.test_validation_off_starts_and_collects_suite_baseline`:
      - Remove the `@pytest.mark.xfail(strict=False, reason="flaky: w4eswb - timing out under xdist CPU contention")` quarantine decorator.
@@ -44,14 +45,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   3. Remove the `import time` and `import pytest` lines, which become unused once the sleep and the only `pytest.` reference (the `xfail` decorator, line 187) are gone; leaving them makes the pre-commit `ruff --fix` hook (`.pre-commit-config.yaml`, `id: ruff`) rewrite the file and reject the first commit attempt (ruff `F401`, measured at review on a scratch copy).
   - Depends on: none
   - Expected outcome: `test_validation_off_starts_and_collects_suite_baseline` waits on the baseline's own drain thread instead of a fixed sleep, so its `state: "completed"` assertion no longer depends on the child process finishing within 50ms; the quarantine decorator and the now-unused imports are removed.
-  - Execution state: pending
-- [ ] E-02 Validate behavior and determinism:
+  - Execution state: performed
+- [x] E-02 Validate behavior and determinism:
   1. Run the edited file under xdist: `python3 -m pytest tests/test_suite_baseline_mode_gate.py -o addopts="" -n 6 -v` and confirm every test in the file reports `PASSED`, with no `XFAIL`, `XPASS`, or `FAILED` line (re-derive the test list from this run; do not compare against a count measured at authoring).
   2. Contrast probe proving the wait is what makes the test deterministic (scratch only, NEVER committed): copy the edited test file to a gitignored scratch path under `.aw/state/` (for example `.aw/state/ej30u4-probe/`), change only the baseline child argv in the copy from `"print('1 passed')"` to `"import time; time.sleep(1.5); print('1 passed')"` (a deliberately slow child far beyond the old 50ms yield), and run `PYTHONPATH=. python3 -m pytest -o addopts="" -p no:cacheprovider <copy> -k validation_off -v`. It must `PASS`. Then make a second scratch copy of the PRE-change file (from `git show <base>:tests/test_suite_baseline_mode_gate.py`, where `<base>` is the commit before E-01's change: `HEAD` if E-01 is not yet committed, otherwise `HEAD~1` of the E-01 commit) with the same argv change and the `xfail` decorator removed, run it the same way, and confirm it FAILS with `AssertionError: 'absent' != 'completed'`. Delete the scratch directory afterwards.
   3. Run the routine gate bare, `python3 -m pytest`, and confirm it reports no failures.
   - Depends on: E-01
   - Expected outcome: the edited file passes under xdist with no xfail/xpass; the slowed-child contrast shows the new wait passes where the old fixed sleep reports `absent`; the routine gate is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,14 +111,20 @@ N/A: test harness fix for existing integration test; no user-facing specificatio
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff tests/test_suite_baseline_mode_gate.py` showing: removal of the `@pytest.mark.xfail` quarantine decorator; replacement of `time.sleep(0.05)` with the `active_baselines` `_drain.join(timeout=10.0)` loop; the `tracking_start` wrapper calling the `original_start` captured before patching and installed via `mock.patch.object(runner_shared, "start_suite_baseline", side_effect=tracking_start)`; and removal of the `import time` / `import pytest` lines. Also paste `ruff check tests/test_suite_baseline_mode_gate.py` output showing no `F401`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: commit 260a6aad4 (`git show 260a6aad4 -- tests/test_suite_baseline_mode_gate.py`) shows: `-import time` and `-import pytest` removed; `-    @pytest.mark.xfail(` / `strict=False,` / `reason="flaky: w4eswb - timing out under xdist CPU contention",` removed; `-            # Short yield so fast detached baseline processes complete before collection` / `-            time.sleep(0.05)` replaced by `+            for b_run in active_baselines or []:` / `+                b_run._drain.join(timeout=10.0)`; helper signature `+        active_baselines: list[runner_shared.SuiteBaselineRun] | None = None,`; `+            original_start = runner_shared.start_suite_baseline` and `+            def tracking_start(*args, **kwargs):` / `+                run, absent = original_start(*args, **kwargs)`; `+                mock.patch.object(` / `+                    runner_shared, "start_suite_baseline", side_effect=tracking_start`. `ruff check tests/test_suite_baseline_mode_gate.py`: `Found 2 errors.`, both `RUF015 Prefer next(...) over single element slice` at unchanged lines 173 and 247 (pre-existing), no `F401`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: (1) paste every per-test result line plus the summary line of `python3 -m pytest tests/test_suite_baseline_mode_gate.py -o addopts="" -n 6 -v`, showing each test `PASSED` and no `XFAIL`/`XPASS`/`FAILED`; (2) paste the `-k validation_off` result line and summary for BOTH slowed-child scratch copies from E-02 step 2: the edited copy `PASSED`, the pre-change copy `FAILED` with the `AssertionError: 'absent' != 'completed'` line, and `git status --short` afterwards showing no scratch file tracked; (3) paste the summary line of the bare routine gate `python3 -m pytest` showing no failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (1) `python3 -m pytest tests/test_suite_baseline_mode_gate.py -o addopts="" -n 6 -v`:
+    `[gw0] [ 66%] PASSED tests/test_suite_baseline_mode_gate.py::SuiteBaselineModeGateTests::test_validation_on_skips_suite_baseline`
+    `[gw1] [100%] PASSED tests/test_suite_baseline_mode_gate.py::SuiteBaselineModeGateTests::test_validation_off_starts_and_collects_suite_baseline`
+    (third test `test_attempt_validates_five_shapes` PASSED at 33%, line above the tail shown)
+    `============================== 3 passed in 17.62s ==============================` (no XFAIL/XPASS/FAILED).
+    (2) Slowed-child probe in gitignored `.aw/state/ej30u4-probe/` (`git check-ignore` confirmed): edited copy `.aw/state/ej30u4-probe/test_probe_new.py::SuiteBaselineModeGateTests::test_validation_off_starts_and_collects_suite_baseline PASSED [100%]` / `1 passed, 2 deselected in 4.21s`; pre-change copy (`git show HEAD:` before E-01 commit, xfail removed) `.aw/state/ej30u4-probe/test_probe_old.py::SuiteBaselineModeGateTests::test_validation_off_starts_and_collects_suite_baseline FAILED [100%]` with `E           AssertionError: 'absent' != 'completed'` / `1 failed, 2 deselected in 3.55s`. Scratch dir deleted; `git status --short` afterwards: ` M tests/test_suite_baseline_mode_gate.py` only (no scratch file).
+    (3) Bare routine gate `python3 -m pytest`: first run under host load reported `3 failed, 1662 passed, 11 warnings in 358.02s` (all in `tests/test_core_tier_selection.py`: `test_gate_suite_passes_an_all_green_over_budget_tree[subprocess]`, `[run-evidence]`, `test_gate_suite_honors_explicit_enforce`; unrelated to this file, filed as backlog twz0tw); those 3 passed in isolation (`3 passed, 8 deselected in 240.87s`); rerun of the bare gate: `1665 passed, 11 warnings in 36.27s`.
+  - Result: pass
 
 ## Approval and execution gate
 

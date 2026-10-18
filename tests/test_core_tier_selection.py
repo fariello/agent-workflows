@@ -294,8 +294,15 @@ def test_budget_exceeded_unparseable_load_fails(temp_project: Path) -> None:
     assert "Core tier budget not enforced:" not in combined
 
 
-def _gate_env(**overrides: str) -> dict[str, str]:
-    env = _clean_env(AW_CORE_BUDGET_SECONDS="0.01", AW_TEST_CPU_COUNT="12")
+def _gate_env(lock_dir: Path, **overrides: str) -> dict[str, str]:
+    # `run_full_suite` acquires a machine-wide test-suite slot. Point it at a private lock
+    # directory so these tests never wait on slots held by the enclosing suite or peer drivers
+    # (backlog twz0tw: with every real slot busy the wait outlived the 240s hang guard).
+    env = _clean_env(
+        AW_CORE_BUDGET_SECONDS="0.01",
+        AW_TEST_CPU_COUNT="12",
+        AW_SUITE_LOCK_DIR=str(lock_dir),
+    )
     env.pop("AW_CORE_BUDGET_ENFORCE", None)
     env.pop("AW_SUITE_SLOT_HELD", None)
     env.update(overrides)
@@ -317,7 +324,7 @@ def test_gate_suite_passes_an_all_green_over_budget_tree(
     """
     from agent_workflows import suite_cache
 
-    for k, v in _gate_env().items():
+    for k, v in _gate_env(temp_project / ".suite-locks").items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("AW_CORE_BUDGET_ENFORCE", raising=False)
     monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
@@ -346,7 +353,7 @@ def test_gate_suite_honors_explicit_enforce(
         temp_project,
         argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
         use_cache=False,
-        env=_gate_env(AW_CORE_BUDGET_ENFORCE="1"),
+        env=_gate_env(temp_project / ".suite-locks", AW_CORE_BUDGET_ENFORCE="1"),
     )
     assert not res.passed
     assert res.exit_code == 1
