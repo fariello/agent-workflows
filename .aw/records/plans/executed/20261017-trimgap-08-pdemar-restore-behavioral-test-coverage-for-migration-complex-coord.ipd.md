@@ -6,7 +6,7 @@
 - Scope: Restore ONE behavioral test module at its original path, `tests/test_migration_complex.py`, mined from `19313eed^:tests/test_migration_complex.py`, marked `core` so the routine gate reaches it; adapt the ONE recovered test broken by the later `kmmoca` change (`authorize_release` now requires a `readiness_report`, commit `a6c676874`); and extend it where the deleted file reached a key without asserting its result (`run_fix_bar`/`disposition_all` return value, `rollback` return value, `OperatorDatum.to_dict` via `build_artifact()["data"]`, and the `authorize_release` readiness refusal branches). It drives all 40 keys named in `x62jok`/`b1mx2w`: `fix_bar`, `IssueLedger.add`, `IssueLedger.disposition_all`, `IssueLedger.undispositioned`, `IssueLedger.personas_covered`, `ReleaseReviewCoordinator.__post_init__`, `ReleaseReviewCoordinator.enter_stage`, `ReleaseReviewCoordinator.stages_entered`, `ReleaseReviewCoordinator.run_fix_bar`, `ReleaseReviewCoordinator.integrate_fixes`, `ReleaseReviewCoordinator.authorize_release`, `ReleaseReviewCoordinator.can_finalize`, `detect_mode_drift`, `DiffInspection.out_of_scope_paths`, `DiffInspection.failed_checks`, `DiffInspection.is_clean`, `VerifyExecutionCoordinator.verify`, `VerifyExecutionCoordinator.can_mark_executed`, `VerifyExecutionCoordinator.mark_executed`, `AssessAllCoordinator.lanes`, `AssessAllCoordinator.eligibility`, `AssessAllCoordinator.assert_lanes_read_only`, `AssessAllCoordinator.claim_synthesis_writer`, `AssessAllCoordinator.synthesize`, `SetupRepoStateMachine.preflight`, `SetupRepoStateMachine.apply_change`, `SetupRepoStateMachine.rollback`, `OperatorDatum.__post_init__`, `OperatorDatum.is_labeled_unavailable`, `OperatorDatum.is_operator_owned`, `OperatorDatum.to_dict`, `RiskAwarePackage.add_datum`, `RiskAwarePackage.unavailable_data`, `RiskAwarePackage.consent_gate`, `RiskAwarePackage.assert_supportable_claim`, `RiskAwarePackage.build_artifact`, `build_incident_package`, `build_migrate_package`, `build_benchmark_package`, `assert_commands_in_manifest`. EXCLUDES any change to `agent_workflows/migration_complex.py` or any other production file; EXCLUDES asserting contracts of the non-`migration_complex` keys the same deleted file also reached (`run_gates.evaluate_gate`, `run_gates.GateDecision.is_approved`, `run_freeze.diff_requirements`, `run_state.is_legal_edge`, `orchestrate_isolation.analyze_concurrency_eligibility`, `verify_roles.check_role_action`, `verify_roles.check_self_verification`), which other `trimgap` items own; EXCLUDES core-marking or editing `tests/test_release_review_readiness.py`, which is a separate file with its own tier decision.
 - Scope-Paths: tests/test_migration_complex.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: pdemar
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: pdemar verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 
@@ -35,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restored behavioral test module
 
-- [ ] E-01 Create `tests/test_migration_complex.py` from `git show 19313eed^:tests/test_migration_complex.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `x62jok`, findings `b1mx2w`, plan `pdemar`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). No subprocess, no filesystem writes: the only tree read is `assert_commands_in_manifest(SOURCE_WORKFLOWS)` over the in-repo workflows. Disposition rule if a recovered test OTHER than the one E-02 adapts fails at execution HEAD (none did at authoring, F-02, nor at review, F-06): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Create `tests/test_migration_complex.py` from `git show 19313eed^:tests/test_migration_complex.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `x62jok`, findings `b1mx2w`, plan `pdemar`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). No subprocess, no filesystem writes: the only tree read is `assert_commands_in_manifest(SOURCE_WORKFLOWS)` over the in-repo workflows. Disposition rule if a recovered test OTHER than the one E-02 adapts fails at execution HEAD (none did at authoring, F-02, nor at review, F-06): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists and is selected by a bare `python3 -m pytest` (it carries the `core` marker); every recovered test passes except the consent-gate table E-02 adapts (one failure at authoring and review, re-derived at execution).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Adapt `TheHumanConsentGate.test_no_handler_clears_either_gate_except_an_explicit_approval` to the `kmmoca` signature: add `from agent_workflows import release_readiness as RR` and a module-level helper returning `RR.ReleaseReadinessReport(gates=(RR.GateResult(name="full_suite", passed=True, detail="ok"),))`, and pass it as `readiness_report=` on the `authorize_release` surface ONLY (the `consent_gate` surface takes no such argument and must keep its recovered kwargs). Do not relax any row: headless must still raise naming `needs_input`, reject naming `rejected`, abort naming `aborted`, and approve must return `status == "approved"` with `is_approved` True. Add one sentence to the class docstring saying the clean report isolates the HUMAN gate from the readiness gates, which E-03 covers.
+- [x] E-02 Adapt `TheHumanConsentGate.test_no_handler_clears_either_gate_except_an_explicit_approval` to the `kmmoca` signature: add `from agent_workflows import release_readiness as RR` and a module-level helper returning `RR.ReleaseReadinessReport(gates=(RR.GateResult(name="full_suite", passed=True, detail="ok"),))`, and pass it as `readiness_report=` on the `authorize_release` surface ONLY (the `consent_gate` surface takes no such argument and must keep its recovered kwargs). Do not relax any row: headless must still raise naming `needs_input`, reject naming `rejected`, abort naming `aborted`, and approve must return `status == "approved"` with `is_approved` True. Add one sentence to the class docstring saying the clean report isolates the HUMAN gate from the readiness gates, which E-03 covers.
   - Depends on: E-01
   - Expected outcome: all 30 recovered tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD a table-driven test class `ReleaseReadinessRefusals` covering the `authorize_release` readiness branches with `input_handler` returning `"approve"` and `interactive=True` on a fresh `ReleaseReviewCoordinator(mode=RELEASE_MODE_FULL)` per row, each row a list of `RR.GateResult` plus `waived_standing_gates`, and the expected outcome: no report (`readiness_report=None`) raises `ReleaseAuthorityError` containing `no Section 9 readiness report supplied`; waiving `full_suite` raises containing `cannot be waived`; a failing applicable `full_suite` raises containing `hard gate failure(s): full_suite`; a NOT-applicable `full_suite` raises containing `hard gate failure(s): full_suite`; `full_suite` passing plus a NOT-applicable `residual_risk` raises containing `hard gate failure(s): residual_risk` (both are `READINESS_INPUT_REQUIRED_GATES`, so absence of the attestation input is a hard failure, F-06); `full_suite` passing plus failing `residual_risk` raises containing `residual_risk gate is unsigned`; `full_suite` passing plus failing `ipd_lint` unwaived raises containing `unwaived standing gate failure(s): ipd_lint`; the same with `waived_standing_gates=("ipd_lint",)` returns a decision with `status == "approved"`; `full_suite` passing plus a NOT-applicable `leak_scan` returns `status == "approved"`. The approval rows are what make the refusal rows non-vacuous; say so in the failure message.
+- [x] E-03 ADD a table-driven test class `ReleaseReadinessRefusals` covering the `authorize_release` readiness branches with `input_handler` returning `"approve"` and `interactive=True` on a fresh `ReleaseReviewCoordinator(mode=RELEASE_MODE_FULL)` per row, each row a list of `RR.GateResult` plus `waived_standing_gates`, and the expected outcome: no report (`readiness_report=None`) raises `ReleaseAuthorityError` containing `no Section 9 readiness report supplied`; waiving `full_suite` raises containing `cannot be waived`; a failing applicable `full_suite` raises containing `hard gate failure(s): full_suite`; a NOT-applicable `full_suite` raises containing `hard gate failure(s): full_suite`; `full_suite` passing plus a NOT-applicable `residual_risk` raises containing `hard gate failure(s): residual_risk` (both are `READINESS_INPUT_REQUIRED_GATES`, so absence of the attestation input is a hard failure, F-06); `full_suite` passing plus failing `residual_risk` raises containing `residual_risk gate is unsigned`; `full_suite` passing plus failing `ipd_lint` unwaived raises containing `unwaived standing gate failure(s): ipd_lint`; the same with `waived_standing_gates=("ipd_lint",)` returns a decision with `status == "approved"`; `full_suite` passing plus a NOT-applicable `leak_scan` returns `status == "approved"`. The approval rows are what make the refusal rows non-vacuous; say so in the failure message.
   - Depends on: E-02
   - Expected outcome: all rows pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD result assertions where the recovered file reaches a key without checking its return value: in a new `ReturnedValuesAreTheState` class, (a) after adding two findings (`low`/not integrity and `high`/integrity) to a full-mode coordinator's ledger, `run_fix_bar()` returns a list equal to `c.ledger.findings` whose dispositions are the literal strings `"fix-now"` and `"escalate"` respectively (literals, as the recovered Fix Bar table already uses, so a rename of the emitted value fails); (b) after `preflight()` and approving changes `c1` then `c2`, `rollback()` returns `("c2", "c1")` and equals `tuple(sm.rolled_back)`; (c) a migrate package with `OperatorDatum(key="prod_schema", provenance=PROVENANCE_UNAVAILABLE)` builds an artifact whose `data` equals `[{"key": "prod_schema", "provenance": "operator-data-unavailable", "value": None}]` and whose `operator_data_unavailable` equals `["prod_schema"]`. Use the module's own constants (`MC.PROVENANCE_UNAVAILABLE`) for INPUTS and literal strings for every EMITTED value (dispositions, `provenance`), so a rename of an emitted value fails. Item (c) is the one that matters most: `OperatorDatum.to_dict` mutated to `return None` SURVIVES the recovered file (F-06), and (c) is what kills it.
+- [x] E-04 ADD result assertions where the recovered file reaches a key without checking its return value: in a new `ReturnedValuesAreTheState` class, (a) after adding two findings (`low`/not integrity and `high`/integrity) to a full-mode coordinator's ledger, `run_fix_bar()` returns a list equal to `c.ledger.findings` whose dispositions are the literal strings `"fix-now"` and `"escalate"` respectively (literals, as the recovered Fix Bar table already uses, so a rename of the emitted value fails); (b) after `preflight()` and approving changes `c1` then `c2`, `rollback()` returns `("c2", "c1")` and equals `tuple(sm.rolled_back)`; (c) a migrate package with `OperatorDatum(key="prod_schema", provenance=PROVENANCE_UNAVAILABLE)` builds an artifact whose `data` equals `[{"key": "prod_schema", "provenance": "operator-data-unavailable", "value": None}]` and whose `operator_data_unavailable` equals `["prod_schema"]`. Use the module's own constants (`MC.PROVENANCE_UNAVAILABLE`) for INPUTS and literal strings for every EMITTED value (dispositions, `provenance`), so a rename of an emitted value fails. Item (c) is the one that matters most: `OperatorDatum.to_dict` mutated to `return None` SURVIVES the recovered file (F-06), and (c) is what kills it.
   - Depends on: E-01
   - Expected outcome: all added assertions pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: proof that every key is guarded
 
-- [ ] E-05 Run the full 40-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/migration_complex.py::*`, apply that row's assigned operator (`return-none`, `return-false`, `negate-return`, `raise`) as a scratch edit to `agent_workflows/migration_complex.py` at the top of the key's body, run `python3 -m pytest tests/test_migration_complex.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script outside Scope-Paths in a gitignored scratch location (for example `.aw/state/`) and do not commit it. Then run the reach command in Required tests. A survivor is a defect in this plan's deliverable: add the missing assertion to `tests/test_migration_complex.py` and re-sweep that key; do not mark this item performed with a survivor outstanding.
+- [x] E-05 Run the full 40-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/migration_complex.py::*`, apply that row's assigned operator (`return-none`, `return-false`, `negate-return`, `raise`) as a scratch edit to `agent_workflows/migration_complex.py` at the top of the key's body, run `python3 -m pytest tests/test_migration_complex.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script outside Scope-Paths in a gitignored scratch location (for example `.aw/state/`) and do not commit it. Then run the reach command in Required tests. A survivor is a defect in this plan's deliverable: add the missing assertion to `tests/test_migration_complex.py` and re-sweep that key; do not mark this item performed with a survivor outstanding.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: every one of the 40 keys is KILLED by its assigned operator (at review, against the recovered file plus the E-02 adaptation, 39 were killed and `OperatorDatum.to_dict@return-none` survived, F-06; E-04(c) closes it); `git diff agent_workflows/` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -134,30 +134,188 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` showing only `tests/test_migration_complex.py` added; paste the `tests/test_migration_complex.py: N` line from bare `python3 -m pytest --collect-only -q` (the core selection prints one `path: N` line per file, so `rg -c` would print 1, not N), with N matching the per-test list of the Required tests `-v` run; paste the bare `python3 -m pytest` summary line showing it passed. If the run prints `CORE TIER BUDGET EXCEEDED`, paste that too and the same run's line without the module, and report it rather than un-marking tests (a pre-existing overrun is tracked separately, backlog `o58dro`).
   - Observed evidence:
-  - Result: pending
+    `git status --short` before commit:
+    ```
+    ?? tests/test_migration_complex.py
+    ```
+    `python3 -m pytest --collect-only -q | grep "test_migration_complex.py"`:
+    ```
+    tests/test_migration_complex.py: 34
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    1247 passed in 34.13s
+    ```
+    `CORE TIER BUDGET EXCEEDED` output:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 34.13s exceeded budget of 30.00s.
+    Host 1-minute load average: 9.36 on 12 CPUs
+    Top 10 slowest core tests:
+       1.   7.29s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       2.   6.25s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       3.   5.79s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       4.   3.99s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       5.   3.89s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       6.   3.70s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       7.   3.14s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       8.   2.55s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+       9.   2.24s  tests/test_ipd_lint.py::ReadinessAttestationTests::test_every_readiness_carrying_plan_in_the_tree_is_attested
+      10.   2.09s  tests/test_status_set.py::TestScopePathCitationRewriteSetter::test_g_setter_spellings_rewrite_citing_pending_plan_and_skip_receipt_plan
+    ===========================================================================================
+    ```
+    Baseline run without the module (`python3 -m pytest --ignore=tests/test_migration_complex.py`):
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 30.86s exceeded budget of 30.00s.
+    Host 1-minute load average: 10.26 on 12 CPUs
+    ...
+    1213 passed in 30.86s
+    ```
+    The core budget overrun is pre-existing and tracked separately in backlog `o58dro`; `tests/test_migration_complex.py` runs in ~0.5s and is not in the slowest core tests.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing `test_no_handler_clears_either_gate_except_an_explicit_approval` and `test_the_status_vocabulary_is_the_shared_one` as PASSED; paste the failure produced by scratch-mutating `RiskAwarePackage.consent_gate` to `return None` and the failure produced by scratch-mutating `authorize_release`'s final `if not decision.is_approved:` to `if False:` (headless row must then fail), each reverted afterwards.
   - Observed evidence:
-  - Result: pending
+    Pytest -v output for TheHumanConsentGate:
+    ```
+    tests/test_migration_complex.py::TheHumanConsentGate::test_no_handler_clears_either_gate_except_an_explicit_approval PASSED [ 50%]
+    tests/test_migration_complex.py::TheHumanConsentGate::test_the_status_vocabulary_is_the_shared_one PASSED [100%]
+    ```
+    Failure on scratch mutation of `RiskAwarePackage.consent_gate` to `return None`:
+    ```
+    FAILED tests/test_migration_complex.py::TheHumanConsentGate::test_no_handler_clears_either_gate_except_an_explicit_approval
+    >           if gate_decision.status != expected_status:
+    E           AttributeError: 'NoneType' object has no attribute 'status'
+    tests/test_migration_complex.py:714: AttributeError
+    ```
+    Failure on scratch mutation of `authorize_release` final check `if not decision.is_approved:` to `if False:` (headless row fails):
+    ```
+    FAILED tests/test_migration_complex.py::TheHumanConsentGate::test_no_handler_clears_either_gate_except_an_explicit_approval
+    E       AssertionError: Lists differ: ["  headless, with no human present at all[1345 chars]sed"] != []
+    E       First extra element 0:
+    E       "  headless, with no human present at all:\n    - `authorize_release` RETURNED a decision ('needs_input') where it must raise: a release is irreversible, so a caller must not be able to ignore the refusal\n    this row exists because: THE HEADLESS REFUSAL, which is the most important row for an unattended run: with nobody to ask, the gate must STOP at `needs_input` rather than assume. A gate that defaulted to approval here would ship a release, or run a destructive benchmark, that no human ever authorized"
+    ```
+    Both mutations reverted; `git diff agent_workflows/` verified empty.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every `ReleaseReadinessRefusals` test as PASSED; paste the failure produced by scratch-mutating `authorize_release` so the `if hard_failures:` refusal is skipped (`if False:`), each reverted afterwards.
   - Observed evidence:
-  - Result: pending
+    Pytest -v output for ReleaseReadinessRefusals:
+    ```
+    tests/test_migration_complex.py::ReleaseReadinessRefusals::test_authorize_release_readiness_branches_refuse_or_approve PASSED [100%]
+    ```
+    Failure on scratch mutation skipping `if hard_failures:` (`if False:`):
+    ```
+    FAILED tests/test_migration_complex.py::ReleaseReadinessRefusals::test_authorize_release_readiness_branches_refuse_or_approve
+    E       AssertionError: Lists differ: ["  failing applicable full_suite: returne[563 chars]re)"] != []
+    E       First extra element 0:
+    E       "  failing applicable full_suite: returned status 'approved' where it must raise containing 'hard gate failure(s): full_suite' (a failing hard gate refuses release)"
+    E         failing applicable full_suite: returned status 'approved' where it must raise containing 'hard gate failure(s): full_suite' (a failing hard gate refuses release)
+    E         not-applicable full_suite: returned status 'approved' where it must raise containing 'hard gate failure(s): full_suite' (full_suite is input-required so absence of attestation is treated as hard failure)
+    E         full_suite passing plus not-applicable residual_risk: returned status 'approved' where it must raise containing 'hard gate failure(s): residual_risk' (residual_risk is input-required so not-applicable is treated as hard failure)
+    ```
+    Mutation reverted; `git diff agent_workflows/` verified empty.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing every `ReturnedValuesAreTheState` test as PASSED; paste the failures produced by scratch-mutating `SetupRepoStateMachine.rollback` to `return None`, `OperatorDatum.to_dict` to `return None` (its `b1mx2w` operator, which the recovered file alone does not kill) and to `return {}`, and `IssueLedger.disposition_all`'s emitted disposition literal (for example `DISPOSITION_ESCALATE` temporarily reassigned to `"escalated"`), each reverted afterwards, with a `ReturnedValuesAreTheState` test among the failures in each case.
   - Observed evidence:
-  - Result: pending
+    Pytest -v output for ReturnedValuesAreTheState:
+    ```
+    tests/test_migration_complex.py::ReturnedValuesAreTheState::test_setup_repo_rollback_returns_changes_in_reverse_order PASSED [ 33%]
+    tests/test_migration_complex.py::ReturnedValuesAreTheState::test_migrate_package_build_artifact_returns_operator_datum_data PASSED [ 66%]
+    tests/test_migration_complex.py::ReturnedValuesAreTheState::test_run_fix_bar_returns_ledger_findings_with_disposition_literals PASSED [100%]
+    ```
+    Failures on scratch mutations:
+    (1) `SetupRepoStateMachine.rollback` to `return None`:
+    ```
+    FAILED tests/test_migration_complex.py::ReturnedValuesAreTheState::test_setup_repo_rollback_returns_changes_in_reverse_order
+    >       self.assertEqual(rb, ("c2", "c1"))
+    E       AssertionError: None != ('c2', 'c1')
+    ```
+    (2) `OperatorDatum.to_dict` to `return None`:
+    ```
+    FAILED tests/test_migration_complex.py::ReturnedValuesAreTheState::test_migrate_package_build_artifact_returns_operator_datum_data
+    E       AssertionError: Lists differ: [None] != [{'key': 'prod_schema', 'provenance': 'operator-data-unavailable', 'value': None}]
+    ```
+    (3) `OperatorDatum.to_dict` to `return {}`:
+    ```
+    FAILED tests/test_migration_complex.py::ReturnedValuesAreTheState::test_migrate_package_build_artifact_returns_operator_datum_data
+    E       AssertionError: Lists differ: [{}] != [{'key': 'prod_schema', 'provenance': 'operator-data-unavailable', 'value': None}]
+    ```
+    (4) `IssueLedger.disposition_all` emitted literal (`DISPOSITION_ESCALATE = "escalated"`):
+    ```
+    FAILED tests/test_migration_complex.py::ReturnedValuesAreTheState::test_run_fix_bar_returns_ledger_findings_with_disposition_literals
+    >       self.assertEqual([f.disposition for f in res], ["fix-now", "escalate"])
+    E       AssertionError: Lists differ: ['fix-now', 'escalated'] != ['fix-now', 'escalate']
+    ```
+    All mutations reverted; `git diff agent_workflows/` verified empty.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the sweep output, one line per key naming the key, its operator, KILLED or SURVIVED, and the pytest summary line, covering all 40 `b1mx2w` keys with zero SURVIVED; paste the coverage `term-missing` output for `agent_workflows/migration_complex.py` from the Required tests reach command, with every listed miss outside the 40 key bodies; paste a final empty `git diff agent_workflows/` and `git status --short` showing no sweep script staged or tracked.
   - Observed evidence:
-  - Result: pending
+    Mutation sweep output across all 40 keys with zero SURVIVED:
+    ```
+    AssessAllCoordinator.assert_lanes_read_only@raise: KILLED | 1 failed, 33 passed in 0.81s
+    AssessAllCoordinator.claim_synthesis_writer@raise: KILLED | 3 failed, 31 passed in 1.53s
+    AssessAllCoordinator.eligibility@return-none: KILLED | 1 failed, 33 passed in 0.49s
+    AssessAllCoordinator.lanes@return-none: KILLED | 1 failed, 33 passed in 0.84s
+    AssessAllCoordinator.synthesize@return-none: KILLED | 1 failed, 33 passed in 0.73s
+    DiffInspection.failed_checks@return-none: KILLED | 1 failed, 33 passed in 1.54s
+    DiffInspection.is_clean@return-none: KILLED | 1 failed, 33 passed in 0.58s
+    DiffInspection.out_of_scope_paths@return-none: KILLED | 1 failed, 33 passed in 0.68s
+    IssueLedger.add@raise: KILLED | 4 failed, 30 passed in 3.17s
+    IssueLedger.disposition_all@return-none: KILLED | 3 failed, 31 passed in 0.62s
+    IssueLedger.personas_covered@return-none: KILLED | 1 failed, 33 passed in 0.44s
+    IssueLedger.undispositioned@return-none: KILLED | 1 failed, 33 passed in 0.82s
+    OperatorDatum.__post_init__@raise: KILLED | 3 failed, 31 passed in 0.87s
+    OperatorDatum.is_labeled_unavailable@return-false: KILLED | 2 failed, 32 passed in 0.44s
+    OperatorDatum.is_operator_owned@return-false: KILLED | 1 failed, 33 passed in 0.62s
+    OperatorDatum.to_dict@return-none: KILLED | 1 failed, 33 passed in 1.03s
+    ReleaseReviewCoordinator.__post_init__@raise: KILLED | 13 failed, 21 passed in 1.22s
+    ReleaseReviewCoordinator.authorize_release@return-none: KILLED | 3 failed, 31 passed in 1.77s
+    ReleaseReviewCoordinator.can_finalize@return-none: KILLED | 1 failed, 33 passed in 0.75s
+    ReleaseReviewCoordinator.enter_stage@raise: KILLED | 9 failed, 25 passed in 0.93s
+    ReleaseReviewCoordinator.integrate_fixes@return-none: KILLED | 1 failed, 33 passed in 0.58s
+    ReleaseReviewCoordinator.run_fix_bar@return-none: KILLED | 4 failed, 30 passed in 0.53s
+    ReleaseReviewCoordinator.stages_entered@return-none: KILLED | 1 failed, 33 passed in 0.47s
+    RiskAwarePackage.add_datum@raise: KILLED | 3 failed, 31 passed in 0.69s
+    RiskAwarePackage.assert_supportable_claim@raise: KILLED | 1 failed, 33 passed in 0.86s
+    RiskAwarePackage.build_artifact@return-none: KILLED | 3 failed, 31 passed in 1.99s
+    RiskAwarePackage.consent_gate@return-none: KILLED | 1 failed, 33 passed in 0.51s
+    RiskAwarePackage.unavailable_data@return-none: KILLED | 3 failed, 31 passed in 1.43s
+    SetupRepoStateMachine.apply_change@return-none: KILLED | 6 failed, 28 passed in 1.75s
+    SetupRepoStateMachine.preflight@raise: KILLED | 6 failed, 28 passed in 0.67s
+    SetupRepoStateMachine.rollback@return-none: KILLED | 2 failed, 32 passed in 0.84s
+    VerifyExecutionCoordinator.can_mark_executed@return-none: KILLED | 1 failed, 33 passed in 1.70s
+    VerifyExecutionCoordinator.mark_executed@return-none: KILLED | 1 failed, 33 passed in 0.75s
+    VerifyExecutionCoordinator.verify@return-none: KILLED | 3 failed, 31 passed in 1.04s
+    assert_commands_in_manifest@return-none: KILLED | 1 failed, 33 passed in 0.43s
+    build_benchmark_package@return-none: KILLED | 2 failed, 32 passed in 0.56s
+    build_incident_package@return-none: KILLED | 2 failed, 32 passed in 0.78s
+    build_migrate_package@return-none: KILLED | 3 failed, 31 passed in 0.59s
+    detect_mode_drift@return-none: KILLED | 1 failed, 33 passed in 1.15s
+    fix_bar@negate-return: KILLED | 2 failed, 32 passed in 0.74s
+    Total: 40 keys swept. All killed: True
+    ```
+    Coverage reach output (`python3 -m pytest tests/test_migration_complex.py -o addopts="" --cov=agent_workflows.migration_complex --cov-report=term-missing`):
+    ```
+    Name                                   Stmts   Miss  Cover   Missing
+    --------------------------------------------------------------------
+    agent_workflows/migration_complex.py     386     36    91%   172, 191, 232, 306, 401, 412, 432, 447-495, 659, 679, 834, 904, 1028-1030
+    --------------------------------------------------------------------
+    TOTAL                                    386     36    91%
+    ```
+    All listed misses are outside the 40 key bodies (non-key helpers and defensive raises).
+    Final `git diff agent_workflows/` is empty and `git status --short` shows no sweep script.
+  - Result: pass
 
 ## Approval and execution gate
 
