@@ -6,7 +6,7 @@
 - Scope: In `tests/test_term.py`, patch `sys.stdin` to an empty `io.StringIO("")` around every `cli.main` call in `CliNeverLeaksTheInteractivityOverrideTests.test_early_exit_paths_and_nested_invocations`, remove the quarantine `xfail` mark (and the then-unused `import pytest`), and assert the bare `--interactive` invocation's observable outcome (returns 130 at EOF) plus override restoration around it. OUT: changing `_run_setup` or `cli.py` interactive dispatch logic (which correctly prompts when interactivity is forced).
 - Scope-Paths: tests/test_term.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: 7g4o5c
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7g4o5c verified (set aenl8o, attempt 1).
 - 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 - 2026-10-17 to-review (antigravity): authored review-ready from backlog aenl8o.
