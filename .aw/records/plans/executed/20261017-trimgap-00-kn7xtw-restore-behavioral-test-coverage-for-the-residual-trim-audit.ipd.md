@@ -6,7 +6,7 @@
 - Scope: Orchestration only: confirm each of the twenty-one children below reaches `executed`. No code, test, spec or record work of its own. The eight `q86fxm` children partition the 45 residual groups by module family; the thirteen per-item children each own one backlog item. No Scope-Paths file is shared between any two of the 21 children (checked at review).
 - Scope-Paths: .aw/records/plans/pending/20261017-trimgap-00-kn7xtw-restore-behavioral-test-coverage-for-the-residual-trim-audit.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: fe4925e03a985f5112101827836a35fa4032a3a47b035731c23925f5b23e8005
@@ -19,9 +19,9 @@
 - Highest E allocated: 21
 - Author: opencode
 - Id: kn7xtw
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set trimgap reached executed, so the runner (run run-20261017T220340Z-1894944) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: znjxom, t8j7mn, 5jevb2, d2vfp2, 438gkf, pdemar, 33f8tn, jy7439, syzi9i, 94wi2f, dwjfu4, tf8fwt, 8bhcd3, ivap17, vqr3xq, zhoul7, 78g6ic, 5e7czd, y4bt1c, 9gjvrq, ya63p5.
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 
@@ -35,6 +35,9 @@
 Graduate backlog `q86fxm` into executable children whose combined effect is that every one of the 135 residual keys is reached and mutation-guarded by the routine bare core-tier run, and 33 of the 34 missing run-summary tests are back; and confirm that the Set's thirteen per-item children, each governed by its own backlog item and its own Goal, also finished. This plan only confirms the children finished.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
