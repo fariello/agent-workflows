@@ -3390,6 +3390,13 @@ def run_queue(
             break
         if state.get("runaway_escalation"):
             break
+        # qchan-10 (qrup8m) E-03: ensure receiver is running or take over if holder exited
+        with contextlib.suppress(Exception):
+            from agent_workflows.notify import telegram as notify_telegram
+
+            notify_telegram.ensure_receiver(
+                run_dir, repo=Path(state.get("repo") or Path.cwd())
+            )
         from agent_workflows import question_inbox
 
         with contextlib.suppress(Exception):
@@ -3812,6 +3819,10 @@ def run_queue(
         notify_core.dispatch_checkpoint(
             run_dir, state, Path(state.get("repo") or Path.cwd())
         )
+    with contextlib.suppress(Exception):
+        from agent_workflows.notify import telegram as notify_telegram
+
+        notify_telegram.stop_receiver()
     print(
         render_run_summary_table(
             state,
