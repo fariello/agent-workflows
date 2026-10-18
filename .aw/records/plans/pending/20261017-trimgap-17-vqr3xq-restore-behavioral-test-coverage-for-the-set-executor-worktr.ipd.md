@@ -37,32 +37,32 @@ RESTORE RULE for E-01..E-04: create the file from `git show 19313eed^:<path>`; m
 
 ### Task group 1: restore the modules
 
-- [ ] E-01 Restore `tests/test_ipd_set_executor.py` with no test deletions (it builds every fixture in a tmpdir; its `agent_workflows/x.py` strings are fixture path data, not source reads).
+- [x] E-01 Restore `tests/test_ipd_set_executor.py` with no test deletions (it builds every fixture in a tmpdir; its `agent_workflows/x.py` strings are fixture path data, not source reads).
   - Depends on: none
   - Expected outcome: every test in the restored file passes (19 at authoring and at review; the count is context, not the bar) and the file is core-selected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Restore `tests/test_exec_set_workflow.py`, deleting the five tests that assert on the text of shipped workflow prose files rather than on behavior (F-02): `ExecSetWorkflowV01.test_workflow_files_exist`, `test_explicit_runtime_fallback_documented`, `ExecSetCliSurfaceV02.test_help_advertises_only_real_commands`, `test_lifecycle_wording_inherited_not_reauthored`, `ExecSetPackagingV03.test_body_has_no_obvious_leak_markers`.
+- [x] E-02 Restore `tests/test_exec_set_workflow.py`, deleting the five tests that assert on the text of shipped workflow prose files rather than on behavior (F-02): `ExecSetWorkflowV01.test_workflow_files_exist`, `test_explicit_runtime_fallback_documented`, `ExecSetCliSurfaceV02.test_help_advertises_only_real_commands`, `test_lifecycle_wording_inherited_not_reauthored`, `ExecSetPackagingV03.test_body_has_no_obvious_leak_markers`.
   - Depends on: none
   - Expected outcome: every remaining test passes (9 at authoring and review; context, not the bar); `rg -n "read_text" tests/test_exec_set_workflow.py` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Restore `tests/test_host_runner.py` with no deletions.
+- [x] E-03 Restore `tests/test_host_runner.py` with no deletions.
   - Depends on: none
   - Expected outcome: every test in the restored file passes (20 at authoring and review; context, not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Restore `tests/test_host_adapters_skills.py`, removing from `test_reuses_engine_shim_generator_not_forked` only the two object-identity assertions `self.assertIs(ha.generate_shim_members, engine.generate_shim_members)` and `self.assertIs(ha.shim_body, engine.shim_body)` (they pin re-export structure, F-02); keep the rest of that test, which generates shims from the shipped workflow tree and asserts on the output, and reword its docstring so it no longer claims to assert object identity (it should state that it checks `COMMAND_SHIM_DIRS` equality and the generated-shim output; PR-006).
+- [x] E-04 Restore `tests/test_host_adapters_skills.py`, removing from `test_reuses_engine_shim_generator_not_forked` only the two object-identity assertions `self.assertIs(ha.generate_shim_members, engine.generate_shim_members)` and `self.assertIs(ha.shim_body, engine.shim_body)` (they pin re-export structure, F-02); keep the rest of that test, which generates shims from the shipped workflow tree and asserts on the output, and reword its docstring so it no longer claims to assert object identity (it should state that it checks `COMMAND_SHIM_DIRS` equality and the generated-shim output; PR-006).
   - Depends on: none
   - Expected outcome: every test in the restored file passes (17 at authoring and review; context, not the bar); `rg -n "assertIs\(ha\." tests/test_host_adapters_skills.py` returns nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: residual assertions
 
-- [ ] E-05 Append to `tests/test_host_adapters_skills.py` a `ResidualKeyTests(unittest.TestCase)` class with three tests, each asserting a value observed at authoring (F-04): (a) `ha.SkillPackage(name="demo", skill_dir=".agents/skills", trigger_description="t", semantic_digest="d1", explicit_invocation="aw x", main_file_content="h\u00e9llo", resources=[ha.SkillResource(relative_path="scripts/a.py", content="x")]).to_dict()` equals `{"name": "demo", "skill_dir": ".agents/skills", "trigger_description": "t", "semantic_digest": "d1", "explicit_invocation": "aw x", "main_file_path": ".agents/skills/demo/SKILL.md", "main_file_bytes": 6, "resource_paths": [".agents/skills/demo/scripts/a.py"]}` (UTF-8 byte count, not character count); (b) the same package's `resource_paths()` equals `[".agents/skills/demo/scripts/a.py"]` and a package with `resources=[]` returns `[]`; (c) `ha.HostAdapter(host="h", exact_version="1", pointer_file="P", skill_dir="s", role_map={}, supported_features=["native-skills"], unverified_features=["subagents"], fallback_runtime="r")` returns True from `advertises_supported("native-skills")` and False from `advertises_supported("subagents")` (an unverified feature is never advertised). Re-measure each value at execution HEAD first; apply the RESTORE RULE disposition if one changed.
+- [x] E-05 Append to `tests/test_host_adapters_skills.py` a `ResidualKeyTests(unittest.TestCase)` class with three tests, each asserting a value observed at authoring (F-04): (a) `ha.SkillPackage(name="demo", skill_dir=".agents/skills", trigger_description="t", semantic_digest="d1", explicit_invocation="aw x", main_file_content="h\u00e9llo", resources=[ha.SkillResource(relative_path="scripts/a.py", content="x")]).to_dict()` equals `{"name": "demo", "skill_dir": ".agents/skills", "trigger_description": "t", "semantic_digest": "d1", "explicit_invocation": "aw x", "main_file_path": ".agents/skills/demo/SKILL.md", "main_file_bytes": 6, "resource_paths": [".agents/skills/demo/scripts/a.py"]}` (UTF-8 byte count, not character count); (b) the same package's `resource_paths()` equals `[".agents/skills/demo/scripts/a.py"]` and a package with `resources=[]` returns `[]`; (c) `ha.HostAdapter(host="h", exact_version="1", pointer_file="P", skill_dir="s", role_map={}, supported_features=["native-skills"], unverified_features=["subagents"], fallback_runtime="r")` returns True from `advertises_supported("native-skills")` and False from `advertises_supported("subagents")` (an unverified feature is never advertised). Re-measure each value at execution HEAD first; apply the RESTORE RULE disposition if one changed.
   - Depends on: E-04
   - Expected outcome: three new tests pass and kill the scratch mutations named in V-05.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -120,30 +120,425 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `-v` run showing every test in the file PASSED and zero failed or errored (the count is context, not the bar); paste the failures from scratch `path_is_worker_forbidden` return-False and `derive_set_state` return-None mutations (reverted).
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_ipd_set_executor.py -o addopts="" -v`:
+      ```
+      tests/test_ipd_set_executor.py::WorktreeLeaseV02::test_session_is_per_lane PASSED [  5%]
+      tests/test_ipd_set_executor.py::WorktreeLeaseV02::test_real_worktree_create_and_teardown PASSED [ 10%]
+      tests/test_ipd_set_executor.py::WorktreeLeaseV02::test_lease_prevents_second_claim PASSED [ 15%]
+      tests/test_ipd_set_executor.py::WorktreeLeaseV02::test_worker_path_fence PASSED [ 21%]
+      tests/test_ipd_set_executor.py::SchedulerV01::test_every_node_gets_a_disposition PASSED [ 26%]
+      tests/test_ipd_set_executor.py::SchedulerV01::test_the_frontier_admits_exactly_the_dependency_satisfied_nodes PASSED [ 31%]
+      tests/test_ipd_set_executor.py::SchedulerV01::test_wave_uses_analyzer PASSED [ 36%]
+      tests/test_ipd_set_executor.py::SetProgressV03::test_every_progress_shape_derives_its_own_set_state PASSED [ 42%]
+      tests/test_ipd_set_executor.py::RoutingV01::test_every_lane_resolves_the_binding_for_its_own_class PASSED [ 47%]
+      tests/test_ipd_set_executor.py::RoutingV01::test_missing_binding_fails_closed PASSED [ 52%]
+      tests/test_ipd_set_executor.py::RoutingV01::test_build_lanes_fail_closed_on_missing PASSED [ 57%]
+      tests/test_ipd_set_executor.py::HandshakeV01::test_mutation_rejected_without_authorization PASSED [ 63%]
+      tests/test_ipd_set_executor.py::HandshakeV01::test_mutation_allowed_after_recorded_authorization PASSED [ 68%]
+      tests/test_ipd_set_executor.py::HandshakeV01::test_proposal_pending_until_disposed PASSED [ 73%]
+      tests/test_ipd_set_executor.py::ClassifierV01::test_every_touched_path_set_lands_in_its_work_class PASSED [ 78%]
+      tests/test_ipd_set_executor.py::TerminalGateV03::test_each_precondition_refuses_on_its_own_and_says_why PASSED [ 84%]
+      tests/test_ipd_set_executor.py::LifecycleV03::test_resume_fails_closed_on_unknown_outcome PASSED [ 89%]
+      tests/test_ipd_set_executor.py::LifecycleV03::test_integration_triggered_evidence_invalidation PASSED [ 94%]
+      tests/test_ipd_set_executor.py::IntegrationGateV02::test_every_lane_outcome_set_gets_its_own_typed_verdict PASSED [100%]
+      ============================== 19 passed in 0.71s ==============================
+      ```
+    - Scratch `path_is_worker_forbidden` return-False failure:
+      ```
+      FAILED tests/test_ipd_set_executor.py::WorktreeLeaseV02::test_worker_path_fence
+      AssertionError: LeaseConflictError not raised
+      ========================= 1 failed, 18 passed in 0.50s =========================
+      ```
+    - Scratch `derive_set_state` return-None failure:
+      ```
+      FAILED tests/test_ipd_set_executor.py::SetProgressV03::test_every_progress_shape_derives_its_own_set_state
+      AssertionError: Lists differ: ["  every required node verified terminal ...
+      ========================= 1 failed, 18 passed in 0.57s =========================
+      ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste a diff against `19313eed^` showing only the five removed tests plus the marker and docstring lines; paste the `-v` run showing every remaining test PASSED and zero failed, the empty `rg` output, and the failure from a scratch `write_local_projections` return-None mutation (reverted).
   - Observed evidence:
-  - Result: pending
+    - `git diff 19313eed^:tests/test_exec_set_workflow.py tests/test_exec_set_workflow.py`:
+      ```diff
+      diff --git a/tests/test_exec_set_workflow.py b/tests/test_exec_set_workflow.py
+      index ad6aac7ac..9ec2c4af3 100644
+      --- a/tests/test_exec_set_workflow.py
+      +++ b/tests/test_exec_set_workflow.py
+      @@ -7,6 +7,8 @@ V-02: the CLI surfaces the help advertises actually dispatch - `aw run decisions
+             no nonexistent command; lifecycle wording is Order 02's (inherited, not re-authored).
+       V-03: generated-drift + packaging + security are clean (the shim regenerates byte-identically; the
+             workflow body carries no leak; the manifest row points at a real body).
+      +
+      +Restored under backlog q86fxm and findings b1mx2w from revision 19313eed^, omitting five tests that asserted on prose and help text rather than behavior (ExecSetWorkflowV01.test_workflow_files_exist, test_explicit_runtime_fallback_documented, ExecSetCliSurfaceV02.test_help_advertises_only_real_commands, test_lifecycle_wording_inherited_not_reauthored, ExecSetPackagingV03.test_body_has_no_obvious_leak_markers).
+       """
 
-- [ ] V-03 validates E-03
+       from __future__ import annotations
+      @@ -21,8 +23,11 @@ from agent_workflows import host_adapters as HA
+       from agent_workflows import migration_compact as MC
+       from agent_workflows import run_cli
+       from agent_workflows import set_records
+      +import pytest
+       from tests.support import REPO_ROOT, SOURCE_WORKFLOWS
+
+      +pytestmark = pytest.mark.core
+      +
+
+       class ExecSetWorkflowV01(unittest.TestCase):
+           def setUp(self):
+      @@ -32,12 +37,6 @@ class ExecSetWorkflowV01(unittest.TestCase):
+               self.workflows = INS.parse_manifest(SOURCE_WORKFLOWS)
+               self.wf_map = {w.command: w for w in self.workflows}
+
+      -    def test_workflow_files_exist(self):
+      -        self.assertTrue(self.body.is_file(), "exec-set body missing")
+      -        self.assertTrue(self.readme.is_file(), "exec-set README missing")
+      -        self.assertGreater(len(self.body.read_text(encoding="utf-8").strip()), 200)
+      -        self.assertGreater(len(self.readme.read_text(encoding="utf-8").strip()), 50)
+      -
+           def test_manifest_registers_exec_set(self):
+               self.assertIn("exec-set", self.wf_map)
+               wf = self.wf_map["exec-set"]
+      @@ -62,12 +61,6 @@ class ExecSetWorkflowV01(unittest.TestCase):
+                   # regeneration is byte-identical -> no drift
+                   self.assertFalse(MC.detect_shim_drift(content, content))
+
+      -    def test_explicit_runtime_fallback_documented(self):
+      -        # The body must document the always-available explicit runtime, not only the slash command.
+      -        body = self.body.read_text(encoding="utf-8")
+      -        self.assertIn("aw ipd execute-set", body)
+      -        self.assertIn("--plan-only", body)
+
+       class ExecSetCliSurfaceV02(unittest.TestCase):
+           def _projection(self, root, recs):
+      @@ -152,71 +145,12 @@ class ExecSetCliSurfaceV02(unittest.TestCase):
+               )
+               self.assertEqual(ipd_set_plan.run_execute_set(ns), 2)
+
+      -    def test_help_advertises_only_real_commands(self):
+      -        # The exec-set body advertises the run INSPECTION verbs and execute-set --resume. Every one
+      -        # must be a real dispatch path (no help line names a nonexistent command).
+      -        body = (
+      -            REPO_ROOT / ".aw" / "system" / "workflows" / "exec-set" / "exec-set.md"
+      -        ).read_text(encoding="utf-8")
+      -        for advertised in (
+      -            "aw runs status",
+      -            "aw runs decisions",
+      -            "aw runs questions",
+      -            "aw ipd execute-set --resume",
+      -        ):
+      -            self.assertIn(advertised, body)
+      -        # The retired spellings must NOT be advertised any more.
+      -        for retired in ("aw run status", "aw run decisions", "aw run questions"):
+      -            self.assertNotIn(retired, body)
+      -        # And the advertised leaves must really exist on the `runs` parser (not just in prose).
+      -        from agent_workflows.cli import _build_parser
+      -        from agent_workflows.command_surface import discover_parser_leaves
+      -
+      -        leaves = discover_parser_leaves(_build_parser())
+      -        for leaf in ("runs status", "runs decisions", "runs questions"):
+      -            self.assertIn(leaf, leaves)
+      -        # --max-parallel was trimmed (not a wired flag) - it must NOT be advertised.
+      -        self.assertNotIn("--max-parallel", body)
+      -
+      -    def test_lifecycle_wording_inherited_not_reauthored(self):
+      -        # Order 02 owns the shared child-STOP-containment wording on ipd-lifecycle.md; this Order must
+      -        # not re-author it. Confirm the canonical phrase still lives there (inherited).
+      -        lifecycle = (
+      -            REPO_ROOT
+      -            / ".aw"
+      -            / "system"
+      -            / "workflows"
+      -            / "ipd-lifecycle"
+      -            / "ipd-lifecycle.md"
+      -        ).read_text(encoding="utf-8")
+      -        self.assertIn("CHILD-scoped", lifecycle)
+      -        self.assertIn("Set coordinator", lifecycle)
+      -        # execset Order 02 owns that wording (its additive-clarification marker is present).
+      -        self.assertIn("execset Order 02", lifecycle)
+
+       class ExecSetPackagingV03(unittest.TestCase):
+           def test_manifest_body_points_at_real_file(self):
+               workflows = INS.parse_manifest(SOURCE_WORKFLOWS)
+               wf = {w.command: w for w in workflows}["exec-set"]
+               self.assertTrue((REPO_ROOT / wf.body).is_file())
+
+      -    def test_body_has_no_obvious_leak_markers(self):
+      -        # A light packaging check: the shipped body carries no home-path/user leak (the canonical
+      -        # sanitizer runs repo-wide in CI; this is a fast local guard for this specific file).
+      -        body = (
+      -            REPO_ROOT / ".aw" / "system" / "workflows" / "exec-set" / "exec-set.md"
+      -        ).read_text(encoding="utf-8")
+      -        self.assertNotIn("/home/", body)
+      -        self.assertNotIn("/Users/", body)
+
+           def test_regeneration_is_deterministic(self):
+               workflows = INS.parse_manifest(SOURCE_WORKFLOWS)
+               a = INS.generate_shim_members(workflows, SOURCE_WORKFLOWS)
+      ```
+    - `python3 -m pytest tests/test_exec_set_workflow.py -o addopts="" -v`:
+      ```
+      tests/test_exec_set_workflow.py::ExecSetWorkflowV01::test_manifest_registers_exec_set PASSED [ 11%]
+      tests/test_exec_set_workflow.py::ExecSetWorkflowV01::test_shims_generated_and_no_drift PASSED [ 22%]
+      tests/test_exec_set_workflow.py::ExecSetWorkflowV01::test_skill_package_digest_parity PASSED [ 33%]
+      tests/test_exec_set_workflow.py::ExecSetPackagingV03::test_manifest_body_points_at_real_file PASSED [ 44%]
+      tests/test_exec_set_workflow.py::ExecSetPackagingV03::test_regeneration_is_deterministic PASSED [ 55%]
+      tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_run_decisions_dispatches_and_reads_projection PASSED [ 66%]
+      tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_run_questions_dispatches PASSED [ 77%]
+      tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_execute_set_resume_flag_exists PASSED [ 88%]
+      tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_run_decisions_missing_projection_exit2 PASSED [100%]
+      ============================== 9 passed in 0.57s ===============================
+      ```
+    - `rg -n "read_text" tests/test_exec_set_workflow.py` output: empty (exit code 1).
+    - Scratch `write_local_projections` return-None failure:
+      ```
+      FAILED tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_run_questions_dispatches
+      FAILED tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::test_run_decisions_dispatches_and_reads_projection
+      ========================= 2 failed, 7 passed in 0.50s ==========================
+      ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` run showing every test in the file PASSED, zero failed, and the failure from a scratch `verify_fresh` return-None mutation (reverted).
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_host_runner.py -o addopts="" -v`:
+      ```
+      tests/test_host_runner.py::RunnerSpawnV01::test_cancellation_before_spawn PASSED [  5%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_run_task_refuses_to_admit_a_leak PASSED [ 10%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_argv_passed_as_list PASSED [ 15%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_evidence_gate_rejects_failed_exit PASSED [ 20%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_exit0_no_diff_is_not_completion PASSED [ 25%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_terminal_envelope_valid PASSED [ 30%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_redaction_before_ledger PASSED [ 35%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_timeout_is_failure PASSED [ 40%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_shell_string_rejected PASSED [ 45%]
+      tests/test_host_runner.py::RunnerSpawnV01::test_worker_states_map_to_ledger PASSED [ 50%]
+      tests/test_host_runner.py::KiroMatrixRowV03::test_kiro_row_shape PASSED  [ 55%]
+      tests/test_host_runner.py::KiroMatrixRowV03::test_kiro_row_present_and_copilot_cursor_retained PASSED [ 60%]
+      tests/test_host_runner.py::FreshVerificationV03::test_task_local_resume PASSED [ 65%]
+      tests/test_host_runner.py::FreshVerificationV03::test_completed_with_evidence_can_finalize PASSED [ 70%]
+      tests/test_host_runner.py::FreshVerificationV03::test_wrong_model_fails_closed PASSED [ 75%]
+      tests/test_host_runner.py::FreshVerificationV03::test_distinct_sessions_and_finalize PASSED [ 80%]
+      tests/test_host_runner.py::FreshVerificationV03::test_soft_denied_exit0_cannot_finalize PASSED [ 85%]
+      tests/test_host_runner.py::CapabilityGatedV02::test_no_evidence_selects_fallback PASSED [ 90%]
+      tests/test_host_runner.py::CapabilityGatedV02::test_no_fallback_allowed_refuses PASSED [ 95%]
+      tests/test_host_runner.py::CapabilityGatedV02::test_positive_evidence_enables_native PASSED [100%]
+      ============================== 20 passed in 0.35s ==============================
+      ```
+    - Scratch `verify_fresh` return-None failure:
+      ```
+      FAILED tests/test_host_runner.py::FreshVerificationV03::test_distinct_sessions_and_finalize
+      AttributeError: 'NoneType' object has no attribute 'executor_session_id'
+      ========================= 1 failed, 19 passed in 0.41s =========================
+      ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a diff against `19313eed^` showing only the two removed `assertIs` lines, the reworded `test_reuses_engine_shim_generator_not_forked` docstring, plus marker and module docstring; paste the `-v` run showing every test PASSED, zero failed, and the empty `rg` output.
   - Observed evidence:
-  - Result: pending
+    - `git diff 19313eed^:tests/test_host_adapters_skills.py tests/test_host_adapters_skills.py` (prior to E-05 addition):
+      ```diff
+      diff --git a/tests/test_host_adapters_skills.py b/tests/test_host_adapters_skills.py
+      index c0f0c0598..012279cf9 100644
+      --- a/tests/test_host_adapters_skills.py
+      +++ b/tests/test_host_adapters_skills.py
+      @@ -37,6 +37,8 @@ Tests that are NOT rows carry a one-line docstring saying why they stay separate
+       reasons: the claim is an `assertRaises`; the subject is the real workflow tree on disk rather than a
+       fixture; the claim is structural (object identity between two modules); or the setup is materially
+       different (a temporary directory used as an isolation base).
+      +
+      +Restored under backlog q86fxm and findings b1mx2w from revision 19313eed^, omitting two code-pinning object-identity assertions from test_reuses_engine_shim_generator_not_forked.
+       """
 
-- [ ] V-05 validates E-05
+       from __future__ import annotations
+      @@ -48,7 +50,10 @@ from pathlib import Path
+       from agent_workflows import agy_verifier as av
+       from agent_workflows import engine
+       from agent_workflows import host_adapters as ha
+      +import pytest
+       from agent_workflows import host_capability_registry as hcr
+      +
+      +pytestmark = pytest.mark.core
+       from agent_workflows import verify_roles
+       from agent_workflows.run_ledger_store import RedactionPolicy
+
+      @@ -688,15 +693,11 @@ class HostAdapterTests(unittest.TestCase):
+               )
+
+           def test_reuses_engine_shim_generator_not_forked(self):
+      -        """Kept separate: object IDENTITY between two modules, plus a sweep over the REAL workflow tree.
+      +        """Checks COMMAND_SHIM_DIRS equality and the generated-shim output.
+
+      -        Every table row builds a fixture; this asserts `host_adapters` is the same object as
+      -        `engine`'s generator (a re-forked copy that behaves identically today is how two generators
+      -        drift apart) and then generates from the shipped `.aw/system/workflows` tree, whose absence
+      -        legitimately skips the test.
+      +        Every table row builds a fixture; this asserts COMMAND_SHIM_DIRS equality and generates
+      +        from the shipped `.aw/system/workflows` tree, whose absence legitimately skips the test.
+               """
+      -        self.assertIs(ha.generate_shim_members, engine.generate_shim_members)
+      -        self.assertIs(ha.shim_body, engine.shim_body)
+               self.assertEqual(ha.COMMAND_SHIM_DIRS, engine.COMMAND_SHIM_DIRS)
+
+               source_root = _find_source_root()
+      ```
+    - `python3 -m pytest tests/test_host_adapters_skills.py -k "not ResidualKeyTests" -o addopts="" -v`:
+      ```
+      tests/test_host_adapters_skills.py::SkillPackageTests::test_every_build_configuration_produces_a_valid_router_package PASSED [  5%]
+      tests/test_host_adapters_skills.py::SecurityTests::test_secret_redaction_in_adapter_reasons PASSED [ 11%]
+      tests/test_host_adapters_skills.py::SecurityTests::test_external_path_refusal_via_assert_contained PASSED [ 17%]
+      tests/test_host_adapters_skills.py::SecurityTests::test_isolated_base_refuses_real_home PASSED [ 23%]
+      tests/test_host_adapters_skills.py::SecurityTests::test_every_negative_probe_is_observed_to_fail_closed_with_no_side_effect PASSED [ 29%]
+      tests/test_host_adapters_skills.py::SkillDigestTests::test_the_digest_is_deterministic_and_changes_only_with_the_workflow PASSED [ 35%]
+      tests/test_host_adapters_skills.py::AgyFreshVerifierTests::test_doubles_never_spawn_agy PASSED [ 41%]
+      tests/test_host_adapters_skills.py::AgyFreshVerifierTests::test_execution_and_verifier_have_distinct_sessions PASSED [ 47%]
+      tests/test_host_adapters_skills.py::AgyFreshVerifierTests::test_fresh_verifier_refuses_same_session_identity PASSED [ 52%]
+      tests/test_host_adapters_skills.py::AgyFreshVerifierTests::test_each_verification_mode_reaches_the_opposite_conclusion_on_one_packet PASSED [ 58%]
+      tests/test_host_adapters_skills.py::AgyFreshVerifierTests::test_non_verifier_role_cannot_author_decision PASSED [ 64%]
+      tests/test_host_adapters_skills.py::HostAdapterTests::test_reuses_engine_shim_generator_not_forked PASSED [ 70%]
+      tests/test_host_adapters_skills.py::HostAdapterTests::test_roles_map_to_native_features_and_fall_back_when_absent PASSED [ 76%]
+      tests/test_host_adapters_skills.py::HostAdapterTests::test_an_adapter_advertises_exactly_what_the_registry_can_prove PASSED [ 82%]
+      tests/test_host_adapters_skills.py::DiscoveryPolicyTests::test_disabling_skill_leaves_explicit_invocation_usable PASSED [ 88%]
+      tests/test_host_adapters_skills.py::DiscoveryPolicyTests::test_inlined_authority_is_detected_without_flagging_a_clean_router PASSED [ 94%]
+      tests/test_host_adapters_skills.py::DiscoveryPolicyTests::test_each_workflow_shape_gets_the_discovery_policy_it_needs PASSED [100%]
+      ============================== 17 passed in 0.30s ==============================
+      ```
+    - `rg -n "assertIs\(ha\." tests/test_host_adapters_skills.py` output: empty (exit code 1).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` lines for the three `ResidualKeyTests` tests PASSED; paste the failures from scratch `SkillPackage.to_dict` return-`{}`, `SkillPackage.resource_paths` return-`[]`, `HostAdapter.advertises_supported` return-`False` (the polarity only E-05 kills, F-05) and return-`True` mutations, each naming the failing `ResidualKeyTests` test (reverted); paste the per-key reach listing from Required tests showing all 41 keys with an executed body line; paste the full 41-key `return None` sweep over the four files showing every key KILLED; the bare `python3 -m pytest` summary line, and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+    - `-v` lines for the three `ResidualKeyTests` tests PASSED:
+      ```
+      tests/test_host_adapters_skills.py::ResidualKeyTests::test_skill_package_to_dict_byte_count_and_paths PASSED [ 90%]
+      tests/test_host_adapters_skills.py::ResidualKeyTests::test_host_adapter_advertises_supported_polarity PASSED [ 95%]
+      tests/test_host_adapters_skills.py::ResidualKeyTests::test_skill_package_resource_paths_populated_and_empty PASSED [100%]
+      ```
+    - Scratch mutations:
+      - `SkillPackage.to_dict` return `{}`:
+        ```
+        FAILED tests/test_host_adapters_skills.py::ResidualKeyTests::test_skill_package_to_dict_byte_count_and_paths
+        AssertionError: {} != {'name': 'demo', 'skill_dir': '.agents/ski[212 chars]py']}
+        ========================= 1 failed, 19 passed in 0.31s =========================
+        ```
+      - `SkillPackage.resource_paths` return `[]`:
+        ```
+        FAILED tests/test_host_adapters_skills.py::ResidualKeyTests::test_skill_package_resource_paths_populated_and_empty
+        FAILED tests/test_host_adapters_skills.py::ResidualKeyTests::test_skill_package_to_dict_byte_count_and_paths
+        AssertionError: Lists differ: [] != ['.agents/skills/demo/scripts/a.py']
+        ========================= 2 failed, 18 passed in 0.35s =========================
+        ```
+      - `HostAdapter.advertises_supported` return `False`:
+        ```
+        FAILED tests/test_host_adapters_skills.py::ResidualKeyTests::test_host_adapter_advertises_supported_polarity
+        AssertionError: False is not true
+        ========================= 1 failed, 19 passed in 0.33s =========================
+        ```
+      - `HostAdapter.advertises_supported` return `True`:
+        ```
+        FAILED tests/test_host_adapters_skills.py::ResidualKeyTests::test_host_adapter_advertises_supported_polarity
+        FAILED tests/test_host_adapters_skills.py::HostAdapterTests::test_an_adapter_advertises_exactly_what_the_registry_can_prove
+        AssertionError: Lists differ: ["  an EMPTY registry, nothing probed ...
+        ========================= 2 failed, 18 passed in 0.35s =========================
+        ```
+    - Per-key reach listing (all 41 keys with an executed body line):
+      ```
+      OK   agent_workflows/ipd_set_executor.py disposition_pass                         hits: 14
+      OK   agent_workflows/ipd_set_executor.py build_lanes                              hits: 10
+      OK   agent_workflows/ipd_set_executor.py routing_config_from_mapping              hits: 8
+      OK   agent_workflows/ipd_set_executor.py RoutingConfig.resolve                    hits: 5
+      OK   agent_workflows/ipd_set_executor.py make_authorization_record                hits: 1
+      OK   agent_workflows/ipd_set_executor.py classify_node_work                       hits: 18
+      OK   agent_workflows/ipd_set_executor.py classify_node_work._is_coding            hits: 4
+      OK   agent_workflows/ipd_set_executor.py classify_node_work._is_prose             hits: 2
+      OK   agent_workflows/ipd_set_executor.py AuthorizationLedger.proposals            hits: 3
+      OK   agent_workflows/ipd_set_executor.py AuthorizationLedger.authorized_decisions hits: 1
+      OK   agent_workflows/ipd_set_executor.py ready_lanes                              hits: 9
+      OK   agent_workflows/ipd_set_executor.py plan_wave                                hits: 3
+      OK   agent_workflows/ipd_set_executor.py authorize_mutation                       hits: 2
+      OK   agent_workflows/set_lifecycle.py    derive_progress                          hits: 8
+      OK   agent_workflows/set_lifecycle.py    stale_evidence_seqs_after_integration    hits: 16
+      OK   agent_workflows/set_lifecycle.py    make_invalidation_records                hits: 5
+      OK   agent_workflows/set_lifecycle.py    terminal_transition_allowed              hits: 9
+      OK   agent_workflows/set_lifecycle.py    resume_or_report                         hits: 5
+      OK   agent_workflows/host_launchers.py   plan_launch                              hits: 6
+      OK   agent_workflows/host_launchers.py   verify_fresh                             hits: 5
+      OK   agent_workflows/host_launchers.py   enforce_model_binding                    hits: 3
+      OK   agent_workflows/host_launchers.py   resume_task_packet                       hits: 1
+      OK   agent_workflows/worktree_lease.py   LeaseTable.__init__                      hits: 2
+      OK   agent_workflows/worktree_lease.py   LeaseTable.claim                         hits: 7
+      OK   agent_workflows/worktree_lease.py   LeaseTable.release                       hits: 4
+      OK   agent_workflows/worktree_lease.py   LeaseTable.owner_of                      hits: 1
+      OK   agent_workflows/worktree_lease.py   assert_worker_scope                      hits: 3
+      OK   agent_workflows/worktree_lease.py   allocate_session                         hits: 1
+      OK   agent_workflows/worktree_lease.py   path_is_worker_forbidden                 hits: 2
+      OK   agent_workflows/host_adapters.py    SkillPackage.to_dict                     hits: 1
+      OK   agent_workflows/host_adapters.py    SkillPackage.resource_paths              hits: 1
+      OK   agent_workflows/host_adapters.py    resolve_role_target                      hits: 4
+      OK   agent_workflows/host_adapters.py    HostAdapter.advertises_supported         hits: 1
+      OK   agent_workflows/ipd_set_plan.py     _run_resume_report                       hits: 9
+      OK   agent_workflows/ipd_set_plan.py     run_execute_set                          hits: 7
+      OK   agent_workflows/ipd_set_plan.py     _resolve_repo_and_plans                  hits: 3
+      OK   agent_workflows/agy_verifier.py     AgySessionDouble.invoke                  hits: 4
+      OK   agent_workflows/agy_verifier.py     finalize_run                             hits: 3
+      OK   agent_workflows/set_state.py        derive_set_state                         hits: 13
+      OK   agent_workflows/set_records.py      write_local_projections                  hits: 9
+      OK   agent_workflows/host_runner.py      validate_terminal_envelope               hits: 2
+      All 41 keys reached: True
+      ```
+    - Full 41-key `return None` sweep (all 41 keys killed):
+      ```
+      KILLED   agent_workflows/ipd_set_executor.py disposition_pass                         -> 1 failed, 67 passed in 1.24s
+      KILLED   agent_workflows/ipd_set_executor.py build_lanes                              -> 5 failed, 63 passed in 1.15s
+      KILLED   agent_workflows/ipd_set_executor.py routing_config_from_mapping              -> 4 failed, 64 passed in 1.15s
+      KILLED   agent_workflows/ipd_set_executor.py RoutingConfig.resolve                    -> 4 failed, 64 passed in 1.11s
+      KILLED   agent_workflows/ipd_set_executor.py make_authorization_record                -> 1 failed, 67 passed in 1.34s
+      KILLED   agent_workflows/ipd_set_executor.py classify_node_work                       -> 5 failed, 63 passed in 1.11s
+      KILLED   agent_workflows/ipd_set_executor.py classify_node_work._is_coding            -> 1 failed, 67 passed in 1.15s
+      KILLED   agent_workflows/ipd_set_executor.py classify_node_work._is_prose             -> 1 failed, 67 passed in 1.46s
+      KILLED   agent_workflows/ipd_set_executor.py AuthorizationLedger.proposals            -> 1 failed, 67 passed in 1.22s
+      KILLED   agent_workflows/ipd_set_executor.py AuthorizationLedger.authorized_decisions -> 2 failed, 66 passed in 1.08s
+      KILLED   agent_workflows/ipd_set_executor.py ready_lanes                              -> 3 failed, 65 passed in 1.42s
+      KILLED   agent_workflows/ipd_set_executor.py plan_wave                                -> 1 failed, 67 passed in 1.19s
+      KILLED   agent_workflows/ipd_set_executor.py authorize_mutation                       -> 1 failed, 67 passed in 1.14s
+      KILLED   agent_workflows/set_lifecycle.py    derive_progress                          -> 1 failed, 67 passed in 2.32s
+      KILLED   agent_workflows/set_lifecycle.py    stale_evidence_seqs_after_integration    -> 1 failed, 67 passed in 1.97s
+      KILLED   agent_workflows/set_lifecycle.py    make_invalidation_records                -> 1 failed, 67 passed in 1.19s
+      KILLED   agent_workflows/set_lifecycle.py    terminal_transition_allowed              -> 1 failed, 67 passed in 1.10s
+      KILLED   agent_workflows/set_lifecycle.py    resume_or_report                         -> 1 failed, 67 passed in 2.86s
+      KILLED   agent_workflows/host_launchers.py   plan_launch                              -> 3 failed, 65 passed in 1.03s
+      KILLED   agent_workflows/host_launchers.py   verify_fresh                             -> 1 failed, 67 passed in 1.15s
+      KILLED   agent_workflows/host_launchers.py   enforce_model_binding                    -> 1 failed, 67 passed in 1.67s
+      KILLED   agent_workflows/host_launchers.py   resume_task_packet                       -> 1 failed, 67 passed in 1.14s
+      KILLED   agent_workflows/worktree_lease.py   LeaseTable.__init__                      -> 1 failed, 67 passed in 2.15s
+      KILLED   agent_workflows/worktree_lease.py   LeaseTable.claim                         -> 1 failed, 67 passed in 1.19s
+      KILLED   agent_workflows/worktree_lease.py   LeaseTable.release                       -> 1 failed, 67 passed in 1.32s
+      KILLED   agent_workflows/worktree_lease.py   LeaseTable.owner_of                      -> 1 failed, 67 passed in 1.83s
+      KILLED   agent_workflows/worktree_lease.py   assert_worker_scope                      -> 1 failed, 67 passed in 1.13s
+      KILLED   agent_workflows/worktree_lease.py   allocate_session                         -> 1 failed, 67 passed in 1.12s
+      KILLED   agent_workflows/worktree_lease.py   path_is_worker_forbidden                 -> 1 failed, 67 passed in 2.06s
+      KILLED   agent_workflows/host_adapters.py    SkillPackage.to_dict                     -> 1 failed, 67 passed in 1.11s
+      KILLED   agent_workflows/host_adapters.py    SkillPackage.resource_paths              -> 3 failed, 65 passed in 1.50s
+      KILLED   agent_workflows/host_adapters.py    resolve_role_target                      -> 1 failed, 67 passed in 1.19s
+      KILLED   agent_workflows/host_adapters.py    HostAdapter.advertises_supported         -> 1 failed, 66 passed, 1 skipped in 1.07s
+      KILLED   agent_workflows/ipd_set_plan.py     _run_resume_report                       -> 1 failed, 67 passed in 1.13s
+      KILLED   agent_workflows/ipd_set_plan.py     run_execute_set                          -> 1 failed, 67 passed in 1.09s
+      KILLED   agent_workflows/ipd_set_plan.py     _resolve_repo_and_plans                  -> 1 failed, 67 passed in 1.17s
+      KILLED   agent_workflows/agy_verifier.py     AgySessionDouble.invoke                  -> 1 failed, 67 passed in 1.16s
+      KILLED   agent_workflows/agy_verifier.py     finalize_run                             -> 1 failed, 67 passed in 2.42s
+      KILLED   agent_workflows/set_state.py        derive_set_state                         -> 1 failed, 67 passed in 1.13s
+      KILLED   agent_workflows/set_records.py      write_local_projections                  -> 2 failed, 66 passed in 1.06s
+      KILLED   agent_workflows/host_runner.py      validate_terminal_envelope               -> 1 failed, 67 passed in 1.31s
+      All 41 keys killed by return None sweep: True
+      ```
+    - Bare pytest summary line: `1469 passed, 3 warnings in 33.60s` (via `aw suite`).
+    - Final `git diff agent_workflows/` is empty.
+  - Result: pass
 
 ## Approval and execution gate
 
