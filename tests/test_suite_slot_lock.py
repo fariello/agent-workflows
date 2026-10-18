@@ -57,13 +57,19 @@ _WORKER_SCRIPT = textwrap.dedent("""
     worker_id = sys.argv[2]
     hold_duration = float(sys.argv[3])
     started_file = Path(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] else None
+    release_file = Path(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else None
 
     with suite_cache.suite_slot() as slot:
         enter_mono = time.monotonic()
         enter_wall = time.time()
         if started_file is not None:
             started_file.write_text(str(os.getpid()), encoding="utf-8")
-        time.sleep(hold_duration)
+        if release_file is not None:
+            deadline = time.monotonic() + hold_duration
+            while not release_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+        else:
+            time.sleep(hold_duration)
         exit_mono = time.monotonic()
         exit_wall = time.time()
         record = {
@@ -290,6 +296,7 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
     lock_dir.mkdir(mode=0o700)
     log_file = tmp_path / "log.jsonl"
     started1 = tmp_path / "p1.started"
+    release1 = tmp_path / "p1.release"
 
     env_base = os.environ.copy()
     env_base["AW_SUITE_LOCK_DIR"] = str(lock_dir)
@@ -304,8 +311,9 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
             _WORKER_SCRIPT,
             str(log_file),
             "w1",
-            "1.4",
+            "15.0",
             str(started1),
+            str(release1),
         ],
         env=env_base,
         stdout=subprocess.PIPE,
@@ -328,8 +336,11 @@ def test_slot_timeout_runs_anyway_with_warning(tmp_path: Path):
         text=True,
     )
 
-    out2, err2 = p2.communicate(timeout=10)
-    p1.communicate(timeout=10)
+    try:
+        out2, err2 = p2.communicate(timeout=10)
+    finally:
+        release1.write_text("release", encoding="utf-8")
+        p1.communicate(timeout=10)
 
     assert p2.returncode == 0, f"p2 failed: {err2}"
     assert "timed out waiting for test-suite slot" in err2
