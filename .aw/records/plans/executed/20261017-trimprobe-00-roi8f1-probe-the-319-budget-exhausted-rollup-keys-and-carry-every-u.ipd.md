@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the five children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/**/20261017-trimprobe-00-roi8f1-probe-the-319-budget-exhausted-rollup-keys-and-carry-every-u.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: 3e5e837490288733d9267c48ab578ef659c0bc9a7a6d641b9ef6f3a610b6260c
@@ -19,9 +19,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: roi8f1
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set trimprobe reached executed, so the runner (run run-20261017T220251Z-1893841) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: g00ljy, lictgf, f4pbs5, pr6lo9, b83dpg.
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 
@@ -35,6 +35,9 @@
 Every one of the 319 keys ends with a final verdict recorded in the Set findings doc: a measured guard verdict (`guarded`, `unguarded`, `unprovable`) for every key a probe plan started, a no-probe verdict (`key-gone`, `unguarded-unreached`, `unprovable`) from Order 01, or, only for a key a probe plan could not start before its 10,800s cap, `budget-exhausted` with the cumulative time. Every key that is not carrier-free (anything but `guarded` or `key-gone`, a residual `budget-exhausted` included) is carried by a live backlog item that names the deleted test file to mine. Order 01 (`g00ljy`) records a `### Capacity warning` when its `P3` estimate exceeds 7,200s, so any expected residue is visible before Orders 02 and 03 run.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
