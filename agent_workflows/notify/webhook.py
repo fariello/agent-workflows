@@ -34,6 +34,43 @@ def safe_url_summary(url: str) -> str:
         return "<url>"
 
 
+def notify_payload(batch: OutboundBatch) -> dict[str, Any]:
+    """Build the ``aw.notify/v1`` JSON payload for a batch.
+
+    ``count`` is the number of open member questions (``batch.question_count``
+    when set, else ``len(batch.questions)``); ``distinct_count`` is the number of
+    distinct entries (one per question group). Only full mode carries question
+    content, including the additive group keys ``group_id``, ``member_qids``,
+    ``raisers`` and ``unblock_count`` (an ungrouped entry has ``group_id: null``
+    and empty lists). Terse payloads carry no question content (spec 6kwd2e R10.4).
+    """
+    q_list: list[dict[str, Any]] = []
+    if batch.mode == "full":
+        for q in batch.questions:
+            q_list.append(
+                {
+                    "question_id": q.question_id,
+                    "text": q.text,
+                    "options": q.options,
+                    "allow_free_text": q.allow_free_text,
+                    "answer_command": q.answer_command,
+                    "group_id": q.group_id,
+                    "member_qids": list(q.member_qids),
+                    "raisers": list(q.raisers),
+                    "unblock_count": q.unblock_count,
+                }
+            )
+    return {
+        "schema": "aw.notify/v1",
+        "run_id": batch.run_id,
+        "mode": batch.mode,
+        "count": batch.total_questions,
+        "distinct_count": len(batch.questions),
+        "message": batch.message,
+        "questions": q_list,
+    }
+
+
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Refuse HTTP redirects so requests are never silently forwarded."""
 
@@ -97,26 +134,7 @@ class WebhookChannel:
             body_bytes = json.dumps({"text": batch.message}).encode("utf-8")
             headers = {"Content-Type": "application/json; charset=utf-8"}
         else:  # "aw" format default
-            q_list = []
-            if batch.mode == "full":
-                for q in batch.questions:
-                    q_list.append(
-                        {
-                            "question_id": q.question_id,
-                            "text": q.text,
-                            "options": q.options,
-                            "allow_free_text": q.allow_free_text,
-                            "answer_command": q.answer_command,
-                        }
-                    )
-            payload = {
-                "schema": "aw.notify/v1",
-                "run_id": batch.run_id,
-                "mode": batch.mode,
-                "count": len(batch.questions),
-                "message": batch.message,
-                "questions": q_list,
-            }
+            payload = notify_payload(batch)
             body_bytes = json.dumps(payload).encode("utf-8")
             headers = {"Content-Type": "application/json; charset=utf-8"}
 
@@ -159,26 +177,7 @@ class CommandChannel:
         if not self.command:
             return Receipt(ok=False, detail="No command configured")
 
-        q_list = []
-        if batch.mode == "full":
-            for q in batch.questions:
-                q_list.append(
-                    {
-                        "question_id": q.question_id,
-                        "text": q.text,
-                        "options": q.options,
-                        "allow_free_text": q.allow_free_text,
-                        "answer_command": q.answer_command,
-                    }
-                )
-        payload = {
-            "schema": "aw.notify/v1",
-            "run_id": batch.run_id,
-            "mode": batch.mode,
-            "count": len(batch.questions),
-            "message": batch.message,
-            "questions": q_list,
-        }
+        payload = notify_payload(batch)
         input_bytes = json.dumps(payload).encode("utf-8")
 
         try:

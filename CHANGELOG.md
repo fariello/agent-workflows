@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: Notification channels now show question groups. In full mode each distinct question appears once, with how many plans asked it and the group answer command, the `aw.notify/v1` JSON gains `distinct_count` and per-entry group fields, and one Telegram reply or button press answers every parked plan that asked the question. Terse text is unchanged.
 - Added: `aw notify` command family (setup telegram, setup webhook, setup command, status, disable, test, listen) for configuring and managing outbound runner notifications and live command listening. Includes `docs/notifications.md` user guide.
 
 - Added: Mid-run question deduplication, ordering, and drain management. Open questions across runner queues and preflight batches are deduplicated by driver fingerprint and asked once in unblock order. Added `answers.md` written atomically at the drain with human-editable answers ingested on resume, `aw runs answer --group` to answer question groups, bounded re-dispatch rounds via `--question-rounds`, and runaway escalation protection via `--max-park-percent` and `--runaway-min-parked` with systemic defect diagnosis.

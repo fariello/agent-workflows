@@ -69,19 +69,32 @@ def register(
     question_id: str,
     option: int | None = None,
     artifact_hash: str = "",
+    *,
+    group_id: str | None = None,
+    member_qids: list[str] | None = None,
 ) -> None:
-    """Register a routing key (channel message id or button token) to a parked question."""
+    """Register a routing key (channel message id or button token) to a parked question.
+
+    For a question GROUP, ``question_id`` is the group's representative member
+    qid and ``group_id``/``member_qids`` are stored as well; inbound routing then
+    answers the current open group containing that representative qid.
+    """
     reg_path, lock_path = _get_registry_paths()
     with FileLock(str(lock_path), timeout=10):
         data = _read_registry_locked(reg_path)
         channel_routes = data["routes"].setdefault(channel, {})
-        channel_routes[key] = {
+        route: dict[str, Any] = {
             "run_dir": str(run_dir),
             "question_id": question_id,
             "option": option,
             "artifact_hash": artifact_hash,
             "registered_at": utc_now(),
         }
+        if group_id is not None:
+            route["group_id"] = group_id
+        if member_qids is not None:
+            route["member_qids"] = list(member_qids)
+        channel_routes[key] = route
         _write_registry_locked(reg_path, data)
 
 

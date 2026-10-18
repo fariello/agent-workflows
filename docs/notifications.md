@@ -16,7 +16,7 @@ Notification content is subject to strict data governance and leak sanitization:
 
 - **Secrets and Configuration**: Channel secrets (bot tokens, chat IDs, webhook URLs) are stored exclusively in the user-level configuration file (`notify.json` under your `AW_HOME` directory, mode 0600 on POSIX). Secrets are never committed to repository tracking files.
 - **Terse Mode (Default)**: In terse mode, notifications contain only the run identifier, the count of open questions, and the local CLI command to answer them (`aw runs answer <run-id>`). No question text, options, code snippets, or prompt details leave the machine.
-- **Full Mode**: When opted into full mode (`--full`), notifications include sanitized question text and choices.
+- **Full Mode**: When opted into full mode (`--full`), notifications include sanitized question text and choices. When several parked plans ask the same question, full mode lists that question once, says how many plans asked it, and shows the group answer command (`aw runs answer <run-id> --group <group-id>`). One answer, from the terminal or a Telegram reply or button, then answers every plan that asked it. Terse text is unchanged: it still reports the total number of open questions.
 - **Outbound Sanitizer**: Before any notification payload leaves the machine, it passes through the outbound leak sanitizer:
   - ANSI color and terminal control sequences are stripped.
   - Home directory paths and usernames are rewritten or redacted.

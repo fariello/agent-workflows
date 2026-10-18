@@ -70,23 +70,51 @@ class InboundEvent:
 
 @dataclass
 class OutboundQuestion:
-    """Question representation for outbound delivery."""
+    """Question representation for outbound delivery.
+
+    A grouped entry (one deduplicated ``question_inbox.QuestionGroup``) carries
+    ``group_id``; its ``question_id`` is the group's REPRESENTATIVE member qid
+    (``QuestionGroup.oq_id``), ``member_qids`` names every member question,
+    ``raisers`` the distinct raiser artifact id6s, and ``unblock_count`` the
+    group's unblock count. An ungrouped entry leaves ``group_id`` as None.
+    """
 
     question_id: str
     text: str
     options: list[str] | None = None
     allow_free_text: bool = True
     answer_command: str = ""
+    group_id: str | None = None
+    member_qids: list[str] = field(default_factory=list)
+    raisers: list[str] = field(default_factory=list)
+    unblock_count: int = 0
 
 
 @dataclass
 class OutboundBatch:
-    """Batch of questions or status notification to be delivered off-machine."""
+    """Batch of questions or status notification to be delivered off-machine.
+
+    ``question_count`` is the total number of open member questions the batch
+    reports (spec 6kwd2e R10.4's N). ``None`` means ``len(questions)``, which is
+    the meaning every ungrouped batch already has.
+    """
 
     run_id: str
     mode: str  # "terse" or "full"
     message: str
     questions: list[OutboundQuestion] = field(default_factory=list)
+    question_count: int | None = None
+
+    @property
+    def total_questions(self) -> int:
+        """Number of open member questions this batch reports."""
+        if self.question_count is not None:
+            return self.question_count
+        return len(self.questions)
+
+
+# Maximum number of raiser id6s listed in a full-mode group entry.
+MAX_LISTED_RAISERS = 10
 
 
 @runtime_checkable
@@ -173,14 +201,38 @@ def build_batch(
 
     In terse mode: only 'run <run-id>: N question(s) waiting; answer with aw runs answer <run-id>'.
     In full mode: additionally includes each question's sanitized text, options, and answer command.
+
+    ``questions`` may mix ``OutboundQuestion`` objects, question-record dicts, and
+    ``question_inbox.QuestionGroup`` objects. Each group becomes ONE entry whose
+    answer command is ``aw runs answer <run-id> --group <group-id>`` and N counts
+    every member question. Input order is preserved as given (never re-sorted).
     """
-    count = len(questions)
-    plural = "question" if count == 1 else "questions"
     norm_questions: list[OutboundQuestion] = []
+    count = 0
     for q in questions:
-        if isinstance(q, OutboundQuestion):
+        if isinstance(q, question_inbox.QuestionGroup):
+            member_qids = [m.question_id for m in q.members if m.question_id]
+            norm_questions.append(
+                OutboundQuestion(
+                    question_id=q.oq_id,
+                    text=str(q.text or ""),
+                    options=(
+                        [str(x) for x in q.options] if q.options is not None else None
+                    ),
+                    allow_free_text=bool(q.allow_free_text),
+                    answer_command=f"aw runs answer {run_id} --group {q.group_id}",
+                    group_id=q.group_id,
+                    member_qids=member_qids,
+                    raisers=list(q.raisers),
+                    unblock_count=int(q.unblock_count),
+                )
+            )
+            count += max(1, q.member_count)
+        elif isinstance(q, OutboundQuestion):
             norm_questions.append(q)
+            count += max(1, len(q.member_qids)) if q.group_id else 1
         elif isinstance(q, dict):
+            count += 1
             qid = str(q.get("question_id") or "")
             raw_opts = q.get("options")
             opts = (
@@ -198,6 +250,8 @@ def build_batch(
                 )
             )
 
+    plural = "question" if count == 1 else "questions"
+
     if mode == "full":
         parts = [
             f"run {run_id}: {count} {plural} waiting; answer with aw runs answer {run_id}"
@@ -210,23 +264,42 @@ def build_batch(
                 if q.options is not None
                 else None
             )
+            if q.group_id:
+                answer_command = f"aw runs answer {run_id} --group {q.group_id}"
+            else:
+                answer_command = f"aw runs answer {run_id} {q.question_id}"
             san_q = OutboundQuestion(
                 question_id=q.question_id,
                 text=san_text,
                 options=san_opts,
                 allow_free_text=q.allow_free_text,
-                answer_command=f"aw runs answer {run_id} {q.question_id}",
+                answer_command=answer_command,
+                group_id=q.group_id,
+                member_qids=list(q.member_qids),
+                raisers=list(q.raisers),
+                unblock_count=q.unblock_count,
             )
             sanitized_questions.append(san_q)
 
             parts.append("")
-            parts.append(f"Question: {q.question_id}")
+            if q.group_id:
+                parts.append(f"Question: {q.group_id}")
+                listed = q.raisers[:MAX_LISTED_RAISERS]
+                raiser_line = (
+                    f"Asked by {len(q.raisers)} artifact(s): {', '.join(listed)}"
+                )
+                if len(q.raisers) > len(listed):
+                    raiser_line += f" and {len(q.raisers) - len(listed)} more"
+                parts.append(raiser_line)
+                parts.append(f"Unblocks: {q.unblock_count}")
+            else:
+                parts.append(f"Question: {q.question_id}")
             parts.append(san_text)
             if san_opts:
                 parts.append("Options:")
                 for idx, opt in enumerate(san_opts, start=1):
                     parts.append(f"  {idx}) {opt}")
-            parts.append(f"aw runs answer {run_id} {q.question_id}")
+            parts.append(answer_command)
 
         full_message = "\n".join(parts)
         message = sanitize_outbound(full_message, repo=repo, max_text=caps.max_text)
@@ -235,6 +308,7 @@ def build_batch(
             mode="full",
             message=message,
             questions=sanitized_questions,
+            question_count=count,
         )
     else:
         # Terse mode: no question text or options
@@ -245,7 +319,63 @@ def build_batch(
             mode="terse",
             message=message,
             questions=norm_questions,
+            question_count=count,
         )
+
+
+def _apply_group_route(
+    run_dir: Path,
+    representative_qid: str,
+    *,
+    answer: str | None,
+    choice: int | None,
+    channel_name: str,
+    sender: str,
+) -> str | None:
+    """Answer the CURRENT open group containing a group route's representative qid.
+
+    The group id stored on a route is NOT a stable key: collision-split ids
+    (``g-<fp>-<n>``) are renumbered when another same-fingerprint question parks,
+    so the stored id can name a different question than the one the human saw.
+    The representative member qid is stable, so the group is re-resolved by
+    membership. Returns the ``write_group_answer`` status, or None when no open
+    group contains the representative qid (the caller then falls back to
+    ``write_answer`` on that qid, which reports 'already' or 'rejected' truthfully).
+
+    ``write_group_answer`` is NOT atomic across members: each member is
+    first-answer-wins under its own per-question lock, so a member answered
+    concurrently elsewhere keeps that answer while the rest record this one.
+    """
+    from agent_workflows import runner_shared
+
+    state: dict[str, Any] | None = None
+    if (run_dir / "state.json").is_file():
+        try:
+            state = runner_shared.load_state(run_dir)
+        except Exception:
+            state = None
+    groups = question_inbox.group_open_questions(run_dir, state)
+    current = next(
+        (
+            g
+            for g in groups
+            if any(m.question_id == representative_qid for m in g.members)
+        ),
+        None,
+    )
+    if current is None:
+        return None
+    res = question_inbox.write_group_answer(
+        run_dir,
+        state,
+        current.group_id,
+        answer=answer,
+        choice=choice,
+        channel=channel_name,
+        sender=sender,
+        actor="human",
+    )
+    return res.status
 
 
 def apply_inbound(channel: Any, event: InboundEvent) -> str:
@@ -300,16 +430,27 @@ def apply_inbound(channel: Any, event: InboundEvent) -> str:
     answer = event.answer
 
     # 4. Write answer through shared answer writer
-    ans_res = question_inbox.write_answer(
-        run_dir,
-        qid,
-        answer=answer,
-        choice=choice,
-        channel=channel_name,
-        sender=str(sender),
-        actor="human",
-    )
-    outcome = ans_res.status  # 'recorded', 'already', or 'rejected'
+    outcome: str | None = None
+    if route.get("group_id"):
+        outcome = _apply_group_route(
+            run_dir,
+            qid,
+            answer=answer,
+            choice=choice,
+            channel_name=channel_name,
+            sender=str(sender),
+        )
+    if outcome is None:
+        ans_res = question_inbox.write_answer(
+            run_dir,
+            qid,
+            answer=answer,
+            choice=choice,
+            channel=channel_name,
+            sender=str(sender),
+            actor="human",
+        )
+        outcome = ans_res.status  # 'recorded', 'already', or 'rejected'
 
     ack_fn = getattr(channel, "ack", None)
     if callable(ack_fn):
@@ -413,17 +554,52 @@ def dispatch_checkpoint(
         for r in sent_records
         if r.get("type", "question") == "question"
     }
-    sent_acks = {
-        (r.get("channel"), r.get("question_id"))
-        for r in sent_records
-        if r.get("type") == "ack"
-    }
 
-    # 1. Read open questions
-    open_qs = question_inbox.read_open_questions(run_dir)
+    # 1. Read open questions, deduplicated into groups (spec 6kwd2e R4). The
+    #    grouping is the same one `aw runs answer --group` recomputes, so a group
+    #    id printed in a notification is one the CLI resolves.
     run_id = str(state.get("run_id") or run_dir.name)
+    groups = question_inbox.group_open_questions(run_dir, state)
+    covered = {m.question_id for g in groups for m in g.members if m.question_id}
+    # A question no group covers (group_open_questions narrows to the current
+    # park's question_ids while a non-parked item may still hold an open
+    # question) keeps today's per-question rendering, so nothing stops being
+    # notified.
+    uncovered = [
+        q
+        for q in question_inbox.read_open_questions(run_dir)
+        if q.get("question_id") and q.get("question_id") not in covered
+    ]
+    # (entry for build_batch, member qids, group id or None, representative qid)
+    entries: list[tuple[Any, list[str], str | None, str]] = []
+    for g in groups:
+        member_qids = [m.question_id for m in g.members if m.question_id]
+        if member_qids:
+            entries.append((g, member_qids, g.group_id, g.oq_id))
+    for q in uncovered:
+        qid = str(q["question_id"])
+        entries.append((q, [qid], None, qid))
 
-    # 2. Send newly parked batch per channel
+    def _sent_rows(
+        ch_name: str,
+        selected: list[tuple[Any, list[str], str | None, str]],
+        extra: dict[str, Any],
+    ) -> None:
+        for _obj, member_qids, gid, rep in selected:
+            for mqid in member_qids:
+                row: dict[str, Any] = {
+                    "channel": ch_name,
+                    "question_id": mqid,
+                    "type": "question",
+                    "at": utc_now(),
+                }
+                if gid is not None:
+                    row["group_id"] = gid
+                    row["representative_qid"] = rep
+                row.update(extra)
+                _append_jsonl(sent_file, row)
+
+    # 2. Send newly parked batch per channel (one batch per channel per checkpoint)
     for ch_name, ch_cfg in effective.items():
         try:
             channel = get_channel(ch_name, ch_cfg)
@@ -431,7 +607,7 @@ def dispatch_checkpoint(
                 hasattr(channel, "run_dir")
                 and getattr(channel, "run_dir", None) is None
             ):
-                channel.run_dir = run_dir
+                channel.run_dir = run_dir  # type: ignore[attr-defined]
         except Exception as exc:
             detail = _redact_secrets(str(exc), ch_cfg)
             _append_jsonl(
@@ -446,13 +622,18 @@ def dispatch_checkpoint(
             continue
 
         caps = channel.capabilities()
-        new_qs = [
-            q for q in open_qs if (ch_name, q.get("question_id")) not in sent_questions
+        # A group is NEW for a channel when any member lacks a sent row; it is
+        # then rendered with ALL its current members.
+        new_entries = [
+            e
+            for e in entries
+            if any((ch_name, mqid) not in sent_questions for mqid in e[1])
         ]
-        if new_qs:
+        if new_entries:
+            member_total = sum(len(e[1]) for e in new_entries)
             batch = build_batch(
                 run_id=run_id,
-                questions=new_qs,
+                questions=[e[0] for e in new_entries],
                 mode=ch_cfg.get("mode", "terse"),
                 caps=caps,
                 repo=repo,
@@ -460,24 +641,14 @@ def dispatch_checkpoint(
             try:
                 receipt = channel.send(batch)
                 if receipt.ok:
-                    for q in new_qs:
-                        _append_jsonl(
-                            sent_file,
-                            {
-                                "channel": ch_name,
-                                "question_id": q["question_id"],
-                                "type": "question",
-                                "at": utc_now(),
-                                "message_id": receipt.message_id,
-                            },
-                        )
+                    _sent_rows(ch_name, new_entries, {"message_id": receipt.message_id})
                     _append_jsonl(
                         events_file,
                         {
                             "at": utc_now(),
                             "event": "notify-sent",
                             "channel": ch_name,
-                            "count": len(new_qs),
+                            "count": member_total,
                         },
                     )
                 else:
@@ -497,17 +668,7 @@ def dispatch_checkpoint(
                         },
                     )
                     if getattr(receipt, "uncertain", False):
-                        for q in new_qs:
-                            _append_jsonl(
-                                sent_file,
-                                {
-                                    "channel": ch_name,
-                                    "question_id": q["question_id"],
-                                    "type": "question",
-                                    "at": utc_now(),
-                                    "uncertain": True,
-                                },
-                            )
+                        _sent_rows(ch_name, new_entries, {"uncertain": True})
             except Exception as exc:
                 detail = _redact_secrets(str(exc), ch_cfg)
                 _append_jsonl(
@@ -536,22 +697,61 @@ def dispatch_checkpoint(
 
     # Re-read sent_records in case new questions were sent above
     sent_records = _read_jsonl(sent_file)
-    sent_questions = {
-        (r.get("channel"), r.get("question_id"))
-        for r in sent_records
-        if r.get("type", "question") == "question"
-    }
+    sent_questions = set()
+    # Latest (group_id, representative qid) recorded per (channel, qid).
+    sent_group: dict[tuple[Any, Any], tuple[str, str]] = {}
+    for r in sent_records:
+        if r.get("type", "question") != "question":
+            continue
+        key = (r.get("channel"), r.get("question_id"))
+        sent_questions.add(key)
+        gid = r.get("group_id")
+        if gid:
+            sent_group[key] = (
+                str(gid),
+                str(r.get("representative_qid") or r.get("question_id")),
+            )
+        else:
+            sent_group.pop(key, None)
     sent_acks = {
         (r.get("channel"), r.get("question_id"))
         for r in sent_records
         if r.get("type") == "ack"
     }
 
-    for ch_name, qid in sent_questions:
+    # Bucket pending acknowledgements: one per (channel, group, status); an
+    # ungrouped qid is its own bucket, so it keeps today's per-question ack.
+    buckets: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for ch_name, qid in sorted(sent_questions, key=lambda k: (str(k[0]), str(k[1]))):
         if (ch_name, qid) in sent_acks:
             continue
         if ch_name not in effective:
             continue
+        if qid in consumed_events:
+            ack_status = "consumed"
+        elif qid in stale_events:
+            ack_status = "stale"
+        else:
+            continue
+        grp = sent_group.get((ch_name, qid))
+        bucket_key = (str(ch_name), f"g:{grp[0]}" if grp else f"q:{qid}", ack_status)
+        bucket = buckets.setdefault(
+            bucket_key,
+            {
+                "channel": ch_name,
+                "status": ack_status,
+                "representative": grp[1] if grp else qid,
+                "qids": [],
+            },
+        )
+        bucket["qids"].append(qid)
+
+    for bucket_key in sorted(buckets):
+        bucket = buckets[bucket_key]
+        ch_name = bucket["channel"]
+        ack_status = bucket["status"]
+        rep = bucket["representative"]
+        qids = bucket["qids"]
 
         ch_cfg = effective[ch_name]
         try:
@@ -560,29 +760,27 @@ def dispatch_checkpoint(
             continue
 
         caps = channel.capabilities()
-        ack_text: str | None = None
-        ack_status: str | None = None
-
-        if qid in consumed_events:
-            ans_channel = consumed_events[qid].get("channel") or "terminal"
-            ack_text = f"run {run_id} ({qid}): answered via {ans_channel}"
-            ack_status = "consumed"
-        elif qid in stale_events:
+        if ack_status == "consumed":
+            first = next(q for q in qids if q in consumed_events)
+            ans_channel = consumed_events[first].get("channel") or "terminal"
+            ack_text = f"run {run_id} ({rep}): answered via {ans_channel}"
+            if len(qids) > 1:
+                ack_text += f" (applied to {len(qids)} questions)"
+        else:
             ack_text = (
-                f"run {run_id} ({qid}): answer not applied: the plan changed; ask again"
+                f"run {run_id} ({rep}): answer not applied: the plan changed; ask again"
             )
-            ack_status = "stale"
 
-        if ack_text is not None and ack_status is not None:
-            ack_batch = OutboundBatch(
-                run_id=run_id,
-                mode="terse",
-                message=sanitize_outbound(ack_text, repo=repo, max_text=caps.max_text),
-                questions=[OutboundQuestion(question_id=qid, text="")] if qid else [],
-            )
-            try:
-                receipt = channel.send(ack_batch)
-                if receipt.ok:
+        ack_batch = OutboundBatch(
+            run_id=run_id,
+            mode="terse",
+            message=sanitize_outbound(ack_text, repo=repo, max_text=caps.max_text),
+            questions=[OutboundQuestion(question_id=rep, text="")] if rep else [],
+        )
+        try:
+            receipt = channel.send(ack_batch)
+            if receipt.ok:
+                for qid in qids:
                     _append_jsonl(
                         sent_file,
                         {
@@ -593,19 +791,8 @@ def dispatch_checkpoint(
                             "at": utc_now(),
                         },
                     )
-                else:
-                    detail = _redact_secrets(receipt.detail, ch_cfg)
-                    _append_jsonl(
-                        events_file,
-                        {
-                            "at": utc_now(),
-                            "event": "notify-failed",
-                            "channel": ch_name,
-                            "detail": detail,
-                        },
-                    )
-            except Exception as exc:
-                detail = _redact_secrets(str(exc), ch_cfg)
+            else:
+                detail = _redact_secrets(receipt.detail, ch_cfg)
                 _append_jsonl(
                     events_file,
                     {
@@ -615,3 +802,14 @@ def dispatch_checkpoint(
                         "detail": detail,
                     },
                 )
+        except Exception as exc:
+            detail = _redact_secrets(str(exc), ch_cfg)
+            _append_jsonl(
+                events_file,
+                {
+                    "at": utc_now(),
+                    "event": "notify-failed",
+                    "channel": ch_name,
+                    "detail": detail,
+                },
+            )

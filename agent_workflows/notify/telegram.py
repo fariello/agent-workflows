@@ -473,7 +473,19 @@ class TelegramChannel:
             if q.allow_free_text:
                 reply_markup["force_reply"] = True
 
-            lines = [f"run {batch.run_id} ({q.question_id}):", q.text]
+            if q.group_id:
+                header = (
+                    f"run {batch.run_id} ({q.group_id}, "
+                    f"{len(q.member_qids)} artifacts):"
+                )
+                group_kw: dict[str, Any] = {
+                    "group_id": q.group_id,
+                    "member_qids": list(q.member_qids),
+                }
+            else:
+                header = f"run {batch.run_id} ({q.question_id}):"
+                group_kw = {}
+            lines = [header, q.text]
             if q.options:
                 lines.append("Options:")
                 for idx, opt in enumerate(q.options, start=1):
@@ -508,6 +520,7 @@ class TelegramChannel:
                 question_id=q.question_id,
                 option=None,
                 artifact_hash="",
+                **group_kw,
             )
             # Register tokens BEFORE next send
             for idx, tok in tokens:
@@ -518,6 +531,7 @@ class TelegramChannel:
                     question_id=q.question_id,
                     option=idx,
                     artifact_hash="",
+                    **group_kw,
                 )
 
         return Receipt(ok=True, message_id=last_msg_id, detail="Full questions sent")
