@@ -31,6 +31,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 - [Human TTY guide](cli-human-guide.md): reading the styled interactive `aw` output at a terminal.
 - [Agent protocol reference](cli-agent-protocol.md): parsing the `aw.agent/v1` machine format.
 - [CLI output migration guide](cli-migration.md): moving scrapers to --agent, with the retracted automatic cutover noted.
+- [Notifications](notifications.md): phone notifications, remote answers, channel setup, and verification.
 
 ## Operator walkthroughs
 

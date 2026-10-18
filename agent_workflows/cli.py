@@ -748,6 +748,44 @@ _DESCRIPTIONS = {
         "portable authority is the 'aw check' rule + CI); commit-scoped. Exit 0 = ok/no-op, 1 = "
         "refused. Invoked by the repo:local pre-commit hook."
     ),
+    "notify": (
+        "Configure, test, inspect, and run notification channels (spec 6kwd2e R10): "
+        "'status' reports channel health and receiver lock status, 'setup' configures "
+        "Telegram (pairing and button verification), webhooks (ntfy, Teams, Google Chat) "
+        "or command hooks, 'test' sends test notifications, 'disable' turns off a channel, "
+        "and 'listen' runs a foreground receiver for remote answers."
+    ),
+    "notify status": (
+        "Report configuration source, mode, policy ceiling, receiver lock holder, and last "
+        "delivery event across notification channels. Never displays secrets or webhook paths."
+    ),
+    "notify setup": (
+        "Guided setup and pairing wizards for Telegram bots, webhooks, and command hooks."
+    ),
+    "notify setup telegram": (
+        "Guided pairing and verification for Telegram bot notifications and remote answers: "
+        "displays privacy notices, securely reads token, checks webhooks, pairs via one-time "
+        "phrase, confirms sender identity, tests button and threaded reply, and saves to notify.json."
+    ),
+    "notify setup webhook": (
+        "Configure an incoming webhook notification channel (aw, text, or ntfy format) after "
+        "delivering a verified test notification."
+    ),
+    "notify setup command": (
+        "Configure a local command hook notification channel after delivering a verified "
+        "test notification."
+    ),
+    "notify disable": (
+        "Disable a configured notification channel in user configuration."
+    ),
+    "notify test": (
+        "Send a terse test notification to all or a named effective channel, waiting for "
+        "button confirmation on Telegram."
+    ),
+    "notify listen": (
+        "Run a foreground receiver to collect and route remote Telegram answers to open "
+        "questions for finished or unmonitored runs."
+    ),
 }
 
 
@@ -7255,6 +7293,109 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_specs_migrate.add_argument(
         "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
+
+    p_notify = sub.add_parser(
+        "notify",
+        parents=[common],
+        help="Configure, test, inspect, and run notification channels.",
+        formatter_class=_AlphaHelpFormatter,
+    )
+    notify_sub = p_notify.add_subparsers(dest="notify_cmd")
+
+    notify_sub.add_parser(
+        "status",
+        parents=[common],
+        help="Report status of configured notification channels.",
+    )
+
+    p_notify_disable = notify_sub.add_parser(
+        "disable",
+        parents=[common],
+        help="Disable a notification channel in user configuration.",
+    )
+    p_notify_disable.add_argument(
+        "channel",
+        help="Channel to disable (telegram, webhook, command).",
+    )
+
+    p_notify_test = notify_sub.add_parser(
+        "test",
+        parents=[common],
+        help="Send a test notification to configured channels.",
+    )
+    p_notify_test.add_argument(
+        "channel",
+        nargs="?",
+        default=None,
+        help="Optional channel to test (telegram, webhook, command).",
+    )
+
+    notify_sub.add_parser(
+        "listen",
+        parents=[common],
+        help="Run foreground listener to route remote answers to open questions.",
+    )
+
+    p_notify_setup = notify_sub.add_parser(
+        "setup",
+        parents=[common],
+        help="Guided setup and pairing wizards for notification channels.",
+    )
+    notify_setup_sub = p_notify_setup.add_subparsers(dest="setup_cmd")
+
+    p_setup_tg = notify_setup_sub.add_parser(
+        "telegram",
+        parents=[common],
+        help="Guided pairing and setup for Telegram notifications.",
+    )
+    p_setup_tg.add_argument(
+        "--full",
+        action="store_true",
+        help="Configure channel in full mode instead of default terse mode.",
+    )
+
+    p_setup_wh = notify_setup_sub.add_parser(
+        "webhook",
+        parents=[common],
+        help="Setup generic incoming webhook notifications (ntfy, Teams, Google Chat).",
+    )
+    p_setup_wh.add_argument(
+        "--url",
+        default=None,
+        help="Webhook URL (prefer --url-stdin to avoid shell history).",
+    )
+    p_setup_wh.add_argument(
+        "--url-stdin",
+        action="store_true",
+        help="Read webhook URL from stdin without echo.",
+    )
+    p_setup_wh.add_argument(
+        "--format",
+        choices=["aw", "text", "ntfy"],
+        default="aw",
+        help="Payload format (default: aw).",
+    )
+    p_setup_wh.add_argument(
+        "--full",
+        action="store_true",
+        help="Configure channel in full mode instead of default terse mode.",
+    )
+
+    p_setup_cmd = notify_setup_sub.add_parser(
+        "command",
+        parents=[common],
+        help="Setup command hook notification channel.",
+    )
+    p_setup_cmd.add_argument(
+        "--full",
+        action="store_true",
+        help="Configure channel in full mode instead of default terse mode.",
+    )
+    p_setup_cmd.add_argument(
+        "argv",
+        nargs=argparse.REMAINDER,
+        help="Command and arguments to execute with notification payload on stdin.",
     )
 
     p_prompts = sub.add_parser(
@@ -19689,6 +19830,42 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return sp.run_migrate(args)
         return _show_family_help(parser, "specs", "aw specs check", term, context)
+    if args.command == "notify":
+        notify_cmd = getattr(args, "notify_cmd", None)
+        if notify_cmd == "status":
+            from agent_workflows.notify import cli as ncli
+
+            return ncli.run_status(args, term=term, context=context)
+        if notify_cmd == "disable":
+            from agent_workflows.notify import cli as ncli
+
+            return ncli.run_disable(args, term=term, context=context)
+        if notify_cmd == "test":
+            from agent_workflows.notify import cli as ncli
+
+            return ncli.run_test(args, term=term, context=context)
+        if notify_cmd == "listen":
+            from agent_workflows.notify import cli as ncli
+
+            return ncli.run_listen(args, term=term, context=context)
+        if notify_cmd == "setup":
+            setup_cmd = getattr(args, "setup_cmd", None)
+            if setup_cmd == "telegram":
+                from agent_workflows.notify import cli as ncli
+
+                return ncli.run_setup_telegram(args, term=term, context=context)
+            if setup_cmd == "webhook":
+                from agent_workflows.notify import cli as ncli
+
+                return ncli.run_setup_webhook(args, term=term, context=context)
+            if setup_cmd == "command":
+                from agent_workflows.notify import cli as ncli
+
+                return ncli.run_setup_command(args, term=term, context=context)
+            return _show_family_help(
+                parser, "notify setup", "aw notify setup telegram", term, context
+            )
+        return _show_family_help(parser, "notify", "aw notify status", term, context)
     if args.command == "adopt":
         from agent_workflows import artifact_adopt as _adopt
 

@@ -24,6 +24,8 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Added: `aw notify` command family (setup telegram, setup webhook, setup command, status, disable, test, listen) for configuring and managing outbound runner notifications and live command listening. Includes `docs/notifications.md` user guide.
+
 - Added: Mid-run question deduplication, ordering, and drain management. Open questions across runner queues and preflight batches are deduplicated by driver fingerprint and asked once in unblock order. Added `answers.md` written atomically at the drain with human-editable answers ingested on resume, `aw runs answer --group` to answer question groups, bounded re-dispatch rounds via `--question-rounds`, and runaway escalation protection via `--max-park-percent` and `--runaway-min-parked` with systemic defect diagnosis.
 - Fixed: `aw run finalize --agent` on an incomplete run now emits a validated `aw.agent/v1` result record with outcome fail and exit 1, while preserving legacy payload keys and keeping bare JSON for wider refusal codes and `--json` mode.
 - Changed: `aw run` and `aw runs` exit-0 and exit-1 answers under `--agent` now emit validated `aw.agent/v1` result records that keep legacy payload keys and honor `--fields`, while bare JSON is preserved for `--json` mode, exit-3 answers, and non-2 refusals.
