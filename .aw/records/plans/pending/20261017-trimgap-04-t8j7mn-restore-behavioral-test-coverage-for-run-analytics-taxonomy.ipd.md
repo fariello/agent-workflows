@@ -35,24 +35,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the deleted module
 
-- [ ] E-01 Restore `tests/test_run_analytics_taxonomy.py` with `git show 19313eed^:tests/test_run_analytics_taxonomy.py > tests/test_run_analytics_taxonomy.py`, then make exactly one edit: after `import unittest`, add `import pytest` and a module-level `pytestmark = pytest.mark.core` so the core-tier hook (`conftest.pytest_collection_modifyitems`) selects it on a bare `python3 -m pytest`. Keep every restored test body and the module docstring unchanged; append one docstring sentence naming backlog `aux1f6`, findings `b1mx2w`, and the source revision `19313eed^`. Keep the existing `_FAKE_ABS_PATH` fixture as is (it is deliberately not home-directory shaped, so the leak sanitizer does not flag the tracked file). Disposition rule if a restored test fails at execution HEAD (none did at authoring, F-02, nor at review, F-05): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Restore `tests/test_run_analytics_taxonomy.py` with `git show 19313eed^:tests/test_run_analytics_taxonomy.py > tests/test_run_analytics_taxonomy.py`, then make exactly one edit: after `import unittest`, add `import pytest` and a module-level `pytestmark = pytest.mark.core` so the core-tier hook (`conftest.pytest_collection_modifyitems`) selects it on a bare `python3 -m pytest`. Keep every restored test body and the module docstring unchanged; append one docstring sentence naming backlog `aux1f6`, findings `b1mx2w`, and the source revision `19313eed^`. Keep the existing `_FAKE_ABS_PATH` fixture as is (it is deliberately not home-directory shaped, so the leak sanitizer does not flag the tracked file). Disposition rule if a restored test fails at execution HEAD (none did at authoring, F-02, nor at review, F-05): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists, carries the `core` marker, every restored test passes, and a bare `python3 -m pytest --collect-only -q` lists `tests/test_run_analytics_taxonomy.py: N` with N equal to the restored test count (51 at authoring and review, re-derived at execution).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: residual branch coverage
 
-- [ ] E-02 Append one test class, `ResidualBranchTests(unittest.TestCase)`, covering the branches the restored file leaves unexecuted (F-03), each asserting a returned value observed at authoring: (a) `tax._segment_head("timeout 30s /usr/bin/pytest")` returns `("pytest", "")` (wrapper head plus a duration argument is skipped and an absolute head reduces to its basename) and `tax.classify_command("timeout 30s pytest -q").labels` contains `ActivityClass.TESTS`; (b) `tax._segment_head("   ")` and `tax._segment_head("xargs")` both return `("", "")`, and `tax.classify_command("xargs").labels == (ActivityClass.OTHER_UNKNOWN,)`; (c) `tax.classify_segment("   ")` returns `{}`; (d) `tax.classify_command("git frobnicate").evidence[ActivityClass.GIT]` has `rule == "git:other"` and `confidence == Confidence.MEDIUM` (an unknown git subcommand is still git); (e) `tax.classify_command("make wibble").evidence[ActivityClass.IMPLEMENTATION]` has `rule == "make:other"` and `confidence == Confidence.MEDIUM`; (f) `tax.classify_command("")` has `labels == (ActivityClass.OTHER_UNKNOWN,)`, `is_unclassified` True and `segment_count == 0`; (g) `tax._file_category("")` returns `"other"`; (h) `tax.Classification(labels=(), evidence={}, shares={}).display_label()` returns `ActivityClass.OTHER_UNKNOWN`; (i) `tax.accumulate([tax.classify_command("cd /x && git status")])` has `leading_cd_command_share == 1.0` and `multi_segment_command_share == 0.0`; (j) `tax.classify_corpus_calls([{"tool": "bash", "command": "git status"}, "not a mapping"])` returns a `(classifications, accounting)` tuple whose list has two items, the second with labels `(ActivityClass.OTHER_UNKNOWN,)`, and whose accounting has `command_count == 2` and `unclassified_command_share == 0.5` (the `TaxonomyError` fallback branch); (k) `tax._segment_head("xargs -0 grep foo")` returns `("grep", "foo")` (a wrapper's own flag is skipped: the loop `while parts and parts[0].startswith("-")` in `_segment_head`, the one line (a) to (j) leave unexecuted, F-05). Re-measure each value at execution HEAD before asserting it; if one has changed, apply the E-01 disposition rule.
+- [x] E-02 Append one test class, `ResidualBranchTests(unittest.TestCase)`, covering the branches the restored file leaves unexecuted (F-03), each asserting a returned value observed at authoring: (a) `tax._segment_head("timeout 30s /usr/bin/pytest")` returns `("pytest", "")` (wrapper head plus a duration argument is skipped and an absolute head reduces to its basename) and `tax.classify_command("timeout 30s pytest -q").labels` contains `ActivityClass.TESTS`; (b) `tax._segment_head("   ")` and `tax._segment_head("xargs")` both return `("", "")`, and `tax.classify_command("xargs").labels == (ActivityClass.OTHER_UNKNOWN,)`; (c) `tax.classify_segment("   ")` returns `{}`; (d) `tax.classify_command("git frobnicate").evidence[ActivityClass.GIT]` has `rule == "git:other"` and `confidence == Confidence.MEDIUM` (an unknown git subcommand is still git); (e) `tax.classify_command("make wibble").evidence[ActivityClass.IMPLEMENTATION]` has `rule == "make:other"` and `confidence == Confidence.MEDIUM`; (f) `tax.classify_command("")` has `labels == (ActivityClass.OTHER_UNKNOWN,)`, `is_unclassified` True and `segment_count == 0`; (g) `tax._file_category("")` returns `"other"`; (h) `tax.Classification(labels=(), evidence={}, shares={}).display_label()` returns `ActivityClass.OTHER_UNKNOWN`; (i) `tax.accumulate([tax.classify_command("cd /x && git status")])` has `leading_cd_command_share == 1.0` and `multi_segment_command_share == 0.0`; (j) `tax.classify_corpus_calls([{"tool": "bash", "command": "git status"}, "not a mapping"])` returns a `(classifications, accounting)` tuple whose list has two items, the second with labels `(ActivityClass.OTHER_UNKNOWN,)`, and whose accounting has `command_count == 2` and `unclassified_command_share == 0.5` (the `TaxonomyError` fallback branch); (k) `tax._segment_head("xargs -0 grep foo")` returns `("grep", "foo")` (a wrapper's own flag is skipped: the loop `while parts and parts[0].startswith("-")` in `_segment_head`, the one line (a) to (j) leave unexecuted, F-05). Re-measure each value at execution HEAD before asserting it; if one has changed, apply the E-01 disposition rule.
   - Depends on: E-01
   - Expected outcome: the new class passes, and module line coverage is 100 percent (at review (a) to (j) reached 99 percent with only the wrapper-flag skip missed, and (k) covers it, F-05); any line still missed is named and explained in V-02.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: proof that every key is guarded
 
-- [ ] E-03 Run the full 29-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/run_analytics_taxonomy.py::*`, apply that row's assigned operator (`return-none`, `return-false`, `raise`) as a scratch edit to `agent_workflows/run_analytics_taxonomy.py` at the top of the key's body (after its docstring; for the nested `classify_segment.note`, at the top of the inner function), run `python3 -m pytest tests/test_run_analytics_taxonomy.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script in a gitignored scratch location (for example `.aw/state/`) and never commit it. A survivor is a defect in this plan's deliverable: add the missing assertion and re-sweep that key; do not mark this item performed with a survivor outstanding.
+- [x] E-03 Run the full 29-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/run_analytics_taxonomy.py::*`, apply that row's assigned operator (`return-none`, `return-false`, `raise`) as a scratch edit to `agent_workflows/run_analytics_taxonomy.py` at the top of the key's body (after its docstring; for the nested `classify_segment.note`, at the top of the inner function), run `python3 -m pytest tests/test_run_analytics_taxonomy.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script in a gitignored scratch location (for example `.aw/state/`) and never commit it. A survivor is a defect in this plan's deliverable: add the missing assertion and re-sweep that key; do not mark this item performed with a survivor outstanding.
   - Depends on: E-02
   - Expected outcome: all 29 keys KILLED (at review the restored file alone killed all 29, F-05); `git diff agent_workflows/` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,20 +117,307 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat` (and `git status --short`) showing only `tests/test_run_analytics_taxonomy.py` added; paste `git diff --no-index <(git show 19313eed^:tests/test_run_analytics_taxonomy.py) tests/test_run_analytics_taxonomy.py` (or equivalent) showing the only differences are the `pytest` import, the `pytestmark` line and the docstring sentence (plus E-02's appended class); paste the `-v` output listing every restored test as PASSED; paste `python3 -m pytest --collect-only -q | rg test_run_analytics_taxonomy` showing the module is selected by the bare core tier; paste the bare `python3 -m pytest` summary line (if it prints `CORE TIER BUDGET EXCEEDED`, paste that too with the same run's line without the module, and report it rather than un-marking tests; a pre-existing overrun is tracked separately, backlog `o58dro`); paste the `assert_no_command_text` and `unclassified_regressed` mutation failures (reverted afterwards); paste `aw sanitize --agent` showing no `fail` on the file.
   - Observed evidence:
-  - Result: pending
+    `git status --short`:
+    ```
+    ?? tests/test_run_analytics_taxonomy.py
+    ```
 
-- [ ] V-02 validates E-02
+    `git diff --no-index <(git show 19313eed^:tests/test_run_analytics_taxonomy.py) tests/test_run_analytics_taxonomy.py`:
+    ```diff
+    diff --git a/dev/fd/63 b/tests/test_run_analytics_taxonomy.py
+    index 000000000..342c97139 100644
+    --- a/dev/fd/63
+    +++ b/tests/test_run_analytics_taxonomy.py
+    @@ -12,6 +12,8 @@ WHAT THESE TESTS ASSERT THAT A WEAKER SUITE WOULD NOT. The plan's central correc
+     single-label taxonomy DISCARDS a real class in two of every five commands, so the tests assert the
+     LABEL SET rather than a winner, and `test_a_single_label_taxonomy_would_DISCARD_a_real_class` shows
+     the loss concretely by simulating the rejected design.
+    +
+    +Restored for backlog aux1f6 and findings b1mx2w from source revision 19313eed^.
+     """
+
+     from __future__ import annotations
+    @@ -19,6 +21,8 @@ from __future__ import annotations
+     import json
+     import unittest
+
+    +import pytest
+    +
+     from agent_workflows import run_analytics_taxonomy as tax
+     from agent_workflows.run_analytics_taxonomy import (
+         ActivityClass,
+    @@ -27,6 +31,8 @@ from agent_workflows.run_analytics_taxonomy import (
+         TaxonomyError,
+     )
+
+    +pytestmark = pytest.mark.core
+    +
+
+     #: An absolute-looking path used ONLY to prove a classification record never carries one.
+     #:
+    @@ -599,5 +605,71 @@ class VersioningTests(unittest.TestCase):
+             )
+
+
+    +class ResidualBranchTests(unittest.TestCase):
+    +    """Residual branch coverage for edge cases unexecuted by the restored suite (F-03, F-05)."""
+    +
+    +    def test_segment_head_wrapper_duration_and_absolute_path_reduction(self):
+    +        self.assertEqual(
+    +            tax._segment_head("timeout 30s /usr/bin/pytest"), ("pytest", "")
+    +        )
+    +        self.assertIn(
+    +            ActivityClass.TESTS,
+    +            tax.classify_command("timeout 30s pytest -q").labels,
+    +        )
+    +
+    +    def test_segment_head_blank_and_xargs_returns_empty(self):
+    +        self.assertEqual(tax._segment_head("   "), ("", ""))
+    +        self.assertEqual(tax._segment_head("xargs"), ("", ""))
+    +        self.assertEqual(
+    +            tax.classify_command("xargs").labels,
+    +            (ActivityClass.OTHER_UNKNOWN,),
+    +        )
+    +
+    +    def test_classify_segment_blank_returns_empty_mapping(self):
+    +        self.assertEqual(tax.classify_segment("   "), {})
+    +
+    +    def test_git_unknown_subcommand_has_medium_confidence(self):
+    +        ev = tax.classify_command("git frobnicate").evidence[ActivityClass.GIT]
+    +        self.assertEqual(ev.rule, "git:other")
+    +        self.assertEqual(ev.confidence, Confidence.MEDIUM)
+    +
+    +    def test_make_unknown_target_has_medium_confidence(self):
+    +        ev = tax.classify_command("make wibble").evidence[ActivityClass.IMPLEMENTATION]
+    +        self.assertEqual(ev.rule, "make:other")
+    +        self.assertEqual(ev.confidence, Confidence.MEDIUM)
+    +
+    +    def test_empty_command_is_unclassified_with_zero_segments(self):
+    +        cmd = tax.classify_command("")
+    +        self.assertEqual(cmd.labels, (ActivityClass.OTHER_UNKNOWN,))
+    +        self.assertTrue(cmd.is_unclassified)
+    +        self.assertEqual(cmd.segment_count, 0)
+    +
+    +    def test_file_category_empty_string_returns_other(self):
+    +        self.assertEqual(tax._file_category(""), "other")
+    +
+    +    def test_classification_empty_labels_display_label_is_other_unknown(self):
+    +        c = tax.Classification(labels=(), evidence={}, shares={})
+    +        self.assertEqual(c.display_label(), ActivityClass.OTHER_UNKNOWN)
+    +
+    +    def test_accumulate_leading_cd_share_and_multi_segment_share(self):
+    +        acc = tax.accumulate([tax.classify_command("cd /x && git status")])
+    +        self.assertEqual(acc.leading_cd_command_share, 1.0)
+    +        self.assertEqual(acc.multi_segment_command_share, 0.0)
+    +
+    +    def test_classify_corpus_calls_malformed_record_taxonomy_error_fallback(self):
+    +        calls, acc = tax.classify_corpus_calls(
+        [{"tool": "bash", "command": "git status"}, "not a mapping"]
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1].labels, (ActivityClass.OTHER_UNKNOWN,))
+        self.assertEqual(acc.command_count, 2)
+        self.assertEqual(acc.unclassified_command_share, 0.5)
+
+    def test_segment_head_wrapper_flag_skip(self):
+        self.assertEqual(
+            tax._segment_head("xargs -0 grep foo"), ("grep", "foo")
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+    `python3 -m pytest tests/test_run_analytics_taxonomy.py -o addopts="" -v` (51 restored tests passed):
+    ```
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_four_or_more_classes_are_counted_so_a_fixed_arity_is_visibly_wrong PASSED
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_the_report_is_pasteable_and_names_both_shares PASSED
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_class_segment_mass_does_not_double_count_a_multi_label_command PASSED
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_every_share_is_computed_from_the_INPUT_not_the_baseline PASSED
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_the_baseline_is_LABELED_as_a_snapshot_and_not_current PASSED
+    tests/test_run_analytics_taxonomy.py::AccountingTests::test_compare_to_baseline_marks_EVERY_row_as_not_current PASSED
+    tests/test_run_analytics_taxonomy.py::VersioningTests::test_the_accounting_records_the_version_too PASSED
+    tests/test_run_analytics_taxonomy.py::VersioningTests::test_a_classification_records_the_version_that_produced_it PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_classify_accepts_the_mapping_shape_a_session_log_yields PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_a_bash_call_with_NO_command_recorded_counts_in_the_gap PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_the_measured_tool_census_is_recorded_and_has_ten_names PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_an_UNKNOWN_tool_name_is_unclassified_rather_than_guessed PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_classify_REFUSES_a_non_mapping PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_a_file_path_contributes_only_its_CATEGORY_never_the_path PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_a_file_tool_is_classified_from_its_TOOL_NAME PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_a_corpus_sweep_survives_a_malformed_call PASSED
+    tests/test_run_analytics_taxonomy.py::StructuredToolSignalTests::test_the_measured_file_categories_are_all_reachable PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_evidence_carries_a_RULE_and_a_KIND_and_no_text_field PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_an_UNRECOGNIZED_aw_subcommand_does_not_reach_the_record PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_a_persisted_record_contains_NO_part_of_the_command PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_an_UNRECOGNIZED_python_module_does_not_reach_the_record PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_the_closed_vocabulary_is_DERIVED_from_the_tables PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_every_persisted_label_is_a_bare_enum_token PASSED
+    tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_the_leak_CHECK_ITSELF_fires_on_a_planted_leak PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_a_wrapper_head_is_skipped_so_the_real_head_is_found PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_an_absolute_head_reduces_to_its_BASENAME PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_a_leading_cd_is_STRIPPED_and_reported PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_a_compound_command_splits_into_its_segments PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_an_env_prefix_is_stripped_so_the_real_head_is_found PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_every_separator_form_splits PASSED
+    tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_an_empty_command_yields_NO_segment_rather_than_one_empty_one PASSED
+    tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_the_ambiguous_share_is_reported_SEPARATELY_from_the_gap PASSED
+    tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_a_clean_corpus_is_WITHIN_the_floor PASSED
+    tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_the_floor_carries_a_DECLARED_margin_over_the_measured_baseline PASSED
+    tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_the_unclassified_share_regression_floor_FAILS_when_coverage_regresses PASSED
+    tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_an_EMPTY_corpus_does_not_regress PASSED
+    tests/test_run_analytics_taxonomy.py::AmbiguityAndCoverageTests::test_an_AMBIGUOUS_command_is_NOT_counted_in_the_coverage_gap PASSED
+    tests/test_run_analytics_taxonomy.py::AmbiguityAndCoverageTests::test_echo_is_NARRATION_rather_than_dumped_into_other_unknown PASSED
+    tests/test_run_analytics_taxonomy.py::AmbiguityAndCoverageTests::test_a_bare_python3_is_AMBIGUOUS_with_low_confidence_not_a_guess PASSED
+    tests/test_run_analytics_taxonomy.py::AmbiguityAndCoverageTests::test_a_resolvable_python_module_is_NOT_ambiguous PASSED
+    tests/test_run_analytics_taxonomy.py::AmbiguityAndCoverageTests::test_the_measured_class_vocabulary_is_covered_by_rules PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_single_label_taxonomy_would_DISCARD_a_real_class PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_per_label_shares_sum_to_one_so_a_corpus_total_is_not_inflated PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_redirect_to_dev_null_or_a_fd_is_NOT_an_edit PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_git_inspection_subcommand_is_BOTH_git_and_inspection PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_command_that_is_simultaneously_git_and_test_yields_BOTH_labels PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_git_mutation_subcommand_is_git_and_NOT_inspection PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_display_precedence_covers_EVERY_class_so_it_is_total PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_grep_into_a_redirect_is_simultaneously_inspection_AND_editing PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_pipeline_of_inspection_into_editing_carries_both PASSED
+    tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_the_display_label_is_PRESENTATION_ONLY_and_removes_nothing PASSED
+    ```
+
+    `python3 -m pytest --collect-only -q | grep test_run_analytics_taxonomy`:
+    ```
+    tests/test_run_analytics_taxonomy.py: 62
+    ```
+
+    Bare `python3 -m pytest` summary line:
+    ```
+    1338 passed in 28.65s
+    ```
+
+    `assert_no_command_text` mutation failure (reverted afterwards):
+    ```
+    FAILED tests/test_run_analytics_taxonomy.py::PrivacyBoundaryTests::test_the_leak_CHECK_ITSELF_fires_on_a_planted_leak
+    1 failed, 61 passed in 0.31s
+    ```
+
+    `unclassified_regressed` mutation failures (reverted afterwards):
+    ```
+    FAILED tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_an_EMPTY_corpus_does_not_regress
+    FAILED tests/test_run_analytics_taxonomy.py::RegressionFloorTests::test_the_unclassified_share_regression_floor_FAILS_when_coverage_regresses
+    2 failed, 60 passed in 0.53s
+    ```
+
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5909,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing every `ResidualBranchTests` test as PASSED; paste the `--cov-report=term-missing` output for `agent_workflows/run_analytics_taxonomy.py` and, for any line still missed, name it and why it is unreachable or not one of the 29 keys; paste the failures from the `classify_command` one-label mutation, the `_segment_head` duration-strip mutation, and the `_segment_head` wrapper-flag-skip deletion (the last with the E-02 (k) test among the failures; it survives without (k), F-05), each reverted afterwards.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_run_analytics_taxonomy.py -k ResidualBranchTests -v` output:
+    ```
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_accumulate_leading_cd_share_and_multi_segment_share PASSED [  9%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_classification_empty_labels_display_label_is_other_unknown PASSED [ 18%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_classify_corpus_calls_malformed_record_taxonomy_error_fallback PASSED [ 27%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_classify_segment_blank_returns_empty_mapping PASSED [ 36%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_empty_command_is_unclassified_with_zero_segments PASSED [ 45%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_file_category_empty_string_returns_other PASSED [ 54%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_git_unknown_subcommand_has_medium_confidence PASSED [ 63%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_make_unknown_target_has_medium_confidence PASSED [ 72%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_segment_head_blank_and_xargs_returns_empty PASSED [ 81%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_segment_head_wrapper_duration_and_absolute_path_reduction PASSED [ 90%]
+    tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_segment_head_wrapper_flag_skip PASSED [100%]
+    ```
 
-- [ ] V-03 validates E-03
+    `python3 -m pytest tests/test_run_analytics_taxonomy.py -o addopts="" --cov=agent_workflows.run_analytics_taxonomy --cov-report=term-missing`:
+    ```
+    Name                                        Stmts   Miss  Cover   Missing
+    -------------------------------------------------------------------------
+    agent_workflows/run_analytics_taxonomy.py     353      0   100%
+    -------------------------------------------------------------------------
+    TOTAL                                         353      0   100%
+    ```
+    No line missed (100% line coverage).
+
+    `classify_command` one-label mutation failures (reverted afterwards):
+    ```
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_command_that_is_simultaneously_git_and_test_yields_BOTH_labels
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_git_inspection_subcommand_is_BOTH_git_and_inspection
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_grep_into_a_redirect_is_simultaneously_inspection_AND_editing
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_pipeline_of_inspection_into_editing_carries_both
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_a_single_label_taxonomy_would_DISCARD_a_real_class
+    FAILED tests/test_run_analytics_taxonomy.py::MultiLabelClassificationTests::test_the_display_label_is_PRESENTATION_ONLY_and_removes_nothing
+    FAILED tests/test_run_analytics_taxonomy.py::AccountingTests::test_class_segment_mass_does_not_double_count_a_multi_label_command
+    FAILED tests/test_run_analytics_taxonomy.py::AccountingTests::test_every_share_is_computed_from_the_INPUT_not_the_baseline
+    FAILED tests/test_run_analytics_taxonomy.py::AccountingTests::test_four_or_more_classes_are_counted_so_a_fixed_arity_is_visibly_wrong
+    9 failed, 53 passed in 0.34s
+    ```
+
+    `_segment_head` duration-strip mutation failures (reverted afterwards):
+    ```
+    FAILED tests/test_run_analytics_taxonomy.py::SegmentSplittingTests::test_a_wrapper_head_is_skipped_so_the_real_head_is_found
+    FAILED tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_segment_head_wrapper_duration_and_absolute_path_reduction
+    2 failed, 60 passed in 0.27s
+    ```
+
+    `_segment_head` wrapper-flag-skip deletion failure (with E-02 (k) test failing, reverted afterwards):
+    ```
+    FAILED tests/test_run_analytics_taxonomy.py::ResidualBranchTests::test_segment_head_wrapper_flag_skip
+    1 failed, 61 passed in 0.40s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the sweep output, one line per key naming the key, its operator, KILLED or SURVIVED, and the pytest summary line, covering all 29 `b1mx2w` keys with zero SURVIVED; paste a final empty `git diff agent_workflows/` and `git status --short` showing no sweep script staged or tracked.
   - Observed evidence:
-  - Result: pending
+    Full 29-key mutation sweep results:
+    ```
+    agent_workflows/run_analytics_taxonomy.py::classify_command | return-none | KILLED | 40 failed, 22 passed in 0.99s
+    agent_workflows/run_analytics_taxonomy.py::classify_tool_call | return-none | KILLED | 7 failed, 55 passed in 0.75s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.format_report | return-none | KILLED | 1 failed, 61 passed in 1.37s
+    agent_workflows/run_analytics_taxonomy.py::_segment_head | return-none | KILLED | 40 failed, 22 passed in 1.61s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.to_dict | return-none | KILLED | 1 failed, 61 passed in 0.32s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.compare_to_baseline | return-none | KILLED | 1 failed, 61 passed in 0.32s
+    agent_workflows/run_analytics_taxonomy.py::Classification.to_dict | return-none | KILLED | 1 failed, 61 passed in 0.29s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.unclassified_regressed | return-none | KILLED | 4 failed, 58 passed in 0.33s
+    agent_workflows/run_analytics_taxonomy.py::assert_no_command_text | raise | KILLED | 2 failed, 60 passed in 0.57s
+    agent_workflows/run_analytics_taxonomy.py::split_command_segments | return-none | KILLED | 44 failed, 18 passed in 1.33s
+    agent_workflows/run_analytics_taxonomy.py::_file_category | return-none | KILLED | 3 failed, 59 passed in 0.34s
+    agent_workflows/run_analytics_taxonomy.py::classify | return-none | KILLED | 3 failed, 59 passed in 0.34s
+    agent_workflows/run_analytics_taxonomy.py::LabelEvidence.to_dict | return-none | KILLED | 1 failed, 61 passed in 0.41s
+    agent_workflows/run_analytics_taxonomy.py::classify_corpus_calls | return-none | KILLED | 2 failed, 60 passed in 0.37s
+    agent_workflows/run_analytics_taxonomy.py::classify_segment.note | raise | KILLED | 38 failed, 24 passed in 1.61s
+    agent_workflows/run_analytics_taxonomy.py::Classification.display_label | return-none | KILLED | 8 failed, 54 passed in 0.82s
+    agent_workflows/run_analytics_taxonomy.py::Classification.is_ambiguous | return-none | KILLED | 3 failed, 59 passed in 0.40s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting._share | return-none | KILLED | 9 failed, 53 passed in 0.60s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.ambiguous_command_share | return-none | KILLED | 3 failed, 59 passed in 0.41s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.leading_cd_command_share | return-none | KILLED | 4 failed, 58 passed in 0.46s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.multi_class_command_share | return-none | KILLED | 4 failed, 58 passed in 0.40s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.multi_segment_command_share | return-none | KILLED | 4 failed, 58 passed in 0.36s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.single_class_command_share | return-none | KILLED | 4 failed, 58 passed in 0.34s
+    agent_workflows/run_analytics_taxonomy.py::ClassAccounting.unclassified_command_share | return-none | KILLED | 7 failed, 55 passed in 2.83s
+    agent_workflows/run_analytics_taxonomy.py::Classification.is_multi_class | return-false | KILLED | 1 failed, 61 passed in 0.31s
+    agent_workflows/run_analytics_taxonomy.py::Classification.is_unclassified | return-none | KILLED | 7 failed, 55 passed in 0.39s
+    agent_workflows/run_analytics_taxonomy.py::classify_segment | return-none | KILLED | 40 failed, 22 passed in 2.29s
+    agent_workflows/run_analytics_taxonomy.py::_closed_vocabulary | return-none | KILLED | 3 failed, 59 passed in 0.41s
+    agent_workflows/run_analytics_taxonomy.py::accumulate | return-none | KILLED | 13 failed, 49 passed in 0.50s
+    ```
+    TOTAL KEYS: 29, ALL KILLED: True (0 survived).
+
+    `git diff agent_workflows/` is empty:
+    ```
+    ```
+
+    `git status --short`:
+    ```
+    ?? tests/test_run_analytics_taxonomy.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
