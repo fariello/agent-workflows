@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_run_gates_restored_behavior.py`, marked `core`, that drives the 3 keys through their public call surfaces (`run_gates.evaluate_gate`, `run_gates.execute_gated_action`, `GateDecision.is_approved` and `GateDecision.to_dict`, `DecisionGate.to_dict`) and asserts on returned decisions, whether the gated action ran, and the `human_approval` ledger record. It restores the 8 tests of the deleted `TestHumanDecisionGates` class in pytest form and adds the branch cases that class did not pin (handler exception, every timeout-default branch, custom options, case handling, the stdin fallback). EXCLUDES any change to `agent_workflows/run_gates.py` or any other production file. EXCLUDES the `run_packet` classes of the same deleted file (owned by sibling `5jevb2`, backlog `aq04yg`) and EXCLUDES restoring `tests/test_migration_complex.py` (owned by sibling `pdemar`, backlog `x62jok`, which reaches `run_gates` only incidentally and explicitly leaves asserting its contract to this item).
 - Scope-Paths: tests/test_run_gates_restored_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: tf8fwt
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tf8fwt verified (set trimgap, attempt 2). [Scope attribution - 3 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: agent_workflows/question_inbox.py, agent_workflows/runner_shared.py, tests/test_question_preflight.py]
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
