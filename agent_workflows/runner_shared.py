@@ -16409,6 +16409,7 @@ class RunPolicyFlag(NamedTuple):
     #: for this table's founding reason: a vocabulary spelled at the `add_argument` call instead would
     #: have to be repeated on both hosts' parsers, which is the duplication this table exists to end.
     choices: tuple = ()
+    metavar: str | None = None
 
 
 #: The `resume` re-declaration rules, named rather than spelled inline at each comparison.
@@ -16789,6 +16790,33 @@ RUN_POLICY_FLAGS: tuple = (
         ),
         choices=ON_CONFLICT_CHOICES,
     ),
+    RunPolicyFlag(
+        flag="--blocking-only",
+        dest="blocking_only",
+        kind="bool",
+        implemented=True,
+        owner="runner_shared.collect_preflight_questions",
+        help=(
+            "Narrow the pre-flight question sweep to questions marked 'Blocking: yes'. "
+            "Omitted, every open question across the resolved queue is asked, because non-blocking "
+            "open questions also gate review progress (spec 6kwd2e R1.2)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+    ),
+    RunPolicyFlag(
+        flag="--question-timeout",
+        dest="question_timeout",
+        kind="int",
+        implemented=True,
+        owner="runner_shared.prompt_for_free_text",
+        help=(
+            "Per-question timeout in seconds for the interactive pre-flight question sweep "
+            "(default 300, must be >= 1). On timeout the question is left unanswered and routed "
+            "to the inbox rather than refusing the run (spec 6kwd2e R1.3)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="SECONDS",
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -16871,7 +16899,7 @@ def register_run_policy_flags(
                 dest=row.dest,
                 type=int,
                 default=None,
-                metavar="N",
+                metavar=getattr(row, "metavar", None) or "N",
                 help=row.help,
             )
         elif row.kind == "choice":
@@ -17119,6 +17147,25 @@ def isolation_for_action(options: dict[str, Any] | None, action: str) -> bool:
     if key in options:
         return bool(options[key])
     return bool(options.get("isolate_worktree", True))
+
+
+#: Spec 6kwd2e R1.3 default timeout for pre-flight questions.
+DEFAULT_QUESTION_TIMEOUT: int = 300
+
+
+def resolve_question_timeout(cli_value: Any) -> int:
+    """`--question-timeout`'s effective value: CLI over default of 300 (must be >= 1)."""
+    if cli_value is None:
+        return DEFAULT_QUESTION_TIMEOUT
+    try:
+        value = int(cli_value)
+    except (TypeError, ValueError) as exc:
+        raise RunFlagRefusal(
+            f"--question-timeout: {cli_value!r} is not an integer"
+        ) from exc
+    if value < 1:
+        raise RunFlagRefusal(f"--question-timeout: {value} must be >= 1")
+    return value
 
 
 def refuse_unimplemented_run_flags(args: Any) -> None:
@@ -18034,6 +18081,8 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
         elif row.dest == "on_conflict":
             frozen[row.dest] = resolve_on_conflict(_supplied(row.dest), repo=repo)
+        elif row.dest == "question_timeout":
+            frozen[row.dest] = resolve_question_timeout(_supplied(row.dest))
         elif row.kind == "multi-choice":
             # specsweep-01 (`ui8b9b`) E-03: frozen as the EFFECTIVE, RESOLVED type set, exactly as
             # `retry_budget` freezes its effective integer and for the same reason - a later reader
@@ -18974,6 +19023,330 @@ def prompt_for_gate_phrase(
         return stream_in.readline()
     except Exception:
         return None
+
+
+#: Distinct timeout for pre-flight open question interactive prompts (spec 6kwd2e R1.3, 4kkcex E-02).
+PREFLIGHT_QUESTION_TIMEOUT: float = 300.0
+
+
+class PreflightQuestion(NamedTuple):
+    """An open question collected from an artifact in the resolved queue (spec 6kwd2e R1.1, qchan-07 4kkcex E-01)."""
+
+    artifact_id6: str
+    artifact_path: str
+    oq_id: str
+    heading: str
+    blocking: bool
+    line: int
+    artifact_hash: str
+
+    @property
+    def text(self) -> str:
+        return self.heading
+
+
+def collect_preflight_questions(
+    repo: Path | str,
+    queue: Sequence[Mapping[str, Any]],
+    *,
+    blocking_only: bool = False,
+) -> list[PreflightQuestion]:
+    """Collect open questions across the resolved queue (spec 6kwd2e R1.1, R1.2, qchan-07 4kkcex E-01)."""
+    repo_path = Path(repo).resolve()
+    result: list[PreflightQuestion] = []
+    from agent_workflows import ipd_lint, ipd_schema, question_inbox
+
+    for item in queue:
+        if not isinstance(item, Mapping):
+            continue
+        id6 = str(item.get("id6") or "").strip()
+        art_path: Path | None = None
+        try:
+            art_path = queue_artifact_path(repo_path, item)
+        except Exception:
+            p_cand = (
+                item.get("artifact_path")
+                or item.get("configured_file")
+                or item.get("file")
+            )
+            if p_cand:
+                p_cand_path = Path(p_cand)
+                if not p_cand_path.is_absolute():
+                    p_cand_path = repo_path / p_cand_path
+                if p_cand_path.is_file():
+                    art_path = p_cand_path.resolve()
+
+        if art_path is None or not art_path.is_file():
+            continue
+
+        try:
+            text = art_path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+
+        try:
+            rel_art_path = art_path.relative_to(repo_path).as_posix()
+        except ValueError:
+            rel_art_path = str(art_path)
+
+        art_hash = sha256_file(art_path)
+        lines = text.splitlines()
+        doc = ipd_lint.parse(text)
+
+        for oq in doc.open_questions:
+            status = str(oq.get("Status") or "").strip().lower()
+            if status != "open":
+                continue
+
+            blocking_str = str(oq.get("Blocking") or "").strip().lower()
+            is_blocking = blocking_str == "yes" or blocking_str.startswith("yes")
+            if blocking_only and not is_blocking:
+                continue
+
+            oq_id = str(oq.get("id") or "").strip()
+            line_str = oq.get("line")
+            try:
+                line_num = int(line_str) if line_str is not None else 0
+            except (ValueError, TypeError):
+                line_num = 0
+
+            heading_text = ""
+            if 1 <= line_num <= len(lines):
+                raw_heading_line = lines[line_num - 1]
+                moq = ipd_schema.OQ_HEADING_RE.match(raw_heading_line)
+                if moq:
+                    heading_text = moq.group(2).strip()
+                else:
+                    heading_text = raw_heading_line.strip()
+            if not heading_text:
+                heading_text = str(oq.get("Question") or oq_id)
+
+            result.append(
+                PreflightQuestion(
+                    artifact_id6=id6,
+                    artifact_path=rel_art_path,
+                    oq_id=oq_id,
+                    heading=heading_text,
+                    blocking=is_blocking,
+                    line=line_num,
+                    artifact_hash=art_hash,
+                )
+            )
+
+    if hasattr(question_inbox, "group_open_questions") and callable(
+        question_inbox.group_open_questions
+    ):
+        result = list(question_inbox.group_open_questions(result))
+
+    return result
+
+
+def prompt_for_free_text(
+    question: Any,
+    *,
+    timeout: float = PREFLIGHT_QUESTION_TIMEOUT,
+    stdin: Any = None,
+    stderr: Any = None,
+    read_chunk: Any = None,
+) -> str | None:
+    """Prompt for free-text answer with monotonic timeout, never using input() or readline() (spec 6kwd2e R1.3, E-02).
+
+    Inherits the four constraints of prompt_for_gate_phrase's docstring:
+    - No TTY on either stream means return None without printing.
+    - Loops on select.select with a monotonic deadline, reading with os.read (never input/readline).
+    - Returns stripped text before newline, None on empty answer (SKIP), None on timeout (PARK) or EOF.
+    - Caps collected answer at 4000 characters and decodes UTF-8 with replacement.
+    """
+    import select
+
+    stream_in = sys.stdin if stdin is None else stdin
+    stream_err = sys.stderr if stderr is None else stderr
+    for target in (stream_in, stream_err):
+        if target is None:
+            return None
+        if not (getattr(target, "isatty", None) and target.isatty()):
+            return None
+
+    if isinstance(question, str):
+        prompt_str = question
+    elif hasattr(question, "heading"):
+        art_id = getattr(question, "artifact_id6", "")
+        oq_id = getattr(question, "oq_id", "")
+        heading = getattr(question, "heading", "")
+        blocking = getattr(question, "blocking", False)
+        block_lbl = " [blocking]" if blocking else ""
+        prompt_str = f"\n[{art_id}] {oq_id}{block_lbl}: {heading}\n> "
+    else:
+        prompt_str = str(question)
+
+    print(prompt_str, end="", file=stream_err, flush=True)
+
+    deadline = time.monotonic() + float(timeout)
+    collected = bytearray()
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.0:
+            return None
+        try:
+            ready, _w, _x = select.select([stream_in], [], [], max(0.0, remaining))
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            return None
+
+        if not ready:
+            return None
+
+        try:
+            if read_chunk is not None:
+                try:
+                    chunk = read_chunk(stream_in, 4096)
+                except TypeError:
+                    try:
+                        chunk = read_chunk(4096)
+                    except TypeError:
+                        chunk = read_chunk(stream_in)
+            else:
+                fd = getattr(stream_in, "fileno", None)
+                if callable(fd):
+                    chunk = os.read(fd(), 4096)
+                elif hasattr(stream_in, "read"):
+                    chunk = stream_in.read(4096)
+                else:
+                    return None
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            return None
+
+        if isinstance(chunk, str):
+            chunk = chunk.encode("utf-8", errors="replace")
+        elif not isinstance(chunk, (bytes, bytearray)):
+            chunk = bytes(chunk or b"")
+
+        if not chunk:
+            return None
+
+        collected.extend(chunk)
+
+        if b"\n" in collected:
+            line_bytes, _ = collected.split(b"\n", 1)
+            text = line_bytes.decode("utf-8", errors="replace").strip()
+            if len(text) > 4000:
+                text = text[:4000]
+            if not text:
+                return None
+            return text
+
+
+def record_oq_answer(
+    repo: Path | str,
+    path: Path | str,
+    oq_id: str,
+    *,
+    answer: str,
+    who: str,
+    channel: str,
+    date: str,
+    expected_hash: str | None = None,
+    artifact_hash: str | None = None,
+) -> bool:
+    """Rewrite only the specified open question block in the artifact durably (spec 6kwd2e R1.5, R1.7, 4kkcex E-03).
+
+    - Status: open -> - Status: resolved
+    - Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer>
+    - Blocking: and - Owner: unchanged
+    Refuses and leaves file untouched if artifact hash differs from expected hash or block is not open.
+    """
+    repo_path = Path(repo).resolve()
+    file_p = Path(path)
+    full_path = file_p if file_p.is_absolute() else (repo_path / file_p).resolve()
+
+    if not full_path.is_file():
+        return False
+
+    exp_hash = expected_hash or artifact_hash
+    if exp_hash:
+        curr_hash = sha256_file(full_path)
+        if curr_hash != exp_hash:
+            return False
+
+    try:
+        content = full_path.read_text(encoding="utf-8")
+    except Exception:
+        return False
+
+    pattern = re.compile(r"(?m)^###[ \t]+(" + re.escape(oq_id) + r"):[ \t]*(.*)$")
+    m = pattern.search(content)
+    if not m:
+        return False
+
+    block_start = m.start()
+    next_h = re.search(r"(?m)^(?:###|##)[ \t]+", content[m.end() :])
+    if next_h:
+        block_end = m.end() + next_h.start()
+    else:
+        block_end = len(content)
+
+    block = content[block_start:block_end]
+
+    status_m = re.search(r"(?m)^-[ \t]+Status:[ \t]*open\b", block, flags=re.IGNORECASE)
+    if not status_m:
+        return False
+
+    blocking_m = re.search(r"(?m)^-[ \t]+Blocking:[^\n]*", block)
+    owner_m = re.search(r"(?m)^-[ \t]+Owner:[^\n]*", block)
+
+    new_block = re.sub(
+        r"(?m)^-[ \t]+Status:[ \t]*open\b[^\n]*",
+        "- Status: resolved",
+        block,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
+    rationale_line = f"- Resolution or deferral rationale: RESOLVED {date} by {who} via {channel}: {answer}"
+    rationale_pattern = re.compile(
+        r"(?m)^-[ \t]+Resolution or deferral rationale:[^\n]*(?:\n[ \t]+[^\n]*)*"
+    )
+    if rationale_pattern.search(new_block):
+        new_block = rationale_pattern.sub(rationale_line, new_block, count=1)
+    else:
+        bullets = list(re.finditer(r"(?m)^-[ \t]+[^\n]*", new_block))
+        if bullets:
+            last_b = bullets[-1]
+            insert_pos = last_b.end()
+            new_block = (
+                new_block[:insert_pos] + "\n" + rationale_line + new_block[insert_pos:]
+            )
+        else:
+            lines = new_block.splitlines(keepends=True)
+            if lines:
+                new_block = lines[0] + "\n" + rationale_line + "\n" + "".join(lines[1:])
+            else:
+                new_block = rationale_line + "\n"
+
+    new_blocking_m = re.search(r"(?m)^-[ \t]+Blocking:[^\n]*", new_block)
+    new_owner_m = re.search(r"(?m)^-[ \t]+Owner:[^\n]*", new_block)
+
+    if (blocking_m is None) != (new_blocking_m is None):
+        return False
+    if blocking_m and new_blocking_m and blocking_m.group(0) != new_blocking_m.group(0):
+        return False
+
+    if (owner_m is None) != (new_owner_m is None):
+        return False
+    if owner_m and new_owner_m and owner_m.group(0) != new_owner_m.group(0):
+        return False
+
+    new_content = content[:block_start] + new_block + content[block_end:]
+    try:
+        full_path.write_text(new_content, encoding="utf-8")
+    except Exception:
+        return False
+
+    return True
 
 
 def enforce_draft_admission_gate(
@@ -24086,6 +24459,118 @@ def consume_answers(
             continue
 
         # All gating answered and no staleness!
+        if item.get("preflight_parked"):
+            from agent_workflows import git_commit_helper as _gch
+
+            item_commit_failed = False
+            for qid in qids:
+                ans = answers_by_qid.get(qid)
+                if ans is None:
+                    continue
+                q_data = item_questions.get(qid) or {}
+                rel_art_path = q_data.get("artifact_path") or item.get("artifact_path")
+                if not rel_art_path:
+                    try:
+                        art_p = queue_artifact_path(repo, item)
+                        rel_art_path = art_p.relative_to(repo).as_posix()
+                    except Exception:
+                        rel_art_path = ""
+
+                art_full = (repo / rel_art_path).resolve() if rel_art_path else None
+                expected_hash = ans.get("artifact_hash")
+                oq_id = q_data.get("oq_id") or q_data.get("question_id") or ""
+                if not oq_id.startswith("OQ-") and "OQ-" in str(qid):
+                    m_oq = re.search(r"OQ-[A-Za-z0-9_-]+", str(qid))
+                    if m_oq:
+                        oq_id = m_oq.group(0)
+
+                ans_text = str(ans.get("answer") or "")
+                who = str(ans.get("sender") or ans.get("who") or "human")
+                channel = str(ans.get("channel") or "aw runs answer")
+                ans_date = str(ans.get("answered_at") or utc_now()[:10])
+                if len(ans_date) > 10:
+                    ans_date = ans_date[:10]
+
+                recorded = record_oq_answer(
+                    repo,
+                    rel_art_path,
+                    oq_id,
+                    answer=ans_text,
+                    who=who,
+                    channel=channel,
+                    date=ans_date,
+                    expected_hash=sha256_file(art_full)
+                    if (art_full and art_full.is_file())
+                    else expected_hash,
+                )
+                if not recorded:
+                    item_commit_failed = True
+                    question_inbox.set_question_status(
+                        run_dir,
+                        qid,
+                        question_inbox.QUESTION_STATUS_STALE,
+                        reason="record_oq_answer failed or artifact hash moved",
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "answer-stale",
+                            "id6": item.get("id6"),
+                            "question_id": qid,
+                        },
+                    )
+                    break
+
+                commit_msg = (
+                    f"{item.get('id6', rel_art_path)} {oq_id}: pre-flight sweep answer"
+                )
+                try:
+                    commit_outcome = _gch.offer_commit(
+                        repo,
+                        [rel_art_path],
+                        message=commit_msg,
+                        assume_yes=True,
+                        on_unrelated_staged="scope",
+                        runner=state.get("driver", {}).get("id") or "oc",
+                        run_id=None,
+                    )
+                    commit_sha = getattr(commit_outcome, "commit", None)
+                    if commit_sha:
+                        print(
+                            f"[{item.get('id6')}] {oq_id} committed: {commit_sha}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"[{item.get('id6')}] {oq_id} commit {commit_outcome.status}: {commit_outcome.message}",
+                            file=sys.stderr,
+                        )
+                except Exception as c_err:
+                    print(f"preflight answer commit failed: {c_err}", file=sys.stderr)
+
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "answer-consumed",
+                        "id6": item.get("id6"),
+                        "question_id": qid,
+                        "channel": ans.get("channel"),
+                    },
+                )
+
+            if item_commit_failed:
+                continue
+
+            item["status"] = "queued"
+            item["preflight_parked"] = False
+            item[NEEDS_INPUT_KEY] = False
+            item.pop("resume_with_answers", None)
+            item.pop("answers_pending", None)
+            requeued_id6s.append(item["id6"])
+            continue
+
         applied_answers: list[dict[str, Any]] = []
         for qid in qids:
             ans = answers_by_qid.get(qid)
@@ -34045,6 +34530,7 @@ def initialize_run_core(
     resolve_retry_budget(getattr(args, "retry_budget", None))
     resolve_integration_retry_limit(getattr(args, "integration_retry_limit", None))
     resolve_on_integration_blocked(getattr(args, "on_integration_blocked", None))
+    resolve_question_timeout(getattr(args, "question_timeout", None))
     # specsweep-01 (`ui8b9b`) E-01/E-02: `--type`'s two refusals, BOTH ahead of the run directory so
     # each leaves nothing durable behind, exactly as `refuse_unimplemented_run_flags` above does.
     # Resolved ONCE here and threaded, rather than re-derived per consumer, because a second
@@ -34411,12 +34897,258 @@ def initialize_run_core(
             "No work started, and nothing durable was created"
         )
 
+    preflight_events: list[dict[str, Any]] = []
+    unanswered_preflight: list[tuple[dict[str, Any], PreflightQuestion]] = []
+
+    if not getattr(args, "prepare_only", False):
+        blocking_only = bool(getattr(args, "blocking_only", False))
+        q_timeout = resolve_question_timeout(getattr(args, "question_timeout", None))
+        preflight_qs = collect_preflight_questions(
+            repo, queue, blocking_only=blocking_only
+        )
+
+        if preflight_qs:
+            preflight_events.append(
+                {
+                    "at": utc_now(),
+                    "event": "preflight-sweep",
+                    "total_questions": len(preflight_qs),
+                    "blocking_only": blocking_only,
+                }
+            )
+
+        q_item_map: dict[str, dict[str, Any]] = {
+            item["id6"]: item
+            for item in queue
+            if isinstance(item, dict) and "id6" in item
+        }
+
+        if preflight_qs and is_interactive_run(args):
+            artifacts_affected = {q.artifact_id6 for q in preflight_qs}
+            print(
+                f"\nPre-flight open questions: {len(preflight_qs)} question(s) across {len(artifacts_affected)} artifact(s)",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            from agent_workflows import git_commit_helper as _gch
+            import getpass
+
+            host_lbl = (
+                labels.id
+                if labels is not None
+                else (AGY_HOST_LABELS.id if host == "agy" else OC_HOST_LABELS.id)
+            )
+            user_who = getpass.getuser()
+            channel_str = f"aw {host} run pre-flight"
+            today_date = utc_now()[:10]
+
+            qs_list = list(preflight_qs)
+            interrupted = False
+            for idx, q in enumerate(qs_list):
+                owning_item = q_item_map.get(q.artifact_id6)
+                if interrupted:
+                    if owning_item:
+                        unanswered_preflight.append((owning_item, q))
+                    continue
+
+                try:
+                    ans_text = prompt_for_free_text(q, timeout=q_timeout)
+                except (KeyboardInterrupt, SystemExit):
+                    interrupted = True
+                    if owning_item:
+                        unanswered_preflight.append((owning_item, q))
+                    continue
+
+                if ans_text is not None and ans_text.strip():
+                    recorded = record_oq_answer(
+                        repo,
+                        q.artifact_path,
+                        q.oq_id,
+                        answer=ans_text.strip(),
+                        who=user_who,
+                        channel=channel_str,
+                        date=today_date,
+                        expected_hash=q.artifact_hash,
+                    )
+                    commit_sha = None
+                    if recorded:
+                        commit_msg = (
+                            f"{q.artifact_id6} {q.oq_id}: pre-flight sweep answer"
+                        )
+                        try:
+                            outcome = _gch.offer_commit(
+                                repo,
+                                [q.artifact_path],
+                                message=commit_msg,
+                                assume_yes=True,
+                                on_unrelated_staged="scope",
+                                runner=host_lbl,
+                                run_id=None,
+                            )
+                            commit_sha = getattr(outcome, "commit", None)
+                            if commit_sha:
+                                print(
+                                    f"[{q.artifact_id6}] {q.oq_id} committed: {commit_sha}",
+                                    file=sys.stderr,
+                                    flush=True,
+                                )
+                                full_art_p = (repo / q.artifact_path).resolve()
+                                if full_art_p.is_file():
+                                    new_h = sha256_file(full_art_p)
+                                    for rem_idx in range(idx + 1, len(qs_list)):
+                                        if (
+                                            qs_list[rem_idx].artifact_path
+                                            == q.artifact_path
+                                        ):
+                                            qs_list[rem_idx] = qs_list[
+                                                rem_idx
+                                            ]._replace(artifact_hash=new_h)
+                            else:
+                                print(
+                                    f"[{q.artifact_id6}] {q.oq_id} commit {outcome.status}: {outcome.message}",
+                                    file=sys.stderr,
+                                    flush=True,
+                                )
+                        except Exception as c_err:
+                            print(
+                                f"[{q.artifact_id6}] {q.oq_id} commit failed: {c_err}",
+                                file=sys.stderr,
+                                flush=True,
+                            )
+
+                    if recorded and commit_sha:
+                        preflight_events.append(
+                            {
+                                "at": utc_now(),
+                                "event": "preflight-question-answered",
+                                "id6": q.artifact_id6,
+                                "oq_id": q.oq_id,
+                                "channel": channel_str,
+                                "commit": commit_sha,
+                            }
+                        )
+                    else:
+                        if owning_item:
+                            unanswered_preflight.append((owning_item, q))
+                        preflight_events.append(
+                            {
+                                "at": utc_now(),
+                                "event": "preflight-question-unanswered",
+                                "id6": q.artifact_id6,
+                                "oq_id": q.oq_id,
+                                "reason": "commit-failed"
+                                if recorded
+                                else "hash-mismatch",
+                            }
+                        )
+                else:
+                    if owning_item:
+                        unanswered_preflight.append((owning_item, q))
+                    preflight_events.append(
+                        {
+                            "at": utc_now(),
+                            "event": "preflight-question-unanswered",
+                            "id6": q.artifact_id6,
+                            "oq_id": q.oq_id,
+                            "reason": "timeout-or-empty",
+                        }
+                    )
+        else:
+            for q in preflight_qs:
+                owning_item = q_item_map.get(q.artifact_id6)
+                if owning_item:
+                    unanswered_preflight.append((owning_item, q))
+
     run_id, run_dir = mint_run_dir(repo, getattr(args, "run_id", None))
-    for name in ("sessions", "outcomes", "prompts"):
+    for name in ("sessions", "outcomes", "prompts", "questions"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
     (run_dir / "decisions-and-questions.md").write_text(
         f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
     )
+
+    if unanswered_preflight:
+        from agent_workflows import question_inbox
+
+        item_unanswered_map: dict[str, list[PreflightQuestion]] = {}
+        for itm, q in unanswered_preflight:
+            item_unanswered_map.setdefault(itm["id6"], []).append(q)
+
+        has_any_parked = False
+        for itm in queue:
+            id6 = itm.get("id6")
+            if id6 not in item_unanswered_map:
+                continue
+            qs_for_item = item_unanswered_map[id6]
+            has_blocking = False
+            item_qids: list[str] = list(itm.get("question_ids") or [])
+            item_qs: list[dict[str, Any]] = list(itm.get("questions") or [])
+
+            for q in qs_for_item:
+                if q.blocking:
+                    has_blocking = True
+                q_payload = {
+                    "question_id": q.oq_id,
+                    "text": q.heading,
+                    "artifact_id6": q.artifact_id6,
+                    "artifact_path": q.artifact_path,
+                    "artifact_hash": q.artifact_hash,
+                    "gates_verdict": q.blocking,
+                    "action": "preflight",
+                    "oq_id": q.oq_id,
+                    "blocking": q.blocking,
+                }
+                try:
+                    q_file = question_inbox.write_question(
+                        run_dir,
+                        itm,
+                        q_payload,
+                        repo=repo,
+                    )
+                    qid = q_file.stem
+                    item_qids.append(qid)
+                    q_payload["qid"] = qid
+                    item_qs.append(q_payload)
+                except Exception as q_err:
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "question-write-failed",
+                            "id6": id6,
+                            "question_id": q.oq_id,
+                            "error": str(q_err),
+                        },
+                    )
+
+            itm["question_ids"] = item_qids
+            itm["questions"] = item_qs
+
+            if has_blocking:
+                itm["status"] = AWAITING_HUMAN_STATUS
+                itm[NEEDS_INPUT_KEY] = True
+                itm["preflight_parked"] = True
+                itm["preserved_lane_id"] = None
+                itm["preserved_branch"] = None
+                itm["preserved_worktree"] = None
+                itm["session_id"] = None
+                has_any_parked = True
+
+        try:
+            question_inbox.write_projection(run_dir)
+        except Exception as proj_err:
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "projection-write-failed",
+                    "error": str(proj_err),
+                },
+            )
+
+        update_awaiting_upstream({"queue": queue})
+        if has_any_parked:
+            ring_bell_on_first_park(run_dir, {"queue": queue}, stream=sys.stdout)
 
     if manifest_path is None:
         manifest_path = run_dir / "manifest.json"
@@ -34550,6 +35282,8 @@ def initialize_run_core(
         },
     }
     atomic_write_json(run_dir / "state.json", state)
+    for p_ev in preflight_events:
+        append_jsonl(run_dir / "events.jsonl", p_ev)
     append_jsonl(
         run_dir / "events.jsonl",
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
