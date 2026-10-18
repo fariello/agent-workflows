@@ -88,6 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: jshwxb
 - Telegram adapter two-way poller implementation: owned by `qrup8m`.
   - Carrier: qrup8m
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-qchan-10-qrup8m-add-a-standard-library-two-way-telegram-channel.ipd.md
 - Setup CLI commands (`aw notify setup`): owned by `mrlblc`.
   - Carrier: mrlblc
 

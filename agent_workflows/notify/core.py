@@ -52,6 +52,7 @@ class Receipt:
     ok: bool
     message_id: str | None = None
     detail: str = ""
+    uncertain: bool = False
 
 
 @dataclass
@@ -278,10 +279,18 @@ def apply_inbound(channel: Any, event: InboundEvent) -> str:
 
     # 3. Resolve routing key
     if not event.key:
+        ack_fn = getattr(channel, "ack", None)
+        if callable(ack_fn):
+            with contextlib.suppress(Exception):
+                ack_fn(event, "rejected")
         return "rejected"
 
     route = registry.lookup(channel_name, event.key)
     if route is None:
+        ack_fn = getattr(channel, "ack", None)
+        if callable(ack_fn):
+            with contextlib.suppress(Exception):
+                ack_fn(event, "rejected")
         return "rejected"
 
     run_dir = Path(route["run_dir"])
@@ -320,6 +329,10 @@ def get_channel(channel_name: str, c_cfg: dict[str, Any]) -> Channel:
         from agent_workflows.notify.webhook import CommandChannel
 
         return CommandChannel(c_cfg)
+    elif channel_name == "telegram":
+        from agent_workflows.notify.telegram import TelegramChannel
+
+        return TelegramChannel(c_cfg)
     else:
         raise ValueError(f"Unknown notification channel {channel_name!r}")
 
@@ -384,6 +397,12 @@ def dispatch_checkpoint(
     if not effective:
         return
 
+    if "telegram" in effective:
+        with contextlib.suppress(Exception):
+            from agent_workflows.notify import telegram as notify_telegram
+
+            notify_telegram.ensure_receiver(run_dir, repo=repo)
+
     notify_dir = run_dir / "notify"
     sent_file = notify_dir / "sent.jsonl"
     events_file = run_dir / "events.jsonl"
@@ -408,6 +427,11 @@ def dispatch_checkpoint(
     for ch_name, ch_cfg in effective.items():
         try:
             channel = get_channel(ch_name, ch_cfg)
+            if (
+                hasattr(channel, "run_dir")
+                and getattr(channel, "run_dir", None) is None
+            ):
+                channel.run_dir = run_dir
         except Exception as exc:
             detail = _redact_secrets(str(exc), ch_cfg)
             _append_jsonl(
@@ -458,15 +482,32 @@ def dispatch_checkpoint(
                     )
                 else:
                     detail = _redact_secrets(receipt.detail, ch_cfg)
+                    ev_type = (
+                        "notify-uncertain"
+                        if getattr(receipt, "uncertain", False)
+                        else "notify-failed"
+                    )
                     _append_jsonl(
                         events_file,
                         {
                             "at": utc_now(),
-                            "event": "notify-failed",
+                            "event": ev_type,
                             "channel": ch_name,
                             "detail": detail,
                         },
                     )
+                    if getattr(receipt, "uncertain", False):
+                        for q in new_qs:
+                            _append_jsonl(
+                                sent_file,
+                                {
+                                    "channel": ch_name,
+                                    "question_id": q["question_id"],
+                                    "type": "question",
+                                    "at": utc_now(),
+                                    "uncertain": True,
+                                },
+                            )
             except Exception as exc:
                 detail = _redact_secrets(str(exc), ch_cfg)
                 _append_jsonl(
@@ -537,7 +578,7 @@ def dispatch_checkpoint(
                 run_id=run_id,
                 mode="terse",
                 message=sanitize_outbound(ack_text, repo=repo, max_text=caps.max_text),
-                questions=[],
+                questions=[OutboundQuestion(question_id=qid, text="")] if qid else [],
             )
             try:
                 receipt = channel.send(ack_batch)
