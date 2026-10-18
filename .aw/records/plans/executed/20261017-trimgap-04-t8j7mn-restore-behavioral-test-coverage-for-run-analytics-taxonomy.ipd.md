@@ -6,7 +6,7 @@
 - Scope: Restore `tests/test_run_analytics_taxonomy.py` from `19313eed^` (51 tests in 9 classes, all of which pass unchanged against current HEAD, Finding F-02), add `pytestmark = pytest.mark.core` so the bare core-tier gate selects it, and add a small number of edge-case tests for the branches the restored file leaves unexecuted (Finding F-03). The 29 keys: `classify_command`, `classify_tool_call`, `ClassAccounting.format_report`, `_segment_head`, `ClassAccounting.to_dict`, `ClassAccounting.compare_to_baseline`, `Classification.to_dict`, `ClassAccounting.unclassified_regressed`, `assert_no_command_text`, `split_command_segments`, `_file_category`, `classify`, `LabelEvidence.to_dict`, `classify_corpus_calls`, `classify_segment.note`, `Classification.display_label`, `Classification.is_ambiguous`, `ClassAccounting._share`, `ClassAccounting.ambiguous_command_share`, `ClassAccounting.leading_cd_command_share`, `ClassAccounting.multi_class_command_share`, `ClassAccounting.multi_segment_command_share`, `ClassAccounting.single_class_command_share`, `ClassAccounting.unclassified_command_share`, `Classification.is_multi_class`, `Classification.is_unclassified`, `classify_segment`, `_closed_vocabulary`, `accumulate`. EXCLUDES any change to `agent_workflows/run_analytics_taxonomy.py` or any other production file, and EXCLUDES the sibling run-analytics modules owned by backlog items `n6h5eg` (`run_analytics_cli`), `yqpb7q` (`run_analytics_telemetry`) and `gjmiuw` (`run_analytics_submit`).
 - Scope-Paths: tests/test_run_analytics_taxonomy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: t8j7mn
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t8j7mn verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
 
