@@ -104,6 +104,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Classifying a budget-only post-merge red as unmeasured, and excluding it from the revalidation cache so a re-attempt re-measures (the production fix of this defect): designed in `sa629y`, graduated from the duplicate backlog item `o58dro`.
   - Carrier: sa629y
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-o58dro-01-sa629y-budget-only-post-merge-red-defers-as-unmeasured.ipd.md
 - The execute-path console line printing the raw combined-red gate reason for a refusal recorded as `merge-unchecked` (F-7): a production change outside this test-only plan.
   - Carrier: geajrj
 - Naming a budget-only red in the suite `reason`, replacing "no test ids recorded" in the send-back text, and the load-aware conftest guard: designed in `44nfmd`.
