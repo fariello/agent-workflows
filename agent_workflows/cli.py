@@ -8756,6 +8756,8 @@ def _handle_legacy_migration(
 
 
 def _run_install(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.install_wizard import PolicyCancelledError
+
     targets = args.targets if getattr(args, "targets", None) else []
     if "all" in targets:
         if (
@@ -8866,7 +8868,6 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
             from agent_workflows.install_wizard import (
                 PlacementSwitchRequired,
-                PolicyCancelledError,
                 PolicyError,
                 collect_policy_interactive,
                 config_placement_switch,
