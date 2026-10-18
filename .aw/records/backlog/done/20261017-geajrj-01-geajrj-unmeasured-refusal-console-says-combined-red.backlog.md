@@ -1,5 +1,5 @@
 - Id: geajrj
-- Status: graduated
+- Status: done
 - Graduated-To: geajrj
 - Blocks-Release: next
 - Set: geajrj
@@ -8,6 +8,7 @@
 - Summary: Execute-path console line labels an unmeasured integration refusal as combined-red
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw oc run: IPD h8peam executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-geajrj-01-h8peam-print-reclassified-refusal-reason-on-unmeasured-integration.ipd.md); evidence .aw/records/plans/executed/20261017-geajrj-01-h8peam-print-reclassified-refusal-reason-on-unmeasured-integration.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T231229Z-2639110: h8peam
 - 2026-10-17 created (aw backlog): Execute-path console line labels an unmeasured integration refusal as combined-red
 

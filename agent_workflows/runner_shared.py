@@ -12597,8 +12597,12 @@ def reattempt_deferred_integrations(
         if not decision.deferred and ask and interactive:
             # RUNG 3, reached only when rungs 1 and 2 are exhausted. `interactive` is the CALLER's
             # `is_interactive_run`, so an unattended run never arrives here with `ask` honored.
+            # `h8peam` E-03: ask with the RECORDED reason (reclassified, token-stripped). `reason`
+            # itself is NOT rebound: the operator-approved retry below reassigns it for `do_finish`.
             answer = ask_operator_about_integration(
-                str(item.get("id6") or ""), reason, interactive=interactive
+                str(item.get("id6") or ""),
+                item.get("integration_deferral") or read_integration_cause(reason)[2],
+                interactive=interactive,
             )
             item["integration_ask"] = {
                 "asked": answer.asked,
@@ -39688,7 +39692,9 @@ def integrate_retired_lane(
         print(
             pal(
                 f"  ! IPD {item['id6']} retired on lane {wt_handle.branch} but NOT integrated "
-                f"to main ({decision.status}): {integ_reason}",
+                f"to main ({decision.status}): "
+                # `h8peam` E-02: the recorded (reclassified, token-stripped) reason.
+                f"{item.get('integration_deferral') or read_integration_cause(integ_reason)[2]}",
                 "yellow",
             ),
             file=sys.stderr,
@@ -47105,10 +47111,18 @@ def execute_item_core(
                                 append_jsonl=append_jsonl,
                             )
                             fail_status = decision.status
+                            # `h8peam` E-01: report the RECORDED reason, which
+                            # `record_integration_refusal` has just written already reclassified
+                            # (an unmeasured revalidation is not a combined-red) and token-stripped.
+                            # The fallback strips the cause token too, so no operator line carries one.
+                            operator_reason = (
+                                item.get("integration_deferral")
+                                or read_integration_cause(recorded_reason)[2]
+                            )
                             render_record_integration_refusal(
                                 item,
                                 code=fail_status,
-                                reason=read_integration_cause(recorded_reason)[2],
+                                reason=operator_reason,
                                 branch=wt_handle.branch if wt_handle else None,
                             )
                             if attempt.get("fix_it_cap"):
@@ -47141,7 +47155,7 @@ def execute_item_core(
                             print(
                                 pal(
                                     f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                                    f"integrated to main ({fail_status}): {integ_reason}",
+                                    f"integrated to main ({fail_status}): {operator_reason}",
                                     "yellow",
                                 ),
                                 file=sys.stderr,

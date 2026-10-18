@@ -5,8 +5,9 @@
 - Concern: When post-merge revalidation is unmeasured (`measured: False`, e.g. a harness fault, a suite that raised, or a budget-only red), `runner_shared.record_integration_refusal` reclassifies the refusal kind to `merge-unchecked` and writes the reclassified, token-stripped explanation to `item["integration_deferral"]`, but three operator-facing surfaces still carry the raw gate reason ("[aw-integration-cause=gate-combined-red] integration gate did not pass (integration_failed_combined_red) ... (per-lane-green + combined-red)"): the stderr console line in `execute_item_core` and in `integrate_retired_lane`, the structured `item["refusal"]["reason"]` written by `render_record_integration_refusal` in `execute_item_core` (which additionally asserts "measured the merged tree and it was RED"), and the rung-3 prompt in `ask_operator_about_integration` on a deferred re-attempt. Each misleads the operator into thinking the code failed revalidation when the gate could not measure, and the console and prompt surfaces also leak the internal cause token.
 - Scope: In `agent_workflows/runner_shared.py`, make `execute_item_core`, `integrate_retired_lane`, and `reattempt_deferred_integrations` read the operator-facing reason from `item["integration_deferral"]` (the value `record_integration_refusal` has just written, already reclassified and token-stripped) for the stderr line, the `render_record_integration_refusal` refusal reason, and the rung-3 operator question. Add behavioral tests covering the first-attempt execute refusal on both hosts, the retired-lane refusal, the deferred re-attempt prompt, and a measured-red non-regression control in `tests/test_unmeasured_refusal_console.py`.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_unmeasured_refusal_console.py
+- Scope-Exceeded: .aw/records/backlog/open/20261018-8hs2kx-01-8hs2kx-tests-test-oc-runipd-py-selffinalizewiringtests-te.backlog.md (the runner's defect-report contract requires filing a backlog item for each finding this records a load-sensitive flaky test observed while running this plan's E-05 regression modules)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +18,9 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: h8peam
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: h8peam verified (set geajrj, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261018-8hs2kx-01-8hs2kx-tests-test-oc-runipd-py-selffinalizewiringtests-te.backlog.md: the runner's defect-report contract requires filing a backlog item for each finding; this records a load-sensitive flaky test observed while running this plan's E-05 regression modules]
 - 2026-10-18 approved (aw set): status set to approved
 - 2026-10-18 reviewed (plan-review opencode model=its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 
@@ -38,36 +39,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Production console and refusal reason updates
 
-- [ ] E-01 In `agent_workflows/runner_shared.py` `execute_item_core`, in the execute arm's refusal block that calls `decision = record_integration_refusal(... integ_reason=recorded_reason ...)` (near the `print` of "finalized on lane {lane_branch} but NOT integrated to main ({fail_status}): {integ_reason}"), compute ONE operator-facing reason immediately after that call and use it at both downstream sites:
+- [x] E-01 In `agent_workflows/runner_shared.py` `execute_item_core`, in the execute arm's refusal block that calls `decision = record_integration_refusal(... integ_reason=recorded_reason ...)` (near the `print` of "finalized on lane {lane_branch} but NOT integrated to main ({fail_status}): {integ_reason}"), compute ONE operator-facing reason immediately after that call and use it at both downstream sites:
   1. `operator_reason = item.get("integration_deferral") or read_integration_cause(recorded_reason)[2]`. `record_integration_refusal` always writes `item["integration_deferral"]` (already reclassified for an unmeasured refusal and already token-stripped), so the fallback is defence in depth only; it MUST strip the cause token, so do NOT fall back to bare `integ_reason`.
   2. Pass `reason=operator_reason` to `render_record_integration_refusal(...)` (replacing `read_integration_cause(recorded_reason)[2]`). For a measured refusal this is byte-identical to today, because `integration_deferral` IS `read_integration_cause(recorded_reason)[2]`.
   3. Print `operator_reason` in place of `{integ_reason}` in the yellow "finalized on lane ... but NOT integrated to main ({fail_status}): ..." stderr line. For a measured refusal this intentionally changes the line from the raw tagged gate reason to the recorded reason (token stripped, budget-exhausted prefix where one applies), which is the same text the refusal record and the run summary already show (OQ-02).
   - Depends on: none
   - Expected outcome: for an unmeasured refusal on the execute path, the stderr line and `item["refusal"]["reason"]` both begin "integration refused because the post-merge revalidation COULD NOT MEASURE the merge result" and neither contains `integration_failed_combined_red`, `it was RED`, or `[aw-integration-cause=`; for a measured refusal `item["refusal"]["reason"]` is unchanged.
-  - Execution state: pending
-- [ ] E-02 In `agent_workflows/runner_shared.py` `integrate_retired_lane` (the shared function behind the retired-lane landing; there is no `land_retired_lane_turn`), after `decision = record_integration_refusal(... integ_reason=integ_reason ...)`, print `item.get("integration_deferral") or read_integration_cause(integ_reason)[2]` in place of `{integ_reason}` in the yellow "retired on lane {wt_handle.branch} but NOT integrated to main ({decision.status}): ..." stderr line.
+  - Execution state: performed
+- [x] E-02 In `agent_workflows/runner_shared.py` `integrate_retired_lane` (the shared function behind the retired-lane landing; there is no `land_retired_lane_turn`), after `decision = record_integration_refusal(... integ_reason=integ_reason ...)`, print `item.get("integration_deferral") or read_integration_cause(integ_reason)[2]` in place of `{integ_reason}` in the yellow "retired on lane {wt_handle.branch} but NOT integrated to main ({decision.status}): ..." stderr line.
   - Depends on: none
   - Expected outcome: for an unmeasured refusal on the retired-lane path, the stderr line carries the reclassified "COULD NOT MEASURE" reason and contains neither `integration_failed_combined_red` nor `[aw-integration-cause=`.
-  - Execution state: pending
-- [ ] E-03 In `agent_workflows/runner_shared.py` `reattempt_deferred_integrations`, in the rung-3 branch (`if not decision.deferred and ask and interactive:`), pass `item.get("integration_deferral") or read_integration_cause(reason)[2]` as the reason argument of `ask_operator_about_integration(str(item.get("id6") or ""), ..., interactive=interactive)` instead of the raw `reason`. Do NOT rebind `reason` itself: it is reassigned by the operator-approved retry just below and feeds `do_finish`.
+  - Execution state: performed
+- [x] E-03 In `agent_workflows/runner_shared.py` `reattempt_deferred_integrations`, in the rung-3 branch (`if not decision.deferred and ask and interactive:`), pass `item.get("integration_deferral") or read_integration_cause(reason)[2]` as the reason argument of `ask_operator_about_integration(str(item.get("id6") or ""), ..., interactive=interactive)` instead of the raw `reason`. Do NOT rebind `reason` itself: it is reassigned by the operator-approved retry just below and feeds `do_finish`.
   - Depends on: none
   - Expected outcome: when a deferred re-attempt of an unmeasured refusal exhausts its budget and prompts interactively, the question reads "lane <id6> cannot integrate: integration refused because the post-merge revalidation COULD NOT MEASURE ..." and contains neither `integration_failed_combined_red` nor `[aw-integration-cause=`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral test coverage
 
-- [ ] E-04 Create `tests/test_unmeasured_refusal_console.py` with behavioral tests that drive real code and assert on captured stderr, recorded item fields, and the captured prompt string (never on source text). Match the reclassified wording CASE-SENSITIVELY on `COULD NOT MEASURE` (the prefix `record_integration_refusal` writes); do NOT use lowercase `could not MEASURE` as the discriminator, because the deferral verdict line `-> {decision.reason}` (from `decide_integration_deferral`) already prints that phrase on today's code, so such an assertion passes before the fix (F-9). Assert the absence of `integration_failed_combined_red` and `[aw-integration-cause=` on the SPECIFIC "NOT integrated to main" line, not merely on the whole stderr. Fixtures (all demonstrated at review, D-3):
+- [x] E-04 Create `tests/test_unmeasured_refusal_console.py` with behavioral tests that drive real code and assert on captured stderr, recorded item fields, and the captured prompt string (never on source text). Match the reclassified wording CASE-SENSITIVELY on `COULD NOT MEASURE` (the prefix `record_integration_refusal` writes); do NOT use lowercase `could not MEASURE` as the discriminator, because the deferral verdict line `-> {decision.reason}` (from `decide_integration_deferral`) already prints that phrase on today's code, so such an assertion passes before the fix (F-9). Assert the absence of `integration_failed_combined_red` and `[aw-integration-cause=` on the SPECIFIC "NOT integrated to main" line, not merely on the whole stderr. Fixtures (all demonstrated at review, D-3):
   1. First-attempt execute path, BOTH hosts: reuse `tests.test_budget_only_combined_red_e2e.TestBudgetOnlyCombinedRedE2E._setup_driver_fixture` (or an equivalent local fixture) and drive `oc_runipd.execute_item` / `agy_runipd.execute_item` (each delegates to `runner_shared.execute_item_core`) with `run_suite_check` patched to return a `budget_only=True` `SuiteCheckResult` for revalidation paths, `start_suite_baseline` patched to `(None, None)`, the host launcher (`run_opencode` / `run_agy_turn`) patched to commit a lane change and write an `executed` outcome, the coordinator execution role declared via `tests.support.declare_execution_role(self)`, and stderr captured with `contextlib.redirect_stderr`. Assert `item["integration_ladder"]["kind"] == runner_shared.INTEGRATION_REFUSAL_UNMEASURED`, the "NOT integrated to main" stderr line contains `COULD NOT MEASURE` and neither forbidden string, and `item["refusal"]["reason"]` contains `COULD NOT MEASURE` and neither `integration_failed_combined_red` nor `it was RED`.
   2. Retired-lane path: call `runner_shared.integrate_retired_lane` directly with a `git init` repo, an `integrate_lane_branch` stub that writes `item[runner_shared.REVALIDATION_CACHE_KEY] = {"passed": False, "measured": False, "reason": ...}` and returns `(False, <tagged combined-red gate reason built with runner_shared.tag_integration_cause>, runner_shared.INTEGRATION_REFUSAL_CONFLICT)`, a handle object with a `branch` attribute, and no-op `save_state`/`append_jsonl`. Assert the returned disposition is `runner_shared.INTEGRATION_DEFERRED_STATUS` and the "retired on lane ... NOT integrated to main" stderr line contains `COULD NOT MEASURE` and neither forbidden string.
   3. Deferred re-attempt path: call `runner_shared.reattempt_deferred_integrations` with one item in `runner_shared.INTEGRATION_DEFERRED_STATUS` carrying `integration_attempts: 1`, `options.integration_retry_limit: 0` (so the refusal is terminal and rung 3 is reached), an `integrate` stub like fixture 2, `ask=True`, `interactive=True`, and `runner_shared.prompt_for_gate_phrase` patched to capture the question and return `None`. Assert exactly one question was captured, it contains `COULD NOT MEASURE`, and it contains neither forbidden string.
   4. Non-regression control (measured red): fixture 1 on one host with a measured failing `SuiteCheckResult` (`budget_only=False`, a non-empty `failures` tuple) and `retry_budget=0` so no send-back turn is spent. Assert `item["integration_ladder"]["kind"]` is NOT `INTEGRATION_REFUSAL_UNMEASURED`, `item["refusal"]["reason"]` still contains `integration_failed_combined_red` (the genuine gate status is preserved), the stderr line contains `integration_failed_combined_red` and does NOT contain `COULD NOT MEASURE` or `[aw-integration-cause=`.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: every case above passes after E-01 to E-03, and cases 1 to 3 FAIL when run against the pre-change `runner_shared.py` (the executor demonstrates this, see V-04); no test inspects source code, counts callers, or pins line numbers.
-  - Execution state: pending
-- [ ] E-05 Run the new test module, the related existing modules `tests/test_budget_only_combined_red_e2e.py`, `tests/test_runner_shared.py`, `tests/test_forkresid_shared_shells.py`, `tests/test_deferred_reattempt_revalidation.py`, `tests/test_oc_runipd.py`, and `tests/test_agy_runipd_cli.py`, then the bare core suite `python3 -m pytest`, then the leak sanitizer `aw sanitize --agent`.
+  - Execution state: performed
+- [x] E-05 Run the new test module, the related existing modules `tests/test_budget_only_combined_red_e2e.py`, `tests/test_runner_shared.py`, `tests/test_forkresid_shared_shells.py`, `tests/test_deferred_reattempt_revalidation.py`, `tests/test_oc_runipd.py`, and `tests/test_agy_runipd_cli.py`, then the bare core suite `python3 -m pytest`, then the leak sanitizer `aw sanitize --agent`.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: every run reports zero failures and zero errors; the sanitizer exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,26 +157,86 @@ N/A: verified at review that no spec, doc, or test pins the stderr "NOT integrat
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` hunk for `execute_item_core` showing one reason computed from `item.get("integration_deferral") or read_integration_cause(recorded_reason)[2]` after `record_integration_refusal`, passed as `reason=` to `render_record_integration_refusal`, and printed in the "finalized on lane ... NOT integrated to main" line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `git diff agent_workflows/runner_shared.py`, `execute_item_core` hunks:
+    ```
+    +                            operator_reason = (
+    +                                item.get("integration_deferral")
+    +                                or read_integration_cause(recorded_reason)[2]
+    +                            )
+                                 render_record_integration_refusal(
+                                     item,
+                                     code=fail_status,
+    -                                reason=read_integration_cause(recorded_reason)[2],
+    +                                reason=operator_reason,
+    ...
+    -                                    f"integrated to main ({fail_status}): {integ_reason}",
+    +                                    f"integrated to main ({fail_status}): {operator_reason}",
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` hunk for `integrate_retired_lane` showing the "retired on lane ... NOT integrated to main" line printing `item.get("integration_deferral") or read_integration_cause(integ_reason)[2]`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `git diff agent_workflows/runner_shared.py`, `integrate_retired_lane` hunk:
+    ```
+                     f"  ! IPD {item['id6']} retired on lane {wt_handle.branch} but NOT integrated "
+    -                f"to main ({decision.status}): {integ_reason}",
+    +                f"to main ({decision.status}): "
+    +                # `h8peam` E-02: the recorded (reclassified, token-stripped) reason.
+    +                f"{item.get('integration_deferral') or read_integration_cause(integ_reason)[2]}",
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff agent_workflows/runner_shared.py` hunk for `reattempt_deferred_integrations` showing `ask_operator_about_integration` receiving `item.get("integration_deferral") or read_integration_cause(reason)[2]` and `reason` itself not rebound.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `git diff agent_workflows/runner_shared.py`, `reattempt_deferred_integrations` hunk (`reason` not rebound; only the argument changes):
+    ```
+                 answer = ask_operator_about_integration(
+    -                str(item.get("id6") or ""), reason, interactive=interactive
+    +                str(item.get("id6") or ""),
+    +                item.get("integration_deferral") or read_integration_cause(reason)[2],
+    +                interactive=interactive,
+                 )
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_unmeasured_refusal_console.py` output showing every case named in E-04 (execute on both hosts, retired lane, deferred re-attempt prompt, measured control) passing with zero failures; AND paste the output of the same command run with ONLY `agent_workflows/runner_shared.py` reverted to the pre-change version (e.g. `git stash push -- agent_workflows/runner_shared.py`, run, `git stash pop`), showing the unmeasured cases FAILING on the missing `COULD NOT MEASURE` or the present forbidden string, so the tests demonstrably detect the bug.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: After the change, `python3 -m pytest -o addopts="" -v tests/test_unmeasured_refusal_console.py`:
+    ```
+    tests/test_unmeasured_refusal_console.py::TestUnmeasuredRefusalConsole::test_execute_unmeasured_refusal_reports_reclassified_reason PASSED [ 25%]
+    tests/test_unmeasured_refusal_console.py::TestUnmeasuredRefusalConsole::test_deferred_reattempt_operator_question_reports_reclassified_reason PASSED [ 50%]
+    tests/test_unmeasured_refusal_console.py::TestUnmeasuredRefusalConsole::test_retired_lane_unmeasured_refusal_reports_reclassified_reason PASSED [ 75%]
+    tests/test_unmeasured_refusal_console.py::TestUnmeasuredRefusalConsole::test_execute_measured_red_still_reports_genuine_gate_status PASSED [100%]
+    ============================== 4 passed in 6.58s ===============================
+    ```
+    (the execute test covers both hosts as subTests over `oc_runipd` and `agy_runipd`.)
+    With ONLY `agent_workflows/runner_shared.py` replaced by `git show HEAD:agent_workflows/runner_shared.py` (a file copy, not `git stash`, per the run's no-stash rule), same command plus `-p no:randomly`:
+    ```
+    AssertionError: 'COULD NOT MEASURE' not found in '  ? lane abc123 cannot integrate: [aw-integration-cause=gate-combined-red] integration gate did not pass (integration_failed_combined_red): ...
+    AssertionError: '[aw-integration-cause=' unexpectedly found in '  ! IPD wir001 finalized on lane aw/lane/wir001 but NOT integrated to main (fail-merge): [aw-integration-cause=gate-combined-red] integration gate did not pass (integration_failed_combined_red): ...'
+    AssertionError: 'COULD NOT MEASURE' not found in '  ! IPD wir001 finalized on lane aw/lane/wir001 but NOT integrated to main (merge-retry): [aw-integration-cause=gate-combined-red] integration gate did not pass ...'
+    AssertionError: 'COULD NOT MEASURE' not found in '  ! IPD ret001 retired on lane aw/lane/ret001 but NOT integrated to main (merge-retry): [aw-integration-cause=gate-combined-red] integration gate did not pass ...'
+    ============================== 4 failed in 5.78s ===============================
+    ```
+    The three unmeasured cases fail on missing `COULD NOT MEASURE`; the measured control fails pre-change only on the leaked cause token (the OQ-02 change), as intended. The fixed file was then restored and `git diff --stat` showed the 18+/4- change intact.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the summary line of the related-modules pytest run named in E-05, the summary line of bare `python3 -m pytest`, and the `aw sanitize --agent` result record with its exit code, each showing zero failures/errors and exit 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Related modules (`python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`), first run:
+    ```
+    FAILED tests/test_oc_runipd.py::SelfFinalizeWiringTests::test_begin_precedes_run_opencode_on_success
+    1 failed, 385 passed in 446.09s (0:07:26)
+    ```
+    That test (begin-before-launch ordering, untouched by this change) did not reproduce on rerun: alone `1 passed in 3.81s`; whole file `python3 -m pytest tests/test_oc_runipd.py` `177 passed in 40.55s`; its class `6 passed in 10.72s`. Recorded as a load flake (decision D-1 in the run register).
+    Full core suite `aw suite`:
+    ```
+    1665 passed, 11 warnings in 72.90s (0:01:12)
+    ```
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5971,"findings":0,"evidence":["leak-scan"],"next":null}
+    exit=0
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
