@@ -1350,3 +1350,22 @@ The 3 `P3` keys past the 7,200s cumulative mark in queue order are:
 | `agent_workflows/result_types.py::select_output` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
 | `agent_workflows/project_context.py::_resolve_effective_aw_home` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
 | **P3 subtotal** | `P3` | | | | | | **37 keys** (budget-exhausted: 17, guarded: 14, unguarded: 4, unprovable: 2) | | **10845.88s** |
+| `agent_workflows/cli.py::_run_storage_init` | `P4` | `return-none` | candidate-files | 4283 | killed | n/a | guarded |  | 1080.53 |
+| `agent_workflows/engine.py::_ensure_untracked_gitignore` | `P4` | `raise` | candidate-files | 1827 | killed | n/a | guarded |  | 511.68 |
+| `agent_workflows/migration_inventory.py::_catalog_disposition` | `P4` | `return-none` | candidate-files | 55 | killed | n/a | guarded |  | 24.44 |
+| `agent_workflows/run_analytics_cli.py::run_export_leaf` | `P4` | `return-none` | candidate-files | 171 | killed | n/a | guarded |  | 26.48 |
+| `agent_workflows/run_analytics_cli.py::run_submit_leaf` | `P4` | `return-none` | tests/ | 8236 | killed | killed | guarded | overwrote 1 | 3090.84 |
+| `agent_workflows/run_analytics_export.py::_tier_rank` | `P4` | `return-none` | candidate-files | 133 | killed | n/a | guarded |  | 13.02 |
+| `agent_workflows/run_analytics_export.py::build_metrics_payload` | `P4` | `return-none` | candidate-files | 133 | killed | n/a | guarded |  | 14.21 |
+| `agent_workflows/run_analytics_export.py::preview_raw_selection` | `P4` | `return-none` | candidate-files | 133 | killed | n/a | guarded |  | 12.08 |
+| `agent_workflows/run_analytics_export.py::residual_risk_notes` | `P4` | `return-none` | candidate-files | 133 | killed | n/a | guarded |  | 14.30 |
+| `agent_workflows/run_cli.py::_run_decisions` | `P4` | `return-none` | candidate-files | 1226 | killed | n/a | guarded |  | 872.06 |
+| `agent_workflows/run_cli.py::_run_questions` | `P4` | `return-none` | candidate-files | 1226 | killed | n/a | guarded |  | 939.34 |
+| `agent_workflows/runner_stop.py::install_stop_signal_handlers._sigint` | `P4` | `raise` | candidate-files | 474 | killed | n/a | guarded |  | 201.27 |
+| `agent_workflows/storage.py::detach_companion` | `P4` | `return-none` | candidate-files | 508 | killed | n/a | guarded |  | 336.00 |
+| `agent_workflows/storage.py::get_git_common_dir` | `P4` | `return-none` | candidate-files | 508 | survived | survived | unprovable | control survived; overwrote 1 | 315.83 |
+| `agent_workflows/storage.py::load_companion_identity` | `P4` | `return-none` | candidate-files | 508 | killed | n/a | guarded |  | 338.37 |
+| `agent_workflows/storage.py::materialize_companion_storage` | `P4` | `return-none` | candidate-files | 508 | killed | n/a | guarded |  | 340.21 |
+| `agent_workflows/storage.py::validate_companion_preflight` | `P4` | `return-none` | candidate-files | 508 | killed | n/a | guarded |  | 329.13 |
+| **P4 subtotal** | `P4` | | | | | | **17 keys** (budget-exhausted: 0, guarded: 16, unguarded: 0, unprovable: 1) | | **8459.79s** |
+
