@@ -111,6 +111,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.ipd.md
 - Seam regression tests under the default demotion: designed in `t54fet`.
   - Carrier: t54fet
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-m8d13e-01-t54fet-prove-every-runner-revalidation-seam-reports-an-all-green-ov.ipd.md
 
 ## Scope check
 

@@ -118,6 +118,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261017-48hjbx-01-44nfmd-make-the-core-tier-wall-time-budget-load-aware-and-name-a-bu.ipd.md
 - Regression tests proving each runner seam reports an all-green over-budget tree green under the default demotion: designed in `t54fet`. This plan does not alter that outcome (the default path never produces a budget-only red), and `t54fet`'s explicit-enforce controls assert `passed False` and empty `failures`, which still hold after E-02.
   - Carrier: t54fet
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-m8d13e-01-t54fet-prove-every-runner-revalidation-seam-reports-an-all-green-ov.ipd.md
 - Treating a budget-only red as a PASS at revalidation (as exit 5 is): refused, because an explicit `AW_CORE_BUDGET_ENFORCE` request is a request for enforcement (`test_gate_suite_honors_explicit_enforce`, `44nfmd` OQ-02); E-02 defers instead of passing.
   - Carrier-Declined: deliberate decision recorded in OQ-01; nothing is left unfixed.
 - Classifying a budget-only red in the pre-work suite baseline (`start_suite_baseline`): the baseline is consumed only through `_relative_revalidation_verdict`, which E-02 short-circuits for this case, so a budget-only baseline cannot produce a fabricated verdict here.
