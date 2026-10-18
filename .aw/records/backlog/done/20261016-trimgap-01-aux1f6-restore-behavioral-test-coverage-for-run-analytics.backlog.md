@@ -1,5 +1,5 @@
 - Id: aux1f6
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for run_analytics_taxonomy
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw agy run: IPD t8j7mn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-04-t8j7mn-restore-behavioral-test-coverage-for-run-analytics-taxonomy.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-04-t8j7mn-restore-behavioral-test-coverage-for-run-analytics-taxonomy.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053805Z-509296: t8j7mn
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_taxonomy
 
