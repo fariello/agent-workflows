@@ -35,37 +35,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restored behavioral test module
 
-- [ ] E-01 Create `tests/test_migration_compact_shims.py` from `git show 19313eed^:tests/test_migration_compact_shims.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `fdyjv6`, findings `b1mx2w`, plan `syzi9i`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). Remove from `test_generator_is_reused_not_forked` the two `assertIs(MCC.<symbol>, ENGINE.<symbol>)` lines (symbol-identity, structure-pinning), keeping its `assertEqual(projection.shims, direct)` behavioral assertion. No subprocess, no filesystem writes: every test reads the in-repo `SOURCE_WORKFLOWS`. Disposition rule if a recovered test fails at execution HEAD (none did at authoring, F-02, nor at review, F-07): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Create `tests/test_migration_compact_shims.py` from `git show 19313eed^:tests/test_migration_compact_shims.py`, adding `import pytest` and module-level `pytestmark = pytest.mark.core`, and amending the module docstring to name backlog `fdyjv6`, findings `b1mx2w`, plan `syzi9i`, and the source `19313eed^`. Keep the stdlib `unittest.TestCase` classes as recovered (pytest collects them and applies the module mark). Remove from `test_generator_is_reused_not_forked` the two `assertIs(MCC.<symbol>, ENGINE.<symbol>)` lines (symbol-identity, structure-pinning), keeping its `assertEqual(projection.shims, direct)` behavioral assertion. No subprocess, no filesystem writes: every test reads the in-repo `SOURCE_WORKFLOWS`. Disposition rule if a recovered test fails at execution HEAD (none did at authoring, F-02, nor at review, F-07): do not mark this item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists, is selected by a bare `python3 -m pytest` (it carries the `core` marker), and all recovered tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Contract tests (`CompactContractTests`, recovered): completeness is clean for the nine `COMPACT_COMMANDS`; `resolve_body_dir("research", ...)` is `research-prompt`; every package from `build_all_compact_packages` has an empty `contract.validate()`; deterministic-first packages name a script; `assert_no_needless_subagent` accepts every real package and raises `CompactMigrationError` for a `needs_subagent=True` contract whose `validate()` reports `needless orchestration`; `build_compact_package("release-review", ...)` raises; out-of-vocabulary mode, boundary and interaction are each flagged. ADD: `resolve_body_dir("not-a-command", ...)` raises `CompactMigrationError` naming `not a live manifest row`; a deterministic-first `TypedContract` with `script=None` reports `names no reusable script`; `build_compact_package("verify", ...).to_dict()` equals a dict whose `command` is `verify`, `canonical_package` is `verify`, `body` equals the package `body`, `semantic_digest` equals the package digest, and `contract` equals `{"command": "verify", "mode": "deterministic-first", "input_kind": "arguments", "output_kind": "evidence", "write_boundary": "consented-write", "interaction": "optional", "needs_subagent": False, "script": "run_checks"}` (this reaches `CompactPackage.to_dict` and `TypedContract.to_dict` with a falsifiable value).
+- [x] E-02 Contract tests (`CompactContractTests`, recovered): completeness is clean for the nine `COMPACT_COMMANDS`; `resolve_body_dir("research", ...)` is `research-prompt`; every package from `build_all_compact_packages` has an empty `contract.validate()`; deterministic-first packages name a script; `assert_no_needless_subagent` accepts every real package and raises `CompactMigrationError` for a `needs_subagent=True` contract whose `validate()` reports `needless orchestration`; `build_compact_package("release-review", ...)` raises; out-of-vocabulary mode, boundary and interaction are each flagged. ADD: `resolve_body_dir("not-a-command", ...)` raises `CompactMigrationError` naming `not a live manifest row`; a deterministic-first `TypedContract` with `script=None` reports `names no reusable script`; `build_compact_package("verify", ...).to_dict()` equals a dict whose `command` is `verify`, `canonical_package` is `verify`, `body` equals the package `body`, `semantic_digest` equals the package digest, and `contract` equals `{"command": "verify", "mode": "deterministic-first", "input_kind": "arguments", "output_kind": "evidence", "write_boundary": "consented-write", "interaction": "optional", "needs_subagent": False, "script": "run_checks"}` (this reaches `CompactPackage.to_dict` and `TypedContract.to_dict` with a falsifiable value).
   - Depends on: E-01
   - Expected outcome: all recovered and added contract tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Shim and skill tests (`ShimAndSkillTests`, recovered): `generate_compact_projection(...).shim_for(cmd)` returns at least 2 shims for every compact command; `resolve_shim` returns the right `command`, a `body_target` containing the command (or `research-prompt`), and a `semantic_digest` equal to the package's; `argument_parity` is True for every compact command; `detect_shim_drift` is False for an identical regeneration and True for an appended hand-edit; every selected skill `skill_resolves_package` its package, and a package with a `"0" * 64` digest does not; `old_invocation_still_works` is True for every compact command; projection shims equal `engine.generate_shim_members` output. ADD: `old_invocation_still_works("not-a-command", ...)` is False (the no-match branch); `generate_compact_projection(SOURCE_WORKFLOWS, skill_commands=["not-a-command"])` raises `CompactMigrationError`; `generate_compact_projection(SOURCE_WORKFLOWS, skill_commands=["spec"]).skill_packages` has exactly the key `spec` (the override branch); and the default projection's `skill_packages` key set is non-empty and a subset of `COMPACT_COMMANDS`.
+- [x] E-03 Shim and skill tests (`ShimAndSkillTests`, recovered): `generate_compact_projection(...).shim_for(cmd)` returns at least 2 shims for every compact command; `resolve_shim` returns the right `command`, a `body_target` containing the command (or `research-prompt`), and a `semantic_digest` equal to the package's; `argument_parity` is True for every compact command; `detect_shim_drift` is False for an identical regeneration and True for an appended hand-edit; every selected skill `skill_resolves_package` its package, and a package with a `"0" * 64` digest does not; `old_invocation_still_works` is True for every compact command; projection shims equal `engine.generate_shim_members` output. ADD: `old_invocation_still_works("not-a-command", ...)` is False (the no-match branch); `generate_compact_projection(SOURCE_WORKFLOWS, skill_commands=["not-a-command"])` raises `CompactMigrationError`; `generate_compact_projection(SOURCE_WORKFLOWS, skill_commands=["spec"]).skill_packages` has exactly the key `spec` (the override branch); and the default projection's `skill_packages` key set is non-empty and a subset of `COMPACT_COMMANDS`.
   - Depends on: E-01
   - Expected outcome: all recovered and added shim/skill tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Promotion-gate tests (`PromotionGateTests`, recovered): a passing summary at risk `low` yields `passed`, `PATH_MIGRATED`, `advertised`, no corrective item, and appears in `advertised_families`; a failing summary at risk `high` yields `PATH_LEGACY_FALLBACK`, not advertised, an `open` corrective item with non-empty findings, absent from `advertised_families` and present in `legacy_fallback_families`; a mixed pair partitions into `("f-pass",)` and `["f-fail"]`; a `RiskThresholds` with `max_critical_escapes=5` makes `ThresholdPolicy` raise `ThresholdError`; one critical escape fails a perfect-quality `low` gate. ADD: `build_metric_summary(requirement_recall=0.9, task_correctness=0.8, evidence_validity=0.7, critical_escapes=2, scope_violations=3, sample_size=4)` returns a `MetricSummary` whose `sample_size` is 4, `requirement_recall.value` 0.9, `task_correctness.value` 0.8, `evidence_validity.value` 0.7, `defect_escape.value` 0.5, `scope_violations.value` 3, and `requirement_recall.sample_size` 4 (this reaches `_mv` with a falsifiable value); and the failing decision's `to_dict()["corrective_item"]["family"]` equals the family name.
+- [x] E-04 Promotion-gate tests (`PromotionGateTests`, recovered): a passing summary at risk `low` yields `passed`, `PATH_MIGRATED`, `advertised`, no corrective item, and appears in `advertised_families`; a failing summary at risk `high` yields `PATH_LEGACY_FALLBACK`, not advertised, an `open` corrective item with non-empty findings, absent from `advertised_families` and present in `legacy_fallback_families`; a mixed pair partitions into `("f-pass",)` and `["f-fail"]`; a `RiskThresholds` with `max_critical_escapes=5` makes `ThresholdPolicy` raise `ThresholdError`; one critical escape fails a perfect-quality `low` gate. ADD: `build_metric_summary(requirement_recall=0.9, task_correctness=0.8, evidence_validity=0.7, critical_escapes=2, scope_violations=3, sample_size=4)` returns a `MetricSummary` whose `sample_size` is 4, `requirement_recall.value` 0.9, `task_correctness.value` 0.8, `evidence_validity.value` 0.7, `defect_escape.value` 0.5, `scope_violations.value` 3, and `requirement_recall.sample_size` 4 (this reaches `_mv` with a falsifiable value); and the failing decision's `to_dict()["corrective_item"]["family"]` equals the family name.
   - Depends on: E-01
   - Expected outcome: all recovered and added promotion-gate tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Report tests (`ReportTests`, recovered): `render_agent_report` is identical across two calls, parses as JSON with empty `compact_completeness_findings` and `packages` keyed by exactly `COMPACT_COMMANDS`. ADD: `data["projection"]["shim_paths"]` is sorted, non-empty, and equals `sorted(generate_compact_projection(SOURCE_WORKFLOWS).shims)`; `data["projection"]["skill_packages"]` has the same key set as the default projection's `skill_packages` (this reaches `CompactProjection.to_dict` with a falsifiable value); and `data["packages"]["research"]["body"]` ends with `research-prompt/research-prompt.md`.
+- [x] E-05 Report tests (`ReportTests`, recovered): `render_agent_report` is identical across two calls, parses as JSON with empty `compact_completeness_findings` and `packages` keyed by exactly `COMPACT_COMMANDS`. ADD: `data["projection"]["shim_paths"]` is sorted, non-empty, and equals `sorted(generate_compact_projection(SOURCE_WORKFLOWS).shims)`; `data["projection"]["skill_packages"]` has the same key set as the default projection's `skill_packages` (this reaches `CompactProjection.to_dict` with a falsifiable value); and `data["packages"]["research"]["body"]` ends with `research-prompt/research-prompt.md`.
   - Depends on: E-01
   - Expected outcome: all recovered and added report tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: proof that every key is guarded
 
-- [ ] E-06 Run the full 24-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/migration_compact.py::*`, apply that row's assigned operator (`return-none`, `negate-return`, `raise`) as a scratch edit to `agent_workflows/migration_compact.py` at the top of the key's body (for `negate-return`, wrap the function so it returns `not` its original result), run `python3 -m pytest tests/test_migration_compact_shims.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script in a gitignored scratch location (for example `.aw/state/`) and never commit it. Then run the reach command in Required tests. A survivor is a defect in this plan's deliverable: add the missing assertion to `tests/test_migration_compact_shims.py` and re-sweep that key; do not mark this item performed with a survivor outstanding.
+- [x] E-06 Run the full 24-key mutation sweep against the finished module: for each key in `b1mx2w` `## Rollup mutation results` rows `agent_workflows/migration_compact.py::*`, apply that row's assigned operator (`return-none`, `negate-return`, `raise`) as a scratch edit to `agent_workflows/migration_compact.py` at the top of the key's body (for `negate-return`, wrap the function so it returns `not` its original result), run `python3 -m pytest tests/test_migration_compact_shims.py -o addopts="" -q -p no:randomly`, record KILLED (nonzero exit) or SURVIVED with the summary line, and restore the file before the next key. Keep any sweep driver script in a gitignored scratch location (for example `.aw/state/`) and never commit it. Then run the reach command in Required tests. A survivor is a defect in this plan's deliverable: add the missing assertion to `tests/test_migration_compact_shims.py` and re-sweep that key; do not mark this item performed with a survivor outstanding.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: every one of the 24 keys is KILLED by its assigned operator (at review the recovered file alone left `TypedContract.to_dict`, `CompactPackage.to_dict` and `CompactProjection.to_dict` surviving, and the E-02/E-05 `to_dict` additions killed all three, F-07); `git diff agent_workflows/` is empty afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -132,35 +132,216 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff --stat HEAD` (or `git status --short`) showing only `tests/test_migration_compact_shims.py` added; paste the `tests/test_migration_compact_shims.py: N` line from bare `python3 -m pytest --collect-only -q` (the core selection prints one `path: N` line per file, so `rg -c` would print 1, not N), with N matching the per-test list of the Required tests `-v` run; paste the bare `python3 -m pytest` summary line showing it passed (if it prints `CORE TIER BUDGET EXCEEDED`, paste that too with the same run's line without the module, and report it rather than un-marking tests; a pre-existing overrun is tracked separately, backlog `o58dro`); paste `rg -n "assertIs\(" tests/test_migration_compact_shims.py` returning no match.
   - Observed evidence:
-  - Result: pending
+    `git status --short`:
+    ```
+    ?? tests/test_migration_compact_shims.py
+    ```
 
-- [ ] V-02 validates E-02
+    `python3 -m pytest --collect-only -q | grep tests/test_migration_compact_shims.py`:
+    ```
+    tests/test_migration_compact_shims.py: 29
+    ```
+
+    Bare `python3 -m pytest` summary line (core tier wall time 32.30s, pre-existing budget overrun tracked in `o58dro`):
+    ```
+    1276 passed in 32.30s
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 32.30s exceeded budget of 30.00s.
+    ```
+    Same bare run without the module (`python3 -m pytest --ignore=tests/test_migration_compact_shims.py`):
+    ```
+    1247 passed in 44.70s
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 44.70s exceeded budget of 30.00s.
+    ```
+
+    `rg -n "assertIs\(" tests/test_migration_compact_shims.py` (exit code 1, no matches):
+    ```
+    (no match, exit code 1)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing every `CompactContractTests` test as PASSED, including the added error-branch, missing-script and `to_dict` tests; paste the failures produced by scratch-mutating `TypedContract.to_dict` and `CompactPackage.to_dict` each to `return None` (survivors of the recovered file alone, F-07), with the added `verify` `to_dict` test among the failures; paste the failure produced by scratch-mutating `TypedContract.validate` to `return []` and the failure produced by scratch-mutating `assert_no_needless_subagent` to `return None` before its `if` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    `CompactContractTests` `-v` run:
+    ```
+    tests/test_migration_compact_shims.py::CompactContractTests::test_no_compact_package_needs_a_subagent PASSED [  9%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_all_nine_compact_commands_are_live_manifest_rows PASSED [ 18%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_negative_needless_subagent_is_rejected PASSED [ 27%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_negative_non_compact_command_is_refused PASSED [ 36%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_every_compact_package_has_valid_typed_contract PASSED [ 45%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_research_body_dir_is_research_prompt_not_command_name PASSED [ 54%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_negative_bad_vocabulary_is_flagged PASSED [ 63%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_resolve_body_dir_nonexistent_command_raises PASSED [ 72%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_build_compact_package_to_dict_matches_expected_structure PASSED [ 81%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_deterministic_first_contract_missing_script_is_flagged PASSED [ 90%]
+    tests/test_migration_compact_shims.py::CompactContractTests::test_deterministic_first_packages_name_a_reusable_script PASSED [100%]
+    11 passed in 0.35s
+    ```
 
-- [ ] V-03 validates E-03
+    Failure when mutating `TypedContract.to_dict` to `return None`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_build_compact_package_to_dict_matches_expected_structure - AssertionError: {'com[104 chars]ct': None, 'semantic_digest': '56e25ded7e99772[46 chars]f62'} != {'com[104 chars]ct': {'command': 'verify', 'mode': 'determinis[261 chars]f62'}
+    1 failed, 28 passed in 0.43s
+    ```
+
+    Failure when mutating `CompactPackage.to_dict` to `return None`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::ReportTests::test_report_is_deterministic_json_and_clean - TypeError: 'NoneType' object is not subscriptable
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_build_compact_package_to_dict_matches_expected_structure - AssertionError: None != {'command': 'verify', 'canonical_package'[375 chars]f62'}
+    2 failed, 27 passed in 0.48s
+    ```
+
+    Failure when mutating `TypedContract.validate` to `return []`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_negative_bad_vocabulary_is_flagged - AssertionError: False is not true
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_deterministic_first_contract_missing_script_is_flagged - AssertionError: False is not true : expected 'names no reusable script' in problems: []
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_negative_needless_subagent_is_rejected - AssertionError: False is not true : a needs_subagent contract must be flagged: []
+    3 failed, 26 passed in 0.45s
+    ```
+
+    Failure when mutating `assert_no_needless_subagent` to `return None` before its `if`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::CompactContractTests::test_negative_needless_subagent_is_rejected - AssertionError: CompactMigrationError not raised
+    1 failed, 28 passed in 0.42s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every `ShimAndSkillTests` test as PASSED; paste the failures produced by scratch-mutating `detect_shim_drift` to negate its return and `old_invocation_still_works` to negate its final `return True` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    `ShimAndSkillTests` `-v` run:
+    ```
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_old_invocation_still_works_nonexistent_command_is_false PASSED [  9%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_generate_compact_projection_skill_commands_override_and_default PASSED [ 18%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_argument_golden_parity_holds_for_every_compact_command PASSED [ 27%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_hand_edited_shim_fails_drift_check PASSED [ 36%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_every_compact_command_generates_a_shim PASSED [ 45%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_shim_resolves_correct_package_and_digest PASSED [ 54%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_negative_skill_bound_to_wrong_digest_is_detected PASSED [ 63%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_generate_compact_projection_unknown_skill_command_raises PASSED [ 72%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_selected_skill_resolves_correct_package_and_digest PASSED [ 81%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_old_invocations_still_work PASSED [ 90%]
+    tests/test_migration_compact_shims.py::ShimAndSkillTests::test_generator_is_reused_not_forked PASSED [100%]
+    11 passed in 0.38s
+    ```
 
-- [ ] V-04 validates E-04
+    Failure when scratch-mutating `detect_shim_drift` to negate its return:
+    ```
+    FAILED tests/test_migration_compact_shims.py::ShimAndSkillTests::test_hand_edited_shim_fails_drift_check - AssertionError: True is not false
+    1 failed, 28 passed in 0.53s
+    ```
+
+    Failure when scratch-mutating `old_invocation_still_works` to negate its final `return True`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::ShimAndSkillTests::test_old_invocations_still_work - AssertionError: False is not true : old invocation broke for 'getting-started'
+    1 failed, 28 passed in 0.87s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing every `PromotionGateTests` test as PASSED; paste the failure produced by scratch-mutating `evaluate_promotion_gate` so its failing branch sets `advertised=True` and `migration_path=PATH_MIGRATED`, and the failure produced by scratch-mutating `_mv` to pass `sample_size=1` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+    `PromotionGateTests` `-v` run:
+    ```
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_critical_escape_fails_gate_even_with_perfect_quality PASSED [ 16%]
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_build_metric_summary_reaches_metric_value PASSED [ 33%]
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_gate_reuses_order13_and_cannot_be_weakened PASSED [ 50%]
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_failing_family_falls_back_to_legacy_with_corrective_item PASSED [ 66%]
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_passing_family_is_advertised_as_migrated PASSED [ 83%]
+    tests/test_migration_compact_shims.py::PromotionGateTests::test_mixed_families_partition_correctly PASSED [100%]
+    6 passed in 1.06s
+    ```
 
-- [ ] V-05 validates E-05
+    Failure when scratch-mutating `evaluate_promotion_gate` so failing branch sets `advertised=True` and `migration_path=PATH_MIGRATED`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::PromotionGateTests::test_failing_family_falls_back_to_legacy_with_corrective_item - AssertionError: 'migrated' != 'legacy-fallback'
+    FAILED tests/test_migration_compact_shims.py::PromotionGateTests::test_mixed_families_partition_correctly - AssertionError: Tuples differ: ('f-fail', 'f-pass') != ('f-pass',)
+    FAILED tests/test_migration_compact_shims.py::PromotionGateTests::test_critical_escape_fails_gate_even_with_perfect_quality - AssertionError: True is not false
+    3 failed, 26 passed in 3.17s
+    ```
+
+    Failure when scratch-mutating `_mv` to pass `sample_size=1`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::PromotionGateTests::test_build_metric_summary_reaches_metric_value - AssertionError: 1 != 4
+    FAILED tests/test_migration_compact_shims.py::PromotionGateTests::test_critical_escape_fails_gate_even_with_perfect_quality - AssertionError: True is not false
+    2 failed, 27 passed in 0.46s
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` output listing every `ReportTests` test as PASSED; paste the failures produced by scratch-mutating `CompactProjection.to_dict` to return `{}` and to `return None` (its `b1mx2w` operator, which the recovered file alone does not kill, F-07), each reverted afterwards, with an added E-05 assertion among the failures.
   - Observed evidence:
-  - Result: pending
+    `ReportTests` `-v` run:
+    ```
+    tests/test_migration_compact_shims.py::ReportTests::test_report_is_deterministic_json_and_clean PASSED [100%]
+    1 passed in 0.51s
+    ```
 
-- [ ] V-06 validates E-06
+    Failure when scratch-mutating `CompactProjection.to_dict` to return `{}`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::ReportTests::test_report_is_deterministic_json_and_clean - KeyError: 'shim_paths'
+    1 failed, 28 passed in 0.51s
+    ```
+
+    Failure when scratch-mutating `CompactProjection.to_dict` to return `None`:
+    ```
+    FAILED tests/test_migration_compact_shims.py::ReportTests::test_report_is_deterministic_json_and_clean - TypeError: 'NoneType' object is not subscriptable
+    1 failed, 28 passed in 0.43s
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the sweep output, one line per key naming the key, its operator, KILLED or SURVIVED, and the pytest summary line, covering all 24 `b1mx2w` keys with zero SURVIVED; paste the coverage `term-missing` output for `agent_workflows/migration_compact.py` from the Required tests reach command, with every listed miss outside the 24 key bodies; paste a final empty `git diff agent_workflows/` and `git status --short` showing no sweep script staged or tracked.
   - Observed evidence:
-  - Result: pending
+    Sweep output for all 24 keys (0 SURVIVED):
+    ```
+    evaluate_promotion_gate (return-none): KILLED (4 failed, 25 passed in 0.44s)
+    build_metric_summary (return-none): KILLED (5 failed, 24 passed in 1.27s)
+    TypedContract.validate (return-none): KILLED (6 failed, 23 passed in 0.43s)
+    build_compact_package (return-none): KILLED (10 failed, 19 passed in 0.40s)
+    generate_compact_projection (return-none): KILLED (9 failed, 20 passed in 0.56s)
+    resolve_shim (return-none): KILLED (1 failed, 28 passed in 0.46s)
+    check_compact_completeness (return-none): KILLED (2 failed, 27 passed in 0.42s)
+    old_invocation_still_works (negate-return): KILLED (2 failed, 27 passed in 0.43s)
+    TypedContract.to_dict (return-none): KILLED (1 failed, 28 passed in 0.56s)
+    resolve_body_dir (return-none): KILLED (4 failed, 25 passed in 0.37s)
+    argument_parity (negate-return): KILLED (1 failed, 28 passed in 0.76s)
+    render_agent_report (return-none): KILLED (1 failed, 28 passed in 0.54s)
+    CompactPackage.to_dict (return-none): KILLED (2 failed, 27 passed in 0.68s)
+    skill_resolves_package (return-none): KILLED (1 failed, 28 passed in 0.86s)
+    advertised_families (return-none): KILLED (3 failed, 26 passed in 0.75s)
+    legacy_fallback_families (return-none): KILLED (2 failed, 27 passed in 0.82s)
+    CompactProjection.to_dict (return-none): KILLED (1 failed, 28 passed in 0.60s)
+    assert_no_needless_subagent (raise): KILLED (2 failed, 27 passed in 0.62s)
+    CompactProjection.shim_for (return-none): KILLED (2 failed, 27 passed in 0.53s)
+    _shim_view_digest (return-none): KILLED (1 failed, 28 passed in 1.35s)
+    detect_shim_drift (negate-return): KILLED (1 failed, 28 passed in 0.60s)
+    _mv (return-none): KILLED (5 failed, 24 passed in 2.67s)
+    _workflow_by_command (return-none): KILLED (12 failed, 17 passed in 0.86s)
+    build_all_compact_packages (return-none): KILLED (5 failed, 24 passed in 0.55s)
+    Final outcome: ALL KILLED
+    ```
+
+    `python3 -m pytest tests/test_migration_compact_shims.py -o addopts="" --cov=agent_workflows.migration_compact --cov-report=term-missing`:
+    ```
+    Name                                   Stmts   Miss  Cover   Missing
+    --------------------------------------------------------------------
+    agent_workflows/migration_compact.py     238     20    92%   135, 323, 340, 345, 350, 402-407, 410, 417-419, 421, 426, 532, 562, 568, 606, 629, 658, 662
+    --------------------------------------------------------------------
+    TOTAL                                    238     20    92%
+    ```
+
+    Final `git diff agent_workflows/` is empty.
+    Final `git status --short`:
+    ```
+    ?? tests/test_migration_compact_shims.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
