@@ -91,6 +91,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Evidence: .aw/records/plans/executed/20261017-qchan-10-qrup8m-add-a-standard-library-two-way-telegram-channel.ipd.md
 - Setup CLI commands (`aw notify setup`): owned by `mrlblc`.
   - Carrier: mrlblc
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-qchan-11-mrlblc-add-aw-notify-setup-test-status-and-listen.ipd.md
 
 ## Scope check
 
