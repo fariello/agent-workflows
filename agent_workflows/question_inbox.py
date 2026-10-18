@@ -214,7 +214,10 @@ def write_question(
     except ValueError:
         rel_art_path = str(art_path)
 
-    artifact_hash = runner_shared.sha256_file(art_path)
+    if question.get("artifact_hash"):
+        artifact_hash = str(question["artifact_hash"])
+    else:
+        artifact_hash = runner_shared.sha256_file(art_path)
 
     run_id = str(item.get("run_id") or run_dir.name)
     fingerprint = question.get("fingerprint")
@@ -230,7 +233,7 @@ def write_question(
     options = list(raw_opts) if raw_opts is not None else None
     allow_free_text = bool(question.get("allow_free_text", True))
     evidence = list(question.get("evidence", []))
-    action = str(item.get("action", "execute"))
+    action = str(question.get("action") or item.get("action", "execute"))
     created_at = str(question.get("created_at") or utc_now())
 
     payload = {
@@ -250,6 +253,8 @@ def write_question(
         "created_at": created_at,
         "status": QUESTION_STATUS_OPEN,
     }
+    if question.get("oq_id"):
+        payload["oq_id"] = str(question["oq_id"])
 
     # Write temp file and link atomically with O_EXCL semantics
     tmp_path = questions_dir / f".tmp_{qid}_{os.getpid()}_{time.time_ns()}"
