@@ -36,34 +36,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fixture
 
-- [ ] E-01 Create `tests/test_runner_seams_core_budget.py` (NOT `core`-marked: it launches several pytest subprocesses and belongs in the explicit-path and thorough tiers, not the 30s core tier). Add a fixture helper `_over_budget_repo(path)` that `git init`s a repository (configure `user.name`/`user.email` locally, as `tests/test_suite_cache.py::_init_fixture_repo` does), writes a `pytest.ini` (`[pytest]`, `addopts = -q`, `testpaths = tests`), a `.gitignore` (`.pytest_cache/`, `__pycache__/`), one passing test `tests/test_ok.py` that sleeps 0.05s, and a fixture-local `conftest.py` (its own `pytest_sessionstart` records `time.perf_counter()`) whose controller-only `pytest_sessionfinish(trylast=True)` reproduces the root `conftest.pytest_sessionfinish` ENFORCEMENT RULE verbatim in effect: skip when `PYTEST_XDIST_WORKER` is set; budget from `AW_CORE_BUDGET_SECONDS` (default 30.0); on overrun write a banner containing `CORE TIER BUDGET EXCEEDED` to stderr and set `session.exitstatus = 1` only when `int(AW_TEST_CPU_COUNT or os.cpu_count())>=12` and `AW_CORE_BUDGET_ENFORCE != "0"`, else write the `WARNING:` banner. The fixture conftest deliberately has NO core-filter gate, because the seams append `-n <workers>` through `suite_cache.build_suite_child_env` and the toy project has no xdist relay of `_core_filter_applied` (the reason the existing `ytz6z4` test needed `-n 0`, see its docstring). `git add -A` and commit every fixture file inside the fixture repo (this is the throwaway repo's own commit; nothing is committed to this checkout here). Add an env helper mirroring `tests/test_suite_cache.py::_fixture_env` (`AW_NO_REEXEC=1`, `PYTHONPATH` = this checkout, pop `PYTEST_ADDOPTS`, `PYTEST_CURRENT_TEST`, `PYTEST_XDIST_WORKER`, `AW_TEST_TIER`) that additionally sets `AW_CORE_BUDGET_SECONDS=0.01` and `AW_TEST_CPU_COUNT=12` and removes `AW_CORE_BUDGET_ENFORCE` unless a test passes it explicitly. APPLY IT SO THE POPPED KEYS ARE REALLY ABSENT: use `mock.patch.dict(os.environ, <helper result>, clear=True)` (or `monkeypatch.setenv` plus `monkeypatch.delenv(..., raising=False)` for each removed key). `patch.dict(..., clear=False)` only adds and overwrites keys and never removes one, so under xdist (the thorough tier's `-n auto`) the test process's own `PYTEST_XDIST_WORKER` would leak into every child, the fixture hook would return early, every green test would pass vacuously and every control would fail. Measured at review with a prototype of this fixture: with `clear=False` and `PYTEST_XDIST_WORKER=gw0` in the parent, the seam-1 control returned `passing True exit 0`; with `clear=True` it returned `passing False exit 1 failures ()`. Each test builds its OWN fixture repo under `tmp_path`, because the suite cache key (`suite_cache.SUITE_KEY_ENV_VARS`) does not include `AW_CORE_BUDGET_ENFORCE`, so a PASS cached by one test would otherwise be served to the next and make its assertion vacuous.
+- [x] E-01 Create `tests/test_runner_seams_core_budget.py` (NOT `core`-marked: it launches several pytest subprocesses and belongs in the explicit-path and thorough tiers, not the 30s core tier). Add a fixture helper `_over_budget_repo(path)` that `git init`s a repository (configure `user.name`/`user.email` locally, as `tests/test_suite_cache.py::_init_fixture_repo` does), writes a `pytest.ini` (`[pytest]`, `addopts = -q`, `testpaths = tests`), a `.gitignore` (`.pytest_cache/`, `__pycache__/`), one passing test `tests/test_ok.py` that sleeps 0.05s, and a fixture-local `conftest.py` (its own `pytest_sessionstart` records `time.perf_counter()`) whose controller-only `pytest_sessionfinish(trylast=True)` reproduces the root `conftest.pytest_sessionfinish` ENFORCEMENT RULE verbatim in effect: skip when `PYTEST_XDIST_WORKER` is set; budget from `AW_CORE_BUDGET_SECONDS` (default 30.0); on overrun write a banner containing `CORE TIER BUDGET EXCEEDED` to stderr and set `session.exitstatus = 1` only when `int(AW_TEST_CPU_COUNT or os.cpu_count())>=12` and `AW_CORE_BUDGET_ENFORCE != "0"`, else write the `WARNING:` banner. The fixture conftest deliberately has NO core-filter gate, because the seams append `-n <workers>` through `suite_cache.build_suite_child_env` and the toy project has no xdist relay of `_core_filter_applied` (the reason the existing `ytz6z4` test needed `-n 0`, see its docstring). `git add -A` and commit every fixture file inside the fixture repo (this is the throwaway repo's own commit; nothing is committed to this checkout here). Add an env helper mirroring `tests/test_suite_cache.py::_fixture_env` (`AW_NO_REEXEC=1`, `PYTHONPATH` = this checkout, pop `PYTEST_ADDOPTS`, `PYTEST_CURRENT_TEST`, `PYTEST_XDIST_WORKER`, `AW_TEST_TIER`) that additionally sets `AW_CORE_BUDGET_SECONDS=0.01` and `AW_TEST_CPU_COUNT=12` and removes `AW_CORE_BUDGET_ENFORCE` unless a test passes it explicitly. APPLY IT SO THE POPPED KEYS ARE REALLY ABSENT: use `mock.patch.dict(os.environ, <helper result>, clear=True)` (or `monkeypatch.setenv` plus `monkeypatch.delenv(..., raising=False)` for each removed key). `patch.dict(..., clear=False)` only adds and overwrites keys and never removes one, so under xdist (the thorough tier's `-n auto`) the test process's own `PYTEST_XDIST_WORKER` would leak into every child, the fixture hook would return early, every green test would pass vacuously and every control would fail. Measured at review with a prototype of this fixture: with `clear=False` and `PYTEST_XDIST_WORKER=gw0` in the parent, the seam-1 control returned `passing True exit 0`; with `clear=True` it returned `passing False exit 1 failures ()`. Each test builds its OWN fixture repo under `tmp_path`, because the suite cache key (`suite_cache.SUITE_KEY_ENV_VARS`) does not include `AW_CORE_BUDGET_ENFORCE`, so a PASS cached by one test would otherwise be served to the next and make its assertion vacuous.
   - Depends on: none
   - Expected outcome: a reusable over-budget fixture whose bare run with `AW_CORE_BUDGET_ENFORCE=1` exits 1 with zero failing tests, and with the variable unset under a seam exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one test pair per seam
 
-- [ ] E-02 Seam 1, the integration gate check. Add `test_run_suite_check_green_on_all_green_over_budget_tree`: with the fixture env applied as E-01 requires (popped keys really absent) and `AW_CORE_BUDGET_ENFORCE` absent, call `runner_shared.run_suite_check(repo, "run-m8d13e01")` and assert `passing is True`, `exit_code == 0`, `cached is False` (proves an observed run, not a served cache record), and that `os.environ` has no `AW_CORE_BUDGET_ENFORCE` afterwards (the run-evidence path restores it). Add the positive control `test_run_suite_check_red_when_enforce_requested` on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1` in the environment: assert `passing is False`, `exit_code == 1` and `failures == ()`, which is exactly the zero-ids RED shape `m8d13e` reported.
+- [x] E-02 Seam 1, the integration gate check. Add `test_run_suite_check_green_on_all_green_over_budget_tree`: with the fixture env applied as E-01 requires (popped keys really absent) and `AW_CORE_BUDGET_ENFORCE` absent, call `runner_shared.run_suite_check(repo, "run-m8d13e01")` and assert `passing is True`, `exit_code == 0`, `cached is False` (proves an observed run, not a served cache record), and that `os.environ` has no `AW_CORE_BUDGET_ENFORCE` afterwards (the run-evidence path restores it). Add the positive control `test_run_suite_check_red_when_enforce_requested` on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1` in the environment: assert `passing is False`, `exit_code == 1` and `failures == ()`, which is exactly the zero-ids RED shape `m8d13e` reported.
   - Depends on: E-01
   - Expected outcome: both tests pass; the control proves the fixture trips the budget, so the green assertion is meaningful.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Seam 2, the concurrent pre-work baseline (the seam behind the `m8d13e` "base commit 130s" measurement). Add `test_suite_baseline_green_on_all_green_over_budget_tree`: under the same environment, read the fixture HEAD with `git rev-parse HEAD`, call `runner_shared.start_suite_baseline(repo, id6="m8d13e", attempt=1, base_commit=<head>, argv=list(runner_shared.SUITE_CHECK_ARGV), extract_failures=runner_shared.extract_suite_failures, parse_summary=runner_shared.parse_suite_summary)` (the same call `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun` makes, which rewrites the argv to `python -m agent_workflows suite --agent --no-serve-failures`), collect with `wait_seconds=120.0` inside `try`/`finally` that calls `runner_shared.remove_suite_baseline_checkout`, and assert `state == runner_shared.SUITE_BASELINE_COMPLETED`, `exit_code == 0` and `failures == ()`. Add the positive control on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1`: assert `exit_code != 0` and `failures == ()`.
+- [x] E-03 Seam 2, the concurrent pre-work baseline (the seam behind the `m8d13e` "base commit 130s" measurement). Add `test_suite_baseline_green_on_all_green_over_budget_tree`: under the same environment, read the fixture HEAD with `git rev-parse HEAD`, call `runner_shared.start_suite_baseline(repo, id6="m8d13e", attempt=1, base_commit=<head>, argv=list(runner_shared.SUITE_CHECK_ARGV), extract_failures=runner_shared.extract_suite_failures, parse_summary=runner_shared.parse_suite_summary)` (the same call `tests/test_suite_cache.py::test_runner_seams_cache_hit_miss_and_failure_rerun` makes, which rewrites the argv to `python -m agent_workflows suite --agent --no-serve-failures`), collect with `wait_seconds=120.0` inside `try`/`finally` that calls `runner_shared.remove_suite_baseline_checkout`, and assert `state == runner_shared.SUITE_BASELINE_COMPLETED`, `exit_code == 0` and `failures == ()`. Add the positive control on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1`: assert `exit_code != 0` and `failures == ()`.
   - Depends on: E-01
   - Expected outcome: both tests pass; the baseline seam reports a green base commit as green under an overrun.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Seam 3, post-merge revalidation, the seam whose RED became the "combined-red, no test ids recorded" refusal. Add `test_post_merge_revalidation_green_on_all_green_over_budget_tree`: build `state = {"repo": str(repo), "run_id": "run-m8d13e03", "options": {"validate": False}}` and `item = {"id6": "m8d13e", "base_commit": <head>, "lane_head": <head>, "attempts": []}` and a `run_dir` under `tmp_path`, exactly as the existing seam test does; call `runner_shared.make_integration_validation_runner(state, run_dir, item, suite_check=runner_shared.run_suite_check)("", ["tests/test_ok.py"])` and assert it returns `True` and that `item["post_merge_revalidation"]["passed"] is True`. Add the positive control on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1`: assert the runner returns `False`, the recorded `passed` is `False`, and the recorded `failures` is empty, reproducing the `m8d13e` record shape.
+- [x] E-04 Seam 3, post-merge revalidation, the seam whose RED became the "combined-red, no test ids recorded" refusal. Add `test_post_merge_revalidation_green_on_all_green_over_budget_tree`: build `state = {"repo": str(repo), "run_id": "run-m8d13e03", "options": {"validate": False}}` and `item = {"id6": "m8d13e", "base_commit": <head>, "lane_head": <head>, "attempts": []}` and a `run_dir` under `tmp_path`, exactly as the existing seam test does; call `runner_shared.make_integration_validation_runner(state, run_dir, item, suite_check=runner_shared.run_suite_check)("", ["tests/test_ok.py"])` and assert it returns `True` and that `item["post_merge_revalidation"]["passed"] is True`. Add the positive control on a fresh repo with `AW_CORE_BUDGET_ENFORCE=1`: assert the runner returns `False`, the recorded `passed` is `False`, and the recorded `failures` is empty, reproducing the `m8d13e` record shape.
   - Depends on: E-01
   - Expected outcome: both tests pass; the post-merge revalidation record of an all-green over-budget merged tree says passed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: run and record
 
-- [ ] E-05 Run the new module explicitly, serially (`python3 -m pytest -o addopts="" -v tests/test_runner_seams_core_budget.py`) AND under workers (`python3 -m pytest -o addopts="" -n 2 -v tests/test_runner_seams_core_budget.py`, which proves the env helper really strips `PYTEST_XDIST_WORKER`), the neighbouring contracts unchanged (`python3 -m pytest tests/test_core_tier_selection.py tests/test_suite_cache.py`), the bare core tier `python3 -m pytest`, and `aw sanitize --agent`. If any GREEN-case test fails because a seam really does report RED, do NOT weaken the test and do NOT edit production code under this plan (it is outside `- Scope-Paths:`): set this item and the failing seam's E-item to `blocked`, record the failing seam and its output, and report it as a live regression of `ytz6z4` needing a corrective plan.
+- [x] E-05 Run the new module explicitly, serially (`python3 -m pytest -o addopts="" -v tests/test_runner_seams_core_budget.py`) AND under workers (`python3 -m pytest -o addopts="" -n 2 -v tests/test_runner_seams_core_budget.py`, which proves the env helper really strips `PYTEST_XDIST_WORKER`), the neighbouring contracts unchanged (`python3 -m pytest tests/test_core_tier_selection.py tests/test_suite_cache.py`), the bare core tier `python3 -m pytest`, and `aw sanitize --agent`. If any GREEN-case test fails because a seam really does report RED, do NOT weaken the test and do NOT edit production code under this plan (it is outside `- Scope-Paths:`): set this item and the failing seam's E-item to `blocked`, record the failing seam and its output, and report it as a live regression of `ytz6z4` needing a corrective plan.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: six new tests pass; existing files pass unchanged; core tier green; sanitizer pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,26 +137,72 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff --stat` showing only `tests/test_runner_seams_core_budget.py` added, and pasted output of a manual bare run of the fixture produced by `_over_budget_repo` (from a short `python3 -c` driver that builds it under a `tempfile.mkdtemp()` directory, run with a clean env that has no `PYTEST_XDIST_WORKER`) with `AW_CORE_BUDGET_SECONDS=0.01 AW_TEST_CPU_COUNT=12 AW_CORE_BUDGET_ENFORCE=1 python3 -m pytest -p no:cacheprovider` showing `1 passed`, the `CORE TIER BUDGET EXCEEDED` banner and exit status 1 (code path: the fixture conftest's `pytest_sessionfinish`, created by E-01).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```
+ tests/test_runner_seams_core_budget.py | 215 +++++++++++++++++++++++++++++++++
+ 1 file changed, 215 insertions(+)
+```
+Manual bare fixture run:
+```
+EXIT STATUS: 1
+STDOUT:
+.                                                                        [100%]
+1 passed in 0.07s
+
+STDERR:
+
+================================ CORE TIER BUDGET EXCEEDED ================================
+Core tier wall time: 0.08s exceeded budget of 0.01s.
+===========================================================================================
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `-v` lines for `test_run_suite_check_green_on_all_green_over_budget_tree` and `test_run_suite_check_red_when_enforce_requested` both PASSED (code path: `runner_shared.run_suite_check` -> `suite_cache.run_full_suite` run-evidence branch).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```
+tests/test_runner_seams_core_budget.py::test_run_suite_check_green_on_all_green_over_budget_tree PASSED [ 83%]
+tests/test_runner_seams_core_budget.py::test_run_suite_check_red_when_enforce_requested PASSED [ 66%]
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `-v` lines for the baseline green test and its positive control both PASSED (code path: `runner_shared.start_suite_baseline` -> `SuiteBaselineRun` -> `aw suite` -> `suite_cache.run_full_suite`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```
+tests/test_runner_seams_core_budget.py::test_suite_baseline_green_on_all_green_over_budget_tree PASSED [100%]
+tests/test_runner_seams_core_budget.py::test_suite_baseline_red_when_enforce_requested PASSED [ 50%]
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `-v` lines for the post-merge revalidation green test and its positive control both PASSED (code path: `runner_shared.make_integration_validation_runner` -> `runner_shared.run_suite_check`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+```
+tests/test_runner_seams_core_budget.py::test_post_merge_revalidation_green_on_all_green_over_budget_tree PASSED [ 16%]
+tests/test_runner_seams_core_budget.py::test_post_merge_revalidation_red_when_enforce_requested PASSED [ 33%]
+```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted final summary lines of BOTH explicit new-module runs (serial and `-n 2`), each with the six tests passed and 0 failed, the summary line of the `tests/test_core_tier_selection.py tests/test_suite_cache.py` run with zero failed, the `N passed` summary line of the bare `python3 -m pytest` run with zero failed, and the `aw sanitize --agent` result record with status pass.
   - Observed evidence:
-  - Result: pending
+```
+Serial new-module run:
+============================== 6 passed in 14.60s ==============================
+
+Parallel (-n 2) new-module run:
+============================== 6 passed in 16.14s ==============================
+
+Neighbouring contracts (tests/test_core_tier_selection.py tests/test_suite_cache.py):
+28 passed in 37.75s
+
+Bare core tier / full suite summary:
+993 passed in 75.23s (0:01:15)
+(and aw suite: 993 passed in 34.63s; AW_CORE_BUDGET_ENFORCE=0 python3 -m pytest: 993 passed in 40.75s)
+
+Sanitizer (aw sanitize --agent):
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":5882,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 
