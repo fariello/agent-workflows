@@ -21,12 +21,9 @@ import json
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
-
-import pytest
 
 from agent_workflows import oc_runipd, runner_shared
 from tests import support
@@ -75,7 +72,11 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
         }
         return state, item
 
-    def _fake_oc_agent_commits_in_worktree(self, run_dir: Path):
+    def _fake_oc_agent_commits_in_worktree(
+        self,
+        run_dir: Path,
+        active_baselines: list[runner_shared.SuiteBaselineRun] | None = None,
+    ):
         def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
             work_dir = kwargs.get("work_dir")
             if kwargs.get("fresh_session"):
@@ -105,8 +106,10 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
                 cwd=target_dir,
                 check=True,
             )
-            # Short yield so fast detached baseline processes complete before collection
-            time.sleep(0.05)
+            # Wait for any started detached baseline to drain before the runner
+            # collects it, so collection never races the child under contention.
+            for b_run in active_baselines or []:
+                b_run._drain.join(timeout=10.0)
             (
                 run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
             ).write_text(
@@ -184,10 +187,6 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
             # Assert no attempt["suite_baseline_started"] key
             self.assertNotIn("suite_baseline_started", att)
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="flaky: w4eswb - timing out under xdist CPU contention",
-    )
     def test_validation_off_starts_and_collects_suite_baseline(self) -> None:
         """Cell (c): validation OFF (validate: False) starts and collects baseline."""
         with tempfile.TemporaryDirectory() as temp:
@@ -196,7 +195,18 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
             run_dir = self._mk_run_dir(repo)
             state, item = self._oc_state_and_item(repo, plan)
             state["options"]["validate"] = False
-            fake_agent = self._fake_oc_agent_commits_in_worktree(run_dir)
+            active_baselines: list[runner_shared.SuiteBaselineRun] = []
+            original_start = runner_shared.start_suite_baseline
+
+            def tracking_start(*args, **kwargs):
+                run, absent = original_start(*args, **kwargs)
+                if run is not None:
+                    active_baselines.append(run)
+                return run, absent
+
+            fake_agent = self._fake_oc_agent_commits_in_worktree(
+                run_dir, active_baselines=active_baselines
+            )
 
             fast_argv = (sys.executable, "-c", "print('1 passed')")
             fake_suite_result = runner_shared.SuiteCheckResult(
@@ -215,6 +225,9 @@ class SuiteBaselineModeGateTests(unittest.TestCase):
                 mock.patch.object(oc_runipd, "SUITE_CHECK_ARGV", fast_argv),
                 mock.patch.object(
                     oc_runipd, "run_suite_check", lambda r, rid: fake_suite_result
+                ),
+                mock.patch.object(
+                    runner_shared, "start_suite_baseline", side_effect=tracking_start
                 ),
             ):
                 oc_runipd.execute_item(run_dir, state, item, recovery=False)
