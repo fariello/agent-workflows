@@ -1310,6 +1310,10 @@ class Term:
             return f"{marker} {self.style_lifecycle_text(lifecycle_word(resolved), resolved)}"
         return marker
 
+    def is_interactive(self) -> bool:
+        """Decide whether this terminal session may prompt a human interactively."""
+        return is_interactive(output_stream=self.stream)
+
     def format_lifecycle_row(
         self,
         resolved: lifecycle_style.Resolved,

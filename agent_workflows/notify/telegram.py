@@ -147,6 +147,43 @@ def get_lock_path(bot_id: str) -> Path:
     return notify_dir / f"telegram-{bot_id}.lock"
 
 
+def get_lock_sidecar_path(bot_id: str) -> Path:
+    """Path to the per-bot receiver lock holder sidecar file under <AW_HOME>/notify/."""
+    aw_home = Path(project_context.get_default_aw_home())
+    notify_dir = aw_home / "notify"
+    notify_dir.mkdir(parents=True, exist_ok=True)
+    return notify_dir / f"telegram-{bot_id}.lock.sidecar"
+
+
+def read_lock_holder(bot_id: str) -> int | None:
+    """Read receiver lock holder PID from the lock's sidecar, never taking the lock."""
+    sidecar = get_lock_sidecar_path(bot_id)
+    if not sidecar.is_file():
+        return None
+    try:
+        content = sidecar.read_text(encoding="utf-8").strip()
+        m = re.search(r"\d+", content)
+        return int(m.group(0)) if m else None
+    except Exception:
+        return None
+
+
+def write_lock_holder(bot_id: str, pid: int | None = None) -> None:
+    """Write receiver lock holder PID to the lock's sidecar."""
+    if pid is None:
+        pid = os.getpid()
+    sidecar = get_lock_sidecar_path(bot_id)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text(f"{pid}\n", encoding="utf-8")
+
+
+def release_lock_holder(bot_id: str) -> None:
+    """Remove the receiver lock holder sidecar."""
+    sidecar = get_lock_sidecar_path(bot_id)
+    with contextlib.suppress(OSError):
+        sidecar.unlink(missing_ok=True)
+
+
 class TelegramChannel:
     """Two-way Telegram notification channel using standard library urllib."""
 
@@ -634,12 +671,18 @@ class TelegramReceiver:
         run_dir: Path,
         lock: FileLock | None = None,
         poll_timeout_cap: float = 25.0,
+        events_path: Path | None = None,
+        on_event: Any | None = None,
     ):
         self.bot_id = bot_id
         self.channel = channel
         self.run_dir = Path(run_dir)
         self.lock = lock
         self.poll_timeout_cap = poll_timeout_cap
+        self.events_path = (
+            Path(events_path) if events_path else self.run_dir / "events.jsonl"
+        )
+        self.on_event = on_event
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._stopped_event_recorded = False
@@ -656,7 +699,10 @@ class TelegramReceiver:
             stopped_early = False
             for ev in events:
                 try:
-                    apply_inbound(self.channel, ev)
+                    outcome = apply_inbound(self.channel, ev)
+                    if self.on_event is not None:
+                        with contextlib.suppress(Exception):
+                            self.on_event(ev, outcome)
                     try:
                         update_id = int(ev.event_id)
                         offset = update_id + 1
@@ -665,7 +711,7 @@ class TelegramReceiver:
                         pass
                 except Exception as exc:
                     runner_shared.append_jsonl(
-                        self.run_dir / "events.jsonl",
+                        self.events_path,
                         {
                             "at": utc_now(),
                             "event": "notify-inbound-failed",
@@ -695,7 +741,7 @@ class TelegramReceiver:
                 remedy = remedy_map.get(err.code, "check bot configuration")
                 detail = f"HTTP {err.code}: {err.description}. Remedy: {remedy}"
                 runner_shared.append_jsonl(
-                    self.run_dir / "events.jsonl",
+                    self.events_path,
                     {
                         "at": utc_now(),
                         "event": "notify-receiver-stopped",
@@ -726,6 +772,7 @@ class TelegramReceiver:
         runner_shared.unregister_active_sampler(self)
 
     def _release_lock(self) -> None:
+        release_lock_holder(self.bot_id)
         if self.lock is not None:
             with contextlib.suppress(Exception):
                 self.lock.release()
@@ -733,7 +780,7 @@ class TelegramReceiver:
 
     def _run(self) -> None:
         runner_shared.append_jsonl(
-            self.run_dir / "events.jsonl",
+            self.events_path,
             {
                 "at": utc_now(),
                 "event": "notify-receiver-started",
@@ -761,7 +808,10 @@ class TelegramReceiver:
                             stopped_early = True
                             break
                         try:
-                            apply_inbound(self.channel, ev)
+                            outcome = apply_inbound(self.channel, ev)
+                            if self.on_event is not None:
+                                with contextlib.suppress(Exception):
+                                    self.on_event(ev, outcome)
                             try:
                                 update_id = int(ev.event_id)
                                 offset = update_id + 1
@@ -770,7 +820,7 @@ class TelegramReceiver:
                                 pass
                         except Exception as exc:
                             runner_shared.append_jsonl(
-                                self.run_dir / "events.jsonl",
+                                self.events_path,
                                 {
                                     "at": utc_now(),
                                     "event": "notify-inbound-failed",
@@ -809,7 +859,7 @@ class TelegramReceiver:
                         remedy = remedy_map.get(err.code, "check bot configuration")
                         detail = f"HTTP {err.code}: {err.description}. Remedy: {remedy}"
                         runner_shared.append_jsonl(
-                            self.run_dir / "events.jsonl",
+                            self.events_path,
                             {
                                 "at": utc_now(),
                                 "event": "notify-receiver-stopped",
@@ -832,7 +882,7 @@ class TelegramReceiver:
                     if self._stop_event.is_set():
                         break
                     runner_shared.append_jsonl(
-                        self.run_dir / "events.jsonl",
+                        self.events_path,
                         {
                             "at": utc_now(),
                             "event": "notify-failed",
@@ -844,7 +894,7 @@ class TelegramReceiver:
         finally:
             if not self._stopped_event_recorded:
                 runner_shared.append_jsonl(
-                    self.run_dir / "events.jsonl",
+                    self.events_path,
                     {
                         "at": utc_now(),
                         "event": "notify-receiver-stopped",
@@ -912,6 +962,8 @@ def ensure_receiver(
             lock.acquire()
         except (Timeout, Exception):
             return None
+
+        write_lock_holder(bot_id, os.getpid())
 
         receiver = TelegramReceiver(
             bot_id=bot_id,
