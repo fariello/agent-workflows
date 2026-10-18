@@ -6365,6 +6365,51 @@ def build_fix_it_notice(
     return "\n".join(lines)
 
 
+def build_answer_notice(answers: Sequence[Mapping[str, Any]] | None) -> str:
+    """Build the answer notice for an agent resumed with maintainer answers (spec 6kwd2e R9.4, qchan-04 j0ufrj E-03).
+
+    Shaped like build_fix_it_notice (a '## Answers from the maintainer' header,
+    then per question its text, the answer inside a fenced block labelled as quoted human input,
+    and the channel; absolute paths redacted with _redact_absolute_paths).
+    """
+    if not answers:
+        return ""
+    lines = [
+        "",
+        "",
+        "## Answers from the maintainer",
+        "",
+    ]
+    for ans in answers:
+        if not isinstance(ans, Mapping):
+            continue
+        q_text = (
+            ans.get("question_text") or ans.get("text") or ans.get("question") or ""
+        )
+        q_text_redacted = _redact_absolute_paths(str(q_text).strip())
+        qid = ans.get("question_id", "")
+        if qid:
+            lines.append(f"### Question: {qid}")
+        if q_text_redacted:
+            lines.append(q_text_redacted)
+            lines.append("")
+
+        answer_val = ans.get("answer")
+        if answer_val is not None:
+            ans_text = _redact_absolute_paths(str(answer_val).strip())
+            lines.append("```text quoted human input")
+            lines.append(ans_text)
+            lines.append("```")
+        elif ans.get("unanswered"):
+            lines.append("*(unanswered)*")
+
+        channel = ans.get("channel")
+        if channel:
+            lines.append(f"Channel: {channel}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
 def merge_conflict_question(detail: Mapping[str, Any], *, main_tip: str) -> str:
     """Prompt for an agent correction turn to resolve a merge conflict in its lane."""
     files = list(detail.get("files") or ())
@@ -23784,6 +23829,218 @@ def report_parked_drain_summary(run_dir: Path, state: Mapping[str, Any]) -> None
         print(f"  • {msg}")
 
 
+def consume_answers(
+    run_dir: Path | str,
+    state: dict[str, Any],
+) -> list[str]:
+    """Scan answers/ at dispatch checkpoints and re-queue answered items (spec 6kwd2e R9.3, qchan-04 j0ufrj E-01).
+
+    For each awaiting-human item:
+    1. Read answers for the qids of its CURRENT park (item['question_ids']).
+    2. Check whether every gates_verdict question is answered (OQ-01). Non-gating questions do not block.
+    3. Recompute artifact hash and compare with each answer's artifact_hash.
+       On mismatch: mark answer stale via set_question_status, emit 'answer-stale', keep item parked.
+       Missing or unreadable artifact counts as stale, never as a match.
+    4. When all match: set item queued, resume_with_answers=True, answers_pending=answers.
+       Emit 'answer-consumed' for each applied answer.
+    Returns the list of id6s re-queued.
+    Must never raise into the loop: OSError reading inbox logs 'answer-read-failed' event.
+    """
+    run_dir = Path(run_dir).resolve()
+    from agent_workflows import question_inbox
+
+    queue = state.get("queue")
+    if not isinstance(queue, list):
+        return []
+
+    try:
+        all_answers = question_inbox.read_answers(run_dir)
+    except OSError as err:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "answer-read-failed",
+                "error": str(err),
+            },
+        )
+        return []
+
+    answers_by_qid: dict[str, dict[str, Any]] = {
+        ans["question_id"]: ans
+        for ans in all_answers
+        if isinstance(ans, dict) and "question_id" in ans
+    }
+
+    repo: Path | None = None
+    if state.get("repo"):
+        repo = Path(state["repo"]).resolve()
+    if repo is None or not repo.is_dir():
+        cur = run_dir
+        while cur.parent != cur:
+            if (cur / ".git").exists() or (cur / ".aw").is_dir():
+                repo = cur
+                break
+            cur = cur.parent
+    if repo is None or not repo.is_dir():
+        repo = Path.cwd().resolve()
+
+    requeued_id6s: list[str] = []
+
+    for item in queue:
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") != AWAITING_HUMAN_STATUS:
+            continue
+        qids = list(item.get("question_ids") or [])
+        if not qids:
+            continue
+
+        item_questions: dict[str, dict[str, Any]] = {}
+        try:
+            for qid in qids:
+                q_data = question_inbox.read_question(run_dir, qid)
+                if q_data is None:
+                    # Fallback to item["questions"]
+                    q_data = {}
+                    for q_obj in item.get("questions") or []:
+                        if isinstance(q_obj, Mapping) and (
+                            q_obj.get("question_id") == qid
+                            or f"{int(item.get('position', 1)):02d}-{item.get('id6')}-a{int(item.get('current_attempt', 1))}-{q_obj.get('question_id')}"
+                            == qid
+                        ):
+                            q_data = dict(q_obj)
+                            break
+                item_questions[qid] = q_data
+        except OSError as err:
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "answer-read-failed",
+                    "id6": item.get("id6"),
+                    "error": str(err),
+                },
+            )
+            continue
+
+        has_any_answer = False
+        has_unanswered_gating = False
+        for qid in qids:
+            q_data = item_questions.get(qid) or {}
+            is_stale = q_data.get("status") == question_inbox.QUESTION_STATUS_STALE
+            ans = answers_by_qid.get(qid)
+            if ans is not None and not is_stale:
+                has_any_answer = True
+            else:
+                is_gating = bool(q_data.get("gates_verdict", True))
+                if is_gating:
+                    has_unanswered_gating = True
+
+        if not has_any_answer or has_unanswered_gating:
+            continue
+
+        # Check staleness for all answers of this item
+        item_has_stale = False
+
+        for qid in qids:
+            if qid not in answers_by_qid:
+                continue
+            ans = answers_by_qid[qid]
+            q_data = item_questions.get(qid) or {}
+            rel_art_path = q_data.get("artifact_path") or item.get("artifact_path")
+            if not rel_art_path:
+                try:
+                    art_p = queue_artifact_path(repo, item)
+                    rel_art_path = art_p.relative_to(repo).as_posix()
+                except Exception:
+                    rel_art_path = ""
+
+            expected_hash = ans.get("artifact_hash")
+            art_full = (repo / rel_art_path).resolve() if rel_art_path else None
+            actual_hash = None
+            if art_full and art_full.is_file():
+                try:
+                    actual_hash = sha256_file(art_full)
+                except Exception:
+                    actual_hash = None
+
+            if actual_hash is None or actual_hash != expected_hash:
+                item_has_stale = True
+                question_inbox.set_question_status(
+                    run_dir,
+                    qid,
+                    question_inbox.QUESTION_STATUS_STALE,
+                    reason=f"artifact hash mismatch: expected {expected_hash}, got {actual_hash}",
+                )
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "answer-stale",
+                        "id6": item.get("id6"),
+                        "question_id": qid,
+                        "expected_hash": expected_hash,
+                        "actual_hash": actual_hash,
+                    },
+                )
+
+        if item_has_stale:
+            # Keep parked, do not apply
+            continue
+
+        # All gating answered and no staleness!
+        applied_answers: list[dict[str, Any]] = []
+        for qid in qids:
+            ans = answers_by_qid.get(qid)
+            q_data = item_questions.get(qid) or {}
+            if ans is not None:
+                ans_record = dict(ans)
+                ans_record["text"] = q_data.get("text", "")
+                ans_record["question_text"] = q_data.get("text", "")
+                applied_answers.append(ans_record)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "answer-consumed",
+                        "id6": item.get("id6"),
+                        "question_id": qid,
+                        "channel": ans.get("channel"),
+                    },
+                )
+            else:
+                # Non-gating unanswered question delivered in notice
+                applied_answers.append(
+                    {
+                        "question_id": qid,
+                        "text": q_data.get("text", ""),
+                        "question_text": q_data.get("text", ""),
+                        "answer": None,
+                        "unanswered": True,
+                        "channel": None,
+                    }
+                )
+
+        item["status"] = "queued"
+        item["resume_with_answers"] = True
+        item["answers_pending"] = applied_answers
+        item[NEEDS_INPUT_KEY] = False
+        requeued_id6s.append(item["id6"])
+
+    return requeued_id6s
+
+
+def dispatch_sort_key(
+    item: Mapping[str, Any], by_id: Mapping[str, Mapping[str, Any]]
+) -> tuple[Any, ...]:
+    """Sort key for queue selection giving priority to answered items (spec 6kwd2e R9.3, qchan-04 j0ufrj E-02).
+
+    Answered items come first, and dependency depth stays the first key within each group.
+    """
+    return (not bool(item.get("resume_with_answers")), *queue_sort_key(item, by_id))
+
+
 def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
     """Report lines for every item left `queued` by a TRANSIENT drain verdict. SHARED renderer.
 
@@ -38436,6 +38693,9 @@ def execute_item_core(
     except Exception as ex:
         host_capability_check_error = str(ex)
 
+    is_answer_resume = bool(item.get("resume_with_answers"))
+    consumed_answers = list(item.get("answers_pending") or [])
+
     routing = (
         None
         if (is_review or is_production)
@@ -38445,6 +38705,10 @@ def execute_item_core(
         handler = item.get("review_handler") or review_handler_for(item)
         item["review_handler"] = handler
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
+        if is_answer_resume or consumed_answers:
+            notice = build_answer_notice(consumed_answers)
+            if notice:
+                prompt_text = f"{notice}\n\n{prompt_text}"
     elif is_spec_production:
         prompt_text = build_spec_production_prompt(
             item, state, run_dir, plan_path, repo
@@ -38454,15 +38718,36 @@ def execute_item_core(
             item, state, run_dir, plan_path, repo
         )
     else:
-        prompt_text = build_prompt(
-            item,
-            state,
-            run_dir,
-            plan_path,
-            recovery=recovery,
-            routing=routing,
-            labels=host_labels,
-        )
+        parked_sid = None
+        if is_answer_resume:
+            for prev in reversed(item.get("attempts", [])):
+                if prev.get("session_id"):
+                    parked_sid = prev["session_id"]
+                    break
+        if is_answer_resume and parked_sid:
+            prompt_text = build_answer_notice(consumed_answers)
+        elif is_answer_resume:
+            notice = build_answer_notice(consumed_answers)
+            normal_p = build_prompt(
+                item,
+                state,
+                run_dir,
+                plan_path,
+                recovery=recovery,
+                routing=routing,
+                labels=host_labels,
+            )
+            prompt_text = f"{notice}\n\n{normal_p}" if notice else normal_p
+        else:
+            prompt_text = build_prompt(
+                item,
+                state,
+                run_dir,
+                plan_path,
+                recovery=recovery,
+                routing=routing,
+                labels=host_labels,
+            )
 
     prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
 
@@ -38586,6 +38871,22 @@ def execute_item_core(
         ) or review_handler_for(item)
     append_jsonl(run_dir / "events.jsonl", start_event)
 
+    if is_answer_resume:
+        from agent_workflows import question_inbox
+
+        for ans in consumed_answers:
+            if isinstance(ans, dict) and ans.get("question_id"):
+                if not ans.get("unanswered"):
+                    question_inbox.set_question_status(
+                        run_dir,
+                        ans["question_id"],
+                        question_inbox.QUESTION_STATUS_ANSWERED,
+                        reason="answer consumed by resumed turn",
+                    )
+        item["resume_with_answers"] = False
+        item.pop("answers_pending", None)
+        save_state(run_dir, state)
+
     # `progdenom`: the `IPD nn/NN` banner counts DISPATCHABLE WORK, not queue length. A Set whose
     # members are partly already executed used to announce `IPD 07/62` for a run that could only ever
     # dispatch 50 items, because `len` counts entries that arrived `executed` and entries frozen
@@ -38700,6 +39001,124 @@ def execute_item_core(
                 wt_handle, "disposition", "created"
             )
             attempt["review_sweep_lane"] = True
+            if is_answer_resume or item.get("resume_with_answers"):
+                lane_path = Path(getattr(wt_handle, "path", "") or "")
+                rc_st, dirty_out, _ = _run_git(lane_path, ["status", "--porcelain"])
+                if rc_st != 0 or dirty_out.strip():
+                    refusal_reason = "the sweep lane holds uncommitted work"
+                    record_refusal(
+                        item,
+                        code="answer-resume-refused",
+                        reason=f"cannot resume review {item['id6']}: {refusal_reason}",
+                        remedy="clean sweep lane working tree before resuming",
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "answer-resume-refused",
+                            "id6": item["id6"],
+                            "reason": refusal_reason,
+                        },
+                    )
+                    attempt["ended_at"] = utc_now()
+                    attempt["disposition"] = "fail-lane"
+                    item["status"] = "fail-lane"
+                    save_state(run_dir, state)
+                    finish_resolved = resolve_item_lifecycle("fail-lane")
+                    finish = (
+                        pal.lifecycle_glyph(finish_resolved, width=2)
+                        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                        + pal(f" ({action})", "dim")
+                        + " -> "
+                        + pal.lifecycle(finish_resolved, "fail-lane")
+                        + pal("  (answer resume refused)", "dim")
+                    )
+                    print(finish)
+                    print()
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-finished",
+                            "id6": item["id6"],
+                            "action": action,
+                            "attempt": attempt_no,
+                            "exit_code": 1,
+                            "status": "fail-lane",
+                            "session_id": session_id,
+                            "verification_status": None,
+                        },
+                    )
+                    return
+
+                attempt["review_lane_sweep_tip_before_resume"] = lane_branch_tip(
+                    repo, wt_handle
+                )
+                parked_branch = (
+                    item.get("preserved_branch")
+                    or f"aw/parked/{str(state.get('run_id') or '')}/{item['id6']}"
+                )
+                rc_m, m_out, m_err = _run_git(
+                    lane_path,
+                    [
+                        "merge",
+                        "--no-ff",
+                        "-m",
+                        f"merge parked review branch {parked_branch}",
+                        parked_branch,
+                    ],
+                )
+                if rc_m != 0:
+                    _run_git(lane_path, ["merge", "--abort"])
+                    refusal_reason = f"merge conflict merging parked branch {parked_branch} into sweep lane"
+                    record_refusal(
+                        item,
+                        code="answer-resume-refused",
+                        reason=refusal_reason,
+                        remedy="resolve conflicts manually or inspect parked branch commits",
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "answer-resume-refused",
+                            "id6": item["id6"],
+                            "branch": parked_branch,
+                            "reason": refusal_reason,
+                        },
+                    )
+                    attempt["ended_at"] = utc_now()
+                    attempt["disposition"] = "fail-merge"
+                    item["status"] = "fail-merge"
+                    save_state(run_dir, state)
+                    finish_resolved = resolve_item_lifecycle("fail-merge")
+                    finish = (
+                        pal.lifecycle_glyph(finish_resolved, width=2)
+                        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                        + pal(f" ({action})", "dim")
+                        + " -> "
+                        + pal.lifecycle(finish_resolved, "fail-merge")
+                        + pal("  (answer resume refused)", "dim")
+                    )
+                    print(finish)
+                    print()
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-finished",
+                            "id6": item["id6"],
+                            "action": action,
+                            "attempt": attempt_no,
+                            "exit_code": 1,
+                            "status": "fail-merge",
+                            "session_id": session_id,
+                            "verification_status": None,
+                        },
+                    )
+                    return
+
             attempt["review_lane_tip_before"] = lane_branch_tip(repo, wt_handle)
             if sweep_refresh is not None:
                 attempt["review_sweep_lane_refreshed"] = sweep_refresh.refreshed
@@ -38917,7 +39336,171 @@ def execute_item_core(
                         prev_attempt = prev_candidate
 
             wt_handle = None
-            if is_fix_it_recovery and prev_attempt is not None:
+            if is_answer_resume:
+                lane_id, lane_base, lane_branch = resolve_prior_lane(item)
+                prior_session_id = None
+                prior_wt = item.get("preserved_worktree")
+                for prev in reversed(item.get("attempts", []) or []):
+                    if prev is attempt:
+                        continue
+                    if not prior_session_id and prev.get("session_id"):
+                        prior_session_id = prev.get("session_id")
+                    if not prior_wt and prev.get("worktree"):
+                        prior_wt = prev.get("worktree")
+
+                can_adopt = False
+                refusal_reason = ""
+                if not lane_id:
+                    refusal_reason = f"no prior lane recorded for item {item['id6']}"
+                else:
+                    st = worktree_lease.inspect_lane(repo, lane_id)
+                    if not st.worktree_registered:
+                        refusal_reason = (
+                            f"prior lane {lane_id!r} is not registered in git"
+                        )
+                    elif st.worktree_path is None or not st.worktree_path.is_dir():
+                        refusal_reason = f"prior lane worktree path {st.worktree_path!r} does not exist"
+                    else:
+                        safe, safe_why = worktree_lease.lane_is_safe_to_adopt(
+                            repo, lane_id
+                        )
+                        if not safe:
+                            refusal_reason = f"prior lane {lane_id!r} is not safe to adopt: {safe_why}"
+                        else:
+                            can_adopt = True
+
+                if not can_adopt:
+                    record_refusal(
+                        item,
+                        code="answer-resume-refused",
+                        reason=f"cannot resume item {item['id6']}: {refusal_reason}",
+                        remedy="inspect preserved lane worktree and git status",
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "answer-resume-refused",
+                            "id6": item["id6"],
+                            "lane_id": lane_id,
+                            "reason": refusal_reason,
+                        },
+                    )
+                    attempt["ended_at"] = utc_now()
+                    attempt["disposition"] = "fail-lane"
+                    item["status"] = "fail-lane"
+                    item["worktree_error"] = refusal_reason
+                    save_state(run_dir, state)
+                    finish_resolved = resolve_item_lifecycle("fail-lane")
+                    finish = (
+                        pal.lifecycle_glyph(finish_resolved, width=2)
+                        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                        + pal(f" ({action})", "dim")
+                        + " -> "
+                        + pal.lifecycle(finish_resolved, "fail-lane")
+                        + pal("  (answer resume refused)", "dim")
+                    )
+                    print(finish)
+                    print()
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "ipd-finished",
+                            "id6": item["id6"],
+                            "action": action,
+                            "attempt": attempt_no,
+                            "exit_code": 1,
+                            "status": "fail-lane",
+                            "session_id": session_id,
+                            "verification_status": None,
+                        },
+                    )
+                    return
+
+                work_dir = str(st.worktree_path)
+                wt_handle = worktree_lease.WorktreeHandle(
+                    lane_id=lane_id,
+                    path=st.worktree_path,
+                    branch=lane_branch or st.branch or ("aw/lane/" + lane_id),
+                    base_commit=lane_base or st.base_sha or "HEAD",
+                    disposition="adopted",
+                )
+                worktree_lease.write_lane_owner(
+                    repo,
+                    lane_id,
+                    branch=wt_handle.branch,
+                    worktree=work_dir,
+                    base_commit=wt_handle.base_commit,
+                    disposition="adopted",
+                )
+                if prior_session_id:
+                    session_id = prior_session_id
+                    use_continue = False
+                    attempt["answer_resume"] = "session"
+                else:
+                    session_id = None
+                    use_continue = False
+                    attempt["answer_resume"] = "fresh: no prior session recorded"
+
+                attempt["worktree"] = work_dir
+                attempt["worktree_branch"] = wt_handle.branch
+                attempt["worktree_lane_id"] = wt_handle.lane_id
+                attempt["worktree_base"] = wt_handle.base_commit
+                with contextlib.suppress(DriverError, OSError):
+                    attempt["lane_starting_head"] = git_head(Path(work_dir))
+                attempt["worktree_disposition"] = "adopted"
+                attempt["worktree_displaced_from"] = None
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "worktree-allocated",
+                        "id6": item["id6"],
+                        "worktree": work_dir,
+                        "branch": wt_handle.branch,
+                        "lane_id": wt_handle.lane_id,
+                        "base_commit": wt_handle.base_commit,
+                        "disposition": "adopted",
+                        "displaced_from": None,
+                    },
+                )
+                from agent_workflows import ipd_lifecycle as _lifecycle
+
+                try:
+                    rcpt_ok, rcpt_detail = _lifecycle.record_allocated_lane(
+                        repo,
+                        item["id6"],
+                        wt_handle.branch,
+                        wt_handle.lane_id,
+                        wt_handle.base_commit,
+                        "adopted",
+                    )
+                except Exception as _rcpt_exc:
+                    rcpt_ok, rcpt_detail = False, str(_rcpt_exc)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "receipt-lane-recorded",
+                        "id6": item["id6"],
+                        "branch": wt_handle.branch,
+                        "lane_id": wt_handle.lane_id,
+                        "base_commit": wt_handle.base_commit,
+                        "disposition": "adopted",
+                        "updated": rcpt_ok,
+                        "detail": rcpt_detail,
+                    },
+                )
+                print(
+                    pal(
+                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir} (resumed {attempt['answer_resume']})",
+                        "cyan",
+                    ),
+                    file=sys.stderr,
+                )
+            elif is_fix_it_recovery and prev_attempt is not None:
                 prior_wt = prev_attempt.get("worktree")
                 prior_branch = prev_attempt.get("worktree_branch")
                 prior_lane_id = prev_attempt.get("worktree_lane_id") or item["id6"]
@@ -39137,16 +39720,32 @@ def execute_item_core(
             )
         except DriverError:
             lane_plan_path = plan_path
-        prompt_text = build_prompt(
-            item,
-            state,
-            run_dir,
-            lane_plan_path,
-            recovery=recovery,
-            lane_root=lane_root,
-            routing=routing,
-            labels=host_labels,
-        )
+        if attempt.get("answer_resume") == "session":
+            prompt_text = build_answer_notice(consumed_answers)
+        elif is_answer_resume or attempt.get("answer_resume", "").startswith("fresh"):
+            notice = build_answer_notice(consumed_answers)
+            normal_p = build_prompt(
+                item,
+                state,
+                run_dir,
+                lane_plan_path,
+                recovery=recovery,
+                lane_root=lane_root,
+                routing=routing,
+                labels=host_labels,
+            )
+            prompt_text = f"{notice}\n\n{normal_p}" if notice else normal_p
+        else:
+            prompt_text = build_prompt(
+                item,
+                state,
+                run_dir,
+                lane_plan_path,
+                recovery=recovery,
+                lane_root=lane_root,
+                routing=routing,
+                labels=host_labels,
+            )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
         attempt["prompt_sha256"] = sha256_file(prompt_path)
@@ -39280,6 +39879,10 @@ def execute_item_core(
             repo,
             lane_root=lane_root if (work_dir and isolate) else None,
         )
+        if is_answer_resume or consumed_answers:
+            notice = build_answer_notice(consumed_answers)
+            if notice:
+                prompt_text = f"{notice}\n\n{prompt_text}"
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
         attempt["prompt_sha256"] = sha256_file(prompt_path)
@@ -41740,8 +42343,11 @@ def execute_item_core(
                 parked_branch = f"aw/parked/{run_id_val}/{item['id6']}"
                 _run_git(wt_path, ["branch", "-f", parked_branch, tip_after_commit])
 
-                # (3) git reset --hard to review_lane_tip_before
-                _run_git(wt_path, ["reset", "--hard", base_tip])
+                # (3) git reset --hard to review_lane_tip_before or review_lane_sweep_tip_before_resume
+                reset_tip = (
+                    attempt.get("review_lane_sweep_tip_before_resume") or base_tip
+                )
+                _run_git(wt_path, ["reset", "--hard", reset_tip])
 
                 # (4) Record preserved fields on item and attempt
                 item["preserved_branch"] = parked_branch
@@ -42030,6 +42636,27 @@ def execute_item_core(
                 attempt["review_integration_reason"] = review_reason
                 attempt["review_integration_kind"] = review_kind
                 item["review_integrated"] = review_integrated
+                if review_integrated:
+                    parked_branch = (
+                        item.get("preserved_branch")
+                        or f"aw/parked/{str(state.get('run_id') or '')}/{item['id6']}"
+                    )
+                    rc_del, _, _ = _run_git(repo, ["branch", "-D", parked_branch])
+                    if rc_del == 0:
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "parked-branch-deleted",
+                                "id6": item["id6"],
+                                "branch": parked_branch,
+                            },
+                        )
+                    item.pop("preserved_branch", None)
+                    item.pop("preserved_base", None)
+                    item.pop("preserved_lane_id", None)
+                    item.pop("preserved_reason", None)
+                    item.pop("preserved_retention_reasons", None)
                 save_state(run_dir, state)
                 append_jsonl(
                     run_dir / "events.jsonl",

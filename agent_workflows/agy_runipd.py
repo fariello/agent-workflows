@@ -3387,6 +3387,11 @@ def run_queue(
             package_root=package_root,
         ) in ("restart", "limit-reached"):
             break
+        # qchan-04 (j0ufrj) E-01: consume answers at dispatch checkpoints before cascade and selection
+        if runner_shared.consume_answers(run_dir, state):
+            save_state(run_dir, state)
+            state = load_state(run_dir)
+            register_signal_report(run_dir, state)
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
         # of stalling the queue, while independent items keep running.
@@ -3430,8 +3435,11 @@ def run_queue(
         runnable = None
         # 8guhs0 E-04: DECLARED EDGES are authoritative; Set/Order only breaks ties among nodes that
         # are ALREADY ready (spec 25kzda 5.4 rules 3-5).
+        # qchan-04 (j0ufrj) E-02: dispatch_sort_key prioritizes answered items ahead of not-yet-started items
         by_id = {entry["id6"]: entry for entry in state["queue"]}
-        for item in sorted(queued, key=lambda it: queue_sort_key(it, by_id)):
+        for item in sorted(
+            queued, key=lambda it: runner_shared.dispatch_sort_key(it, by_id)
+        ):
             satisfied, _ = dependency_status(item, state)
             if satisfied:
                 runnable = item

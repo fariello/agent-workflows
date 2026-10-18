@@ -4116,6 +4116,11 @@ def run_queue(
             package_root=package_root,
         ) in ("restart", "limit-reached"):
             break
+        # qchan-04 (j0ufrj) E-01: consume answers at dispatch checkpoints before cascade and selection
+        if runner_shared.consume_answers(run_dir, state):
+            save_state(run_dir, state)
+            state = load_state(run_dir)
+            register_signal_report(run_dir, state)
         # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
         # terminal state can never become runnable, so mark it (and its dependents, transitively)
         # `dependency-blocked` and keep going with independent work rather than stalling the queue.
@@ -4158,8 +4163,11 @@ def run_queue(
         # are ALREADY ready (spec 25kzda 5.4 rules 3-5). Selecting from a dependency-ordered list is
         # what demotes Set/Order: a lower Order can no longer make an unsatisfied node runnable, and
         # a higher Order can no longer delay an otherwise independent prerequisite.
+        # qchan-04 (j0ufrj) E-02: dispatch_sort_key prioritizes answered items ahead of not-yet-started items
         by_id = {entry["id6"]: entry for entry in state["queue"]}
-        for item in sorted(queued, key=lambda it: queue_sort_key(it, by_id)):
+        for item in sorted(
+            queued, key=lambda it: runner_shared.dispatch_sort_key(it, by_id)
+        ):
             satisfied, _ = dependency_status(item, state)
             if satisfied:
                 runnable = item
