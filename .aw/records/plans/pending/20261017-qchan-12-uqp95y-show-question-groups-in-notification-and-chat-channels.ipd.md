@@ -3,27 +3,29 @@
 - Date: 2026-10-17
 - Kind: child
 - Concern: In large queues where multiple sibling artifacts ask the same question (such as 74 artifacts sharing a fingerprint), Order 08 (`jshwxb`) groups open questions by fingerprint via `question_inbox.group_open_questions` and provides group-level answering via `question_inbox.write_group_answer` and `aw runs answer --group`. However, notification channels (Order 09 `txl556`) and chat channels were deferred (backlog `4brk8a`). Currently, `notify.core.dispatch_checkpoint` reads ungrouped open questions with `question_inbox.read_open_questions`, and `notify.core.build_batch` creates notifications per individual question. In terse mode, channels report total questions without group awareness; in full mode, channels output redundant question blocks per artifact prompting individual question answers (`aw runs answer <run_id> <qid>`) instead of group answers (`aw runs answer <run_id> --group <group_id>`); and inbound event routing (`notify.core.apply_inbound`) resolves only individual question routes.
-- Scope: IN: extending `OutboundQuestion` and `OutboundBatch` in `agent_workflows/notify/core.py` with question group metadata (`group_id`, member question IDs, raisers count/artifacts, unblock count); updating `build_batch` to format terse and full notifications by deduplicated question group with group answer commands (`aw runs answer <run_id> --group <group_id>`); updating `dispatch_checkpoint` to consume `group_open_questions(run_dir, state)` and track member questions in `notify/sent.jsonl`; updating `agent_workflows/notify/registry.py` and `apply_inbound` in `notify/core.py` to register and route inbound group events to `question_inbox.write_group_answer`; updating `agent_workflows/notify/webhook.py` to serialize structured `groups` in `aw.notify/v1` format JSON; and adding comprehensive tests in `tests/test_notify_groups.py`. OUT: implementing `group_open_questions` or `write_group_answer` (owned by `jshwxb`); transport adapters for Telegram (owned by `qrup8m`); interactive CLI commands (owned by `mrlblc`).
-- Scope-Paths: agent_workflows/notify/core.py, agent_workflows/notify/registry.py, agent_workflows/notify/webhook.py, tests/test_notify_groups.py
-- Item-Dependencies: executed:jshwxb, executed:txl556
-- Status: to-review
+- Scope: IN: extending `OutboundQuestion` and `OutboundBatch` in `agent_workflows/notify/core.py` with question group metadata (`group_id`, member question IDs, raiser artifact id6s, unblock count, total member count); updating `build_batch` to accept `question_inbox.QuestionGroup` objects and render one entry per deduplicated group with the group answer command (`aw runs answer <run_id> --group <group_id>`); updating `dispatch_checkpoint` to consume `question_inbox.group_open_questions(run_dir, state)`, track every member question in `notify/sent.jsonl`, and send ONE acknowledgement per answered group instead of one per member; updating `agent_workflows/notify/registry.py` and `apply_inbound` in `notify/core.py` to register and route inbound group events to `question_inbox.write_group_answer`; updating `agent_workflows/notify/webhook.py` to add the group fields to the `aw.notify/v1` JSON; updating `TelegramChannel.send` in `agent_workflows/notify/telegram.py` so full mode sends one message per group and registers its routes with the `group_id` (without this no channel ever creates a group route, so inbound group routing would be unreachable); a CHANGELOG line and the terse/full-mode description in `docs/notifications.md` (written by `mrlblc`, hence the dependency); and behavioral tests in `tests/test_notify_groups.py`. OUT: implementing `group_open_questions` or `write_group_answer` (owned by `jshwxb`, executed); the Telegram receiver, poller, verification and offset handling (owned by `qrup8m`, executed; only `TelegramChannel.send`'s full-mode loop and its route registration change here); `aw notify` CLI commands and the creation of `docs/notifications.md` (owned by `mrlblc`).
+- Scope-Paths: agent_workflows/notify/core.py, agent_workflows/notify/registry.py, agent_workflows/notify/webhook.py, agent_workflows/notify/telegram.py, tests/test_notify_groups.py, CHANGELOG.md, docs/notifications.md
+- Item-Dependencies: executed:jshwxb, executed:txl556, executed:qrup8m, executed:mrlblc
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
 - From-Backlog: 4brk8a
 - Set: qchan
 - Order: 12
-- Highest E allocated: 05
+- Highest E allocated: 08
 - Author: antigravity
 - Id: uqp95y
 
 ## Workflow history
+- 2026-10-18 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 
 - 2026-10-18 to-review (antigravity): authored review-ready from backlog 4brk8a.
 - 2026-10-18 draft (antigravity): created.
 
 ## Goal
 
-Surface deduplicated question groups in outbound notification channels (terse and full modes) and route inbound channel responses through `question_inbox.write_group_answer`, enabling off-machine operators to see and answer grouped questions across multiple parked artifacts in one action.
+Surface deduplicated question groups in the outbound notification channels (full mode and the `aw.notify/v1` JSON; terse text stays exactly as spec `6kwd2e` R10.4 mandates) and route inbound channel answers through `question_inbox.write_group_answer`, so an off-machine operator sees one entry per distinct question and one answer resolves every parked artifact that raised it (spec `6kwd2e` R4.2, A9, extended to channels).
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -31,81 +33,107 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Outbound Batch and Checkpoint Dispatch
 
-- [ ] E-01 Extend `OutboundQuestion` and `OutboundBatch` dataclasses in `agent_workflows/notify/core.py` to carry group metadata (`group_id`, `member_qids`, `raisers`, `unblock_count`), and update `build_batch` to format outbound messages by group: in terse mode, report distinct group counts alongside question counts when questions are grouped; in full mode, render each distinct question group once in deterministic order (unblock count descending, execute first), listing raiser counts, member artifact id6s, sanitized question text, sanitized options, and the group answer command `aw runs answer <run_id> --group <group_id>`.
+- [ ] E-01 Extend the dataclasses and `build_batch` in `agent_workflows/notify/core.py`. `OutboundQuestion` gains optional `group_id: str | None = None`, `member_qids: list[str]` (default empty), `raisers: list[str]` (default empty) and `unblock_count: int = 0`; `OutboundBatch` gains `question_count: int | None = None` (the total number of open member questions, R10.4's N; `None` means `len(questions)`, so existing callers are unchanged). `build_batch` additionally accepts `question_inbox.QuestionGroup` objects in `questions` (detected with `isinstance`): each group becomes ONE `OutboundQuestion` whose `question_id` is the group's first member qid (the REPRESENTATIVE, `QuestionGroup.oq_id`), whose `answer_command` is `aw runs answer <run_id> --group <group_id>`, and whose group fields are filled from the group; `question_count` is the sum of member counts. Plain dict and `OutboundQuestion` inputs keep today's per-question rendering and `aw runs answer <run_id> <qid>` command byte-for-byte (D-5). Input order is preserved as given (`group_open_questions` already sorts per R4.3/R4.3a; `build_batch` MUST NOT re-sort). TERSE text is unchanged: exactly `run <run_id>: N question(s) waiting; answer with aw runs answer <run_id>` with N = `question_count` and no group wording (D-2). FULL text: the same first line, then per entry a block with `Question: <group_id>` (or the qid for an ungrouped entry), `Asked by <k> artifact(s): <id6>, ...` listing at most 10 raiser id6s followed by `and <m> more` when there are more, `Unblocks: <unblock_count>`, the sanitized text, the sanitized numbered options, and the answer command. Every text and option still passes `sanitize_outbound`, and the whole message is truncated after sanitizing (R10.3).
   - Depends on: none
-  - Expected outcome: for a fixture with 74 questions in one group, terse mode produces `run <run_id>: 74 questions (1 group) waiting; answer with aw runs answer <run_id>`, and full mode renders exactly one question section with raiser count 74, member artifact list, and `--group <group_id>` command.
+  - Expected outcome: given ONE `QuestionGroup` of 74 members built by `question_inbox.group_questions` from 74 question records sharing text and options, terse mode yields exactly `run <run_id>: 74 questions waiting; answer with aw runs answer <run_id>` and no question text; full mode contains the question text exactly once, `Asked by 74 artifact(s):` with 10 id6s and `and 64 more`, and `aw runs answer <run_id> --group <group_id>`; the existing `OutboundQuestion` input still renders `aw runs answer <run_id> <qid>`.
   - Execution state: pending
 
-- [ ] E-02 Update `dispatch_checkpoint` in `agent_workflows/notify/core.py` to consume `question_inbox.group_open_questions(run_dir, state)` when available. Map open groups into outbound batches, send to each effective channel once per group, and record each group member's `question_id` in `notify/sent.jsonl` with its associated `group_id` so subsequent checkpoints do not re-notify already-sent group members unless new questions park.
+- [ ] E-02 Update `dispatch_checkpoint` in `agent_workflows/notify/core.py` to build its outbound set from `question_inbox.group_open_questions(run_dir, state)` (the same grouping `aw runs answer --group` uses in `run_cli`, so the group id a notification prints is one the CLI resolves). Any question in `question_inbox.read_open_questions(run_dir)` that no group covers (possible when `group_open_questions` narrows to the current park's `question_ids` while a non-parked item still holds an open question) is appended as an ungrouped dict entry with today's per-question rendering, so no question that is notified today stops being notified (D-4). A group is NEW for a channel when any member qid lacks a `(channel, question_id)` row in `notify/sent.jsonl`; all new groups and new ungrouped questions for a channel go into ONE batch per channel per checkpoint (R10.7, once per park batch), and a new group is rendered with ALL its current members. On a successful (or uncertain) send, append one `sent.jsonl` row per member qid carrying `group_id` (absent for an ungrouped entry), so the existing `(channel, question_id)` dedup still prevents re-notification. The `notify-sent` event's `count` stays the number of member questions sent.
   - Depends on: E-01
-  - Expected outcome: in a run with multiple parked artifacts sharing a question, `dispatch_checkpoint` dispatches a single outbound batch for the group; all member question IDs are recorded in `sent.jsonl`; a subsequent checkpoint with no new questions sends nothing.
+  - Expected outcome: three parked items each with one question of identical text produce, at the first checkpoint, exactly one `send` per channel whose batch has one entry, `question_count` 3 and the `--group` command; `sent.jsonl` holds three rows with the same `group_id`; a second checkpoint with nothing new sends nothing; a fourth item parking the same question at a later checkpoint triggers one new batch whose group lists four raisers.
   - Execution state: pending
 
-### Task group 2: Inbound Routing and Webhook Serialization
-
-- [ ] E-03 Update `agent_workflows/notify/registry.py` to record and look up an optional `group_id` field in route dictionaries. In `agent_workflows/notify/core.py`, update `apply_inbound` to detect when a matched route contains a `group_id`, and route the response to `question_inbox.write_group_answer(run_dir, state, group_id, ...)` instead of `write_answer`, atomically resolving all member questions and recording `applied_to` in each answer record.
+- [ ] E-06 Collapse acknowledgements per group in `dispatch_checkpoint`'s acknowledgement pass (`agent_workflows/notify/core.py`). Today it sends one "answered via" message per `(channel, question_id)`, which for a 74-member group answered once is 74 chat messages. Group the consumed (and, separately, the stale) member qids of this checkpoint by the `group_id` recorded in `sent.jsonl`; send ONE acknowledgement per `(channel, group_id)` whose batch carries a single `OutboundQuestion(question_id=<representative qid>, text="")` and the message `run <run_id> (<representative qid>): answered via <channel>` followed by ` (applied to <k> questions)` when k > 1 (stale: `answer not applied: the plan changed; ask again`), keeping the prefix that `TelegramChannel.send` already recognizes as an acknowledgement and the qid it uses to find the original message. On success append an `ack` row for EVERY member qid acknowledged, so none is acknowledged twice. Ungrouped qids keep today's per-question acknowledgement.
   - Depends on: E-02
-  - Expected outcome: an inbound event matching a registered group key invokes `write_group_answer`, resolving all member questions across all parked artifacts in that group in one operation.
+  - Expected outcome: after `write_group_answer` answers a three-member group and `answer-consumed` events are present for all three, one checkpoint sends exactly one acknowledgement batch per channel naming the representative qid and `applied to 3 questions`, writes three `ack` rows, and the next checkpoint sends nothing.
   - Execution state: pending
 
-- [ ] E-04 Update `agent_workflows/notify/webhook.py` (`WebhookChannel` and `CommandChannel`) to include structured `groups` dictionaries in the `aw` format JSON payload (`aw.notify/v1`), including `group_id`, `member_qids`, `raisers`, `unblock_count`, and `answer_command`, while preserving formatted group representation in `text` and `ntfy` payloads via `batch.message`.
+### Task group 2: Inbound Routing and Channel Serialization
+
+- [ ] E-03 Route inbound group answers. In `agent_workflows/notify/registry.py`, `register` gains keyword-only `group_id: str | None = None` and `member_qids: list[str] | None = None`, stored in the route only when given (existing routes and callers unchanged; `question_id` stays the representative qid, so `registry.expire` and `TelegramChannel._lookup_registered_message_id` keep working). In `apply_inbound` (`agent_workflows/notify/core.py`), when the matched route carries `group_id`: load state with `runner_shared.load_state(run_dir)` when `run_dir / "state.json"` exists (else `None`, the same rule `run_cli` uses), recompute `question_inbox.group_open_questions(run_dir, state)`, and select the CURRENT group that contains the route's representative `question_id`, NOT the group whose id equals the stored `group_id`: collision-split ids (`g-<fp>-<n>`) are renumbered when another same-fingerprint question parks (measured at review: `g-deadbeefdeadbeef-1` named "Use B?" before a third variant parked and "Use A?" after), so a stored id can name a different question and would apply the human's answer to a decision they never saw (R4.1b) (D-1). If such a group exists, call `question_inbox.write_group_answer(run_dir, state, <that group's current id>, answer=..., choice=..., channel=..., sender=..., actor="human")` and use its `status` (`recorded`/`already`/`rejected`) as the outcome; if no open group contains the representative qid, fall back to today's `write_answer` on that qid, which reports `already` or `rejected` truthfully. Routes without `group_id` take today's path unchanged. `write_group_answer` is not atomic across members (each member is first-answer-wins under its own lock); describe it that way in the docstring.
+  - Depends on: E-02
+  - Expected outcome: a route registered for a three-member group records three answers each with `applied_to` naming all three members, and acks `recorded`; after a third collision variant renumbers the split ids, a route registered for the "Use B?" group still answers only the "Use B?" members; a route without `group_id` behaves as before.
+  - Execution state: pending
+
+- [ ] E-04 Update `agent_workflows/notify/webhook.py` (`WebhookChannel.send` `aw` format and `CommandChannel.send`) so the `aw.notify/v1` payload's `count` is `batch.question_count` when set (else `len(batch.questions)`), keeping its meaning as the number of open questions; add a top-level `distinct_count` (the number of entries); and, in full mode only, add `group_id`, `member_qids`, `raisers` and `unblock_count` to each `questions[]` entry (additive keys; an ungrouped entry carries `group_id: null` and empty lists). Terse payloads still carry no question content (R10.4). `text` and `ntfy` formats need no code change: they carry `batch.message`, which E-01 already formats.
   - Depends on: E-01
-  - Expected outcome: webhooks configured with `format: aw` receive a payload containing the structured `groups` list with member metadata; `text` and `ntfy` channels receive messages containing the formatted group text and `--group` answer commands.
+  - Expected outcome: a loopback HTTP server receiving a full-mode `aw` POST for one three-member group sees `count` 3, `distinct_count` 1, and one `questions[]` entry with `group_id` and three `member_qids`; a terse POST has `count` 3 and an empty `questions` list; the command hook receives the same JSON on stdin; `text` and `ntfy` bodies contain the `--group` command in full mode.
   - Execution state: pending
 
-### Task group 3: Behavioral Test Coverage
+- [ ] E-07 Make Telegram full mode group-aware in `TelegramChannel.send` (`agent_workflows/notify/telegram.py`), the only channel that registers inbound routes: for an entry with `group_id`, the message header reads `run <run_id> (<group_id>, <k> artifacts):` instead of the single qid, and the message-id route and every option-token route are registered with `question_id=<representative qid>`, `group_id` and `member_qids`. Entries without `group_id` are sent and registered exactly as today. No change to the receiver, verification, offsets or acknowledgement handling. Without this item no group route is ever created and E-03's inbound path is unreachable from a real channel.
+  - Depends on: E-01, E-03
+  - Expected outcome: against `tests/fake_telegram.py`, a full-mode batch with one three-member group produces ONE `sendMessage`, and the registry holds a message route and one token route per option, each with the `group_id` and three `member_qids`; pressing a button through `apply_inbound` records three answers.
+  - Execution state: pending
 
-- [ ] E-05 Add `tests/test_notify_groups.py` (marked `pytest.mark.core`) covering group-aware notifications: (1) `build_batch` terse and full rendering with question groups, (2) `dispatch_checkpoint` grouping and deduplication across parked artifacts, (3) `sent.jsonl` tracking of group members, (4) `apply_inbound` routing to `write_group_answer`, and (5) `WebhookChannel` and `CommandChannel` delivery of group payloads.
-  - Depends on: E-03, E-04
-  - Expected outcome: `tests/test_notify_groups.py` passes under `pytest` with all assertions passing on loopback without network access.
+### Task group 3: Behavioral Test Coverage and Documentation
+
+- [ ] E-05 Add `tests/test_notify_groups.py` (module-level `pytestmark = pytest.mark.core`) driving the real functions against `tmp_path` run directories populated with `question_inbox.write_question`, under the conftest `AW_HOME` sandbox, with no network beyond loopback: (1) `build_batch` terse and full rendering of a group, the raiser cap, and the unchanged per-question rendering; (2) `dispatch_checkpoint` grouping, one batch per channel, `sent.jsonl` member rows, no re-notify, re-notify on a new member, and an uncovered open question still notified; (3) one acknowledgement per answered group; (4) `apply_inbound` group routing including the renumbered-split case and the fallback; (5) the `aw` webhook payload against a loopback `http.server` and the command hook on stdin; (6) Telegram full mode against `tests/fake_telegram.py`. Tests assert outputs, files written and HTTP bodies received, never source text.
+  - Depends on: E-03, E-04, E-06, E-07
+  - Expected outcome: `python3 -m pytest -o addopts="" tests/test_notify_groups.py tests/test_notify_core.py tests/test_notify_telegram.py` passes, so the new behavior is covered and the existing notify tests still pass unchanged.
+  - Execution state: pending
+
+- [ ] E-08 Document the change for users. Add one `CHANGELOG.md` line under the pending 2.0.0 entry (for example: notification channels now show one entry per distinct question in full mode, with the group answer command, and one Telegram reply or button answers every parked plan that asked it). In `docs/notifications.md` (created by `mrlblc`), update the terse versus full description to say full mode lists each distinct question once with how many plans asked it, and that terse text is unchanged. User-facing prose: no em or en dashes.
+  - Depends on: E-01
+  - Expected outcome: `git diff` shows the CHANGELOG line and the `docs/notifications.md` paragraph, and neither contains an em or en dash.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Notification and chat channels are governed by spec `6kwd2e` R10.
+- Notification and chat channels are governed by spec `6kwd2e` R10; deduplication and ordering by R4.
 - Outbound text must pass `notify.core.sanitize_outbound` (spec `6kwd2e` R10.3) before leaving the machine.
-- All answer writing must go through the shared answer writer (`question_inbox.write_answer` or `question_inbox.write_group_answer`); channels never write to `answers/` directly (spec `6kwd2e` R9.2).
-- Route resolution is managed via user-level registry in `agent_workflows/notify/registry.py` under `<AW_HOME>/notify/registry.json`.
+- All answer writing must go through the shared answer writer (`question_inbox.write_answer`, which `question_inbox.write_group_answer` calls per member); channels never write to `answers/` directly (spec `6kwd2e` R9.2, R10.1).
+- Route resolution is managed via the user-level registry in `agent_workflows/notify/registry.py` under `<AW_HOME>/notify/registry.json`; only `TelegramChannel.send` registers routes today.
+- `aw runs answer --group` (`run_cli`) recomputes groups with `question_inbox.group_open_questions(run_dir, runner_shared.load_state(run_dir))`, so a group id shown to a human is only meaningful if computed the same way.
+- User-facing prose (CHANGELOG, docs) carries no em or en dashes (AGENTS.md execution contract).
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
 ## Findings
 
 - Backlog item `4brk8a` was filed when Order 08 (`jshwxb`) implemented `group_open_questions` and `write_group_answer` but deferred channel consumption.
-- `notify.core.dispatch_checkpoint` receives `state` as an argument (`dispatch_checkpoint(run_dir, state, repo=None)`), providing the exact state object needed by `question_inbox.group_open_questions(run_dir, state)`.
-- `build_batch` is the single serialization point for message text across all channels (webhook, command, and telegram), so formatting groups in `build_batch` immediately benefits all channel types.
+- `notify.core.dispatch_checkpoint(run_dir, state, repo=None)` receives `state`, which is exactly what `question_inbox.group_open_questions(run_dir, state)` needs; it currently calls `question_inbox.read_open_questions(run_dir)` and sends one entry per question.
+- `build_batch` is the single serialization point for `batch.message` across all channels, but not for structure: `WebhookChannel.send`/`CommandChannel.send` serialize `batch.questions` and compute `"count": len(batch.questions)`, and `TelegramChannel.send` iterates `batch.questions` and registers routes per entry. So grouping entries changes the meaning of `count` unless `OutboundBatch` carries the total (E-01 `question_count`, E-04).
+- `question_inbox.group_questions` assigns `g-<fp>` to a fingerprint with one collision key and `g-<fp>-<n>` (sorted by normalized text, options, free-text flag) when a fingerprint splits. MEASURED at review: with records "Use C?"/"Use B?" sharing a fingerprint, `g-deadbeefdeadbeef-1` is "Use B?"; adding "Use A?" makes `-1` "Use A?". Also measured: options `["pg","mysql"]` vs `["mysql","pg"]` share the driver fingerprint but split, so splits arise from ordinary input. A stored group id is therefore not a stable route key; the representative member qid is (E-03, D-1).
+- `question_inbox.group_open_questions` reads only the `question_ids` of `awaiting-human` items when any exist, and falls back to all open questions otherwise; `runner_shared` writes non-blocking pre-flight questions for items that stay queued, so the two sets can differ (E-02, D-4).
+- `notify.core.dispatch_checkpoint`'s acknowledgement pass sends one message per `(channel, question_id)` with an `answer-consumed` event; `runner_shared.consume_answers` emits one such event per member, so a group answer would produce one chat acknowledgement per member (E-06).
+- `TelegramChannel.send` treats a batch with one empty-text question, or a message matching `^run \S+ \((\S+)\): (?:answered via|answer not applied)`, as an acknowledgement and replies to the message registered for that qid; the group acknowledgement keeps both shapes.
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: Group support in `OutboundQuestion`, `OutboundBatch`, and `build_batch`.
-2. E-02: Group consumption and tracking in `dispatch_checkpoint`.
-3. E-03: Group routing in `registry.py` and `apply_inbound`.
-4. E-04: Structured group serialization in `webhook.py`.
-5. E-05: Behavioral test suite in `tests/test_notify_groups.py`.
+1. E-01: Group fields and `question_count` on the dataclasses; group rendering in `build_batch`.
+2. E-02: Group consumption, uncovered-question fallback, and member tracking in `dispatch_checkpoint`.
+3. E-06: One acknowledgement per answered group.
+4. E-03: Group routes in `registry.register` and representative-member resolution in `apply_inbound`.
+5. E-04: Additive group fields and a truthful `count` in the `aw.notify/v1` payload.
+6. E-07: One Telegram message per group and group-tagged route registration.
+7. E-05: Behavioral test suite in `tests/test_notify_groups.py`.
+8. E-08: CHANGELOG line and `docs/notifications.md` paragraph.
 
 ## Deferred / out of scope (with reason)
 
 - Implementing `group_open_questions` and `write_group_answer`: owned by prerequisite `jshwxb`.
   - Carrier: jshwxb
-- Telegram adapter two-way poller implementation: owned by `qrup8m`.
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-qchan-08-jshwxb-deduplicate-and-order-questions-ask-at-the-drain-bound-round.ipd.md
+- Telegram receiver, poller, sender verification and offset handling: owned by `qrup8m`; this plan changes only `TelegramChannel.send`'s full-mode loop and route registration.
   - Carrier: qrup8m
   - Carrier-Evidence: .aw/records/plans/executed/20261017-qchan-10-qrup8m-add-a-standard-library-two-way-telegram-channel.ipd.md
-- Setup CLI commands (`aw notify setup`): owned by `mrlblc`.
+- Setup CLI commands (`aw notify setup`) and creating `docs/notifications.md`: owned by `mrlblc`.
   - Carrier: mrlblc
 
 ## Scope check
 
-- Over-scope: none. Changes are focused strictly on consuming question groups within notification and chat channel machinery.
-- Under-scope: none. Outbound formatting, checkpoint dispatch, inbound routing, webhook serialization, and tests are all covered.
+- Over-scope: none. Changes are confined to consuming question groups in the notification and chat channel machinery.
+- Under-scope: none after review. Telegram route registration (the only producer of inbound routes), group acknowledgements, the uncovered-question fallback, and user documentation were added at review.
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" tests/test_notify_groups.py tests/test_notify_core.py`
-- Routine test gate: `python3 -m pytest`
+- `python3 -m pytest -o addopts="" tests/test_notify_groups.py tests/test_notify_core.py tests/test_notify_telegram.py`
+- Routine test gate: `python3 -m pytest` (paste the `N passed` summary line).
 
 ## Spec / documentation sync
 
-- Aligns with spec `6kwd2e` R4 (deduplication across queue) and R10 (notification channels).
-- No spec modification required.
+- Implements spec `6kwd2e` R4.1-R4.3a and A9 in the channels, within R10.1 (core owns routing), R10.3 (sanitize then truncate), R10.4 (terse text unchanged), and R10.7 (once per park batch; one acknowledgement per answered group satisfies "MUST send a short answered via acknowledgement").
+- No spec modification required: the terse text is unchanged and every other change is within R10's existing wording.
+- User documentation: `CHANGELOG.md` and `docs/notifications.md` (E-08).
 
 ## Open questions
 
@@ -113,35 +141,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Blocking: no
 - Status: resolved
-- Owner: plan author
-- Resolution or deferral rationale: RESOLVED: When questions fall into groups, terse mode states `run <run_id>: N question(s) (G group(s)) waiting; answer with aw runs answer <run_id>`. When all questions are distinct (each in its own group of 1), it states `run <run_id>: N question(s) waiting; answer with aw runs answer <run_id>`. This maintains strict conformance with R10.4 while providing group density context.
+- Owner: plan-review (opencode)
+- Resolution or deferral rationale: RESOLVED at review (D-2), replacing the author's resolution. Terse text stays exactly `run <run_id>: N question(s) waiting; answer with aw runs answer <run_id>` with N the number of open member questions, because spec `6kwd2e` R10.4 says terse mode sends "only" that sentence; the author's `(G group(s))` insertion contradicted that while claiming conformance. Group density reaches terse consumers only as the numeric `distinct_count` field of the `aw.notify/v1` JSON envelope (E-04), which carries no question content, the same way `count` and `run_id` already do.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted test output showing `build_batch` output for a 74-member question group, verifying the terse summary string and the full message string containing raiser counts and `aw runs answer <run_id> --group <group_id>`.
+  - Required evidence: pasted pytest output for the test(s) that call `notify.core.build_batch` with a 74-member `QuestionGroup` built by `question_inbox.group_questions`, plus the asserted terse string (exactly `run <run_id>: 74 questions waiting; answer with aw runs answer <run_id>`, no question text) and the asserted full-mode facts (text once, `Asked by 74 artifact(s):`, `and 64 more`, `--group <group_id>`), and the passing assertion that an `OutboundQuestion` input still renders `aw runs answer <run_id> <qid>`. Re-derive at execution; a test name is only a pointer.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted test output showing `dispatch_checkpoint` dispatching a single outbound batch for a group of multiple parked questions and recording each question id in `sent.jsonl`.
+  - Required evidence: pasted pytest output for tests driving `notify.core.dispatch_checkpoint` (code path: `dispatch_checkpoint` -> `question_inbox.group_open_questions` -> `build_batch` -> channel `send`) with a recording channel, showing: one send per channel with one entry and `question_count` 3; three `sent.jsonl` rows sharing a `group_id` (paste the rows); a second checkpoint sending nothing; a new member re-notifying with four raisers; and an open question outside every group still sent with its per-question command.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted test output showing an inbound event matching a group route invoking `write_group_answer` and resulting in answer files for all member questions with `applied_to` populated.
+  - Required evidence: pasted pytest output for tests driving `notify.core.apply_inbound` with a group route (code path: `apply_inbound` -> `registry.lookup` -> `group_open_questions` -> `write_group_answer`), showing the three answer files with `applied_to` naming all three members (paste one answer file), the renumbered-split case answering only the originally shown question's members, the fallback to `write_answer` when the group is gone, and an unchanged result for a route without `group_id`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: pasted test output showing a local HTTP test server receiving an `aw` format JSON POST request containing the `groups` list with `group_id` and member question IDs.
+  - Required evidence: pasted pytest output plus the JSON body received by a loopback `http.server` for a full-mode `aw` POST (`count` 3, `distinct_count` 1, one entry with `group_id` and three `member_qids`) and for a terse POST (`count` 3, empty `questions`), and the stdin JSON received by the command hook (code path: `WebhookChannel.send` / `CommandChannel.send`).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: pasted pytest runner output from `python3 -m pytest -o addopts="" tests/test_notify_groups.py` showing all tests passing.
+  - Required evidence: pasted runner output of `python3 -m pytest -o addopts="" tests/test_notify_groups.py tests/test_notify_core.py tests/test_notify_telegram.py` showing every test passing and zero failures, and the pasted `N passed` summary line of the routine gate `python3 -m pytest`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: pasted pytest output for a test that answers a three-member group with `write_group_answer`, appends the three `answer-consumed` events, and drives `notify.core.dispatch_checkpoint` with a recording channel (code path: the acknowledgement pass of `dispatch_checkpoint`), showing exactly one acknowledgement batch per channel whose message names the representative qid and `applied to 3 questions`, three `ack` rows in `sent.jsonl` (paste them), and nothing sent at the next checkpoint.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: pasted pytest output for a test running `TelegramChannel.send` against `tests/fake_telegram.py` with a full-mode batch holding one three-member group (code path: `TelegramChannel.send` full-mode loop -> `registry.register`), showing the fake server recorded ONE `sendMessage`, the pasted registry routes carrying `group_id` and three `member_qids`, and a button event passed through `notify.core.apply_inbound` producing three answer files.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: pasted `git diff -- CHANGELOG.md docs/notifications.md` showing the new CHANGELOG line and the updated terse versus full paragraph, plus pasted output of a search of those added lines for U+2014 and U+2013 returning nothing.
   - Observed evidence:
   - Result: pending
 
@@ -150,4 +193,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`) and after prerequisite children `jshwxb` and `txl556` have reached `executed`. EXECUTION CONTRACT: all open questions are resolved. This plan performs scoped modifications to notification channel abstractions and adds dedicated behavioral tests. All changes commit via `aw commit <plan> -- <paths>`. Never push.
+Execute only after explicit human approval (`Status: approved`) and after `jshwxb`, `txl556`, `qrup8m` and `mrlblc` have reached `executed` (see `- Item-Dependencies:`).
+
+Execution contract:
+- All open questions are resolved (OQ-01, D-2).
+- Scope fence: the paths in `- Scope-Paths:`. An out-of-scope edit is made and then justified at finalize (`--scope-reason`), not a reason to stop. Stop only if a prerequisite symbol this plan relies on (`question_inbox.group_open_questions`, `question_inbox.write_group_answer`, `QuestionGroup.oq_id`) is absent, and report it.
+- You MUST paste the ACTUAL command output into each V-item's Observed evidence; never claim a result you did not run.
+- Tests assert observable behavior (real outputs, exit codes, files written, HTTP bodies), never source text or structure (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
+- Commit only through `aw commit <plan> -- <paths>`, verify `git diff --cached --name-only` lists only your paths, and never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner performs `aw ipd finalize`; when executing by hand, run `aw ipd lint --phase pre-transition` to conforming and then `aw ipd finalize` yourself. Never `git mv` the plan to `executed/` by hand.
