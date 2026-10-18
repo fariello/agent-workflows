@@ -5448,6 +5448,8 @@ INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE = "lifecycle-duplicate-placement"
 INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE_PLACEMENT = INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE
 #: cihealth Order 04 (`mnwkqu`) E-02: refuse a merge that introduces new stale spec line-anchor citations.
 INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE = "spec-anchor-new-stale"
+#: cihealth: refuse a merge whose review/plan artifacts fail contract conformance.
+INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE = "artifact-conformance"
 
 
 #: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
@@ -7838,6 +7840,131 @@ def _filter_lifecycle_record_paths(paths: Iterable[str]) -> list[str]:
     return filtered
 
 
+def check_review_lane_artifacts(
+    repo: Path,
+    handle: Any,
+    changed_files: Sequence[str],
+) -> tuple[bool, str]:
+    """Check that any plan, backlog, or spec artifacts modified in a review/plan lane
+    conform to contract before merging to main.
+
+    Prevents contract violations (e.g. check.ipd-uncarried-obligation, IPD-Q501 open
+    blocking questions, check.graduation-incomplete) from polluting main and breaking CI.
+    """
+    wt_path = (
+        Path(handle.path)
+        if (getattr(handle, "path", None) and Path(handle.path).is_dir())
+        else None
+    )
+    branch = getattr(handle, "branch", None)
+
+    for p_str in changed_files:
+        norm_p = p_str.replace("\\", "/").removeprefix("./")
+        if not norm_p.startswith(".aw/records/"):
+            continue
+
+        content: str | None = None
+        if wt_path and (wt_path / norm_p).is_file():
+            try:
+                content = (wt_path / norm_p).read_text(encoding="utf-8")
+            except Exception:
+                content = None
+        if content is None and branch:
+            rc, out, _ = _run_git(repo, ["show", f"{branch}:{norm_p}"])
+            if rc == 0:
+                content = out
+
+        # If the file does not exist on the branch (e.g. deleted or moved), skip content checks
+        if content is None:
+            continue
+
+        # 1. Plans (.ipd.md)
+        if norm_p.endswith(".ipd.md"):
+            # Only check plans that are in pending/ (or not in a terminal directory)
+            if "/pending/" in norm_p:
+                from agent_workflows import check_engine, ipd_lint
+
+                doc = None
+                try:
+                    doc = ipd_lint.parse(content)
+                    lint_res = ipd_lint.lint_text(
+                        content,
+                        checkpoint="author",
+                        directory="pending",
+                        doc=doc,
+                    )
+                    if not lint_res.passing:
+                        blocking = [
+                            d
+                            for d in lint_res.diagnostics
+                            if getattr(d, "severity", "error") != "info"
+                        ]
+                        if blocking:
+                            diags = "; ".join(
+                                f"{d.code} (line {d.line}): {d.message}"
+                                for d in blocking
+                            )
+                            return False, f"plan '{norm_p}' fails author lint: {diags}"
+                except Exception:
+                    pass
+
+                try:
+                    eval_root = wt_path if wt_path else repo
+                    drifts = check_engine.evaluate_durable_carrier(
+                        eval_root,
+                        plan_path=Path(norm_p),
+                        plan_text=content,
+                        open_questions=doc.open_questions if doc else None,
+                    )
+                    for drift in drifts:
+                        if drift.severity == "error":
+                            return (
+                                False,
+                                f"plan '{norm_p}' has uncarried obligation ({drift.rule}): {drift.detail}",
+                            )
+                except Exception:
+                    pass
+
+        # 2. Backlog items (.backlog.md or .item.md)
+        elif norm_p.endswith(".backlog.md") or norm_p.endswith(".item.md"):
+            if "/graduated/" in norm_p or "- Status: graduated" in content:
+                from agent_workflows import check_engine
+
+                try:
+                    eval_root = wt_path if wt_path else repo
+                    item_id6 = (
+                        check_engine._read_item_id(content) or Path(norm_p).stem[:6]
+                    )
+                    res = check_engine.evaluate_handoff_ready(
+                        eval_root, "backlog", item_id6
+                    )
+                    if not res.ready:
+                        details = "; ".join(f.detail for f in res.findings)
+                        return (
+                            False,
+                            f"backlog item '{norm_p}' handoff is not ready: {details}",
+                        )
+                except Exception:
+                    pass
+
+        # 3. Specs (.spec.md)
+        elif norm_p.endswith(".spec.md"):
+            from agent_workflows import specs
+
+            try:
+                spec_drifts = specs.validate_spec(Path(norm_p), content)
+                for drift in spec_drifts:
+                    if drift.severity == "error":
+                        return (
+                            False,
+                            f"spec '{norm_p}' contract violation ({drift.rule}): {drift.detail}",
+                        )
+            except Exception:
+                pass
+
+    return True, ""
+
+
 def integrate_lane_branch(
     repo: Path,
     handle: Any,
@@ -8129,8 +8256,24 @@ def integrate_lane_branch(
                 ),
                 INTEGRATION_REFUSAL_CONFLICT,
             )
+    elif action_kind == INTEGRATION_ACTION_REVIEW:
+        # Check artifact contracts on incoming review/plan artifacts before merging to main.
+        # This prevents invalid plans/backlogs (e.g. uncarried obligations, open blocking questions,
+        # incomplete graduations) from polluting main and breaking CI.
+        artifact_ok, artifact_reason = check_review_lane_artifacts(
+            repo, handle, lane.changed_files
+        )
+        if not artifact_ok:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE,
+                    f"integration refused: review artifact check failed: {artifact_reason}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
 
-    # Gate passed (conflict-free, revalidated), or - for a review - was correctly not run. Perform the
+    # Gate passed (conflict-free, revalidated), or - for a review - artifacts conformed. Perform the
     # real integration onto main.
     # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
     # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).

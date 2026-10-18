@@ -552,6 +552,170 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                     self._git(repo, "branch", "--format=%(refname:short)"),
                 )
 
+    def test_review_lane_with_invalid_plan_is_refused_with_artifact_conformance(self):
+        """A review lane that authors an invalid plan (e.g. blocking open question) is refused."""
+        import tempfile
+
+        invalid_plan = (
+            "# IPD: Invalid Plan\n\n"
+            "- Date: 2026-10-18\n"
+            "- Id: inv001\n"
+            "- Status: reviewed\n"
+            "- Scope: test scope\n"
+            "- Scope-Paths: none\n"
+            "- Item-Dependencies: none\n"
+            "- Readiness: no-go\n"
+            "- Work-Kind: bug\n"
+            "- Priority: high\n"
+            "- Blocks-Release: none\n"
+            "- Set: invset\n"
+            "- Order: 1\n"
+            "- Highest E allocated: 01\n"
+            "- Author: test\n\n"
+            "### OQ-01: Blocking open question\n"
+            "- Blocking: yes\n"
+            "- Status: open\n"
+            "- Resolution or deferral rationale: open\n"
+        )
+        plan_rel = (
+            ".aw/records/plans/pending/20261018-invset-01-inv001-invalid-plan.ipd.md"
+        )
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "inv001", path=plan_rel, body=invalid_plan)
+                head_before = self._git(repo, "rev-parse", "HEAD")
+
+                integrated, reason, kind = _MODULES[
+                    runner
+                ].integrate_review_lane_branch(repo, handle, "inv001")
+
+                self.assertFalse(integrated)
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+                self.assertIn("[aw-integration-cause=artifact-conformance]", reason)
+                self.assertIn("fails author lint", reason)
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+
+    def test_review_lane_with_conforming_plan_integrates_cleanly(self):
+        """A review lane with a conforming plan integrates cleanly without errors."""
+        import tempfile
+
+        conforming_plan = (
+            "# IPD: Conforming Plan\n\n"
+            "- Date: 2026-10-18\n"
+            "- Kind: child\n"
+            "- Concern: test concern\n"
+            "- Scope: test scope\n"
+            "- Scope-Paths: none\n"
+            "- Item-Dependencies: none\n"
+            "- Status: reviewed\n"
+            "- Readiness: go-pending-approval\n"
+            "- Work-Kind: bug\n"
+            "- Priority: high\n"
+            "- Blocks-Release: none\n"
+            "- Set: cnfset\n"
+            "- Order: 1\n"
+            "- Highest E allocated: 01\n"
+            "- Author: test\n"
+            "- Id: cnf001\n\n"
+            "## Workflow history\n"
+            "- 2026-10-18 reviewed (test): /plan-review: APPROVE\n"
+            "- 2026-10-18 to-review (test): authored\n\n"
+            "## Goal\n\nTest goal.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "### Task group 1: Do work\n\n"
+            "- [ ] E-01 Do work\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\n\n"
+            "- test convention\n\n"
+            "## Findings\n\n"
+            "| # | Finding | Evidence |\n"
+            "|---|---|---|\n"
+            "| F1 | test | test |\n\n"
+            "## Proposed changes (ordered, validatable)\n\n"
+            "1. E-01\n\n"
+            "## Deferred / out of scope (with reason)\n\n"
+            "- Out of scope work\n"
+            "  - Carrier-Declined: not needed for this change\n\n"
+            "## Scope check\n\n"
+            "- Over-scope: none\n"
+            "- Under-scope: none\n\n"
+            "## Required tests / validation\n\n"
+            "- test passes\n\n"
+            "## Spec / documentation sync\n\n"
+            "N/A\n\n"
+            "## Open questions\n\n"
+            "### OQ-01: Sample question\n\n"
+            "- Blocking: no\n"
+            "- Status: resolved\n"
+            "- Owner: executor\n"
+            "- Resolution or deferral rationale: resolved\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: output\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required\n"
+        )
+        plan_rel = (
+            ".aw/records/plans/pending/20261018-cnfset-01-cnf001-conforming-plan.ipd.md"
+        )
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "cnf001", path=plan_rel, body=conforming_plan)
+
+                integrated, reason, kind = _MODULES[
+                    runner
+                ].integrate_review_lane_branch(repo, handle, "cnf001")
+
+                self.assertTrue(integrated, reason)
+                self.assertEqual(kind, "integrated")
+                self.assertTrue((repo / plan_rel).is_file())
+
+    def test_review_lane_with_incomplete_graduation_backlog_is_refused(self):
+        """A review lane that graduates a backlog item with no handoff plan is refused."""
+        import tempfile
+
+        backlog_text = (
+            "- Id: bkl001\n"
+            "- Status: graduated\n"
+            "- Graduated-To: bklset\n"
+            "- Blocks-Release: none\n"
+            "- Set: bklset\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: test incomplete graduation\n\n"
+            "## Workflow history\n"
+            "- 2026-10-18 graduated (test): graduated\n"
+            "- 2026-10-18 created (test): created\n"
+        )
+        bkl_rel = (
+            ".aw/records/backlog/graduated/20261018-bkl001-01-bkl001-test.backlog.md"
+        )
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "bkl001", path=bkl_rel, body=backlog_text)
+                head_before = self._git(repo, "rev-parse", "HEAD")
+
+                integrated, reason, kind = _MODULES[
+                    runner
+                ].integrate_review_lane_branch(repo, handle, "bkl001")
+
+                self.assertFalse(integrated)
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+                self.assertIn("[aw-integration-cause=artifact-conformance]", reason)
+                self.assertIn("handoff is not ready", reason)
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+
     def test_a_rename_still_makes_BOTH_endpoints_count_as_dirty(self):
         """Load-bearing for this Set: a rename is how a plan moves into `executed/`.
 
