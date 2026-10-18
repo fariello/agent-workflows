@@ -1,5 +1,5 @@
 - Id: n6h5eg
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for run_analytics_cli
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw agy run: IPD znjxom executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-02-znjxom-restore-behavioral-test-coverage-for-run-analytics-cli-analy.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-02-znjxom-restore-behavioral-test-coverage-for-run-analytics-cli-analy.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: znjxom
 - 2026-10-17 created (aw backlog): Restore behavioral test coverage for run_analytics_cli
 
