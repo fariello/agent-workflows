@@ -103,7 +103,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Showing groups in notification and chat channels: they consume `group_open_questions` when they are built.
-  - Carrier: txl556
+  - Carrier: 4brk8a
 - A distinct numeric exit code for a runaway breach: refused here (OQ-02); the breach is distinguished in the summary, the event log and run state.
   - Carrier-Declined: spec `25kzda` 5.6 owns the exit table and `docs/cli-output-contract.md` already refused a new code for an analogous case; R4b.3 requires distinguishable REPORTING, which E-04 provides.
 
