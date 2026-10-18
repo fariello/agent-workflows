@@ -96,6 +96,7 @@ Orders 02 to 04 each append to the same findings doc; they are chained so their 
 
 - Writing the restored behavioral tests for keys found unguarded: the backlog items Order 05 files own that work, because the target keys and assertions are unknown until the probes run.
   - Carrier: b83dpg
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-trimprobe-05-b83dpg-file-restore-backlog-items-for-every-non-guarded-probed-key.ipd.md
 - Changing `tools/mutation_probe.py` (for example to accept an argfile or a node-id list file): not needed to complete the probes, and a tool change would invalidate comparability with `rf1xxr`'s verdicts mid-measurement.
   - Carrier-Declined: deliberate non-goal; the plans pass explicit arguments and preflight instead.
 
