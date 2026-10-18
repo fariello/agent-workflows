@@ -6,7 +6,7 @@
 - Scope: Restore the module-level sections (the deleted file's E-06 transport, E-07 validation/receipt/unavailable, and E-08 consent sections) of `tests/test_run_analytics_submit.py` from `19313eed^`, add `pytestmark = pytest.mark.core` so the bare core-tier gate selects it, drop the three restored tests that are code-pinning or that test another module (Finding F-03), and add residual edge-case tests for the 11 module lines the restored tests leave unexecuted (Finding F-04). The 14 keys: `open_url`, `_redact_url`, `_refusal_result`, `url_policy_refusal`, `attestation_refusal`, `Attestation.to_dict`, `RefusingRedirectHandler.redirect_request`, `build_restricted_opener`, `_sha256`, `SubmitRefusal.__init__`, `RefusingRedirectHandler.__init__`, `submit_bundle`, `validate_bundle`, `build_receipt`. EXCLUDES any change to `agent_workflows/run_analytics_submit.py` or any other production file; EXCLUDES the deleted file's `cli.main` section (`runs export` / `runs submit` leaves, which exercise `agent_workflows/run_analytics_cli.py` and `agent_workflows/run_analytics_export.py`); EXCLUDES `tests/test_run_analytics_privacy_boundary.py` and `tests/test_run_analytics_wizard.py` (see Deferred).
 - Scope-Paths: tests/test_run_analytics_submit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: d2vfp2
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d2vfp2 verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
