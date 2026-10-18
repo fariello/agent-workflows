@@ -109,3 +109,23 @@ repos:
         always_run: true
         stages: [pre-push]
         verbose: true
+
+      # cihealth: static type gate before push.
+      - id: static-type-gate
+        name: static type gate before push (mypy agent_workflows)
+        entry: python3 -m mypy agent_workflows
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true
+
+      # cihealth: cross-tree attention and artifact contract check before push.
+      - id: attention-gate
+        name: attention and artifact check before push
+        entry: python3 -m agent_workflows attention --check --agent
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true

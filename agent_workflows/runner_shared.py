@@ -5450,6 +5450,8 @@ INTEGRATION_CAUSE_LIFECYCLE_DUPLICATE_PLACEMENT = INTEGRATION_CAUSE_LIFECYCLE_DU
 INTEGRATION_CAUSE_SPEC_ANCHOR_NEW_STALE = "spec-anchor-new-stale"
 #: cihealth: refuse a merge whose review/plan artifacts fail contract conformance.
 INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE = "artifact-conformance"
+#: cihealth: refuse a merge whose code changes fail static type checking (mypy).
+INTEGRATION_CAUSE_TYPECHECK = "typecheck"
 
 
 #: What an OLD record (or an unrecognized gate status) reads as. Routing an unknown cause to today's
@@ -7965,6 +7967,56 @@ def check_review_lane_artifacts(
     return True, ""
 
 
+def check_lane_type_safety(
+    repo: Path,
+    handle: Any,
+    changed_files: Sequence[str],
+) -> tuple[bool, str]:
+    """Verify static type safety (mypy) of an incoming lane that touched agent_workflows/ Python files.
+
+    Prevents type regressions from landing on main and breaking the CI typecheck gate.
+    """
+    wt_path = (
+        Path(handle.path)
+        if (getattr(handle, "path", None) and Path(handle.path).is_dir())
+        else None
+    )
+    if not wt_path:
+        return True, ""
+
+    touches_pkg = any(
+        f.replace("\\", "/").removeprefix("./").startswith("agent_workflows/")
+        and f.endswith(".py")
+        for f in changed_files
+    )
+    if not touches_pkg:
+        return True, ""
+
+    import subprocess
+
+    cmd = [sys.executable, "-m", "mypy", "agent_workflows"]
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(wt_path),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        if proc.returncode != 0:
+            err_lines = [
+                line.strip() for line in proc.stdout.splitlines() if "error:" in line
+            ]
+            summary = "; ".join(err_lines[:5]) if err_lines else proc.stdout.strip()
+            return False, f"type check failed: {summary}"
+    except Exception as exc:
+        return False, f"failed to execute type check in lane: {exc}"
+
+    return True, ""
+
+
 def integrate_lane_branch(
     repo: Path,
     handle: Any,
@@ -8229,6 +8281,18 @@ def integrate_lane_branch(
                             "reason": anchor_res.reason,
                         },
                     )
+
+        # Check static type safety if lane touched agent_workflows/*.py
+        type_ok, type_reason = check_lane_type_safety(repo, handle, lane.changed_files)
+        if not type_ok:
+            return (
+                False,
+                tag_integration_cause(
+                    INTEGRATION_CAUSE_TYPECHECK,
+                    f"integration refused: {type_reason}",
+                ),
+                INTEGRATION_REFUSAL_CONFLICT,
+            )
 
         result = orchestrate_isolation.execute_merge_and_revalidate_gate(
             integration_base_commit=handle.base_commit,
@@ -40989,10 +41053,11 @@ def execute_item_core(
                     return
 
                 work_dir = str(st.worktree_path)
+                assert lane_id is not None
                 wt_handle = worktree_lease.WorktreeHandle(
                     lane_id=lane_id,
                     path=st.worktree_path,
-                    branch=lane_branch or st.branch or ("aw/lane/" + lane_id),
+                    branch=lane_branch or st.branch or f"aw/lane/{lane_id}",
                     base_commit=lane_base or st.base_sha or "HEAD",
                     disposition="adopted",
                 )
@@ -43968,7 +44033,7 @@ def execute_item_core(
                 from agent_workflows import question_inbox
 
                 # qchan-03 (mtmqlm) E-03: write per-run question inbox files for gating questions
-                written_qids: list[str] = []
+                written_qids = []
                 for gq in review_gating_questions:
                     try:
                         q_path = question_inbox.write_question(

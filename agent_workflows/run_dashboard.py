@@ -1214,7 +1214,7 @@ def _attach_session_origin(rows: list[dict[str, Any]]) -> None:
     for lst in by_run.values():
         lst.sort(
             key=lambda r: (
-                r.get("start") if r.get("start") is not None else float("inf")
+                float(r["start"]) if r.get("start") is not None else float("inf")
             )
         )
         seen: dict[str, set[str]] = {}

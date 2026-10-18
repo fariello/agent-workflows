@@ -716,6 +716,59 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 self.assertIn("handoff is not ready", reason)
                 self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
 
+    def test_execute_lane_with_type_error_is_refused_with_typecheck_cause(self):
+        """An execute lane with typecheck errors in agent_workflows/*.py is refused."""
+        import subprocess
+        import tempfile
+
+        fake_mypy_err = (
+            'agent_workflows/foo.py:10: error: Incompatible types in assignment (expression has type "str", variable has type "int")\n'
+            "Found 1 error in 1 file (checked 1 source file)\n"
+        )
+        fake_proc = mock.Mock(returncode=1, stdout=fake_mypy_err)
+
+        real_subproc_run = subprocess.run
+
+        def fake_run(cmd, *args, **kwargs):
+            if isinstance(cmd, (list, tuple)) and "mypy" in cmd:
+                return fake_proc
+            return real_subproc_run(cmd, *args, **kwargs)
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(
+                    repo, "typ001", path="agent_workflows/foo.py", body="x = 1\n"
+                )
+                head_before = self._git(repo, "rev-parse", "HEAD")
+
+                with mock.patch("subprocess.run", side_effect=fake_run):
+                    integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                        repo, handle, "typ001", self._passing_runner()
+                    )
+
+                self.assertFalse(integrated)
+                self.assertEqual(kind, runner_shared.INTEGRATION_REFUSAL_CONFLICT)
+                self.assertIn("[aw-integration-cause=typecheck]", reason)
+                self.assertIn("type check failed", reason)
+                self.assertIn("Incompatible types", reason)
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+
+    def test_check_lane_type_safety_skips_non_package_files(self):
+        """Type check is skipped entirely when the lane does not touch agent_workflows/*.py."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            wt = pathlib.Path(tmp)
+            handle = mock.Mock(path=wt)
+            with mock.patch("subprocess.run") as mock_run:
+                ok, reason = runner_shared.check_lane_type_safety(
+                    wt, handle, ["tests/test_x.py", "docs/guide.md"]
+                )
+            self.assertTrue(ok)
+            self.assertEqual(reason, "")
+            mock_run.assert_not_called()
+
     def test_a_rename_still_makes_BOTH_endpoints_count_as_dirty(self):
         """Load-bearing for this Set: a rename is how a plan moves into `executed/`.
 
