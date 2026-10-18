@@ -3695,6 +3695,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Specific question ID to answer (required with --answer or --choice).",
     )
     _p_runs_answer.add_argument(
+        "--group",
+        default=None,
+        metavar="group_id",
+        help="Specific question group ID to answer.",
+    )
+    _p_runs_answer.add_argument(
         "--dir",
         "--repo",
         dest="dir",

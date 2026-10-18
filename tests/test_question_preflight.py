@@ -403,7 +403,7 @@ def test_a18_and_a28_sweep_sitting_and_events(tmp_path: Path):
         oqs = [
             {
                 "id": f"OQ-{q_idx:02d}",
-                "title": f"Question {q_idx}",
+                "title": f"Question {p_idx}-{q_idx}",
                 "blocking": True,
                 "status": "open",
             }

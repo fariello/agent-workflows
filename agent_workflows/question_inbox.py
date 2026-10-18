@@ -15,7 +15,7 @@ import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, NamedTuple, Optional
+from typing import Any, Mapping, NamedTuple, Optional, Sequence
 
 from filelock import FileLock
 
@@ -41,6 +41,13 @@ MAX_CHANNEL_LENGTH = 200
 MAX_SENDER_LENGTH = 200
 
 
+def question_fingerprint(text: str, options: Any = None) -> str:
+    """Compute question fingerprint using shared implementation."""
+    from agent_workflows import runner_shared
+
+    return runner_shared.question_fingerprint(text, options)
+
+
 class AnswerResult(NamedTuple):
     """Result of attempting to write an answer to a question."""
 
@@ -60,6 +67,160 @@ class AnswerResult(NamedTuple):
     @property
     def rejected(self) -> bool:
         return self.status == "rejected"
+
+
+class QuestionGroupMember(dict):
+    """A member question in a QuestionGroup."""
+
+    def __init__(
+        self,
+        question_id: str,
+        artifact_id6: str,
+        action: str,
+        artifact_hash: str,
+        position: int = 0,
+        **extra: Any,
+    ) -> None:
+        super().__init__(
+            question_id=question_id,
+            artifact_id6=artifact_id6,
+            action=action,
+            artifact_hash=artifact_hash,
+            position=position,
+            **extra,
+        )
+
+    @property
+    def question_id(self) -> str:
+        return self["question_id"]
+
+    @property
+    def artifact_id6(self) -> str:
+        return self["artifact_id6"]
+
+    @property
+    def action(self) -> str:
+        return self["action"]
+
+    @property
+    def artifact_hash(self) -> str:
+        return self["artifact_hash"]
+
+    @property
+    def position(self) -> int:
+        return self.get("position", 0)
+
+    @property
+    def raw(self) -> dict[str, Any]:
+        val = self.get("raw")
+        return val if isinstance(val, dict) else self
+
+    @property
+    def blocking(self) -> bool:
+        return bool(self.get("blocking", True))
+
+
+class QuestionGroup:
+    """A deduplicated group of questions sharing a fingerprint and collision guard."""
+
+    def __init__(
+        self,
+        group_id: str,
+        fingerprint: str,
+        text: str,
+        options: list[str] | None,
+        allow_free_text: bool,
+        members: list[Any],
+        unblock_count: int = 0,
+    ) -> None:
+        self.group_id = group_id
+        self.fingerprint = fingerprint
+        self.text = text
+        self.options = options
+        self.allow_free_text = allow_free_text
+        self.members = [
+            m if isinstance(m, QuestionGroupMember) else QuestionGroupMember(**m)
+            for m in members
+        ]
+        self.unblock_count = unblock_count
+
+    @property
+    def raisers(self) -> list[str]:
+        return sorted({m.artifact_id6 for m in self.members if m.artifact_id6})
+
+    @property
+    def member_count(self) -> int:
+        return len(self.members)
+
+    @property
+    def oq_id(self) -> str:
+        return self.members[0].question_id if self.members else ""
+
+    @property
+    def heading(self) -> str:
+        return self.text
+
+    @property
+    def artifact_id6(self) -> str:
+        return self.members[0].artifact_id6 if self.members else ""
+
+    @property
+    def blocking(self) -> bool:
+        return any(m.blocking for m in self.members)
+
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __repr__(self) -> str:
+        return (
+            f"QuestionGroup(group_id={self.group_id!r}, "
+            f"members={len(self.members)}, unblock_count={self.unblock_count})"
+        )
+
+
+class GroupAnswerResult(NamedTuple):
+    """Result of writing an answer to a question group."""
+
+    status: str  # "recorded", "already", "rejected"
+    reason: str
+    group_id: str
+    results: dict[str, AnswerResult]
+    applied_to: list[dict[str, str]]
+
+    @property
+    def recorded(self) -> bool:
+        return self.status == "recorded"
+
+    @property
+    def already(self) -> bool:
+        return self.status == "already"
+
+    @property
+    def rejected(self) -> bool:
+        return self.status == "rejected"
+
+    @property
+    def recorded_count(self) -> int:
+        return sum(1 for r in self.results.values() if r.recorded)
+
+    @property
+    def already_count(self) -> int:
+        return sum(1 for r in self.results.values() if r.already)
+
+    @property
+    def refused_count(self) -> int:
+        return sum(1 for r in self.results.values() if not r.recorded and not r.already)
+
+    @property
+    def refused_reasons(self) -> list[str]:
+        return [
+            r.reason
+            for r in self.results.values()
+            if not r.recorded and not r.already and r.reason
+        ]
 
 
 def utc_now() -> str:
@@ -401,6 +562,7 @@ def write_answer(
     channel: str,
     sender: str,
     actor: str,
+    applied_to: list[dict[str, Any]] | None = None,
 ) -> AnswerResult:
     """Write answers/<qid>.json as the ONLY answer writer (spec 6kwd2e R9.2, E-02).
 
@@ -565,6 +727,14 @@ def write_answer(
 
         artifact_hash = str(q_data_locked.get("artifact_hash", ""))
         answered_at = utc_now()
+        effective_applied_to = applied_to
+        if effective_applied_to is None:
+            effective_applied_to = [
+                {
+                    "question_id": qid,
+                    "artifact_id6": str(q_data_locked.get("artifact_id6", "")),
+                }
+            ]
         ans_record = {
             "schema": ANSWER_SCHEMA,
             "question_id": qid,
@@ -574,6 +744,7 @@ def write_answer(
             "channel": str_channel,
             "sender": str_sender,
             "artifact_hash": artifact_hash,
+            "applied_to": effective_applied_to,
             "answered_at": answered_at,
         }
 
@@ -601,6 +772,7 @@ def write_answer(
                 "actor": "human",
                 "channel": str_channel,
                 "sender": str_sender,
+                "applied_to": effective_applied_to,
             },
         )
         _append_jsonl(
@@ -787,3 +959,509 @@ def write_projection(run_dir: Path | str) -> Path | None:
         except Exception:
             pass
         return None
+
+
+def group_questions(
+    records: Sequence[Any],
+    state: Mapping[str, Any] | None = None,
+) -> list[QuestionGroup]:
+    """Group questions by fingerprint and collision guard, ordered by unblock count and action (E-01).
+
+    Group key: question_fingerprint(text, options) AND exact equality of normalized text,
+    normalized options, and allow_free_text. Stable group_id: g-<fingerprint> plus -<n> suffix
+    only for collision splits.
+    Unblock count: size of UNION over group's raisers of {the raiser} plus every queue item
+    transitively depending on it that is still queued or awaiting-human.
+    Order: unblock count descending; ANY execute member precedes only review/preflight; lowest member queue position.
+    """
+    from agent_workflows import runner_shared
+
+    if not records:
+        return []
+
+    # 1. Normalize each record into a common dict representation
+    norm_records: list[dict[str, Any]] = []
+    for r in records:
+        if isinstance(r, Mapping):
+            q_id = str(r.get("question_id") or r.get("oq_id") or "")
+            art_id6 = str(r.get("artifact_id6") or "")
+            action = str(r.get("action") or "execute")
+            art_hash = str(r.get("artifact_hash") or "")
+            text = str(r.get("text") or r.get("heading") or "")
+            raw_opts = r.get("options")
+            options = list(raw_opts) if raw_opts is not None else None
+            allow_free = bool(r.get("allow_free_text", True))
+            fp = r.get("fingerprint")
+            pos = int(r.get("position", 0))
+        else:
+            q_id = str(
+                getattr(r, "question_id", None) or getattr(r, "oq_id", None) or ""
+            )
+            art_id6 = str(getattr(r, "artifact_id6", None) or "")
+            action = str(
+                getattr(r, "action", None)
+                or (
+                    "preflight"
+                    if isinstance(r, runner_shared.PreflightQuestion)
+                    else "execute"
+                )
+            )
+            art_hash = str(getattr(r, "artifact_hash", None) or "")
+            text = str(getattr(r, "text", None) or getattr(r, "heading", None) or "")
+            raw_opts = getattr(r, "options", None)
+            options = list(raw_opts) if raw_opts is not None else None
+            allow_free = bool(getattr(r, "allow_free_text", True))
+            fp = getattr(r, "fingerprint", None)
+            pos = int(getattr(r, "position", 0))
+
+        if not fp:
+            fp = runner_shared.question_fingerprint(text, options)
+
+        if pos <= 0 and q_id:
+            m_pos = re.match(r"^(\d+)-", q_id)
+            if m_pos:
+                pos = int(m_pos.group(1))
+
+        norm_text = runner_shared._normalize_question_text(text)
+        if options is not None:
+            norm_opts = tuple(
+                runner_shared._normalize_question_text(opt) for opt in options
+            )
+        else:
+            norm_opts = None
+
+        norm_records.append(
+            {
+                "record": r,
+                "question_id": q_id,
+                "artifact_id6": art_id6,
+                "action": action,
+                "artifact_hash": art_hash,
+                "text": text,
+                "options": options,
+                "allow_free_text": allow_free,
+                "fingerprint": fp,
+                "norm_text": norm_text,
+                "norm_opts": norm_opts,
+                "position": pos,
+            }
+        )
+
+    # 2. Group by collision key: (fingerprint, norm_text, norm_opts, allow_free_text)
+    subgroups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    for nr in norm_records:
+        collision_key = (
+            nr["fingerprint"],
+            nr["norm_text"],
+            nr["norm_opts"],
+            nr["allow_free_text"],
+        )
+        subgroups.setdefault(collision_key, []).append(nr)
+
+    # 3. Group subgroups by fingerprint to detect collision splits
+    by_fp: dict[str, list[tuple[Any, ...]]] = {}
+    for col_key in subgroups.keys():
+        fp = col_key[0]
+        by_fp.setdefault(fp, []).append(col_key)
+
+    # 4. Assign stable group_id: g-<fp> or g-<fp>-<n>
+    group_items_map: dict[str, list[dict[str, Any]]] = {}
+    for fp, col_keys in by_fp.items():
+        if len(col_keys) == 1:
+            group_items_map[f"g-{fp}"] = subgroups[col_keys[0]]
+        else:
+            # Sort collision splits deterministically
+            sorted_keys = sorted(
+                col_keys,
+                key=lambda k: (k[1], k[2] or (), k[3]),
+            )
+            for idx, k in enumerate(sorted_keys, 1):
+                group_items_map[f"g-{fp}-{idx}"] = subgroups[k]
+
+    # 5. Build queue metadata from state for unblock counts
+    queue: list[Mapping[str, Any]] = []
+    if isinstance(state, Mapping):
+        q = state.get("queue")
+        if isinstance(q, Sequence):
+            queue = [it for it in q if isinstance(it, Mapping)]
+
+    status_by_id: dict[str, str] = {}
+    pos_by_id: dict[str, int] = {}
+    dependents: dict[str, set[str]] = {}
+
+    for idx, it in enumerate(queue):
+        it_id = str(it.get("id6") or "")
+        if it_id:
+            status_by_id[it_id] = str(it.get("status") or "")
+            pos_by_id[it_id] = int(it.get("position", idx + 1))
+            deps = it.get("dependencies") or []
+            if isinstance(deps, Sequence):
+                for dep in deps:
+                    target_id = runner_shared.dependency_target_id6(str(dep))
+                    if target_id:
+                        dependents.setdefault(target_id, set()).add(it_id)
+
+    # 6. Construct QuestionGroup objects
+    groups: list[QuestionGroup] = []
+    for gid, member_dicts in group_items_map.items():
+        first = member_dicts[0]
+        fp = first["fingerprint"]
+        text = first["text"]
+        options = first["options"]
+        allow_free = first["allow_free_text"]
+
+        members = []
+        for m in member_dicts:
+            rec_dict = (
+                dict(m.get("record")) if isinstance(m.get("record"), Mapping) else {}
+            )
+            kw = dict(rec_dict)
+            kw["question_id"] = m["question_id"]
+            kw["artifact_id6"] = m["artifact_id6"]
+            kw["action"] = m["action"]
+            kw["artifact_hash"] = m["artifact_hash"]
+            kw["position"] = pos_by_id.get(m["artifact_id6"], m["position"])
+            kw["raw"] = rec_dict
+            members.append(QuestionGroupMember(**kw))
+
+        raisers = {m.artifact_id6 for m in members if m.artifact_id6}
+        if queue:
+            # Transitive dependents BFS
+            candidates = set(raisers)
+            bfs_q = list(raisers)
+            visited = set(raisers)
+            while bfs_q:
+                curr = bfs_q.pop(0)
+                for child in dependents.get(curr, ()):
+                    if child not in visited:
+                        visited.add(child)
+                        candidates.add(child)
+                        bfs_q.append(child)
+
+            unblocked_set = {
+                cid
+                for cid in candidates
+                if status_by_id.get(cid)
+                in ("queued", runner_shared.AWAITING_HUMAN_STATUS)
+            }
+            unblock_count = len(unblocked_set)
+        else:
+            unblock_count = len(raisers)
+
+        groups.append(
+            QuestionGroup(
+                group_id=gid,
+                fingerprint=fp,
+                text=text,
+                options=options,
+                allow_free_text=allow_free,
+                members=members,
+                unblock_count=unblock_count,
+            )
+        )
+
+    # 7. Sort groups by unblock count, action rank, lowest queue pos, and group_id
+    def _group_sort_key(grp: QuestionGroup):
+        # 1. unblock count descending
+        # 2. ANY execute member precedes only review/preflight
+        has_execute = any(m.action == "execute" for m in grp.members)
+        action_rank = 0 if has_execute else 1
+        # 3. lowest member queue position
+        min_pos = min(
+            (m.position for m in grp.members if m.position > 0), default=999999
+        )
+        # 4. lowest member question_id (natural ordering of questions within item)
+        min_qid = min((m.question_id for m in grp.members if m.question_id), default="")
+        # 5. stable group_id
+        return (-grp.unblock_count, action_rank, min_pos, min_qid, grp.group_id)
+
+    groups.sort(key=_group_sort_key)
+    return groups
+
+
+def group_open_questions(
+    run_dir: Path | str,
+    state: Mapping[str, Any] | None = None,
+) -> list[QuestionGroup]:
+    """Group all open questions belonging to the current park of awaiting-human items (E-01).
+
+    Reads run-scoped qids (item['question_ids']) stored on each awaiting-human item
+    in state['queue'], loads those question files from questions/, filters to status 'open',
+    and passes them to group_questions.
+    """
+    run_dir = Path(run_dir).resolve()
+    records: list[dict[str, Any]] = []
+
+    if (
+        isinstance(state, Mapping)
+        and "queue" in state
+        and isinstance(state["queue"], Sequence)
+    ):
+        for item in state["queue"]:
+            if isinstance(item, Mapping) and item.get("status") == "awaiting-human":
+                qids = item.get("question_ids") or []
+                if not qids and item.get("questions"):
+                    # Fallback to questions list
+                    qids = [
+                        q.get("question_id")
+                        for q in item["questions"]
+                        if isinstance(q, Mapping) and q.get("question_id")
+                    ]
+                for qid in qids:
+                    if not qid:
+                        continue
+                    q_data = read_question(run_dir, qid)
+                    if q_data and q_data.get("status") == QUESTION_STATUS_OPEN:
+                        if "position" in item and "position" not in q_data:
+                            q_data["position"] = item["position"]
+                        records.append(q_data)
+    if not records:
+        # Fallback if state has no awaiting-human items or no queue: read all open questions in questions/
+        records = read_open_questions(run_dir)
+
+    return group_questions(records, state)
+
+
+def write_group_answer(
+    run_dir: Path | str,
+    state: Mapping[str, Any] | None,
+    group_id: str,
+    *,
+    answer: str | None = None,
+    choice: int | None = None,
+    channel: str,
+    sender: str,
+    actor: str,
+) -> GroupAnswerResult:
+    """Write an answer to all open questions in a question group (spec 6kwd2e R4.2, R9.2, E-02).
+
+    Under answers/.group.lock:
+    - recomputes the group with group_open_questions
+    - refuses an unknown group_id
+    - calls write_answer once per member, passing applied_to naming all members
+    - returns per-member results and aggregate status
+    """
+    run_dir = Path(run_dir).resolve()
+    answers_dir = run_dir / "answers"
+    answers_dir.mkdir(parents=True, exist_ok=True)
+    group_lock_file = answers_dir / ".group.lock"
+
+    with FileLock(str(group_lock_file)):
+        groups = group_open_questions(run_dir, state)
+        matched_group = None
+        for g in groups:
+            if g.group_id == group_id:
+                matched_group = g
+                break
+
+        if matched_group is None:
+            return GroupAnswerResult(
+                status="rejected",
+                reason=f"unknown group_id: {group_id!r}",
+                group_id=group_id,
+                results={},
+                applied_to=[],
+            )
+
+        applied_to = [
+            {"question_id": m.question_id, "artifact_id6": m.artifact_id6}
+            for m in matched_group.members
+        ]
+
+        results: dict[str, AnswerResult] = {}
+        recorded_count = 0
+        already_count = 0
+        first_rejection_reason = "rejected"
+
+        for m in matched_group.members:
+            qid = m.question_id
+            res = write_answer(
+                run_dir,
+                qid,
+                answer=answer,
+                choice=choice,
+                channel=channel,
+                sender=sender,
+                actor=actor,
+                applied_to=applied_to,
+            )
+            results[qid] = res
+            if res.recorded:
+                recorded_count += 1
+            elif res.already:
+                already_count += 1
+            else:
+                if first_rejection_reason == "rejected":
+                    first_rejection_reason = res.reason
+
+        if recorded_count > 0:
+            status = "recorded"
+            reason = "recorded"
+        elif already_count == len(matched_group.members):
+            status = "already"
+            reason = "already answered"
+        else:
+            status = "rejected"
+            reason = first_rejection_reason
+
+        return GroupAnswerResult(
+            status=status,
+            reason=reason,
+            group_id=group_id,
+            results=results,
+            applied_to=applied_to,
+        )
+
+
+def _clean_worker_text_for_answers_file(text: str) -> str:
+    """Clean worker-authored text for answers.md: strip ANSI and control characters."""
+    from agent_workflows import term
+
+    s = term.strip_ansi(str(text))
+    cleaned: list[str] = []
+    for ch in s:
+        if ch in ("\n", "\t") or (
+            ord(ch) >= 32 and ord(ch) != 127 and unicodedata.category(ch) != "Cc"
+        ):
+            cleaned.append(ch)
+    return "".join(cleaned)
+
+
+def write_answers_file(
+    run_dir: Path | str,
+    state: Mapping[str, Any] | None = None,
+    *,
+    resume_command: str,
+) -> Path:
+    """Write <run_dir>/answers.md atomically (spec 6kwd2e R5.1, R5.2, E-03)."""
+    run_dir = Path(run_dir).resolve()
+    groups = group_open_questions(run_dir, state)
+
+    run_id = str(
+        (state.get("run_id") if isinstance(state, Mapping) else None) or run_dir.name
+    )
+    distinct_count = len(groups)
+    all_artifacts = sorted({art for g in groups for art in g.raisers})
+    artifact_count = len(all_artifacts)
+    total_unblock = sum(g.unblock_count for g in groups)
+
+    lines: list[str] = [
+        f"# Answers for Run {run_id}",
+        "",
+        f"- Distinct questions: {distinct_count}",
+        f"- Artifacts affected: {artifact_count}",
+        f"- Total unblock count: {total_unblock}",
+        "",
+        "## How to answer",
+        "",
+        "Edit this file and fill in the `Answer:` line for any question group below, or run:",
+        f"  aw runs answer {run_id}",
+        "",
+        "To resume the run after editing answers:",
+        "```sh",
+        f"{resume_command}",
+        "```",
+        "",
+    ]
+
+    for g in groups:
+        lines.append(f"<!-- aw:group {g.group_id} -->")
+        lines.append(f"### Group {g.group_id}")
+        lines.append("")
+        qids_str = ", ".join(m.question_id for m in g.members)
+        lines.append(f"- Question IDs: {qids_str}")
+        lines.append(f"- Raisers ({len(g.raisers)}): {', '.join(g.raisers)}")
+        lines.append(f"- Unblocks: {g.unblock_count} item(s)")
+        if g.options:
+            lines.append("- Options:")
+            for idx, opt in enumerate(g.options, 1):
+                clean_opt = _clean_worker_text_for_answers_file(opt)
+                lines.append(f"  {idx}. {clean_opt}")
+        lines.append("")
+
+        # Quoted worker text: every line prefixed `> `
+        cleaned_text = _clean_worker_text_for_answers_file(g.text)
+        text_lines = cleaned_text.splitlines() if cleaned_text else [""]
+        for tl in text_lines:
+            lines.append(f"> {tl}" if tl else ">")
+        lines.append("")
+        lines.append("Answer: ")
+        lines.append("")
+
+    target_file = run_dir / "answers.md"
+    content = "\n".join(lines) + "\n"
+
+    tmp_file = run_dir / f".tmp_answers_{os.getpid()}_{time.time_ns()}.md"
+    try:
+        with tmp_file.open("w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(tmp_file), str(target_file))
+    finally:
+        if tmp_file.exists():
+            tmp_file.unlink()
+
+    return target_file
+
+
+def ingest_answers_file(
+    run_dir: Path | str,
+    state: Mapping[str, Any] | None = None,
+) -> int:
+    """Ingest answers filled into <run_dir>/answers.md (spec 6kwd2e R5.1, R5.2, E-03).
+
+    Reads only the unquoted Answer: line directly following each group's quoted block
+    under an <!-- aw:group <group_id> --> marker. Ignores empty answer lines.
+    Writes non-empty answers through write_group_answer with channel="answers-file",
+    actor="human", sender=getpass.getuser().
+    Returns the count of answers recorded.
+    """
+    import getpass
+
+    run_dir = Path(run_dir).resolve()
+    answers_md = run_dir / "answers.md"
+    if not answers_md.is_file():
+        return 0
+
+    try:
+        content = answers_md.read_text(encoding="utf-8")
+    except Exception:
+        return 0
+
+    recorded_count = 0
+    pattern = re.compile(r"<!--\s*aw:group\s+([A-Za-z0-9._-]+)\s*-->", re.MULTILINE)
+    matches = list(pattern.finditer(content))
+    for i, match in enumerate(matches):
+        group_id = match.group(1).strip()
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        section = content[start:end]
+
+        lines = section.splitlines()
+        found_quoted = False
+        answer_text = None
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith(">"):
+                found_quoted = True
+            elif found_quoted and stripped.startswith("Answer:"):
+                ans_val = stripped[len("Answer:") :].strip()
+                if ans_val:
+                    answer_text = ans_val
+                break
+
+        if answer_text:
+            res = write_group_answer(
+                run_dir,
+                state,
+                group_id,
+                answer=answer_text,
+                channel="answers-file",
+                actor="human",
+                sender=getpass.getuser(),
+            )
+            if res.recorded:
+                recorded_count += 1
+
+    return recorded_count

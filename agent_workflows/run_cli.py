@@ -386,20 +386,21 @@ def _emit_answer_record(
 
 
 def _run_answer(args: argparse.Namespace) -> int:
-    """Answer open questions for a live or finished run. Spec 6kwd2e R9.5, R4a.2."""
+    """Answer open questions for a live or finished run. Spec 6kwd2e R9.5, R4a.2, R4."""
     from agent_workflows import question_inbox, run_viewer, runner_shared, term
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     run_id_arg = getattr(args, "run_id", None)
     qid_arg = getattr(args, "question_id", None)
+    group_arg = getattr(args, "group", None)
     ans_flag = getattr(args, "answer", None)
     choice_flag = getattr(args, "choice", None)
     is_machine = _machine(args)
 
-    # Validate flag dependencies: --answer or --choice requires both run_id and question_id
+    # Validate flag dependencies: --answer or --choice requires run_id and either question_id or --group
     if ans_flag is not None or choice_flag is not None:
-        if not run_id_arg or not qid_arg:
-            msg = "--answer/--choice requires both <run-id> and <question_id>"
+        if not run_id_arg or (not qid_arg and not group_arg):
+            msg = "--answer/--choice requires both <run-id> and either <question_id> or --group <group_id>"
             if is_machine:
                 return _emit_answer_record(args, exit_code=2, error=msg)
             _print_human(f"error: {msg}")
@@ -427,11 +428,62 @@ def _run_answer(args: argparse.Namespace) -> int:
                     if question_inbox.read_open_questions(child):
                         live_runs.append((child, holder))
 
-    # If --answer or --choice is given, write one answer directly (non-interactive form)
+    # If --answer or --choice is given with --group: write group answer
+    if (ans_flag is not None or choice_flag is not None) and group_arg:
+        assert run_dir is not None
+        state = (
+            runner_shared.load_state(run_dir)
+            if (run_dir / "state.json").is_file()
+            else None
+        )
+        res = question_inbox.write_group_answer(
+            run_dir,
+            state,
+            group_arg,
+            answer=ans_flag,
+            choice=choice_flag,
+            channel="cli",
+            sender=getpass.getuser(),
+            actor="human",
+        )
+        if res.recorded:
+            exit_code = 0
+        elif res.already:
+            exit_code = 1
+        else:
+            if any("unknown group" in r for r in res.refused_reasons):
+                exit_code = 2
+            else:
+                exit_code = 1
+
+        if is_machine:
+            return _emit_answer_record(
+                args,
+                exit_code=exit_code,
+                answer={
+                    "run_id": run_dir.name,
+                    "group_id": group_arg,
+                    "status": "recorded"
+                    if res.recorded
+                    else ("already" if res.already else "rejected"),
+                    "recorded_count": len(res.recorded),
+                    "already_count": len(res.already),
+                    "refused_count": len(res.refused),
+                },
+            )
+        if res.recorded:
+            _print_human(f"recorded ({len(res.recorded)} answer(s) written)")
+        elif res.already:
+            _print_human("already answered")
+        else:
+            _print_human("; ".join(res.refused_reasons) or "rejected")
+        return exit_code
+
+    # If --answer or --choice is given with qid_arg: write single answer
     if ans_flag is not None or choice_flag is not None:
         assert run_dir is not None
         assert qid_arg is not None
-        res = question_inbox.write_answer(
+        res_single = question_inbox.write_answer(
             run_dir,
             qid_arg,
             answer=ans_flag,
@@ -440,14 +492,14 @@ def _run_answer(args: argparse.Namespace) -> int:
             sender=getpass.getuser(),
             actor="human",
         )
-        if res.status == "recorded":
+        if res_single.status == "recorded":
             exit_code = 0
-        elif res.status == "already":
+        elif res_single.status == "already":
             exit_code = 1
         else:  # rejected
             if (
-                "malformed question_id" in res.reason
-                or "unknown question_id" in res.reason
+                "malformed question_id" in res_single.reason
+                or "unknown question_id" in res_single.reason
             ):
                 exit_code = 2
             else:
@@ -460,68 +512,93 @@ def _run_answer(args: argparse.Namespace) -> int:
                 answer={
                     "run_id": run_dir.name,
                     "question_id": qid_arg,
-                    "status": res.status,
-                    "reason": res.reason,
+                    "status": res_single.status,
+                    "reason": res_single.reason,
                 },
             )
-        if res.status == "recorded":
+        if res_single.status == "recorded":
             _print_human("recorded")
-        elif res.status == "already":
+        elif res_single.status == "already":
             _print_human("already answered")
         else:
-            _print_human(res.reason)
+            _print_human(res_single.reason)
         return exit_code
 
     # Non-interactive listing: when stdin is not interactive (or --no-interactive) or in machine mode
     interactive_mode = term.is_interactive() and not is_machine
 
     if not interactive_mode:
-        # Collect questions to list
-        all_qs: list[dict[str, Any]] = []
+        groups_to_list: list[tuple[Path, question_inbox.QuestionGroup]] = []
         if run_dir is not None:
-            all_qs = question_inbox.read_open_questions(run_dir)
+            st = (
+                runner_shared.load_state(run_dir)
+                if (run_dir / "state.json").is_file()
+                else None
+            )
+            g_list = question_inbox.group_open_questions(run_dir, st)
+            if group_arg:
+                g_list = [g for g in g_list if g.group_id == group_arg]
             if qid_arg:
-                all_qs = [q for q in all_qs if q.get("question_id") == qid_arg]
+                g_list = [
+                    g
+                    for g in g_list
+                    if any(m.question_id == qid_arg for m in g.members)
+                ]
+            for g in g_list:
+                groups_to_list.append((run_dir, g))
         else:
             for r_dir, holder in live_runs:
-                all_qs.extend(question_inbox.read_open_questions(r_dir))
+                st = (
+                    runner_shared.load_state(r_dir)
+                    if (r_dir / "state.json").is_file()
+                    else None
+                )
+                g_list = question_inbox.group_open_questions(r_dir, st)
+                if group_arg:
+                    g_list = [g for g in g_list if g.group_id == group_arg]
+                if qid_arg:
+                    g_list = [
+                        g
+                        for g in g_list
+                        if any(m.question_id == qid_arg for m in g.members)
+                    ]
+                for g in g_list:
+                    groups_to_list.append((r_dir, g))
 
-        exit_code = 0 if all_qs else 1
+        exit_code = 0 if groups_to_list else 1
         if is_machine:
             qs_payload = [
                 {
-                    "run_id": q.get("run_id", ""),
-                    "question_id": q.get("question_id", ""),
-                    "artifact_id6": q.get("artifact_id6", ""),
-                    "text": q.get("text", ""),
-                    "options": q.get("options"),
-                    "allow_free_text": bool(q.get("allow_free_text", True)),
-                    "gates_verdict": bool(q.get("gates_verdict", True)),
+                    "run_id": r_dir.name,
+                    "group_id": g.group_id,
+                    "raisers": g.raisers,
+                    "unblock_count": g.unblock_count,
+                    "question_id": g.members[0].question_id if g.members else "",
+                    "question_ids": [m.question_id for m in g.members],
+                    "text": g.text,
+                    "options": g.options,
+                    "allow_free_text": g.allow_free_text,
+                    "gates_verdict": any(m.blocking for m in g.members),
                 }
-                for q in all_qs
+                for r_dir, g in groups_to_list
             ]
             return _emit_answer_record(args, exit_code=exit_code, questions=qs_payload)
 
-        if not all_qs:
+        if not groups_to_list:
             _print_human("no open questions found")
             return 1
 
-        for q in all_qs:
-            qid = q.get("question_id", "")
-            art_id6 = q.get("artifact_id6", "")
-            run_id = q.get("run_id", "")
-            clean_text = _clean_worker_text(q.get("text", ""))
-            _print_human(f"[{run_id}] {qid} (artifact: {art_id6}):")
+        for r_dir, g in groups_to_list:
+            clean_text = _clean_worker_text(g.text)
+            raisers_str = f"{len(g.members)} raiser(s): {', '.join(g.raisers)}"
+            _print_human(
+                f"[{r_dir.name}] [{g.group_id}] ({raisers_str}, unblocks {g.unblock_count}):"
+            )
             _print_human(f"  {clean_text}")
-            opts = q.get("options")
-            if opts:
+            if g.options:
                 _print_human("  Options:")
-                for idx, opt in enumerate(opts, 1):
+                for idx, opt in enumerate(g.options, 1):
                     _print_human(f"    {idx}. {_clean_worker_text(opt)}")
-            ev = q.get("evidence", [])
-            if ev:
-                ev_str = ", ".join(_clean_worker_text(str(e)) for e in ev)
-                _print_human(f"  Evidence: {ev_str}")
         return 0
 
     # Interactive form: term.is_interactive() is True and no answer flag was given
@@ -545,28 +622,33 @@ def _run_answer(args: argparse.Namespace) -> int:
                 label += " (liveness unknown)"
             _print_human(label)
 
-        open_qs = question_inbox.read_open_questions(r_dir)
+        st = (
+            runner_shared.load_state(r_dir)
+            if (r_dir / "state.json").is_file()
+            else None
+        )
+        groups = question_inbox.group_open_questions(r_dir, st)
+        if group_arg:
+            groups = [g for g in groups if g.group_id == group_arg]
         if qid_arg:
-            open_qs = [q for q in open_qs if q.get("question_id") == qid_arg]
+            groups = [
+                g for g in groups if any(m.question_id == qid_arg for m in g.members)
+            ]
 
-        for q in open_qs:
-            qid = q["question_id"]
-            art_id6 = q.get("artifact_id6", "")
-            raw_text = q.get("text", "")
-            clean_text = _clean_worker_text(raw_text)
-            options = q.get("options")
-            allow_free_text = bool(q.get("allow_free_text", True))
-            evidence = q.get("evidence", [])
+        for g in groups:
+            clean_text = _clean_worker_text(g.text)
+            options = g.options
+            allow_free_text = g.allow_free_text
+            raisers_str = f"{len(g.members)} raiser(s): {', '.join(g.raisers)}"
 
-            _print_human(f"\n--- Question: {qid} (Artifact: {art_id6}) ---")
+            _print_human(
+                f"\n--- Question Group: {g.group_id} ({raisers_str}, unblocks {g.unblock_count}) ---"
+            )
             _print_human(clean_text)
             if options:
                 _print_human("Options:")
                 for idx, opt in enumerate(options, 1):
                     _print_human(f"  {idx}. {_clean_worker_text(opt)}")
-            if evidence:
-                ev_summary = ", ".join(_clean_worker_text(str(e)) for e in evidence)
-                _print_human(f"Evidence: {ev_summary}")
 
             while True:
                 try:
@@ -576,7 +658,6 @@ def _run_answer(args: argparse.Namespace) -> int:
                     break
 
                 if not user_line:
-                    # Empty line skips the question
                     break
 
                 selected_choice: Optional[int] = None
@@ -586,8 +667,10 @@ def _run_answer(args: argparse.Namespace) -> int:
                         val_int = int(user_line)
                         if 1 <= val_int <= len(options):
                             selected_choice = val_int - 1
+                            selected_answer = options[selected_choice]
                         elif val_int == 0 and len(options) > 0 and user_line == "0":
                             selected_choice = 0
+                            selected_answer = options[0]
                     except ValueError:
                         pass
 
@@ -601,22 +684,23 @@ def _run_answer(args: argparse.Namespace) -> int:
                         continue
                     selected_answer = user_line
 
-                ans_res = question_inbox.write_answer(
+                ans_res = question_inbox.write_group_answer(
                     r_dir,
-                    qid,
+                    st,
+                    g.group_id,
                     answer=selected_answer,
                     choice=selected_choice,
                     channel="cli",
                     sender=getpass.getuser(),
                     actor="human",
                 )
-                if ans_res.status == "recorded":
+                if ans_res.recorded:
                     _print_human("recorded")
-                    recorded_count += 1
-                elif ans_res.status == "already":
+                    recorded_count += ans_res.recorded_count
+                elif ans_res.already:
                     _print_human("already answered")
                 else:
-                    _print_human(ans_res.reason)
+                    _print_human("; ".join(ans_res.refused_reasons) or "rejected")
                 break
 
             if interrupted:

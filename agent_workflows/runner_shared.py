@@ -16817,6 +16817,46 @@ RUN_POLICY_FLAGS: tuple = (
         resume_rule=RESUME_NONE_DEFAULT,
         metavar="SECONDS",
     ),
+    RunPolicyFlag(
+        flag="--question-rounds",
+        dest="question_rounds",
+        kind="int",
+        implemented=True,
+        owner="runner_shared.drain_parked_questions",
+        help=(
+            "Maximum ask-and-re-dispatch rounds at the drain within one run (default 2, 0..10). "
+            "On reaching the bound, re-dispatching stops, remaining items stay parked, and "
+            "answers.md is written (spec 6kwd2e R5.3a)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="ROUNDS",
+    ),
+    RunPolicyFlag(
+        flag="--max-park-percent",
+        dest="max_park_percent",
+        kind="int",
+        implemented=True,
+        owner="runner_shared.check_runaway_escalation",
+        help=(
+            "Maximum percentage of dispatched items that may park before runaway escalation "
+            "stops dispatching (default 50, 1..100) (spec 6kwd2e R4b.1)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="PERCENT",
+    ),
+    RunPolicyFlag(
+        flag="--runaway-min-parked",
+        dest="runaway_min_parked",
+        kind="int",
+        implemented=True,
+        owner="runner_shared.check_runaway_escalation",
+        help=(
+            "Minimum number of parked items required before runaway escalation checking "
+            "can trigger (default 5, >= 1) (spec 6kwd2e R4b.5)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="COUNT",
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -17165,6 +17205,60 @@ def resolve_question_timeout(cli_value: Any) -> int:
         ) from exc
     if value < 1:
         raise RunFlagRefusal(f"--question-timeout: {value} must be >= 1")
+    return value
+
+
+DEFAULT_QUESTION_ROUNDS: int = 2
+
+
+def resolve_question_rounds(cli_value: Any) -> int:
+    """`--question-rounds`'s effective value: CLI over default of 2 (must be 0..10)."""
+    if cli_value is None:
+        return DEFAULT_QUESTION_ROUNDS
+    try:
+        value = int(cli_value)
+    except (TypeError, ValueError) as exc:
+        raise RunFlagRefusal(
+            f"--question-rounds: {cli_value!r} is not an integer"
+        ) from exc
+    if not (0 <= value <= 10):
+        raise RunFlagRefusal(f"--question-rounds: {value} must be between 0 and 10")
+    return value
+
+
+DEFAULT_MAX_PARK_PERCENT: int = 50
+
+
+def resolve_max_park_percent(cli_value: Any) -> int:
+    """`--max-park-percent`'s effective value: CLI over default of 50 (must be 1..100)."""
+    if cli_value is None:
+        return DEFAULT_MAX_PARK_PERCENT
+    try:
+        value = int(cli_value)
+    except (TypeError, ValueError) as exc:
+        raise RunFlagRefusal(
+            f"--max-park-percent: {cli_value!r} is not an integer"
+        ) from exc
+    if not (1 <= value <= 100):
+        raise RunFlagRefusal(f"--max-park-percent: {value} must be between 1 and 100")
+    return value
+
+
+DEFAULT_RUNAWAY_MIN_PARKED: int = 5
+
+
+def resolve_runaway_min_parked(cli_value: Any) -> int:
+    """`--runaway-min-parked`'s effective value: CLI over default of 5 (must be >= 1)."""
+    if cli_value is None:
+        return DEFAULT_RUNAWAY_MIN_PARKED
+    try:
+        value = int(cli_value)
+    except (TypeError, ValueError) as exc:
+        raise RunFlagRefusal(
+            f"--runaway-min-parked: {cli_value!r} is not an integer"
+        ) from exc
+    if value < 1:
+        raise RunFlagRefusal(f"--runaway-min-parked: {value} must be >= 1")
     return value
 
 
@@ -18083,6 +18177,12 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             frozen[row.dest] = resolve_on_conflict(_supplied(row.dest), repo=repo)
         elif row.dest == "question_timeout":
             frozen[row.dest] = resolve_question_timeout(_supplied(row.dest))
+        elif row.dest == "question_rounds":
+            frozen[row.dest] = resolve_question_rounds(_supplied(row.dest))
+        elif row.dest == "max_park_percent":
+            frozen[row.dest] = resolve_max_park_percent(_supplied(row.dest))
+        elif row.dest == "runaway_min_parked":
+            frozen[row.dest] = resolve_runaway_min_parked(_supplied(row.dest))
         elif row.kind == "multi-choice":
             # specsweep-01 (`ui8b9b`) E-03: frozen as the EFFECTIVE, RESOLVED type set, exactly as
             # `retry_budget` freezes its effective integer and for the same reason - a later reader
@@ -19054,7 +19154,7 @@ def collect_preflight_questions(
     """Collect open questions across the resolved queue (spec 6kwd2e R1.1, R1.2, qchan-07 4kkcex E-01)."""
     repo_path = Path(repo).resolve()
     result: list[PreflightQuestion] = []
-    from agent_workflows import ipd_lint, ipd_schema, question_inbox
+    from agent_workflows import ipd_lint, ipd_schema
 
     for item in queue:
         if not isinstance(item, Mapping):
@@ -19133,11 +19233,6 @@ def collect_preflight_questions(
                 )
             )
 
-    if hasattr(question_inbox, "group_open_questions") and callable(
-        question_inbox.group_open_questions
-    ):
-        result = list(question_inbox.group_open_questions(result))
-
     return result
 
 
@@ -19169,6 +19264,23 @@ def prompt_for_free_text(
 
     if isinstance(question, str):
         prompt_str = question
+    elif hasattr(question, "members") and hasattr(question, "group_id"):
+        from agent_workflows import term
+
+        clean_text = term.strip_ansi(getattr(question, "text", ""))
+        opts_str = ""
+        opts = getattr(question, "options", [])
+        if opts:
+            opts_lines = ["Options:"]
+            for idx, opt in enumerate(opts, 1):
+                opts_lines.append(f"  {idx}. {term.strip_ansi(opt)}")
+            opts_str = "\n" + "\n".join(opts_lines)
+        members_len = len(getattr(question, "members", []))
+        unblock_cnt = getattr(question, "unblock_count", 0)
+        prompt_str = (
+            f"\n[{question.group_id}] ({members_len} raiser(s), unblocks {unblock_cnt}):\n"
+            f"{clean_text}{opts_str}\nAnswer: "
+        )
     elif hasattr(question, "heading"):
         art_id = getattr(question, "artifact_id6", "")
         oq_id = getattr(question, "oq_id", "")
@@ -24182,8 +24294,9 @@ def update_awaiting_upstream(state: dict[str, Any]) -> None:
             item.pop("awaiting_upstream", None)
 
 
-def report_parked_drain_summary(run_dir: Path, state: Mapping[str, Any]) -> None:
-    """Print the summary line when the queue is drained with parked items (spec 6kwd2e R7.3, qchan-02 epsti7 E-04)."""
+def report_parked_drain_summary(run_dir: Path | str, state: Mapping[str, Any]) -> None:
+    """Print the summary line when the queue is drained with parked items (spec 6kwd2e R7.3, qchan-02 epsti7 E-04, jshwxb E-03)."""
+    p_run_dir = Path(run_dir)
     queue = state.get("queue") or []
     parked = [
         it
@@ -24198,7 +24311,9 @@ def report_parked_drain_summary(run_dir: Path, state: Mapping[str, Any]) -> None
         and waits_on_awaiting_human(it, state)
     ]
     if parked:
-        msg = f"{len(parked)} item(s) parked awaiting answers; {len(waiting)} waiting on them ({run_dir})"
+        ans_file = p_run_dir / "answers.md"
+        target = ans_file if ans_file.is_file() else p_run_dir
+        msg = f"{len(parked)} item(s) parked awaiting answers; {len(waiting)} waiting on them ({target})"
         print(f"  • {msg}")
 
 
@@ -24620,6 +24735,314 @@ def dispatch_sort_key(
     Answered items come first, and dependency depth stays the first key within each group.
     """
     return (not bool(item.get("resume_with_answers")), *queue_sort_key(item, by_id))
+
+
+def check_runaway_escalation(
+    run_dir: Path | str,
+    state: dict[str, Any],
+    *,
+    stderr: Any = None,
+    save_state_fn: Any = None,
+) -> bool:
+    """Check for runaway escalation breach after an item parks (spec 6kwd2e R4b, E-04).
+
+    Definitions, recorded in state:
+    DISPATCHED = items with at least one attempt started in this run;
+    PARKED = items that have parked on an EMERGENT question at least once in this run
+             (a preflight_parked item never dispatched and is excluded from both).
+
+    When PARKED >= runaway_min_parked (default 5) AND PARKED * 100 > DISPATCHED * max_park_percent (default 50):
+    - records state["runaway_escalation"] = {parked, dispatched, ratio, at}
+    - appends runaway-escalation event to events.jsonl
+    - prints one red stderr line with the observed ratio stating that a runaway escalation rate is
+      more likely a defect in the prompt or the worker's classification than a genuine backlog of
+      human decisions and that the human should NOT start answering (R4b.2)
+    - stops dispatching without drain ask; answers.md is still written (R4b.4)
+    Returns True if breached, False otherwise.
+    """
+    if not isinstance(state, dict):
+        return False
+    if state.get("runaway_escalation"):
+        return True
+
+    queue = state.get("queue")
+    if not isinstance(queue, list):
+        return False
+
+    dispatched_count = 0
+    parked_count = 0
+
+    for it in queue:
+        if not isinstance(it, Mapping):
+            continue
+        if it.get("preflight_parked"):
+            continue
+
+        attempts = it.get("attempts")
+        cur_attempt = it.get("current_attempt")
+        has_started = (
+            (isinstance(attempts, (list, tuple)) and len(attempts) > 0)
+            or (isinstance(cur_attempt, int) and cur_attempt > 0)
+            or bool(it.get("dispatched"))
+        )
+        if has_started:
+            dispatched_count += 1
+
+        if bool(it.get("emergent_parked")) or it.get("status") == AWAITING_HUMAN_STATUS:
+            parked_count += 1
+
+    options = state.get("options") or {}
+    min_parked = resolve_runaway_min_parked(options.get("runaway_min_parked"))
+    max_percent = resolve_max_park_percent(options.get("max_park_percent"))
+
+    if parked_count >= min_parked and (
+        parked_count * 100 > dispatched_count * max_percent
+    ):
+        ratio = (parked_count / dispatched_count) if dispatched_count > 0 else 0.0
+        now_ts = utc_now()
+        esc_record = {
+            "parked": parked_count,
+            "dispatched": dispatched_count,
+            "ratio": ratio,
+            "at": now_ts,
+        }
+        state["runaway_escalation"] = esc_record
+
+        p_run_dir = Path(run_dir).resolve()
+        append_jsonl(
+            p_run_dir / "events.jsonl",
+            {
+                "at": now_ts,
+                "event": "runaway-escalation",
+                "parked": parked_count,
+                "dispatched": dispatched_count,
+                "ratio": ratio,
+                "max_park_percent": max_percent,
+                "runaway_min_parked": min_parked,
+            },
+        )
+
+        stream = sys.stderr if stderr is None else stderr
+        ratio_str = f"{ratio:.2f}"
+        msg = (
+            f"\033[31mRunaway escalation detected: {parked_count} of {dispatched_count} "
+            f"dispatched items parked (ratio {ratio_str}). A runaway escalation rate is "
+            "more likely a defect in the prompt or the worker's classification than a "
+            "genuine backlog of human decisions. Do NOT start answering.\033[0m"
+        )
+        try:
+            print(msg, file=stream, flush=True)
+        except Exception:
+            pass
+
+        from agent_workflows import question_inbox
+
+        try:
+            host_lbl = (
+                OC_HOST_LABELS
+                if state.get("driver", {}).get("id") == "oc"
+                else AGY_HOST_LABELS
+            )
+            cmd = host_lbl.command
+            repo_p = Path(state.get("repo") or Path.cwd()).resolve()
+            run_id = str(state.get("run_id") or p_run_dir.name)
+            resume_cmd = f"{cmd} resume {run_id} --repo {repo_p}"
+            question_inbox.write_answers_file(
+                p_run_dir, state, resume_command=resume_cmd
+            )
+        except Exception as a_err:
+            append_jsonl(
+                p_run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "answers-write-failed",
+                    "error": str(a_err),
+                },
+            )
+
+        if save_state_fn:
+            save_state_fn(p_run_dir, state)
+        else:
+            save_state(p_run_dir, state)
+
+        return True
+
+    return False
+
+
+def drain_parked_questions(
+    run_dir: Path | str,
+    state: dict[str, Any],
+    *,
+    labels: Any = None,
+    rounds_used: int = 0,
+    save_state: Any = None,
+    append_jsonl: Any = None,
+    stdin: Any = None,
+    stderr: Any = None,
+) -> str:
+    """Drain parked questions at run conclusion (spec 6kwd2e R5.1-R5.3a, R7.1-R7.3, E-07).
+
+    Returns 'continue' to re-dispatch in the same invocation, or 'exit' to terminate.
+    """
+    import argparse
+    import getpass
+    from agent_workflows import question_inbox, term
+
+    p_run_dir = Path(run_dir).resolve()
+    if not isinstance(state, dict):
+        return "exit"
+
+    queue = state.get("queue")
+    if not isinstance(queue, list):
+        return "exit"
+
+    parked_items = [
+        it
+        for it in queue
+        if isinstance(it, Mapping) and it.get("status") == AWAITING_HUMAN_STATUS
+    ]
+    if not parked_items:
+        return "exit"
+
+    if state.get("runaway_escalation"):
+        return "exit"
+
+    options = state.get("options") or {}
+    opts_ns = argparse.Namespace(
+        unattended=bool(options.get("unattended")),
+        full_auto=bool(options.get("full_auto")),
+    )
+    interactive = is_interactive_run(opts_ns)
+    question_rounds = resolve_question_rounds(options.get("question_rounds"))
+    host_labels = labels or OC_HOST_LABELS
+    cmd = host_labels.command
+    repo_p = Path(state.get("repo") or Path.cwd()).resolve()
+    run_id = str(state.get("run_id") or p_run_dir.name)
+    resume_cmd = f"{cmd} resume {run_id} --repo {repo_p}"
+
+    if interactive and rounds_used < question_rounds:
+        groups = question_inbox.group_open_questions(p_run_dir, state)
+        if not groups:
+            question_inbox.write_answers_file(
+                p_run_dir, state, resume_command=resume_cmd
+            )
+            return "exit"
+
+        distinct_count = len(groups)
+        all_artifacts = sorted({art for g in groups for art in g.raisers})
+        stream_err = sys.stderr if stderr is None else stderr
+        try:
+            print(
+                f"\nParked questions at drain: {distinct_count} distinct question(s) across {len(all_artifacts)} artifact(s):",
+                file=stream_err,
+                flush=True,
+            )
+            for g in groups:
+                print(
+                    f"  • [{g.group_id}] unblocks {g.unblock_count} item(s) (raisers: {', '.join(g.raisers)})",
+                    file=stream_err,
+                    flush=True,
+                )
+        except Exception:
+            pass
+
+        q_timeout = resolve_question_timeout(options.get("question_timeout"))
+        interrupted = False
+        recorded_anything = False
+
+        for g in groups:
+            if interrupted:
+                break
+
+            clean_text = term.strip_ansi(g.text)
+            opts_lines = []
+            if g.options:
+                opts_lines.append("Options:")
+                for idx, opt in enumerate(g.options, 1):
+                    opts_lines.append(f"  {idx}. {term.strip_ansi(opt)}")
+            opts_str = ("\n" + "\n".join(opts_lines)) if opts_lines else ""
+
+            prompt_str = (
+                f"\n[{g.group_id}] ({len(g.members)} raiser(s), unblocks {g.unblock_count}):\n"
+                f"{clean_text}{opts_str}\nAnswer: "
+            )
+
+            try:
+                ans_text = prompt_for_free_text(
+                    prompt_str,
+                    timeout=q_timeout,
+                    stdin=stdin,
+                    stderr=stderr,
+                )
+            except (KeyboardInterrupt, SystemExit):
+                interrupted = True
+                break
+
+            if ans_text is not None and ans_text.strip():
+                raw_ans = ans_text.strip()
+                selected_choice: int | None = None
+                selected_answer: str | None = None
+
+                if g.options:
+                    try:
+                        val_int = int(raw_ans)
+                        if 1 <= val_int <= len(g.options):
+                            selected_choice = val_int - 1
+                            selected_answer = g.options[selected_choice]
+                        elif val_int == 0 and len(g.options) > 0 and raw_ans == "0":
+                            selected_choice = 0
+                            selected_answer = g.options[0]
+                    except ValueError:
+                        pass
+
+                if selected_choice is not None:
+                    pass
+                elif g.allow_free_text:
+                    selected_answer = raw_ans
+                else:
+                    selected_answer = None
+
+                if selected_answer is not None or selected_choice is not None:
+                    res = question_inbox.write_group_answer(
+                        p_run_dir,
+                        state,
+                        g.group_id,
+                        answer=selected_answer,
+                        choice=selected_choice,
+                        channel="terminal",
+                        sender=getpass.getuser(),
+                        actor="human",
+                    )
+                    if res.recorded:
+                        recorded_anything = True
+
+        if recorded_anything:
+            consume_answers(p_run_dir, state)
+            state["question_rounds_used"] = rounds_used + 1
+            if save_state:
+                save_state(p_run_dir, state)
+            return "continue"
+
+        question_inbox.write_answers_file(p_run_dir, state, resume_command=resume_cmd)
+        return "exit"
+
+    fn_append = append_jsonl if append_jsonl is not None else globals()["append_jsonl"]
+    if interactive and rounds_used >= question_rounds:
+        fn_append(
+            p_run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "question-rounds-exhausted",
+                "rounds": rounds_used,
+                "rounds_used": rounds_used,
+                "max_rounds": question_rounds,
+                "question_rounds": question_rounds,
+            },
+        )
+
+    question_inbox.write_answers_file(p_run_dir, state, resume_command=resume_cmd)
+    return "exit"
 
 
 def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
@@ -34925,13 +35348,8 @@ def initialize_run_core(
 
         if preflight_qs and is_interactive_run(args):
             artifacts_affected = {q.artifact_id6 for q in preflight_qs}
-            print(
-                f"\nPre-flight open questions: {len(preflight_qs)} question(s) across {len(artifacts_affected)} artifact(s)",
-                file=sys.stderr,
-                flush=True,
-            )
-
             from agent_workflows import git_commit_helper as _gch
+            from agent_workflows import question_inbox
             import getpass
 
             host_lbl = (
@@ -34943,43 +35361,119 @@ def initialize_run_core(
             channel_str = f"aw {host} run pre-flight"
             today_date = utc_now()[:10]
 
-            qs_list = list(preflight_qs)
+            q_records = []
+            for q in preflight_qs:
+                fp = question_fingerprint(q.heading, ())
+                q_records.append(
+                    {
+                        "fingerprint": fp,
+                        "question_id": q.oq_id,
+                        "artifact_id6": q.artifact_id6,
+                        "action": "preflight",
+                        "blocking": q.blocking,
+                        "text": q.heading,
+                        "options": [],
+                        "allow_free_text": True,
+                        "artifact_path": q.artifact_path,
+                        "artifact_hash": q.artifact_hash,
+                        "preflight_obj": q,
+                    }
+                )
+
+            groups = question_inbox.group_questions(q_records, state={"queue": queue})
+
+            print(
+                f"\nPre-flight open questions: {len(groups)} distinct question(s) across {len(artifacts_affected)} artifact(s):",
+                file=sys.stderr,
+                flush=True,
+            )
+            for g in groups:
+                print(
+                    f"  • [{g.group_id}] unblocks {g.unblock_count} item(s) (raisers: {', '.join(g.raisers)})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+            current_hashes: dict[str, str] = {
+                q.artifact_path: q.artifact_hash for q in preflight_qs
+            }
+
             interrupted = False
-            for idx, q in enumerate(qs_list):
-                owning_item = q_item_map.get(q.artifact_id6)
+            for g in groups:
                 if interrupted:
-                    if owning_item:
-                        unanswered_preflight.append((owning_item, q))
+                    for m in g.members:
+                        q_obj = m.raw.get("preflight_obj")
+                        owning_item = q_item_map.get(m.artifact_id6)
+                        if owning_item and q_obj:
+                            unanswered_preflight.append((owning_item, q_obj))
                     continue
 
                 try:
-                    ans_text = prompt_for_free_text(q, timeout=q_timeout)
+                    ans_text = prompt_for_free_text(g, timeout=q_timeout)
                 except (KeyboardInterrupt, SystemExit):
                     interrupted = True
-                    if owning_item:
-                        unanswered_preflight.append((owning_item, q))
+                    for m in g.members:
+                        q_obj = m.raw.get("preflight_obj")
+                        owning_item = q_item_map.get(m.artifact_id6)
+                        if owning_item and q_obj:
+                            unanswered_preflight.append((owning_item, q_obj))
                     continue
 
                 if ans_text is not None and ans_text.strip():
-                    recorded = record_oq_answer(
-                        repo,
-                        q.artifact_path,
-                        q.oq_id,
-                        answer=ans_text.strip(),
-                        who=user_who,
-                        channel=channel_str,
-                        date=today_date,
-                        expected_hash=q.artifact_hash,
-                    )
-                    commit_sha = None
-                    if recorded:
-                        commit_msg = (
-                            f"{q.artifact_id6} {q.oq_id}: pre-flight sweep answer"
+                    ans_clean = ans_text.strip()
+                    recorded_members: list[tuple[Any, PreflightQuestion]] = []
+                    paths_to_commit: list[str] = []
+
+                    for m in g.members:
+                        q_obj = m.raw.get("preflight_obj")
+                        owning_item = q_item_map.get(m.artifact_id6)
+                        exp_hash = current_hashes.get(
+                            q_obj.artifact_path, q_obj.artifact_hash
                         )
+                        recorded = record_oq_answer(
+                            repo,
+                            q_obj.artifact_path,
+                            q_obj.oq_id,
+                            answer=ans_clean,
+                            who=user_who,
+                            channel=channel_str,
+                            date=today_date,
+                            expected_hash=exp_hash,
+                        )
+                        if recorded:
+                            recorded_members.append((m, q_obj))
+                            if q_obj.artifact_path not in paths_to_commit:
+                                paths_to_commit.append(q_obj.artifact_path)
+                        else:
+                            if owning_item:
+                                unanswered_preflight.append((owning_item, q_obj))
+                            preflight_events.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "preflight-question-unanswered",
+                                    "id6": q_obj.artifact_id6,
+                                    "oq_id": q_obj.oq_id,
+                                    "reason": "hash-mismatch",
+                                }
+                            )
+
+                    commit_sha = None
+                    if paths_to_commit:
+                        if len(paths_to_commit) > 1:
+                            commit_msg = (
+                                f"{g.group_id}: pre-flight sweep answer across "
+                                f"{len(paths_to_commit)} artifact(s)"
+                            )
+                        else:
+                            first_q = recorded_members[0][1]
+                            commit_msg = (
+                                f"{first_q.artifact_id6} {first_q.oq_id}: "
+                                "pre-flight sweep answer"
+                            )
                         try:
                             outcome = _gch.offer_commit(
                                 repo,
-                                [q.artifact_path],
+                                paths_to_commit,
                                 message=commit_msg,
                                 assume_yes=True,
                                 on_unrelated_staged="scope",
@@ -34989,71 +35483,69 @@ def initialize_run_core(
                             commit_sha = getattr(outcome, "commit", None)
                             if commit_sha:
                                 print(
-                                    f"[{q.artifact_id6}] {q.oq_id} committed: {commit_sha}",
+                                    f"[{g.group_id}] committed: {commit_sha}",
                                     file=sys.stderr,
                                     flush=True,
                                 )
-                                full_art_p = (repo / q.artifact_path).resolve()
-                                if full_art_p.is_file():
-                                    new_h = sha256_file(full_art_p)
-                                    for rem_idx in range(idx + 1, len(qs_list)):
-                                        if (
-                                            qs_list[rem_idx].artifact_path
-                                            == q.artifact_path
-                                        ):
-                                            qs_list[rem_idx] = qs_list[
-                                                rem_idx
-                                            ]._replace(artifact_hash=new_h)
+                                for p in paths_to_commit:
+                                    full_p = (repo / p).resolve()
+                                    if full_p.is_file():
+                                        current_hashes[p] = sha256_file(full_p)
                             else:
                                 print(
-                                    f"[{q.artifact_id6}] {q.oq_id} commit {outcome.status}: {outcome.message}",
+                                    f"[{g.group_id}] commit {outcome.status}: {outcome.message}",
                                     file=sys.stderr,
                                     flush=True,
                                 )
                         except Exception as c_err:
                             print(
-                                f"[{q.artifact_id6}] {q.oq_id} commit failed: {c_err}",
+                                f"[{g.group_id}] commit failed: {c_err}",
                                 file=sys.stderr,
                                 flush=True,
                             )
 
-                    if recorded and commit_sha:
-                        preflight_events.append(
-                            {
-                                "at": utc_now(),
-                                "event": "preflight-question-answered",
-                                "id6": q.artifact_id6,
-                                "oq_id": q.oq_id,
-                                "channel": channel_str,
-                                "commit": commit_sha,
-                            }
-                        )
+                    if commit_sha:
+                        for m, q_obj in recorded_members:
+                            preflight_events.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "preflight-question-answered",
+                                    "id6": q_obj.artifact_id6,
+                                    "oq_id": q_obj.oq_id,
+                                    "channel": channel_str,
+                                    "commit": commit_sha,
+                                }
+                            )
                     else:
-                        if owning_item:
-                            unanswered_preflight.append((owning_item, q))
-                        preflight_events.append(
-                            {
-                                "at": utc_now(),
-                                "event": "preflight-question-unanswered",
-                                "id6": q.artifact_id6,
-                                "oq_id": q.oq_id,
-                                "reason": "commit-failed"
-                                if recorded
-                                else "hash-mismatch",
-                            }
-                        )
+                        for m, q_obj in recorded_members:
+                            owning_item = q_item_map.get(m.artifact_id6)
+                            if owning_item:
+                                unanswered_preflight.append((owning_item, q_obj))
+                            preflight_events.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "preflight-question-unanswered",
+                                    "id6": q_obj.artifact_id6,
+                                    "oq_id": q_obj.oq_id,
+                                    "reason": "commit-failed",
+                                }
+                            )
                 else:
-                    if owning_item:
-                        unanswered_preflight.append((owning_item, q))
-                    preflight_events.append(
-                        {
-                            "at": utc_now(),
-                            "event": "preflight-question-unanswered",
-                            "id6": q.artifact_id6,
-                            "oq_id": q.oq_id,
-                            "reason": "timeout-or-empty",
-                        }
-                    )
+                    for m in g.members:
+                        q_obj = m.raw.get("preflight_obj")
+                        owning_item = q_item_map.get(m.artifact_id6)
+                        if owning_item and q_obj:
+                            unanswered_preflight.append((owning_item, q_obj))
+                        if q_obj:
+                            preflight_events.append(
+                                {
+                                    "at": utc_now(),
+                                    "event": "preflight-question-unanswered",
+                                    "id6": q_obj.artifact_id6,
+                                    "oq_id": q_obj.oq_id,
+                                    "reason": "timeout-or-empty",
+                                }
+                            )
         else:
             for q in preflight_qs:
                 owning_item = q_item_map.get(q.artifact_id6)
@@ -41590,8 +42082,11 @@ def execute_item_core(
                 )
                 attempt["defect_report"] = defect_rec
                 item["defect_report"] = defect_rec
-
+                item["emergent_parked"] = True
                 update_awaiting_upstream(state)
+                check_runaway_escalation(
+                    run_dir, state, stderr=sys.stderr, save_state_fn=save_state
+                )
                 save_state(run_dir, state)
                 ring_bell_on_first_park(run_dir, state, stream=sys.stdout)
 
@@ -43280,7 +43775,11 @@ def execute_item_core(
                         },
                     )
 
+                item["emergent_parked"] = True
                 update_awaiting_upstream(state)
+                check_runaway_escalation(
+                    run_dir, state, stderr=sys.stderr, save_state_fn=save_state
+                )
                 save_state(run_dir, state)
                 ring_bell_on_first_park(run_dir, state, stream=sys.stdout)
 

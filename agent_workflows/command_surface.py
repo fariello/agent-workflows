@@ -1142,7 +1142,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
-        legacy_flags=("--answer", "--choice", "--agent", "--json"),
+        legacy_flags=("--answer", "--choice", "--group", "--agent", "--json"),
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(

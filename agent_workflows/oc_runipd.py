@@ -4092,6 +4092,7 @@ def run_queue(
     # runstop foi1b3: True once a level-3 stop cut the running TURN at an observed safe checkpoint.
     # Tracked separately from `wind_down` because levels 1-2 stop BETWEEN turns while level 3 stops
     # inside one, yet both are DELIBERATE and so must share the honest exit contract below.
+    rounds_used = int(state.get("question_rounds_used", 0))
     stopped_at_checkpoint = False
     while True:
         # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), evaluated
@@ -4116,6 +4117,12 @@ def run_queue(
             package_root=package_root,
         ) in ("restart", "limit-reached"):
             break
+        if state.get("runaway_escalation"):
+            break
+        from agent_workflows import question_inbox
+
+        with contextlib.suppress(Exception):
+            question_inbox.ingest_answers_file(run_dir, state)
         # qchan-04 (j0ufrj) E-01: consume answers at dispatch checkpoints before cascade and selection
         if runner_shared.consume_answers(run_dir, state):
             save_state(run_dir, state)
@@ -4164,6 +4171,19 @@ def run_queue(
             if wind_down is not None and not stop_recorded:
                 _record_deliberate_stop(run_dir, state, wind_down)
                 stop_recorded = True
+            drain_act = runner_shared.drain_parked_questions(
+                run_dir,
+                state,
+                labels=runner_shared.OC_HOST_LABELS,
+                rounds_used=rounds_used,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            if drain_act == "continue":
+                rounds_used += 1
+                state = load_state(run_dir)
+                continue
+            runner_shared.report_parked_drain_summary(run_dir, state)
             break
         runnable = None
         # 8guhs0 E-04: DECLARED EDGES are authoritative; Set/Order only breaks ties among nodes that
@@ -4259,6 +4279,18 @@ def run_queue(
                     continue
                 stopped_at_checkpoint = True
                 break
+            drain_act = runner_shared.drain_parked_questions(
+                run_dir,
+                state,
+                labels=runner_shared.OC_HOST_LABELS,
+                rounds_used=rounds_used,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            if drain_act == "continue":
+                rounds_used += 1
+                state = load_state(run_dir)
+                continue
             # depblock 01 (`akzy45`) E-02: CLASSIFY BEFORE LABELLING. This loop used to write the
             # TERMINAL `dependency-blocked` on EVERY remaining queued item unconditionally, which
             # conflated "not ready yet" with "can never be ready" and made the first one unrecoverable
@@ -4528,6 +4560,17 @@ def run_queue(
         exit_reason = f"STOPPED (Level {wind_down.level}: {runner_stop.LEVEL_NAMES.get(wind_down.level, 'wind-down')})"
     elif stopped_at_checkpoint:
         exit_reason = "STOPPED (at checkpoint)"
+    elif state.get("runaway_escalation"):
+        esc = state["runaway_escalation"]
+        p = esc.get("parked", 0)
+        d = esc.get("dispatched", 0)
+        r = esc.get("ratio", 0.0)
+        exit_reason = (
+            f"RUNAWAY ESCALATION ({p} of {d} dispatched items parked, ratio {r:.2f})"
+        )
+    if exit_reason:
+        state["exit_reason"] = exit_reason
+        save_state(run_dir, state)
     with contextlib.suppress(Exception):
         from agent_workflows.notify import core as notify_core
 
