@@ -88,6 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Classifying a budget-only post-merge red as unmeasured in `SuiteCheckResult`: designed in plan `sa629y`, graduated from duplicate backlog item `o58dro`.
   - Carrier: sa629y
+  - Carrier-Evidence: .aw/records/plans/executed/20261017-o58dro-01-sa629y-budget-only-post-merge-red-defers-as-unmeasured.ipd.md
 - End-to-end host-level proof of budget-only revalidation deferral and re-attempt: designed in plan `xc1xh9` (graduated from backlog item `vtcqpf`).
   - Carrier: xc1xh9
 - Load-aware budget enforcement in bare pytest and send-back wording: designed in plan `44nfmd` (Set `48hjbx`).
