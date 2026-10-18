@@ -6,7 +6,7 @@
 - Scope: Replace the literal count with an assertion derived from the installer's own observable outputs, so the test still proves that the commit contains exactly what the install wrote and nothing else, without pinning a payload size.
 - Scope-Paths: tests/test_clean_target_config_home.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +19,7 @@
 - Id: im4afa
 
 ## Workflow history
+- 2026-10-18 superseded (aw set): Superseded by 84cba788c and executed plan 3nczai
 - 2026-10-17 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, open, OQ-02 blocking), PR-002 (MEDIUM, open)
 - 2026-10-17 draft (opencode): created.
 - 2026-10-17 to-review (opencode): authored from backlog ioegmo; reproduced the failure in the lane (363 actual vs 358 pinned).
@@ -106,11 +107,11 @@ N/A: test-only change; no spec or user-facing doc describes the installed file c
 
 ### OQ-02: Retire this plan as superseded, or rescope it?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: OPEN (raised by /plan-review 2026-10-17). The premise is false at HEAD: commit 84cba788c already removed the `"358 files changed"` literal and replaced it with derived assertions (install-commit path set equals `git ls-files` minus `README.md`, non-empty, contains `AGENTS.md` and `.aw/.gitignore`, clean `git status --porcelain`), so E-02 has nothing to replace and V-02's diff demand cannot be met. Sibling plan `3nczai` (Set `6i9viq`, same defect, reviewed this sweep) was rescoped to verify that landed fix and prove its sensitivity. Recommended: retire this plan to `superseded/` (superseded by 84cba788c and `3nczai`) and close backlog `ioegmo` with `aw backlog set done ioegmo --evidence <executed 3nczai plan path>` once `3nczai` executes, which carries the `Blocks-Release: next` gate via the SATISFIED route. Alternative: rescope this plan to switch the oracle to the installer's `.created-files.json` record; the review measured that record is NOT an exact oracle (see the review record), so that alternative needs its own design.
+- Resolution or deferral rationale: Resolved: retired as superseded by commit 84cba788c and executed plan 3nczai (Set 6i9viq), which derived the private-target install commit expectation and proved test sensitivity.
 
 ## Validation and cross-check (verify before reporting done)
 
