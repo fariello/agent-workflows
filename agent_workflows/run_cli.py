@@ -26,6 +26,8 @@ Contract:
     'not a run ledger file' verdict (`EXIT_NOT_A_LEDGER`), never a corruption verdict: reporting healthy driver
     event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
   * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
+  * Under `--agent`, exit-0 and exit-1 answers are `aw.agent/v1` result records that keep the legacy
+    payload keys and honor `--fields`, while `--json`, exit-3 answers, and non-2 refusals stay bare.
   * Read-only: the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to
     the ledger, and `write_index` writes a rebuildable projection when called.
   * Redacts sensitive values in both human and machine outputs; `_print_human` serves as the human choke point.
@@ -183,9 +185,9 @@ def _emit_projection(
 ) -> int:
     """Shared body of `aw runs decisions|questions` (read-only). Exit 0 found / 1 empty / 2 missing.
 
-    Human mode prints the projection markdown verbatim. Machine mode (`--agent`/`--json`) emits ONE
-    bare JSON object through `_emit_machine`, the same bare-dict family as the other `aw runs`
-    leaves (hbok5d). Every path printed is repo-relative (`agent_schema.normalize_repo_path`).
+    Human mode prints the projection markdown verbatim. Under `--agent`, emits an `aw.agent/v1`
+    result record via `_emit_result`; `--json` emits the bare JSON object. Every path printed is
+    repo-relative (`agent_schema.normalize_repo_path`).
     """
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     path = _projection_dir(args) / filename
@@ -202,7 +204,7 @@ def _emit_projection(
     empty = empty_marker in text
     exit_code = 1 if empty else 0
     if _machine(args):
-        _emit_machine(
+        _emit_result(
             args,
             {
                 "ok": True,
@@ -214,6 +216,7 @@ def _emit_projection(
                 "content": text,
                 "exit_code": exit_code,
             },
+            exit_code,
         )
     else:
         _print_human(text, end="" if text.endswith("\n") else "\n")
@@ -373,12 +376,11 @@ def _emit_answer_record(
     if error is not None:
         rec["error"] = agent_schema.normalize_repo_path(error, repo_root)
 
-    rec = _redact_output(rec)
-    rec = _sanitize_agent_value(rec)
-
     if getattr(args, "agent", False) or getattr(args, "as_agent", False):
-        sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+        _emit_agent_record(args, rec)
     elif getattr(args, "json", False) or getattr(args, "as_json", False):
+        rec = _redact_output(rec)
+        rec = _sanitize_agent_value(rec)
         print(json.dumps(rec, indent=2, sort_keys=True, ensure_ascii=False))
     return exit_code
 
@@ -721,6 +723,28 @@ def _emit_agent_record(args: argparse.Namespace, rec: Dict[str, Any]) -> None:
             fields = [f.strip() for f in fields.split(",") if f.strip()]
         rec = agent_schema.filter_record_fields(rec, fields)
     sys.stdout.write(agent_schema.render_guarded_jsonl_record(rec))
+
+
+def _emit_result(args: argparse.Namespace, payload: Any, exit_code: int) -> None:
+    """Emit an aw.agent/v1 result record under --agent for exit 0/1, or bare machine output."""
+    if (
+        (getattr(args, "agent", False) or getattr(args, "as_agent", False))
+        and exit_code in (EXIT_OK, EXIT_INCOMPLETE)
+        and isinstance(payload, dict)
+    ):
+        rec = {
+            **payload,
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "result",
+            "cmd": _agent_cmd(args),
+            "exit": exit_code,
+            "outcome": "ok" if exit_code == EXIT_OK else "findings",
+            "verified": True,
+            "complete": True,
+        }
+        _emit_agent_record(args, rec)
+    else:
+        _emit_machine(args, payload)
 
 
 def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -> int:
@@ -1073,6 +1097,7 @@ def _run_show(args: argparse.Namespace) -> int:
         for name, p in evaluation.predicates.items()
     }
 
+    rc = 0 if evaluation.is_complete else 1
     if machine:
         payload = {
             "run_id": run_id,
@@ -1089,7 +1114,7 @@ def _run_show(args: argparse.Namespace) -> int:
             "unresolved_blockers": list(evaluation.unresolved_blockers),
             "reasons": list(evaluation.reasons),
         }
-        _emit_machine(args, payload)
+        _emit_result(args, payload, rc)
     else:
         _print_human(f"Run: {run_id}")
         if repo:
@@ -1113,7 +1138,7 @@ def _run_show(args: argparse.Namespace) -> int:
             for r in evaluation.reasons:
                 _print_human(f"  - {r}")
 
-    return 0 if evaluation.is_complete else 1
+    return rc
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1203,6 +1228,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
             evidence_records.append(rec_summary)
 
     rel_ledger = agent_schema.normalize_repo_path(ledger_file, repo_dir)
+    rc = 1 if any_invalid else 0
     if machine:
         payload = {
             "ledger": rel_ledger,
@@ -1210,7 +1236,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
             "all_valid": not any_invalid,
             "evidence": evidence_records,
         }
-        _emit_machine(args, payload)
+        _emit_result(args, payload, rc)
     else:
         _print_human(f"Evidence for {rel_ledger} ({len(evidence_records)} items):")
         if not evidence_records:
@@ -1238,7 +1264,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
                         f"  Finding: {f['code']} ({f['where']}): {f['message']}"
                     )
 
-    return 1 if any_invalid else 0
+    return rc
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1299,6 +1325,7 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
     evaluation = evidence.evaluate_completion(records)
 
     is_valid = evidence_val.ok and evaluation.is_complete
+    rc = 0 if is_valid else 1
 
     if machine:
         payload = {
@@ -1318,7 +1345,7 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
             ],
             "reasons": list(evaluation.reasons),
         }
-        _emit_machine(args, payload)
+        _emit_result(args, payload, rc)
     else:
         _print_human(
             f"Ledger: {agent_schema.normalize_repo_path(ledger_file, repo_dir)}"
@@ -1346,9 +1373,7 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
         else:
             _print_human("\nOverall Status: FAIL")
 
-    if not evidence_val.ok or not evaluation.is_complete:
-        return 1
-    return 0
+    return rc
 
 
 # ==================================================================================================
@@ -1375,7 +1400,8 @@ def _emit_error(
     `aw.agent/v1` `kind: "error"` record (`outcome: "cannot-run"`, `exit: 2`, `verified: false`,
     `complete: false`, `cmd` naming the leaf, and a `next` recovery command) that retains the legacy
     `ok`/`error`/`exit_code` keys and honors `--fields`. `--json` refusals and non-2 refusals (exit 1
-    and 3 to 7) keep the bare JSON shape, carried by backlog `p7bvku`.
+    and 3 to 7) keep the bare JSON shape, carried by backlog `p7bvku`. Success answers under `--agent`
+    (exit 0 and 1) are emitted as `kind: "result"` records via `_emit_result`.
     `tests/test_run_cli_error_payload_keys.py` guards this split across leaves and renderers.
     """
     if (
@@ -1840,7 +1866,7 @@ def _run_start(args: argparse.Namespace) -> int:
     if _machine(args):
         payload = _snapshot_payload(snapshot)
         payload["started_step"] = step_id
-        _emit_machine(args, payload)
+        _emit_result(args, payload, EXIT_OK)
     else:
         _print_human(f"Started step {step_id} (state: {snapshot.steps[step_id].state})")
     return EXIT_OK
@@ -1866,9 +1892,10 @@ def _run_next(args: argparse.Namespace) -> int:
 
     runnable_ids = [s.step_id for s in runnable]
     terminal = snapshot.state in run_state.TERMINAL_STATES
+    rc = EXIT_OK if (terminal or runnable_ids) else EXIT_BLOCKED
 
     if _machine(args):
-        _emit_machine(
+        _emit_result(
             args,
             {
                 "run_id": snapshot.run_id,
@@ -1876,6 +1903,7 @@ def _run_next(args: argparse.Namespace) -> int:
                 "runnable_steps": runnable_ids,
                 "terminal": terminal,
             },
+            rc,
         )
     else:
         if terminal:
@@ -1890,9 +1918,7 @@ def _run_next(args: argparse.Namespace) -> int:
             _print_human(
                 "No runnable steps (waiting on dependencies, gates, or verification)."
             )
-    if terminal:
-        return EXIT_OK
-    return EXIT_OK if runnable_ids else EXIT_BLOCKED
+    return rc
 
 
 # ---- record --------------------------------------------------------------------------------------
@@ -1956,17 +1982,19 @@ def _run_record(args: argparse.Namespace) -> int:
     except store.LedgerCorruption as exc:
         return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
 
+    rc = (
+        EXIT_BLOCKED
+        if outcome in (run_state.STATE_FAILED, run_state.STATE_BLOCKED)
+        else EXIT_OK
+    )
     snapshot = engine.reconstruct_state()
     if _machine(args):
         payload = _snapshot_payload(snapshot)
         payload["recorded"] = {"step": step_id, "state": outcome}
-        _emit_machine(args, payload)
+        _emit_result(args, payload, rc)
     else:
         _print_human(f"Recorded attempt: {step_id} -> {outcome}")
-    # A recorded failure/blocked outcome is not a success; surface it as blocked.
-    if outcome in (run_state.STATE_FAILED, run_state.STATE_BLOCKED):
-        return EXIT_BLOCKED
-    return EXIT_OK
+    return rc
 
 
 # ---- resume --------------------------------------------------------------------------------------
@@ -2007,7 +2035,7 @@ def _run_resume(args: argparse.Namespace) -> int:
         return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
 
     if _machine(args):
-        _emit_machine(
+        _emit_result(
             args,
             {
                 "run_id": report.run_id,
@@ -2016,6 +2044,7 @@ def _run_resume(args: argparse.Namespace) -> int:
                 "unknown_outcome_steps": list(report.unknown_outcome_steps),
                 "terminal": report.terminal,
             },
+            EXIT_OK,
         )
     else:
         _print_human(f"Run {report.run_id} state: {report.run_state}")
@@ -2062,7 +2091,7 @@ def _run_cancel(args: argparse.Namespace) -> int:
     if _machine(args):
         payload = _snapshot_payload(snapshot)
         payload["cancelled"] = True
-        _emit_machine(args, payload)
+        _emit_result(args, payload, EXIT_OK)
     else:
         _print_human(f"Cancelled run {snapshot.run_id} (reason: {reason})")
     return EXIT_OK
@@ -2085,8 +2114,15 @@ def _run_status(args: argparse.Namespace) -> int:
     except store.LedgerCorruption as exc:
         return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
 
+    if snapshot.state == run_state.STATE_COMPLETE:
+        rc = EXIT_OK
+    elif snapshot.state == run_state.STATE_CANCELLED:
+        rc = EXIT_BLOCKED
+    else:
+        rc = EXIT_INCOMPLETE
+
     if _machine(args):
-        _emit_machine(args, _snapshot_payload(snapshot))
+        _emit_result(args, _snapshot_payload(snapshot), rc)
     else:
         _print_human(f"Run: {snapshot.run_id}")
         _print_human(f"State: {snapshot.state}")
@@ -2097,11 +2133,7 @@ def _run_status(args: argparse.Namespace) -> int:
         if snapshot.cancellation_reason:
             _print_human(f"Cancellation: {snapshot.cancellation_reason}")
 
-    if snapshot.state == run_state.STATE_COMPLETE:
-        return EXIT_OK
-    if snapshot.state == run_state.STATE_CANCELLED:
-        return EXIT_BLOCKED
-    return EXIT_INCOMPLETE
+    return rc
 
 
 # ---- finalize ------------------------------------------------------------------------------------
@@ -2196,7 +2228,7 @@ def _run_finalize(args: argparse.Namespace) -> int:
         payload = _snapshot_payload(snapshot)
         payload["finalized"] = True
         payload["is_complete"] = True
-        _emit_machine(args, payload)
+        _emit_result(args, payload, EXIT_OK)
     else:
         _print_human(f"Finalized run {snapshot.run_id}: COMPLETE")
     return EXIT_OK
@@ -2270,6 +2302,7 @@ def _run_verify(args: argparse.Namespace) -> int:
     except store.LedgerCorruption as exc:
         return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
 
+    rc = EXIT_BLOCKED if result in ("partial", "failed", "not_verifiable") else EXIT_OK
     snapshot = engine.reconstruct_state()
     if _machine(args):
         payload = _snapshot_payload(snapshot)
@@ -2278,10 +2311,8 @@ def _run_verify(args: argparse.Namespace) -> int:
             "result": result,
             "actor": actor,
         }
-        _emit_machine(args, payload)
+        _emit_result(args, payload, rc)
     else:
         _print_human(f"Recorded verifier decision: {req_id} -> {result}")
 
-    if result in ("partial", "failed", "not_verifiable"):
-        return EXIT_BLOCKED
-    return EXIT_OK
+    return rc

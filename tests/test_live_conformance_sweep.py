@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Tuple
 import pytest
 
-from agent_workflows import command_surface
+from agent_workflows import agent_schema, command_surface
 from tests.conformance_matrix import (
     ANSI_RE,
     FACT_PARITY_LEAVES,
@@ -273,21 +273,30 @@ def test_live_ledger_read_leaves_non_vacuous(leaf: str, live_ledger_dir: Path) -
             res.stdout
         ), f"leaf={leaf!r} mode={mode} stdout contained ANSI escapes: {res.stdout!r}"
 
+    agent_lines = [ln.strip() for ln in res_agent.stdout.splitlines() if ln.strip()]
+    assert agent_lines, f"leaf={leaf!r} --agent emitted empty stdout"
+    data_agent = json.loads(agent_lines[-1])
+    assert isinstance(
+        data_agent, dict
+    ), f"leaf={leaf!r} --agent last line did not parse as JSON dict"
+    assert (
+        agent_schema.validate_agent_record(data_agent) == []
+    ), f"leaf={leaf!r} invalid agent record: {agent_schema.validate_agent_record(data_agent)}"
+    assert data_agent["exit"] == res_agent.returncode
+
     if leaf in PROJECTION_MARKERS:
         marker = PROJECTION_MARKERS[leaf]
         assert (
             marker in res_human.stdout
         ), f"Marker {marker!r} missing from human stdout"
         # Machine modes emit ONE JSON object carrying the projection text (hbok5d).
-        agent_lines = [ln.strip() for ln in res_agent.stdout.splitlines() if ln.strip()]
         assert (
             len(agent_lines) == 1
         ), f"leaf={leaf!r} --agent must emit one line: {res_agent.stdout!r}"
-        for mode, raw in (("agent", agent_lines[0]), ("json", res_json.stdout.strip())):
-            parsed = json.loads(raw)
-            assert isinstance(
-                parsed, dict
-            ), f"leaf={leaf!r} --{mode} did not parse as JSON dict"
+        for mode, parsed in (
+            ("agent", data_agent),
+            ("json", json.loads(res_json.stdout.strip())),
+        ):
             assert parsed.get("empty") is True, f"leaf={leaf!r} --{mode}: {parsed!r}"
             assert marker in parsed.get(
                 "content", ""
@@ -298,14 +307,6 @@ def test_live_ledger_read_leaves_non_vacuous(leaf: str, live_ledger_dir: Path) -
         assert isinstance(
             data_json, dict
         ), f"leaf={leaf!r} --json did not parse as JSON dict"
-
-        # agent stdout's last line parses as one JSON object
-        agent_lines = [ln.strip() for ln in res_agent.stdout.splitlines() if ln.strip()]
-        assert agent_lines, f"leaf={leaf!r} --agent emitted empty stdout"
-        data_agent = json.loads(agent_lines[-1])
-        assert isinstance(
-            data_agent, dict
-        ), f"leaf={leaf!r} --agent last line did not parse as JSON dict"
 
         for parsed in (data_json, data_agent):
             if leaf in ("runs next", "runs resume", "runs show", "runs status"):
@@ -409,6 +410,12 @@ def test_live_ledger_mutation_leaves_conformance(tmp_path: Path) -> None:
                 assert isinstance(
                     obj, dict
                 ), f"{cmd_leaf} --agent did not parse as JSON dict"
+                if cmd_leaf in ("run start", "run record", "run cancel"):
+                    assert (
+                        agent_schema.validate_agent_record(obj) == []
+                    ), f"{cmd_leaf} invalid agent record: {agent_schema.validate_agent_record(obj)}"
+                    assert obj["exit"] == res.returncode
+                # run finalize exits 1 via incomplete-run refusal (bare payload; owned by u1ujw9 / p7bvku)
             elif mode_name == "json":
                 obj = json.loads(res.stdout.strip())
                 assert isinstance(

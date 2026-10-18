@@ -215,7 +215,7 @@ class Exemption:
 
 
 EXEMPTION_REGISTRY: Dict[str, Exemption] = {
-    # sanctioned_raw (13):
+    # sanctioned_raw (5):
     "find": Exemption(
         reason_kind="sanctioned_raw",
         citation="docs/cli-output-contract.md Section 12",
@@ -248,78 +248,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="sanctioned_raw",
         citation="tools/completion.py",
         reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
-    ),
-    "runs decisions": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs evidence": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs next": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs questions": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs resume": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs show": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs status": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
-    ),
-    "runs verify-ledger": Exemption(
-        reason_kind="sanctioned_raw",
-        citation="docs/cli-output-contract.md Section 3.1",
-        reason=(
-            "Emits bare JSON dicts through run_cli._emit_machine under Section 3.1 "
-            "run-execution exit vocabulary (pinned by tests/test_run_recovery_cli.py) "
-            "rather than aw.agent/v1 records."
-        ),
     ),
     # not_runnable (9):
     "ipd begin": Exemption(
@@ -581,8 +509,7 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
         reason=(
-            "Requires target positional argument; emits bare JSON dicts under "
-            "docs/cli-output-contract.md Section 3.1; live-tested against fixture "
+            "Requires target positional argument; live-tested against fixture "
             "ledger in tests/test_live_conformance_sweep.py."
         ),
     ),
@@ -590,9 +517,8 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
         reason=(
-            "Requires target positional and --workflow flags; emits bare JSON dicts under "
-            "docs/cli-output-contract.md Section 3.1; live-tested against fixture "
-            "ledger in tests/test_live_conformance_sweep.py."
+            "Requires target positional and --workflow flags; live-tested against "
+            "fixture ledger in tests/test_live_conformance_sweep.py."
         ),
     ),
     "run ipd": Exemption(
@@ -604,8 +530,7 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
         reason=(
-            "Requires target positional and --step/--state/--workflow flags; emits bare "
-            "JSON dicts under docs/cli-output-contract.md Section 3.1; live-tested against "
+            "Requires target positional and --step/--state/--workflow flags; live-tested against "
             "fixture ledger in tests/test_live_conformance_sweep.py."
         ),
     ),
@@ -613,9 +538,8 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
         reason=(
-            "Requires target positional and --step/--workflow flags; emits bare JSON dicts "
-            "under docs/cli-output-contract.md Section 3.1; live-tested against fixture "
-            "ledger in tests/test_live_conformance_sweep.py."
+            "Requires target positional and --step/--workflow flags; live-tested against "
+            "fixture ledger in tests/test_live_conformance_sweep.py."
         ),
     ),
     "run verify": Exemption(
