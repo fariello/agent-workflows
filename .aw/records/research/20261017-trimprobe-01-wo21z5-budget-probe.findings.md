@@ -1312,3 +1312,41 @@ The 3 `P3` keys past the 7,200s cumulative mark in queue order are:
 | `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._emit` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
 | `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_accelerators` | `P2` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 11130.81s | 0.00 |
 | **P2 subtotal** | `P2` | | | | | | **263 keys** (budget-exhausted: 47, guarded: 188, unguarded: 14, unprovable: 14) | | **11130.81s** |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_resources` | `P3` | `return-none` | node-ids | 266 | killed | n/a | guarded |  | 216.17 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions` | `P3` | `return-none` | files | 1160 | survived | survived | unprovable | control survived; overwrote 1 | 699.74 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._write` | `P3` | `raise` | node-ids | 266 | killed | n/a | guarded |  | 224.17 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.close` | `P3` | `return-none` | node-ids | 266 | killed | n/a | guarded |  | 226.57 |
+| `agent_workflows/run_analytics_telemetry.py::TelemetryCollector.start` | `P3` | `return-none` | node-ids | 266 | killed | n/a | guarded |  | 255.41 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_label_list` | `P3` | `return-none` | files | 1160 | survived | killed | unguarded | overwrote 1 | 759.95 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_tool_versions` | `P3` | `return-none` | files | 1160 | survived | killed | unguarded | overwrote 1 | 808.98 |
+| `agent_workflows/run_analytics_telemetry.py::node_pseudonym` | `P3` | `return-none` | files | 1160 | survived | killed | unguarded | overwrote 1 | 918.20 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_number_map` | `P3` | `return-none` | files | 1162 | survived | killed | unguarded | overwrote 1 | 779.41 |
+| `agent_workflows/run_analytics_telemetry.py::ResourceProbeAdapter.resources` | `P3` | `return-none` | node-ids | 268 | killed | n/a | guarded |  | 256.45 |
+| `agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.memory` | `P3` | `return-none` | node-ids | 268 | killed | n/a | guarded |  | 203.79 |
+| `agent_workflows/run_analytics_telemetry.py::_as_label` | `P3` | `return-none` | node-ids | 268 | killed | n/a | guarded |  | 239.68 |
+| `agent_workflows/run_analytics_telemetry.py::_refuse_unknown` | `P3` | `raise` | node-ids | 269 | killed | n/a | guarded |  | 217.42 |
+| `agent_workflows/run_analytics_telemetry.py::_validate_scalar` | `P3` | `return-none` | node-ids | 269 | killed | n/a | guarded |  | 262.02 |
+| `agent_workflows/run_analytics_telemetry.py::validate_event` | `P3` | `return-none` | node-ids | 269 | killed | n/a | guarded |  | 230.28 |
+| `agent_workflows/runner_shared.py::gate_answer_is_warranted` | `P3` | `return-none` | node-ids | 270 | killed | n/a | guarded |  | 1455.25 |
+| `agent_workflows/check_engine.py::_review_index` | `P3` | `return-none` | files | 1282 | survived | survived | unprovable | control survived | 725.35 |
+| `agent_workflows/agent_schema.py::normalize_repo_path` | `P3` | `return-none` | node-ids | 331 | killed | n/a | guarded |  | 98.77 |
+| `agent_workflows/agy_verifier.py::run_fresh_verifier` | `P3` | `return-none` | node-ids | 344 | killed | n/a | guarded |  | 1044.18 |
+| `agent_workflows/verify_roles.py::validate_verifier_packet` | `P3` | `return-none` | node-ids | 344 | killed | n/a | guarded |  | 1224.09 |
+| `agent_workflows/verify_roles.py::check_role_action` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/run_analytics_config.py::_coerce_bool` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/run_analytics_config.py::parse_telemetry_settings` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/result_types.py::CommandResult.to_agent_record` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/ipd_lint.py::lint_file` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/renderers.py::BaseRenderer.emit` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/ipd_lint.py::check_item_dependencies` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/config.py::findings_gate_threshold` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/config.py::read_review_findings_gate` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/ipd_schema.py::parse_item_dependencies` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/check_engine.py::_iter_type_files` | `P3` | `raise` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/agent_schema.py::validate_agent_record` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/term.py::stdin_is_interactive` | `P3` | `negate-return` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/term.py::is_interactive` | `P3` | `return-false` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/cli.py::_dispatch` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/result_types.py::select_output` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| `agent_workflows/project_context.py::_resolve_effective_aw_home` | `P3` | `return-none` | n/a | n/a | n/a | n/a | budget-exhausted | budget exhausted at 10845.88s | 0.00 |
+| **P3 subtotal** | `P3` | | | | | | **37 keys** (budget-exhausted: 17, guarded: 14, unguarded: 4, unprovable: 2) | | **10845.88s** |
