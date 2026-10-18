@@ -6,7 +6,7 @@
 - Scope: IN: collecting open OQ blocks across the resolved queue (whatever types it holds, not a hardcoded plans tree), a new bounded free-text prompt distinct from `prompt_for_gate_phrase` (R1.3: `select` with a configurable human-scale timeout, never `readline()`/`input()`), `--blocking-only` and `--question-timeout` as shared run policy flags, durable artifact write-back (`- Status: resolved`, rationale naming the human and date, `- Blocking:` unchanged) committed through `git_commit_helper.offer_commit`, running in `initialize_run_core` beside `enforce_draft_admission_gate`, and presence decided only by `is_interactive_run` (R7.1). Unanswered questions (unattended, timed out, or skipped) are written to the inbox (Order 03); an item with an unanswered BLOCKING question is held non-terminally and released, with the answer written back into the artifact, by Order 04's checkpoint consumption. OUT: cross-question dedup (Order 08 owns `question_fingerprint` reuse and ordering; this plan calls it if present and otherwise asks in queue order).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/question_inbox.py, tests/test_question_preflight.py
 - Item-Dependencies: executed:mtmqlm, executed:j0ufrj
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 4kkcex
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4kkcex verified (set qchan, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-10-17 to-review (aw set): authored review-ready against spec 6kwd2e (amended 2026-10-17)
