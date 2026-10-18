@@ -5,8 +5,9 @@
 - Concern: In `tests/test_clean_target_config_home.py`, method `test_case_l_tracked_install_still_writes_target` previously asserted a literal file count (`358 files changed`) on the commit created by `aw install . --preset private-target -y`. Because this hardcoded number equals the exact count of shipped payload files, any expansion or change to the workflow system bundle (such as adding workflow documentation or assets) caused the test to break even though installer behavior was completely correct.
 - Scope: In `tests/test_clean_target_config_home.py`, eliminate the hardcoded file count check from `test_case_l_tracked_install_still_writes_target` and ensure it uses a resilient, derived assertion verifying that the install commit captures exactly the set of installed and tracked files (with required anchors `AGENTS.md` and `.aw/.gitignore` present and a clean git working tree). Validate that the test passes and remains sensitive to omitted files or stray untracked files via negative/mutation verification.
 - Scope-Paths: tests/test_clean_target_config_home.py
+- Scope-Exceeded: .aw/records/backlog/open/20261018-ih2q1a-01-ih2q1a-test-core-tier-selection-gate-suite-tests-over-bud.backlog.md (found-while-validating: the V-02 routine gate hit a load-sensitive flake in tests/test_core_tier_selection.py reproduced in attempt 2 filing it is mandated by the run's defect-report contract)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +18,9 @@
 - Highest E allocated: 02
 - Author: Antigravity
 - Id: rg7rnx
-- Approval: 2026-10-18, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: rg7rnx verified (set 96lj37, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261018-ih2q1a-01-ih2q1a-test-core-tier-selection-gate-suite-tests-over-bud.backlog.md: found-while-validating: the V-02 routine gate hit a load-sensitive flake in tests/test_core_tier_selection.py (reproduced in attempt 2); filing it is mandated by the run's defect-report contract; in-scope-unmodified tests/test_clean_target_config_home.py: declared-but-unmodified (auto-acknowledged by aw oc run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (1 declared path(s) unmodified; work may have landed before the begin baseline or not at all): tests/test_clean_target_config_home.py]
 - 2026-10-18 approved (aw set): status set to approved
 
 - 2026-10-18 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
