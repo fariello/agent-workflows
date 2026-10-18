@@ -1,5 +1,5 @@
 - Id: q86fxm
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Residual rollup of remaining uncited trim-deleted test audit gaps across 45 modules
 
 ## Workflow history
+- 2026-10-18 done (aw backlog): closed by aw agy run: IPD kn7xtw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261017-trimgap-00-kn7xtw-restore-behavioral-test-coverage-for-the-residual-trim-audit.ipd.md, .aw/records/plans/executed/20261017-trimgap-16-ivap17-restore-behavioral-test-coverage-for-run-analytics-wizard-re.ipd.md, .aw/records/plans/executed/20261017-trimgap-17-vqr3xq-restore-behavioral-test-coverage-for-the-set-executor-worktr.ipd.md, .aw/records/plans/executed/20261017-trimgap-18-zhoul7-restore-behavioral-test-coverage-for-check-engine-layout-dep.ipd.md, .aw/records/plans/executed/20261017-trimgap-19-78g6ic-restore-behavioral-test-coverage-for-benchmark-manifest-corp.ipd.md, .aw/records/plans/executed/20261017-trimgap-20-5e7czd-restore-behavioral-test-coverage-for-layout-migration-litter.ipd.md, .aw/records/plans/executed/20261017-trimgap-21-y4bt1c-restore-behavioral-test-coverage-for-agy-cli-surfaces-term-c.ipd.md, .aw/records/plans/executed/20261017-trimgap-22-9gjvrq-restore-behavioral-test-coverage-for-rename-history-selector.ipd.md, .aw/records/plans/executed/20261017-trimgap-23-ya63p5-restore-the-stranded-run-and-dispatchable-work-tests-of-test.ipd.md); evidence .aw/records/plans/executed/20261017-trimgap-00-kn7xtw-restore-behavioral-test-coverage-for-the-residual-trim-audit.ipd.md
 - 2026-10-17 graduated (aw backlog): graduated by run run-20261017T053756Z-504097: 5e7czd, 78g6ic, 9gjvrq, ivap17, kn7xtw, vqr3xq, y4bt1c, ya63p5, zhoul7
 - 2026-10-17 created (aw backlog): Residual rollup of remaining uncited trim-deleted test audit gaps across 45 modules
 
