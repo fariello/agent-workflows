@@ -34,24 +34,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Sterilize stdin and un-quarantine test
 
-- [ ] E-01 In `tests/test_term.py` class `CliNeverLeaksTheInteractivityOverrideTests`, update `test_early_exit_paths_and_nested_invocations` so EVERY `cli.main(...)` call (the loop over `EARLY_EXIT_PATHS` and both subsequent nested-invocation blocks) runs inside `mock.patch("sys.stdin", io.StringIO(""))` (import `from unittest import mock` at module top, or reuse the module's existing local import style) alongside the existing `contextlib.redirect_stdout`/`redirect_stderr`. Do NOT use `contextlib.redirect_stdin`: it does not exist in the standard library (verified on the repo's Python 3.14.6: `hasattr(contextlib, "redirect_stdin")` is `False`). Remove the `@pytest.mark.xfail(strict=False, reason="flaky: aenl8o - ...")` decorator, and remove `import pytest` (line 15) if no other use remains, so ruff F401 does not fire.
+- [x] E-01 In `tests/test_term.py` class `CliNeverLeaksTheInteractivityOverrideTests`, update `test_early_exit_paths_and_nested_invocations` so EVERY `cli.main(...)` call (the loop over `EARLY_EXIT_PATHS` and both subsequent nested-invocation blocks) runs inside `mock.patch("sys.stdin", io.StringIO(""))` (import `from unittest import mock` at module top, or reuse the module's existing local import style) alongside the existing `contextlib.redirect_stdout`/`redirect_stderr`. Do NOT use `contextlib.redirect_stdin`: it does not exist in the standard library (verified on the repo's Python 3.14.6: `hasattr(contextlib, "redirect_stdin")` is `False`). Remove the `@pytest.mark.xfail(strict=False, reason="flaky: aenl8o - ...")` decorator, and remove `import pytest` (line 15) if no other use remains, so ruff F401 does not fire.
   - Depends on: none
   - Expected outcome: The test runs with a sterile, test-owned stdin; the bare `["--interactive"]` case meets immediate EOF in `_run_setup`, `cli.main` catches `EOFError` and returns 130; the test carries no xfail mark and reports PASSED.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Bare --interactive outcome and restoration coverage
 
-- [ ] E-02 In the same test (or a sibling method in the same class), with `sys.stdin` patched to `io.StringIO("")`, assert observable outcomes of the bare `--interactive` invocation: (1) from a flagless baseline (`T.set_interactive_override(None)`), `cli.main(["--interactive"])` RETURNS 130 (it must not raise) and leaves `T.get_interactive_override()` as `None`; (2) with an outer override of `False`, and again with an outer override of `True`, an inner `cli.main(["--interactive"])` returns 130 and leaves `T.get_interactive_override()` equal to the outer value (`is False` / `is True`). Do NOT add bare `["--no-interactive"]` (no verb) cases: that path never reads stdin (it prints a status summary) and measured 5.46s and 5.62s per call at review, versus 0.3s for bare `--interactive`.
+- [x] E-02 In the same test (or a sibling method in the same class), with `sys.stdin` patched to `io.StringIO("")`, assert observable outcomes of the bare `--interactive` invocation: (1) from a flagless baseline (`T.set_interactive_override(None)`), `cli.main(["--interactive"])` RETURNS 130 (it must not raise) and leaves `T.get_interactive_override()` as `None`; (2) with an outer override of `False`, and again with an outer override of `True`, an inner `cli.main(["--interactive"])` returns 130 and leaves `T.get_interactive_override()` equal to the outer value (`is False` / `is True`). Do NOT add bare `["--no-interactive"]` (no verb) cases: that path never reads stdin (it prints a status summary) and measured 5.46s and 5.62s per call at review, versus 0.3s for bare `--interactive`.
   - Depends on: E-01
   - Expected outcome: Bare `--interactive` is pinned by its exit code (130 at EOF) and by override restoration across the flagless baseline and both outer-override values, all with sterile stdin.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Test suite validation
 
-- [ ] E-03 Run: (a) `python3 -m pytest -o addopts="" -rA -p no:cacheprovider tests/test_term.py -k CliNeverLeaksTheInteractivityOverrideTests`; (b) five repeated concurrent runs `for i in 1 2 3 4 5; do python3 -m pytest -o addopts="" -n 6 -rxX tests/test_term.py -k CliNeverLeaksTheInteractivityOverrideTests; done` (pytest-randomly stays enabled, so each run uses a different seed); (c) `python3 -m pytest -o addopts="" -n 6 tests/test_term.py` for the full module; (d) the routine core gate bare `python3 -m pytest`. Note: `tests/test_term.py` carries no `core` marker (bare `python3 -m pytest --collect-only -q` collected 0 of its tests at review), so (d) is a no-regression gate for the suite, not evidence about this test; (a) to (c) are the evidence for this test.
+- [x] E-03 Run: (a) `python3 -m pytest -o addopts="" -rA -p no:cacheprovider tests/test_term.py -k CliNeverLeaksTheInteractivityOverrideTests`; (b) five repeated concurrent runs `for i in 1 2 3 4 5; do python3 -m pytest -o addopts="" -n 6 -rxX tests/test_term.py -k CliNeverLeaksTheInteractivityOverrideTests; done` (pytest-randomly stays enabled, so each run uses a different seed); (c) `python3 -m pytest -o addopts="" -n 6 tests/test_term.py` for the full module; (d) the routine core gate bare `python3 -m pytest`. Note: `tests/test_term.py` carries no `core` marker (bare `python3 -m pytest --collect-only -q` collected 0 of its tests at review), so (d) is a no-regression gate for the suite, not evidence about this test; (a) to (c) are the evidence for this test.
   - Depends on: E-01, E-02
   - Expected outcome: Every test in `CliNeverLeaksTheInteractivityOverrideTests` reports PASSED in (a) and in each of the five (b) runs, with zero xfailed and zero xpassed; (c) reports no failures; (d) exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,20 +114,222 @@ None. The fix mechanism is demonstrated (F8 probe), and the flake's original cau
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `git diff -- tests/test_term.py` showing `mock.patch("sys.stdin", io.StringIO(""))` wrapping every `cli.main` call in `test_early_exit_paths_and_nested_invocations`, the removal of `@pytest.mark.xfail(...)`, and (if no other use remains) the removal of `import pytest`; plus pasted `ruff check tests/test_term.py` output showing no findings.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_term.py`:
+    ```diff
+    @@ -11,8 +11,7 @@ import subprocess
+     import sys
+     import tempfile
+     import unittest
+    -
+    -import pytest
+    +from unittest import mock
 
-- [ ] V-02 validates E-02
+     from agent_workflows import cli
+     from agent_workflows import config as CFG
+    @@ -675,10 +674,6 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+             ("--interactive with no verb at all", ["--interactive"]),
+         )
+
+    -    @pytest.mark.xfail(
+    -        strict=False,
+    -        reason="flaky: aenl8o - prompts on captured stdin during concurrent CLI execution",
+    -    )
+         def test_early_exit_paths_and_nested_invocations(self):
+             class _TTY(io.StringIO):
+                 def isatty(self):
+    @@ -689,12 +684,14 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+                     T.set_interactive_override(None)
+                     buf = io.StringIO()
+                     try:
+    -                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+    -                        buf
+    +                    with (
+    +                        contextlib.redirect_stdout(buf),
+    +                        contextlib.redirect_stderr(buf),
+    +                        mock.patch("sys.stdin", io.StringIO("")),
+                         ):
+    -                        cli.main(list(argv))
+    -                except SystemExit:
+    -                    pass
+    +                        rc = cli.main(list(argv))
+    +                except SystemExit as exc:
+    +                    rc = exc.code
+                     self.assertIsNone(
+                         T.get_interactive_override(), f"Override leaked in {case}"
+                     )
+    @@ -705,5 +705,9 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+             # Flagless invocation resets a previously set process-wide override
+             T.set_interactive_override(True)
+             buf = io.StringIO()
+             try:
+    -            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+    +            with (
+    +                contextlib.redirect_stdout(buf),
+    +                contextlib.redirect_stderr(buf),
+    +                mock.patch("sys.stdin", io.StringIO("")),
+    +            ):
+                     cli.main(["check", "--help"])
+             except SystemExit:
+                 pass
+    @@ -721,7 +724,11 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+             # Nested invocation: an outer override is restored after an inner cli.main call
+             T.set_interactive_override(False)
+             buf = io.StringIO()
+             try:
+    -            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+    +            with (
+    +                contextlib.redirect_stdout(buf),
+    +                contextlib.redirect_stderr(buf),
+    +                mock.patch("sys.stdin", io.StringIO("")),
+    +            ):
+                     cli.main(["--interactive", "check", "--help"])
+             except SystemExit:
+                 pass
+    ```
+    `pre-commit run ruff --files tests/test_term.py`:
+    ```
+    ruff.....................................................................Passed
+    ```
+    `ruff check --select F tests/test_term.py`:
+    ```
+    All checks passed!
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff -- tests/test_term.py` showing assertions that bare `cli.main(["--interactive"])` returns 130 under empty stdin and that the override equals `None`, `False`, and `True` respectively after the flagless and the two outer-override invocations; plus pasted pytest output showing the test(s) in `CliNeverLeaksTheInteractivityOverrideTests` PASSED.
   - Observed evidence:
-  - Result: pending
+    `git diff -- tests/test_term.py` bare `--interactive` assertions:
+    ```diff
+    @@ -702,12 +699,18 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
+                         T.is_interactive(stdin=_TTY(), output_stream=_TTY(), environ={}),
+                         f"TTY is_interactive broken after {case}",
+                     )
+    +                if argv == ["--interactive"]:
+    +                    self.assertEqual(rc, 130)
+    ...
+    +        # Bare --interactive outcome and restoration across flagless baseline and outer overrides
+    +        for outer in (None, False, True):
+    +            with self.subTest(bare_interactive_outer=outer):
+    +                T.set_interactive_override(outer)
+    +                buf = io.StringIO()
+    +                with (
+    +                    contextlib.redirect_stdout(buf),
+    +                    contextlib.redirect_stderr(buf),
+    +                    mock.patch("sys.stdin", io.StringIO("")),
+    +                ):
+    +                    rc = cli.main(["--interactive"])
+    +                self.assertEqual(rc, 130)
+    +                if outer is None:
+    +                    self.assertIsNone(T.get_interactive_override())
+    +                else:
+    +                    self.assertIs(T.get_interactive_override(), outer)
+    ```
+    `python3 -m pytest -o addopts="" -rA -p no:cacheprovider tests/test_term.py -k CliNeverLeaksTheInteractivityOverrideTests`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=108458067
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/7g4o5c
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 32 items / 31 deselected / 1 selected
 
-- [ ] V-03 validates E-03
+    tests/test_term.py .                                                     [100%]
+
+    ==================================== PASSES ====================================
+    NOTE: 31 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    =========================== short test summary info ============================
+    PASSED tests/test_term.py::CliNeverLeaksTheInteractivityOverrideTests::test_early_exit_paths_and_nested_invocations
+    ======================= 1 passed, 31 deselected in 0.86s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted runner output for: (1) the `-rA` targeted run showing every class test PASSED with no XFAIL/XPASS; (2) all five `-n 6 -rxX` repeated runs, each ending in `N passed` with no xfailed/xpassed; (3) the full `tests/test_term.py` module run with no failures; (4) bare `python3 -m pytest` ending in exit 0.
   - Observed evidence:
-  - Result: pending
+    (1) `-rA` targeted run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=108458067
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/7g4o5c
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 32 items / 31 deselected / 1 selected
+
+    tests/test_term.py .                                                     [100%]
+
+    ==================================== PASSES ====================================
+    NOTE: 31 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    =========================== short test summary info ============================
+    PASSED tests/test_term.py::CliNeverLeaksTheInteractivityOverrideTests::test_early_exit_paths_and_nested_invocations
+    ======================= 1 passed, 31 deselected in 0.86s =======================
+    ```
+
+    (2) Five repeated `-n 6 -rxX` runs:
+    ```
+    === RUN 1 ===
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3214557594
+    created: 6/6 workers
+    .                                                                        [100%]
+    ============================== 1 passed in 1.99s ===============================
+    === RUN 2 ===
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1190667667
+    created: 6/6 workers
+    .                                                                        [100%]
+    ============================== 1 passed in 3.18s ===============================
+    === RUN 3 ===
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1490462853
+    created: 6/6 workers
+    .                                                                        [100%]
+    ============================== 1 passed in 2.06s ===============================
+    === RUN 4 ===
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3794293951
+    created: 6/6 workers
+    .                                                                        [100%]
+    ============================== 1 passed in 2.86s ===============================
+    === RUN 5 ===
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1134811820
+    created: 6/6 workers
+    .                                                                        [100%]
+    ============================== 1 passed in 2.00s ===============================
+    ```
+
+    (3) Full `tests/test_term.py` module run (`python3 -m pytest -o addopts="" -n 6 tests/test_term.py`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1192006117
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/7g4o5c
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 6/6 workers
+    6 workers [32 items]
+    ................................                                         [100%]
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 32 passed in 8.95s ==============================
+    ```
+
+    (4) Core gate (`python3 -m pytest` / `aw suite`):
+    ```
+    aw suite: 1665 passed, 11 warnings in 33.03s; exit 0 (tree a59f80fc5f37)
+    bare python3 -m pytest: 1665 passed, 11 warnings in 32.10s (0 test failures)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -11,8 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-
-import pytest
+from unittest import mock
 
 from agent_workflows import cli
 from agent_workflows import config as CFG
@@ -675,10 +674,6 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
         ("--interactive with no verb at all", ["--interactive"]),
     )
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="flaky: aenl8o - prompts on captured stdin during concurrent CLI execution",
-    )
     def test_early_exit_paths_and_nested_invocations(self):
         class _TTY(io.StringIO):
             def isatty(self):
@@ -689,12 +684,14 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
                 T.set_interactive_override(None)
                 buf = io.StringIO()
                 try:
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
+                        mock.patch("sys.stdin", io.StringIO("")),
                     ):
-                        cli.main(list(argv))
-                except SystemExit:
-                    pass
+                        rc = cli.main(list(argv))
+                except SystemExit as exc:
+                    rc = exc.code
                 self.assertIsNone(
                     T.get_interactive_override(), f"Override leaked in {case}"
                 )
@@ -702,12 +699,18 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
                     T.is_interactive(stdin=_TTY(), output_stream=_TTY(), environ={}),
                     f"TTY is_interactive broken after {case}",
                 )
+                if argv == ["--interactive"]:
+                    self.assertEqual(rc, 130)
 
         # Flagless invocation resets a previously set process-wide override
         T.set_interactive_override(True)
         buf = io.StringIO()
         try:
-            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            with (
+                contextlib.redirect_stdout(buf),
+                contextlib.redirect_stderr(buf),
+                mock.patch("sys.stdin", io.StringIO("")),
+            ):
                 cli.main(["check", "--help"])
         except SystemExit:
             pass
@@ -721,7 +724,11 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
         T.set_interactive_override(False)
         buf = io.StringIO()
         try:
-            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            with (
+                contextlib.redirect_stdout(buf),
+                contextlib.redirect_stderr(buf),
+                mock.patch("sys.stdin", io.StringIO("")),
+            ):
                 cli.main(["--interactive", "check", "--help"])
         except SystemExit:
             pass
@@ -730,6 +737,23 @@ class CliNeverLeaksTheInteractivityOverrideTests(unittest.TestCase):
             False,
             "Outer False override must survive inner --interactive call",
         )
+
+        # Bare --interactive outcome and restoration across flagless baseline and outer overrides
+        for outer in (None, False, True):
+            with self.subTest(bare_interactive_outer=outer):
+                T.set_interactive_override(outer)
+                buf = io.StringIO()
+                with (
+                    contextlib.redirect_stdout(buf),
+                    contextlib.redirect_stderr(buf),
+                    mock.patch("sys.stdin", io.StringIO("")),
+                ):
+                    rc = cli.main(["--interactive"])
+                self.assertEqual(rc, 130)
+                if outer is None:
+                    self.assertIsNone(T.get_interactive_override())
+                else:
+                    self.assertIs(T.get_interactive_override(), outer)
 
 
 class InteractivityAndColorIndependenceTests(unittest.TestCase):
