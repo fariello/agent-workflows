@@ -35,30 +35,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: new behavioral test module
 
-- [ ] E-01 Create `tests/test_run_gates_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.run_gates`, `run_engine`, `run_ledger_store` and `run_ledger_schema`. Add a module docstring naming backlog `ziuj5c`, findings `b1mx2w`, and the deleted source `tests/test_run_packet_gates.py` class `TestHumanDecisionGates` at `19313eed^`. Add fixtures: `deploy_gate` (the deleted `setUp` gate: id `deploy_approval_gate`, options `("approve", "reject", "abort")`, default `abort`, `timeout_seconds=30.0`, policy `refuse`), `side_effects` (a list the sample action appends to, returning `"DEPLOYMENT_SUCCESS"`), and a `timeout_handler` helper that raises `TimeoutError`. Use `tmp_path` only; spawn no subprocess. Disposition rule if a restored test (one of the eight `TestHumanDecisionGates` cases) or a measured expected value fails at execution HEAD (none did at authoring, F-02, nor at review, F-06): do not mark the owning item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
+- [x] E-01 Create `tests/test_run_gates_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.run_gates`, `run_engine`, `run_ledger_store` and `run_ledger_schema`. Add a module docstring naming backlog `ziuj5c`, findings `b1mx2w`, and the deleted source `tests/test_run_packet_gates.py` class `TestHumanDecisionGates` at `19313eed^`. Add fixtures: `deploy_gate` (the deleted `setUp` gate: id `deploy_approval_gate`, options `("approve", "reject", "abort")`, default `abort`, `timeout_seconds=30.0`, policy `refuse`), `side_effects` (a list the sample action appends to, returning `"DEPLOYMENT_SUCCESS"`), and a `timeout_handler` helper that raises `TimeoutError`. Use `tmp_path` only; spawn no subprocess. Disposition rule if a restored test (one of the eight `TestHumanDecisionGates` cases) or a measured expected value fails at execution HEAD (none did at authoring, F-02, nor at review, F-06): do not mark the owning item performed until it is dispositioned. Record it in Findings and decide whether the current behavior is an intended change or a regression. For an intended change, cite the commit `git log -S` finds and adjust only that expectation. For a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (outside Scope-Paths, justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it, then continue.
   - Depends on: none
   - Expected outcome: the file exists, is collected by a bare `python3 -m pytest` (it carries the `core` marker), and imports cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add headless and serialization tests. (a) Restored `test_headless_noninteractive_run_stops_at_needs_input_before_side_effect`: `execute_gated_action(deploy_gate, action, interactive=False)` returns status `needs_input`, `selected_option is None`, `approver is None`, `interactive is False`, result `None`, and `side_effects == []`. (b) Restored `test_no_synthesized_consent_even_if_default_is_approve`: a gate with `default_option="approve"` and policy `apply_default` evaluated headless is `needs_input` and `is_approved is False`. (c) `evaluate_gate(gate, current_time="T").to_dict()` equals exactly `{"gate_id": ..., "status": "needs_input", "selected_option": None, "approver": None, "actor": "runtime", "timestamp": "T", "interactive": False, "reason": ..., "is_approved": False}` with `reason` a non-empty string (shape asserted by key set and values, not by reason wording). (d) Without `current_time`, the decision timestamp is accepted by `run_ledger_schema.is_timestamp`. (e) `DecisionGate("g", "p").to_dict()` equals `{"gate_id": "g", "prompt": "p", "options": ["approve", "reject", "abort"], "default_option": "abort", "timeout_seconds": None, "timeout_policy": "refuse", "requires_human": True, "metadata": {}}`.
+- [x] E-02 Add headless and serialization tests. (a) Restored `test_headless_noninteractive_run_stops_at_needs_input_before_side_effect`: `execute_gated_action(deploy_gate, action, interactive=False)` returns status `needs_input`, `selected_option is None`, `approver is None`, `interactive is False`, result `None`, and `side_effects == []`. (b) Restored `test_no_synthesized_consent_even_if_default_is_approve`: a gate with `default_option="approve"` and policy `apply_default` evaluated headless is `needs_input` and `is_approved is False`. (c) `evaluate_gate(gate, current_time="T").to_dict()` equals exactly `{"gate_id": ..., "status": "needs_input", "selected_option": None, "approver": None, "actor": "runtime", "timestamp": "T", "interactive": False, "reason": ..., "is_approved": False}` with `reason` a non-empty string (shape asserted by key set and values, not by reason wording). (d) Without `current_time`, the decision timestamp is accepted by `run_ledger_schema.is_timestamp`. (e) `DecisionGate("g", "p").to_dict()` equals `{"gate_id": "g", "prompt": "p", "options": ["approve", "reject", "abort"], "default_option": "abort", "timeout_seconds": None, "timeout_policy": "refuse", "requires_human": True, "metadata": {}}`.
   - Depends on: E-01
   - Expected outcome: headless refusal, no-synthesized-consent, exact decision and gate dict shapes, and the default timestamp pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add interactive option-mapping tests as one parametrized table over `evaluate_gate(gate, interactive=True, input_handler=lambda _g: choice, approver="alice")`, each row asserting `status`, `is_approved`, `actor` and `selected_option`: `approve`, `Yes`, `proceed` -> `approved`/`True`/`human`; `"  approve "` -> `approved` with `selected_option == "approve"` (whitespace stripped); `reject`, `deny` -> `rejected`/`False`/`human`; `abort`, `ABORT` -> `aborted`/`False`/`human`; `unlisted_invalid_option` -> `refused`/`False` (restored `test_invalid_option_chosen_refused_at_gate`); `"   "` -> `refused` with `actor == "runtime"` (restored `test_empty_input_at_gate_refused`); a gate with custom options `("ship-it", "reject")` and choice `ship-it` -> `approved`; a gate with options `("Ship-It",)` and choice `ship-it` -> `refused` (custom-option match is case-sensitive). Also: an `approved` decision carries `approver == "alice"`; a handler raising `ValueError("x")` -> `refused`, `actor == "runtime"`, `approver is None`; and only the `approved` rows have `is_approved` True (the property is status-equality).
+- [x] E-03 Add interactive option-mapping tests as one parametrized table over `evaluate_gate(gate, interactive=True, input_handler=lambda _g: choice, approver="alice")`, each row asserting `status`, `is_approved`, `actor` and `selected_option`: `approve`, `Yes`, `proceed` -> `approved`/`True`/`human`; `"  approve "` -> `approved` with `selected_option == "approve"` (whitespace stripped); `reject`, `deny` -> `rejected`/`False`/`human`; `abort`, `ABORT` -> `aborted`/`False`/`human`; `unlisted_invalid_option` -> `refused`/`False` (restored `test_invalid_option_chosen_refused_at_gate`); `"   "` -> `refused` with `actor == "runtime"` (restored `test_empty_input_at_gate_refused`); a gate with custom options `("ship-it", "reject")` and choice `ship-it` -> `approved`; a gate with options `("Ship-It",)` and choice `ship-it` -> `refused` (custom-option match is case-sensitive). Also: an `approved` decision carries `approver == "alice"`; a handler raising `ValueError("x")` -> `refused`, `actor == "runtime"`, `approver is None`; and only the `approved` rows have `is_approved` True (the property is status-equality).
   - Depends on: E-01
   - Expected outcome: every mapping row and the handler-exception case pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add timeout-policy and stdin-fallback tests. (a) Timeout table, each with `input_handler=timeout_handler`: policy `refuse` (restored) -> `timed_out`; policy `fail` -> `timed_out`; `apply_default` with default `abort` (restored) -> `aborted`, `selected_option == "abort"`; `apply_default` with default `approve` -> `needs_input`, `selected_option is None`, `is_approved is False` (consent never synthesized on timeout); `apply_default` with default `reject` -> `rejected`; `apply_default` with a non-token default `later` -> `rejected`; `apply_default` with `default_option=None` -> `timed_out`. Every timeout row has `actor == "runtime"` and `approver is None`. (b) Stdin fallback (no `input_handler`), using pytest `monkeypatch.setattr("builtins.input", ...)`: an empty reply on a gate with default `abort` -> `aborted` with `selected_option == "abort"`, and the captured prompt string contains the gate id, the `approve/reject/abort` option list and the `[abort]` default marker; reply `approve` -> `approved`; `input` raising `EOFError` -> `aborted`; `input` raising `KeyboardInterrupt` -> `aborted`; `input` raising `RuntimeError` -> `timed_out` under policy `refuse`; an empty reply on a gate with `default_option=None` -> `refused`.
+- [x] E-04 Add timeout-policy and stdin-fallback tests. (a) Timeout table, each with `input_handler=timeout_handler`: policy `refuse` (restored) -> `timed_out`; policy `fail` -> `timed_out`; `apply_default` with default `abort` (restored) -> `aborted`, `selected_option == "abort"`; `apply_default` with default `approve` -> `needs_input`, `selected_option is None`, `is_approved is False` (consent never synthesized on timeout); `apply_default` with default `reject` -> `rejected`; `apply_default` with a non-token default `later` -> `rejected`; `apply_default` with `default_option=None` -> `timed_out`. Every timeout row has `actor == "runtime"` and `approver is None`. (b) Stdin fallback (no `input_handler`), using pytest `monkeypatch.setattr("builtins.input", ...)`: an empty reply on a gate with default `abort` -> `aborted` with `selected_option == "abort"`, and the captured prompt string contains the gate id, the `approve/reject/abort` option list and the `[abort]` default marker; reply `approve` -> `approved`; `input` raising `EOFError` -> `aborted`; `input` raising `KeyboardInterrupt` -> `aborted`; `input` raising `RuntimeError` -> `timed_out` under policy `refuse`; an empty reply on a gate with `default_option=None` -> `refused`.
   - Depends on: E-01
   - Expected outcome: every timeout row and stdin-fallback case listed above passes with no real terminal read.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `execute_gated_action` tests. (a) Restored `test_interactive_choice_recorded_and_executes_action_when_approved`: approval by `alice-lead` returns result `"DEPLOYMENT_SUCCESS"`, `side_effects == [1]` (exactly one call), decision approved with that approver. (b) Parametrized refusal rows, each asserting result `None` and `side_effects == []`: interactive `reject` (restored), `abort`, unlisted option (restored), handler `TimeoutError` under policy `refuse`, and headless. (c) Restored `test_gate_integration_with_run_engine_and_ledger`: a `run_ledger_store.RunLedgerStore(tmp_path / "run.jsonl")` seeded with the deleted test's `run` and `requirement_set` records and a `run_engine.RunEngine` over the one-step `gated-wf` whose `S-01` carries `gates: ["deploy_approval_gate"]`; `engine.get_runnable_steps() == []` before; after an approved `execute_gated_action(..., engine=engine, approver="carol-lead")`, the runnable step ids are `["S-01"]` and `store.read_records(verify=True)` holds exactly one `human_approval` record with `gate == "deploy_approval_gate"`, `approver == "carol-lead"`, `actor == "human"`. (d) Control: a REJECTED `execute_gated_action` with the same seeded engine appends no `human_approval` record (record count unchanged) and `get_runnable_steps()` stays `[]`.
+- [x] E-05 Add `execute_gated_action` tests. (a) Restored `test_interactive_choice_recorded_and_executes_action_when_approved`: approval by `alice-lead` returns result `"DEPLOYMENT_SUCCESS"`, `side_effects == [1]` (exactly one call), decision approved with that approver. (b) Parametrized refusal rows, each asserting result `None` and `side_effects == []`: interactive `reject` (restored), `abort`, unlisted option (restored), handler `TimeoutError` under policy `refuse`, and headless. (c) Restored `test_gate_integration_with_run_engine_and_ledger`: a `run_ledger_store.RunLedgerStore(tmp_path / "run.jsonl")` seeded with the deleted test's `run` and `requirement_set` records and a `run_engine.RunEngine` over the one-step `gated-wf` whose `S-01` carries `gates: ["deploy_approval_gate"]`; `engine.get_runnable_steps() == []` before; after an approved `execute_gated_action(..., engine=engine, approver="carol-lead")`, the runnable step ids are `["S-01"]` and `store.read_records(verify=True)` holds exactly one `human_approval` record with `gate == "deploy_approval_gate"`, `approver == "carol-lead"`, `actor == "human"`. (d) Control: a REJECTED `execute_gated_action` with the same seeded engine appends no `human_approval` record (record count unchanged) and `get_runnable_steps()` stays `[]`.
   - Depends on: E-01
   - Expected outcome: approved action runs exactly once and records approval; every refusal leaves the action uncalled and the ledger unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +124,171 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` and `git diff --stat HEAD` showing only `tests/test_run_gates_restored_behavior.py` added; paste the `tests/test_run_gates_restored_behavior.py: N` line from bare `python3 -m pytest --collect-only -q` (the core selection prints one `path: N` line per file, so `rg -c` would print 1, not N), with N matching the per-test list of the Required tests `-v` run; paste the bare `python3 -m pytest` summary line (if it prints `CORE TIER BUDGET EXCEEDED`, paste that too with the same run's line without the module, and report it rather than un-marking tests; a pre-existing overrun is tracked separately, backlog `o58dro`).
   - Observed evidence:
-  - Result: pending
+```
+$ git status --short
+?? tests/test_run_gates_restored_behavior.py
 
-- [ ] V-02 validates E-02
+$ git diff --stat HEAD
+(clean)
+
+$ python3 -m pytest --collect-only -q | grep "tests/test_run_gates_restored_behavior.py"
+tests/test_run_gates_restored_behavior.py: 39
+
+$ python3 -m pytest
+====================== 1517 passed, 6 deselected in 9.77s ======================
+CORE TIER REAL TIME BUDGET PASSED: 9.77s <= 30.00s
+CORE TIER PASS SUM BUDGET PASSED: 70.99s <= 180.00s
+```
+(On host load spikes, core tier budget overrun is pre-existing condition tracked by o58dro; run_gates tests execute in 0.43s, well under 1.0s).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing the headless, no-synthesized-consent, dict-shape and timestamp tests as PASSED, and the failure produced by a scratch edit making the non-interactive branch of `evaluate_gate` return `GATE_STATUS_APPROVED` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_run_gates_restored_behavior.py -k "test_headless or test_no_synthesized or test_evaluate_gate_dict or test_evaluate_gate_default_timestamp or test_decision_gate_to_dict" -o addopts="" -v
+tests/test_run_gates_restored_behavior.py::test_no_synthesized_consent_even_if_default_is_approve PASSED [ 20%]
+tests/test_run_gates_restored_behavior.py::test_decision_gate_to_dict_shape PASSED [ 40%]
+tests/test_run_gates_restored_behavior.py::test_headless_noninteractive_run_stops_at_needs_input_before_side_effect PASSED [ 60%]
+tests/test_run_gates_restored_behavior.py::test_evaluate_gate_default_timestamp_accepted_by_ledger_schema PASSED [ 80%]
+tests/test_run_gates_restored_behavior.py::test_evaluate_gate_dict_shape PASSED [100%]
+======================= 5 passed, 34 deselected in 0.25s =======================
 
-- [ ] V-03 validates E-03
+Scratch edit failure (non-interactive branch returning GATE_STATUS_APPROVED, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_evaluate_gate_dict_shape
+FAILED tests/test_run_gates_restored_behavior.py::test_headless_noninteractive_run_stops_at_needs_input_before_side_effect
+FAILED tests/test_run_gates_restored_behavior.py::test_no_synthesized_consent_even_if_default_is_approve
+AssertionError: assert 'approved' == 'needs_input'
+======================= 3 failed, 36 deselected in 0.30s =======================
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing every option-mapping row and the handler-exception case as PASSED, and the failure produced by a scratch edit making the abort branch of `evaluate_gate` return `GATE_STATUS_REJECTED` instead of `GATE_STATUS_ABORTED` (reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_run_gates_restored_behavior.py -k "test_interactive_option_mapping or test_interactive_handler_exception" -o addopts="" -v
+tests/test_run_gates_restored_behavior.py::test_interactive_handler_exception_returns_refused PASSED [  7%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[empty_whitespace] PASSED [ 15%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[custom_option_case_sensitive_refused] PASSED [ 23%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[ABORT] PASSED [ 30%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[unlisted_invalid_option] PASSED [ 38%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[proceed] PASSED [ 46%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[Yes] PASSED [ 53%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[abort] PASSED [ 61%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[approve] PASSED [ 69%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[whitespace_approve] PASSED [ 76%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[deny] PASSED [ 84%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[custom_option_ship_it] PASSED [ 92%]
+tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[reject] PASSED [100%]
+====================== 13 passed, 26 deselected in 0.32s =======================
 
-- [ ] V-04 validates E-04
+Scratch edit failure (abort branch returning GATE_STATUS_REJECTED instead of GATE_STATUS_ABORTED, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[ABORT]
+FAILED tests/test_run_gates_restored_behavior.py::test_interactive_option_mapping[abort]
+AssertionError: assert 'rejected' == 'aborted'
+================= 2 failed, 10 passed, 27 deselected in 0.28s ==================
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` output listing every timeout row and stdin-fallback case from E-04 as PASSED; paste the failure produced by a scratch edit disabling the `norm_def in _APPROVAL_TOKENS` guard (for example `if False:`), which makes an `approve` default on timeout fall through to `rejected` instead of `needs_input` (F-06), with the `apply_default` + `approve` row among the failures; and paste the failure produced by a scratch edit mapping the stdin `EOFError`/`KeyboardInterrupt` fallback to `"approve"` instead of `"abort"` (each reverted afterwards).
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_run_gates_restored_behavior.py -k "test_timeout_policy_enforcement or test_stdin_fallback" -o addopts="" -v
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_approve PASSED [  7%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[policy_fail] PASSED [ 15%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_reject] PASSED [ 23%]
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_runtime_error_timed_out PASSED [ 30%]
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_keyboard_interrupt PASSED [ 38%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_none] PASSED [ 46%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_approve_no_synthesis] PASSED [ 53%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_later] PASSED [ 61%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[policy_refuse] PASSED [ 69%]
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_empty_reply_with_default_abort PASSED [ 76%]
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_empty_reply_no_default_refused PASSED [ 84%]
+tests/test_run_gates_restored_behavior.py::test_stdin_fallback_eof_error PASSED [ 92%]
+tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_abort] PASSED [100%]
+====================== 13 passed, 26 deselected in 0.24s =======================
 
-- [ ] V-05 validates E-05
+Scratch edit failure 1 (disabling norm_def in _APPROVAL_TOKENS guard, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_timeout_policy_enforcement[apply_default_approve_no_synthesis]
+E AssertionError: assert 'rejected' == 'needs_input'
+================== 1 failed, 6 passed, 32 deselected in 0.27s ==================
+
+Scratch edit failure 2 (mapping stdin EOFError/KeyboardInterrupt to 'approve' instead of 'abort', reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_stdin_fallback_keyboard_interrupt
+FAILED tests/test_run_gates_restored_behavior.py::test_stdin_fallback_eof_error
+E AssertionError: assert 'approved' == 'aborted'
+======================= 2 failed, 37 deselected in 0.27s =======================
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` output listing the approved, refusal-row, ledger-integration and rejected-control tests as PASSED; the failure produced by a scratch edit moving `result = action()` above the `if not decision.is_approved` check in `execute_gated_action`, and the failure produced by replacing the `engine.record_approval(` call with a no-op (each reverted afterwards); the failures produced by each `b1mx2w` operator applied at the top of its key's body, `execute_gated_action` -> `return None`, `GateDecision.is_approved` -> `return False`, `evaluate_gate` -> `return None` (each reverted afterwards, all three KILLED); the coverage output showing the bodies of all 3 keys executed; and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_run_gates_restored_behavior.py -k "test_interactive_choice_recorded_and_executes_action_when_approved or test_execute_gated_action_refusal_prevents_side_effect or test_gate_integration_with_run_engine_and_ledger or test_rejected_gate_leaves_engine_and_ledger_unchanged" -o addopts="" -v
+tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[timeout_refuse] PASSED [ 12%]
+tests/test_run_gates_restored_behavior.py::test_gate_integration_with_run_engine_and_ledger PASSED [ 25%]
+tests/test_run_gates_restored_behavior.py::test_interactive_choice_recorded_and_executes_action_when_approved PASSED [ 37%]
+tests/test_run_gates_restored_behavior.py::test_rejected_gate_leaves_engine_and_ledger_unchanged PASSED [ 50%]
+tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[unlisted] PASSED [ 62%]
+tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[abort] PASSED [ 75%]
+tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[headless] PASSED [ 87%]
+tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[reject] PASSED [100%]
+======================= 8 passed, 31 deselected in 0.29s =======================
+
+Scratch edit failure 1 (moving result = action() above if not decision.is_approved in execute_gated_action, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[reject]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[headless]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[timeout_refuse]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[abort]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[unlisted]
+E assert [1] == []
+======================= 5 failed, 34 deselected in 0.33s =======================
+
+Scratch edit failure 2 (replacing engine.record_approval with pass in execute_gated_action, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_gate_integration_with_run_engine_and_ledger
+E AssertionError: assert [] == ['S-01']
+======================= 1 failed, 38 deselected in 0.31s =======================
+
+b1mx2w Operator 1 (execute_gated_action -> return None, KILLED, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[timeout_refuse]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[unlisted]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[reject]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[headless]
+FAILED tests/test_run_gates_restored_behavior.py::test_execute_gated_action_refusal_prevents_side_effect[abort]
+E TypeError: cannot unpack non-iterable NoneType object
+======================= 5 failed, 34 deselected in 0.28s =======================
+
+b1mx2w Operator 2 (GateDecision.is_approved -> return False, KILLED, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_gate_integration_with_run_engine_and_ledger
+FAILED tests/test_run_gates_restored_behavior.py::test_interactive_choice_recorded_and_executes_action_when_approved
+E AssertionError: assert False is True
+======================= 2 failed, 37 deselected in 0.31s =======================
+
+b1mx2w Operator 3 (evaluate_gate -> return None, KILLED, reverted afterwards):
+FAILED tests/test_run_gates_restored_behavior.py::test_evaluate_gate_default_timestamp_accepted_by_ledger_schema
+FAILED tests/test_run_gates_restored_behavior.py::test_evaluate_gate_dict_shape
+E AttributeError: 'NoneType' object has no attribute 'timestamp'
+======================= 2 failed, 37 deselected in 0.25s =======================
+
+Coverage report showing 100% coverage across run_gates:
+Name                           Stmts   Miss  Cover   Missing
+------------------------------------------------------------
+agent_workflows/run_gates.py     102      0   100%
+------------------------------------------------------------
+TOTAL                            102      0   100%
+============================== 39 passed in 0.42s ==============================
+
+Final git diff agent_workflows/:
+(clean)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
