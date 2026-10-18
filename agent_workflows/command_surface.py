@@ -1189,8 +1189,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
     # does not produce. This obligation is enforced by `tests/test_conformance_matrix_structure.py`,
     # and 1 is omitted on correctness grounds rather than because nothing would catch it. The contract
-    # is not capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while
-    # codes 3, 5 and 7 stay bare.
+    # is not capped at (0, 1, 2) because only exit-0/1 answers and exit-1 and exit-2 refusals are
+    # records while codes 3 to 7 stay bare.
     CommandDeclaration(
         command="runs next",
         command_class="read",
@@ -1238,8 +1238,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`, and adding it
     # would oblige a `domain_failure` conformance scenario (`tests/conformance_matrix.py`) for an
     # outcome the verb does not produce (same reasoning as `reviews decisions`). The contract is not
-    # capped at (0, 1, 2) because only exit-0/1 answers and exit-2 refusals are records while
-    # codes 3, 5 and 7 stay bare.
+    # capped at (0, 1, 2) because only exit-0/1 answers and exit-1 and exit-2 refusals are records
+    # while codes 3 to 7 stay bare.
     CommandDeclaration(
         command="runs resume",
         command_class="read",

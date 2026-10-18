@@ -1396,13 +1396,18 @@ def _emit_error(
     having to parse it out of an English sentence, which is the half of this surface where a
     human-only signpost does the most damage: an automated consumer cannot read prose at all.
 
-    For the exit-2 (`EXIT_INVALID_INVOCATION`) refusal class under `--agent`, this emits a validated
+    For the refusal classes under `--agent`, exit 2 (`EXIT_INVALID_INVOCATION`) emits a validated
     `aw.agent/v1` `kind: "error"` record (`outcome: "cannot-run"`, `exit: 2`, `verified: false`,
-    `complete: false`, `cmd` naming the leaf, and a `next` recovery command) that retains the legacy
-    `ok`/`error`/`exit_code` keys and honors `--fields`. `--json` refusals and non-2 refusals (exit 1
-    and 3 to 7) keep the bare JSON shape, carried by backlog `p7bvku`. Success answers under `--agent`
-    (exit 0 and 1) are emitted as `kind: "result"` records via `_emit_result`.
-    `tests/test_run_cli_error_payload_keys.py` guards this split across leaves and renderers.
+    `complete: false`, `cmd` naming the leaf, and a `next` recovery command) and exit 1
+    (`EXIT_INCOMPLETE`) emits a validated `kind: "result"` record (`outcome: "fail"`, `exit: 1`,
+    `verified: true`, `complete: true`, `cmd` naming the leaf, and `next` pointing to `aw runs status`);
+    both retain legacy `ok`/`error`/`exit_code` keys and honor `--fields`. Refusals exiting 3 to 7
+    stay bare JSON because `aw.agent/v1` cannot carry them without renumbering (spec `25kzda` 5.6 row 4)
+    or breaking exit parity and the {0, 1, 2} bound (`docs/cli-output-contract.md` Sections 3 and 4,
+    a `v2` change per Section 8). `--json` refusals keep the bare JSON shape. Success answers under
+    `--agent` (exit 0 and 1) are emitted as `kind: "result"` records via `_emit_result`.
+    `tests/test_run_cli_error_payload_keys.py` and `tests/test_run_cli_wide_exit_refusal_shape.py`
+    guard this split across leaves and renderers.
     """
     if (
         getattr(args, "agent", False) or getattr(args, "as_agent", False)
@@ -1425,6 +1430,31 @@ def _emit_error(
             "error": message,
             "ok": False,
             "exit_code": 2,
+            "next": next_cmd,
+        }
+        _emit_agent_record(args, rec)
+        return exit_code
+    if (
+        getattr(args, "agent", False) or getattr(args, "as_agent", False)
+    ) and exit_code == EXIT_INCOMPLETE:
+        target = getattr(args, "target", None)
+        next_cmd = (
+            f"aw runs status {target}"
+            if isinstance(target, str) and target
+            else "aw runs status --help"
+        )
+        rec = {
+            **(extra or {}),
+            "error": message,
+            "ok": False,
+            "exit_code": 1,
+            "schema": agent_schema.SCHEMA_VERSION,
+            "kind": "result",
+            "cmd": _agent_cmd(args),
+            "exit": 1,
+            "outcome": "fail",
+            "verified": True,
+            "complete": True,
             "next": next_cmd,
         }
         _emit_agent_record(args, rec)
@@ -2186,17 +2216,16 @@ def _run_finalize(args: argparse.Namespace) -> int:
     evaluation = evidence.evaluate_completion(records, coordinator_authority=True)
     if not evaluation.is_complete:
         if _machine(args):
-            _emit_machine(
+            _emit_error(
                 args,
-                {
-                    "ok": False,
-                    "error": "run is incomplete; completion predicates not satisfied",
+                "run is incomplete; completion predicates not satisfied",
+                EXIT_INCOMPLETE,
+                extra={
                     "reasons": list(evaluation.reasons),
                     "predicates": {
                         name: {"satisfied": p.satisfied, "details": p.details}
                         for name, p in evaluation.predicates.items()
                     },
-                    "exit_code": EXIT_INCOMPLETE,
                 },
             )
         else:
