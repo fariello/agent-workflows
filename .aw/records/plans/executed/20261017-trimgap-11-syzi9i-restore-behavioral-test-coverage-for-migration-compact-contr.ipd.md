@@ -6,7 +6,7 @@
 - Scope: Restore ONE behavioral test module at its original path, `tests/test_migration_compact_shims.py`, mined from `19313eed^:tests/test_migration_compact_shims.py`, marked `core` so the routine gate reaches it, and extended where the deleted file left a key's return value unasserted (the three `to_dict` methods and the fail-closed error branches). It drives all 24 keys named in `b1mx2w`: `evaluate_promotion_gate`, `build_metric_summary`, `_mv` (via `build_metric_summary`), `TypedContract.validate`, `TypedContract.to_dict`, `build_compact_package`, `build_all_compact_packages`, `generate_compact_projection`, `resolve_shim`, `check_compact_completeness`, `old_invocation_still_works`, `resolve_body_dir`, `_workflow_by_command` (via `resolve_body_dir` and `build_compact_package`), `argument_parity`, `render_agent_report`, `CompactPackage.to_dict`, `skill_resolves_package`, `advertised_families`, `legacy_fallback_families`, `CompactProjection.to_dict`, `CompactProjection.shim_for`, `assert_no_needless_subagent`, `_shim_view_digest` (via `detect_shim_drift`), `detect_shim_drift`. EXCLUDES any change to `agent_workflows/migration_compact.py` or any other production file; EXCLUDES the non-`migration_compact` keys that the same deleted file also reached (`benchmark_thresholds.evaluate_release_gate`, `host_adapters.SkillPackage.to_dict`, `engine.validate_shim_grammar`), which other `trimgap` items own; EXCLUDES the deleted `tests/test_exec_set_workflow.py`, whose only `migration_compact` use is one `detect_shim_drift(content, content)` call already covered here and whose remaining reach (`set_records`, `ipd_set_plan`) is not this item's module; and EXCLUDES the deleted `test_generator_is_reused_not_forked` `assertIs` symbol-identity assertions, which pin code structure (re-export identity) rather than behavior and so are forbidden by the AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE" rule. Its behavioral half (projection shims equal the engine generator's output) IS restored.
 - Scope-Paths: tests/test_migration_compact_shims.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: syzi9i
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: syzi9i verified (set trimgap, attempt 1).
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 
