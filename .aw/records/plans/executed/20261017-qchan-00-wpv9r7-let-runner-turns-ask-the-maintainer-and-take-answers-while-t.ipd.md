@@ -6,7 +6,7 @@
 - Scope: Orchestration only: sequence the eleven children below and confirm each reaches `executed`. No code, test or record of its own.
 - Scope-Paths: .aw/records/plans/pending/20261017-qchan-00-wpv9r7-let-runner-turns-ask-the-maintainer-and-take-answers-while-t.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Coverage: pass
 - Coverage-Fingerprint: b85cde20cc6e36c802f6da7579ba305f415cf0e130917abec4213e846fe312cd
@@ -19,9 +19,9 @@
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wpv9r7
-- Approval: 2026-10-17, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-18 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set qchan reached executed, so the runner (run run-20261018T201524Z-4077155) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 0jooqz, epsti7, mtmqlm, j0ufrj, 8u071n, y1vjzp, 4kkcex, jshwxb, txl556, qrup8m, mrlblc, uqp95y.
 - 2026-10-18 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): design input: until this Set lands, `Attended: required` plans run by opening an INTERACTIVE agent session (`aw work begin`, and the runners pause at a terminal) - DECISIONS D176, backlog rfofos. When runner turns can ask questions, attended plans should be able to run as ordinary turns through this channel, with the interactive hand-off kept as the fallback; keep the two consistent.
 - 2026-10-17 approved (aw set): status set to approved
 - 2026-10-17 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
@@ -38,6 +38,9 @@
 Implement spec `6kwd2e` in full, including its 2026-10-17 amendment, as eleven independently executable children: a worker can hand the human a question, the item parks without stopping the queue, the human is told and can answer from a terminal or Telegram while the run is live, and the parked item resumes in its own session.
 
 ## Detailed Implementation Checklist (TODO)
+
+
+> Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate.
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
