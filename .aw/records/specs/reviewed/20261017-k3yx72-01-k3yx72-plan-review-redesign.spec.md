@@ -1,7 +1,7 @@
 # Spec: Runner-enforced, depth-scaled plan review
 
 - Date: 2026-10-17
-- Status: draft
+- Status: reviewed
 - Id: k3yx72
 - Author: aw specs new
 - Scope: Replace the single-turn plan review with a runner-driven sequence of review prompts whose number scales with the plan's review tier (simple, standard, complex); proofread first; re-review by an exact reply marker; split over-large plans; check code citations by symbol; retire plan-review-long; decide prompt grouping by a measured experiment
@@ -23,6 +23,11 @@
 | Review tier | `simple`, `standard`, or `complex`. The tier decides which review checks run and how many prompts the review uses (Section 5). |
 | Proofreading instructions | Prompt `wcisgc`, "Proofread Technical Artifacts", at `.aw/records/prompts/reusable/20261017-revsteps-01-wcisgc-technical-artifact-proofreading.prompt.md`. |
 | Recommendation strength | One of `very weak`, `weak`, `medium`, `strong`, `very strong`, attached to every recommendation (Section 7.3). |
+| Verdict outputs | The three things existing gates read to decide whether a review cleared a plan: the plan's `- Readiness:` field, its `- Status:` move from `to-review` to `reviewed`, and the one history entry that states a review verdict (`APPROVE`, `APPROVE WITH REVISIONS APPLIED`, `REVIEWED - OPEN QUESTIONS`, or `REJECT - NEEDS REPLAN`). |
+| Reviewed-contract hash | The value of `agent_workflows/ipd_lifecycle.py::frozen_region_digest`: a SHA-256 over the plan's `- Scope-Paths:` list and the action text of every `E-*` and `V-*` item. It does NOT cover checkbox marks, `Execution state`, evidence fields, open questions, prose sections, or `## Workflow history`. Two plan texts with the same hash ask the executor to do the same work in the same files. |
+| Plan-file hash | A SHA-256 over the plan file's exact bytes. Any edit changes it. |
+
+Identifier note: under spec `89xjll` (requirement-id convention; this spec is dated after its 2026-10-01 cutover), the goal ids `G1`-`G5` and the check ids `R1`-`R7` are extracted as TRACE-mandatory requirement ids, and the acceptance ids `AC-01`... in Section 14 as acceptance ids. That is intended: each implementing plan's `E-*` items cite the goals and checks they build, and its `V-*` items cite the acceptance criteria they prove.
 
 ## 1. Problem
 
@@ -32,7 +37,10 @@
    re-sends the whole conversation. The median attempt took 50 model steps and ended with a
    234,000-token context. Review cost is therefore roughly the number of steps multiplied by the
    context size per step. Most context is tool output: `bash` produced 71 percent of tool output
-   bytes and `read` 27 percent.
+   bytes and `read` 27 percent. Source: the measurement table in the untracked file
+   `tmp/20261017-runs-analyze-review-cost.prompt.md` (`tmp/` is gitignored, so this evidence is
+   not durable; the analytics backlog item named in Section 15 must carry these figures when it is
+   filed).
 2. **Every plan gets the same review.** A 1-to-4-line change and a 40-item plan both receive the full
    `/plan-review` workflow. `/plan-review-long` was meant to review complex plans more deeply. It does
    not: it differs from `/plan-review` only in loading one step file at a time and in using parallel
@@ -85,7 +93,11 @@ Non-goals:
 | MD-11 | Any step may add open questions, each with a recommended answer and strength. No step may change an existing `Blocking: yes` to `Blocking: no` without recording why. |
 | MD-12 | An interrupted review resumes after the last completed step in the same session. If that session cannot be resumed, the review restarts at the proofreading step in a new session (Section 9.3). |
 | MD-13 | The runner never uses Antigravity's `--continue` fallback for a review. Without a captured session id it starts a new session. |
-| MD-14 | Prompt counts are `simple` 1 to 2 prompts, `standard` 4 prompts, and `complex` either 6 grouped or 12 single prompts. The experiment in Section 13 chooses between the two `complex` variants. |
+| MD-14 | Prompt counts are `simple` 2 to 3 prompts, `standard` 5 prompts, and `complex` either 7 grouped or 13 single prompts (12 for a plan outside a Set). The experiment in Section 13 chooses between the two `complex` variants. (Revised 2026-10-18 at spec review, SR-001: each count gained one prompt when S7 became its own final prompt under MD-15.) |
+| MD-15 | The verdict outputs are written exactly once per review invocation, after the re-review loop has ended (marker `AW-REVIEW: DONE` and no runner trigger). They are written by S7, which is its own final prompt. Progress that no gate reads as a verdict (review-record `### Step` and `### Pass` subsections, and history entries with no verdict token) may be written at any time and as often as useful. (Spec review 2026-10-18, SR-001.) |
+| MD-16 | A review that ends `no-go` leaves the plan at `reviewed` with `- Readiness: no-go`, as today. Only an exhausted orchestrator repair loop leaves the plan at `to-review` with `- Readiness:` absent. Answering a blocking question clears `no-go` without a re-review unless the answer changes the plan (Section 9.4). (Spec review 2026-10-18, SR-002.) |
+| MD-17 | The grouping experiment is a pilot followed by a sized run under a human-set dollar cap, scored with a quality rubric as well as cost. On a result that is not shown different, `single-12` is the default (Section 13). (Spec review 2026-10-18, SR-003.) |
+| MD-18 | The quoted-text citation form is `` `path` "text" `` (Section 11.1). (Spec review 2026-10-18, closes OQ-02.) |
 
 ## 4. Review sequence
 
@@ -104,7 +116,7 @@ The runner:
 2. Runs `aw ipd lint --phase author` and, for an orchestrator, `aw ipd coverage <id6>`.
 3. Runs the citation resolver (Section 11.2) on the plan.
 4. Computes the runner tier signals (Section 5.2).
-5. Records the plan's content digest as the review baseline.
+5. Records the plan-file hash and the reviewed-contract hash (Section 0) as the review baseline.
 6. Puts the results of items 2 to 4 into the first prompt, so the agent does not re-derive them.
 
 Item 6 also addresses Section 1 problem 1: facts the runner supplies are facts the agent does not
@@ -129,7 +141,7 @@ more checks, depending on the tier and the grouping variant (Section 5.3).
 | R7 Cross-plan | For a plan in a Set: consistency with its siblings and its orchestrator. |
 | S5 Questions | Resolve open questions from repository evidence. Escalate every unfixed finding at or above the configured block level to a `Blocking: yes` question with `- Finding: <ID>` (the existing Step 4 escalation rule). |
 | S6 Re-review | End the reply with `AW-REVIEW: AGAIN` or `AW-REVIEW: DONE` (Section 8). |
-| S7 Finalize | Write `- Readiness:`, the review history entry, and the final commit (Section 7.2). |
+| S7 Finalize | Sent only after the re-review loop has ended (MD-15). Write the verdict outputs: `- Readiness:`, the status move, and the one verdict-bearing history entry; then the final commit (Section 7.2). |
 
 ## 5. Review tiers
 
@@ -168,14 +180,18 @@ the pre-pass, the runner raises the tier and sends the newly required checks bef
 
 | Tier | Variant | Prompts |
 | --- | --- | --- |
-| `simple` | - | 1: P+T+Q. 2: S5+S6+S7. When the plan has no open questions and Q records no finding, the runner may send prompt 2's checks in prompt 1 (one prompt total). |
-| `standard` | - | 1: P+T. 2: R1+R2. 3: R3+R4. 4: S5+S6+S7. |
-| `complex` | `grouped-6` | 1: P+T. 2: R1+R2. 3: R3. 4: R4+R5. 5: R6+R7. 6: S5+S6+S7. |
-| `complex` | `single-12` | One prompt per check: P, T, R1, R2, R3, R4, R5, R6, R7, S5, S6, S7. R7 is skipped for a plan outside a Set (11 prompts). |
-| `orchestrator` | - | 1: P+R1+R2. 2: R7. 3: S5+S6+S7. |
+| `simple` | - | 1: P+T+Q. 2: S5+S6. 3: S7. When the plan has no open questions and Q records no finding, the runner may send prompt 2's checks in prompt 1 (two prompts total). |
+| `standard` | - | 1: P+T. 2: R1+R2. 3: R3+R4. 4: S5+S6. 5: S7. |
+| `complex` | `grouped-6` | 1: P+T. 2: R1+R2. 3: R3. 4: R4+R5. 5: R6+R7. 6: S5+S6. 7: S7. (The variant name counts the review prompts before S7.) |
+| `complex` | `single-12` | One prompt per check: P, T, R1, R2, R3, R4, R5, R6, R7, S5, S6, then S7 (13 prompts). R7 is skipped for a plan outside a Set (12 prompts). |
+| `orchestrator` | - | 1: P+R1+R2. 2: R7. 3: S5+S6. 4: S7. |
+
+S7 is always its own prompt and is sent once, after the loop of Section 8 ends (MD-15). A re-review
+pass therefore re-sends review checks and S5+S6, never S7.
 
 The grouping is a runner setting (`review_variant`), recorded in run state, so that both `complex`
-variants use the same step files and differ only in grouping. Section 13 decides the default.
+variants use the same step files and differ only in grouping. Until Section 13 has produced a
+result, the default is `single-12` (MD-17).
 
 When the agent's tier T differs from the tier the first prompt assumed, the runner continues with
 the prompt list of the final tier.
@@ -191,7 +207,8 @@ The runner checks these after each prompt. A check that fails triggers one re-as
 | Q, R1 to R7 | The current round has a `### Step <check>` subsection for each check in the prompt (for example `### Step R4`). Findings, if any, are rows in the round's single `### Findings` table (Section 7.1). R1 additionally: the runner re-runs the resolver and the agent addressed every result it reported. |
 | S5 | Every open question has `Blocking:` and `Status:`. Every `Blocking: no` added or changed in this review has a rationale. `check.review-finding-unescalated` passes. |
 | S6 | The marker rules in Section 8.1 are met. |
-| S7 | One of: (a) `- Readiness:` holds `go`, `go-pending-approval`, or `no-go`; or (b) `- Readiness:` is absent and the round records an exhausted orchestrator repair (the existing `IPD-S407`/`IPD-S408` rule). The status transition is legal. `aw ipd lint --phase author` reports no error that was not present at the pre-pass. |
+| S6 (every pass before the last) and every check before S7 | The plan's `- Readiness:` value, `- Status:` value, and newest verdict-bearing history entry (as read by `plan_readiness.newest_verdict`) are byte-identical to their values at the pre-pass. A change is refused like a failed postcondition: the runner restores those three and re-asks once (MD-15). |
+| S7 | One of: (a) `- Readiness:` holds `go`, `go-pending-approval`, or `no-go`, and `- Status:` is `reviewed`; or (b) `- Readiness:` is absent, `- Status:` is still `to-review`, and the round records an exhausted orchestrator repair (the existing `IPD-S407`/`IPD-S408` rule). Exactly one verdict-bearing history entry was added during the invocation. `aw ipd lint --phase author` reports no error that was not present at the pre-pass, except `IPD-Q501` for an open `Blocking: yes` question that S5 added or kept (that diagnostic is the intended effect of a blocking question, not a review defect). |
 
 These postconditions confirm that a check ran. They do not prove that the review was good (N2).
 
@@ -245,16 +262,27 @@ round, not new rounds. Inside a round:
 
 Per review invocation, whatever the number of passes:
 
-- Exactly one review history entry, in the existing `/plan-review (<agent/model>): <verdict>; ...`
-  form (spec `25kzda` Section 4.4, `IPD-REVIEW-HISTORY`).
+- Exactly one VERDICT-BEARING history entry, in the existing
+  `/plan-review (<agent/model>): <verdict>; ...` form (spec `25kzda` Section 4.4,
+  `IPD-REVIEW-HISTORY`). This limits only entries that state a verdict, because gates read the newest
+  one (`plan_readiness.newest_verdict`) as the review's result. Other history entries (progress
+  notes with no verdict token, for example "pass 2 re-ran R2 after E-05 was added") are allowed and
+  are not counted. Detailed per-check and per-pass evidence belongs in the review record
+  (Section 7.1).
 - Exactly one final commit whose subject starts with `plan-review:`
-  (`agent_workflows/plan_readiness.py::review_staleness_index` finds the review by that prefix).
-  The runner's fallback lane commit subject (`review(<host>): record the review of <id6>`) changes to
-  the same prefix.
-- `- Readiness:` and the review tier are written in S7, not earlier, so no mid-review write changes
-  the reviewed text. The review tier is stored as `- Review-Depth: <tier>` (a new recognized field in
-  `agent_workflows/ipd_schema.py::META_RECOGNIZED`), excluded from the review-staleness digest
-  (Section 12 covers storage under `4sd62s`).
+  (`agent_workflows/plan_readiness.py::review_staleness_index` finds the review by that prefix: it
+  reads the plan as of that commit and compares it with the current plan). Earlier commits during
+  the invocation, if any, must not use that prefix, or a later staleness check would compare
+  against a mid-review text. The runner's fallback lane commit subject
+  (`review(<host>): record the review of <id6>`) changes to the same prefix.
+- The verdict outputs and the review tier are written in S7 only (MD-15). Reason: the runner decides
+  whether another pass is needed only after S6's reply, so a verdict written earlier could leave a
+  plan at `reviewed` + `go` that the runner has already scheduled for re-review. If the run then
+  stopped, the plan would look finished, and under `--full-auto` it could be auto-approved without
+  that re-review. The review tier is stored as `- Review-Depth: <tier>` (a new recognized field in
+  `agent_workflows/ipd_schema.py::META_RECOGNIZED`). It is not part of the reviewed-contract hash,
+  because that hash covers only `- Scope-Paths:` and the `E-*`/`V-*` action text (Section 0). Section
+  12 covers storage under `4sd62s`.
 
 ### 7.3 Recommendations
 
@@ -313,12 +341,15 @@ clears all triggers.
 ### 8.3 The loop
 
 A re-review pass re-runs the tier's review checks (Q or R1 to R7) limited to the changed sections
-and the sections that depend on them, then S5 and S6. The runner gives the agent the diff since the
-start of the previous pass.
+and the sections that depend on them, then S5 and S6. The runner gives the agent the diff of the
+plan file from the start of the previous pass to the start of this pass.
 
 At most two re-review passes are allowed. If the second pass still produces a re-review, S7 must
 write `no-go` and add an open question `Blocking: yes` that names what still changed, so that
 `aw ipd recheck-readiness` can clear it after a human looks.
+
+The loop ends when S6's reply carries `AW-REVIEW: DONE` and no runner trigger of Section 8.2 fired,
+or when the pass limit is reached. Only then does the runner send S7 (MD-15).
 
 ## 9. Outcomes, sessions, and interruption
 
@@ -327,8 +358,9 @@ write `no-go` and add an open question `Blocking: yes` that names what still cha
 | Outcome | Meaning | Plan state afterwards |
 | --- | --- | --- |
 | `completed-pass` | S7 wrote `go` or `go-pending-approval`. | `reviewed` (existing transition). |
-| `completed-negative` | S7 wrote `no-go`, or `- Readiness:` is absent after an exhausted orchestrator repair. Findings and blocking questions are kept. | Stays at `to-review`. |
-| `incomplete` | A re-ask failed, or a host failure could not be recovered. | Restored to the last completed step's content; stays at `to-review`; the run records the reason. |
+| `completed-negative` | S7 wrote `no-go`. Findings and blocking questions are kept. | `reviewed` with `- Readiness: no-go` (existing transition; spec `25kzda` Section 3.2 and `plan-review.md#Verdict and readiness`). A `reviewed` plan is not re-dispatched for review, so a `no-go` plan is not re-reviewed on every run; Section 9.4 states how it is cleared. |
+| `completed-negative` (orchestrator repair exhausted) | `- Readiness:` is absent after an exhausted `IPD-S407`/`IPD-S408` repair loop. | Stays at `to-review` (existing rule in `plan-review.md#Orchestrator review readiness`). |
+| `incomplete` | A re-ask failed, or a host failure could not be recovered. | Restored to the last completed step's content; stays at `to-review`; the run records the reason. No verdict output was written, because S7 was not reached (MD-15). |
 
 ### 9.2 Sessions
 
@@ -338,12 +370,12 @@ write `no-go` and add an open question `Blocking: yes` that names what still cha
 - Session rotation (`max_items_per_session`) never happens between prompts of one review
   invocation. One review invocation counts as one item toward that limit.
 - Whether each review invocation should start a new session or reuse the previous plan's session is
-  not decided. Measured data is mixed (Section 1, and Section 13 variable V3).
+  not decided. Measured data is mixed (OQ-07, and Section 13 variable V4).
 
 ### 9.3 Interruption and resume
 
 The runner records, after each prompt: the review invocation id, the pass number, the last completed
-prompt, the plan's content digest, and the session id.
+prompt, the plan-file hash, and the session id.
 
 On `aw <host> run resume`:
 
@@ -353,6 +385,44 @@ On `aw <host> run resume`:
 
 Each prompt and transcript gets a unique name per invocation, pass, prompt, and attempt, so a
 resumed run does not overwrite earlier logs.
+
+Because no verdict output exists before S7 (MD-15), an interrupted review always leaves the plan at
+`to-review` with no `- Readiness:` written by this invocation, so an interruption cannot make an
+unfinished review look finished.
+
+### 9.4 Clearing a `no-go` after a blocking question is answered
+
+Most `no-go` results exist only because a blocking question needs a human answer. Answering it should
+not cost a full re-review. When a human answers a `Blocking: yes` question on a `reviewed` + `no-go`
+plan (through `/askme`, `aw runs answer`, or an interactive run):
+
+1. The agent that records the answer sets the question to `Status: resolved` with the answer, applies
+   any plan edits the answer requires, and ends its reply with one line `AW-MATERIAL: yes` or
+   `AW-MATERIAL: no`, preceded by a one-sentence reason. `yes` means the answer changes what the
+   plan does or how, beyond the question's own text.
+2. The runner compares the reviewed-contract hash (Section 0) of the plan at its last `plan-review:`
+   commit with the current plan. This is the existing `substantive-edit` test in
+   `agent_workflows/plan_readiness.py::review_staleness_from_texts`.
+3. If the hash is unchanged AND the marker is `AW-MATERIAL: no`, the runner runs
+   `aw ipd recheck-readiness <id6> --apply`. That verb moves `no-go` to `go-pending-approval` only
+   when no blocking question is open, no gating finding is open, and the newest verdict is not
+   `REJECT - NEEDS REPLAN`; it can never write `go`. No review prompt is sent.
+4. If the hash changed OR the marker is `AW-MATERIAL: yes`, the runner runs a TARGETED re-review: a
+   new review invocation whose first pass is a Section 8.3 pass limited to the changed sections and
+   the sections that depend on them, followed by S5, S6, and S7. It is not a full review.
+5. A missing or malformed `AW-MATERIAL:` line is re-asked once (the Section 8.1 rule 3 pattern). A
+   second failure is treated as `AW-MATERIAL: yes`, because a missed re-review costs more than an
+   unneeded one.
+6. A human may force either path: `aw ipd recheck-readiness` directly, or a re-review with
+   `aw <host> review <id6> --yes`.
+
+Why both tests: the hash is deterministic but cannot see a design change made only in prose (for
+example, a resolved question whose answer reverses an approach described in `## Proposed changes`).
+The model's `AW-MATERIAL` judgement covers that case. Either test alone triggers the re-review.
+
+Limit: a model that wrongly answers `no` for a prose-only design change clears the plan to
+`go-pending-approval` without re-review. The human approval gate still stands between that and
+execution unless `--full-auto` is used.
 
 ## 10. Split step
 
@@ -374,9 +444,13 @@ When R6 recommends a split and S7 writes `no-go`, the runner schedules a split s
    - Every other plan whose `- Item-Dependencies:` names the original is changed to name the new
      orchestrator.
    - The original's prerequisites move to the child plans that need them.
-4. **Retirement.** The original moves to `.aw/records/plans/superseded/` through a tooled retirement
-   command, with a `RETIRED` header that names the new Set. No such command exists today
-   (retirement is a hand-written header plus `git mv`); Order 06 adds one.
+4. **Retirement.** The original moves to `.aw/records/plans/superseded/` through the existing tooled
+   setter, `aw ipd set superseded <id6> -m "split into Set <new-setid>"`. That setter already
+   relocates the file, appends the history entry, and updates the original Set's orchestrator history
+   (`agent_workflows/status_set.py`, the block commented "When a child plan is retired"; verified by
+   a `--dry-run` at spec review). It does not write the `RETIRED YYYY-MM-DD: ...` header that
+   `.aw/records/plans/README.md` asks for; Order 06 makes the split write that header (or makes the
+   setter write it) so the successor Set is named in the plan body, not only in history.
 5. **Failure.** If step 2 or 3 fails, the new files are deleted and the original stays in
    `pending/`.
 6. **Queue.** Under spec `25kzda` Section 2.6, new plans never join a run already in progress. The
@@ -394,7 +468,7 @@ text edits (Section 12).
 | --- | --- | --- |
 | Python code | `path::Name`, `path::Class.method`, `path::outer.inner`, `path::CONSTANT` | Rename or deletion of that symbol. |
 | Markdown | `path#Heading text`, with the exact heading text | A change to that heading text, or a duplicate heading. |
-| Quoted text | Syntax not decided (OQ-2). Must name a path and a single-line string that occurs exactly once in that file. | An edit to the string, or a second occurrence. |
+| Quoted text | `` `path` "text" ``: a backticked path, one space, then the text in double quotes. The text is one line and must occur exactly once in that file. Text that itself contains a double quote is written with `\"`, and a backslash as `\\`; no other escapes exist (MD-18). | An edit to the string, or a second occurrence. |
 | Records | `<id6>`, `<id6> R-3`, `E-04`, `D153`, each with a descriptive name | Deletion of the artifact or item. |
 | Generated files | Cite the generator (`path::Symbol`), not the generated file. | As for Python code. |
 
@@ -414,7 +488,9 @@ A new resolver in `aw check` resolves each citation at the current commit and re
 - It runs again at `aw ipd begin` and its report is put into the execution prompt, so the executing
   agent fixes or works around remaining problems.
 - Citations that name a target the plan itself will create are marked by the plan as proposed and
-  are not reported as `not-found`. (Exact marking syntax: OQ-2.)
+  are not reported as `not-found`. The marking syntax is left to Order 03's plan, which must carry
+  it as a `Blocking: yes` open question until it is decided; it is an internal convention of the
+  resolver and can change later without breaking any existing citation.
 - Exact symbol resolution is for Python. Other languages fall back to a text search and report the
   result as a search match, not a resolved symbol.
 
@@ -439,7 +515,7 @@ This spec is written in terms of fields and events, so it works under either sto
 | This spec | Today | Under `4sd62s` |
 | --- | --- | --- |
 | Review tier | `- Review-Depth:` line, registered in `META_RECOGNIZED` | A `review-depth` field set by the S7 review event |
-| One review history entry per invocation | One `## Workflow history` line | One `review` event (`4sd62s` Section 4.1a) |
+| One verdict-bearing history entry per invocation (other entries allowed) | One verdict-bearing `## Workflow history` line, plus any progress lines | One `review` event (`4sd62s` Section 4.1a), plus any non-review events |
 | Split field moves (Section 10 step 3) | Line edits through the existing setters | `set`/`unset` events through `artifact_meta` |
 | Structural preservation check (Section 6.1) | Compares parsed front matter | Compares the folded event state |
 
@@ -450,8 +526,9 @@ plans run first, the `4sd62s` migration must carry `Review-Depth` like any other
 
 ### 13.1 Questions
 
-1. For `complex` plans, does `grouped-6` cost less than `single-12` without finding fewer defects?
-2. How does each model respond to each grouping: cost, steps, re-asks, and defects found?
+1. For `complex` plans, does `grouped-6` cost less than `single-12` without lower review quality
+   (Section 13.4 rubric)?
+2. How does each model respond to each grouping: cost, steps, re-asks, and quality score?
 3. (Optional, second round) Does a new session per review cost more or less than reusing the
    previous plan's session?
 
@@ -468,50 +545,107 @@ plans run first, the `4sd62s` migration must carry `Review-Depth` like any other
 | Variable | Values |
 | --- | --- |
 | V1 Plans | 3 pending plans: 1 `standard`, 2 `complex`. For each, a copy with planted defects: a `V-*` item that asks for no evidence, a wrong file path, and a changed CLI option that another command reads. |
-| V2 Grouping | `standard`: the single 4-prompt variant. `complex`: `grouped-6` and `single-12`. |
+| V2 Grouping | `standard`: the single 5-prompt variant. `complex`: `grouped-6` and `single-12`. |
 | V3 Models | Opus 5.5 High (OpenCode) and Gemini 3.8 Flash High (Antigravity). GPT-6.1 Sol only if a Codex host exists or by hand. |
-| V4 Session | First round: fixed (new session per review). Second round: new versus reused, with the better grouping. |
+| V4 Session | Pilot and sized run: fixed (new session per review). A later round may compare new versus reused sessions with the chosen grouping. |
 
-Each combination runs twice. First round: about 24 reviews. Each review runs in its own worktree
-from the same commit with a run label.
+Each review runs in its own worktree from the same commit with a run label. The experiment has two
+stages (MD-17):
 
-### 13.4 Measures
+1. **Pilot.** Each combination runs twice: about 24 reviews. Purpose: measure the real
+   review-to-review variation in cost and in quality score, and calibrate the rubric (Section 13.4)
+   by checking that two scorers agree on the same reviews. The pilot alone never chooses a variant.
+2. **Sized run.** From the pilot's measured variation, compute the number of paired reviews needed
+   for the test in Section 13.5 at the margins set in OQ-10, and record that number and its
+   projected cost in the research report BEFORE running it. The run proceeds only up to the dollar
+   cap a human sets in OQ-10.
+
+Scale, for planning only: a median review costs $7.83 (Section 1 source). If review cost varies by
+about 50 percent between attempts (not yet measured; the pilot measures it), an equivalence test at
+95 percent confidence with a 5 percent cost margin needs several hundred to over a thousand paired
+reviews; a 10 percent margin needs about a quarter of that.
+
+### 13.4 Measures and quality rubric
 
 Per review: tokens by type (new input, cache read, cache write, output, reasoning), model steps,
 context size per step, wall time, cost where recorded (tokens otherwise; Antigravity records no
-cost), re-asks and failed postconditions, re-review passes, verdict, and planted defects found.
+cost), re-asks and failed postconditions, re-review passes, verdict, and a quality score.
+
+Quality is scored per review against a written rubric, not by planted-defect count alone, because a
+review that finds every planted defect may still leave a worse design. The rubric scores at least:
+planted defects found (each weighted by the harm it would cause if executed, not counted equally),
+false findings raised, correctness of the edits the review made, and the design quality of the
+reviewed plan afterwards. Scoring is done by a scorer that does not know which variant produced the
+review. The weights and the scoring procedure are decided in OQ-10 before the sized run, so they
+cannot be tuned to the result.
 
 ### 13.5 Decision rule
 
-Choose the variant with the lower median token cost unless it finds fewer planted defects in total
-across both models. With two runs per combination the results are read review by review; a
-difference smaller than about two times is not treated as real. Record the results as a research
-report in Set `revsteps`.
+The sized run uses a paired equivalence test (two one-sided tests) on cost and on quality score,
+at the confidence and margins set in OQ-10 (at least 95 percent; 99 percent preferred).
+
+- If one variant is shown better on quality, choose it, even at higher cost, unless the cost
+  difference exceeds the limit set in OQ-10.
+- Otherwise, if one variant is shown cheaper and the two are shown equivalent on quality, choose the
+  cheaper one.
+- Otherwise (shown equivalent on both, or not shown different on either), choose `single-12`. It gives
+  one runner-visible result per check, which shows which checks are worth optimizing later.
+- If the dollar cap is reached before the test reaches its confidence, the result is
+  `inconclusive` and the default stays `single-12`.
+
+Record the pilot, the sample-size calculation, the sized run, and the decision as a research report
+in Set `revsteps`.
 
 ## 14. Acceptance criteria
 
-1. A `simple` plan is reviewed in at most 2 prompts, a `standard` plan in 4, and a `complex` plan in
-   6 or 12 according to `review_variant`; demonstrated on fixture plans with the scripted host.
-2. The runner refuses a proofreading edit that changes an `E-*` checkbox, and restores the plan.
-3. A malformed `AW-REVIEW:` line causes exactly one re-ask, and a second failure ends the invocation
-   as `incomplete` without writing `- Readiness:`.
-4. A re-review pass that changes nothing ends the loop; a fixture whose first pass adds an E/V pair
-   and whose second pass changes nothing finishes `completed-pass`.
-5. A finding recorded in pass 1 and not fixed still gates the plan after pass 2 (it appears in the
-   round's single `### Findings` table and `review_findings.subject_gating_blocks` reports it).
-6. One review invocation with two passes produces exactly one review history entry and one
-   `plan-review:` commit.
-7. Runner signals raise the tier for a plan that edits a `.spec.md` file, and the review records the
-   agent's reason when it rates lower.
-8. A split of a plan carrying `From-Backlog` and `Blocks-Release` leaves the backlog item closable
-   through the new plans, and rewrites another plan's `executed:<original>` dependency.
-9. A split of a plan that was `approved` at review start is refused.
-10. The resolver reports `not-found` for a renamed symbol, `ambiguous` for a duplicated quoted
-    string, and treats a trailing line number as a hint; it never changes an exit code to blocking.
-11. An interrupted review resumes at the next prompt in the same session, or restarts at check P in
-    a new session when the session is gone.
-12. `/plan-review-long` no longer exists in the installed workflows, command shims, or index.
-13. The experiment in Section 13 has run and its result is recorded.
+Each criterion is demonstrated with the scripted host on fixture plans unless it says otherwise, and
+its evidence is pasted test output that names the fixture and the observed result.
+
+- AC-01: A `simple` plan is reviewed in at most 3 prompts, a `standard` plan in 5, and a `complex`
+  plan in 7 (`grouped-6`) or 13 (`single-12`, 12 outside a Set); the prompt count is read from the
+  run's attempt records. (G1, G2)
+- AC-02: The runner refuses a proofreading edit that changes an `E-*` checkbox, restores the plan, and
+  re-asks once; a second refusal ends the invocation `incomplete`. (P, Section 6.1)
+- AC-03: A malformed `AW-REVIEW:` line causes exactly one re-ask, and a second failure ends the
+  invocation as `incomplete` with no `- Readiness:` written and the plan at `to-review`. (S6)
+- AC-04: A re-review pass that changes nothing ends the loop; a fixture whose first pass adds an E/V
+  pair and whose second pass changes nothing finishes `completed-pass`. A fixture that still triggers
+  after the second pass finishes with `no-go` and a `Blocking: yes` question naming the change.
+  (Section 8.3)
+- AC-05: A finding recorded in pass 1 and not fixed still gates the plan after pass 2 (it appears in
+  the round's single `### Findings` table and `review_findings.subject_gating_blocks` reports it).
+  (R1-R7, Section 7.1)
+- AC-06: One review invocation with two passes produces exactly one verdict-bearing history entry and
+  exactly one `plan-review:` commit; progress entries without a verdict token are permitted and are
+  ignored by `plan_readiness.newest_verdict`. (S7, MD-15)
+- AC-07: A fixture whose agent writes `- Readiness:` in an S6 prompt has that write reverted by the
+  runner and is re-asked; and a fixture interrupted after pass 1 leaves the plan at `to-review` with
+  no new `- Readiness:`. (MD-15)
+- AC-08: Runner signals raise the tier for a plan that edits a `.spec.md` file, and the review records
+  the agent's reason when it rates lower. (T, Section 5.2)
+- AC-09: A review ending `no-go` leaves the plan at `reviewed` + `- Readiness: no-go`, and a later run
+  over `reviews` does not dispatch it for review. (MD-16)
+- AC-10: Answering the only blocking question on a `reviewed` + `no-go` fixture with no contract edit
+  and `AW-MATERIAL: no` ends at `go-pending-approval` with no review prompt sent; the same fixture
+  with an `E-*` action edit, or with `AW-MATERIAL: yes`, or with a malformed marker after one re-ask,
+  starts a targeted re-review instead. (Section 9.4)
+- AC-11: A split of a plan carrying `From-Backlog` and `Blocks-Release` leaves the backlog item
+  closable through the new plans, and rewrites another plan's `executed:<original>` dependency.
+  (R6, Section 10)
+- AC-12: A split of a plan that was `approved` at review start is refused; and a split whose
+  authoring step fails deletes the new files and leaves the original in `pending/`. (Section 10)
+- AC-13: The resolver reports `not-found` for a renamed symbol, `ambiguous` for a duplicated quoted
+  string, accepts `` `path` "text" `` with an escaped `\"`, and treats a trailing line number as a
+  hint; it never changes an exit code to blocking. (G5, Section 11)
+- AC-14: An interrupted review resumes at the next prompt in the same session, or restarts at check P
+  in a new session when the session is gone. (Section 9.3)
+- AC-15: `/plan-review-long` no longer exists in the installed workflows, command shims, or index,
+  shown by an install into a scratch repository. (MD-4)
+- AC-16: Every check P run proofreads the plan, shown by a non-empty `### Proofreading` subsection in
+  each fixture's review record. (G3)
+- AC-17: The experiment in Section 13 has run through the pilot, the recorded sample-size calculation,
+  and the sized run or the cap, and its research report records the decision under the Section 13.5
+  rule. Evidence: the research report's path and decision line. (G4)
 
 ## 15. Work breakdown (proposed Set `revsteps`)
 
@@ -521,12 +655,12 @@ report in Set `revsteps`.
 | 01 | Step files under `.aw/system/workflows/plan-review/steps/`, the `/plan-review` checklist, the proofreading adaptation, the review record layout (Section 7.1) and its README amendment, and the five-level recommendation strength in `/plan-review` and `/askme`. | Spec approval |
 | 02 | `Review-Depth` field, runner tier signals, and the `review.sensitive_paths` setting. | Spec approval |
 | 03 | Citation resolver, its review and `aw ipd begin` integration, and the `20260802-1904` Section 10.2 amendment. | Spec approval |
-| 04 | Runner multi-prompt review for both hosts: prompt lists per tier and `review_variant`, postconditions, re-ask, structural preservation check, outcomes, session handling, resume. | 01, 02, 03 |
-| 05 | Re-review marker, runner triggers, and the loop. | 04 |
-| 06 | Split step, including the graph changes and a tooled retirement command. | 04 |
+| 04 | Runner multi-prompt review for both hosts: prompt lists per tier and `review_variant`, postconditions (including the verdict-output guard of MD-15), re-ask, structural preservation check, outcomes, session handling, resume. | 01, 02, 03 |
+| 05 | Re-review marker, runner triggers, the loop, and the no-go clearing path of Section 9.4 (`AW-MATERIAL` marker, reviewed-contract hash test, `recheck-readiness` or targeted re-review). | 04 |
+| 06 | Split step, including the graph changes and the `RETIRED` header on retirement through `aw ipd set superseded`. | 04 |
 | 07 | Retire `/plan-review-long` (workflow, shims, index, installer entries, current docs, tests). | 01, 04 |
 | 08 | Records README and `AGENTS.md` pointers: read a tree's README before editing an artifact in it. | 01, 03 |
-| 09 | Run the experiment (Section 13) and set the default `review_variant`. | 04, 05, analytics backlog item |
+| 09 | Run the experiment (Section 13: pilot, sample-size calculation, sized run under the cap) and set the default `review_variant`. Its plan carries OQ-10 as `Blocking: yes` until a human answers it. | 04, 05, analytics backlog item |
 
 Separately filed backlog items (not part of this Set):
 
@@ -537,14 +671,20 @@ Separately filed backlog items (not part of this Set):
 
 ## 16. Open questions
 
-### OQ-2: Quoted-text citation syntax
+Question ids use two digits (`OQ-02`, not `OQ-2`) because the open-question parser the approval gate
+uses (`agent_workflows/ipd_schema.py::OQ_HEADING_RE`) matches only `OQ-` followed by two or more
+digits; a one-digit id is invisible to `plan_readiness.has_unresolved_blocking_question`. Renumbered at
+spec review (SR-005); the numbers are otherwise unchanged.
 
-- Blocking: yes (for Order 03)
-- Status: open
+### OQ-02: Quoted-text citation syntax
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
 - Question: How is a quoted-text citation written? Candidates from the design review: `` `path` "text" ``; `path::quote("<JSON string>")`; `path::"text"`. All three require one line and a unique match.
-- Recommendation: `path::"text"`, because it extends the `path::Symbol` form and needs no new escape language for most strings; use the JSON form only when the text contains a double quote. Strength: weak.
+- Resolution or deferral rationale: Resolved 2026-10-18 by the maintainer at spec review: `` `path` "text" `` (MD-18, Section 11.1). The escape rule (`\"` and `\\` only) was added by the reviewer so a quoted text containing a double quote is still one unambiguous citation.
 
-### OQ-7: Session per review
+### OQ-07: Session per review
 
 - Blocking: no
 - Status: open
@@ -552,22 +692,43 @@ Separately filed backlog items (not part of this Set):
 - Data: of 1,311 review attempts, 404 in a session new to the run had a median 36,000-token first context, 81 steps, and $9.21 cost; 907 in a reused session had 229,000, 43 steps, and $6.78. The groups differ in period, plans, and models, so the comparison is not controlled.
 - Recommendation: decide by Section 13 variable V4. Until then, keep today's behavior. Strength: medium.
 
-### OQ-8: Sensitive-path list for this repository
+### OQ-08: Sensitive-path list for this repository
 
 - Blocking: no
 - Status: open
 - Question: Which paths in this repository go into `review.sensitive_paths`?
-- Candidates: the leak sanitizer, `git_commit_helper`, `lane_containment`, the integration lock, the sandbox and egress code.
-- Recommendation: start with those five and add paths when a `simple` review misses a problem there. Strength: weak.
+- Candidates (modules verified present at spec review): `agent_workflows/leak_sanitizer.py`, `agent_workflows/leak_sanitizer_config.py`, `agent_workflows/local_leaks.py`, `agent_workflows/git_commit_helper.py`, `agent_workflows/lane_containment.py`, `agent_workflows/egress_policy.py`, `agent_workflows/host_sandbox_profile.py`, and the integration-lock code (no module of that name exists; Order 02 must locate it).
+- Recommendation: start with those and add paths when a `simple` review misses a problem there. Strength: weak.
 
-### OQ-9: Codex host for the experiment
+### OQ-09: Codex host for the experiment
 
 - Blocking: no
 - Status: open
 - Question: Should the experiment include GPT-6.1 Sol? The runners do not drive Codex today.
-- Recommendation: run the first round with the two runner hosts and add Codex by hand only if the two disagree. Strength: weak.
+- Recommendation: run the pilot with the two runner hosts and add Codex by hand only if the two disagree. Strength: weak.
+
+### OQ-10: Experiment margins, confidence, quality rubric, and dollar cap
+
+- Blocking: no (at spec level; Order 09's plan must carry it as `Blocking: yes`, so the sized run cannot start before it is answered)
+- Status: open
+- Owner: maintainer
+- Question: For Section 13.5: the cost-equivalence margin and the quality-equivalence margin (for example cost within 5 percent with quality within 1 percent, or 10 percent with 3 percent); the confidence (95 or 99 percent); the largest extra cost accepted for a variant shown better on quality; the rubric weights of Section 13.4; and the dollar cap for the sized run.
+- Why not now: the right margins depend on the review-to-review variation the pilot measures, and a cap set before that is a guess.
+- Recommendation: answer after the pilot, from its recorded variation and the sample-size table it produces. Strength: strong.
+
+### OQ-11: Who enforces the verdict-output guard between prompts
+
+- Blocking: no
+- Status: open
+- Owner: Order 04 author
+- Question: MD-15 forbids writing the verdict outputs before S7, and Section 6 makes the runner restore them if an earlier prompt changes them. Should the runner instead strip write permission for those fields (for example by denying the setter in non-S7 prompts), or is detect-and-restore enough?
+- Recommendation: detect-and-restore. Non-goal N2 says runner checks catch forgotten or skipped work, not a hostile agent, and detect-and-restore is host-neutral. Strength: medium.
 
 ## Workflow history
+
+- 2026-10-19 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 FIXED. Maintainer rulings MD-15 (verdict outputs once at loop end, S7 own prompt), MD-16 (no-go stays reviewed; 9.4 clearing path), MD-17 (pilot + sized experiment, single-12 default), MD-18 (quoted-text form). OQ-02 resolved; OQ-10 and OQ-11 added, non-blocking at spec level.
+- 2026-10-19 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 all FIXED; record .aw/records/reviews/20261017-k3yx72-01-k3yx72-plan-review-redesign.review.md
+- 2026-10-19 to-review (aw set): Complete draft admitted for /spec-review (named explicitly by id6; 25kzda 2.5a)
 
 - 2026-10-17 note (aw specs): Revised after the four-model design review (reconciliation vcg8mz) and maintainer rulings MD-1 to MD-14: review tiers with prompt counts, orchestrator profile, runner tier signals (option B), single Findings table per round, pass-relative re-review baseline, marker re-ask, outcomes, session and resume rules, split as a graph rewrite, citation resolver report-only, 4sd62s compatibility, and the grouping experiment.
 - 2026-10-17 created (aw specs): Replace single-turn /plan-review with runner-enforced discrete steps: proofread, complexity-scaled review depth, AW-REVIEW re-review marker, split step, durable citations; retire plan-review-long
