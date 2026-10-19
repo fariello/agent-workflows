@@ -37,10 +37,9 @@ Identifier note: under spec `89xjll` (requirement-id convention; this spec is da
    re-sends the whole conversation. The median attempt took 50 model steps and ended with a
    234,000-token context. Review cost is therefore roughly the number of steps multiplied by the
    context size per step. Most context is tool output: `bash` produced 71 percent of tool output
-   bytes and `read` 27 percent. Source: the measurement table in the untracked file
-   `tmp/20261017-runs-analyze-review-cost.prompt.md` (`tmp/` is gitignored, so this evidence is
-   not durable; the analytics backlog item named in Section 15 must carry these figures when it is
-   filed).
+   bytes and `read` 27 percent. Source: the measurement table in prompt `okj4bg`
+   (`.aw/records/prompts/pending/20261018-revsteps-02-okj4bg-runs-analyze-review-cost.prompt.md`),
+   which backlog item `i2i81x` carries.
 2. **Every plan gets the same review.** A 1-to-4-line change and a 40-item plan both receive the full
    `/plan-review` workflow. `/plan-review-long` was meant to review complex plans more deeply. It does
    not: it differs from `/plan-review` only in loading one step file at a time and in using parallel
@@ -143,6 +142,39 @@ more checks, depending on the tier and the grouping variant (Section 5.3).
 | S6 Re-review | End the reply with `AW-REVIEW: AGAIN` or `AW-REVIEW: DONE` (Section 8). |
 | S7 Finalize | Sent only after the re-review loop has ended (MD-15). Write the verdict outputs: `- Readiness:`, the status move, and the one verdict-bearing history entry; then the final commit (Section 7.2). |
 
+### 4.3 Step files and their source
+
+The step files are made from the existing `plan-review.md` (741 lines, 48 KB). Every part of it goes
+to exactly one place; nothing is dropped. Sizes are the current section sizes in bytes.
+
+| Current `plan-review.md` part | Bytes | Goes to |
+| --- | --- | --- |
+| Memory kernel | 667 | `steps/_kernel.md`, sent once in prompt 1 |
+| Step 0 (scope ledger, controlling instructions, plan contract) | 2,616 | Runner pre-pass (Section 4.1) for the deterministic parts; `steps/_kernel.md` for the instruction to apply the `AGENTS.md` rules that bear on the plan |
+| Step 1 structural preflight and pre-review commit | 1,710 | Runner pre-pass |
+| Step 1 orchestrator repair loops (`IPD-S407`, `IPD-S408`) | 3,333 | `steps/r2-executability.md`, orchestrator section |
+| Step 2.1 views, 2.2 findings, 2.3 Fix Bar, 2.4 revise in place | 3,975 | `steps/_findings.md`, sent with every prompt that contains Q or R1 to R7 |
+| Step 3.1 question set, resolving HOW questions, reversibility | 5,344 | `steps/s5-questions.md` |
+| Step 3.2 ask interactively, 3.3 non-interactive exception | 1,340 | `steps/s5-questions.md` (the interactive part is used only by the free-form checklist) |
+| Step 4 finalize, Readiness field, workflow history, hardened-result commit | 6,661 | `steps/s7-finalize.md` |
+| Rubric A, C, D, E, F | 1,898 | `steps/r4-engineering.md` |
+| Rubric B | 406 | `steps/r3-security.md` (full form); the short form is its first three bullets |
+| Rubric G (plan executability) | 7,852 | `steps/r2-executability.md` (structure, evidence, counts) and `steps/r4-engineering.md` (right-sizing, overloaded items) |
+| Severity and scope | 658 | `steps/_findings.md` |
+| Verdict and readiness, NO-GO re-evaluable, escalation return path | 5,253 | `steps/s7-finalize.md` (verdict) and `steps/s5-questions.md` (escalation) |
+| Required final report | 2,095 | `steps/s7-finalize.md`; in a runner review the report is the review record, not chat text |
+| (new) proofreading | - | `steps/p-proofread.md`: prompt `wcisgc`, with open questions written to the review record (Section 6.1) and citations in the forms of Section 11 |
+| (new) tier, quick risk, personas, decomposition, cross-plan, re-review | - | `steps/t-tier.md`, `steps/q-quick-risk.md`, `steps/r5-personas.md`, `steps/r6-decomposition.md`, `steps/r7-cross-plan.md`, `steps/s6-rereview.md` |
+
+The personas in `.aw/system/workflows/release-review/00-run-protocol.md` and the Fix Bar in
+`.aw/system/workflows/release-review/fix-decision-policy.md` are referenced, not copied.
+
+Order 01 keeps a table in the new `/plan-review` README that maps every old section to its new file,
+so a reviewer of Order 01 can confirm that nothing was lost. Order 01 also records the total bytes of
+instructions sent per tier; a `simple` review sends `_kernel.md`, `p-proofread.md`, `t-tier.md`,
+`q-quick-risk.md`, `_findings.md`, `s5-questions.md`, `s6-rereview.md`, and `s7-finalize.md`, not the
+whole 48 KB file.
+
 ## 5. Review tiers
 
 ### 5.1 Checks per tier
@@ -154,9 +186,12 @@ more checks, depending on the tier and the grouping variant (Section 5.3).
 | `complex` | Large, cross-cutting, or contract-changing plans. | P, T, R1, R2, R3 (full), R4, R5, R6, R7 (Sets), S5, S6, S7. |
 | `orchestrator` | Every Order-00 orchestrator, whatever its size. Not rated by T. | P, R1, R2 (child table, coverage, ordering), R7 across the Set, S5, S6, S7. Never R5 or R6. |
 
-A plan in a Set receives its own tier. When the queue holds a Set's children and its orchestrator,
-the children are reviewed first, so the orchestrator's R7 and coverage check see the reviewed
-children.
+A plan in a Set receives its own tier. When the queue holds a Set's children and its orchestrator
+for review, the children are reviewed first, so the orchestrator's R7 and coverage check see the
+reviewed children. This is a CHANGE to queue ordering: today
+`agent_workflows/runner_shared.py::dependency_depth` places an orchestrator after its Set's children
+only when the orchestrator's action is `orchestrate`, not when it is `review`. Order 04 extends that
+rule to `review` (Section 17.1).
 
 ### 5.2 Runner tier signals
 
@@ -171,6 +206,20 @@ The runner raises the tier to `complex` when at least one of the following is tr
 
 The runner raises the tier to `standard` when `- Scope-Paths:` is `grandfathered` (the plan does not
 declare what it changes).
+
+Measured 2026-10-18 over the 1,554 non-orchestrator plans dated 2026 in this repository (all
+lifecycle directories), using each plan's `- Scope-Paths:` line and the OQ-08 candidate modules as
+the sensitive list:
+
+| Runner tier | Plans | Share | Cause |
+| --- | --- | --- | --- |
+| `complex` | 228 | 15% | 167 name a `.spec.md` file; 61 touch a sensitive module; 1 also exceeds the size limits |
+| `standard` | 290 | 19% | `- Scope-Paths:` missing or `grandfathered` (all dated before the Scope-Paths cutover) |
+| no runner signal (the agent decides) | 1,036 | 67% | - |
+
+Of the 923 plans dated 2026-09-20 or later, 184 (20 percent) get a runner signal and none is
+`grandfathered`. The signals therefore leave the tier to the agent for about 4 plans in 5. The size
+signal almost never fires because lint already keeps plans under the size limits.
 
 The agent's tier T is final when it is at or above the runner's tier. A lower tier requires a
 recorded reason, and the runner accepts it. If review edits make a signal true that was false at
@@ -193,8 +242,13 @@ The grouping is a runner setting (`review_variant`), recorded in run state, so t
 variants use the same step files and differ only in grouping. Until Section 13 has produced a
 result, the default is `single-12` (MD-17).
 
-When the agent's tier T differs from the tier the first prompt assumed, the runner continues with
-the prompt list of the final tier.
+Prompt 1 always contains P and T (P alone for an orchestrator), whatever tier is later chosen, so
+prompt 1 is the same for every tier. The runner fixes the tier after prompt 1, from T's marker and
+the runner signals, and sends the rest of that tier's prompt list from prompt 2. Checks are
+identified by name, not by position: when the tier is raised later (Section 5.2, last paragraph),
+the runner sends, before S5, one prompt per group of the new tier's list that contains a check not
+yet run, with only those checks. Checks already run are not repeated. A tier is never lowered after
+prompt 1.
 
 ## 6. Postconditions
 
@@ -209,6 +263,14 @@ The runner checks these after each prompt. A check that fails triggers one re-as
 | S6 | The marker rules in Section 8.1 are met. |
 | S6 (every pass before the last) and every check before S7 | The plan's `- Readiness:` value, `- Status:` value, and newest verdict-bearing history entry (as read by `plan_readiness.newest_verdict`) are byte-identical to their values at the pre-pass. A change is refused like a failed postcondition: the runner restores those three and re-asks once (MD-15). |
 | S7 | One of: (a) `- Readiness:` holds `go`, `go-pending-approval`, or `no-go`, and `- Status:` is `reviewed`; or (b) `- Readiness:` is absent, `- Status:` is still `to-review`, and the round records an exhausted orchestrator repair (the existing `IPD-S407`/`IPD-S408` rule). Exactly one verdict-bearing history entry was added during the invocation. `aw ipd lint --phase author` reports no error that was not present at the pre-pass, except `IPD-Q501` for an open `Blocking: yes` question that S5 added or kept (that diagnostic is the intended effect of a blocking question, not a review defect). |
+
+Every `### Step <check>` subsection starts with one line `- Checked: <what was examined>`, followed
+by the check's notes. It may say `- Result: no findings`. The runner checks only that the subsection
+and its `- Checked:` line exist.
+
+The re-ask message names the failed postcondition and nothing else: `Your last reply did not complete
+<check>: <the postcondition text that failed>. Complete it now and end your reply as the step file
+requires.` The runner sends at most one re-ask per prompt.
 
 These postconditions confirm that a check ran. They do not prove that the review was good (N2).
 
@@ -534,8 +596,7 @@ plans run first, the `4sd62s` migration must carry `Review-Depth` like any other
 
 ### 13.2 Prerequisites
 
-- The analytics changes requested in `tmp/20261017-runs-analyze-review-cost.prompt.md` (to be filed
-  as a backlog item): token types, steps and context size, session reuse, tool use, run commit and
+- The analytics changes of backlog item `i2i81x` (request text: prompt `okj4bg`): token types, steps and context size, session reuse, tool use, run commit and
   label, model, and redo counts.
 - Runs record a label, the git commit, the review variant, and the model on every attempt.
 - The step files and both groupings exist (Section 15 Orders 01 and 04).
@@ -664,10 +725,8 @@ its evidence is pasted test output that names the fixture and the observed resul
 
 Separately filed backlog items (not part of this Set):
 
-- Analytics breakdowns and run labels for `aw runs analyze` (prompt
-  `tmp/20261017-runs-analyze-review-cost.prompt.md`).
-- A shorter pipeline for small changes: skip the backlog step and go from plan to review to
-  execution.
+- `i2i81x`: analytics breakdowns and run labels for `aw runs analyze` (request: prompt `okj4bg`).
+- `rsisop`: a shorter pipeline for small changes (plan to review to execution).
 
 ## 16. Open questions
 
@@ -724,8 +783,39 @@ spec review (SR-005); the numbers are otherwise unchanged.
 - Question: MD-15 forbids writing the verdict outputs before S7, and Section 6 makes the runner restore them if an earlier prompt changes them. Should the runner instead strip write permission for those fields (for example by denying the setter in non-S7 prompts), or is detect-and-restore enough?
 - Recommendation: detect-and-restore. Non-goal N2 says runner checks catch forgotten or skipped work, not a hostile agent, and detect-and-restore is host-neutral. Strength: medium.
 
+## 17. Amendments to other specs
+
+Each implementing plan lists the spec it amends in its `- Scope-Paths:`.
+
+### 17.1 Runner spec `25kzda` (Order 04)
+
+1. Section 3.2, rows `draft` (complete) and `to-review`: "run plan review" means the multi-prompt
+   review of this spec, with the tier and grouping of Section 5.
+2. Section 4.4, `IPD-REVIEW-HISTORY`: "Exactly one new review entry" becomes "exactly one new
+   verdict-bearing review entry; progress entries without a verdict token are allowed" (MD-15).
+3. Section 5.4 (queue ordering): an orchestrator whose action is `review` is ordered after the Set's
+   children whose action is also `review`, as it already is for action `orchestrate`.
+4. Sessions: all prompts of one review invocation run in one session; rotation by
+   `max_items_per_session` happens only between review invocations, and one invocation counts as one
+   item; a review never uses Antigravity's `--continue` fallback (MD-6, MD-13).
+5. Section 2.6 is unchanged: plans created by a split never join the current run.
+
+### 17.2 IPD structure-and-linting spec `20260802-1904` (Order 03)
+
+Section 10.2, as stated in Section 11.3.
+
+### 17.3 Reviews README (Order 01)
+
+`.aw/records/reviews/README.md` describes the round layout of Section 7.1.
+
+### 17.4 `/askme` (Order 01)
+
+The recommendation labels in `.aw/system/workflows/askme/askme.md` change from three levels to the
+five of MD-9.
+
 ## Workflow history
 
+- 2026-10-19 note (aw specs): Post-review additions (no change to MD-1..MD-18): measured runner tier signals over 1,554 plans (5.2); step-file source map from plan-review.md (4.3); mid-review tier change rule (5.3); Step evidence line and re-ask wording (6); children-before-orchestrator for review is a queue-order change, not current behavior (5.1); Section 17 lists the exact amendments to 25kzda, 20260802-1904, the reviews README, and askme; tmp/ evidence replaced by prompt okj4bg and backlog items i2i81x and rsisop.
 - 2026-10-19 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 FIXED. Maintainer rulings MD-15 (verdict outputs once at loop end, S7 own prompt), MD-16 (no-go stays reviewed; 9.4 clearing path), MD-17 (pilot + sized experiment, single-12 default), MD-18 (quoted-text form). OQ-02 resolved; OQ-10 and OQ-11 added, non-blocking at spec level.
 - 2026-10-19 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 all FIXED; record .aw/records/reviews/20261017-k3yx72-01-k3yx72-plan-review-redesign.review.md
 - 2026-10-19 to-review (aw set): Complete draft admitted for /spec-review (named explicitly by id6; 25kzda 2.5a)
