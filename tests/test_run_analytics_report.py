@@ -21,6 +21,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -46,6 +47,7 @@ def _analytics_dir(root: Path) -> Path:
 class MeasuredPlatformBehaviourTests(unittest.TestCase):
     """The MEASUREMENTS the publication scheme rests on, re-derived rather than cited."""
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX directory replacement semantics")
     def test_os_replace_REFUSES_a_non_empty_directory(self):
         """errno 39. This is why the single-file atomic pattern does not generalize to a bundle."""
 
@@ -64,6 +66,7 @@ class MeasuredPlatformBehaviourTests(unittest.TestCase):
                 f"{ctx.exception.errno} ({ctx.exception.strerror})"
             )
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX symlink flip semantics")
     @unittest.skipUnless(hasattr(os, "symlink"), "platform has no os.symlink")
     def test_a_symlink_flip_IS_atomic(self):
         """The working alternative: os.symlink to a temp name, then os.replace onto the link."""
@@ -122,6 +125,8 @@ class PublicationPathTests(unittest.TestCase):
             second = rep.publish_bundle(
                 directory, {"index.html": "<html>2</html>"}, repo=td
             )
+            if not second.used_symlink:  # pragma: no cover - Windows
+                self.skipTest("platform has no symlink publication")
             first_dir, second_dir = first.version_dir, second.version_dir
             assert first_dir is not None and second_dir is not None
             self.assertNotEqual(first_dir, second_dir)

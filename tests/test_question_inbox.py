@@ -53,7 +53,9 @@ from agent_workflows import (
     runner_shared,
     set_records,
 )
-from tests.support import coordinator_role
+from tests import support
+
+coordinator_role = support.coordinator_role
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -193,15 +195,7 @@ if m_req:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(payload_content, encoding="utf-8")
 """
-    script_path.write_text(script_content, encoding="utf-8")
-    script_path.chmod(0o755)
-    if sys.platform == "win32":
-        cmd_path = root / "fake_agent.cmd"
-        cmd_path.write_text(
-            f'@"{sys.executable}" "{script_path}" %*\n', encoding="utf-8"
-        )
-        return cmd_path
-    return script_path
+    return support.make_fake_executable(script_path, script_content)
 
 
 def test_question_schema_roundtrip_and_hash(tmp_path: Path) -> None:

@@ -358,8 +358,9 @@ def find_project(
     # 2. Match by exact Git common directory
     common_dir = get_git_common_dir(canon_repo)
     if common_dir:
+        canon_common = _canonical_path(common_dir)
         for e in entries:
-            if e.common_dir and e.common_dir == common_dir:
+            if e.common_dir and _canonical_path(e.common_dir) == canon_common:
                 return MatchResult(
                     entry=e,
                     match_kind="common_dir",
@@ -369,7 +370,7 @@ def find_project(
 
     # 3. Match by canonical target path
     for e in entries:
-        if canon_repo in e.target_paths:
+        if any(_canonical_path(tp) == canon_repo for tp in e.target_paths):
             return MatchResult(
                 entry=e, match_kind="target_path", candidate_hint=None, ambiguous=False
             )

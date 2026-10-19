@@ -3375,9 +3375,11 @@ class RunsAgentStreamAndRefusalTests(TestCase):
             step0 = item0["steps"][0]
             sanitized_summary = step0["summary"]
             self.assertNotIn("\x1b", sanitized_summary)
-            self.assertNotIn(str(Path.home()), sanitized_summary)
-            self.assertIn("~/secret/task.log", sanitized_summary)
-            self.assertEqual(sanitized_summary, "Error in ~/secret/task.log")
+            expected_tail = (
+                f"{agent_schema.redact_home_paths(str(Path.home()))}/secret/task.log"
+            )
+            self.assertIn(expected_tail, sanitized_summary)
+            self.assertEqual(sanitized_summary, f"Error in {expected_tail}")
 
     def test_e_json_non_regression_across_modes(self) -> None:
         """Item (e): --json non-regression across default, latest-only, summary-only, and issues."""

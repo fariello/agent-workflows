@@ -23131,7 +23131,7 @@ def emit_agent_run_refusal_record(
         "outcome": "cannot-run",
         "verified": False,
         "complete": False,
-        "summary": str(exc),
+        "summary": agent_schema.redact_home_paths(str(exc)),
     }
     eff_run_dir = run_dir
     if isinstance(exc, RedCiRefusalError):

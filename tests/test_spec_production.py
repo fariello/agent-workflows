@@ -524,8 +524,8 @@ class TestSpecProductionUnitE10(unittest.TestCase):
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             dest_path.write_text(content, encoding="utf-8")
 
-            old_rel = str(spec_path.relative_to(repo))
-            new_rel = str(dest_path.relative_to(repo))
+            old_rel = spec_path.relative_to(repo).as_posix()
+            new_rel = dest_path.relative_to(repo).as_posix()
 
             st_unstaged = subprocess.run(
                 ["git", "status", "--porcelain", "--untracked-files=all"],
@@ -580,8 +580,8 @@ class TestSpecProductionUnitE10(unittest.TestCase):
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             dest_path.write_text(content, encoding="utf-8")
 
-            old_rel = str(spec_path.relative_to(repo))
-            new_rel = str(dest_path.relative_to(repo))
+            old_rel = spec_path.relative_to(repo).as_posix()
+            new_rel = dest_path.relative_to(repo).as_posix()
 
             hook_path = repo / ".git" / "hooks" / "pre-commit"
             hook_path.parent.mkdir(parents=True, exist_ok=True)

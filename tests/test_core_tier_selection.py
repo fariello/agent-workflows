@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 import pytest
 
@@ -294,10 +295,12 @@ def test_budget_exceeded_unparseable_load_fails(temp_project: Path) -> None:
     assert "Core tier budget not enforced:" not in combined
 
 
-def _gate_env(lock_dir: Path, **overrides: str) -> dict[str, str]:
+def _gate_env(lock_dir: Path | None = None, **overrides: str) -> dict[str, str]:
     # `run_full_suite` acquires a machine-wide test-suite slot. Point it at a private lock
     # directory so these tests never wait on slots held by the enclosing suite or peer drivers
     # (backlog twz0tw: with every real slot busy the wait outlived the 240s hang guard).
+    if lock_dir is None:
+        lock_dir = Path(tempfile.mkdtemp(prefix="aw-gate-suite-locks-"))
     env = _clean_env(
         AW_CORE_BUDGET_SECONDS="0.01",
         AW_TEST_CPU_COUNT="12",

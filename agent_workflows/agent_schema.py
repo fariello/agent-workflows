@@ -161,7 +161,7 @@ def normalize_repo_path(
 
 
 _REDACT_WINDOWS_HOME_RE = re.compile(r"([A-Za-z]:[\\/]+Users[\\/]+)[A-Za-z0-9._-]+")
-_REDACT_POSIX_HOME_RE = re.compile(r"/home/[A-Za-z0-9._-]+")
+_REDACT_POSIX_HOME_RE = re.compile(r"(?:[A-Za-z]:)?[\\/]home[\\/][A-Za-z0-9._-]+")
 _REDACT_USERS_HOME_RE = re.compile(r"(?<![A-Za-z]:)/Users/[A-Za-z0-9._-]+")
 
 

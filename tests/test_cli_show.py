@@ -120,7 +120,7 @@ class CliShowCommandTests(unittest.TestCase):
         home = Path.home()
         home_str = str(home)
         target_token = f"{home_str}/secret-missing-ref"
-        redacted = "~/secret-missing-ref"
+        redacted = f"{agent_schema.redact_home_paths(home_str)}/secret-missing-ref"
 
         # Human
         rc_h, out_h, err_h = self._invoke([target_token])

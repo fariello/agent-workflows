@@ -78,10 +78,10 @@ def test_driver_begin_child_env_pin(host_module: Any, isolated: bool) -> None:
         "--actor",
         "actor",
         "--dir",
-        "/nonexistent",
+        str(Path("/nonexistent")),
     ]
     assert spy.kwargs["stdin"] is subprocess.DEVNULL
-    assert spy.kwargs["cwd"] == "/nonexistent"
+    assert spy.kwargs["cwd"] == str(Path("/nonexistent"))
 
 
 @pytest.mark.parametrize("isolated", [False, True])

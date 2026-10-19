@@ -1566,7 +1566,7 @@ def sync_cutovers_on_install(
     if modified:
         project_file.parent.mkdir(parents=True, exist_ok=True)
         tmp_project = project_file.with_name(".tmp_project.json")
-        with open(tmp_project, "w", encoding="utf-8") as f:
+        with open(tmp_project, "w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, indent=2)
             f.write("\n")
         os.replace(tmp_project, project_file)

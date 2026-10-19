@@ -781,7 +781,9 @@ def test_run_full_suite_budget_only_failure_names_budget_in_reason(
     from tests.test_core_tier_selection import _gate_env
 
     project = _make_budget_temp_project(tmp_path / "proj_budget")
-    env = _gate_env(AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1")
+    env = _gate_env(
+        tmp_path / ".suite-locks", AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1"
+    )
     res = suite_cache.run_full_suite(
         project,
         argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
@@ -798,7 +800,9 @@ def test_run_full_suite_budget_control_with_failing_test(tmp_path: Path) -> None
     from tests.test_core_tier_selection import _gate_env
 
     project = _make_budget_temp_project(tmp_path / "proj_control", failing=True)
-    env = _gate_env(AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1")
+    env = _gate_env(
+        tmp_path / ".suite-locks", AW_CORE_BUDGET_ENFORCE="1", AW_TEST_LOADAVG="1"
+    )
     res = suite_cache.run_full_suite(
         project,
         argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
