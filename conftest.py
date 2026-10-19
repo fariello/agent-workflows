@@ -618,14 +618,17 @@ def _ensure_win_watchdog() -> None:
     import ctypes
     import time
 
+    _real_sleep = time.sleep
+    _real_monotonic = time.monotonic
+
     def _watchdog_loop() -> None:
         while True:
-            time.sleep(0.5)
+            _real_sleep(0.5)
             active = _WIN_ACTIVE_TEST
             if active is None:
                 continue
             deadline = float(active["deadline"])  # type: ignore[arg-type]
-            if time.monotonic() < deadline:
+            if _real_monotonic() < deadline:
                 continue
             nodeid = str(active["nodeid"])
             wall_b = float(active["wall_budget"])  # type: ignore[arg-type]

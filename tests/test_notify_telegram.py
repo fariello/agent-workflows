@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+import threading
 import time
 import traceback
 from typing import Any
@@ -597,8 +598,11 @@ def test_offset_persistence_and_batch_failure(
     ) -> tuple[list[notify_core.InboundEvent], int | None]:
         return [ev1, ev2], 103
 
+    applied_ev2 = threading.Event()
+
     def fake_apply(ch: Any, ev: notify_core.InboundEvent) -> str:
         if ev.event_id == "102":
+            applied_ev2.set()
             raise RuntimeError("Disk write failure")
         return "recorded"
 
@@ -609,7 +613,9 @@ def test_offset_persistence_and_batch_failure(
         ),
     ):
         receiver.start()
-        time.sleep(0.2)
+        assert applied_ev2.wait(
+            timeout=10.0
+        ), "timed out waiting for receiver to process batch"
         receiver.stop(timeout=2.0)
 
     # Event 1 advanced offset to 102; Event 2 failed so offset was NOT advanced to 103
@@ -669,15 +675,28 @@ def test_receiver_lock_and_takeover(
         r2 = ensure_receiver(run_dir_2, poll_timeout_cap=0.1)
         assert r2 is None  # Lock held by Runner 1!
 
-        # Wait briefly for R1 to record notify-receiver-started
-        time.sleep(0.1)
-        events_1 = [
-            json.loads(line)
-            for line in (run_dir_1 / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.strip()
-        ]
+        def _wait_for_started_event(
+            run_dir: Path, timeout: float = 10.0
+        ) -> list[dict[str, Any]]:
+            events_path = run_dir / "events.jsonl"
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if events_path.exists():
+                    events = [
+                        json.loads(line)
+                        for line in events_path.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                    if any(
+                        ev.get("event") == "notify-receiver-started" for ev in events
+                    ):
+                        return events
+                time.sleep(0.02)
+            raise TimeoutError(
+                f"timed out waiting for notify-receiver-started in {events_path}"
+            )
+
+        events_1 = _wait_for_started_event(run_dir_1)
         assert any(ev.get("event") == "notify-receiver-started" for ev in events_1)
 
         # Stop Runner 1
@@ -690,14 +709,7 @@ def test_receiver_lock_and_takeover(
         assert r2_takeover is not None
         assert r2_takeover.is_alive()
 
-        time.sleep(0.1)
-        events_2 = [
-            json.loads(line)
-            for line in (run_dir_2 / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.strip()
-        ]
+        events_2 = _wait_for_started_event(run_dir_2)
         assert any(ev.get("event") == "notify-receiver-started" for ev in events_2)
 
         r2_takeover.stop(timeout=2.0)
