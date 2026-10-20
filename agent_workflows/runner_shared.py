@@ -51795,6 +51795,20 @@ class AgentAwHome:
     suffix: str = ""
 
 
+def _unlink_symlink(path: Path | str) -> None:
+    """Unlink a symlink safely across POSIX and Windows.
+
+    On Windows, directory symlinks and junctions fail under os.unlink() (DeleteFileW)
+    with Access is denied (WinError 5) and must be removed with os.rmdir() (RemoveDirectoryW).
+    """
+    try:
+        os.unlink(path)
+    except OSError:
+        if sys.platform == "win32":
+            with contextlib.suppress(OSError):
+                os.rmdir(path)
+
+
 def prepare_agent_aw_home(
     run_dir: Path | str,
     item: dict[str, Any],
@@ -51899,7 +51913,7 @@ def prepare_agent_aw_home(
                             l_path = sandbox_dir / "projects" / p
                             if os.path.islink(l_path):
                                 with contextlib.suppress(OSError):
-                                    os.unlink(l_path)
+                                    _unlink_symlink(l_path)
                         for cr in created_real_dirs:
                             if cr.is_dir():
                                 with contextlib.suppress(OSError):
@@ -51962,7 +51976,7 @@ def reconcile_agent_aw_home(
             for entry in projects_dir.iterdir():
                 if os.path.islink(entry):
                     with contextlib.suppress(OSError):
-                        os.unlink(entry)
+                        _unlink_symlink(entry)
 
         if sandbox_dir.is_dir():
             # 2. Walk handle.path with os.walk(handle.path, followlinks=False), skipping any entry still a symlink and skipping *.lock / *.tmp.
@@ -52066,7 +52080,7 @@ def reconcile_agent_aw_home(
                     file_path = rpath / fn
                     if os.path.islink(file_path):
                         continue
-                    rel_file = str(file_path.relative_to(sandbox_dir))
+                    rel_file = file_path.relative_to(sandbox_dir).as_posix()
                     if rel_file == reg_rel:
                         continue
                     records.append(
@@ -52147,7 +52161,7 @@ def reconcile_agent_aw_home(
                 for entry in projects_dir.iterdir():
                     if os.path.islink(entry):
                         with contextlib.suppress(OSError):
-                            os.unlink(entry)
+                            _unlink_symlink(entry)
         with contextlib.suppress(Exception):
             if sandbox_dir.exists():
                 shutil.rmtree(sandbox_dir, ignore_errors=True)

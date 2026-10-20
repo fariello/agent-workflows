@@ -797,7 +797,7 @@ def test_install_writes_back_pointer_without_target_delta(tmp_path: Path):
     local_files = list(aw_home.glob("projects/*/config/local.json"))
     assert len(local_files) == 1
     local_data = json.loads(local_files[0].read_text(encoding="utf-8"))
-    assert local_data["common_dir"] == str((target / ".git").resolve())
+    assert Path(local_data["common_dir"]) == (target / ".git").resolve()
 
     # Reinstall preserves existing non-null common_dir
     local_data["common_dir"] = "/custom/preserved/path/.git"

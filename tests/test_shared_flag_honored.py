@@ -915,7 +915,10 @@ def test_upgrade_test_json_harness_error_and_redaction(tmp_path: Path) -> None:
         rec = json.loads(res.stdout)
         assert rec.get("status") == "cannot-run"
         assert rec.get("exit_code") == 2
-        assert "~/planted_sandbox" in rec.get("summary", "")
+        assert any(
+            p in rec.get("summary", "")
+            for p in ("~/planted_sandbox", "~\\planted_sandbox")
+        )
         assert posix_home not in res.stdout
 
         # via standalone upgrade_rehearsal.main
@@ -928,7 +931,10 @@ def test_upgrade_test_json_harness_error_and_redaction(tmp_path: Path) -> None:
         rec_main = json.loads(buf_out.getvalue())
         assert rec_main.get("status") == "cannot-run"
         assert rec_main.get("exit_code") == 2
-        assert "~/planted_sandbox" in rec_main.get("summary", "")
+        assert any(
+            p in rec_main.get("summary", "")
+            for p in ("~/planted_sandbox", "~\\planted_sandbox")
+        )
         assert posix_home not in buf_out.getvalue()
 
 

@@ -87,7 +87,10 @@ _WORKER_SCRIPT = textwrap.dedent("""
             f.write(json.dumps(record) + "\\n")
 """)
 
-_HEARTBEAT_CHILD_CODE = textwrap.dedent("""
+_HB_SECS = 4.0 if sys.platform == "win32" else 1.8
+_STALL_SECS = 2.5 if sys.platform == "win32" else 1.0
+
+_HEARTBEAT_CHILD_CODE = textwrap.dedent(f"""
     import os
     import sys
     import time
@@ -98,17 +101,17 @@ _HEARTBEAT_CHILD_CODE = textwrap.dedent("""
     if not run_id or not item_id6:
         sys.exit(1)
 
-    deadline = time.monotonic() + 1.8
+    deadline = time.monotonic() + {_HB_SECS}
     while time.monotonic() < deadline:
         suite_cache.touch_heartbeat(run_id, item_id6)
         time.sleep(0.15)
     sys.exit(0)
 """)
 
-_CONTROL_CHILD_CODE = textwrap.dedent("""
+_CONTROL_CHILD_CODE = textwrap.dedent(f"""
     import sys
     import time
-    time.sleep(1.8)
+    time.sleep({_HB_SECS})
     sys.exit(0)
 """)
 
@@ -514,7 +517,7 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
             "run_id": "run-test-e2e",
             "options": {
                 "opencode": str(hb_child),
-                "stall_timeout": 1.0,
+                "stall_timeout": _STALL_SECS,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -545,7 +548,7 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
             "run_id": "run-test-e2e",
             "options": {
                 "opencode": str(ctl_child),
-                "stall_timeout": 1.0,
+                "stall_timeout": _STALL_SECS,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -599,7 +602,7 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
             "run_id": "run-test-e2e-agy",
             "options": {
                 "agy_executable": str(hb_child),
-                "stall_timeout": 1.0,
+                "stall_timeout": _STALL_SECS,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),
@@ -625,7 +628,7 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
             "run_id": "run-test-e2e-agy",
             "options": {
                 "agy_executable": str(ctl_child),
-                "stall_timeout": 1.0,
+                "stall_timeout": _STALL_SECS,
                 "timeout": 10.0,
             },
             "repo": str(tmp_path),

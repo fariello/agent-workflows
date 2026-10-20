@@ -99,7 +99,10 @@ class MatchResult:
 
 def _canonical_path(path: str | Path) -> str:
     """Resolve symlinks and normalize to a canonical posix absolute string."""
-    p = Path(path).expanduser()
+    try:
+        p = Path(path).expanduser()
+    except RuntimeError:
+        p = Path(path)
     if not p.is_absolute():
         p = (Path.cwd() / p).resolve()
     try:

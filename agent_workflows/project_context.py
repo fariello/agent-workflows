@@ -285,13 +285,14 @@ def _resolve_effective_aw_home(
             "AW_HOME environment variable",
         )
     user_cfg_path = str(user_config_dir) if user_config_dir else str(_config_dir())
-    user_cfg = _read_json_file(os.path.join(user_cfg_path, "config.json"))
+    cfg_file = os.path.join(user_cfg_path, "config.json")
+    user_cfg = _read_json_file(cfg_file)
     if user_cfg and user_cfg.get("aw_home"):
         aw_home_abs = _check_path_security(str(user_cfg["aw_home"]), "user_cfg aw_home")
         return (
             aw_home_abs,
             PrecedenceLevel.GLOBAL_DEFAULTS,
-            f"global config ({user_cfg_path}/config.json)",
+            f"global config ({cfg_file})",
         )
     aw_home_abs = get_default_aw_home()
     return (

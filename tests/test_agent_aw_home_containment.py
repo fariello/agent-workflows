@@ -83,7 +83,9 @@ def test_find_project_honors_aw_home():
             assert match.entry.project_id == "proj-123"
 
         # When AW_HOME is unset and not passed, find_project falls back to ~/.aw
-        with mock.patch.dict(os.environ, {}, clear=True):
+        env_without_aw = dict(os.environ)
+        env_without_aw.pop("AW_HOME", None)
+        with mock.patch.dict(os.environ, env_without_aw, clear=True):
             match_none = project_registry.find_project(str(repo))
             # ~/.aw won't have this random temp repo registered
             assert match_none.match_kind is None

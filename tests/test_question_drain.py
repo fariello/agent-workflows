@@ -1193,7 +1193,7 @@ def test_a34_spawn_resume_command_unanswered_run(tmp_path: Path) -> None:
     m = re.search(r"(aw (?:oc|agy) run resume \S+ --repo \S+)", content)
     assert m is not None, f"Could not find resume command in answers.md:\n{content}"
     cmd_str = m.group(1)
-    parts = shlex.split(cmd_str)
+    parts = shlex.split(cmd_str, posix=(sys.platform != "win32"))
 
     # Replace leading 'aw' with sys.executable -m agent_workflows
     resume_argv = [sys.executable, "-m", "agent_workflows", *parts[1:]]
