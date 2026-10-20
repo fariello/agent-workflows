@@ -639,7 +639,10 @@ def test_specs_note_history_lands_in_companion_records_root(tmp_path: Path):
     specs_a = list(companion_a.glob("records/specs/draft/*spec-a*.spec.md"))
     assert len(specs_a) == 1
     spec_a_path = specs_a[0]
-    id6_a = spec_a_path.name.split("-")[2]
+    m_a = re.search(
+        r"^- Id:\s*([a-z0-9]{6})", spec_a_path.read_text(encoding="utf-8"), re.M
+    )
+    id6_a = m_a.group(1) if m_a else spec_a_path.name.split("-")[1]
 
     res = run_aw(
         ["specs", "note", str(spec_a_path), "--message", "note before git"],
@@ -696,7 +699,10 @@ def test_specs_note_history_lands_in_companion_records_root(tmp_path: Path):
     specs_b = list(companion_b.glob("records/specs/draft/*spec-b*.spec.md"))
     assert len(specs_b) == 1
     spec_b_path = specs_b[0]
-    id6_b = spec_b_path.name.split("-")[2]
+    m_b = re.search(
+        r"^- Id:\s*([a-z0-9]{6})", spec_b_path.read_text(encoding="utf-8"), re.M
+    )
+    id6_b = m_b.group(1) if m_b else spec_b_path.name.split("-")[1]
 
     res = run_aw(
         ["specs", "note", str(spec_b_path), "--message", "note after git"],
