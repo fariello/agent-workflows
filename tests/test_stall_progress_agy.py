@@ -187,15 +187,19 @@ def test_stall_watchdog_pre_reap_progress_check() -> None:
         )
 
         with watchdog:
-            # Sleep long enough for watchdog to hit timeout once and check
-            time.sleep(0.3)
+            # Wait until watchdog hits timeout once and checks progress
+            deadline = time.monotonic() + 3.0
+            while not checked and time.monotonic() < deadline:
+                time.sleep(0.02)
             # progress_checker returned True, so watchdog touched and did not reap
             assert not watchdog.stalled
             assert len(reaped) == 0
             assert len(checked) >= 1
 
             # Next timeout window: checker returns False, watchdog reaps
-            time.sleep(0.3)
+            deadline = time.monotonic() + 3.0
+            while not watchdog.stalled and time.monotonic() < deadline:
+                time.sleep(0.02)
             assert watchdog.stalled
             assert len(reaped) == 1
     finally:

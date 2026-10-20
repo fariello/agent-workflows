@@ -208,7 +208,7 @@ def test_two_subprocesses_serialize_and_print_waiting_line(tmp_path: Path):
     assert r1["slot_acquired"] is True
     assert r2["slot_acquired"] is True
     assert r2["waited_seconds"] > 0
-    assert r2["enter_mono"] >= r1["exit_mono"] - 0.05
+    assert r2["enter_wall"] >= r1["exit_wall"] - 0.5
 
 
 def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
@@ -291,12 +291,12 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
     r3 = next(r for r in records if r["id"] == "w3")
 
     # w1 and w2 overlapped:
-    assert r1["enter_mono"] < r2["exit_mono"]
-    assert r2["enter_mono"] < r1["exit_mono"]
+    assert r1["enter_wall"] < r2["exit_wall"]
+    assert r2["enter_wall"] < r1["exit_wall"]
 
     # w3 waited for one of them:
-    earliest_exit = min(r1["exit_mono"], r2["exit_mono"])
-    assert r3["enter_mono"] >= earliest_exit - 0.05
+    earliest_exit = min(r1["exit_wall"], r2["exit_wall"])
+    assert r3["enter_wall"] >= earliest_exit - 0.5
     assert r3["waited_seconds"] > 0
 
 

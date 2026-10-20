@@ -430,14 +430,24 @@ def _cleanup_worktree(repo: Path, wt_path: Path) -> None:
         )
     except Exception:
         pass
-    try:
-        if wt_path.exists():
+    if wt_path.exists():
+        if os.name == "nt":
+            import stat
+
+            for root, _dirs, files in os.walk(str(wt_path)):
+                for f in files:
+                    p = os.path.join(root, f)
+                    try:
+                        os.chmod(p, stat.S_IWRITE)
+                    except Exception:
+                        pass
+        try:
             shutil.rmtree(wt_path, ignore_errors=True)
-    except Exception:
-        pass
+        except Exception:
+            pass
     try:
         subprocess.run(
-            ["git", "-C", str(repo), "worktree", "prune"],
+            ["git", "-C", str(repo), "worktree", "prune", "--expire", "now"],
             capture_output=True,
             text=True,
             check=False,

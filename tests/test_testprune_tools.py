@@ -336,6 +336,9 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
     env["COVERAGE_CORE"] = "ctrace"
     env["PYTHONPATH"] = f"{_REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}"
 
+    ini_file = tmp_path / "pytest.ini"
+    ini_file.write_text("[pytest]\n", encoding="utf-8")
+
     cmd = [
         sys.executable,
         "-m",
@@ -345,6 +348,8 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
         "-m",
         "pytest",
         str(test_file),
+        f"-c={ini_file}",
+        f"--rootdir={tmp_path.as_posix()}",
         "-o",
         "addopts=",
         "-q",
@@ -354,7 +359,7 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
         "no:cov",
     ]
     res = subprocess.run(
-        cmd, cwd=_REPO_ROOT, env=env, capture_output=True, text=True, check=False
+        cmd, cwd=tmp_path, env=env, capture_output=True, text=True, check=False
     )
     assert res.returncode == 0, f"stdout: {res.stdout}\nstderr: {res.stderr}"
 
