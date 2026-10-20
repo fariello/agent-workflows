@@ -541,24 +541,26 @@ class TestReceiptLaneRecord(unittest.TestCase):
                     with mock.patch(
                         "agent_workflows.runner_shared.driver_begin",
                         side_effect=fake_begin,
+                    ), mock.patch(
+                        "agent_workflows.runner_shared.driver_finalize",
+                        return_value=(0, "ok"),
+                    ), mock.patch(
+                        "agent_workflows.runner_shared.start_suite_baseline",
+                        return_value=(None, None),
                     ):
-                        with mock.patch(
-                            "agent_workflows.runner_shared.driver_finalize",
-                            return_value=(0, "ok"),
-                        ):
-                            runner_shared.execute_item_core(
-                                run_dir,
-                                state,
-                                item,
-                                recovery=False,
-                                host_labels=host_lbls,
-                                spawn_executor=fake_executor,
-                                spawn_verifier=lambda *a, **k: (0, "v", None, []),
-                                raw_launcher=lambda *a, **k: None,
-                                run_suite_check=lambda p, s: None,
-                                process_backlog_close=lambda *a, **k: None,
-                                driver_module=driver_mod,
-                            )
+                        runner_shared.execute_item_core(
+                            run_dir,
+                            state,
+                            item,
+                            recovery=False,
+                            host_labels=host_lbls,
+                            spawn_executor=fake_executor,
+                            spawn_verifier=lambda *a, **k: (0, "v", None, []),
+                            raw_launcher=lambda *a, **k: None,
+                            run_suite_check=lambda p, s: None,
+                            process_backlog_close=lambda *a, **k: None,
+                            driver_module=driver_mod,
+                        )
 
                     # Read receipt from disk
                     rcpt_data = ipd_lifecycle.read_receipt(repo, plan_id)
@@ -692,24 +694,26 @@ class TestReceiptLaneRecord(unittest.TestCase):
 
             with mock.patch(
                 "agent_workflows.runner_shared.driver_begin", side_effect=fake_begin
+            ), mock.patch(
+                "agent_workflows.runner_shared.driver_finalize",
+                return_value=(0, "ok"),
+            ), mock.patch(
+                "agent_workflows.runner_shared.start_suite_baseline",
+                return_value=(None, None),
             ):
-                with mock.patch(
-                    "agent_workflows.runner_shared.driver_finalize",
-                    return_value=(0, "ok"),
-                ):
-                    runner_shared.execute_item_core(
-                        run_dir,
-                        state,
-                        item,
-                        recovery=False,
-                        host_labels=runner_shared.OC_HOST_LABELS,
-                        spawn_executor=fake_executor,
-                        spawn_verifier=lambda *a, **k: (0, "v", None, []),
-                        raw_launcher=lambda *a, **k: None,
-                        run_suite_check=lambda p, s: None,
-                        process_backlog_close=lambda *a, **k: None,
-                        driver_module=oc_runipd,
-                    )
+                runner_shared.execute_item_core(
+                    run_dir,
+                    state,
+                    item,
+                    recovery=False,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    spawn_executor=fake_executor,
+                    spawn_verifier=lambda *a, **k: (0, "v", None, []),
+                    raw_launcher=lambda *a, **k: None,
+                    run_suite_check=lambda p, s: None,
+                    process_backlog_close=lambda *a, **k: None,
+                    driver_module=oc_runipd,
+                )
 
             # Turn disposition was NOT failed by the missing receipt
             self.assertNotEqual(item.get("status"), "fail-lane")

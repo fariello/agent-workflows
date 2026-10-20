@@ -318,12 +318,11 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
 
     rc_file = tmp_path / ".coveragerc"
     data_file = tmp_path / ".coverage"
-    repo_src = str((_REPO_ROOT / "agent_workflows").resolve())
 
     rc_file.write_text(
         f"[run]\n"
-        f"data_file = {data_file}\n"
-        f"source = {repo_src}\n"
+        f"data_file = {data_file.as_posix()}\n"
+        f"source = agent_workflows\n"
         f"branch = true\n"
         f"parallel = true\n"
         f"patch = subprocess\n",
@@ -357,14 +356,14 @@ def test_covctx_plugin_subprocess_context_propagation(tmp_path: Path) -> None:
     res = subprocess.run(
         cmd, cwd=_REPO_ROOT, env=env, capture_output=True, text=True, check=False
     )
-    assert res.returncode == 0
+    assert res.returncode == 0, f"stdout: {res.stdout}\nstderr: {res.stderr}"
 
     clean_env = dict(env)
     clean_env.pop("COVERAGE_PROCESS_START", None)
     clean_env.pop("COVERAGE_FILE", None)
     clean_env.pop("COVERAGE_PROCESS_CONFIG", None)
     subprocess.run(
-        ["coverage", "combine", f"--rcfile={rc_file}"],
+        [sys.executable, "-m", "coverage", "combine", f"--rcfile={rc_file}"],
         cwd=tmp_path,
         env=clean_env,
         check=True,

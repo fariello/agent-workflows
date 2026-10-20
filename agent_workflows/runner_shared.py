@@ -30214,8 +30214,27 @@ def remove_suite_baseline_checkout(
     with contextlib.suppress(Exception):
         git(["worktree", "remove", "--force", str(path)])
     with contextlib.suppress(Exception):
-        if Path(path).exists():
-            shutil.rmtree(path, ignore_errors=True)
+        p = Path(path)
+        if p.exists():
+            import stat
+
+            def _clear_and_retry(func: Any, target: Any, _exc: Any) -> None:
+                try:
+                    os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+                except OSError:
+                    pass
+                with contextlib.suppress(Exception):
+                    func(target)
+
+            for attempt in range(5):
+                if sys.version_info >= (3, 12):
+                    shutil.rmtree(p, onexc=_clear_and_retry)
+                else:
+                    shutil.rmtree(p, onerror=_clear_and_retry)
+                if not p.exists():
+                    break
+                if sys.platform == "win32":
+                    time.sleep(0.05 * (attempt + 1))
     with contextlib.suppress(Exception):
         git(["worktree", "prune"])
 
