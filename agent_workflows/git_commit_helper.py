@@ -420,6 +420,39 @@ class AgentCommitIdentity(NamedTuple):
     env: Dict[str, str]
 
 
+_ESSENTIAL_OS_ENV_KEYS: Tuple[str, ...] = (
+    "SystemRoot",
+    "WINDIR",
+    "SYSTEMDRIVE",
+    "PATH",
+    "PATHEXT",
+    "COMSPEC",
+    "TEMP",
+    "TMP",
+    "USERPROFILE",
+    "HOME",
+)
+
+
+def _ensure_essential_os_env(target: Dict[str, str]) -> None:
+    """Ensure operating system process-execution variables are preserved.
+
+    On Windows, CreateProcess fails with [WinError 87] (ERROR_INVALID_PARAMETER) if
+    SystemRoot is missing from lpEnvironment, and executables cannot be located if
+    PATH is missing. On all platforms, child processes need PATH and temp/home vars.
+    When a caller passes a narrowed or empty env (e.g. base_env={} in tests to isolate
+    from caller state), copy missing OS execution vars from os.environ.
+    """
+    for key in _ESSENTIAL_OS_ENV_KEYS:
+        if key in os.environ:
+            if os.name == "nt":
+                key_lower = key.lower()
+                if not any(k.lower() == key_lower for k in target):
+                    target[key] = os.environ[key]
+            elif key not in target:
+                target[key] = os.environ[key]
+
+
 def _git_config_get(
     repo_root: Path,
     key: str,
@@ -441,11 +474,16 @@ def _git_config_get(
     except OSError:
         cwd_path = None
 
+    proc_env: Optional[Dict[str, str]] = None
+    if env is not None:
+        proc_env = dict(env)
+        _ensure_essential_os_env(proc_env)
+
     try:
         proc = _REAL_POPEN(
             ["git", "config", "--get", key],
             cwd=cwd_path,
-            env=dict(env) if env is not None else None,
+            env=proc_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -765,10 +803,14 @@ def _git(
     """
 
     effective_env = env if env is not None else _SCOPED_GIT_ENV
+    sub_env: Optional[Dict[str, str]] = None
+    if effective_env is not None:
+        sub_env = dict(effective_env)
+        _ensure_essential_os_env(sub_env)
     proc = subprocess.run(
         lockfree_git_argv(args),
         cwd=str(repo_root),
-        env=dict(effective_env) if effective_env is not None else None,
+        env=sub_env,
         capture_output=True,
         text=True,
         encoding="utf-8",

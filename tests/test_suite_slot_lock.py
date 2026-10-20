@@ -83,8 +83,13 @@ _WORKER_SCRIPT = textwrap.dedent("""
             "enter_wall": enter_wall,
             "exit_wall": exit_wall,
         }
-        with log_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\\n")
+        for _ in range(50):
+            try:
+                with log_file.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(record) + "\\n")
+                break
+            except OSError:
+                time.sleep(0.05)
 """)
 
 _HB_SECS = 4.0 if sys.platform == "win32" else 1.8
@@ -267,10 +272,12 @@ def test_two_slots_concurrent_and_third_waits(tmp_path: Path):
         text=True,
     )
 
-    p1.communicate(timeout=15)
-    p2.communicate(timeout=15)
+    out1, err1 = p1.communicate(timeout=15)
+    out2, err2 = p2.communicate(timeout=15)
     out3, err3 = p3.communicate(timeout=15)
 
+    assert p1.returncode == 0, f"p1 failed: {err1}"
+    assert p2.returncode == 0, f"p2 failed: {err2}"
     assert p3.returncode == 0, f"p3 failed: {err3}"
     assert "waiting for a test-suite slot" in err3
 
