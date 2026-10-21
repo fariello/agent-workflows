@@ -21,6 +21,7 @@ jobs:
   unittest:
     name: unittest (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 300
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +91,9 @@ jobs:
       # Flip condition: remove continue-on-error once -m slow reports 0 failed on the ubuntu leg,
       # i.e. once every owning item is done.
       - name: Run slow-marked tests (ADVISORY until the known slow failures are fixed)
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
+        timeout-minutes: 30
         continue-on-error: true
         run: python -m pytest tests/ -n auto -m slow
 
