@@ -1773,14 +1773,16 @@ def report_request(
 # 4. IT PRESERVES THE PRE-EXISTING `KeyboardInterrupt` CONTRACT. See `install_stop_signal_handlers`.
 
 _SIGINT_PRESSES = 0
+_TERMINAL_RAISED_AT: float = 0.0
 _HANDLER_RUN_DIR: Path | None = None
 
 
 def reset_signal_ladder() -> None:
     """Reset the process-local SIGINT press counter (for tests and for a fresh run in-process)."""
 
-    global _SIGINT_PRESSES, _HANDLER_RUN_DIR
+    global _SIGINT_PRESSES, _TERMINAL_RAISED_AT, _HANDLER_RUN_DIR
     _SIGINT_PRESSES = 0
+    _TERMINAL_RAISED_AT = 0.0
     _HANDLER_RUN_DIR = None
 
 
@@ -2044,8 +2046,9 @@ def install_stop_signal_handlers(
     orphaning the child, which is the defect spec section 0.1 describes.
     """
 
-    global _HANDLER_RUN_DIR
+    global _HANDLER_RUN_DIR, _TERMINAL_RAISED_AT
     _HANDLER_RUN_DIR = Path(run_dir)
+    _TERMINAL_RAISED_AT = 0.0
     status: dict[str, str] = {}
 
     def _record(level: int) -> None:
@@ -2099,7 +2102,13 @@ def install_stop_signal_handlers(
             # The TERMINAL rung, and the only place the handler does more than record. See the
             # docstring: this is what preserves the pre-existing exit-130 path and `execute_item`'s
             # `interrupted` bookkeeping that Phases 3-4 rely on.
-            on_terminal(level, requester)
+            # Debounce repeated terminal calls within 3 seconds so rapid SIGINT bursts during stack
+            # unwinding do not preempt in-flight reconciliation / state persistence.
+            now = time.monotonic()
+            global _TERMINAL_RAISED_AT
+            if _TERMINAL_RAISED_AT == 0.0 or (now - _TERMINAL_RAISED_AT > 3.0):
+                _TERMINAL_RAISED_AT = now
+                on_terminal(level, requester)
 
     def _sigterm(signum: int, frame: Any) -> None:  # noqa: ARG001 - signal handler signature
         _record(SIGTERM_LEVEL)

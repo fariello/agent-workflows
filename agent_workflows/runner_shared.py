@@ -14168,95 +14168,98 @@ def reconcile_item_on_interrupt(
         attempt["interrupted_at"] = now
         attempt["ended_at"] = now
         attempt["interrupt_reason"] = FORCED_INTERRUPT_SENTINEL
-
-        # Determine git state for the stopped record
-        try:
-            target_repo = Path(work_dir) if work_dir else repo
-            rc, status_out, _err = _run_git(target_repo, ["status", "--porcelain"])
-            observed_git = status_out.strip() if rc == 0 else ""
-        except Exception:
-            observed_git = ""
-
-        # Snapshot lane if worktree exists and is dirty
-        lane_id = attempt.get("worktree_lane_id", item["id6"])
-        base_commit = attempt.get("worktree_base", "")
-        lane_rec = {
-            "id6": item["id6"],
-            "lane_id": lane_id,
-            "base_commit": base_commit,
-            "worktree": work_dir,
-        }
-        lane = describe_lane(repo, lane_rec) if work_dir else None
-        snapshot = None
-        branch_name = ""
-        if work_dir and lane is not None:
-            branch_name = lane["branch"]
-            handle = worktree_lease.WorktreeHandle(
-                lane_id=lane["lane_id"],
-                path=Path(lane["worktree"]) if lane["worktree"] else Path(work_dir),
-                branch=lane["branch"],
-                base_commit=lane["base_sha"] or "",
-            )
-            if lane["dirty"]:
-                with contextlib.suppress(Exception):
-                    _snap_host = (
-                        "aw agy run"
-                        if str(
-                            (state.get("host_capabilities") or {}).get("host") or ""
-                        ).startswith("agy")
-                        else (
-                            "aw oc run"
-                            if str(
-                                (state.get("host_capabilities") or {}).get("host") or ""
-                            ).startswith("oc")
-                            else None
-                        )
-                    )
-                    snapshot = worktree_lease.snapshot_lane_dirty_work(
-                        repo,
-                        handle,
-                        note=f"Reason: {FORCED_INTERRUPT_SENTINEL}.",
-                        runner=_snap_host,
-                        model=str((state.get("options") or {}).get("model") or "")
-                        or None,
-                        run_id=str(state.get("run_id") or "") or None,
-                        item_id6=str(item.get("id6") or "") or None,
-                    )
-
-        if snapshot:
-            attempt["snapshot_commit"] = snapshot
-
         item["status"] = "interrupted"
         item["recovery_next"] = True
 
-        requester = "SIGTERM" if "SIGTERM" in msg else "SIGINT"
-        if "requested by " in msg:
-            requester = msg.split("requested by ", 1)[1].split(" (")[0].strip()
+        observed_git = ""
+        snapshot = None
+        branch_name = ""
+        try:
+            # Determine git state for the stopped record
+            try:
+                target_repo = Path(work_dir) if work_dir else repo
+                rc, status_out, _err = _run_git(target_repo, ["status", "--porcelain"])
+                observed_git = status_out.strip() if rc == 0 else ""
+            except BaseException:
+                observed_git = ""
 
-        item["stopped"] = runner_stop.forced_disposition(
-            level=runner_stop.LEVEL_NOW_FORCE,
-            requester=requester,
-            git_state=observed_git,
-            at=now,
-        )
-        item.pop("requires_reconciliation", None)
-
-        save_state_fn(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {
-                "at": now,
-                "event": "ipd-interrupted",
-                "subevent": FORCED_INTERRUPT_SENTINEL,
+            # Snapshot lane if worktree exists and is dirty
+            lane_id = attempt.get("worktree_lane_id", item["id6"])
+            base_commit = attempt.get("worktree_base", "")
+            lane_rec = {
                 "id6": item["id6"],
-                "branch": branch_name,
-            },
-        )
-        branch_info = f" on {branch_name}" if branch_name else ""
-        print(
-            f"  (IPD {seq:02d}/{total} {item['id6']} force-interrupted; state preserved{branch_info})",
-            file=sys.stderr,
-        )
+                "lane_id": lane_id,
+                "base_commit": base_commit,
+                "worktree": work_dir,
+            }
+            lane = describe_lane(repo, lane_rec) if work_dir else None
+            if work_dir and lane is not None:
+                branch_name = lane["branch"]
+                handle = worktree_lease.WorktreeHandle(
+                    lane_id=lane["lane_id"],
+                    path=Path(lane["worktree"]) if lane["worktree"] else Path(work_dir),
+                    branch=lane["branch"],
+                    base_commit=lane["base_sha"] or "",
+                )
+                if lane["dirty"]:
+                    with contextlib.suppress(BaseException):
+                        _snap_host = (
+                            "aw agy run"
+                            if str(
+                                (state.get("host_capabilities") or {}).get("host") or ""
+                            ).startswith("agy")
+                            else (
+                                "aw oc run"
+                                if str(
+                                    (state.get("host_capabilities") or {}).get("host")
+                                    or ""
+                                ).startswith("oc")
+                                else None
+                            )
+                        )
+                        snapshot = worktree_lease.snapshot_lane_dirty_work(
+                            repo,
+                            handle,
+                            note=f"Reason: {FORCED_INTERRUPT_SENTINEL}.",
+                            runner=_snap_host,
+                            model=str((state.get("options") or {}).get("model") or "")
+                            or None,
+                            run_id=str(state.get("run_id") or "") or None,
+                            item_id6=str(item.get("id6") or "") or None,
+                        )
+
+            if snapshot:
+                attempt["snapshot_commit"] = snapshot
+        finally:
+            requester = "SIGTERM" if "SIGTERM" in msg else "SIGINT"
+            if "requested by " in msg:
+                requester = msg.split("requested by ", 1)[1].split(" (")[0].strip()
+
+            item["stopped"] = runner_stop.forced_disposition(
+                level=runner_stop.LEVEL_NOW_FORCE,
+                requester=requester,
+                git_state=observed_git,
+                at=now,
+            )
+            item.pop("requires_reconciliation", None)
+
+            save_state_fn(run_dir, state)
+            with contextlib.suppress(BaseException):
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": now,
+                        "event": "ipd-interrupted",
+                        "subevent": FORCED_INTERRUPT_SENTINEL,
+                        "id6": item["id6"],
+                        "branch": branch_name,
+                    },
+                )
+            branch_info = f" on {branch_name}" if branch_name else ""
+            print(
+                f"  (IPD {seq:02d}/{total} {item['id6']} force-interrupted; state preserved{branch_info})",
+                file=sys.stderr,
+            )
         return
 
     if "just-terminate-no-cleanup" in msg:
@@ -42012,20 +42015,27 @@ def execute_item_core(
             )
             raise
         except KeyboardInterrupt as exc:
-            record_interrupted_attempt_accounting(state, item, attempt, work_dir)
-            reconcile_item_on_interrupt(
-                repo,
-                run_dir,
-                state,
-                item,
-                attempt,
-                attempt_no,
-                work_dir,
-                str(exc),
-                save_state_fn=save_state,
-                seq=seq,
-                total=total,
-            )
+            try:
+                record_interrupted_attempt_accounting(state, item, attempt, work_dir)
+                reconcile_item_on_interrupt(
+                    repo,
+                    run_dir,
+                    state,
+                    item,
+                    attempt,
+                    attempt_no,
+                    work_dir,
+                    str(exc),
+                    save_state_fn=save_state,
+                    seq=seq,
+                    total=total,
+                )
+            except BaseException:
+                item["status"] = "interrupted"
+                item["recovery_next"] = True
+                with contextlib.suppress(BaseException):
+                    save_state(run_dir, state)
+                raise
             raise
         except StallTimeout as stall_exc:
             from agent_workflows import lane_containment, worktree_lease

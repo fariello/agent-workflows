@@ -312,7 +312,7 @@ class _SignalledRun:
                 else runner_stop.LEVEL_AFTER_CALL
             )
             try:
-                self.wait_for_level(target or runner_stop.LEVEL_NOW_FORCE, timeout=10.0)
+                self.wait_for_level(target or runner_stop.LEVEL_NOW_FORCE, timeout=15.0)
             except AssertionError:
                 continue  # the press coalesced; loop and press again
         raise AssertionError(

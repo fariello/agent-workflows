@@ -767,6 +767,57 @@ def _ensure_clean_delta_lane_ignore(lane_path: Path | str) -> None:
 
 def _process_start_token(pid: int) -> Optional[str]:
     """A boot-scoped token distinguishing THIS process from a later pid reuse, or None if unknown."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class FILETIME(ctypes.Structure):
+                _fields_ = [
+                    ("dwLowDateTime", wintypes.DWORD),
+                    ("dwHighDateTime", wintypes.DWORD),
+                ]
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.OpenProcess.argtypes = [
+                wintypes.DWORD,
+                wintypes.BOOL,
+                wintypes.DWORD,
+            ]
+            kernel32.GetProcessTimes.restype = wintypes.BOOL
+            kernel32.GetProcessTimes.argtypes = [
+                wintypes.HANDLE,
+                ctypes.POINTER(FILETIME),
+                ctypes.POINTER(FILETIME),
+                ctypes.POINTER(FILETIME),
+                ctypes.POINTER(FILETIME),
+            ]
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+            process_query_limited_information = 0x1000
+            handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+            if not handle:
+                return None
+            try:
+                creation = FILETIME()
+                exit_time = FILETIME()
+                kernel = FILETIME()
+                user = FILETIME()
+                if kernel32.GetProcessTimes(
+                    handle,
+                    ctypes.byref(creation),
+                    ctypes.byref(exit_time),
+                    ctypes.byref(kernel),
+                    ctypes.byref(user),
+                ):
+                    return str((creation.dwHighDateTime << 32) | creation.dwLowDateTime)
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return None
+        return None
+
     try:
         with open(
             "/proc/{0}/stat".format(pid), "r", encoding="utf-8", errors="replace"
@@ -774,8 +825,23 @@ def _process_start_token(pid: int) -> Optional[str]:
             fields = fh.read().rsplit(")", 1)[-1].split()
         # field 22 after the comm field is starttime (jiffies since boot)
         return fields[19]
+    except FileNotFoundError:
+        pass
     except Exception:
         return None
+
+    try:
+        res = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "lstart="],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return None
 
 
 def write_lane_owner(repo_root: Path, lane_id: str, **extra: object) -> Path:
@@ -838,6 +904,8 @@ def _owner_is_live(owner: dict) -> Optional[bool]:
         current = _process_start_token(pid)
         if current is not None and current != token:
             return False  # pid was REUSED by a different process; the owner is gone
+        if current is None and not platform_lock.pid_alive(pid):
+            return False
     return True
 
 
@@ -899,7 +967,14 @@ def lane_owned_by_other_live_process(repo_root: Path, lane_id: str) -> bool:
         return True
     if owner.get("pid") == os.getpid() and owner.get("host") == socket.gethostname():
         return False
-    return _owner_is_live(owner) is not False
+    is_live = _owner_is_live(owner)
+    if is_live is True and os.name == "nt":
+        # On Windows, GetExitCodeProcess can transiently return STILL_ACTIVE (259)
+        # during process exit. A momentary retry avoids rejecting uninstallation
+        # of lanes whose owner just exited.
+        time.sleep(0.05)
+        is_live = _owner_is_live(owner)
+    return is_live is not False
 
 
 def lane_is_safe_to_adopt(repo_root: Path, lane_id: str) -> Tuple[bool, str]:
