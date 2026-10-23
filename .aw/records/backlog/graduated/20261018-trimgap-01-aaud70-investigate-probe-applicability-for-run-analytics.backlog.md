@@ -1,11 +1,13 @@
 - Id: aaud70
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Investigate probe applicability for run_analytics_spa
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: di5puw
 - 2026-10-18 created (aw backlog): Investigate probe applicability for run_analytics_spa
 
 Carries 5 candidate production keys for agent_workflows/run_analytics_spa.py with remedy shape 'investigate probe'.
