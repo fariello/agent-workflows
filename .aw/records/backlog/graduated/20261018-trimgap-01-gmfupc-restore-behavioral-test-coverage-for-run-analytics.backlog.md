@@ -1,11 +1,13 @@
 - Id: gmfupc
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Restore behavioral test coverage for run_analytics_telemetry
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T174955Z-1383559: qpmq2o
 - 2026-10-18 created (aw backlog): Restore behavioral test coverage for run_analytics_telemetry
 
 Carries 4 candidate production keys for agent_workflows/run_analytics_telemetry.py with remedy shape 'restore behavioral coverage'.
