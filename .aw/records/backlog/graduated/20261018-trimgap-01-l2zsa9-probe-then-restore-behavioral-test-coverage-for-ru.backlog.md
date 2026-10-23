@@ -1,11 +1,13 @@
 - Id: l2zsa9
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Probe then restore behavioral test coverage for runner_shared
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175028Z-1384849: wfm5iv
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for runner_shared
 
 Carries 3 candidate production keys for agent_workflows/runner_shared.py with remedy shape 'probe then restore'.
