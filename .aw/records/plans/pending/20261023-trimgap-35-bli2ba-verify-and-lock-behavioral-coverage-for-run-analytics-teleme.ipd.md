@@ -6,7 +6,8 @@
 - Scope: Run the eight `tools/mutation_probe.py` probes (the backlog item's operators) against `tests/test_run_analytics_telemetry.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_telemetry.py` that calls the surviving function (directly or through its public caller) and asserts on its returned value, raised error, or written telemetry. EXCLUDES any production-code change; EXCLUDES other `run_analytics_telemetry.py` keys (owned by executed `8bhcd3`, pending `qpmq2o`, or other `trimgap` items); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_telemetry.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: zd8l04
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-23 reviewed (opencode): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (unsatisfiable exit-0 bar in E-03/V-03 on an enforcing host, F-05) and PR-002 (F-02 operator grouping) fixed; three probes re-run killed at `72da75876` (F-04)
 - 2026-10-23 to-review (opencode): authored from backlog `zd8l04`. Confirmed `8bhcd3` restored the control file after the `wo21z5` baseline (`git merge-base --is-ancestor cbf70e39a f3afece925` exits 1), then ran `tools/mutation_probe.py` for all eight keys at HEAD `bc36f0175`; every mutant was killed (F-02). The plan is therefore verification-first with a conditional restore step, following siblings `qpmq2o` and `92tzo6`.
 - 2026-10-23 draft (opencode): created.
 
@@ -43,9 +45,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: either no diff to `tests/test_run_analytics_telemetry.py`, or a diff adding only tests, after which the re-probe of each previously surviving key (with `head:` at or after that commit) reports `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming the added test.
   - Execution state: pending
 
-- [ ] E-03 Run the routine bare gate `python3 -m pytest` and confirm it passes with `tests/test_run_analytics_telemetry.py` in the core selection. The conftest budget check (`conftest.pytest_sessionfinish`) sets exit 1 on a wall-time overrun only when enforced and otherwise prints a warning; the core tier already exceeded 30s on this host before this plan (sibling `qpmq2o` E-03 cites 34.68s measured by the `f6el0l` review). So paste any `CORE TIER BUDGET EXCEEDED` block verbatim and do not count it against this item unless E-02 added a test that is among the block's listed slowest tests.
+- [ ] E-03 Run the routine bare gate `python3 -m pytest` and confirm it passes with `tests/test_run_analytics_telemetry.py` in the core selection. The conftest budget check (`conftest.pytest_sessionfinish`) sets exit 1 on a wall-time overrun only when enforced and otherwise prints a warning; the core tier already exceeded 30s on this host before this plan (sibling `qpmq2o` E-03 cites 34.68s measured by the `f6el0l` review). On a host with 12 or more CPUs and a 1-minute load average at or below the CPU count the overrun IS enforced, so the bare run can exit 1 with every test passing (review measured exactly that at `72da75876`, F-05). So paste any `CORE TIER BUDGET EXCEEDED` block verbatim and do not count it against this item unless E-02 added a test that is among the block's listed slowest tests.
   - Depends on: E-02
-  - Expected outcome: the bare run exits 0 and its summary line shows `passed` with no `failed` or `error`.
+  - Expected outcome: the bare run's summary line shows `passed` with no `failed` or `error`, and it either exits 0 or exits 1 solely because of an enforced `CORE TIER BUDGET EXCEEDED` block (no `Core tier budget not enforced` line) whose listed slowest tests include no test added by E-02. Any other non-zero exit is a failure of this item.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -61,8 +63,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Id | Evidence | Finding |
 |---|---|---|
 | F-01 | `wo21z5` `## Probe queue` rows for the eight keys (control `tests/test_run_analytics_telemetry.py`, priority `P2`) and `## Budget probe results` rows (`budget-exhausted`, "budget exhausted at 11130.81s"); `wo21z5` `## Baseline` `head: f3afece925f521dd5a6e930e02b584a2c08cf950`; `git log -1 cbf70e39a` (2026-10-17 19:34, `work(8bhcd3): Restore behavioral test coverage for run_analytics_telemetry`); `git merge-base --is-ancestor cbf70e39a f3afece925` exits 1 | No verdict was ever produced for these keys, and their named control file was restored after the probe baseline. The open gap is unmeasured rather than demonstrated. |
-| F-02 | `tools/mutation_probe.py` at HEAD `bc36f0175`, selection `-o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py` | All eight `verdict: killed`, `baseline_failing: 0`. `mutant_failing`: `ResourceSampler.__init__` 13, `ResourceSampler.start` 6, `ResourceSampler.stop` 8 (all `raise`); `SystemResourceProbeAdapter.accelerators` 7, `SystemResourceProbeAdapter.disk` 2, `TelemetryCollector.__init__` 30 (`raise`), `TelemetryCollector._emit` 18, `TelemetryCollector._observe_accelerators` 27 (`return-none`). |
+| F-02 | `tools/mutation_probe.py` at HEAD `bc36f0175`, selection `-o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py` | All eight `verdict: killed`, `baseline_failing: 0`. `mutant_failing` under `raise`: `ResourceSampler.__init__` 13, `ResourceSampler.start` 6, `ResourceSampler.stop` 8, `TelemetryCollector.__init__` 30. Under `return-none`: `SystemResourceProbeAdapter.accelerators` 7, `SystemResourceProbeAdapter.disk` 2, `TelemetryCollector._emit` 18, `TelemetryCollector._observe_accelerators` 27. |
 | F-03 | Same as F-02, `newly_failing` for `SystemResourceProbeAdapter.disk` | Killed by exactly two tests, `ProbeAdapterTests::test_a_denied_probe_degrades_to_a_structured_reason_rather_than_raising` and `ProbeAdapterTests::test_real_adapter_probes_this_machine_without_raising` (about 8s wall). It is the thinnest of the eight; E-02 is the remedy only if those tests are lost before execution. |
+| F-04 | `/plan-review` re-run of `tools/mutation_probe.py` at HEAD `72da75876`, same selection, for a sample of three keys | `SystemResourceProbeAdapter.disk` (`return-none`) killed, `mutant_failing: 2`; `TelemetryCollector._emit` (`return-none`) killed, 18; `ResourceSampler.stop` (`raise`) killed, 8; all `baseline_failing: 0`. F-02 reproduces for the sample; E-01 still re-probes all eight. |
+| F-05 | `/plan-review` bare `python3 -m pytest` at HEAD `72da75876`; `conftest.pytest_sessionfinish` (`not_enforced_reason` is set only for `AW_CORE_BUDGET_ENFORCE=0`, fewer than 12 CPUs, or load above CPU count, else `session.exitstatus = 1`) | `1675 passed, 11 warnings in 34.61s`, exit 1, with an enforced `CORE TIER BUDGET EXCEEDED` block ("Core tier wall time: 34.61s exceeded budget of 30.00s", load 5.88 on 12 CPUs, no "not enforced" line). The bare gate is already non-zero on this host before this plan, so an "exit 0" bar would be unsatisfiable for an out-of-scope reason. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,7 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The eight `tools/mutation_probe.py` runs of E-01 (and any E-02 re-probes), full `head`/`target`/`operator`/`selection`/`verdict`/`baseline_failing`/`mutant_failing`/`newly_failing` output pasted.
 - `python3 -m pytest -o addopts="" -v tests/test_run_analytics_telemetry.py` passes, per-test list pasted (required only when E-02 edits the file).
-- Bare `python3 -m pytest` summary line and exit status pasted.
+- Bare `python3 -m pytest` summary line and exit status pasted, plus any `CORE TIER BUDGET EXCEEDED` block verbatim (exit 1 acceptable only per E-03's expected outcome).
 - `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty (no production change committed or left in the tree).
 
 ## Spec / documentation sync
@@ -115,7 +119,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the bare `python3 -m pytest` summary line showing `passed` and no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (including any "not enforced" reason).
+  - Required evidence: paste the bare `python3 -m pytest` summary line showing `passed` and no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (including any "not enforced" reason). An exit status of 1 passes only when that block is present and enforced and none of its listed slowest tests was added by E-02; state that check explicitly.
   - Observed evidence:
   - Result: pending
 
