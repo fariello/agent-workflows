@@ -6,7 +6,8 @@
 - Scope: (a) record the disposition of the four deleted keys as "no longer exists; no coverage owed"; (b) add `@pytest.mark.core` to the two fast tests that kill the `scan_for_network_references` mutants (`OfflineReportTests.test_the_offline_harness_FAILS_when_a_network_reference_is_introduced` in `tests/test_run_analytics_e2e.py` and `RenderTests.test_offline_and_escaped` in `tests/test_run_dashboard.py`); (c) re-probe under `-m core` to prove the mutants are now killed by the routine gate. EXCLUDES any production-code change; EXCLUDES writing new tests (existing behavioral tests already kill the mutants); EXCLUDES other `run_analytics_html.py` keys (`escape_text`, `escape_attribute`, `escape_json_for_script`, `sanitize_control_characters` were not in this item); EXCLUDES restoring tests for deleted code from `19313eed^`.
 - Scope-Paths: tests/test_run_analytics_e2e.py, tests/test_run_dashboard.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: aaud70
@@ -17,6 +18,7 @@
 - Id: di5puw
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (probe reads committed HEAD: commit before E-04), PR-002 (unsatisfiable 30s budget bar and mutant_failing count bar replaced), PR-003 (E-01 grep matched stale pyc: git grep), PR-004 (execution contract) fixed; F-02/F-03 reproduced at 16d8abbb8 (F-04)
 
 - 2026-10-23 to-review (opencode): authored from backlog `aaud70`. Traced the `target file not found` verdict to the deletion of `run_analytics_spa.py` in `bf5057b69`; located the surviving key in `run_analytics_html`; probed it at HEAD `ce72322b` (survives `-m core tests/`, killed by full selection and by the two named tests alone). Plan is a core-marking remedy plus a disposition record.
 - 2026-10-23 draft (opencode): created.
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: disposition of deleted keys
 
-- [ ] E-01 Confirm at execution HEAD that `agent_workflows/run_analytics_spa.py` does not exist and that none of `_render_findings`, `_render_pricing`, `_render_refusals`, `refusal_from_result` is defined anywhere under `agent_workflows/` (`git ls-files agent_workflows/run_analytics_spa.py` empty; `grep -rnE "def (_render_findings|_render_pricing|_render_refusals|refusal_from_result)\b" agent_workflows/` empty). Record in Findings "four keys deleted by `bf5057b69`; no coverage owed". If any of them has been reintroduced, record it as a DEFERRED gap for a new backlog item and do not restore tests in this plan.
+- [ ] E-01 Confirm at execution HEAD that `agent_workflows/run_analytics_spa.py` does not exist and that none of `_render_findings`, `_render_pricing`, `_render_refusals`, `refusal_from_result` is defined anywhere under `agent_workflows/` (`git ls-files agent_workflows/run_analytics_spa.py` empty; `git grep -nE "def (_render_findings|_render_pricing|_render_refusals|refusal_from_result)\b" -- agent_workflows/` empty with exit 1; use `git grep`, not `grep -r`, so stale untracked `__pycache__/*.pyc` cannot produce "binary file matches" noise). Record in Findings "four keys deleted by `bf5057b69`; no coverage owed". If any of them has been reintroduced, record it as a DEFERRED gap for a new backlog item and do not restore tests in this plan.
   - Depends on: none
   - Expected outcome: both commands print nothing; disposition recorded in Findings.
   - Execution state: pending
@@ -40,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Add `@pytest.mark.core` to `OfflineReportTests.test_the_offline_harness_FAILS_when_a_network_reference_is_introduced` in `tests/test_run_analytics_e2e.py` (the file already imports `pytest` and already uses method-level `@pytest.mark.core` on `FixtureCorpusTests`). Make no other change to the file.
   - Depends on: none
-  - Expected outcome: `git diff tests/test_run_analytics_e2e.py` shows exactly one added decorator line.
+  - Expected outcome: `git diff tests/test_run_analytics_e2e.py` shows exactly one added decorator line. If the commit's mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites unrelated lines in the file, `aw commit` re-stages and retries; record the hook's extra hunks in V-02 as hook churn rather than editing them by hand.
   - Execution state: pending
 
 - [ ] E-03 Add `@pytest.mark.core` to `RenderTests.test_offline_and_escaped` in `tests/test_run_dashboard.py`, adding `import pytest` only if the file does not already import it. Make no other change to the file.
@@ -48,9 +50,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `git diff tests/test_run_dashboard.py` shows the decorator line (and at most an `import pytest` line).
   - Execution state: pending
 
-- [ ] E-04 Re-run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_html.py::scan_for_network_references -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` for `<op>` in `return-none` and `raise`, then run the bare routine gate `python3 -m pytest` to confirm the core tier still passes within its 30s budget. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified.
+- [ ] E-04 First commit the two decorator edits through `aw commit di5puw -- tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` (`tools/mutation_probe.py` checks out committed `HEAD` into its own worktree via `git worktree add --detach <dir> HEAD`, so an uncommitted decorator is invisible to it and the probe would report `survived`; F-04). Then run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_html.py::scan_for_network_references -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` for `<op>` in `return-none` and `raise`, then run the bare routine gate `python3 -m pytest`. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified; never hand-edit `agent_workflows/`.
   - Depends on: E-02, E-03
-  - Expected outcome: both probes print `verdict: killed` with `mutant_failing: 2` naming the two tests; the bare gate summary shows no failures and no budget breach.
+  - Expected outcome: both probes print a `head:` equal to the E-04 commit, `baseline_failing: 0` and `verdict: killed`, and their `newly_failing` list names at least one of the two newly core-marked tests (re-derive at execution; the count is not the bar). The bare gate reports no failures. A core-tier wall-time overrun is reported, not a pass/fail bar, because the bare run already measured 34.68s at review HEAD `16d8abbb8` before this change (F-04); the bar is that the two marked tests are cheap (F-04: both together `2 passed in 0.31s`) and the bare run shows no `CORE TIER BUDGET EXCEEDED` failure attributable to them.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -68,6 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | `wo21z5` `## Budget probe results` rows for the five keys (`invalid`, `unprovable`, `target file not found`); `git log -1 bf5057b69` (2026-10-17 18:16:22, "remove classic report.html (run_analytics_spa + assets), keep its HTML-safety helpers as run_analytics_html"); `wo21z5` baseline `f3afece9` dated 2026-10-17 18:14:47 and is an ancestor of `bf5057b69`; `ls agent_workflows/run_analytics_spa.py` fails at HEAD `ce72322b`; `git show bf5057b69^:agent_workflows/run_analytics_spa.py` defines all five keys | The `unprovable` verdict is an artifact of the module being deleted while the probe ran, not of the probe tool. `_render_findings`, `_render_pricing`, `_render_refusals`, `refusal_from_result` were removed with the classic report and no definition exists under `agent_workflows/`. |
 | F-02 | `agent_workflows/run_analytics_html.scan_for_network_references` exists; `run_dashboard` calls `spa.scan_for_network_references(doc)`; probe `--op return-none ... -m core tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` at `ce72322b`: `verdict: survived`, `mutant_failing: 0`; same with `--op raise`: `survived`; same `return-none` with `-n 6 -m core tests/` (whole core tier): `verdict: survived`, `mutant_failing: 0`, `wall_s: 244.53` | The surviving key is unguarded by the routine merge gate. Only 1 of 51 tests in the two control files is core-selected (`FixtureCorpusTests::test_the_corpus_carries_all_four_generations_including_both_legacy_ones`). |
 | F-03 | Probe `--op return-none` without `-m core` over the two files: `verdict: killed`, `mutant_failing: 3` (`OfflineReportTests::test_the_bundle_opens_from_a_file_url_with_sockets_denied`, `OfflineReportTests::test_the_offline_harness_FAILS_when_a_network_reference_is_introduced`, `RenderTests::test_offline_and_escaped`); probe of both ops over only the two E-02/E-03 tests: `verdict: killed`, `mutant_failing: 2` each | Behavioral coverage already exists in the thorough tier; the gap is tier membership only. The two chosen tests kill both operators by themselves; `test_the_offline_harness_FAILS...` ran in 1.84s total (call under 5ms) and `test_offline_and_escaped` in 1.04s total, so core-marking them costs negligible budget. |
+| F-04 | review at HEAD `16d8abbb8`: `tools/mutation_probe.py` source (`git worktree add --detach ... HEAD`; docstring "against committed HEAD"); `python3 tools/mutation_probe.py --op raise ... -m core tests/test_run_analytics_e2e.py tests/test_run_dashboard.py`; `--op return-none` over the two named test ids; `-o addopts= --durations=0` over the two tests; bare `python3 -m pytest` | Probe reads committed HEAD only, so E-04 must follow a commit. `raise` under `-m core`: `verdict: survived`, `mutant_failing: 0` (F-02 reproduces). `return-none` over the two tests: `verdict: killed`, `baseline_failing: 0`, newly failing both tests (F-03 reproduces). The two tests: `2 passed in 0.31s`. Bare run before any change: `1675 passed, 11 warnings in 34.68s` (pre-existing wall time above 30s). `git grep` for the four deleted defs: exit 1, no output. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -91,9 +94,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - E-01 command outputs (both empty) pasted.
 - `git diff tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` pasted, showing only decorator (and possibly `import pytest`) additions.
-- Both E-04 `tools/mutation_probe.py` outputs pasted in full (`head`/`target`/`operator`/`selection` with `-m core`/`verdict`/`mutant_failing`).
+- Both E-04 `tools/mutation_probe.py` outputs pasted in full (`head` equal to the E-04 commit, `target`, `operator`, `selection` containing `-m core`, `verdict: killed`, `baseline_failing: 0`, `newly_failing`).
 - Bare `python3 -m pytest` summary line pasted.
-- `git diff --stat agent_workflows/` empty.
+- `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty, where `<base>` is HEAD before execution.
 
 ## Spec / documentation sync
 
@@ -128,7 +131,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the full output of both `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each showing a `selection:` containing `-m core` and `verdict: killed`; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` and no core-budget failure; paste `git diff --stat agent_workflows/` showing no change.
+  - Required evidence: paste the E-04 commit hash; paste the full output of both `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each showing `head:` equal to that commit, a `selection:` containing `-m core`, `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming at least one of the two marked tests; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` (report any wall-time overrun with its printed budget block rather than treating it as a failure of this plan); paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
   - Result: pending
 
@@ -137,4 +140,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit only `tests/test_run_analytics_e2e.py`, `tests/test_run_dashboard.py` and this plan through `aw commit di5puw -- <paths>`; never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`).
+
+Execution contract:
+- All open questions are resolved (OQ-01).
+- Scope fence: `- Scope-Paths:` is a declaration, not a stop condition. An out-of-scope edit that proves necessary is made and then justified at finalize (`--scope-reason` per out-of-scope path, `--scope-ack` per declared-but-unmodified path).
+- You MUST paste the ACTUAL command, runner, and probe output into each `V-*` Observed evidence; never claim a test passed or a mutant was killed that you did not run.
+- Mutation checks use `tools/mutation_probe.py` only, after the E-04 commit; never hand-edit `agent_workflows/`.
+- Commit only files you changed, through `aw commit di5puw -- tests/test_run_analytics_e2e.py tests/test_run_dashboard.py` (plus this plan when recording evidence); verify `git diff --cached --name-only`; never `git add -A`; never push.
+- Lifecycle: after every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`. Under `aw oc run` / `aw agy run` the runner performs that transition; only an executor running by hand invokes `aw ipd finalize di5puw` itself.
