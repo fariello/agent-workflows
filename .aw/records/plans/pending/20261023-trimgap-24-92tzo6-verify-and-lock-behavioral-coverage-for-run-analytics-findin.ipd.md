@@ -6,7 +6,8 @@
 - Scope: Re-run the three `wo21z5` mutation probes (plus the opposite-polarity `return-none` probe of `assert_no_causal_language`) against `tests/test_run_analytics_findings.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_findings.py` that calls the surviving function and asserts on its returned value or raised `FindingRefusal`. EXCLUDES any production-code change; EXCLUDES other `run_analytics_findings.py` keys (`format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison` are owned by executed `ivap17`); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_findings.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 6ntz8v
@@ -17,6 +18,7 @@
 - Id: 92tzo6
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (commit-before-reprobe, baseline_failing and base sha, real class names, satisfiable budget bar, execution contract); four probes re-run killed at 2aa1e2fd3 (F-04)
 
 - 2026-10-23 to-review (opencode): authored from backlog `6ntz8v`. Confirmed `ivap17` restored the control file after the `wo21z5` baseline (`git merge-base --is-ancestor 0f8ca64d7 f3afece925` false), then re-ran `tools/mutation_probe.py` for all three keys at HEAD `390d90f0`; every mutant was killed (F-02). The plan is therefore verification-first with a conditional restore step.
 - 2026-10-23 draft (opencode): created.
@@ -31,21 +33,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-probe at execution HEAD
 
-- [ ] E-01 Run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_findings.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_findings.py` for these four (key, op) pairs: (`assert_no_causal_language`, `raise`), (`assert_no_causal_language`, `return-none`), (`build_finding`, `return-none`), (`findings_from_results`, `return-none`). `tools/mutation_probe.py` mutates inside its own isolated worktree, so the checkout's production code is never modified. Record each `verdict:` and `mutant_failing:` line in Findings.
+- [ ] E-01 Run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_findings.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_findings.py` for these four (key, op) pairs: (`assert_no_causal_language`, `raise`), (`assert_no_causal_language`, `return-none`), (`build_finding`, `return-none`), (`findings_from_results`, `return-none`). `tools/mutation_probe.py` mutates inside its own isolated worktree, so the checkout's production code is never modified; it probes committed `HEAD` only. Before the first probe, record `git rev-parse HEAD` as `<base>`. Record each `head:`, `verdict:`, `baseline_failing:` and `mutant_failing:` line in Findings. A probe with `baseline_failing` above 0 or `verdict:` other than `killed`/`survived` (for example `error` or `invalid`) is not a result: record it, fix the cause if it is in scope, and re-run.
   - Depends on: none
-  - Expected outcome: four probe outputs recorded; at authoring all four were `verdict: killed` (F-02).
+  - Expected outcome: four probe outputs recorded, each with `baseline_failing: 0` and a `killed` or `survived` verdict; at authoring and again at review all four were `verdict: killed` (F-02, F-04).
   - Execution state: pending
 
 ### Task group 2: conditional restore
 
-- [ ] E-02 For every (key, op) pair E-01 reports `survived`, add one test to `tests/test_run_analytics_findings.py` in the class that already covers that function (`FindingContractTests`-style refusal tests for `build_finding`, the causal-language control class for `assert_no_causal_language`, `CannotDetermineFindingTests` for `findings_from_results`), which calls the function and asserts on its returned `Finding`/list contents or on the raised `FindingRefusal` message; mine the body from `git show 19313eed^:tests/test_run_analytics_findings.py` where an equivalent test exists. Re-run the E-01 probe for that pair. If E-01 reported `killed` for all four pairs, make NO file change and record "no survivor; no edit" in Findings.
+- [ ] E-02 For every (key, op) pair E-01 reports `survived`, add one test to `tests/test_run_analytics_findings.py` in the class that already covers that function (`ContractRefusalTests` for `build_finding`, `CausalLanguageTests` for `assert_no_causal_language`, `CannotDetermineFindingTests` for `findings_from_results`), which calls the function and asserts on its returned `Finding`/list contents or on the raised `FindingRefusal` message; mine the body from `git show 19313eed^:tests/test_run_analytics_findings.py` where an equivalent test exists. Commit the test file through `aw commit 92tzo6 -- tests/test_run_analytics_findings.py` BEFORE re-running the E-01 probe for that pair, because the probe sees only committed `HEAD`. If E-01 reported `killed` for all four pairs, make NO file change and record "no survivor; no edit" in Findings.
   - Depends on: E-01
   - Expected outcome: either no diff to `tests/test_run_analytics_findings.py`, or a diff adding only tests, after which the re-probe of each previously surviving pair reports `verdict: killed`.
   - Execution state: pending
 
-- [ ] E-03 Run the routine bare gate `python3 -m pytest` and confirm `tests/test_run_analytics_findings.py` still passes inside the core tier within its 30s budget.
+- [ ] E-03 Run the routine bare gate `python3 -m pytest` and confirm it passes with `tests/test_run_analytics_findings.py` in the core selection. The conftest budget check (`conftest.pytest_sessionfinish`) sets exit 1 on a wall-time overrun only when enforced (12 or more CPUs, host not oversubscribed, `AW_CORE_BUDGET_ENFORCE` not `0`) and otherwise prints a warning; the tier was already over 30s on this host before this plan (sibling `3wkrng` F-06 measured 59.22s, not enforced). So paste any `CORE TIER BUDGET EXCEEDED` block verbatim and do not count it against this item unless E-02 added a test that is among the block's listed slowest tests.
   - Depends on: E-02
-  - Expected outcome: the bare run's summary line shows no failures.
+  - Expected outcome: the bare run exits 0 and its summary line shows `passed` with no `failed` or `error`.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -63,6 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | `wo21z5` `## Baseline` (`head: f3afece9...`), `## Budget probe results` rows for the three keys (`files`, 59 collected, survivor `survived`, control `killed`, `unguarded`); `git log -1 0f8ca64d7` (2026-10-17 20:59, `work(ivap17)`); `git merge-base --is-ancestor 0f8ca64d7 f3afece925` returns false | The probe's surviving selection excluded the control file because it did not exist at `f3afece9`; `ivap17` restored it afterwards. The `unguarded` verdict describes a tree that no longer exists. |
 | F-02 | `tools/mutation_probe.py` at HEAD `390d90f0`, selection `-o addopts= -q -p no:randomly [-m core] tests/test_run_analytics_findings.py` | `assert_no_causal_language` `raise`: `verdict: killed`, `mutant_failing: 11` (without `-m core`; the file is wholly core-marked so the selection is identical). `assert_no_causal_language` `return-none` with `-m core`: `killed`, `mutant_failing: 2`. `build_finding` `return-none`: `killed`, `mutant_failing: 17`. `findings_from_results` `return-none` with `-m core`: `killed`, `mutant_failing: 1` (`CannotDetermineFindingTests::test_every_non_computed_result_becomes_exactly_one_finding`). |
 | F-03 | Same as F-02 | `findings_from_results` is killed by exactly one test, so it is the thinnest of the three; E-02 is the remedy only if that single test is lost before execution. |
+| F-04 | review re-probe at HEAD `2aa1e2fd3`, same four (key, op) pairs, selection `-o addopts= -q -p no:randomly -m core tests/test_run_analytics_findings.py` | All four `verdict: killed`, `baseline_failing: 0`: `assert_no_causal_language` `raise` 11, `assert_no_causal_language` `return-none` 2 (`CausalLanguageTests::test_every_human_readable_field_is_scanned_and_named_in_the_refusal`, `CausalLanguageTests::test_the_check_FIRES_on_a_planted_causal_claim`), `build_finding` `return-none` 17, `findings_from_results` `return-none` 1 (`CannotDetermineFindingTests::test_every_non_computed_result_becomes_exactly_one_finding`). F-02 reproduces. The file's classes are `ContractRefusalTests`, `CausalLanguageTests`, `CannotDetermineFindingTests`, `PriceEraParadoxTests`, `RankingStabilityTests`, `ReportTests`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,8 +87,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The four `tools/mutation_probe.py` runs of E-01 (and any E-02 re-probes), full `head`/`target`/`operator`/`verdict`/`mutant_failing` output pasted.
 - `python3 -m pytest -o addopts="" -v tests/test_run_analytics_findings.py` passes, per-test list pasted.
-- Bare `python3 -m pytest` summary line pasted.
-- `git diff --stat agent_workflows/` is empty (no production change).
+- Bare `python3 -m pytest` summary line and exit status pasted, plus any budget block verbatim.
+- `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty (no production change committed or left in the tree).
 
 ## Spec / documentation sync
 
@@ -105,17 +108,17 @@ N/A: tests only (at most); no behavior, CLI surface or spec-described contract c
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the full output of all four `tools/mutation_probe.py` runs (produced by `tools/mutation_probe.py` itself, E-01), each showing `selection:` containing `-m core` and its `verdict:` line; paste `git diff --stat agent_workflows/` showing no change.
+  - Required evidence: paste the full output of all four `tools/mutation_probe.py` runs (produced by `tools/mutation_probe.py` itself, E-01), each showing `head:`, `selection:` containing `-m core tests/test_run_analytics_findings.py`, `baseline_failing: 0`, its `verdict:` line and its `newly_failing` list; paste `<base>` and `git diff --stat <base>..HEAD -- agent_workflows/` plus `git diff --stat -- agent_workflows/`, both showing no change.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: either paste `git diff --stat tests/test_run_analytics_findings.py` showing no change together with the Findings line "no survivor; no edit", or paste the diff adding only test functions plus the re-probe output showing `verdict: killed` for each previously surviving pair and `python3 -m pytest -o addopts="" -v tests/test_run_analytics_findings.py` with every test PASSED.
+  - Required evidence: either paste `git diff --stat tests/test_run_analytics_findings.py` showing no change together with the Findings line "no survivor; no edit", or paste the diff adding only test functions, the `aw commit` output for it, and the re-probe output with a `head:` at or after that commit showing `baseline_failing: 0` and `verdict: killed` for each previously surviving pair, with a `newly_failing` list naming the added test, and `python3 -m pytest -o addopts="" -v tests/test_run_analytics_findings.py` with every test PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`.
+  - Required evidence: paste the bare `python3 -m pytest` summary line showing `passed` and no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (including any "not enforced" reason).
   - Observed evidence:
   - Result: pending
 
@@ -124,4 +127,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit only `tests/test_run_analytics_findings.py` (if changed) and this plan through `aw commit 92tzo6 -- <paths>`; never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Commit only files you changed, through `aw commit 92tzo6 -- tests/test_run_analytics_findings.py` (only if E-02 changed it; plus this plan when recording evidence); never `git add -A`, never push. You MUST paste the ACTUAL probe and runner output into each `V-*`; never claim a mutant was killed or a test passed that you did not run. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and justified (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path, which is the expected case here when E-02 makes no edit). No production file under `agent_workflows/` may change. Lifecycle: after every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize 92tzo6` itself.
