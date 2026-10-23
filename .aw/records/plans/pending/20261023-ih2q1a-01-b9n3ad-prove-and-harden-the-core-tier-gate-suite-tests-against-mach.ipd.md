@@ -6,7 +6,8 @@
 - Scope: tests/test_core_tier_selection.py (regression test proving slot isolation, plus load-repeat evidence); no production code change expected
 - Scope-Paths: tests/test_core_tier_selection.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: ih2q1a
@@ -18,6 +19,7 @@
 - Id: b9n3ad
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (dup guard vs f4txy2), PR-002 (setup order, AW_SUITE_SLOTS=1, chmod), PR-003 (bounded real-slot holder), PR-004 (bounded load harness, loadavg ramp), PR-005 (twz0tw path drift), PR-006 (behavioral V bars, budget-only overrun) fixed; mechanism demonstrated at 72da75876
 
 - 2026-10-23 draft (opencode): created.
 - 2026-10-23 to-review (opencode): authored from backlog ih2q1a; root cause traced to the twz0tw slot-lock finding, fix already on HEAD, plan adds the missing regression proof and load evidence.
@@ -32,33 +34,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the cause on current HEAD
 
-- [ ] E-01 Reproduce the saturation condition against current HEAD without editing any file: in one shell, hold every slot of the DEFAULT lock directory (the path `agent_workflows.suite_cache.resolve_suite_lock_dir` returns with `AW_SUITE_LOCK_DIR` unset; slot count from `suite_cache.resolve_suite_slots`) using a short Python helper that calls `agent_workflows.platform_lock.acquire(<dir>/suite-slot-<k>.lock)` for every k and sleeps; while held, run `python3 -m pytest -o addopts="" -n 0 tests/test_core_tier_selection.py -k "gate_suite"` and record the summary line and wall time. Then release the slots.
+- [ ] E-01 Reproduce the saturation condition against current HEAD without editing any file: in one shell, hold every slot of the DEFAULT lock directory (the path `agent_workflows.suite_cache.resolve_suite_lock_dir` returns with `AW_SUITE_LOCK_DIR` unset; slot count from `suite_cache.resolve_suite_slots`) using a short Python helper (kept under `/tmp/opencode/b9n3ad/` or another gitignored scratch path, never committed) that calls `agent_workflows.platform_lock.acquire(<dir>/suite-slot-<k>.lock)` for every k, prints the lock dir and the slot indices it holds, and sleeps for a BOUNDED time (at most 120s, then releases on its own) so a crashed executor cannot leave peer drivers starved. The default dir is shared with peer drivers on this host: if a slot is already busy (`platform_lock.LockBusy`), hold only the free ones and record which were already held by someone else (the effect on the tests is the same: every slot is busy). While held, run `python3 -m pytest -o addopts="" -n 0 tests/test_core_tier_selection.py -k "gate_suite"` and record the summary line and wall time. Then confirm the helper released (it exits).
   - Depends on: none
-  - Expected outcome: `3 passed` in well under the 240s per-test wall ceiling (`conftest._DEFAULT_TEST_WALL_TIMEOUT`), proving the `twz0tw` private-lock-dir fix (`_gate_env` setting `AW_SUITE_LOCK_DIR`, commit `548fa71da`) is present and effective on HEAD. If instead any test waits on a slot or fails, mark this item `failed`, record the output, and treat the cause as NOT the slot lock (see OQ-01 resolution: stop and report rather than inventing a fix).
+  - Expected outcome: every selected gate_suite node passes, in well under the 240s per-test wall ceiling (`conftest._DEFAULT_TEST_WALL_TIMEOUT`), proving the `twz0tw` private-lock-dir fix (`_gate_env` setting `AW_SUITE_LOCK_DIR`, commit `548fa71da`) is present and effective on HEAD. If instead any test waits on a slot or fails, mark this item `failed`, record the output, and treat the cause as NOT the slot lock (see OQ-01 resolution: stop and report rather than inventing a fix).
   - Execution state: pending
 
 ### Task group 2: Regression test
 
-- [ ] E-02 Add `test_gate_suite_ignores_saturated_ambient_slots` to `tests/test_core_tier_selection.py`, parametrized over the three launch shapes the flaky tests use (`subprocess` via `monkeypatch.setenv` of `_gate_env(...)`, `run-evidence` via the same plus `run_id` and `monkeypatch.chdir`, and `explicit-env` via `env=_gate_env(..., AW_CORE_BUDGET_ENFORCE="0")`). Setup: create an "ambient" lock dir under `tmp_path` with mode 0o700, acquire ALL `suite_cache.resolve_suite_slots()` slots in it in-process with `platform_lock.acquire`, and `monkeypatch.setenv("AW_SUITE_LOCK_DIR", <ambient>)` plus `monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")` so a regression fails fast instead of hanging; release the handles in `finally`. Then call `suite_cache.run_full_suite(temp_project, argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"], use_cache=False, ...)` exactly as the existing gate_suite tests do, with the private lock dir from `_gate_env(temp_project / ".suite-locks")`. Assert on observable outcomes only: `res.passed`, `res.exit_code == 0`, `res.slot["slot_acquired"] is True`, and `res.slot["waited_seconds"] < 5.0`. The module-level `pytestmark = pytest.mark.core` covers it; add no new marker.
+- [ ] E-02 Add `test_gate_suite_ignores_saturated_ambient_slots` to `tests/test_core_tier_selection.py`, parametrized over the three launch shapes the flaky tests use (`subprocess` via `monkeypatch.setenv` of `_gate_env(...)`, `run-evidence` via the same plus `run_id` and `monkeypatch.chdir`, and `explicit-env` via `env=_gate_env(..., AW_CORE_BUDGET_ENFORCE="0")`). Duplicate guard: sibling plan `f4txy2` (Set `twz0tw`, pending) proposes a near-identical test (`test_gate_env_isolates_run_full_suite_from_a_contended_slot_dir`, `env=` shape only). If that test, or any other test that holds every slot of an ambient lock dir and asserts `run_full_suite(...).slot` was acquired, is already on HEAD when this item runs, do NOT add a second copy: extend that test to cover all three launch shapes instead, and run E-03 against it. Setup, in this ORDER (the order matters because `_clean_env` copies `os.environ` at call time, which is exactly what makes the mutation in E-03 observable): (1) create an "ambient" lock dir under `tmp_path` and `os.chmod` it to 0o700 (`suite_cache.resolve_suite_lock_dir` refuses a group/other-writable dir and would then run slotless, masking the test); (2) `monkeypatch.setenv` `AW_SUITE_LOCK_DIR=<ambient>`, `AW_SUITE_SLOTS=1` (pins the slot count so the test does not depend on the host CPU count) and `AW_SUITE_SLOT_TIMEOUT=5` (a regression fails in about 5s instead of hanging), and `monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)`; (3) hold `<ambient>/suite-slot-0.lock` in-process with `platform_lock.acquire` (non-re-entrant, so `suite_slot`'s own non-blocking acquire in the same process sees it busy) and release it in `finally`; (4) only then build the env with `_gate_env(temp_project / ".suite-locks", ...)` and call `suite_cache.run_full_suite(temp_project, argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"], use_cache=False, ...)` exactly as the existing gate_suite tests do. Assert on observable outcomes only: `res.passed`, `res.exit_code == 0`, `res.slot["slot_acquired"] is True`, and `res.slot["waited_seconds"] < 2.0`. Do not change `_gate_env`'s signature (it is also imported by `tests/test_suite_cache.py`). The module-level `pytestmark = pytest.mark.core` covers it; add no new marker.
   - Depends on: E-01
-  - Expected outcome: the new test passes in a few seconds per parameter on HEAD; it exercises `run_full_suite` and `suite_slot` for real (no mocks, no source inspection).
+  - Expected outcome: every parametrized node of the new test passes in a few seconds on HEAD; it exercises `run_full_suite` and `suite_slot` for real (no mocks, no source inspection). Mechanism demonstrated at review (see review record `b9n3ad` Round 1): with every slot of an ambient dir held in-process, `suite_slot` against it returned `slot_acquired: False, waited_seconds: 2.003` at a 2s timeout, and against a private dir `slot_acquired: True, waited_seconds: 0.004`.
   - Execution state: pending
 
-- [ ] E-03 Mutation check of the regression test, then revert: temporarily make `_gate_env` stop overriding `AW_SUITE_LOCK_DIR` (delete the `AW_SUITE_LOCK_DIR=str(lock_dir)` argument), run `python3 -m pytest -o addopts="" -n 0 tests/test_core_tier_selection.py -k saturated_ambient`, record the failure, then restore the line and confirm `git diff` shows only the E-02 addition.
+- [ ] E-03 Mutation check of the regression test, then revert: temporarily make `_gate_env` stop overriding `AW_SUITE_LOCK_DIR` (delete the `AW_SUITE_LOCK_DIR=str(lock_dir)` argument), run `python3 -m pytest -o addopts="" -n 0 tests/test_core_tier_selection.py -k saturated_ambient` (substitute the `-k` expression naming the test actually added or extended in E-02), record the failure, then restore the line and confirm `git diff` shows only the E-02 addition.
   - Depends on: E-02
-  - Expected outcome: all three parameters FAIL with the mutation (assertion on `slot_acquired` / `waited_seconds`, after about the 5s slot timeout), and pass again after restore. This proves the test detects the exact `twz0tw` regression.
+  - Expected outcome: every parametrized node of the regression test FAILS with the mutation (assertion on `slot_acquired` / `waited_seconds`, after about the 5s slot timeout, with stderr showing `waiting for a test-suite slot`), and every node passes again after restore. This proves the test detects the exact `twz0tw` regression.
   - Execution state: pending
 
 ### Task group 3: Load evidence and gate
 
-- [ ] E-04 Run the full module five times under artificial host load: start `2 x os.cpu_count()` busy-loop processes (for example `python3 -c "while True: pass"` in the background, recorded PIDs), run `python3 -m pytest -o addopts="" -n 3 tests/test_core_tier_selection.py` five times in a row, then kill the load processes. Record each summary line and the 1-minute load average sampled during the run (`cat /proc/loadavg`).
+- [ ] E-04 Run the full module five times under artificial host load: start `2 x os.cpu_count()` busy-loop processes, each wrapped in a hard time bound so none can outlive the executor (for example `timeout 900 python3 -c "while True: pass" &`, recording the PIDs). The 1-minute load average ramps slowly, so before the first run poll `/proc/loadavg` (at most 180s) until its first field exceeds `os.cpu_count()`; if it never does, record the highest sample and proceed (V-04 then fails on that criterion, not silently passes). Run `python3 -m pytest -o addopts="" -n 3 tests/test_core_tier_selection.py` five times in a row, sampling `/proc/loadavg` during each run, then kill the load processes and confirm with `ps -p <pids>` that none survive.
   - Depends on: E-02
-  - Expected outcome: five consecutive runs report all tests passed with no failures and no `TestHangTimeout`, at a load average above the CPU count.
+  - Expected outcome: five consecutive runs report all tests passed with no failures and no `TestHangTimeout`, at a load average above the CPU count, and no load process left running.
   - Execution state: pending
 
-- [ ] E-05 Run the routine gate bare, `python3 -m pytest`, and commit through `aw commit b9n3ad -- tests/test_core_tier_selection.py` after verifying `git diff --cached --name-only` lists only that path.
+- [ ] E-05 After the E-04 load processes are gone, run the routine gate bare, `python3 -m pytest`, and commit through `aw commit b9n3ad -- tests/test_core_tier_selection.py` after verifying `git diff --cached --name-only` lists only that path.
   - Depends on: E-03, E-04
-  - Expected outcome: the bare gate reports `N passed` with zero failures; the commit contains only `tests/test_core_tier_selection.py`.
+  - Expected outcome: the bare gate reports `N passed` with zero failures; the commit contains only `tests/test_core_tier_selection.py`. A core-tier wall-time budget overrun (`conftest.py` "CORE TIER BUDGET EXCEEDED") with zero failing tests is a pre-existing, load-dependent host condition: record it verbatim, re-run once on a quieter host state, and do not count it as a failure of this plan; any failing test IS a failure.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -74,10 +76,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | # | Finding | Evidence |
 |---|---|---|
 | F-01 | The `ih2q1a` failure was observed by plan `rg7rnx` attempt 2 at base HEAD `686468e2a` ("`3 failed, 1672 passed ... in 308.17s`", then "`1675 passed`" on rerun). | `.aw/records/plans/executed/20261017-96lj37-01-rg7rnx-eliminate-hardcoded-file-count-in-test-case-l-and-verify-der.ipd.md`, V-item text "That flake is tracked as backlog `ih2q1a`." |
-| F-02 | The identical symptom on the same three tests was diagnosed under sibling backlog `twz0tw`: `run_full_suite` takes a machine-wide suite slot; when the enclosing suite or peer drivers hold every slot, the tests wait and hit the 240s wall guard ("`waiting for a test-suite slot (2 of 2 held)`"). | `.aw/records/backlog/open/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md`, note "cause found." |
+| F-02 | The identical symptom on the same three tests was diagnosed under sibling backlog `twz0tw`: `run_full_suite` takes a machine-wide suite slot; when the enclosing suite or peer drivers hold every slot, the tests wait and hit the 240s wall guard ("`waiting for a test-suite slot (2 of 2 held)`"). | `.aw/records/backlog/graduated/20261018-twz0tw-01-twz0tw-tests-test-core-tier-selection-py-gate-suite-tests.backlog.md`, note "cause found." (the item has since graduated to plan `f4txy2`, so it moved from `open/` to `graduated/`) |
 | F-03 | The fix (private `AW_SUITE_LOCK_DIR` per test in `_gate_env`) landed in `548fa71da`, which is NOT an ancestor of `686468e2a`, so the `ih2q1a` observation predates the fix. | `git merge-base --is-ancestor 548fa71da 686468e2a` -> not ancestor. |
 | F-04 | No test proves the isolation: deleting the `AW_SUITE_LOCK_DIR` override from `_gate_env` would pass every existing test on an idle machine and only reappear as a load flake. | `tests/test_core_tier_selection.py::_gate_env`; existing gate_suite tests assert only `res.passed` / `res.exit_code`. |
 | F-05 | The 240s "isolation" pass time in F-01's sibling run ("`3 passed, 8 deselected in 240.87s`") matches a slot wait, not test work (normal about 3s per test, `.aw/records/research/20261016-testprune-02-hwuvpx-test-prune-decision-table.assessment.md` lists `[run-evidence]` at 3.02s). | twz0tw history; testprune assessment. |
+| F-06 | Sibling plan `f4txy2` (Set `twz0tw`, from the duplicate backlog item) is pending with the same E-01/E-02/E-03 shape and the same single Scope-Path, proposing `test_gate_env_isolates_run_full_suite_from_a_contended_slot_dir`. Executing both unguarded would add two near-identical tests. | `.aw/records/plans/pending/20261023-twz0tw-01-f4txy2-verify-and-lock-in-the-gate-suite-slot-isolation-fix-in-test.ipd.md`, E-02; handled by this plan's E-02 duplicate guard. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -87,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Closing or annotating backlog `twz0tw` (a duplicate of this item, typed `followup`): it is a separate record outside this plan's Scope-Paths; the maintainer can close it citing this plan once executed.
+- Closing or annotating backlog `twz0tw` (a duplicate of this item, typed `followup`), and reconciling its graduated plan `f4txy2` (Set `twz0tw`, pending), which proposes the same regression test: both are separate records outside this plan's Scope-Paths. E-02's duplicate guard keeps the two plans from adding two copies of the test whichever executes first; retiring the later one as superseded is the maintainer's call.
   - Carrier: twz0tw
 - The `_gate_env` fallback `tempfile.mkdtemp` directory is never removed. It leaks one empty temp dir per call when no `lock_dir` is passed; the three gate tests always pass one, so it has no user-perceptible effect. Not a flake cause; out of scope.
   - Carrier-Declined: not owed; no user-perceptible effect, and the gate tests always pass lock_dir so the fallback is never hit by them.
@@ -124,22 +127,22 @@ N/A: test-only change; no spec describes the gate_suite test isolation, and no u
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of the slot-holder helper showing the lock dir path and that all `resolve_suite_slots()` slots were acquired, plus the pasted pytest summary line (`3 passed ... in <t>s`) with `<t>` under 60s. Observation produced by E-01's helper and `suite_cache.suite_slot`.
+  - Required evidence: pasted output of the slot-holder helper showing the lock dir path and that all `resolve_suite_slots()` slots were acquired, plus the pasted pytest output listing every selected `gate_suite` node id as passed, with zero failed, and the summary line's wall time under 60s (the count is re-derived from the run, not fixed here). Observation produced by E-01's helper and `suite_cache.suite_slot`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: `git diff tests/test_core_tier_selection.py` pasted showing only the new test (and any helper it needs), and the pasted summary of `python3 -m pytest -o addopts="" -n 0 tests/test_core_tier_selection.py -k saturated_ambient` reporting `3 passed`.
+  - Required evidence: `git diff tests/test_core_tier_selection.py` pasted showing only the new (or extended, per E-02's duplicate guard) test and any helper it needs, demonstrating it holds every slot of an ambient lock dir BEFORE building the env with `_gate_env` and asserts `res.slot["slot_acquired"]` and `res.slot["waited_seconds"]`; and the pasted `-v` output of `python3 -m pytest -o addopts="" -n 0 -v tests/test_core_tier_selection.py -k <that test>` showing one passing node per launch shape (`subprocess`, `run-evidence`, `explicit-env`) and zero failed.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted failing summary (`3 failed`) and the assertion line under the mutation, then the pasted `3 passed` summary after restore, and `git diff` showing the mutation reverted.
+  - Required evidence: pasted output under the mutation showing every launch-shape node of the regression test failed, with the failing assertion line (on `slot_acquired` or `waited_seconds`); then the pasted output after restore showing every node passed; and `git diff` showing the mutation reverted (only the E-02 change remains).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: five pasted pytest summary lines with zero failures, and at least one pasted `/proc/loadavg` sample taken during the runs whose first field exceeds `os.cpu_count()` (paste that value too).
+  - Required evidence: five pasted pytest summary lines with zero failures, and at least one pasted `/proc/loadavg` sample taken during the runs whose first field exceeds `os.cpu_count()` (paste that value too), plus the pasted `ps -p <pids>` check showing no load process survived.
   - Observed evidence:
   - Result: pending
 
