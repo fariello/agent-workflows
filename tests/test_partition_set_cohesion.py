@@ -1252,3 +1252,114 @@ def test_partition_set_with_executed_orchestrator_and_unsatisfied_child(
         in captured_part.err
     )
     assert "xchl02 (approved, unsatisfied dependency)" in captured_part.err
+
+
+def test_partition_executed_orchestrator_mixed_sibling_statuses_does_not_refuse(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A Set whose orchestrator already retired is not refused because siblings need a different action.
+
+    Regression: `aw partition -t plans -s to-review` refused the whole batch naming the approved
+    siblings of an executed orchestrator as "needs execute", although no retirement remained to protect.
+    """
+    repo = tmp_path / "repo_retired_orch"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    table = (
+        ("01", "rchl01", "Child 1"),
+        ("02", "rchl02", "Child 2"),
+        ("03", "rchl03", "Child 3"),
+        ("04", "rchl04", "Child 4"),
+    )
+    make_fixture_plan(
+        repo,
+        "executed",
+        "20261010",
+        "orchestrator",
+        "executed",
+        "setr",
+        "Set R",
+        0,
+        "rorch0",
+        "Set R Orchestrator",
+        child_orders=table,
+    )
+    make_fixture_plan(
+        repo,
+        "executed",
+        "20261010",
+        "child",
+        "executed",
+        "setr",
+        "Set R",
+        1,
+        "rchl01",
+        "Child 1 Executed",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setr",
+        "Set R",
+        2,
+        "rchl02",
+        "Child 2 Approved",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "to-review",
+        "setr",
+        "Set R",
+        4,
+        "rchl04",
+        "Child 4 To Review",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "to-review",
+        "setr",
+        "Set R",
+        3,
+        "rchl03",
+        "Child 3 To Review",
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "to-review",
+            "-n",
+            "2",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "cannot finish in this batch" not in captured.err
+    payload = json.loads(captured.out)
+    scheduled = json.dumps(payload)
+    assert "rchl03" in scheduled
+    assert "rchl02" not in scheduled
+    assert "rorch0" not in scheduled
+    # No retirement to protect, so the remaining members balance instead of being kept whole.
+    assert "kept whole" not in captured.err
+    shards = [json.dumps(s) for s in payload["shards"]]
+    assert len(shards) == 2
+    assert all(("rchl03" in s) != ("rchl04" in s) for s in shards)

@@ -376,6 +376,16 @@ def classify_sets(
                 finished.append(m.id6)
                 continue
 
+            if is_orch_terminal:
+                # The orchestrator already retired, so there is no retirement for this batch to
+                # protect and no reason a sibling's status, selection, --max exclusion or live run
+                # should refuse it (8t28wj E-02: such a Set "partitions exactly as today"). The
+                # only check that still applies is the dependency verification below, which acts
+                # on the runnable members recorded here.
+                if m.id6 in runnable_ids:
+                    runnable.append(m.id6)
+                continue
+
             m_action = _run_selection_policy.action_for_status("ipd", m_status)
             if m_action != batch_action:
                 if m_status == "to-review":
@@ -1563,6 +1573,10 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
                 for cid in cs.runnable
                 if cid != cs.orchestrator_id and cid in candidate_ids
             ]
+            if cs.orchestrator_id in cs.finished:
+                # Retired orchestrator: no retirement to keep together, so its remaining members
+                # balance like any other plans; real Item-Dependencies edges still cluster them.
+                continue
             if cs.is_completeable:
                 if cs.orchestrator_id in candidate_ids:
                     for cid in runnable_children:
