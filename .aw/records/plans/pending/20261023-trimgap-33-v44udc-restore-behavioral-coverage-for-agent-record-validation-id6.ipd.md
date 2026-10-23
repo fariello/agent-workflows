@@ -6,7 +6,8 @@
 - Scope: Add ONE new core-marked test module, `tests/test_record_residual_helpers.py`, with direct behavioral tests of the three keys and of their observable effect through their public callers (`agent_schema.is_valid_agent_record`, `doctor.build_remediation`), asserting on returned error lists, id sets and remediation text (values measured at F-03); then probe all three under the core selection. EXCLUDES any production-code change and any change to existing tests.
 - Scope-Paths: tests/test_record_residual_helpers.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: nzc6dm
@@ -17,6 +18,7 @@
 - Id: v44udc
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (uncollectable ...Tests class names -> plain Test* classes), PR-002 (run module before commit), PR-003 (execution contract), PR-004 (budget-only overrun, grep bounds) fixed; F-03 values re-measured at 503f15cbd
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 22, 23, 34). Measured core reach at HEAD `6c0a6b72a`, probed each key against its core-reaching files (all `survived`), and measured every asserted return value before writing expected outcomes.
 - 2026-10-23 draft (opencode): created.
@@ -31,26 +33,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the new core-tier module
 
-- [ ] E-01 Create `tests/test_record_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `v44udc` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and a `ValidateAgentRecordTests` class. With `good = {"schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": "x", "exit": 0, "outcome": "ok", "verified": True, "complete": True}`, assert: `validate_agent_record(good) == []` and `is_valid_agent_record(good)` is True; `validate_agent_record(dict(good, exit=7)) == ["Field 'exit' must be an integer in (0, 1, 2), got '7'"]`; `validate_agent_record({})` contains the three errors `"Invalid schema: expected 'aw.agent/v1', got 'None'"`, `"Invalid kind: 'None' must be one of ('result', 'summary', 'item', 'error')"` and `"Field 'cmd' must be a non-empty string"`, and `is_valid_agent_record({})` is False; a result record without `verified`/`complete` reports `"Result record missing boolean 'verified' field"` and `"Result record missing boolean 'complete' field"`.
+- [ ] E-01 Create `tests/test_record_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `v44udc` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and a `TestValidateAgentRecord` class. All three classes in this module are PLAIN pytest classes whose names start with `Test` (no `unittest.TestCase` base): `pyproject.toml` `[tool.pytest.ini_options]` sets no `python_classes`, so pytest's default `Test*` prefix applies and a class named `...Tests` without a `TestCase` base is silently NOT collected, while a `TestCase` subclass cannot receive the `tmp_path` fixture E-02 and E-03 need (both demonstrated at review, record `v44udc` Round 1). With `good = {"schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": "x", "exit": 0, "outcome": "ok", "verified": True, "complete": True}`, assert: `validate_agent_record(good) == []` and `is_valid_agent_record(good)` is True; `validate_agent_record(dict(good, exit=7)) == ["Field 'exit' must be an integer in (0, 1, 2), got '7'"]`; `validate_agent_record({})` contains the three errors `"Invalid schema: expected 'aw.agent/v1', got 'None'"`, `"Invalid kind: 'None' must be one of ('result', 'summary', 'item', 'error')"` and `"Field 'cmd' must be a non-empty string"`, and `is_valid_agent_record({})` is False; a result record without `verified`/`complete` reports `"Result record missing boolean 'verified' field"` and `"Result record missing boolean 'complete' field"`.
   - Depends on: none
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
   - Execution state: pending
 
-- [ ] E-02 Add an `ExistingTypeId6sTests` class using `tmp_path` (git-initialized with `git init -q`): write `.aw/records/plans/pending/20261001-sx-01-abc123-x.ipd.md` containing `- Id: abc123` and `.aw/records/plans/pending/legacy.md` containing `- Id: zzz999`, and assert `artifact_rename._existing_type_id6s(tmp_path, "plans") == {"abc123", "zzz999"}` (both the clustered filename id6 and a legacy file's `- Id:` line are collected, which is what keeps a fresh mint from colliding); and an empty git-initialized repo returns `set()`.
+- [ ] E-02 Add an `TestExistingTypeId6s` class using `tmp_path` (git-initialized with `git init -q`): write `.aw/records/plans/pending/20261001-sx-01-abc123-x.ipd.md` containing `- Id: abc123` and `.aw/records/plans/pending/legacy.md` containing `- Id: zzz999`, and assert `artifact_rename._existing_type_id6s(tmp_path, "plans") == {"abc123", "zzz999"}` (both the clustered filename id6 and a legacy file's `- Id:` line are collected, which is what keeps a fresh mint from colliding); and an empty git-initialized repo returns `set()`.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
   - Execution state: pending
 
-- [ ] E-03 Add an `InferArtifactTypeTests` class: `doctor._infer_artifact_type` returns `None` for `""` and `"README.md"`; `"plans"` for `".aw/records/plans/pending/a.ipd.md"`; `"specs"` for `"x.spec.md"`; `"prompts"` for `".agents/prompts/a"`; `"backlog"` for `"x.backlog.md"`; `"research"` for `".aw/records/research/x"`; `"walkthroughs"` for `"x.walkthrough.md"`; `"comms"` for `".aw/records/comms/a"`; `"releases"` for `"x.release.md"`. Then assert the observable effect through `doctor.build_remediation(artifact_core.Drift(loc, "check.name-nonconformant", "d"), tmp_path)`: for `loc = ".aw/records/specs/20261001-abc123-01-abc123-x.spec.md"` the `summary_fix` contains `aw rename specs abc123`, and for `loc = ".aw/records/backlog/open/20261001-sx-01-abc123-x.backlog.md"` it contains `aw rename backlog abc123` (a mutant would route both to `plans`).
+- [ ] E-03 Add an `TestInferArtifactType` class: `doctor._infer_artifact_type` returns `None` for `""` and `"README.md"`; `"plans"` for `".aw/records/plans/pending/a.ipd.md"`; `"specs"` for `"x.spec.md"`; `"prompts"` for `".agents/prompts/a"`; `"backlog"` for `"x.backlog.md"`; `"research"` for `".aw/records/research/x"`; `"walkthroughs"` for `"x.walkthrough.md"`; `"comms"` for `".aw/records/comms/a"`; `"releases"` for `"x.release.md"`. Then assert the observable effect through `doctor.build_remediation(artifact_core.Drift(loc, "check.name-nonconformant", "d"), tmp_path)`: for `loc = ".aw/records/specs/20261001-abc123-01-abc123-x.spec.md"` the `summary_fix` contains `aw rename specs abc123`, and for `loc = ".aw/records/backlog/open/20261001-sx-01-abc123-x.backlog.md"` it contains `aw rename backlog abc123` (a mutant would route both to `plans`).
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
   - Execution state: pending
 
 ### Task group 2: commit and prove the mutants die in core
 
-- [ ] E-04 Commit the module with `aw commit v44udc -- tests/test_record_residual_helpers.py`, then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_record_residual_helpers.py`.
+- [ ] E-04 First run `python3 -m pytest -o addopts="" -v -n0 tests/test_record_residual_helpers.py` and confirm every test PASSED (this is the V-01..V-03 evidence; fix the module before committing, never commit a red module). Then verify `git diff --cached --name-only` lists only that path, commit the module with `aw commit v44udc -- tests/test_record_residual_helpers.py` (the probe in E-05 reads committed HEAD, which is why the commit precedes it), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_record_residual_helpers.py`.
   - Depends on: E-01, E-02, E-03
-  - Expected outcome: bare run shows no failures and includes the new tests; the module costs well under one second serial.
+  - Expected outcome: bare run shows no failures and includes the new tests; the module costs well under one second serial. A `CORE TIER BUDGET EXCEEDED` block with zero failing tests is a pre-existing, load-dependent host condition: record it verbatim and do not count it as a failure of this plan; any failing test IS a failure.
   - Execution state: pending
 
 - [ ] E-05 For each key K in (`agent_workflows/agent_schema.py::validate_agent_record`, `agent_workflows/artifact_rename.py::_existing_type_id6s`, `agent_workflows/doctor.py::_infer_artifact_type`), run `python3 tools/mutation_probe.py --op return-none --format json K -- -o addopts= -q -p no:randomly -n0 -m core tests/test_record_residual_helpers.py`, after E-04's commit. A kill under this core-marked subset is a kill under the full core tier, a superset. Record each `verdict`, `baseline_failing` and `mutant_failing`; if any key survives, add the missing assertion, commit the same way, and re-probe.
@@ -74,6 +76,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-01 | `python3 tools/replay_coverage_diff.py baseline --out .aw/state/nzc6dm-auth/core -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` at HEAD `6c0a6b72a` | Core reaches `validate_agent_record` (22 contexts in 7 files), `_existing_type_id6s` (4, `tests/test_spec_id6_filenames.py`) and `_infer_artifact_type` (6 in 4 files). |
 | F-02 | `tools/mutation_probe.py --op return-none --format json <K> -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" <core-reaching files>` at `6c0a6b72a` | `validate_agent_record`: `survived`, 0 (65.95s). `_existing_type_id6s`: `survived`, 0 (16.0s). `_infer_artifact_type`: `survived`, 0 (72.0s). Reach without assertion. |
 | F-03 | direct calls at HEAD `6c0a6b72a` | `validate_agent_record(good)` -> `[]`; `exit=7` -> `["Field 'exit' must be an integer in (0, 1, 2), got '7'"]`; `{}` -> the three schema/kind/cmd errors in E-01; a result without `verified`/`complete` -> the two missing-boolean errors. `_existing_type_id6s` on the E-02 fixture -> `{'abc123', 'zzz999'}`; empty repo -> `set()`. `_infer_artifact_type`: values as listed in E-03 (`'.aw/records/reviews/x.md'` and `'.aw/records/runs/x'` -> `None`, so those are not asserted as types). `build_remediation` with `check.name-nonconformant`: spec loc -> `rename with 'aw rename specs abc123 --slug <corrected-slug> --apply' ...`; backlog loc -> `... 'aw rename backlog abc123 ...`. |
+| F-04 | re-run at review HEAD `503f15cbd` | Every F-03 value reproduces verbatim (all `validate_agent_record` error lists, `{'abc123', 'zzz999'}` / `set()`, all ten `_infer_artifact_type` results, both `build_remediation` `summary_fix` strings); `git diff --stat 6c0a6b72a..HEAD` on `agent_schema.py`, `artifact_rename.py`, `doctor.py`, `selectors.py` is empty. `doctor.build_remediation`'s `check.name-nonconformant` branch uses `target_type = art_type or "plans"`, confirming a `return-none` mutant routes both locations to `plans`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -118,22 +121,22 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the head of `tests/test_record_residual_helpers.py` showing the provenance docstring (naming `nzc6dm`, `v44udc`, `wo21z5`) and `pytestmark = pytest.mark.core`; the `-v` lines for every `ValidateAgentRecordTests` test, each PASSED; and `grep -nE "inspect|getsource|ast\." tests/test_record_residual_helpers.py` returning nothing.
+  - Required evidence: paste the head of `tests/test_record_residual_helpers.py` showing the provenance docstring (naming `nzc6dm`, `v44udc`, `wo21z5`) and `pytestmark = pytest.mark.core`; the `-v` lines for every `TestValidateAgentRecord` test, each PASSED; and `grep -nE "\binspect\b|getsource|\bast\." tests/test_record_residual_helpers.py` returning nothing; and the `-v` output's collected count for the module is non-zero for each of the three classes (no class silently uncollected).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `-v` lines for every `ExistingTypeId6sTests` test, each PASSED.
+  - Required evidence: paste the `-v` lines for every `TestExistingTypeId6s` test, each PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `-v` lines for every `InferArtifactTypeTests` test, each PASSED, including the `build_remediation` assertions.
+  - Required evidence: paste the `-v` lines for every `TestInferArtifactType` test, each PASSED, including the `build_remediation` assertions.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `aw commit` output (or `git show --stat HEAD`) naming only `tests/test_record_residual_helpers.py`; the bare `python3 -m pytest` summary line with no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim, and the module's `--durations=0` output.
+  - Required evidence: paste the `aw commit` output (or `git show --stat HEAD`) naming only `tests/test_record_residual_helpers.py`; the bare `python3 -m pytest` summary line with no `failed` (a budget-only overrun is recorded, not failed, per E-04), any `CORE TIER BUDGET EXCEEDED` block verbatim, and the module's `--durations=0` output.
   - Observed evidence:
   - Result: pending
 
@@ -147,4 +150,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Execution contract: all open questions are resolved. SCOPE FENCE: `tests/test_record_residual_helpers.py` only; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. Commit through `aw commit v44udc -- tests/test_record_residual_helpers.py`, never push, never `git add -A`, and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`). Execution contract: all open questions are resolved. Scope fence: `- Scope-Paths:` (`tests/test_record_residual_helpers.py`) is a declaration, not a stop condition; if the work genuinely requires a file outside it, make the edit and justify it (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path). Commit through `aw commit v44udc -- tests/test_record_residual_helpers.py` after verifying `git diff --cached --name-only` lists only that path; never push, never `git add -A`. You MUST paste the ACTUAL runner output into every `V-*`; never claim a test passed or a mutant died that you did not run. Lifecycle: after every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize` itself.
