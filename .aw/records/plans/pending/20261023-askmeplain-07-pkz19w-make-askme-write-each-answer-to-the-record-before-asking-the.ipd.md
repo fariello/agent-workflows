@@ -6,7 +6,7 @@
 - Scope: IN: in `askme.md` `## Ask and wait`, add an explicit ordering step: after a definite answer, write it to the record (per "Record project decisions") and only then compose or ask the next question; batching answers to write at the end is not allowed; in `## Finish`, say the final report summarizes records already written, not a write step. Mirror the reasoning in `rationale.md`; add a behavioral installer-output test. OUT: other `lkn1zt` defects (plans `9vttho`, `lf4j52`, `wfy9ii`, `l5f2hg`).
 - Scope-Paths: .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, tests/test_askme_command_delivery.py, tests/slow_allowlist.txt, CHANGELOG.md
 - Item-Dependencies: executed:lkn1zt
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: pkz19w
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-007 fixed (review record .aw/records/reviews/20261023-askmeplain-07-pkz19w-make-askme-write-each-answer-to-the-record-before-asking-the.review.md)
 - 2026-10-23 to-review (aw set): authored review-ready from lkn1zt findings auwidn (D-9)
 

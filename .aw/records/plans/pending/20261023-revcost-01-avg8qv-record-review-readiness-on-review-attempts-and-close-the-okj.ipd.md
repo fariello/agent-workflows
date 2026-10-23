@@ -6,7 +6,7 @@
 - Scope: Record the reviewed plan's normalized `- Readiness:` value on every review attempt (a small, isolated run-record addition that the prompt's Section 2 allows), carry it through the attempt facts, the `aw runs query` allowlists, the `experiment` view and the dashboard, document it plus the Q9 missing data in `docs/run-analytics.md`, file the Section 5 report as a research findings document, and transition prompt `okj4bg` to `executed`. EXCLUDES recording review steps (owned by spec `k3yx72` Section 15 Order 04, which builds the multi-prompt review); EXCLUDES any price table or cost estimate for Antigravity; EXCLUDES the run grain (`run_analytics.PRODUCER_METRIC_KEYS`), which the attempt-grain views do not read; EXCLUDES spec reviews (a spec has no `- Readiness:`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_dashboard.py, agent_workflows/run_analytics_attempts.py, agent_workflows/run_dashboard_assets/dashboard.js, docs/run-analytics.md, CHANGELOG.md, tests/test_run_analytics_review_cost.py, .aw/records/prompts/**/*okj4bg-runs-analyze-review-cost.prompt.md, .aw/records/research/**/*-revcost-*.findings.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 10
 - Author: opencode
 - Id: avg8qv
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-009 fixed (review record .aw/records/reviews/20261023-revcost-01-avg8qv-record-review-readiness-on-review-attempts-and-close-the-okj.review.md)
 - 2026-10-23 to-review (aw set): authored from backlog i2i81x; Q1-Q7 already shipped in 131c9470d, this plan closes Q8 readiness, lists Q9 missing data, and files the okj4bg Section 5 report
 

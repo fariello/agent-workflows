@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_ipd_lifecycle_restored_behavior.py`, holding eight behavioral tests mined verbatim (fixtures and bodies) from the three `19313eed^` control files: two per key, chosen because each pair alone kills that key's `return-none` mutant (F-04). Then re-probe all four keys under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the three control files whole (core budget, F-05); EXCLUDES the `run_evidence.py` keys `_porcelain_paths`, `dirty_within`, `get_git_head` that share the `test_begin_dirty_gate_scope.py` control file (owned by backlog `i2g20d`); EXCLUDES `RunnerDeclaresTheExecutionBaselineTests::test_driver_begin_accepts_the_isolated_declaration` (it pins a signature through `inspect`, which `AGENTS.md` forbids).
 - Scope-Paths: tests/test_ipd_lifecycle_restored_behavior.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: 2qlg0w
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (ruff-safe import set, _commit_paths collision named, V-03 kill attribution, commit-then-probe, count bars and <base>, execution contract); swap demonstrated (F-08)
 
 - 2026-10-23 to-review (opencode): authored from backlog `gcpj15`. Probed all four keys at HEAD `5fc148a3` under `-m core` (all `survived`), under existing non-core lifecycle files (all `killed`), and under two-test subsets of the `19313eed^` control files (all `killed`, `mutant_failing: 2`); measured bare core at `1675 passed ... 91.54s` with the budget already exceeded, which is why the restore is a minimal subset.

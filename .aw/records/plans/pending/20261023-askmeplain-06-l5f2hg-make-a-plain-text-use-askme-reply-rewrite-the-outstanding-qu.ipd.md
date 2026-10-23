@@ -6,7 +6,7 @@
 - Scope: IN: strengthen the always-loaded pointer and the workflow's "Recognize the request" so that (1) the phrases "use /askme", "askme that", "/askme that question again" and "ask that again" are commands, never answers, including when they arrive as a free-text or custom answer inside a question tool; (2) on receiving one, the agent re-reads and applies `askme.md` to the most recent question it asked, even if it applied askme earlier in the same conversation; (3) a user's request for a terse or identifier-only question does not survive a later askme request. Regenerate this repository's derived `AGENTS.md` block from `engine.agents_managed_block`. Add behavioral tests on the generated pointer and the installed body. Re-run Claude Code T01 attended (both delivery paths) as the acceptance check. OUT: changes to Claude Code itself or its skill loader; other `lkn1zt` defects (plans `9vttho`, `lf4j52`, `wfy9ii`, `pkz19w`).
 - Scope-Paths: agent_workflows/engine.py, AGENTS.md, .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, tests/test_askme_command_delivery.py, CHANGELOG.md
 - Item-Dependencies: executed:lkn1zt
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - Work-Kind: bug
@@ -16,9 +16,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: l5f2hg
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 - Attended: required
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-10-23 to-review (aw set): authored review-ready from lkn1zt findings auwidn (D-10)
 

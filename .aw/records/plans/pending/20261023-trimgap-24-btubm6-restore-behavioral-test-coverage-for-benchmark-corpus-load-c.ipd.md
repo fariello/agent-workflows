@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_benchmark_corpus_restored_behavior.py`, marked `core`, that drives `benchmark_corpus.load_corpus` against `tmp_path` corpus roots built by copying seeds from `tests/benchmark_fixtures/corpus/`, and asserts `SeededTask.workspace_seed_path` returns `seed_path / "workspace"`, an existing directory, for every fixture seed. EXCLUDES any change to `agent_workflows/benchmark_corpus.py` or any other production file, EXCLUDES editing `tests/test_benchmark_corpus.py` (owned by executed plan `78g6ic`), and EXCLUDES any change under `tests/benchmark_fixtures/`.
 - Scope-Paths: tests/test_benchmark_corpus_restored_behavior.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: btubm6
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-02(e) seeds named against class order, docstring/code order contradiction filed as qtd3lj, mutation (4b) added), PR-002 (E-03 ground-truth absence made recursive and non-vacuous) fixed
 
 - 2026-10-23 to-review (opencode): authored from backlog `3hurk1`. Re-probed both recorded `return-none` mutants at HEAD `390d90f07` against `tests/test_benchmark_corpus.py` + `tests/test_benchmark_runners_reports.py` (both killed; scratch edits reverted, `git diff agent_workflows/` empty) and measured every `load_corpus` branch by direct call before writing any expected outcome (F-02 through F-04).

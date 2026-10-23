@@ -6,7 +6,7 @@
 - Scope: (a) record the disposition of the four deleted keys as "no longer exists; no coverage owed"; (b) add `@pytest.mark.core` to the two fast tests that kill the `scan_for_network_references` mutants (`OfflineReportTests.test_the_offline_harness_FAILS_when_a_network_reference_is_introduced` in `tests/test_run_analytics_e2e.py` and `RenderTests.test_offline_and_escaped` in `tests/test_run_dashboard.py`); (c) re-probe under `-m core` to prove the mutants are now killed by the routine gate. EXCLUDES any production-code change; EXCLUDES writing new tests (existing behavioral tests already kill the mutants); EXCLUDES other `run_analytics_html.py` keys (`escape_text`, `escape_attribute`, `escape_json_for_script`, `sanitize_control_characters` were not in this item); EXCLUDES restoring tests for deleted code from `19313eed^`.
 - Scope-Paths: tests/test_run_analytics_e2e.py, tests/test_run_dashboard.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: di5puw
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (probe reads committed HEAD: commit before E-04), PR-002 (unsatisfiable 30s budget bar and mutant_failing count bar replaced), PR-003 (E-01 grep matched stale pyc: git grep), PR-004 (execution contract) fixed; F-02/F-03 reproduced at 16d8abbb8 (F-04)
 
 - 2026-10-23 to-review (opencode): authored from backlog `aaud70`. Traced the `target file not found` verdict to the deletion of `run_analytics_spa.py` in `bf5057b69`; located the surviving key in `run_analytics_html`; probed it at HEAD `ce72322b` (survives `-m core tests/`, killed by full selection and by the two named tests alone). Plan is a core-marking remedy plus a disposition record.

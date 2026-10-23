@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_benchmark_manifest_digest.py`, marked `core`, that builds manifests and ceilings through the public `benchmark_manifest.build_manifest` / `make_ceilings` / `manifest_from_dict` API and asserts on the returned digests: each is a 64-character lowercase hex string, equal for equal content, different when an identity factor or a ceiling differs, unchanged when only `usage` differs, and the manifest's `identity["ceilings_digest"]` equals its ceilings' `Ceilings.digest()`. Then re-run the three `return-none` probes with the new module in the selection and record `killed`. EXCLUDES any production-code change; EXCLUDES editing `tests/test_benchmark_corpus.py` (owned by executed `78g6ic`, and pending sibling `btubm6` also avoids it); EXCLUDES other `benchmark_manifest.py` keys (`BenchmarkManifest.to_dict` is group 27, rolled up elsewhere; `Ceilings.as_dict` and `_canonical_json` are already `guarded`).
 - Scope-Paths: tests/test_benchmark_manifest_digest.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: ya0h23
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (unsatisfiable 30s budget bar), PR-002 (probe evidence: head, baseline_failing, newly_failing attribution, base sha, committed-range diff), PR-003 (execution contract) fixed; F-02 and F-04 reproduced at 6b94e8d4a (F-06)
 
 - 2026-10-23 to-review (opencode): authored from backlog `g5ypvb`. Re-ran `tools/mutation_probe.py` for the three keys under both `return-none` and `raise` at HEAD `db8853d1` against restored `tests/test_benchmark_corpus.py` (F-02), then prototyped the proposed assertions in-process against monkeypatched `return None` mutants and saw every mutant fail them (F-04).

@@ -6,7 +6,7 @@
 - Scope: IN: in `askme.md` "Establish facts before asking", define an approved decision rule positively as a recorded project decision (a non-superseded entry in `DECISIONS.md`, an approved or implemented spec, an earlier open question a human resolved, or a decision the user gave in this session), and state that code comments, docstrings, a function's default argument, current behavior, and naming or style consistency are evidence to put in the question, never a rule that answers it; state that an explicit user request to be asked a question is always honored; mirror the reasoning in `rationale.md`; add a behavioral installer-output test. OUT: allowing precedent-based self-resolution (maintainer ruled against, 2026-10-23); other `lkn1zt` defects (plans `9vttho`, `lf4j52`, `l5f2hg`, `pkz19w`).
 - Scope-Paths: .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, tests/test_askme_command_delivery.py, CHANGELOG.md
 - Item-Dependencies: executed:lkn1zt
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - Work-Kind: bug
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wfy9ii
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-23 to-review (aw set): authored review-ready from lkn1zt findings auwidn (D-4); maintainer chose keep-and-enforce 2026-10-23
 

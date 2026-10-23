@@ -6,7 +6,7 @@
 - Scope: Restore the deleted `tests/test_begin_dirty_gate_scope.py` from `19313eed^` as a `core`-marked behavioral module, dropping the one test that pins a function signature via `inspect` (forbidden by P16); and add a new `core`-marked module `tests/test_run_evidence_git_provenance.py` with direct behavioral tests of `run_evidence.get_git_head`, `run_evidence._porcelain_paths` and `run_evidence.dirty_within` against throwaway git repositories. Record `validate_evidence` as guarded with re-run probe evidence; no new tests are owed for it. EXCLUDES any change to `agent_workflows/run_evidence.py`, `agent_workflows/ipd_lifecycle.py` or any other production file; EXCLUDES `get_git_dirty_digest` and `get_worktree_path` (measured guarded by `wo21z5` itself, not in this item); EXCLUDES `run_cli._run_evidence` (a different module's key).
 - Scope-Paths: tests/test_begin_dirty_gate_scope.py, tests/test_run_evidence_git_provenance.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: s461lz
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (core re-probes need a commit first: new E-06 owns commit, probes and bare gate), PR-002 (unsatisfiable budget and count bars), PR-003 (provenance line vs inspect grep), PR-004 (head/baseline_failing/base evidence), PR-005 (execution contract) fixed; F-04/F-06/F-02 reproduced at baeb8d0cc (F-08)
 
 - 2026-10-23 to-review (opencode): authored from backlog `i2g20d`; probed all four keys at HEAD `b169e12bb` under both the per-file non-slow selection and the routine `-m core` selection, and probed the deleted control file, before writing expected outcomes (F-01..F-06).

@@ -6,7 +6,7 @@
 - Scope: Re-run the three `wo21z5` mutation probes (plus the opposite-polarity `return-none` probe of `assert_no_causal_language`) against `tests/test_run_analytics_findings.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_findings.py` that calls the surviving function and asserts on its returned value or raised `FindingRefusal`. EXCLUDES any production-code change; EXCLUDES other `run_analytics_findings.py` keys (`format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison` are owned by executed `ivap17`); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_findings.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 92tzo6
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (commit-before-reprobe, baseline_failing and base sha, real class names, satisfiable budget bar, execution contract); four probes re-run killed at 2aa1e2fd3 (F-04)
 
 - 2026-10-23 to-review (opencode): authored from backlog `6ntz8v`. Confirmed `ivap17` restored the control file after the `wo21z5` baseline (`git merge-base --is-ancestor 0f8ca64d7 f3afece925` false), then re-ran `tools/mutation_probe.py` for all three keys at HEAD `390d90f0`; every mutant was killed (F-02). The plan is therefore verification-first with a conditional restore step.

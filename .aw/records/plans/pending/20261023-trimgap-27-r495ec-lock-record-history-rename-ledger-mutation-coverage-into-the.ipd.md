@@ -6,7 +6,7 @@
 - Scope: (a) record, from the authoring probes and an execution-HEAD re-probe, that `append_rename` and `record_rename` are already guarded by the core tier and owe no restored tests; (b) add `@pytest.mark.core` to the two fast unit tests `RecordRenameCaseTests.test_case1_id6_to_id6` and `RecordRenameCaseTests.test_case2_id6less_to_id6_keys_on_new_id6` in `tests/test_rename_ledger.py`, which each kill both the `_endpoint_id6` `return-none` mutant and the `record_rename` `raise` mutant on their own; (c) re-probe under `-m core` to prove the routine gate now kills them. EXCLUDES any production-code change; EXCLUDES writing new tests or restoring tests from `19313eed^` (the existing tests already kill every mutant); EXCLUDES other `record_history.py` keys not in this item; EXCLUDES changes to `tests/test_artifact_rename.py` (its tests do not kill the `_endpoint_id6` mutant, F-01, so core-marking them would add no protection).
 - Scope-Paths: tests/test_rename_ledger.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: r495ec
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (probe reads committed HEAD: commit before E-04), PR-002 (unsatisfiable 30s budget bar), PR-003 (head/baseline_failing evidence and base sha), PR-004 (execution contract) fixed; F-01..F-04 reproduced at 520f5006e (F-06)
 
 - 2026-10-23 to-review (opencode): authored from backlog `hrz4cv`. Probed all three keys at HEAD `303cd2fd1` against the control files, the narrowed core subset, and the whole core tier. Every mutant is killed by existing tests; only `_endpoint_id6` survives the core tier. The plan is a core-marking remedy plus disposition records, the same shape as sibling `di5puw`.

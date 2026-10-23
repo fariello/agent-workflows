@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_config_review_findings_gate.py`, holding direct behavioral tests that call `config.read_review_findings_gate` and `config.findings_gate_threshold` on isolated temp repos with varied `project.json` contents and assert the returned values (F-04 prototype). Then re-probe both keys under the full core selection. EXCLUDES any production-code change; EXCLUDES core-marking or editing `tests/test_plan_readiness_recheck.py` (it does not kill `read_review_findings_gate` anyway, F-02); EXCLUDES restoring `tests/test_review_findings_gate.py` (owned by sibling plan `p79jts`, F-05).
 - Scope-Paths: tests/test_config_review_findings_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: f6el0l
+- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (kill attribution to new module via newly_failing), PR-002 (budget overrun reported not failed), PR-003 (AW_HOME fallback note for missing-file case), PR-004 (execution contract) fixed; E-01 rows reproduced at 306ad1182 (F-07)
 
 - 2026-10-23 to-review (opencode): authored from backlog `yvmxs9`. Probed both keys at HEAD `18eca2f15` under `-m core` (both `survived`) and under the restored control file `tests/test_plan_readiness_recheck.py` (`findings_gate_threshold` killed 7, `read_review_findings_gate` survived 0); prototyped four direct tests in a scratch file that failed under each key's monkeypatched `return-none` mutant and then deleted it.
