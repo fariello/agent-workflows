@@ -6,18 +6,20 @@
 - Scope: Produce the SPEC, not the engine. Measure what the current pipeline costs a small change, inventory which stages are already optional in code, and write one spec (created with `aw specs new`, taken to `to-review`, carrying `- From-Backlog: rsisop`) that answers the item's three questions (which changes qualify, who decides, which records are still written) plus the entry-point, approval-authority and release-gate questions those answers depend on, and proposes the implementing Set's work breakdown. NO verb, runner, schema or workflow behavior changes in this plan.
 - Scope-Paths: .aw/records/specs/draft/**, .aw/records/specs/to-review/**, .aw/records/plans/**/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.ipd.md
 - Item-Dependencies: exists:spec:k3yx72, exists:spec:llbr2b
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: rsisop
 - From-Spec: none
 - Set: quickpipe
 - Order: 1
-- Highest E allocated: 08
+- Highest E allocated: 10
 - Author: opencode
 - Id: e41qgx
 
 ## Workflow history
+- 2026-10-23 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (spec created first, baseline captured; split into E-08/E-10), PR-002 (E-09 TRACE ids for post-cutover spec), PR-003 (plan approval is not gated by TRANSITION_AUTHORITY; premise corrected), PR-004 (execution contract), PR-005 (live counts re-derived), PR-006 (F-4 miscount), PR-007 (execute_item_core named) fixed. Reviewed at HEAD `72da75876`; review record `.aw/records/reviews/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.review.md`.
 - 2026-10-23 to-review (opencode): authored review-ready spec-first plan graduating backlog rsisop (the item says it needs its own spec before any code)
 
 - 2026-10-23 draft (opencode): created.
@@ -30,15 +32,20 @@ Write one reviewed-ready spec that decides how a small change goes from a plan s
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
 
-### Task group 1: measure and inventory the current pipeline
+### Task group 1: create the spec, then measure and inventory the current pipeline
 
-- [ ] E-01 MEASURE what the current pipeline costs a small change, and record the table in the spec's problem section. Over the executed non-orchestrator plans dated 2026, select the small ones (at most 2 `E-*` items; at authoring time this was 151 plans, of which 21 carry `- From-Backlog:`) and report, per plan and as medians: the number of `## Workflow history` records, the number of distinct lifecycle statuses recorded, and, where the plan carries `- From-Backlog:`, the backlog item's own history record count. Where `aw runs` / `aw runs analyze` can attribute runner turns or cost to those plan id6s, add turns per stage (plan-production, review, execute) and recorded cost; if it cannot, say so in the spec in one sentence instead of estimating. Keep the measuring script (a short `python3 - <<'EOF'` block) verbatim in the spec so the numbers can be re-run.
+- [ ] E-08 CREATE THE SPEC BY TOOL FIRST, so E-01 to E-09 have a file to write into. Before creating anything, capture the `aw check --agent` baseline (diagnostics as (rule, location) pairs) to a scratch file under `/tmp`, for E-10's before/after comparison. Then run `aw specs new --title "Quick pipeline for small changes" --slug quick-pipeline-small-changes --summary "<one line>" --apply` (it mints the id6 and writes the conforming `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` under `.aw/records/specs/draft/`; never hand-name it). Add to its front matter `- From-Backlog: rsisop`, `- Work-Kind: feature`, `- Priority: medium`, `- Set: quickpipe`, a `- Scope:` line stating the spec authorizes no code change, and one `- Constrained-by:` line each for `k3yx72` and `llbr2b` (the multi-valued key in `specs.SPEC_MULTI_VALUED_KEYS`, in the shape `llbr2b`'s own front matter uses). Do NOT write `- Status:` by hand beyond what the tool wrote.
   - Depends on: none
+  - Expected outcome: one tool-created spec under `.aw/records/specs/draft/` carrying the front matter above, and a recorded `aw check` baseline.
+  - Execution state: pending
+
+- [ ] E-01 MEASURE what the current pipeline costs a small change, and record the table in the spec's problem section. Over the executed non-orchestrator plans dated 2026, select the small ones (at most 2 `E-*` items; at authoring time this was 151 plans, of which 21 carry `- From-Backlog:`; these are live counts and the table must carry the values re-derived at execution, not these) and report, per plan and as medians: the number of `## Workflow history` records, the number of distinct lifecycle statuses recorded, and, where the plan carries `- From-Backlog:`, the backlog item's own history record count. Where `aw runs` / `aw runs analyze` can attribute runner turns or cost to those plan id6s, add turns per stage (plan-production, review, execute) and recorded cost; if it cannot, say so in the spec in one sentence instead of estimating. Keep the measuring script (a short `python3 - <<'EOF'` block) verbatim in the spec so the numbers can be re-run.
+  - Depends on: E-08
   - Expected outcome: a measured table in the spec, with the script that produced it, showing how many stages and records a small change carries today.
   - Execution state: pending
 
-- [ ] E-02 INVENTORY, by reading the code and citing by symbol, which pipeline stages are ALREADY optional and which are enforced, and record it as a table in the spec. Cover at least: plan creation without a backlog item (`ipd_authoring.run_scaffold` requires `--priority`/`--work-kind` only when `--from-backlog` is absent; at authoring time 96 of 1,161 non-orchestrator plans dated 2026-09 and 2026-10 carried neither `- From-Backlog:` nor `- From-Spec:`); the scaffold's initial status (`ipd_authoring.build_skeleton` always writes `draft`); forward status skips (`ipd_lifecycle.validate_transition` allows a forward skip except into `executed`, which needs at least `reviewed`); the `- Readiness:` requirement at `reviewed` and at the ready-to-execute tier (`ipd_lint.check_readiness_required`, `IPD-M113`) and the refusal of a hand-written one (`ipd_lint.check_readiness_attestation`, `IPD-M107`); the human approval authority (`attention_contract.TRANSITION_AUTHORITY["->approved"]`); the automated `auto-approved` tier (`ipd_schema.READY_TO_EXECUTE`, `runner_shared.set_plan_approved`, the predicate `plan_readiness.is_plan_review_approved`, and the two `--full-auto` sites in `runner_shared.initialize_run_core` and the post-review path); the queue action table (`run_selection_policy.runner_action`, `runner_shared.item_needs_approval`); and the backlog graduation turn and its verification (`aw backlog set graduated`, the `BACKLOG-GRADUATE-SET` check). For each row record: the stage, what enforces it, whether it can be skipped today, and what skipping it would lose.
-  - Depends on: none
+- [ ] E-02 INVENTORY, by reading the code and citing by symbol, which pipeline stages are ALREADY optional and which are enforced, and record it as a table in the spec. Cover at least: plan creation without a backlog item (`ipd_authoring.run_scaffold` requires `--priority`/`--work-kind` only when `--from-backlog` is absent; at authoring time 96 of 1,161 non-orchestrator plans dated 2026-09 and 2026-10 carried neither `- From-Backlog:` nor `- From-Spec:`; this is a live count, so the spec states the count re-derived at execution with the script that produced it, not this number); the scaffold's initial status (`ipd_authoring.build_skeleton` always writes `draft`); forward status skips (`ipd_lifecycle.validate_transition` allows a forward skip except into `executed`, which needs at least `reviewed`); the `- Readiness:` requirement at `reviewed` and at the ready-to-execute tier (`ipd_lint.check_readiness_required`, `IPD-M113`) and the refusal of a hand-written one (`ipd_lint.check_readiness_attestation`, `IPD-M107`); the human approval authority (`attention_contract.TRANSITION_AUTHORITY["->approved"]`, whose `by_human` requirement `status_set.validate_transition_allowed` applies to SPEC transitions; a PLAN reaches `approved` through `aw ipd set approved`, which writes the `- Approval:` line, so the spec must state which of the two the quick path relies on); the setter-side approval gate that refuses a ready-to-execute status over a negative review verdict, a gating typed finding, or an unresolved blocking question (`plan_readiness.approval_refusals`, called from `status_set.validate_transition_allowed` for every status in `ipd_schema.READY_TO_EXECUTE`); the automated `auto-approved` tier (`ipd_schema.READY_TO_EXECUTE`, `runner_shared.set_plan_approved`, the predicate `plan_readiness.is_plan_review_approved`, and the two `--full-auto` sites, the queue-build one in `runner_shared.initialize_run_core` and the post-review one in `runner_shared.execute_item_core`, which also rewrites the queue item's `action` to `execute`); the queue action table (`run_selection_policy.runner_action`, `runner_shared.item_needs_approval`); and the backlog graduation turn and its verification (`aw backlog set graduated`, the `BACKLOG-GRADUATE-SET` check). For each row record: the stage, what enforces it, whether it can be skipped today, and what skipping it would lose.
+  - Depends on: E-08
   - Expected outcome: an inventory table in the spec whose every row cites a symbol, distinguishing stages that are ceremony from stages that are a safety gate.
   - Execution state: pending
 
@@ -54,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a decision section in the spec naming the deciding role at each step and the fallback, with the recommended option and its strength.
   - Execution state: pending
 
-- [ ] E-05 SPECIFY THE APPROVAL AUTHORITY on the quick path, without weakening the shipped attestation model. The spec must state that `->approved` remains human-only (`attention_contract.TRANSITION_AUTHORITY`), that an automated clear can only be `auto-approved` and only after a review produced `- Readiness:` (`plan_readiness.is_plan_review_approved`), and that D65's rule holds: `auto-approved` is "set only by an automated checker, never by an executor fast-tracking its own work" (`.aw/records/plans/README.md`, `.aw/system/workflows/verify-execution/verify-execution.md`). Decide whether the quick path (a) still stops for human approval, (b) auto-approves only under `--full-auto`, or (c) is a per-transition permission under the lifecycle automation policy of spec `llbr2b`, and state how the choice composes with `llbr2b` (reviewed, not yet implemented) so the two specs do not define overlapping switches. State whether authoring, review and execution may share one host session or must be separate turns, and why.
+- [ ] E-05 SPECIFY THE APPROVAL AUTHORITY on the quick path, without weakening the shipped attestation model. The spec must state that `->approved` remains a human act. Note precisely what enforces that today: `attention_contract.TRANSITION_AUTHORITY["->approved"]` (`by_human`) is enforced by `status_set.validate_transition_allowed` for SPECS only; for a PLAN, `aw ipd set approved` succeeds without `--by-human` (verified at review: `aw ipd set approved e41qgx --dry-run --agent` returned `clean`) and records `- Approval: <date>, recorded via aw ipd set`, so plan approval is human by convention (AGENTS.md, `.aw/records/plans/README.md`) plus the setter gate `plan_readiness.approval_refusals`. The spec must not claim a mechanical human-only gate on plans that does not exist, and must say whether the quick path relies on the convention or asks the implementing Set to add one. that an automated clear can only be `auto-approved` and only after a review produced `- Readiness:` (`plan_readiness.is_plan_review_approved`), and that D65's rule holds: `auto-approved` is "set only by an automated checker, never by an executor fast-tracking its own work" (`.aw/records/plans/README.md`, `.aw/system/workflows/verify-execution/verify-execution.md`). Decide whether the quick path (a) still stops for human approval, (b) auto-approves only under `--full-auto`, or (c) is a per-transition permission under the lifecycle automation policy of spec `llbr2b`, and state how the choice composes with `llbr2b` (reviewed, not yet implemented) so the two specs do not define overlapping switches. State whether authoring, review and execution may share one host session or must be separate turns, and why.
   - Depends on: E-02, E-04
   - Expected outcome: an approval section in the spec that names the authority for every transition on the quick path and cites the constraint each choice preserves.
   - Execution state: pending
@@ -69,11 +76,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: an entry-point section, a work-breakdown table and an open-questions section in the spec.
   - Execution state: pending
 
-### Task group 3: create and validate the spec
+- [ ] E-09 DECLARE TRACEABLE REQUIREMENT AND ACCEPTANCE IDS. The spec is dated after the `spec_requirement_ids` cutover (`config.KNOWN_FEATURE_CUTOVERS`, 2026-10-01; `production_checks.SPEC_REQUIREMENT_IDS_CUTOVER_DATE`), so the implementing Set's production will be checked by `SPEC-PLAN-TRACE` (spec `89xjll`). Add a requirements index table (`| ID | Requirement | Detail |`, the declaration-site shape of `89xjll` Section 1b) declaring each normative decision from E-03 to E-07 as a FORM A `R-NN` id (not the `N` family, which `89xjll` Section 3.1 excludes from extraction), and an acceptance-criteria section declaring `AC-NN` ids that the implementing Set's `V-*` items can cite. A decision still carried as an open question is either left out of the index or marked `[Deferred]` per `89xjll` Section 3.3. Without this, TRACE passes the implementing Set vacuously (`89xjll` Section 6.3) and cannot show that it covered the spec.
+  - Depends on: E-03, E-04, E-05, E-06, E-07
+  - Expected outcome: a requirements index of `R-NN` ids and an acceptance-criteria section of `AC-NN` ids in the spec, each requirement pointing at the section that elaborates it.
+  - Execution state: pending
 
-- [ ] E-08 CREATE THE SPEC BY TOOL and take it to `to-review`, NOT `approved`. Run `aw specs new --title "Quick pipeline for small changes" --slug quick-pipeline-small-changes --summary "<one line>" --apply` (it mints the id6 and the conforming `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` name), write the content from E-01 to E-07 into it, add `- From-Backlog: rsisop`, `- Work-Kind: feature`, `- Priority: medium` and `- Set: quickpipe`, and add `- Constrained-by:` lines for `k3yx72` and `llbr2b`. Advance it with `aw specs set to-review <path> --message "..."` (never by hand-editing `- Status:`), then run `aw specs check` and `aw check`. Do NOT set the spec `approved` (the maintainer's attested act) and never `implemented`.
-  - Depends on: E-07
-  - Expected outcome: one conforming spec under `.aw/records/specs/to-review/` carrying `- From-Backlog: rsisop`, and no new `aw check` diagnostic.
+### Task group 3: advance and validate the spec
+
+- [ ] E-10 ADVANCE THE SPEC TO `to-review`, NOT `approved`, AND VALIDATE IT. Run `aw specs set to-review <path> --message "..." --no-commit` (the setter relocates the file from `draft/` to `to-review/`; never hand-edit `- Status:`; `--no-commit` because the commit goes through `aw commit` below, and an `--agent` call without `--yes` refuses at exit 2 per `.aw/records/plans/README.md` "Status transitions share confirmation and commit semantics"). Then run `aw specs check <path>` and `aw check --agent`, and compare the latter's (rule, location) diagnostics with E-08's baseline. Do NOT set the spec `approved` (the maintainer's attested act) and never `implemented`.
+  - Depends on: E-09
+  - Expected outcome: one conforming spec under `.aw/records/specs/to-review/` carrying `- From-Backlog: rsisop`, and no `aw check` diagnostic in the after set that is absent from the baseline.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -93,19 +105,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-1 | The backlog item asks for a spec first: "Needs its own spec: which changes qualify, who decides, and which records are still written." | `.aw/records/backlog/open/20261018-revsteps-01-rsisop-shorter-pipeline-for-small-changes-go-from-plan-to.backlog.md` |
 | F-2 | Spec `k3yx72` (`reviewed`) defines the `simple` review tier and its runner signals, and excludes this pipeline as non-goal N4, sending it to `rsisop`. It is not yet implemented: no code mentions `Review-Depth` or `review.sensitive_paths`. | `.aw/records/specs/reviewed/20261017-k3yx72-01-k3yx72-plan-review-redesign.spec.md` Sections 2, 5.1, 5.2, 15 |
 | F-3 | A plan can already be created without a backlog item; scaffold only needs `--priority` and `--work-kind` then. So the backlog step is mechanically optional today, and the friction is in the remaining stages and in the runner flow, which E-01 and E-02 must measure rather than assume. | `ipd_authoring.run_scaffold`; 96 of 1,161 non-orchestrator plans dated 2026-09/10 carry no `From-Backlog`/`From-Spec` (measured at HEAD `67a066ac3`) |
-| F-4 | Small plans are common: 151 executed non-orchestrator plans dated 2026 have at most 2 `E-*` items, and only 21 of them carry `- From-Backlog:`; 150 of the 151 name no spec in `- Scope-Paths:`. | measured at HEAD `67a066ac3` over `.aw/records/plans/executed/2026*.ipd.md` |
+| F-4 | Small plans are common: 151 executed non-orchestrator plans dated 2026 have at most 2 `E-*` items, and only 21 of them carry `- From-Backlog:`; none of the 151 names a `.spec.md` file in `- Scope-Paths:` (one names the `.aw/records/specs/` directory), so `k3yx72`'s spec-path signal would not disqualify them. | measured at HEAD `67a066ac3` over `.aw/records/plans/executed/2026*.ipd.md` |
 | F-5 | Skipping the backlog item drops the release gate for bugs: a bug plan scaffolded without `--from-backlog` carries no `- Blocks-Release:`, and `check_engine.check_live_bug_gate` reads backlog items only. | `aw ipd scaffold --kind child --title x --set probe --order 1 --priority low --work-kind bug --author opencode` (preview) printed no `Blocks-Release` line; `check_engine.check_live_bug_gate` iterates `backlog._iter_items` |
-| F-6 | Human approval is a fixed authority, and the automated tier is constrained: `->approved` needs `by_human`; `auto-approved` is written only by `runner_shared.set_plan_approved` after `plan_readiness.is_plan_review_approved`; D65 forbids an executor fast-tracking its own work. | `attention_contract.TRANSITION_AUTHORITY`; `runner_shared.set_plan_approved`; `.aw/records/plans/README.md` "auto-approved" bullet |
+| F-6 | Human approval is a fixed authority, and the automated tier is constrained: `->approved` needs `by_human` for SPECS (`status_set.validate_transition_allowed`), while a PLAN's `approved` is human by convention and passes `plan_readiness.approval_refusals`; `auto-approved` is written only by `runner_shared.set_plan_approved` after `plan_readiness.is_plan_review_approved`; D65 forbids an executor fast-tracking its own work. | `attention_contract.TRANSITION_AUTHORITY`; `runner_shared.set_plan_approved`; `.aw/records/plans/README.md` "auto-approved" bullet |
 | F-7 | A per-transition automation policy is already specified (spec `llbr2b`, `reviewed`), so the quick path's approval rule must compose with it rather than add a parallel switch. | `.aw/records/specs/reviewed/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md` Sections 5, 6, 7 |
 | F-8 | The lint refuses a `reviewed` or ready-to-execute plan without `- Readiness:` (`IPD-M113`), and the field may only come from a review (`IPD-M107`), so a quick path cannot skip the review step and still reach execution. | `ipd_lint.check_readiness_required`; `ipd_lint.check_readiness_attestation` |
+| F-9 | The `--full-auto` clear has two sites: the queue-build one in `runner_shared.initialize_run_core` and a post-review one in `runner_shared.execute_item_core`, which also rewrites the queue item's `action` to `execute`. The second is the one a single-turn quick path would most likely reuse. | `runner_shared.execute_item_core` "if is_plan_review_approved(plan_curr):" followed by `set_plan_approved` and `item["action"] = "execute"` (verified at review, HEAD `72da75876`) |
+| F-10 | Any automated or human move to a ready-to-execute status already passes a setter-side gate (`plan_readiness.approval_refusals`) that no caller can skip, so the quick path inherits it for free and must not add a parallel check. | `status_set.validate_transition_allowed` "apprvguard Order 01 (d7bnhc): THE APPROVAL GATE" |
+| F-11 | The new spec is dated after the `spec_requirement_ids` cutover (2026-10-01), so `SPEC-PLAN-TRACE` will check the implementing Set against the spec's declared FORM A ids; a spec with none passes vacuously. | `config.KNOWN_FEATURE_CUTOVERS` "spec_requirement_ids": "2026-10-01"; spec `89xjll` Sections 3.1, 6.3; `production_checks.parse_spec_requirement_ids` |
 
 ## Proposed changes (ordered, validatable)
 
-1. Measure the current cost of a small change (E-01).
-2. Inventory which stages are ceremony and which are gates, by symbol (E-02).
-3. Decide qualification (E-03), the deciding role and fallback (E-04), approval authority (E-05), and records plus release gate (E-06).
-4. Decide the entry point, write the implementing work breakdown, and carry the maintainer questions (E-07).
-5. Create the spec by tool at `to-review` with `- From-Backlog: rsisop` and validate it (E-08).
+1. Record the `aw check` baseline and create the spec by tool in `draft/` with `- From-Backlog: rsisop` (E-08).
+2. Measure the current cost of a small change (E-01).
+3. Inventory which stages are ceremony and which are gates, by symbol (E-02).
+4. Decide qualification (E-03), the deciding role and fallback (E-04), approval authority (E-05), and records plus release gate (E-06).
+5. Decide the entry point, write the implementing work breakdown, and carry the maintainer questions (E-07).
+6. Declare traceable `R-NN` / `AC-NN` ids for `SPEC-PLAN-TRACE` (E-09).
+7. Advance the spec to `to-review` and validate it (E-10).
 
 ## Deferred / out of scope (with reason)
 
@@ -126,6 +143,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `aw specs check <spec path>` reports the new spec conforming.
+- `production_checks.parse_spec_requirement_ids` extracts a non-empty requirement and acceptance set from the spec (V-09).
 - `aw check` gains no diagnostic, measured as a before/after comparison of `aw check --agent` diagnostics by (rule, location), and in particular no `check.from-backlog-dangling` for the spec.
 - `aw ipd lint --phase pre-transition` on this plan conforms before the transition.
 - `python3 -m pytest` bare, per the repository contract, to show this records-only change breaks nothing; paste the actual summary line. Any failure must be shown to be unrelated (this plan changes no code).
@@ -156,7 +174,7 @@ The deliverable is a new spec, so the sync is the work. It is created with `aw s
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the measuring script exactly as it appears in the spec, its actual output when re-run at the execution HEAD, and the spec's table; the table's numbers must equal the output. If `aw runs` could not attribute turns or cost, paste the command tried and its output, and the spec sentence saying so.
+  - Required evidence: paste the measuring script exactly as it appears in the spec, its actual output when re-run at the execution HEAD, and the spec's table; the table's numbers must equal that output (not the authoring-time counts in E-01). If `aw runs` could not attribute turns or cost, paste the command tried and its output, and the spec sentence saying so.
   - Observed evidence:
   - Result: pending
 
@@ -176,7 +194,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the spec's approval section, showing every quick-path transition with its authority, the statements that `->approved` stays human-only and that D65 holds, the composition rule with `llbr2b`, and the session-sharing decision with its reason.
+  - Required evidence: paste the spec's approval section, showing every quick-path transition with its authority, the statement that `->approved` stays a human act together with what actually enforces it for a plan (convention plus `plan_readiness.approval_refusals`, not `TRANSITION_AUTHORITY`, which binds specs) and whether the implementing Set must add a mechanical gate, the statement that D65 holds, the composition rule with `llbr2b`, and the session-sharing decision with its reason.
   - Observed evidence:
   - Result: pending
 
@@ -191,7 +209,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: paste the `aw specs new ... --apply` command and output (minted id6, conforming filename); the spec's front matter showing `- Status: to-review`, `- From-Backlog: rsisop` and the `- Constrained-by:` lines; the `aw specs set to-review` command and output; `aw specs check` output reporting conforming; the before/after `aw check --agent` comparison showing no new diagnostic; `aw ipd lint --phase pre-transition` on this plan; and the bare `python3 -m pytest` summary line.
+  - Required evidence: paste the `aw check --agent` baseline command and the path of the saved (rule, location) list; the `aw specs new ... --apply` command and its output (minted id6, conforming filename under `.aw/records/specs/draft/`); and the spec's front matter as written, showing `- From-Backlog: rsisop`, `- Work-Kind: feature`, `- Priority: medium`, `- Set: quickpipe`, the `- Scope:` line and both `- Constrained-by:` lines.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-09 validates E-09
+  - Required evidence: paste the spec's requirements index table and acceptance-criteria section. Every `R-NN` row must name the spec section that elaborates it, every decision from E-03 to E-07 that is not an open question must map to at least one `R-NN`, no id may use the `N` family, and each id left undecided by an open question must be absent or carry `[Deferred]`. Paste `python3 -c "from pathlib import Path; from agent_workflows.production_checks import parse_spec_requirement_ids; print(parse_spec_requirement_ids(Path('<spec path>').read_text()))"` output showing the parser extracts the declared ids (non-empty requirement and acceptance sets).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-10 validates E-10
+  - Required evidence: paste the `aw specs set to-review ...` command and output; the spec's front matter after it showing `- Status: to-review` and its path under `.aw/records/specs/to-review/`; `aw specs check <spec path>` output reporting conforming; the before/after `aw check --agent` (rule, location) comparison showing no pair in the after set that is absent from the E-08 baseline (in particular no `check.from-backlog-dangling` for the spec); `aw ipd lint --phase pre-transition` on this plan; and the bare `python3 -m pytest` summary line, with any failure shown to be unrelated to this records-only change.
   - Observed evidence:
   - Result: pending
 
@@ -200,6 +228,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `to-review`. It must not be executed until it is reviewed and a human sets it `approved` (or a runner under `--full-auto` clears it to `auto-approved` after a review). No `- Readiness:` field is written here, because that field is `/plan-review`'s attested output.
+This plan is `reviewed`. It must not be executed until it is reviewed and a human sets it `approved` (or a runner under `--full-auto` clears it to `auto-approved` after a review). No `- Readiness:` field is written here, because that field is `/plan-review`'s attested output.
 
-Execution contract: change only the paths in `- Scope-Paths:`; commit through `aw commit e41qgx -- <paths>`, never `git add -A`, never push. Create the spec with `aw specs new` and transition it with `aw specs set`; never hand-name it and never hand-edit its `- Status:`. Do not set the spec `approved` or `implemented`. Paste actual command output for every `V-*` item. The terminal transition is performed by `aw ipd finalize` (or by the runner in a managed lane) after `aw ipd lint --phase pre-transition` conforms.
+Execution contract:
+- Open questions: OQ-01 and OQ-02 are resolved; nothing here blocks execution. The design questions belong to the spec (E-07), not to this plan.
+- Scope fence: `- Scope-Paths:` declares the spec's `draft/` and `to-review/` directories and this plan file. It is a declaration the finalize gate reconciles, not a stop rule: an out-of-scope edit that turns out to be needed is made and then justified with `--scope-reason <path>=<why>`, and a declared path left unmodified (for example `draft/`, if the spec was never committed there) gets `--scope-ack`.
+- Commit: through `aw commit e41qgx -- <paths>` only, naming the spec's final `to-review/` path and this plan file; check `git diff --cached --name-only` holds only those paths; never `git add -A`/bare/`-a`; never push. `aw specs set` is run with `--no-commit` so the setter does not make a second commit.
+- Tooling: create the spec with `aw specs new` and transition it with `aw specs set`; never hand-name it and never hand-edit its `- Status:`. Do not set the spec `approved` or `implemented`, and write no `- Readiness:` or `- Approval:` into the spec or any example in it.
+- Honesty: paste the ACTUAL command and runner output for every `V-*` item; never mark a `V-*` from memory or from the matching `E-*` checkmark.
+- Lifecycle transition: the plan moves to `executed/` only through `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms. In a managed runner lane the runner performs that finalize; an executor working by hand outside a runner runs it. Never a hand-rolled `git mv`.
