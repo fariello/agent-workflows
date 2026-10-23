@@ -5,7 +5,7 @@
 - Concern: Live trials (plan `lkn1zt`, findings `auwidn`) found three recording defects that share one step, writing the user's answer into the record's `## Open questions`. D-5: a reason the user did not give, almost always the chosen option's own argument text, is written into `- Resolution or deferral rationale:` as the user's reason; Claude Code once labelled it "Rationale supplied" (T08) and the final report repeated "Reason: uniform across all artifact types" for a user who had typed only "Creation date" (T09). D-6: a premise stated in the record is copied into the prompt and the resolution without being checked (the fixture's false "only plans and specs carry a history"; backlog items carry one too, 1,104 of them, as OpenCode + opus measured every time). D-7: the original question text in `- Resolution or deferral rationale:` is deleted and replaced instead of appended to, so the record loses what was asked. These failed five trials (Claude Code T02, T08, T09; Antigravity T02; OpenCode + gem T02) and appear as notes in most passing rows on three of four hosts; OpenCode + opus never showed D-5 or D-7 and always recorded "No reason was given" when none was given. The workflow already says "Do not invent a reason the user did not give" (`askme.md` "Ask and wait") and "Update `- Resolution or deferral rationale:` with the decision, its source (the user or evidence), the date, and any reason actually supplied" ("Record project decisions"); agents read the chosen option's description as the user's reason.
 - Scope: IN: in `askme.md` "Record project decisions", (1) say that choosing an option is not the same as giving its stated argument as a reason; record the option's label and, if no reason was typed, the literal phrase "No reason was given"; (2) require APPENDING the resolution after the original question text, never replacing it, and give the exact append shape (`<original text> RESOLVED <date> by <the user | evidence> via /askme: <decision>. <reason as given, or "No reason was given.">`, aligned with the runner's existing `RESOLVED <date> by <who> via <channel>: <answer>` shape in `runner_shared.record_oq_answer`); (3) in "Establish facts before asking", require checking any factual premise from the record that a prompt or option relies on, and correcting a false one in the prompt (and saying so) rather than repeating it; mirror the reasoning in `rationale.md`; add a behavioral installer-output test. OUT: other `lkn1zt` defects (plans `9vttho`, `wfy9ii`, `l5f2hg`, `pkz19w`); any runtime validator of record text.
 - Scope-Paths: .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, tests/test_askme_command_delivery.py, CHANGELOG.md
-- Item-Dependencies: executed:lkn1zt
+- Item-Dependencies: executed:lkn1zt, exists:backlog:mqsitd
 - Status: reviewed
 - Readiness: go-pending-approval
 - Blocks-Release: next
@@ -18,6 +18,7 @@
 - Id: lf4j52
 
 ## Workflow history
+- 2026-10-23 same-status (aw set): set Item-Dependencies to executed:lkn1zt, exists:backlog:mqsitd
 - 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007
 - 2026-10-23 to-review (aw set): authored review-ready from lkn1zt findings auwidn (D-5, D-6, D-7)
 
