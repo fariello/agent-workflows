@@ -6,7 +6,8 @@
 - Scope: Re-probe the 24 keys at execution HEAD under a `-m core` selection and record every verdict; for any key that no longer reports `killed`, add a behavioral test to one new core-marked module `tests/test_residual_guard_fallback.py`, and only then. EXCLUDES any production-code change; EXCLUDES the 19 keys owned by the five sibling plans; EXCLUDES changes to existing test files.
 - Scope-Paths: tests/test_residual_guard_fallback.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: nzc6dm
@@ -17,13 +18,14 @@
 - Id: e6lq6y
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, <execution base> recorded at E-01, non-killed verdicts enumerated and Goal aligned with the E-05 restore path); all 24 operators re-applied and F-03 carrier assignments verified at e19e6895b
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm`. Measured core reach of all 43 keys at HEAD `6c0a6b72a` and probed the 32 core-reached keys against their core-reaching files (24 `killed`, 8 `survived`); the 8 survivors and the 11 unreached keys are assigned to five sibling plans.
 - 2026-10-23 draft (opencode): created.
 
 ## Goal
 
-Close the 24 already-guarded keys of `nzc6dm` with pasted mutation-probe evidence at execution HEAD that the routine core tier kills each one, and restore coverage only for any key where that is no longer true. Done means 24 recorded `verdict: killed` lines under `-m core`.
+Close the 24 already-guarded keys of `nzc6dm` with pasted mutation-probe evidence at execution HEAD that the routine core tier kills each one, and restore coverage only for any key where that is no longer true. Done means each of the 24 keys has a recorded `verdict: killed` with `baseline_failing: 0` under a `-m core` selection: either directly from E-02 to E-04, or from the E-05 re-probe after a fallback test is added.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-derive the core selection
 
-- [ ] E-01 Record the core-tier reach at execution HEAD: `python3 tools/replay_coverage_diff.py baseline --out .aw/state/e6lq6y/core -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` (gitignored scratch). For each of the 24 keys in the F-02 table, map its `contexts` in `baseline.json` to test FILES with the longest-existing-file-prefix rule (`tests.test_x.Class.test` -> `tests/test_x.py`, the rule `wo21z5` `## Method` step 5 uses) and write `<key>\t<op>\t<files>` to `.aw/state/e6lq6y/sel.tsv`. A key absent from the baseline gets the selection `tests/` (the full core tier).
+- [ ] E-01 Record the core-tier reach at execution HEAD: `python3 tools/replay_coverage_diff.py baseline --out .aw/state/e6lq6y/core -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` (gitignored scratch). For each of the 24 keys in the F-02 table, map its `contexts` in `baseline.json` to test FILES with the longest-existing-file-prefix rule (`tests.test_x.Class.test` -> `tests/test_x.py`, the rule `wo21z5` `## Method` step 5 uses) and write `<key>\t<op>\t<files>` to `.aw/state/e6lq6y/sel.tsv`. Record the printed `head` as `<execution base>`; V-06 and Required tests diff against it. A key absent from the baseline gets the selection `tests/` (the full core tier).
   - Depends on: none
   - Expected outcome: the baseline prints its `head` (equal to execution HEAD) and `functions` count; `sel.tsv` has 24 rows, and at authoring all 24 keys were present in the core baseline (F-01).
   - Execution state: pending
@@ -55,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: conditional restore
 
-- [ ] E-05 For every key E-02 to E-04 report as anything other than `killed` (a `survived`, or a `baseline_failing` above 0 that makes the verdict unreliable): create `tests/test_residual_guard_fallback.py` (provenance docstring naming `nzc6dm`, `e6lq6y`, `wo21z5`; `import pytest`; `pytestmark = pytest.mark.core`) if it does not exist, and add one test per such key that calls the key through its nearest public caller and asserts on its returned value, mining the body from the key's `wo21z5` control file at `19313eed^` where an equivalent test exists. Commit with `aw commit e6lq6y -- tests/test_residual_guard_fallback.py`, then re-probe that key with `-m core tests/test_residual_guard_fallback.py` as the selection. If every key reported `killed`, make NO file change and record "no restore needed" in Findings.
+- [ ] E-05 For every key E-02 to E-04 report as anything other than `killed` (a `survived`, a `killed-by-import` (only collection errors fail, so no behavioral assertion caught it), an `error`/`invalid`, or a `baseline_failing` above 0 that makes the verdict unreliable): create `tests/test_residual_guard_fallback.py` (provenance docstring naming `nzc6dm`, `e6lq6y`, `wo21z5`; `import pytest`; `pytestmark = pytest.mark.core`) if it does not exist, and add one test per such key that calls the key through its nearest public caller and asserts on its returned value, mining the body from the key's `wo21z5` control file at `19313eed^` where an equivalent test exists. Commit with `aw commit e6lq6y -- tests/test_residual_guard_fallback.py`, then re-probe that key with `-m core tests/test_residual_guard_fallback.py` as the selection. If every key reported `killed`, make NO file change and record "no restore needed" in Findings.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: either no new file, or a file adding only tests, after which every previously non-killed key re-probes `verdict: killed`.
   - Execution state: pending
@@ -158,7 +160,7 @@ N/A: verification and, at most, tests only; no behavior, CLI surface or spec-des
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `head:` and `functions:` lines printed by `tools/replay_coverage_diff.py baseline` (E-01), with `head` equal to execution HEAD, and the full 24-row `.aw/state/e6lq6y/sel.tsv`.
+  - Required evidence: paste the recorded `<execution base>` and the `head:` and `functions:` lines printed by `tools/replay_coverage_diff.py baseline` (E-01), with `head` equal to execution HEAD, and the full 24-row `.aw/state/e6lq6y/sel.tsv`.
   - Observed evidence:
   - Result: pending
 
@@ -192,4 +194,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Execution contract: all open questions are resolved. SCOPE FENCE: `tests/test_residual_guard_fallback.py` only, created only if E-05 requires it; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. Commit through `aw commit e6lq6y -- tests/test_residual_guard_fallback.py` when a file changes, never push, never `git add -A`, and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Scope fence: `- Scope-Paths:` (`tests/test_residual_guard_fallback.py`, created only if E-05 requires it) is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and then justified (`aw ipd finalize` requires a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path, which is the expected case when E-05 makes no change). No production file under `agent_workflows/` may change. Commit only files you changed, through `aw commit e6lq6y -- tests/test_residual_guard_fallback.py` when that file changes (plus this plan when recording evidence); never `git add -A`, never push. You MUST paste the ACTUAL probe and runner output into each `V-*`; never claim a mutant was killed or a test passed that you did not run. Lifecycle: after every `V-*` reads `Result: pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize e6lq6y` itself.
