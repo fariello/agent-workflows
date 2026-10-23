@@ -117,6 +117,7 @@ N/A for specs (see Step 0: the field set is unchanged; spec `ipd-structure-and-l
 - Blocking: no
 - Status: open
 - Owner: maintainer
+- Carrier: mqsitd
 - Resolution or deferral rationale: Raised at review 2026-10-23. `runner_shared.record_oq_answer` (used by the `aw oc run` / `aw agy run` pre-flight question sweep) writes `RESOLVED <date> by <who> via <channel>: <answer>` by replacing the existing rationale line, so any text the author put there is lost, which is the D-7 defect this plan forbids for agents. Changing it is runner code outside this plan's scope and alters a behavior pinned by `tests/test_question_preflight.py` `test_a40_durable_artifact_write_back`, so it needs the maintainer's call: file a separate backlog item (recommended) or leave the runner as is. This plan does not depend on the answer, since it edits only workflow text.
 
 ## Validation and cross-check (verify before reporting done)
