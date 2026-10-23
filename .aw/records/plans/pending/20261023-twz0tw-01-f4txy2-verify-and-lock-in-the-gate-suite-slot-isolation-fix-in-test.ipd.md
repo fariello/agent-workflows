@@ -73,7 +73,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - `_gate_env(lock_dir=None)` falls back to `tempfile.mkdtemp`, which is never cleaned up. All current callers pass an explicit dir, so this leaks nothing today; changing it is unrelated to the flake.
-- Auditing other test modules for unisolated `run_full_suite` calls: outside this backlog item's named tests; file a separate backlog item if E-01 observation suggests one.
+  - Carrier-Declined: not a defect today; no caller reaches the `lock_dir=None` branch (every `_gate_env` caller in tests/test_core_tier_selection.py and tests/test_suite_cache.py passes an explicit dir), so there is nothing to fix until a caller omits it.
+- Auditing other test modules for unisolated `run_full_suite` calls: outside this backlog item's named tests. A grep at authoring found `tests/test_suite_cache.py` calling `run_full_suite` without isolating `AW_SUITE_LOCK_DIR` (around lines 325, 377, 544, 552), so it is carried as its own backlog item.
+  - Carrier: jycfw3
 
 ## Scope check
 
