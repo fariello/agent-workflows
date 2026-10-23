@@ -6,17 +6,19 @@
 - Scope: Restore the deleted `tests/test_begin_dirty_gate_scope.py` from `19313eed^` as a `core`-marked behavioral module, dropping the one test that pins a function signature via `inspect` (forbidden by P16); and add a new `core`-marked module `tests/test_run_evidence_git_provenance.py` with direct behavioral tests of `run_evidence.get_git_head`, `run_evidence._porcelain_paths` and `run_evidence.dirty_within` against throwaway git repositories. Record `validate_evidence` as guarded with re-run probe evidence; no new tests are owed for it. EXCLUDES any change to `agent_workflows/run_evidence.py`, `agent_workflows/ipd_lifecycle.py` or any other production file; EXCLUDES `get_git_dirty_digest` and `get_worktree_path` (measured guarded by `wo21z5` itself, not in this item); EXCLUDES `run_cli._run_evidence` (a different module's key).
 - Scope-Paths: tests/test_begin_dirty_gate_scope.py, tests/test_run_evidence_git_provenance.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: i2g20d
 - Set: trimgap
 - Order: 26
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode
 - Id: s461lz
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (core re-probes need a commit first: new E-06 owns commit, probes and bare gate), PR-002 (unsatisfiable budget and count bars), PR-003 (provenance line vs inspect grep), PR-004 (head/baseline_failing/base evidence), PR-005 (execution contract) fixed; F-04/F-06/F-02 reproduced at baeb8d0cc (F-08)
 
 - 2026-10-23 to-review (opencode): authored from backlog `i2g20d`; probed all four keys at HEAD `b169e12bb` under both the per-file non-slow selection and the routine `-m core` selection, and probed the deleted control file, before writing expected outcomes (F-01..F-06).
 - 2026-10-23 draft (opencode): created.
@@ -31,31 +33,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the control module
 
-- [ ] E-01 Restore `tests/test_begin_dirty_gate_scope.py` from `git show 19313eed^:tests/test_begin_dirty_gate_scope.py` (319 lines, 19 tests in classes `IsolatedBaselineGrantsAuthorityTests`, `IsolatedBaselineStillFailsClosedTests`, `NonIsolatedRefusalIsUnchangedTests`, `RefusalMessageIsActionableTests`, `BaseHeadAlwaysComesFromTheMainTreeTests`, `RunnerDeclaresTheExecutionBaselineTests`). Add `import pytest` and `pytestmark = pytest.mark.core` after the imports, and extend the module docstring with one line in the shape `tests/test_attention_stem.py` uses: "Restored under backlog i2g20d, findings wo21z5, from revision 19313eed^." followed by a line naming the one dropped test (E-02). Keep every other test body verbatim, including its imports of `_commit_all`, `_init_git`, `_ready_plan_text` and `_write_plan` from `tests.test_ipd_lifecycle_cli`.
+- [ ] E-01 Before any edit, record `git rev-parse HEAD` as `<base>`. Restore `tests/test_begin_dirty_gate_scope.py` from `git show 19313eed^:tests/test_begin_dirty_gate_scope.py` (319 lines, 19 tests in classes `IsolatedBaselineGrantsAuthorityTests`, `IsolatedBaselineStillFailsClosedTests`, `NonIsolatedRefusalIsUnchangedTests`, `RefusalMessageIsActionableTests`, `BaseHeadAlwaysComesFromTheMainTreeTests`, `RunnerDeclaresTheExecutionBaselineTests`). Add `import pytest` and `pytestmark = pytest.mark.core` after the imports, and extend the module docstring with one line in the shape `tests/test_attention_stem.py` uses: "Restored under backlog i2g20d, findings wo21z5, from revision 19313eed^." followed by a line naming the one dropped test (E-02), for example "Excluded: test_driver_begin_accepts_the_isolated_declaration (it pinned a function signature; P16)." Do not write the word `inspect` in either line, because V-02 checks the file has no `inspect` reference. Keep every other test body verbatim, including its imports of `_commit_all`, `_init_git`, `_ready_plan_text` and `_write_plan` from `tests.test_ipd_lifecycle_cli`.
   - Depends on: none
-  - Expected outcome: the file exists, imports cleanly, carries the `core` marker, and all 19 verbatim tests pass at HEAD (measured at authoring: `19 passed in 1.58s`, F-05).
+  - Expected outcome: the file exists, imports cleanly, carries the `core` marker, and every verbatim test passes at HEAD (measured at authoring: `19 passed in 1.58s`, F-05; at review the probe baseline over the same file was `baseline_failing: 0`, F-08).
   - Execution state: pending
 
 - [ ] E-02 Delete `RunnerDeclaresTheExecutionBaselineTests.test_driver_begin_accepts_the_isolated_declaration` from the restored module. It asserts on `inspect.signature(OC.driver_begin)` (parameter kind and default), which pins code structure rather than behavior and is forbidden by the `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE" rule (1) and P16. Keep the other two tests of that class (`test_isolated_turn_sends_the_declaration`, `test_non_isolated_turn_sends_nothing`), which call `OC.begin_baseline_env` and assert its returned mapping. Do not add a replacement: the isolated-declaration behavior is already exercised end to end by `IsolatedBaselineGrantsAuthorityTests`, which calls `LC.begin(..., isolated_baseline=True)`.
   - Depends on: E-01
-  - Expected outcome: the module carries 18 tests, contains no `import inspect` and no `inspect.` reference, and all 18 pass.
+  - Expected outcome: `test_driver_begin_accepts_the_isolated_declaration` is absent, the module contains no `inspect` reference, and every remaining test passes (18 at authoring; re-derive at execution, the count is not the bar).
   - Execution state: pending
 
 ### Task group 2: direct helper tests
 
 - [ ] E-03 Create `tests/test_run_evidence_git_provenance.py` (`pytestmark = pytest.mark.core`, stdlib `subprocess` plus pytest `tmp_path`, a local `_git` helper that runs git with `check=True` and sets `user.email`/`user.name` via `git config` in the fixture repo) with a `GetGitHead` group calling `run_evidence.get_git_head` directly. Assert, all measured at authoring (F-06): a non-repo directory returns `"unversioned"`; a freshly `git init`-ed repo with no commit returns `"unversioned"`; after one commit it returns exactly the 40-character SHA that `git rev-parse HEAD` prints for that repo.
   - Depends on: none
-  - Expected outcome: three assertions pass at HEAD; the committed-repo assertion fails under a `return None` mutant of `get_git_head` (and the two `"unversioned"` ones fail too, since `None != "unversioned"`).
+  - Expected outcome: the assertions pass at HEAD; the committed-repo assertion fails under a `return None` mutant of `get_git_head` (and the two `"unversioned"` ones fail too, since `None != "unversioned"`). The mutant is proven by E-06.
   - Execution state: pending
 
 - [ ] E-04 Add a `PorcelainPaths` group to the same module calling `run_evidence._porcelain_paths` directly. Assert (F-06): a non-repo directory returns `None`; an unborn repo and a clean committed repo each return `[]`; after (a) modifying committed `a.txt`, (b) `git mv b.txt c.txt` and (c) creating untracked `new/sub/x.py` inside a wholly new directory, the result sorted equals `["a.txt", "b.txt", "c.txt", "new/sub/x.py"]` (both rename sides present, the untracked file listed individually rather than as `new/`), and the returned list has no duplicates.
   - Depends on: E-03
-  - Expected outcome: the assertions pass at HEAD; the clean-repo `[]` and dirty-list assertions fail under a `return None` mutant.
+  - Expected outcome: the assertions pass at HEAD; the clean-repo `[]` and dirty-list assertions fail under a `return None` mutant (proven by E-06).
   - Execution state: pending
 
 - [ ] E-05 Add a `DirtyWithin` group to the same module calling `run_evidence.dirty_within(repo, scope_paths, matcher)` directly with an injected matcher `lambda p, s: p == s or p.startswith(s.rstrip("/") + "/")`. Assert (F-06): a non-repo directory with a non-empty scope returns `"unversioned"`; empty `scope_paths` returns `"clean"` even when the tree is dirty; on the E-04 dirty tree, scope `["a.txt"]` returns `"a.txt"`, scope `["new/", "a.txt", "b.txt"]` returns `"a.txt\nb.txt\nnew/sub/x.py"` (sorted, newline-joined), and the disjoint scope `["zzz.txt"]` returns `"clean"` (the path-overlap rule: out-of-scope dirt is ignored); on a clean committed repo scope `["a.txt"]` returns `"clean"`.
   - Depends on: E-04
-  - Expected outcome: all assertions pass at HEAD; every assertion except the empty-scope one fails under a `return None` mutant of `dirty_within`, and the in-scope and clean assertions also fail under a `return None` mutant of `_porcelain_paths` (which `dirty_within` maps to `"unversioned"`).
+  - Expected outcome: all assertions pass at HEAD; every assertion except the empty-scope one fails under a `return None` mutant of `dirty_within`, and the in-scope and clean assertions also fail under a `return None` mutant of `_porcelain_paths` (which `dirty_within` maps to `"unversioned"`). The mutants are proven by E-06.
+  - Execution state: pending
+
+### Task group 3: commit and prove at the core tier
+
+- [ ] E-06 Commit both test files through `aw commit s461lz -- tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py` (`tools/mutation_probe.py` checks out committed `HEAD` into its own worktree via `git worktree add --detach <dir> HEAD`, so uncommitted tests are invisible to it and every probe would report `survived`; F-08). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites lines, `aw commit` re-stages and retries; record those hunks as hook churn in V-06. Then run, for each key in (`get_git_head`, `_porcelain_paths`, `dirty_within`), `python3 tools/mutation_probe.py agent_workflows/run_evidence.py::<key> --op return-none -- -o addopts= -q -p no:randomly -m core tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py`; re-run the F-02 guarded check `python3 tools/mutation_probe.py agent_workflows/run_evidence.py::validate_evidence --op return-none -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_run_evidence_completion.py tests/test_host_runner_output_bound.py`; then run the bare routine gate `python3 -m pytest`. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. Never hand-edit `agent_workflows/`.
+  - Depends on: E-02, E-05
+  - Expected outcome: every probe prints a `head:` at or after the E-06 commit, `baseline_failing: 0` and `verdict: killed`; the `get_git_head`, `_porcelain_paths` and `dirty_within` probes' `newly_failing` lists each name at least one test from `tests/test_run_evidence_git_provenance.py` (re-derive; the count is not the bar); `validate_evidence` stays `killed` (F-02, F-08). The bare gate exits 0 with no `failed` or `error`. A core-tier wall-time overrun is reported verbatim, not a pass/fail bar for this plan, because the bare run already exceeded 30s before this change (F-07: 34.93s); it counts against this plan only if a test from either module is among the printed slowest tests.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -77,6 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | control probes `--extra-test 19313eed:tests/test_begin_dirty_gate_scope.py -- -o addopts="" -p no:randomly tests/test_begin_dirty_gate_scope.py` | All `killed`, `baseline_failing: 0`, `extra_tests_overwrote: []`: `_porcelain_paths` 7 newly failing (for example `NonIsolatedRefusalIsUnchangedTests::test_default_argument_preserves_todays_refusal`), `dirty_within` 12 (for example `IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn`), `get_git_head` 6 (for example `BaseHeadAlwaysComesFromTheMainTreeTests::test_base_head_is_this_repos_head_even_when_isolated`). Mapped verdict for all three: `unguarded` at the core tier, with the deleted control file as the remedy source. |
 | F-05 | the control file copied into `tests/` as a scratch file and run with `python3 -m pytest -o addopts="" -q -p no:randomly`, then removed | `19 passed in 1.58s`; no adaptation is needed for HEAD. One test, `test_driver_begin_accepts_the_isolated_declaration`, asserts only on `inspect.signature(OC.driver_begin)`. No file under the current `tests/` defines any of the module's class names (`grep` for `class IsolatedBaselineGrantsAuthorityTests`/`RunnerDeclaresTheExecutionBaselineTests` returns nothing). |
 | F-06 | direct calls at HEAD `b169e12bb` in a throwaway repo | `get_git_head`: non-repo `'unversioned'`; unborn repo `'unversioned'`; committed repo equals `git rev-parse HEAD` (40 chars). `_porcelain_paths`: non-repo `None`; unborn `[]`; clean `[]`; after modify `a.txt`, `git mv b.txt c.txt`, untracked `new/sub/x.py`: `['a.txt', 'b.txt', 'c.txt', 'new/sub/x.py']`. `dirty_within` (prefix matcher): non-repo `'unversioned'`; clean `'clean'`; `['a.txt']` -> `'a.txt'`; `['new/','a.txt','b.txt']` -> `'a.txt\nb.txt\nnew/sub/x.py'`; `['zzz.txt']` -> `'clean'`; `[]` -> `'clean'`. |
+| F-08 | review at HEAD `baeb8d0cc`: `tools/mutation_probe.py` (`git worktree add --detach ... HEAD`); control probes `--op return-none --extra-test 19313eed:tests/test_begin_dirty_gate_scope.py -- -o addopts= -q -p no:randomly tests/test_begin_dirty_gate_scope.py`; `validate_evidence` core probe; F-06 direct calls re-run inline | Probe reads committed HEAD only, so the core re-probes must follow a commit (E-06). Control probes all `killed`, `baseline_failing: 0` (so every restored test passes at HEAD): `get_git_head` 6, `_porcelain_paths` 7, `dirty_within` 12. `validate_evidence` core probe: `killed`, `baseline_failing: 0`, 3 newly failing (the three F-02 `AdversarialScoringTests`). F-06 direct-call values reproduce exactly, including the de-duplicated dirty list. `runner_shared.begin_baseline_env` (re-exported by `oc_runipd`) and `oc_runipd.driver_begin` exist. Whole-tier F-03 probes (about 4 to 5 min each) not re-run. |
 | F-07 | bare `python3 -m pytest` at HEAD `b169e12bb` | `1675 passed, 11 warnings in 34.93s`, measured while four mutation probes from other lanes were running on the same host; the restored and new modules add roughly 2s. |
 
 ## Proposed changes (ordered, validatable)
@@ -86,10 +96,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 3. E-03 adds direct tests of `get_git_head`.
 4. E-04 adds direct tests of `_porcelain_paths`.
 5. E-05 adds direct tests of `dirty_within`.
+6. E-06 commits both modules, then proves every helper mutant killed under `-m core`, re-confirms `validate_evidence` guarded, and runs the bare gate.
 
 ## Deferred / out of scope (with reason)
 
-- `validate_evidence` gets no new tests: F-01 and F-02 show its `return-none` mutant is killed by 90 surviving tests, 3 of them in the core tier, so it is guarded at the routine gate. V-05 re-runs the core probe at execution HEAD to confirm that still holds.
+- `validate_evidence` gets no new tests: F-01 and F-02 show its `return-none` mutant is killed by 90 surviving tests, 3 of them in the core tier, so it is guarded at the routine gate. E-06 / V-06 re-run the core probe at execution HEAD to confirm that still holds.
   - Carrier-Declined: no work is owed; the key is measured guarded at the core tier.
 - `get_git_dirty_digest` and `get_worktree_path` are not keys of this backlog item: `wo21z5` `## Budget probe results` already records both `killed`/`guarded`.
   - Carrier-Declined: not part of the item and already measured guarded by the findings doc.
@@ -103,10 +114,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py -o addopts="" -v -p no:randomly` passes, with the per-test list pasted (18 restored tests plus the E-03/E-04/E-05 tests).
-- Bare `python3 -m pytest` passes (core tier, including both modules), with the summary line pasted.
-- Core-tier mutation re-probe: `python3 tools/mutation_probe.py agent_workflows/run_evidence.py::<key> --op return-none --format json -- -m core tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py` for each of `_porcelain_paths`, `dirty_within`, `get_git_head`. The probe mutates committed HEAD, so it runs after the E-01..E-05 commit (or with `--extra-test` pointing at it); paste each JSON's `verdict` (must be `killed`) and `newly_failing_total` (must be nonzero).
-- Guarded re-check: re-run the F-02 core probe for `validate_evidence` at execution HEAD and paste `verdict` and `newly_failing_total`.
+- `python3 -m pytest tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py -o addopts="" -v -p no:randomly` passes, with the per-test list pasted (the restored tests, 18 at authoring, plus the E-03/E-04/E-05 tests; every test PASSED is the bar, not the count).
+- Bare `python3 -m pytest` exits 0 (core tier, including both modules), with the summary line, exit status and any `CORE TIER BUDGET EXCEEDED` block pasted.
+- Core-tier mutation re-probes (E-06), after the E-06 commit, for each of `_porcelain_paths`, `dirty_within`, `get_git_head`: full output pasted (`head`, `selection` with `-m core`, `baseline_failing: 0`, `verdict: killed`, `newly_failing` naming a test from the new module).
+- Guarded re-check (E-06): the F-02 core probe for `validate_evidence`, full output pasted.
+- `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty.
 
 ## Spec / documentation sync
 
@@ -119,7 +131,7 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: No. The remedy "probe then restore" means restore only what the probe shows unguarded (the `rf1xxr` E-02 mapping). F-02 measured the mutant killed by three core-tier tests in the already-restored `tests/test_benchmark_corpus.py`, so it is guarded at the routine gate. V-05 re-confirms at execution HEAD.
+- Resolution or deferral rationale: No. The remedy "probe then restore" means restore only what the probe shows unguarded (the `rf1xxr` E-02 mapping). F-02 measured the mutant killed by three core-tier tests in the already-restored `tests/test_benchmark_corpus.py`, so it is guarded at the routine gate. E-06 / V-06 re-confirm at execution HEAD.
 
 ### OQ-02: Does "guarded" mean killed by the thorough suite, or by the core tier?
 
@@ -147,27 +159,32 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git status --short` showing only `tests/test_begin_dirty_gate_scope.py` and `tests/test_run_evidence_git_provenance.py` added; paste `python3 -m pytest --collect-only -q -m core tests/test_begin_dirty_gate_scope.py` output showing a nonzero collected count (proving the `core` marker); and paste the bare `python3 -m pytest` summary line showing the run passed.
+  - Required evidence: paste `<base>`; paste `python3 -m pytest -o addopts= --collect-only -q -m core tests/test_begin_dirty_gate_scope.py` output listing the restored tests as selected (proving the `core` marker); and paste `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_begin_dirty_gate_scope.py` with every test PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `git diff --no-index` (or equivalent) between `19313eed^:tests/test_begin_dirty_gate_scope.py` and the restored file showing that the only changes are the `pytest` import, the `pytestmark` line, the docstring provenance lines, and the removal of `test_driver_begin_accepts_the_isolated_declaration`; paste `grep -c "inspect" tests/test_begin_dirty_gate_scope.py` returning `0`; paste the `-v` run showing `18 passed`.
+  - Required evidence: paste `git diff --no-index` (or equivalent) between `19313eed^:tests/test_begin_dirty_gate_scope.py` and the restored file showing that the only changes are the `pytest` import, the `pytestmark` line, the docstring provenance lines, and the removal of `test_driver_begin_accepts_the_isolated_declaration`; paste `grep -c "inspect" tests/test_begin_dirty_gate_scope.py` returning `0`; paste the `-v` run showing every test PASSED and `test_driver_begin_accepts_the_isolated_declaration` absent.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `-v` output listing the `get_git_head` direct tests as PASSED, and paste the `tools/mutation_probe.py agent_workflows/run_evidence.py::get_git_head --op return-none --format json -- -m core tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py` JSON fields `verdict` (`killed`), `newly_failing_total` (nonzero) and the newly failing names, which must include an E-03 test.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v -p no:randomly tests/test_run_evidence_git_provenance.py` output listing the `get_git_head` direct tests (the three cases: non-repo, unborn, committed SHA) as PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `-v` output listing the `_porcelain_paths` direct tests as PASSED, and paste the same core probe for `_porcelain_paths` showing `verdict: killed`, a nonzero `newly_failing_total`, and newly failing names that include an E-04 test.
+  - Required evidence: paste the same `-v` output listing the `_porcelain_paths` direct tests (non-repo `None`; unborn and clean `[]`; the four-path dirty list with no duplicates) as PASSED.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the `-v` output listing the `dirty_within` direct tests as PASSED; paste the same core probe for `dirty_within` showing `verdict: killed`, a nonzero `newly_failing_total`, and newly failing names that include an E-05 test; and paste, from re-running the F-02 core probe for `validate_evidence` at execution HEAD, its `verdict` (`killed`) and `newly_failing_total` (nonzero). Finish with an empty `git diff agent_workflows/` showing no production change.
+  - Required evidence: paste the same `-v` output listing the `dirty_within` direct tests (non-repo `"unversioned"`, empty scope `"clean"`, in-scope hits sorted and newline-joined, disjoint scope `"clean"`, clean repo `"clean"`) as PASSED.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste the `aw commit` output naming the E-06 commit; paste the full output of the three helper probes and the `validate_evidence` probe (produced by `tools/mutation_probe.py` itself in E-06), each showing `head:` at or after that commit, a `selection:` containing `-m core`, `baseline_failing: 0` and `verdict: killed`, with each helper probe's `newly_failing` list naming at least one test from `tests/test_run_evidence_git_provenance.py`; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim; paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty, and `git diff --stat <base>..HEAD` naming only the two test files and this plan.
   - Observed evidence:
   - Result: pending
 
@@ -176,4 +193,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). The executor follows the agent execution contract in `AGENTS.md`: change only `tests/test_begin_dirty_gate_scope.py` and `tests/test_run_evidence_git_provenance.py`, commit through `aw commit s461lz -- tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py`, never push, run mutation probes only through `tools/mutation_probe.py` (which mutates a disposable worktree, never the checkout), and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Commit only files you changed, through `aw commit s461lz -- tests/test_begin_dirty_gate_scope.py tests/test_run_evidence_git_provenance.py` (plus this plan when recording evidence); verify `git diff --cached --name-only`; never `git add -A`; never push. You MUST paste the ACTUAL probe and runner output into each `V-*`; never claim a mutant was killed or a test passed that you did not run. Mutation checks use `tools/mutation_probe.py` only (it mutates a disposable worktree, never the checkout), after the E-06 commit; no production file under `agent_workflows/` may change. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and justified (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path). Lifecycle: after every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize s461lz` itself.
