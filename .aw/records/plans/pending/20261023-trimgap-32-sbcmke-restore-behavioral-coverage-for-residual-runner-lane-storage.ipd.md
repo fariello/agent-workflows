@@ -6,7 +6,8 @@
 - Scope: Add ONE new core-marked test module, `tests/test_runner_residual_helpers.py`, with direct behavioral tests of the five keys (through `hooks.prepush_authorization_gate.check` for the push gate, through `TelemetryCollector.start` for the tool-version observation, and directly for the other three), asserting on returned tuples, strings, exit codes and emitted events (values measured at F-03); then probe all five under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the deleted control files whole (`tests/test_gate_answer_propagation.py` is 1290 lines and 46 tests; `tests/test_resumedupe.py` 675 lines; `tests/test_phase4_hooks.py` patches the very rule it would guard), and EXCLUDES the other `runner_shared` keys owned by backlog `l2zsa9`.
 - Scope-Paths: tests/test_runner_residual_helpers.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: nzc6dm
@@ -17,6 +18,7 @@
 - Id: sbcmke
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, E-06 commit/parent recorded, hermetic git fixture in E-03); F-03 values, operator applicability and F-04 control facts reproduced at f76595a5a
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 31, 46, 48, 50, 52). Measured core reach at HEAD `6c0a6b72a`, probed each key against its core-reaching or surviving files, and measured every asserted return value before writing expected outcomes.
 - 2026-10-23 draft (opencode): created.
@@ -41,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
   - Execution state: pending
 
-- [ ] E-03 Add a `GitCommonDirTests` class using `tmp_path`: init a git repo `r` (`git init -q -b main`, set `user.email`/`user.name`, commit one file) and add a linked worktree `wt` with `git worktree add -q`. Assert `storage.get_git_common_dir(r)` and `storage.get_git_common_dir(wt)` are both equal to `os.path.realpath(r / ".git")` (a linked worktree resolves to the MAIN repository's git dir, which is the property the function exists for), and `storage.get_git_common_dir(<a plain non-git tmp dir>)` is `None`.
+- [ ] E-03 Add a `GitCommonDirTests` class using `tmp_path`: init a git repo `r` (`git init -q -b main`, set `user.email`/`user.name` and `commit.gpgsign false` locally so a host-level signing config cannot fail the commit, the pattern of `tests/support.py`, commit one file) and add a linked worktree `wt` with `git worktree add -q`. Assert `storage.get_git_common_dir(r)` and `storage.get_git_common_dir(wt)` are both equal to `os.path.realpath(r / ".git")` (a linked worktree resolves to the MAIN repository's git dir, which is the property the function exists for), and `storage.get_git_common_dir(<a plain non-git tmp dir>)` is `None`.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (behavior measured at F-03).
   - Execution state: pending
@@ -58,7 +60,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: commit and prove the mutants die in core
 
-- [ ] E-06 Commit the module with `aw commit sbcmke -- tests/test_runner_residual_helpers.py`, then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_residual_helpers.py`.
+- [ ] E-06 Commit the module with `aw commit sbcmke -- tests/test_runner_residual_helpers.py` and record the resulting commit hash as `<E-06 commit>` (its parent is `<E-06 parent>`, used by V-07 and Required tests), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_residual_helpers.py`.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: bare run shows no failures and includes the new tests; the module costs about one second serial (one throwaway git repo plus worktree; everything else in memory).
   - Execution state: pending
@@ -163,7 +165,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: paste the five JSON outputs produced by `tools/mutation_probe.py` (E-07), each with `head` equal to the E-06 commit or later, a selection containing `-m core tests/test_runner_residual_helpers.py`, `verdict: killed` and `baseline_failing: 0`; and `git diff --stat <E-06 parent>..HEAD -- agent_workflows/` showing no change.
+  - Required evidence: paste the recorded `<E-06 commit>` and `<E-06 parent>` hashes; paste the five JSON outputs produced by `tools/mutation_probe.py` (E-07), each with `head` equal to the E-06 commit or later, a selection containing `-m core tests/test_runner_residual_helpers.py`, `verdict: killed` and `baseline_failing: 0`; and `git diff --stat <E-06 parent>..HEAD -- agent_workflows/` showing no change.
   - Observed evidence:
   - Result: pending
 
@@ -172,4 +174,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Execution contract: all open questions are resolved. SCOPE FENCE: `tests/test_runner_residual_helpers.py` only; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. Commit through `aw commit sbcmke -- tests/test_runner_residual_helpers.py`, never push, never `git add -A`, and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Scope fence: `- Scope-Paths:` (`tests/test_runner_residual_helpers.py`) is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and then justified (`aw ipd finalize` requires a `--scope-reason` per out-of-scope path). No production file under `agent_workflows/` may change. Commit only files you changed, through `aw commit sbcmke -- tests/test_runner_residual_helpers.py` (plus this plan when recording evidence); never `git add -A`, never push. You MUST paste the ACTUAL runner and probe output into each `V-*`; never claim a test passed or a mutant was killed that you did not run. Lifecycle: after every `V-*` reads `Result: pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize sbcmke` itself.
