@@ -6,7 +6,8 @@
 - Scope: Restore the deleted `tests/test_attention_priority_blocker.py` from `19313eed^` as a `core`-marked behavioral module, adapting the one test that no longer matches HEAD (`test_schema_version_and_json_keys` pins `SCHEMA_VERSION == 4`; HEAD is 5) to assert the observable payload contract instead of a hard-coded number, and add direct behavioral tests of `attention._shared_gate_ref` covering every return branch (shared, single, distinct, mixed, empty, and `long` compaction). Record `render_table` and `_render_table_row` as guarded with re-run probe evidence; no new tests are owed for them. EXCLUDES any change to `agent_workflows/attention.py` or any other production file, and EXCLUDES `_gate_ref_display`, which belongs to the residual rollup backlog item `nzc6dm`.
 - Scope-Paths: tests/test_attention_priority_blocker.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 1n4qco
@@ -17,6 +18,7 @@
 - Id: a5drqh
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (ruff-safe import placement, hand-edit mutation replaced by mutation_probe after commit, bare-tier collection proof, satisfiable budget bar, count bars and restored-test disposition, execution contract); F-02/F-05 reproduced at 389409d8c (F-06)
 - 2026-10-23 to-review (aw set): authored from backlog 1n4qco; probed all three keys at HEAD 390d90f07 (F-01..F-05) before writing expected outcomes
 
 - 2026-10-23 draft (opencode): created.
@@ -31,26 +33,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the control module
 
-- [ ] E-01 Restore `tests/test_attention_priority_blocker.py` from `git show 19313eed^:tests/test_attention_priority_blocker.py` (391 lines, 26 tests in classes `AttentionPriorityBlockerTests`, `PlanReleaseBlockerSurfacingTests`, `RetiredPlanIsNotAReleaseBlockerTests`, `ReadinessReaderTests`, `GateRefRenderingTests`, `QuestionCountJsonTests`). Add `import pytest` and `pytestmark = pytest.mark.core` after the imports, and extend the module docstring with one line in the shape `tests/test_attention_stem.py` uses: "Restored under backlog 1n4qco, findings wo21z5, from revision 19313eed^." followed by a line naming the one adapted test (E-02). Keep every other test body verbatim.
+- [ ] E-01 Restore `tests/test_attention_priority_blocker.py` from `git show 19313eed^:tests/test_attention_priority_blocker.py` (391 lines, 26 tests in classes `AttentionPriorityBlockerTests`, `PlanReleaseBlockerSurfacingTests`, `RetiredPlanIsNotAReleaseBlockerTests`, `ReadinessReaderTests`, `GateRefRenderingTests`, `QuestionCountJsonTests`). Add `import pytest` as its own third-party import group BETWEEN `import unittest` and `from agent_workflows import attention`, and `pytestmark = pytest.mark.core` after the last import (exactly the layout of `tests/test_attention_stem.py`); placing `import pytest` after the first-party imports trips ruff `I001` (measured at review), which the mutating pre-commit `ruff --fix` hook would rewrite and reject. Before restoring, record `git rev-parse HEAD` as `<base>`. Then extend the module docstring with one line in the shape `tests/test_attention_stem.py` uses: "Restored under backlog 1n4qco, findings wo21z5, from revision 19313eed^." followed by a line naming the one adapted test (E-02). Keep every other test body verbatim.
   - Depends on: none
-  - Expected outcome: the file exists, imports cleanly, carries the `core` marker, and 25 of its 26 tests pass unmodified at HEAD (measured at authoring, F-04).
+  - Expected outcome: the file exists, imports cleanly, `ruff check` and `ruff format --check` are clean on it, it carries the `core` marker, and every restored test except `test_schema_version_and_json_keys` passes unmodified at HEAD (measured at authoring and review, F-04, F-06). If any OTHER restored test fails, record it in Findings and disposition it before marking this item performed: an intended behavior change gets its expectation adjusted with the commit `git log -S` finds cited; a regression gets a `bug` backlog item (`aw backlog new ... --blocks-release next`) and `@pytest.mark.xfail(strict=True, reason="<bug id6>")`, never deletion.
   - Execution state: pending
 
 - [ ] E-02 Adapt `AttentionPriorityBlockerTests.test_schema_version_and_json_keys`, the only restored test failing at HEAD (`AssertionError: 5 != 4`, F-04), so it asserts the observable contract rather than pinning a constant: replace `self.assertEqual(attention.SCHEMA_VERSION, 4)` (and its version-history comment) with an assertion that the parsed `render_json` payload's `schema_version` equals `attention.SCHEMA_VERSION`, and that the payload carries the top-level keys `items`, `valid`, `violations` and `stranded_lanes`; keep the existing `priority == "low"` and `"blocks_release" in it` item assertions. Do not assert any specific integer for the version.
   - Depends on: E-01
-  - Expected outcome: all 26 restored tests pass; the adapted test fails if `render_json` stops emitting `schema_version` or any of the four keys, and does not fail on a future version bump alone.
+  - Expected outcome: every restored test passes; the adapted test fails if `render_json` stops emitting `schema_version` or any of the four keys, and does not fail on a future version bump alone.
   - Execution state: pending
 
 ### Task group 2: direct fold-decision tests
 
 - [ ] E-03 Add a `SharedGateRefTests` class to the same module that calls `attention._shared_gate_ref(items, long=...)` directly, building blocked items with the same shape as the restored `GateRefRenderingTests._gated` helper (distinct ids and paths per item). Assert each return branch, all measured at authoring (F-05): two items gated by `TODO.md` return `"TODO.md"`; ONE gated item returns `""` (single items are not folded); two items with distinct refs (`TODO.md` and the deep plan path) return `""`; two gated items plus one ungated item return `""` (mixed); an empty list returns `""`; two items gated by the deep path `.aw/records/plans/pending/20260903-runflags-01-uyeko5-wire-the-spec.ipd.md` return `"20260903-runflags-01-uyeko5"` with `long=False` and the full path with `long=True`.
   - Depends on: E-01
-  - Expected outcome: 6 assertions (or parametrized rows), each passing at HEAD and each failing under a `return ""` / `return None` mutant on at least the shared-ref rows.
+  - Expected outcome: one assertion (or subTest row) per listed branch, each passing at HEAD; the shared-ref rows fail under a `return-none` mutant of `_shared_gate_ref` (proved in V-03).
   - Execution state: pending
 
-- [ ] E-04 Add one table-level test to `SharedGateRefTests` that asserts the fold's observable effect on `attention.render_table` (the only caller that hoists into a note line, `render_table` "all {len(visible)} gated by {shared_gate}"): with `term=T.Term(color=True)`, `show_all=True`, `legend=False` and two items gated by `TODO.md`, the ANSI-stripped output's first line is exactly `all 2 gated by TODO.md` and no row contains `[gate artifact:`; with the two distinct-ref items, no line starts with `all ` and each row carries its own `[gate artifact: ...]` suffix (`TODO.md` and `20260903-runflags-01-uyeko5`). Both outputs measured at authoring (F-05).
+- [ ] E-04 Add one table-level test to `SharedGateRefTests` that asserts the fold's observable effect on `attention.render_table` (the only caller that hoists into a note line, `render_table` "all {len(visible)} gated by {shared_gate}"): with `term=T.Term(color=True)`, `show_all=True`, `legend=False` and two items gated by `TODO.md`, the ANSI-stripped output's first line is exactly `all 2 gated by TODO.md` and no row contains `[gate artifact:`; with the two distinct-ref items, no line starts with `all ` and each row carries its own `[gate artifact: ...]` suffix (`TODO.md` and `20260903-runflags-01-uyeko5`). Both outputs measured at authoring (F-05). Then commit the module through `aw commit a5drqh -- tests/test_attention_priority_blocker.py`; V-03 and V-04 probe committed `HEAD` and cannot see an uncommitted file.
   - Depends on: E-03
-  - Expected outcome: the table-level test passes at HEAD and fails when `_shared_gate_ref` returns `""` (no note line) or when `render_table` stops passing `gate_in_header` (rows repeat the ref).
+  - Expected outcome: the table-level test passes at HEAD and fails when `_shared_gate_ref` returns nothing (no note line, proved in V-04); the module is committed.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -70,7 +72,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | same probe with `--extra-test 19313eed:tests/test_attention_priority_blocker.py -- tests/test_attention_priority_blocker.py` | `verdict: killed`, newly failing `GateRefRenderingTests::test_shared_ref_folds_into_header_and_leaves_rows`, `extra_tests_overwrote: []`. Mapped verdict: `unguarded`. The deleted control file is the remedy source. (Its `baseline_failing: 1` is the schema test of F-04, unrelated to the mutant.) |
 | F-03 | same survivor command for `render_table` and `_render_table_row` | `render_table`: `killed`, 11 newly failing (for example `test_attention.AttentionTableFormattingAndSortingTests::test_table_formatting_and_sorting`), `wall_s: 31.96`. `_render_table_row`: `killed`, 12 newly failing, `wall_s: 32.63`. Mapped verdict for both: `guarded`. The `wo21z5` `budget-exhausted` verdict reflected an exhausted probe budget, not a coverage gap. |
 | F-04 | the restored file run from gitignored scratch with `python3 -m pytest -o addopts="" -q -p no:randomly` | `1 failed, 25 passed in 0.27s`; the only failure is `test_schema_version_and_json_keys`: `AssertionError: 5 != 4` (`attention.SCHEMA_VERSION` is 5 at HEAD). `render_json` emits keys `items, mapping_version, parked_questions, schema_version, stranded_lanes, valid, violations`, with `schema_version == attention.SCHEMA_VERSION`. No test in the current `tests/` tree defines any of the restored test names other than `test_plain_board_unchanged` (also in `tests/test_attention_stem.py`, a different class and module, so no collision). |
-| F-05 | direct calls at HEAD `390d90f07` | `_shared_gate_ref`: two same `TODO.md` -> `'TODO.md'`; one -> `''`; distinct -> `''`; mixed with ungated -> `''`; empty -> `''`; two deep-path -> `'20260903-runflags-01-uyeko5'` (`long=False`) and the full path (`long=True`). `render_table` (colored, stripped, `legend=False`) on two `TODO.md` items: first line `all 2 gated by TODO.md`, rows carry no gate suffix; on distinct refs: no note line, rows end `[gate artifact: TODO.md]` and `[gate artifact: 20260903-runflags-01-uyeko5]`. |
+| F-05 | direct calls at HEAD `390d90f07` (re-measured identically at review HEAD `389409d8c`) | `_shared_gate_ref`: two same `TODO.md` -> `'TODO.md'`; one -> `''`; distinct -> `''`; mixed with ungated -> `''`; empty -> `''`; two deep-path -> `'20260903-runflags-01-uyeko5'` (`long=False`) and the full path (`long=True`). `render_table` (colored, stripped, `legend=False`) on two `TODO.md` items: first line `all 2 gated by TODO.md`, rows carry no gate suffix; on distinct refs: no note line, rows end `[gate artifact: TODO.md]` and `[gate artifact: 20260903-runflags-01-uyeko5]`. |
+| F-06 | review at HEAD `389409d8c`: restored file from `19313eed^` run from scratch; `tools/mutation_probe.py --op return-none --extra-test 19313eed:tests/test_attention_priority_blocker.py agent_workflows/attention.py::_shared_gate_ref -- ... tests/test_attention_priority_blocker.py`; `ruff check` on the file with `import pytest` and `pytestmark` placed after `from agent_workflows import term as T` | `1 failed, 25 passed in 0.52s`, same single failure as F-04. Probe: `verdict: killed`, `baseline_failing: 1` (the schema test), newly failing `GateRefRenderingTests::test_shared_ref_folds_into_header_and_leaves_rows`; F-02 reproduces. Late import placement: `I001 Import block is un-sorted or un-formatted`; the verbatim restored file is ruff-clean. `render_json` top-level keys at review: `items, mapping_version, parked_questions, schema_version, stranded_lanes, valid, violations`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -95,9 +98,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_attention_priority_blocker.py -o addopts="" -v -p no:randomly` passes, with the per-test list pasted (26 restored tests plus the E-03/E-04 tests).
-- Bare `python3 -m pytest` passes (core tier, including the new module, within the 30s budget), with the summary line pasted.
-- Mutation spot-check (scratch edit, never committed): make `attention._shared_gate_ref` `return ""` as its first statement, run the new module, paste the failures (expected to include `test_shared_ref_folds_into_header_and_leaves_rows` and the E-03/E-04 shared-ref assertions), then revert and paste an empty `git diff agent_workflows/`.
+- `python3 -m pytest tests/test_attention_priority_blocker.py -o addopts="" -v -p no:randomly` passes every collected test, with the per-test list pasted (the restored tests plus the E-03/E-04 tests).
+- Bare `python3 -m pytest` exits 0 with no `failed` or `error` and the new module in its selection, summary line pasted. The core tier already overruns 30s on this host before this plan (sibling `3wkrng` F-06: 59.22s, not enforced), so any `CORE TIER BUDGET EXCEEDED` block is pasted verbatim and counts against this plan only if one of its tests is among the block's listed slowest.
+- Mutation check without touching production code: after the E-04 commit, `python3 tools/mutation_probe.py --op return-none agent_workflows/attention.py::_shared_gate_ref -- -o addopts= -q -p no:randomly -m core tests/test_attention_priority_blocker.py`, output pasted, `baseline_failing: 0`, `verdict: killed`, and `newly_failing` including `GateRefRenderingTests::test_shared_ref_folds_into_header_and_leaves_rows` and the E-03 and E-04 `SharedGateRefTests` tests. Then `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty.
 - Guarded re-check: re-run the F-03 survivor probe for `render_table` and `_render_table_row` at execution HEAD and paste each JSON's `verdict` and `newly_failing_total`.
 
 ## Spec / documentation sync
@@ -125,22 +128,22 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `git status --short` showing only `tests/test_attention_priority_blocker.py` added; paste `python3 -m pytest --collect-only -q tests/test_attention_priority_blocker.py` output showing the module is collected by the bare (core-tier) selection with a nonzero count; and paste the bare `python3 -m pytest` summary line showing it passed within the core-tier budget.
+  - Required evidence: paste `<base>`; paste `git show --stat <E-04 commit>` showing only `tests/test_attention_priority_blocker.py`; paste clean `ruff check` and `ruff format --check` output for the file; paste `python3 -m pytest --collect-only -q 2>&1 | grep test_attention_priority_blocker` showing the module's tests are collected by the BARE (core-tier) selection (an explicit-path `--collect-only` does not prove core reach, because explicit paths skip the core filter); and paste the bare `python3 -m pytest` summary line with exit 0 and no `failed`/`error`, plus any `CORE TIER BUDGET EXCEEDED` block verbatim.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `-v` output line showing `test_schema_version_and_json_keys` PASSED, and paste `git diff --no-index` (or equivalent) between `19313eed^:tests/test_attention_priority_blocker.py` and the restored file showing that the only body change is inside that test plus the marker and docstring lines.
+  - Required evidence: paste the `-v` output line showing `test_schema_version_and_json_keys` PASSED, and paste `git diff --no-index` (or equivalent) between `19313eed^:tests/test_attention_priority_blocker.py` and the restored file showing that the only changes to restored content are inside that test plus the `import pytest`, `pytestmark` and docstring lines, with the E-03/E-04 `SharedGateRefTests` class as the only other addition.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `-v` output listing the `SharedGateRefTests` direct-branch test(s) as PASSED, and paste the failure output of the new module under the scratch mutation `return ""` as the first statement of `_shared_gate_ref` (showing at least `test_shared_ref_folds_into_header_and_leaves_rows` and the E-03 shared-ref assertion failing), followed by an empty `git diff agent_workflows/` after reverting.
+  - Required evidence: paste the `-v` output listing the `SharedGateRefTests` direct-branch test(s) as PASSED; paste the full `tools/mutation_probe.py --op return-none agent_workflows/attention.py::_shared_gate_ref -- -o addopts= -q -p no:randomly -m core tests/test_attention_priority_blocker.py` output with `head:` at or after the E-04 commit, `baseline_failing: 0`, `verdict: killed`, and `newly_failing` naming `GateRefRenderingTests::test_shared_ref_folds_into_header_and_leaves_rows` and the E-03 direct-branch test; paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `-v` output line showing the table-level fold test PASSED and its failure under the same scratch mutation as V-03; and paste, from re-running the F-03 survivor probe at execution HEAD, the `verdict` and `newly_failing_total` for `render_table` and `_render_table_row` (each must be `killed` with a nonzero count).
+  - Required evidence: paste the `-v` output line showing the table-level fold test PASSED, and show it in the `newly_failing` list of the V-03 probe output; and paste, from re-running the F-03 survivor probe at execution HEAD, the `verdict` and `newly_failing_total` for `render_table` and `_render_table_row` (each must be `killed` with a nonzero count).
   - Observed evidence:
   - Result: pending
 
@@ -149,4 +152,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). The executor follows the agent execution contract in `AGENTS.md`: change only `tests/test_attention_priority_blocker.py`, keep every mutation spot-check as an uncommitted scratch edit that is reverted before commit, commit through `aw commit a5drqh -- tests/test_attention_priority_blocker.py`, never push, and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Commit only files you changed, through `aw commit a5drqh -- tests/test_attention_priority_blocker.py` (plus this plan when recording evidence); never `git add -A`, never push. You MUST paste the ACTUAL runner and probe output into each `V-*`; never claim a test passed or a mutant was killed that you did not run. Mutation checks use `tools/mutation_probe.py`, which mutates its own disposable worktree; never hand-edit `agent_workflows/`. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary (for example a gated `bug` backlog item filed under the E-01 disposition rule) is made and justified (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path). Lifecycle: after every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize a5drqh` itself.
