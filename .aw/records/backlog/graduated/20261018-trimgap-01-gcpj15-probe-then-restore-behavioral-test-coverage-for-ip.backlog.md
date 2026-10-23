@@ -1,11 +1,13 @@
 - Id: gcpj15
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Probe then restore behavioral test coverage for ipd_lifecycle
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175005Z-1383890: 2qlg0w
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for ipd_lifecycle
 
 Carries 4 candidate production keys for agent_workflows/ipd_lifecycle.py with remedy shape 'probe then restore'.

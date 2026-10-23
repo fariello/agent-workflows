@@ -1,0 +1,154 @@
+# IPD: Probe then restore core-tier behavioral coverage for ipd_lifecycle begin and finalize keys
+
+- Date: 2026-10-23
+- Kind: child
+- Concern: Backlog item `gcpj15` (Set `trimgap`, group 4 of the `wo21z5` `## Filing plan`) carries four production keys of `agent_workflows/ipd_lifecycle.py` that the `wo21z5` budget probe never measured (verdict `budget-exhausted` at 11130.81s): `_baseline_ambiguity`, `begin`, `_execution_cohesive_committed_paths` and `finalize_precheck`, all with operator `return-none`. Their control files were deleted by `19313eed` (`tests/test_begin_dirty_gate_scope.py`, `tests/test_finalize_exact_attribution.py`, `tests/test_finalize_scope_ownership.py`). Probing at authoring HEAD `5fc148a3` (F-01..F-03) shows all four `return-none` mutants SURVIVE the routine core tier (bare `python3 -m pytest`, the runner merge gate), and are killed only by non-core files that a routine run deselects. So a regression that made `begin` or `finalize_precheck` return nothing would pass the merge gate.
+- Scope: Add ONE new core-marked test module, `tests/test_ipd_lifecycle_restored_behavior.py`, holding eight behavioral tests mined verbatim (fixtures and bodies) from the three `19313eed^` control files: two per key, chosen because each pair alone kills that key's `return-none` mutant (F-04). Then re-probe all four keys under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the three control files whole (core budget, F-05); EXCLUDES the `run_evidence.py` keys `_porcelain_paths`, `dirty_within`, `get_git_head` that share the `test_begin_dirty_gate_scope.py` control file (owned by backlog `i2g20d`); EXCLUDES `RunnerDeclaresTheExecutionBaselineTests::test_driver_begin_accepts_the_isolated_declaration` (it pins a signature through `inspect`, which `AGENTS.md` forbids).
+- Scope-Paths: tests/test_ipd_lifecycle_restored_behavior.py
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: gcpj15
+- Set: trimgap
+- Order: 25
+- Highest E allocated: 04
+- Author: opencode
+- Id: 2qlg0w
+
+## Workflow history
+
+- 2026-10-23 to-review (opencode): authored from backlog `gcpj15`. Probed all four keys at HEAD `5fc148a3` under `-m core` (all `survived`), under existing non-core lifecycle files (all `killed`), and under two-test subsets of the `19313eed^` control files (all `killed`, `mutant_failing: 2`); measured bare core at `1675 passed ... 91.54s` with the budget already exceeded, which is why the restore is a minimal subset.
+- 2026-10-23 draft (opencode): created.
+
+## Goal
+
+Make a `return-none` mutation of each of the four `gcpj15` keys turn the routine core tier red, by restoring a minimal set of the deleted behavioral tests into a core-marked module. Done means all four keys report `verdict: killed` under the full `-m core` selection with the new module present.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: restore the minimal core-tier module
+
+- [ ] E-01 Create `tests/test_ipd_lifecycle_restored_behavior.py` with a provenance docstring naming backlog `gcpj15`, plan `2qlg0w`, source `19313eed^` and the three control files; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); the helper imports the control files used from `tests.test_ipd_lifecycle_cli` (`_init_git`, `_commit_all`, `_ready_plan_text`, `_completed_plan_text`, `_write_plan`); and the three fixture base classes copied from `19313eed^`: `_Fixture` plus its `_git` helper and `IN_SCOPE` constant from `tests/test_begin_dirty_gate_scope.py`, `_ScopeOwnershipBase` plus `_commit_paths`/`_git_out` from `tests/test_finalize_scope_ownership.py`, and `_ExactAttributionBase` plus its `_commit_paths` from `tests/test_finalize_exact_attribution.py`. Rename colliding module-level helpers or constants (`_commit_paths`, `ACTOR`, `SCOPE`) with a per-source prefix only where the two sources differ; do not change any helper's behavior.
+  - Depends on: none
+  - Expected outcome: the module imports cleanly and defines the three fixture bases with no test methods yet.
+  - Execution state: pending
+
+- [ ] E-02 Add these eight test methods, bodies copied verbatim from `19313eed^` except for renamed helper references, each in a subclass of its source fixture base: `begin` = `IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn` and `NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline`; `_baseline_ambiguity` = `IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo` and `IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated`; `_execution_cohesive_committed_paths` = `NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set` and `NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position`; `finalize_precheck` = `FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly` and `ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded`. Every test calls `ipd_lifecycle` functions and asserts on exit codes, receipts, returned attribution objects or finalize output; none reads source.
+  - Depends on: E-01
+  - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py` reports 8 PASSED.
+  - Execution state: pending
+
+### Task group 2: prove the mutants die in the core tier
+
+- [ ] E-03 For each key K in (`begin`, `_baseline_ambiguity`, `_execution_cohesive_committed_paths`, `finalize_precheck`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/ipd_lifecycle.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in its own isolated worktree cut from HEAD, so the new file must be COMMITTED (step E-04 order: commit the test file first, then probe) or passed via `--extra-test`; prefer committing, so the probe measures the real tree. Record each `verdict:` and `mutant_failing:` line in Findings. If any key reports `survived`, add the next killing test for that key from its control file (the `newly_failing` lists in F-04's sources) and re-probe.
+  - Depends on: E-04
+  - Expected outcome: four `verdict: killed` lines under the full core selection.
+  - Execution state: pending
+
+- [ ] E-04 Commit `tests/test_ipd_lifecycle_restored_behavior.py` with `aw commit 2qlg0w -- tests/test_ipd_lifecycle_restored_behavior.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, with the new module's own durations from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_ipd_lifecycle_restored_behavior.py`.
+  - Depends on: E-02
+  - Expected outcome: bare run shows no failures and includes the 8 new tests; the new module's summed call time is a few seconds at most (F-05 measured per-test calls of about 0.5s to 0.7s).
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- TESTS MUST EXERCISE BEHAVIOR, NOT CODE STRUCTURE (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"): every restored test drives `ipd_lifecycle.begin`, `finalize_precheck` or the helpers on real throwaway git repos and asserts on results. The one `inspect`-based control test is excluded.
+- THE ROUTINE GATE IS THE CORE TIER: bare `python3 -m pytest` keeps only `core`-marked items (`conftest.pytest_collection_modifyitems`, IPD `hguae9`) under a 30s budget enforced by `conftest.pytest_sessionfinish`. Module-level `pytestmark = pytest.mark.core` applies to `unittest.TestCase` classes (`tests/test_engine_restored_behavior.py`, executed `33f8tn`).
+- Probe tool: `tools/mutation_probe.py` (`--op`, `--extra-test COMMIT:PATH`, selection after `--`) is the tool `wo21z5` and sibling plan `92tzo6` used, so verdicts are comparable.
+- Sibling precedent: executed `jy7439` restored a deleted module into the core tier with `pytestmark` and recorded its budget impact.
+- Commit only through `aw commit 2qlg0w -- <paths>`; never push.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| Id | Evidence | Finding |
+|---|---|---|
+| F-01 | `tools/mutation_probe.py --op return-none agent_workflows/ipd_lifecycle.py::<K> -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` at HEAD `5fc148a3` | `begin`: `verdict: survived`, `mutant_failing: 0` (220.93s). `_baseline_ambiguity`: `survived`, 0 (270.88s). `_execution_cohesive_committed_paths`: `survived`, 0 (287.69s). `finalize_precheck`: `survived`, 0 (440.73s). The merge gate does not guard any of the four keys. |
+| F-02 | bare `python3 -m pytest --collect-only` at HEAD `5fc148a3` | Core collects 1675 of 10225 tests; the only lifecycle-adjacent core files are `test_ipd_lint.py`, `test_ipd_schema.py`, `test_ipd_set_executor.py`, `test_lifecycle_fixtures.py`, `test_scope_match.py` and the like. `tests/test_ipd_lifecycle_cli.py`, `tests/test_finalize_*.py` and `tests/test_receipt_lane_record.py` carry no core marker. |
+| F-03 | same probe tool, non-core selection `-m "not slow and not livecorpus"` over `tests/test_receipt_lane_record.py tests/test_finalize_disregarded_record.py tests/test_finalize_trailer_attribution.py tests/test_finalize_empty_declared_scope.py tests/test_commit_scope_reason.py tests/test_finalize_sendback.py tests/test_finalize_stale_plan_path.py tests/test_finidem_reusable_not_finalized.py` | All four `killed` (`mutant_failing` 28, 28, 21, 25). The keys are guarded by the thorough tier, not by the core tier. The gap is core-tier reach only. |
+| F-04 | same probe tool with `--extra-test 19313eed:<control>` and two node ids per key (the E-02 pairs) | Every pair kills its key alone: `begin` killed 2 (20.88s), `_baseline_ambiguity` killed 2 (20.64s), `_execution_cohesive_committed_paths` killed 2 (20.58s), `finalize_precheck` killed 2 (15.21s). The whole control files kill 14, 15, 22 and 8 tests respectively. The `_baseline_ambiguity` pair used for F-04 was (`test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo`, `test_the_same_dirt_still_refuses_a_non_isolated_turn`); E-02 swaps the second for `test_unreadable_base_commit_is_still_refused_when_isolated` so no test is listed twice. That swap is untested at authoring, so E-03 re-probes, and its fallback re-adds the F-04 test if needed. |
+| F-05 | bare `python3 -m pytest` at HEAD `5fc148a3`; `-n0 --durations` over the three restored control files | Bare core: `1675 passed, 11 warnings in 91.54s` with `CORE TIER BUDGET EXCEEDED` already firing before any change (host load and pre-existing tests; not caused here). The three control files total 55 tests passing in 19.95s serial, per-test calls about 0.5s to 0.73s. Restoring all 55 into core would add about 20s CPU to an already over-budget tier; eight tests add about 5s CPU, spread over 6 workers. |
+| F-06 | `git show 19313eed^:tests/test_begin_dirty_gate_scope.py`, `RunnerDeclaresTheExecutionBaselineTests` | `test_driver_begin_accepts_the_isolated_declaration` uses `inspect.signature`, a code-structure pin; excluded. All other control tests call code and assert outcomes. |
+| F-07 | `.aw/records/backlog/open/20261018-trimgap-01-i2g20d-*.backlog.md` | Backlog `i2g20d` owns the `run_evidence.py` keys (`_porcelain_paths`, `dirty_within`, `get_git_head`) that share the `test_begin_dirty_gate_scope.py` control file; they are out of scope here so the two items do not double-restore. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01 creates the core-marked module with the three fixture bases mined from `19313eed^`.
+2. E-02 adds the eight behavioral tests, two per key.
+3. E-04 commits the module and checks the bare core gate and the module's cost.
+4. E-03 re-probes all four keys under the full core selection against the committed tree.
+
+## Deferred / out of scope (with reason)
+
+- Restoring the three control files whole (55 tests).
+  - Carrier-Declined: no work is owed; the item's remedy is behavioral coverage of four keys, which eight tests deliver (F-04), the full files remain killing in the thorough tier through existing modules (F-03), and the core tier is already over budget (F-05).
+- Core-marking existing lifecycle modules such as `tests/test_ipd_lifecycle_cli.py`.
+  - Carrier-Declined: no work is owed; marking whole existing modules core would add far more time than eight targeted tests and is a core-tier policy decision outside this item.
+- The `inspect`-based `test_driver_begin_accepts_the_isolated_declaration`.
+  - Carrier-Declined: no work is owed; it pins code structure, which `AGENTS.md` forbids restoring.
+
+## Scope check
+
+- Over-scope: none. Only the new test module is declared; no production file or existing test changes.
+- Under-scope: none. All four backlog keys get two killing tests (E-02) and a core-selection probe (E-03).
+
+## Required tests / validation
+
+- `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py`: 8 PASSED, per-test list pasted (E-02).
+- Four `tools/mutation_probe.py` runs under `-m "core and not slow and not livecorpus" tests/`, full `head`/`target`/`operator`/`selection`/`verdict`/`mutant_failing` output pasted, each `killed` (E-03).
+- Bare `python3 -m pytest` summary line and any budget block pasted, plus the module's `--durations=0` output (E-04).
+- `git diff --stat <base>..HEAD -- agent_workflows/` empty (no production change).
+
+## Spec / documentation sync
+
+N/A: tests only; no behavior, CLI surface or spec-described contract changes. No `.spec.md` is declared in Scope-Paths.
+
+## Open questions
+
+### OQ-01: Restore the control files whole, or a minimal killing subset?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: minimal subset. F-04 shows two tests per key kill each mutant; F-03 shows the remaining behaviors stay guarded outside core; F-05 shows core is already over its 30s budget, so adding 55 serial-git tests would worsen the merge gate for no additional key coverage. Sibling `92tzo6` applied the same no-redundant-tests reasoning.
+
+### OQ-02: Should E-03 probe the full core selection or only the new file?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: the full core selection (`-m core ... tests/`), because the item's gap is "the routine gate does not kill the mutant" (F-01), and only a probe over that exact selection proves it closed. It costs about 4 to 8 minutes per key (F-01 wall times), acceptable for a one-off verification.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the head of `tests/test_ipd_lifecycle_restored_behavior.py` showing the provenance docstring (naming `gcpj15`, `2qlg0w`, `19313eed^`) and `pytestmark = pytest.mark.core`; paste `grep -nE "inspect|getsource|ast\." tests/test_ipd_lifecycle_restored_behavior.py` returning nothing.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py` listing the eight named tests, each PASSED, and the `8 passed` summary line.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the full output of the four `tools/mutation_probe.py` runs (produced by the tool itself, E-03), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-04 commit or later, and `verdict: killed`; paste `git diff --stat <E-04 base>..HEAD -- agent_workflows/` showing no change.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste `git show --stat HEAD` (or the `aw commit` output) showing only `tests/test_ipd_lifecycle_restored_behavior.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim, and the `--durations=0` output for the new module.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execute only after human approval (`Status: approved`). Commit only `tests/test_ipd_lifecycle_restored_behavior.py` and this plan through `aw commit 2qlg0w -- <paths>`; never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
