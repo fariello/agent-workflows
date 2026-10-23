@@ -6,7 +6,8 @@
 - Scope: (a) record, from the authoring probes and an execution-HEAD re-probe, that `append_rename` and `record_rename` are already guarded by the core tier and owe no restored tests; (b) add `@pytest.mark.core` to the two fast unit tests `RecordRenameCaseTests.test_case1_id6_to_id6` and `RecordRenameCaseTests.test_case2_id6less_to_id6_keys_on_new_id6` in `tests/test_rename_ledger.py`, which each kill both the `_endpoint_id6` `return-none` mutant and the `record_rename` `raise` mutant on their own; (c) re-probe under `-m core` to prove the routine gate now kills them. EXCLUDES any production-code change; EXCLUDES writing new tests or restoring tests from `19313eed^` (the existing tests already kill every mutant); EXCLUDES other `record_history.py` keys not in this item; EXCLUDES changes to `tests/test_artifact_rename.py` (its tests do not kill the `_endpoint_id6` mutant, F-01, so core-marking them would add no protection).
 - Scope-Paths: tests/test_rename_ledger.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: hrz4cv
@@ -17,6 +18,7 @@
 - Id: r495ec
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (probe reads committed HEAD: commit before E-04), PR-002 (unsatisfiable 30s budget bar), PR-003 (head/baseline_failing evidence and base sha), PR-004 (execution contract) fixed; F-01..F-04 reproduced at 520f5006e (F-06)
 
 - 2026-10-23 to-review (opencode): authored from backlog `hrz4cv`. Probed all three keys at HEAD `303cd2fd1` against the control files, the narrowed core subset, and the whole core tier. Every mutant is killed by existing tests; only `_endpoint_id6` survives the core tier. The plan is a core-marking remedy plus disposition records, the same shape as sibling `di5puw`.
 - 2026-10-23 draft (opencode): created.
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: disposition of already-guarded keys
 
-- [ ] E-01 At execution HEAD, run `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and record in Findings that `append_rename` is guarded by the core tier and owes no restored tests. If the verdict is `survived` (meaning the existing core-marked `test_synthetic_key_only_via_case3_path` changed), record it as a DEFERRED gap and file a new backlog item rather than widening this plan.
+- [ ] E-01 At execution HEAD, first record `git rev-parse HEAD` as `<base>`, then run `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and record in Findings that `append_rename` is guarded by the core tier and owes no restored tests. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. If the verdict is `survived` (meaning the existing core-marked `test_synthetic_key_only_via_case3_path` changed), record it as a DEFERRED gap and file a new backlog item rather than widening this plan.
   - Depends on: none
-  - Expected outcome: `verdict: killed`, `mutant_failing` >= 1; disposition line written in Findings.
+  - Expected outcome: `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming a core-marked test (re-derive at execution; the count is not the bar); disposition line written in Findings.
   - Execution state: pending
 
 ### Task group 2: lock _endpoint_id6 and record_rename into the core tier
@@ -48,9 +50,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `git diff tests/test_rename_ledger.py` shows one added decorator line above `def test_case2_id6less_to_id6_keys_on_new_id6`.
   - Execution state: pending
 
-- [ ] E-04 Re-run `python3 tools/mutation_probe.py --op return-none agent_workflows/record_history.py::_endpoint_id6 -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::record_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py`, then run the bare routine gate `python3 -m pytest` to confirm the core tier still passes within its 30s budget. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified.
+- [ ] E-04 First commit the two decorator edits through `aw commit r495ec -- tests/test_rename_ledger.py` (`tools/mutation_probe.py` checks out committed `HEAD` into its own worktree via `git worktree add --detach <dir> HEAD`, so an uncommitted decorator is invisible to it and the probe would report `survived`; F-06). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites unrelated lines, `aw commit` re-stages and retries; record the extra hunks in V-04 as hook churn. Then run `python3 tools/mutation_probe.py --op return-none agent_workflows/record_history.py::_endpoint_id6 -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::record_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py`, then run the bare routine gate `python3 -m pytest`. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified; never hand-edit `agent_workflows/`.
   - Depends on: E-02, E-03
-  - Expected outcome: both probes print `verdict: killed` with `newly_failing` naming both `test_case1_id6_to_id6` and `test_case2_id6less_to_id6_keys_on_new_id6`; the bare gate summary shows no failures and no budget breach.
+  - Expected outcome: both probes print a `head:` equal to the E-04 commit, `baseline_failing: 0` and `verdict: killed`, with `newly_failing` naming both `test_case1_id6_to_id6` and `test_case2_id6less_to_id6_keys_on_new_id6` (each kills both mutants alone, F-04, F-06). The bare gate exits 0 with no failures. A core-tier wall-time overrun is reported verbatim, not a pass/fail bar for this plan, because the bare run already exceeded 30s on this host before this change (sibling `di5puw` F-04: 34.68s at `16d8abbb8`); it counts against this plan only if one of the two marked tests is among the printed slowest tests (F-04: the whole class runs in 0.23s).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -71,6 +73,7 @@ All probes run at HEAD `303cd2fd1` with `tools/mutation_probe.py`, baseline_fail
 | F-02 | `--op raise record_history.py::append_rename -- ... tests/test_rename_ledger.py`: `killed`, `mutant_failing: 9`; with `-m core`: `killed`, `mutant_failing: 1` (`AppendRenameUnitTests::test_synthetic_key_only_via_case3_path`, already `@pytest.mark.core`) | `append_rename` is already guarded by the core tier. No restoration or marking owed. |
 | F-03 | `--op raise record_history.py::record_rename -- ... tests/test_rename_ledger.py`: `killed`, `mutant_failing: 7`; with `-m core` on that file: `survived`, `mutant_failing: 0`; with `-n 6 -m core tests/`: `killed`, `mutant_failing: 4` (`test_artifact_rename::TestArtifactRename::test_rename_roadmaps` and three `test_spec_id6_filenames` tests), `wall_s: 414.58` | `record_rename` is already guarded by the whole core tier through CLI rename tests, so no restoration is owed. Its own unit-test file has no core-marked killer, which E-02/E-03 also fix as a side effect. |
 | F-04 | Probes of each op over only `RecordRenameCaseTests::test_case1_id6_to_id6` and only `::test_case2_id6less_to_id6_keys_on_new_id6`: `_endpoint_id6 return-none` killed (`mutant_failing: 1`) and `record_rename raise` killed (`mutant_failing: 1`) for each test; the whole `RecordRenameCaseTests` class runs `6 passed in 0.23s`, with no call above 0.03s | Each of the two chosen tests kills both mutants by itself, so marking both gives redundancy at negligible core-budget cost. |
+| F-06 | review at HEAD `520f5006e`, `tools/mutation_probe.py` (source: `git worktree add --detach ... HEAD`) | Probe reads committed HEAD only, so E-04 must follow a commit. Re-probes, all `baseline_failing: 0`: `_endpoint_id6 return-none -m core tests/test_rename_ledger.py` `survived` (0); `append_rename raise` same selection `killed` (1, `AppendRenameUnitTests::test_synthetic_key_only_via_case3_path`); `record_rename raise` same selection `survived` (0); `_endpoint_id6 return-none` and `record_rename raise` over only the two chosen test ids: each `killed`, `newly_failing` both tests. F-01 (file-level), F-02, F-03 (file-level) and F-04 reproduce; the whole-tier runs (about 7 min each) were not re-run. |
 | F-05 | `git show 19313eed^:tests/test_rename_ledger.py` test names (`test_write_and_read_back` through `test_dry_run_appends_nothing`) all exist in today's `tests/test_rename_ledger.py` | No deleted rename-ledger test remains to mine; the "restore" half of the remedy has nothing to restore. |
 
 ## Proposed changes (ordered, validatable)
@@ -98,9 +101,9 @@ All probes run at HEAD `303cd2fd1` with `tools/mutation_probe.py`, baseline_fail
 - E-01 probe output pasted (`verdict: killed` under `-m core`).
 - `git diff tests/test_rename_ledger.py` pasted, showing only the two decorator additions.
 - `python3 -m pytest -o addopts= -q -p no:randomly -m core --collect-only tests/test_rename_ledger.py` output listing both newly marked tests.
-- Both E-04 `tools/mutation_probe.py` outputs pasted in full (`head`/`target`/`operator`/`selection` with `-m core`/`verdict`/`newly_failing`).
-- Bare `python3 -m pytest` summary line pasted.
-- `git diff --stat agent_workflows/` empty.
+- The E-04 commit hash, and both E-04 `tools/mutation_probe.py` outputs pasted in full (`head` equal to that commit, `target`, `operator`, `selection` with `-m core`, `baseline_failing: 0`, `verdict`, `newly_failing`).
+- Bare `python3 -m pytest` summary line and exit status pasted, plus any `CORE TIER BUDGET EXCEEDED` block verbatim.
+- `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty.
 
 ## Spec / documentation sync
 
@@ -120,7 +123,7 @@ N/A: test tier markers only; no behavior, CLI surface, or spec-described contrac
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the full E-01 `tools/mutation_probe.py` output (produced by the tool in E-01) showing `selection:` containing `-m core`, `verdict: killed`, and `newly_failing` naming `test_synthetic_key_only_via_case3_path`; paste the Findings disposition line for `append_rename`.
+  - Required evidence: paste the full E-01 `tools/mutation_probe.py` output (produced by the tool in E-01) showing `head:`, `selection:` containing `-m core`, `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming a core-marked test (at authoring and review, `test_synthetic_key_only_via_case3_path`); paste the Findings disposition line for `append_rename`.
   - Observed evidence:
   - Result: pending
 
@@ -135,7 +138,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the full output of both E-04 `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each showing a `selection:` containing `-m core` and `verdict: killed` with both newly marked tests in `newly_failing`; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` and no core-budget failure; paste `git diff --stat agent_workflows/` showing no change.
+  - Required evidence: paste the E-04 commit hash (`aw commit` output); paste the full output of both E-04 `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each showing `head:` equal to that commit, a `selection:` containing `-m core`, `baseline_failing: 0`, and `verdict: killed` with both newly marked tests in `newly_failing`; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (an overrun not attributable to the two marked tests is reported, not failed); paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
   - Result: pending
 
@@ -144,4 +147,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit only `tests/test_rename_ledger.py` and this plan through `aw commit r495ec -- <paths>`; never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Commit only files you changed, through `aw commit r495ec -- tests/test_rename_ledger.py` (plus this plan when recording evidence); verify `git diff --cached --name-only`; never `git add -A`; never push. You MUST paste the ACTUAL probe and runner output into each `V-*`; never claim a mutant was killed or a test passed that you did not run. Mutation checks use `tools/mutation_probe.py` only, after the E-04 commit; no production file under `agent_workflows/` may change. Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and justified (`aw ipd finalize` requires `--scope-reason` per out-of-scope path and `--scope-ack` per declared-but-unmodified path). Lifecycle: after every V-item is `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize r495ec` itself.
