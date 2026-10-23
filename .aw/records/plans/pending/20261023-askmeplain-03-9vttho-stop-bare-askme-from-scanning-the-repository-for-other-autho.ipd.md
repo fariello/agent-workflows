@@ -12,7 +12,7 @@
 - Priority: high
 - Set: askmeplain
 - Order: 3
-- Highest E allocated: 01
+- Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9vttho
 
