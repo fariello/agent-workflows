@@ -6,7 +6,8 @@
 - Scope: Add ONE new core-marked test module, `tests/test_benchmark_residual_payloads.py`, that calls the three keys through their public objects (`AblationScheduler.generate_schedule` and `AblationTrialSpec`, `compute_aggregate_metrics`, `GateEvaluationResult`) and asserts on the returned tuple and dicts, then probes each key under the core selection. EXCLUDES any production-code change; EXCLUDES the other benchmark keys owned by sibling items (`BenchmarkManifest.to_dict` is guarded by core, F-01 of plan `e6lq6y`; the digest keys are owned by plan `ya0h23`; `TrialResult.to_dict` and `RunnerAdapter.adapter_digest` belong to backlog `l9ssp6`).
 - Scope-Paths: tests/test_benchmark_residual_payloads.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: nzc6dm
@@ -17,6 +18,7 @@
 - Id: 1z19cn
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, E-04 commit/parent recorded, two-architectures-per-cell assertion); F-03/F-04 reproduced at 72da75876
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 26, 28, 29). Measured core reach at HEAD `6c0a6b72a` (all three unreached) and probed all three against their surviving non-core file (all `survived`) before writing expected outcomes.
 - 2026-10-23 draft (opencode): created.
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the new core-tier module
 
-- [ ] E-01 Create `tests/test_benchmark_residual_payloads.py` with a provenance docstring naming backlog `nzc6dm`, plan `1z19cn` and findings `wo21z5`, `import pytest`, module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`), and a `CellKeyTests` class. Build `benchmark_runners.ModelProfile(model_id="m1", reasoning_effort="high", display_name="M", vendor="v")` and `benchmark_ablations.AblationScheduler(task_seeds=["t1"], model_profiles=[mp], hosts=["opencode"], architectures=[ARCH_MONOLITH, ARCH_MODULAR], trial_count=2, timeout_seconds=60.0, random_seed=7)`. Assert: `generate_schedule()` returns 4 specs; the set of their `cell_key` values is exactly `{("t1","m1","high","opencode",1), ("t1","m1","high","opencode",2)}` (two architectures share each cell, which is the property the key exists for); and a single `AblationTrialSpec` built directly with `trial=2` has `cell_key == ("t1","m1","high","opencode",2)`.
+- [ ] E-01 Create `tests/test_benchmark_residual_payloads.py` with a provenance docstring naming backlog `nzc6dm`, plan `1z19cn` and findings `wo21z5`, `import pytest`, module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`), and a `CellKeyTests` class. Build `benchmark_runners.ModelProfile(model_id="m1", reasoning_effort="high", display_name="M", vendor="v")` and `benchmark_ablations.AblationScheduler(task_seeds=["t1"], model_profiles=[mp], hosts=["opencode"], architectures=[ARCH_MONOLITH, ARCH_MODULAR], trial_count=2, timeout_seconds=60.0, random_seed=7)`. Assert: `generate_schedule()` returns 4 specs; the set of their `cell_key` values is exactly `{("t1","m1","high","opencode",1), ("t1","m1","high","opencode",2)}` ; each of those two keys is carried by exactly two specs whose `ablation_config.architecture` values are `{ARCH_MONOLITH, ARCH_MODULAR}` (two architectures share each cell, which is the property the key exists for, and is what the paired-delta grouping relies on); and a single `AblationTrialSpec` built directly with `trial=2` has `cell_key == ("t1","m1","high","opencode",2)`.
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_benchmark_residual_payloads.py` shows the `CellKeyTests` tests PASSED (values measured at authoring, F-04).
   - Execution state: pending
@@ -48,7 +50,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: commit and prove the mutants die in core
 
-- [ ] E-04 Commit the module with `aw commit 1z19cn -- tests/test_benchmark_residual_payloads.py`, then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_benchmark_residual_payloads.py` for the module's own cost.
+- [ ] E-04 Commit the module with `aw commit 1z19cn -- tests/test_benchmark_residual_payloads.py` and record the resulting commit hash as `<E-04 commit>` (its parent is `<E-04 parent>`, used by V-05), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_benchmark_residual_payloads.py` for the module's own cost.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: bare run shows no failures and includes the new tests; the module's own call time is well under one second (pure in-memory calls).
   - Execution state: pending
@@ -120,7 +122,7 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the head of `tests/test_benchmark_residual_payloads.py` showing the provenance docstring (naming `nzc6dm`, `1z19cn`, `wo21z5`) and `pytestmark = pytest.mark.core`; paste the `-v` lines for every `CellKeyTests` test, each PASSED; paste `grep -nE "inspect|getsource|ast\." tests/test_benchmark_residual_payloads.py` returning nothing.
+  - Required evidence: paste the head of `tests/test_benchmark_residual_payloads.py` showing the provenance docstring (naming `nzc6dm`, `1z19cn`, `wo21z5`) and `pytestmark = pytest.mark.core`; paste the `-v` lines for every `CellKeyTests` test, each PASSED, and the test body lines asserting the cell-key set, the two-architectures-per-cell property, and the direct `trial=2` key; paste `grep -nE "inspect|getsource|ast\." tests/test_benchmark_residual_payloads.py` returning nothing.
   - Observed evidence:
   - Result: pending
 
@@ -140,7 +142,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the three JSON outputs produced by `tools/mutation_probe.py` (E-05), each with `head` equal to the E-04 commit or later, a selection containing `-m core tests/test_benchmark_residual_payloads.py`, `verdict: killed` and `baseline_failing: 0`; paste `git diff --stat <E-04 parent>..HEAD -- agent_workflows/` showing no change.
+  - Required evidence: paste the recorded `<E-04 commit>` and `<E-04 parent>` hashes; paste the three JSON outputs produced by `tools/mutation_probe.py` (E-05), each with `head` equal to the E-04 commit or later, a selection containing `-m core tests/test_benchmark_residual_payloads.py`, `verdict: killed` and `baseline_failing: 0`; paste `git diff --stat <E-04 parent>..HEAD -- agent_workflows/` showing no change.
   - Observed evidence:
   - Result: pending
 
@@ -149,4 +151,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after explicit human approval (`Status: approved`). Execution contract: all open questions are resolved. SCOPE FENCE: `tests/test_benchmark_residual_payloads.py` only; do not expand scope casually; if the work genuinely requires a file outside the fence, make the edit and JUSTIFY it in the two-way scope reconciliation at finalize. Commit through `aw commit 1z19cn -- tests/test_benchmark_residual_payloads.py`, never push, never `git add -A`, and paste actual runner output for every `V-*`. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`.
+Execute only after explicit human approval (`Status: approved`); every open question is resolved. Scope fence: `- Scope-Paths:` (`tests/test_benchmark_residual_payloads.py`) is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and then justified (`aw ipd finalize` requires a `--scope-reason` per out-of-scope path). No production file under `agent_workflows/` may change. Commit only files you changed, through `aw commit 1z19cn -- tests/test_benchmark_residual_payloads.py` (plus this plan when recording evidence); never `git add -A`, never push. You MUST paste the ACTUAL runner and probe output into each `V-*`; never claim a test passed or a mutant was killed that you did not run. Lifecycle: after every `V-*` reads `Result: pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`; under `aw oc run` / `aw agy run` the runner performs that transition, and only an executor running by hand invokes `aw ipd finalize 1z19cn` itself.
