@@ -6,7 +6,8 @@
 - Scope: Add ONE new core-marked test module, `tests/test_config_review_findings_gate.py`, holding direct behavioral tests that call `config.read_review_findings_gate` and `config.findings_gate_threshold` on isolated temp repos with varied `project.json` contents and assert the returned values (F-04 prototype). Then re-probe both keys under the full core selection. EXCLUDES any production-code change; EXCLUDES core-marking or editing `tests/test_plan_readiness_recheck.py` (it does not kill `read_review_findings_gate` anyway, F-02); EXCLUDES restoring `tests/test_review_findings_gate.py` (owned by sibling plan `p79jts`, F-05).
 - Scope-Paths: tests/test_config_review_findings_gate.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: yvmxs9
@@ -17,6 +18,7 @@
 - Id: f6el0l
 
 ## Workflow history
+- 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (kill attribution to new module via newly_failing), PR-002 (budget overrun reported not failed), PR-003 (AW_HOME fallback note for missing-file case), PR-004 (execution contract) fixed; E-01 rows reproduced at 306ad1182 (F-07)
 
 - 2026-10-23 to-review (opencode): authored from backlog `yvmxs9`. Probed both keys at HEAD `18eca2f15` under `-m core` (both `survived`) and under the restored control file `tests/test_plan_readiness_recheck.py` (`findings_gate_threshold` killed 7, `read_review_findings_gate` survived 0); prototyped four direct tests in a scratch file that failed under each key's monkeypatched `return-none` mutant and then deleted it.
 - 2026-10-23 draft (opencode): created.
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: add the core-tier module
 
-- [ ] E-01 Create `tests/test_config_review_findings_gate.py` with a provenance docstring naming backlog `yvmxs9`, plan `f6el0l`, findings `wo21z5` and the control file `tests/test_plan_readiness_recheck.py`; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); a helper that builds an isolated `tempfile.TemporaryDirectory` repo with `.aw/config/project.json` holding a given payload (or no file at all), cleaned up per test. Add these `unittest.TestCase` tests, each calling the function and asserting on its return value: (a) `read_review_findings_gate` returns the object unchanged for `{"review_findings_gate": {"block_at": "medium"}}`; (b) it normalizes a bare string `"  off "` to `{"block_at": "off"}`; (c) it returns None for a missing file, unparseable JSON, a non-object top level, and an absent key; (d) `findings_gate_threshold` returns, row by row with the row in the failure message: `medium` for `block_at: medium`, `blocker` for `" BLOCKER "`, `off` for `off`, `medium` for the bare-string form, and the fail-closed `high` for an absent file, an absent key, a typo `hgih`, and a non-string value `3`. Never read this repository's live `.aw/config/project.json`.
+- [ ] E-01 Create `tests/test_config_review_findings_gate.py` with a provenance docstring naming backlog `yvmxs9`, plan `f6el0l`, findings `wo21z5` and the control file `tests/test_plan_readiness_recheck.py`; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); a helper that builds an isolated `tempfile.TemporaryDirectory` repo with `.aw/config/project.json` holding a given payload (or no file at all), cleaned up per test. Add these `unittest.TestCase` tests, each calling the function and asserting on its return value: (a) `read_review_findings_gate` returns the object unchanged for `{"review_findings_gate": {"block_at": "medium"}}`; (b) it normalizes a bare string `"  off "` to `{"block_at": "off"}`; (c) it returns None for a missing file, unparseable JSON, a non-object top level, and an absent key; (d) `findings_gate_threshold` returns, row by row with the row in the failure message: `medium` for `block_at: medium`, `blocker` for `" BLOCKER "`, `off` for `off`, `medium` for the bare-string form, and the fail-closed `high` for an absent file, an absent key, a typo `hgih`, and a non-string value `3`. Never read this repository's live `.aw/config/project.json`. Note for case (c) "missing file": `project_context.project_config_dir` falls back to `<AW_HOME>/projects/<id>/config/project.json` when the temp repo has no in-tree config, so the test relies on the root `conftest.py` home-isolation fixture ("Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test"); do not set `AW_HOME` to a real home. All listed return values were re-measured by direct call at review HEAD `306ad1182` (F-07).
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_config_review_findings_gate.py` reports every test PASSED in well under a second (F-04 prototype: `4 passed in 0.23s`).
   - Execution state: pending
@@ -40,12 +42,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Commit the module with `aw commit f6el0l -- tests/test_config_review_findings_gate.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, plus the module's own cost from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_config_review_findings_gate.py`.
   - Depends on: E-01
-  - Expected outcome: bare run shows no failures and includes the new tests; the new module's summed call time is well under one second.
+  - Expected outcome: bare run reports no failed tests and includes the new tests; the new module's summed call time is well under one second. A core-tier wall-time overrun is recorded verbatim, not treated as a failure of this plan: the bare run already measured `1675 passed, 11 warnings in 34.68s` (over the 30s budget) at HEAD `16d8abbb8` before this plan (F-07).
   - Execution state: pending
 
-- [ ] E-03 For each key K in (`read_review_findings_gate`, `findings_gate_threshold`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/config.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so it only sees the committed module (that is why E-02 commits first). Record each `head:`, `verdict:` and `mutant_failing:` line in Findings. If a key reports `survived`, add the missing assertion to the module for that key, re-commit through `aw commit f6el0l`, and re-probe.
+- [ ] E-03 For each key K in (`read_review_findings_gate`, `findings_gate_threshold`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/config.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so it only sees the committed module (that is why E-02 commits first). Record each `head:`, `verdict:`, `baseline_failing:`, `mutant_failing:` and `newly_failing` block in Findings. If a key reports `survived`, add the missing assertion to the module for that key, re-commit through `aw commit f6el0l`, and re-probe.
   - Depends on: E-02
-  - Expected outcome: two `verdict: killed` lines under the full core selection, each with `head:` at or after the E-02 commit.
+  - Expected outcome: two `verdict: killed` lines under the full core selection, each with `head:` at or after the E-02 commit and a `newly_failing` list that includes at least one test id from `tests/test_config_review_findings_gate.py` (so the kill is attributable to this module, not only to another core test such as a sibling's; re-derive at execution, the count is not the bar).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -67,6 +69,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | scratch prototype `tests/scratch_yvmxs9_proto.py` (four tests: object read, bare-string read, absent/unparseable read, threshold row matrix), run in-process with each function replaced by `lambda *a, **k: None`; file deleted afterwards | Baseline: `4 passed in 0.23s`, `failing 0 of 4`. `read_review_findings_gate` mutant: `failing 3 of 4`. `findings_gate_threshold` mutant: `failing 1 of 4`. The probe tool itself could not see the uncommitted scratch file (its worktree is cut from HEAD; both runs reported `survived`, `mutant_failing: 0`), which is why E-02 commits before E-03 probes. |
 | F-05 | `.aw/records/plans/pending/20261023-trimgap-27-p79jts-*.ipd.md` | Sibling `p79jts` (backlog `lzg859`) restores `tests/test_review_findings_gate.py` with `GateOutcomeTests` core-marked; its threshold rows also exercise `findings_gate_threshold` end to end. It is pending, not executed, and does not target either config key, so this plan does not depend on it and does not touch its file. The overlap is two independent guards at different layers (pure config reader here, rule wiring there). |
 | F-06 | `wo21z5` `## Budget probe results` rows for both keys | Both rows: `budget-exhausted`, "budget exhausted at 10845.88s", wall 0.00; the verdicts in F-01 are the first actual measurement. |
+| F-07 | review at HEAD `306ad1182`: direct calls of `config.read_review_findings_gate` / `config.findings_gate_threshold` on temp repos; `project_context.project_config_dir` rules; bare `python3 -m pytest` at `16d8abbb8` | Every E-01 row reproduces: object -> unchanged/`medium`; `"  off "` -> `{'block_at': 'off'}`/`off`; missing file, `{not json`, `[1]`, `{}` -> `None`/`high`; `" BLOCKER "` -> `blocker`; `hgih` and `3` -> `high`; bare `"medium"` -> `medium`. No test calls either function directly (F-03 holds). Missing in-tree config falls back to the AW_HOME home config, which the root `conftest.py` sandboxes. Bare run: `1675 passed, 11 warnings in 34.68s`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -90,8 +93,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m pytest -o addopts="" -v tests/test_config_review_findings_gate.py`: all PASSED, per-test list pasted (E-01).
 - Bare `python3 -m pytest` summary line and any budget block pasted, plus the module's `--durations=0` output (E-02).
-- Two `tools/mutation_probe.py` runs under `-m "core and not slow and not livecorpus" tests/`, full `head`/`target`/`operator`/`selection`/`verdict`/`mutant_failing` output pasted, each `killed` (E-03).
-- `git diff --stat <base>..HEAD -- agent_workflows/` empty (no production change).
+- Two `tools/mutation_probe.py` runs under `-m "core and not slow and not livecorpus" tests/`, full `head`/`target`/`operator`/`selection`/`verdict`/`baseline_failing`/`mutant_failing`/`newly_failing` output pasted, each `killed` with a `newly_failing` entry from the new module (E-03).
+- `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/` both empty (no production change), where `<base>` is HEAD before execution.
 
 ## Spec / documentation sync
 
@@ -123,12 +126,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `aw commit` output or `git show --stat HEAD` showing only `tests/test_config_review_findings_gate.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim, and the `--durations=0` output for the new module.
+  - Required evidence: paste the `aw commit` output or `git show --stat HEAD` showing only `tests/test_config_review_findings_gate.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim (reported, not a failure of this plan), and the `--durations=0` output for the new module.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the full output of the two `tools/mutation_probe.py` runs (produced by the tool itself in E-03), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-02 commit or later, and `verdict: killed`; paste `git diff --stat <E-02 base>..HEAD -- agent_workflows/` showing no change.
+  - Required evidence: paste the full output of the two `tools/mutation_probe.py` runs (produced by the tool itself in E-03), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-02 commit or later, `verdict: killed`, and a `newly_failing` list including at least one `tests/test_config_review_findings_gate.py` test id; paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
   - Result: pending
 
@@ -137,4 +140,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`). Commit only `tests/test_config_review_findings_gate.py` and this plan through `aw commit f6el0l -- <paths>`; never push. Move the plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after explicit human approval (`Status: approved`).
+
+Execution contract:
+- All open questions are resolved (OQ-01, OQ-02).
+- Scope fence: `- Scope-Paths:` is a declaration, not a stop condition. An out-of-scope edit that proves necessary is made and then justified at finalize (`--scope-reason` per out-of-scope path, `--scope-ack` per declared-but-unmodified path).
+- You MUST paste the ACTUAL command, runner, and probe output into each `V-*` Observed evidence; never claim a test passed or a mutant was killed that you did not run.
+- Mutation checks use `tools/mutation_probe.py` only, after the E-02 commit; never hand-edit `agent_workflows/`.
+- Commit only files you changed, through `aw commit f6el0l -- tests/test_config_review_findings_gate.py` (plus this plan when recording evidence); verify `git diff --cached --name-only`; never `git add -A`; never push.
+- Lifecycle: after every `V-*` reads `pass` and `aw ipd lint --phase pre-transition` conforms, the plan reaches `.aw/records/plans/executed/` only through `aw ipd finalize`, never a hand `git mv`. Under `aw oc run` / `aw agy run` the runner performs that transition; only an executor running by hand invokes `aw ipd finalize f6el0l` itself.
