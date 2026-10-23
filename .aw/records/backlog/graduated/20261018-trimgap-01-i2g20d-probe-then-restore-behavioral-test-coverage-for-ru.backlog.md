@@ -1,11 +1,13 @@
 - Id: i2g20d
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Probe then restore behavioral test coverage for run_evidence
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175028Z-1384849: s461lz
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for run_evidence
 
 Carries 4 candidate production keys for agent_workflows/run_evidence.py with remedy shape 'probe then restore'.
