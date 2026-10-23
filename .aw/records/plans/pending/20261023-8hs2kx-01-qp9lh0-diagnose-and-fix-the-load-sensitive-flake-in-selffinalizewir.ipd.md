@@ -6,7 +6,8 @@
 - Scope: Reproduce the failure under load and capture its full traceback; make the test's ordering assertion self-diagnosing so any future failure records WHY `run_opencode` was not reached; fix the root cause if the reproduction identifies one. Edits are confined to `tests/test_oc_runipd.py` unless the reproduction proves a production defect (see Scope check).
 - Scope-Paths: tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: 8hs2kx
@@ -17,6 +18,7 @@
 - Id: qp9lh0
 
 ## Workflow history
+- 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
 - 2026-10-23 draft (opencode): created.
 - 2026-10-23 to-review (opencode): authored from backlog 8hs2kx with findings, checklist, and validation.
@@ -31,24 +33,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce and make the failure self-diagnosing
 
-- [ ] E-01 Attempt a bounded reproduction under load and capture the full failure output. Run the same 7-module set `h8peam` E-05 ran (`tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`) with the default `addopts` (xdist + pytest-randomly) and `-p randomly --randomly-seed=<n>` for at least 5 distinct seeds, plus at least 50 isolated iterations of the single node in a shell loop while that module set runs concurrently in a second process to supply load. Record every seed and outcome, and for any failure save the complete assertion message and traceback (`-o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` keeps the summary line visible).
+- [ ] E-01 Attempt a bounded reproduction under load and capture the full failure output. Run the same 7-module set `h8peam` E-05 ran (`tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`) with the default `addopts` (xdist + pytest-randomly) and `-p randomly --randomly-seed=<n>` for at least 5 distinct seeds, plus at least 50 isolated iterations of the single node in a shell loop while that module set runs concurrently in a second process to supply load. Record every seed and outcome, and for any failure save the complete assertion message, traceback AND pytest's "Captured stderr call" section (`execute_item_core` prints each gate's refusal, for example "begin refused (no execution authority); not launching", to stderr, so that section may name the cause even before E-02 lands); `-o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` keeps the summary line visible. Also record, once per session, the ambient `AW_*` environment (`env | grep '^AW_'`) and `uptime` load average, since F-4 names ambient environment and load as candidate causes. Write the raw logs under `/tmp/opencode/qp9lh0/` (never committed). Bound: stop after the attempts above (5 seeded module-set runs plus 50 loaded single-node iterations) or at the first reproduction, whichever comes first; do not extend the hunt beyond that without recording why.
   - Depends on: none
   - Expected outcome: a table of attempts (seed, command, result) and either the captured traceback of at least one reproduction or an explicit "not reproduced in N attempts" statement.
   - Execution state: pending
 
-- [ ] E-02 In `tests/test_oc_runipd.py` `SelfFinalizeWiringTests.test_begin_precedes_run_opencode_on_success`, replace the bare `self.assertEqual(order[:2], ["begin", "run"])` with the same equality assertion carrying a `msg=` that reports the observed `order` list, `item["status"]`, the last attempt's `disposition`, and any refusal/gate field present on the item (`begin_refusal`, `clean_base_refusal`, `scope_target_refusal`, `refusal`, `worktree_error`). The asserted property is unchanged; only the failure message gains the state that explains which gate in `runner_shared.execute_item_core` stopped the turn before `run_opencode`.
+- [ ] E-02 In `tests/test_oc_runipd.py` `SelfFinalizeWiringTests.test_begin_precedes_run_opencode_on_success`, replace the bare `self.assertEqual(order[:2], ["begin", "run"])` with the same equality assertion carrying a `msg=` that reports the observed `order` list, `item["status"]`, the last attempt's `disposition`, any refusal/gate field present on the item (`begin_refusal`, `clean_base_refusal`, `scope_target_refusal`, `refusal`, `worktree_error`), the last attempt dict's gate keys (`host_capability_unavailable`, `scope_target_refused`, `clean_base_refused`, `begin_refused`), and the last few `event` names from `run_dir / "events.jsonl"` when that file exists (the gates append `ipd-begin-refused` and similar records there). Build the message in a small local helper inside the test so a missing key or file reads as absent rather than raising. A tool-identity mismatch (`runner_shared.assert_child_tool_identity` raising `ToolIdentityError`) propagates out of `driver.execute_item` as an exception with its own traceback, so it needs no message field. The asserted property is unchanged; only the failure message gains the state that explains which gate in `runner_shared.execute_item_core` stopped the turn before `run_opencode`.
   - Depends on: E-01
   - Expected outcome: the test still passes, and a deliberately injected refusal (for example a temporary local patch making the patched `driver_begin` return `(1, "x")`, NOT committed) produces a failure message naming the status and refusal field.
   - Execution state: pending
 
-- [ ] E-03 Resolve the root cause. If E-01 reproduced the failure, fix the cause it identifies with the smallest change that preserves the test's behavioral assertion (for a test-side cause, in `tests/test_oc_runipd.py`, for example an unpatched gate or shared module state leaking between tests; for a production cause, in the module the traceback names, recorded as an out-of-scope path with its reason per the Scope check). If E-01 did not reproduce, record in Findings that the cause remains unknown, that E-02 is the shipped mitigation, and do not invent a mechanism.
+- [ ] E-03 Resolve the root cause. If E-01 reproduced the failure, fix the cause it identifies with the smallest change that preserves the test's behavioral assertion (for a test-side cause, in `tests/test_oc_runipd.py`, for example an unpatched gate or shared module state leaking between tests; for a production cause, in the module the traceback names, recorded as an out-of-scope path with its reason per the Scope check). If the reproduction shows several sibling tests in `SelfFinalizeWiringTests` share the cause, apply the same fix to them here. If E-01 did not reproduce, record in Findings that the cause remains unknown, that E-02 is the shipped mitigation, and do not invent a mechanism.
   - Depends on: E-01, E-02
   - Expected outcome: either a diff fixing the identified cause with a written cause statement, or a written "cause unknown, not reproduced in N attempts" finding.
   - Execution state: pending
 
 ### Task group 2: Validation runs
 
-- [ ] E-04 Run the validation set: the `SelfFinalizeWiringTests` class; `tests/test_oc_runipd.py` under 3 fixed seeds; the 7-module set from E-01 three times; the bare core suite `python3 -m pytest`; and `aw sanitize --agent`.
+- [ ] E-04 Run the validation set: the `SelfFinalizeWiringTests` class; `tests/test_oc_runipd.py` under seeds 1, 2 and 3 (`-p randomly --randomly-seed=<n>`), plus any seed that reproduced the failure in E-01; the 7-module set from E-01 three times; the bare core suite `python3 -m pytest`; and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: every run reports zero failures and zero errors; sanitizer exit 0.
   - Execution state: pending
@@ -84,12 +86,12 @@ None outstanding. Rejected options, recorded as decisions rather than deferred w
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: if E-01 shows a production defect (for example a gate in `runner_shared.execute_item_core` that is genuinely load-sensitive), the fix lives outside `- Scope-Paths:`. `- Scope-Paths:` is a declaration, not a stop condition: make the fix and justify the path with `--scope-reason` at finalize. If that fix changes behavior a spec describes, stop and file a corrective plan instead, because this plan declares no spec edit.
+- Under-scope: if E-01 shows a production defect (for example a gate in `runner_shared.execute_item_core` that is genuinely load-sensitive), the fix lives outside `- Scope-Paths:`. `- Scope-Paths:` is a declaration, not a stop condition: make the fix and justify the path with `--scope-reason` at finalize. If that fix would change behavior a spec describes, do not make it in this plan (it declares no spec edit): ship E-02, record the cause and the proposed fix as a `proposal` in the outcome file (or a backlog item filed with `aw backlog new` when executing by hand), mark E-03 `blocked` with that reason, and finish the remaining independent work.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" "tests/test_oc_runipd.py::SelfFinalizeWiringTests"` passes.
-- `python3 -m pytest tests/test_oc_runipd.py -p randomly --randomly-seed=<n>` for 3 seeds passes.
+- `python3 -m pytest tests/test_oc_runipd.py -p randomly --randomly-seed=<n>` for seeds 1, 2, 3 (and any reproducing seed from E-01) passes.
 - The 7-module set from E-01 passes three consecutive times.
 - Bare `python3 -m pytest` passes.
 - `aw sanitize --agent` exits 0.
@@ -112,12 +114,12 @@ N/A: the change is test-only (or, per Scope check, a production fix that changes
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the attempt table (seed, exact command, pytest summary line for each run, loop iteration count and pass/fail tally) and, if any run failed, the complete pasted assertion message and traceback; otherwise the literal statement "not reproduced in N attempts" with N.
+  - Required evidence: paste the attempt table (seed, exact command, pytest summary line for each run, loop iteration count and pass/fail tally), the recorded `AW_*` environment and load average, and, if any run failed, the complete pasted assertion message, traceback and "Captured stderr call" section; otherwise the literal statement "not reproduced in N attempts" with N.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste the `git diff tests/test_oc_runipd.py` hunk showing the assertion still compares `order[:2]` to `["begin", "run"]` and now carries a `msg=` with order, status, disposition and refusal fields; paste the failure output from the temporary injected-refusal run (produced by E-02's uncommitted local patch) showing the message names `fail-begin` and `begin_refusal`; paste `git diff --stat` after reverting that patch showing only the intended hunk remains.
+  - Required evidence: paste the `git diff tests/test_oc_runipd.py` hunk showing the assertion still compares `order[:2]` to `["begin", "run"]` and now carries a `msg=` with order, status, disposition and refusal fields; paste the failure output from the temporary injected-refusal run (produced by E-02's uncommitted local patch) showing the message names `fail-begin`, `begin_refusal` and the `ipd-begin-refused` event; paste `git diff --stat` after reverting that patch showing only the intended hunk remains.
   - Observed evidence:
   - Result: pending
 
