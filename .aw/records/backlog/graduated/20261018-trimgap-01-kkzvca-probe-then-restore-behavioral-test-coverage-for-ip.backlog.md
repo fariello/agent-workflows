@@ -1,11 +1,13 @@
 - Id: kkzvca
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Probe then restore behavioral test coverage for ipd_lint
 
 ## Workflow history
+- 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: 3wkrng
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for ipd_lint
 
 Carries 2 candidate production keys for agent_workflows/ipd_lint.py with remedy shape 'probe then restore'.
