@@ -6,7 +6,8 @@
 - Scope: Record the reviewed plan's normalized `- Readiness:` value on every review attempt (a small, isolated run-record addition that the prompt's Section 2 allows), carry it through the attempt facts, the `aw runs query` allowlists, the `experiment` view and the dashboard, document it plus the Q9 missing data in `docs/run-analytics.md`, file the Section 5 report as a research findings document, and transition prompt `okj4bg` to `executed`. EXCLUDES recording review steps (owned by spec `k3yx72` Section 15 Order 04, which builds the multi-prompt review); EXCLUDES any price table or cost estimate for Antigravity; EXCLUDES the run grain (`run_analytics.PRODUCER_METRIC_KEYS`), which the attempt-grain views do not read; EXCLUDES spec reviews (a spec has no `- Readiness:`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_dashboard.py, agent_workflows/run_analytics_attempts.py, agent_workflows/run_dashboard_assets/dashboard.js, docs/run-analytics.md, CHANGELOG.md, tests/test_run_analytics_review_cost.py, .aw/records/prompts/**/*okj4bg-runs-analyze-review-cost.prompt.md, .aw/records/research/**/*-revcost-*.findings.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: high
 - From-Backlog: i2i81x
@@ -17,6 +18,7 @@
 - Id: avg8qv
 
 ## Workflow history
+- 2026-10-23 reviewed (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 to PR-009 fixed (review record .aw/records/reviews/20261023-revcost-01-avg8qv-record-review-readiness-on-review-attempts-and-close-the-okj.review.md)
 - 2026-10-23 to-review (aw set): authored from backlog i2i81x; Q1-Q7 already shipped in 131c9470d, this plan closes Q8 readiness, lists Q9 missing data, and files the okj4bg Section 5 report
 
 - 2026-10-23 draft (opencode): created.
@@ -31,36 +33,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: record Readiness on review attempts
 
-- [ ] E-01 In `runner_shared.execute_item_core`, immediately after the line `disposition, outcome = reconcile_disposition(` returns, when `is_review` is true and `queue_entry_type(item) == "ipd"`, read the plan through `queue_artifact_path(Path(work_dir) if work_dir else repo, item)` and store `attempt["review_readiness"] = ipd_schema.read_readiness(text)` (one of `go`, `go-pending-approval`, `no-go`, or `None`). Wrap the read in `try/except (OSError, DriverError)` that stores `None`, so an unreadable plan never changes the disposition. Do not write anything to the plan; this reads the field `/plan-review` wrote.
+- [ ] E-01 In `runner_shared.execute_item_core`, immediately after the call `disposition, outcome = reconcile_disposition(` (the one passing `plan_repo=Path(work_dir) if work_dir else None`) returns, when `is_review` is true and `queue_entry_type(item) == "ipd"`, read the plan through `queue_artifact_path(Path(work_dir) if work_dir else repo, item)` (the same tree `reconcile_disposition` reads, `plan_repo or repo`) and store `attempt["review_readiness"] = _schema.read_readiness(text)` (one of `go`, `go-pending-approval`, `no-go`, or `None`), importing locally as `from agent_workflows import ipd_schema as _schema` the way the module's other call sites do. Wrap the path resolution and `read_text` in `try/except (OSError, UnicodeDecodeError, DriverError)` that stores `None`, so an unreadable plan never changes the disposition. Do not write anything to the plan; this reads the field `/plan-review` wrote. The value is recorded whatever the disposition (a later `fail-gate`, for example from the silent-turn gate, keeps it); consumers read it beside `disposition`. Turns that return before `reconcile_disposition` (spawn failure, interruption, deliberate stop) do not reach this line and carry no key.
   - Depends on: none
-  - Expected outcome: a review attempt record in `state.json` carries `review_readiness`; non-review and spec-review attempts do not carry the key.
+  - Expected outcome: a plan-review attempt that reaches `reconcile_disposition` carries `review_readiness` in `state.json` on both hosts (the code is shared through `execute_item_core`); execute, plan and spec-review attempts do not carry the key.
   - Execution state: pending
 
-- [ ] E-02 Add a test class `ReviewReadinessRecordingTests` to `tests/test_run_analytics_review_cost.py` that drives `oc_runipd.execute_item` for a review item with `run_opencode` patched (the pattern of `tests/test_rereview_reviewed_plan.py::test_execute_item_core_rereview_demotes_and_turn_sees_to_review`). Case one: the fake turn sets the plan to `reviewed` and writes `- Readiness: go-pending-approval`, and the test asserts `item["attempts"][-1]["review_readiness"] == "go-pending-approval"`. Case two: the fake turn writes `reviewed` with no Readiness line (and the rest of the positive evidence it needs), and the test asserts the key is present and `None`. Both cases also assert the item's final status is unchanged from what the same turn produces today (`reviewed`).
+- [ ] E-02 Add a test class `ReviewReadinessRecordingTests` to `tests/test_run_analytics_review_cost.py` that drives `oc_runipd.execute_item` for a review item with `run_opencode` patched (the harness of `tests/test_rereview_reviewed_plan.py::test_execute_item_core_rereview_demotes_and_turn_sees_to_review`: a git repo, a plan written at `- Status: to-review` with no Readiness line, `isolate_worktree: False`). The item must be a FRESH review, so it must NOT carry `"rereview": True`: a re-review with no Readiness line ends `fail-gate` by design (`reconcile_disposition`, refusal code `rereview-no-fresh-review`), which would break case two. Case one: the fake turn changes the plan to `- Status: reviewed` and adds `- Readiness: go-pending-approval`, and the test asserts `item["attempts"][-1]["review_readiness"] == "go-pending-approval"`. Case two: the fake turn changes the plan to `reviewed` with no Readiness line, and the test asserts the key is present and `None`. Both cases also assert `item["status"] == "reviewed"`, the status the same turn produces today (measured at review with exactly this harness: case one `reviewed`, case two `reviewed`, and the same case two with `rereview: True` `fail-gate`).
   - Depends on: E-01
   - Expected outcome: two passing behavioral tests that exercise the real `execute_item` path.
   - Execution state: pending
 
 ### Task group 2: carry Readiness through the analysis
 
-- [ ] E-03 In `run_dashboard.collect_rows`, add `"readiness": str(att.get("review_readiness") or "")` to the base row dict. Add `"readiness"` to `COLUMNS` and `ATTEMPT_FACT_FIELDS`, and bump `ATTEMPT_FACTS_SCHEMA_VERSION` from 2 to 3. In `run_analytics_attempts`, add `"readiness"` to `ATTEMPT_FILTER_FIELDS` and `ATTEMPT_GROUP_FIELDS`. In `view_experiment`, take the last main attempt's readiness the way `disposition` is taken today, add a `"readiness"` count map (key `(not recorded)` when empty) to each row, and replace the docstring sentence "the plan's Readiness value is not recorded by the runners, so it is not reported" with one saying Readiness comes from the attempt's `review_readiness`, recorded from this plan's commit onward.
+- [ ] E-03 In `run_dashboard.collect_rows`, add a `"readiness"` entry to the attempt `base` row dict that keeps the three cases E-01 records apart: the attempt's `review_readiness` value when it is a non-empty string; the literal `"absent"` when the key is present but `None` (the review left no valid Readiness); and `""` when the key is missing (an attempt not recorded by this change: older runs and non-review actions). Also add `"readiness": ""` to the synthesized `base` dict for unclaimed session files. Add `"readiness"` to `COLUMNS` and `ATTEMPT_FACT_FIELDS`, and bump `ATTEMPT_FACTS_SCHEMA_VERSION` from 2 to 3. In `run_analytics_attempts`, add `"readiness"` to `ATTEMPT_FILTER_FIELDS` and `ATTEMPT_GROUP_FIELDS`. In `view_experiment`, take the last main attempt's readiness the way `disposition` is taken today (the `last = max(mains, ...)` row), add a `"readiness"` count map to each row using `_label` (so `""` reads `(not recorded)`), and replace the docstring sentence "the plan's Readiness value is not recorded by the runners, so it is not reported" with one saying `readiness` comes from the attempt's `review_readiness`, recorded from this plan's commit onward, with `absent` meaning the review wrote no valid value and `(not recorded)` meaning the run predates the recording.
   - Depends on: E-01
-  - Expected outcome: `aw runs query experiment` rows carry `readiness`, and `aw runs query attempts --group-by readiness` is accepted.
+  - Expected outcome: `aw runs query experiment` rows carry a `readiness` count map, `aw runs query attempts --group-by readiness` is accepted, and `aw runs query schema` lists `readiness` among the attempt-grain filter and group-by fields.
   - Execution state: pending
 
-- [ ] E-04 In `run_dashboard_assets/dashboard.js`, add `readiness` to the list of fields normalized to `(none)`, to `DIMS` (label `Readiness`, help text naming `go` / `go-pending-approval` / `no-go`, recorded for plan reviews only), to `FACETS`, and to `GROUPABLE`.
+- [ ] E-04 In `run_dashboard_assets/dashboard.js`, add `readiness` to the list of fields normalized to `(none)`, to `DIMS` (label `Readiness`, help text naming `go` / `go-pending-approval` / `no-go`, `absent` when the review wrote no valid value, recorded for plan reviews only), to `FACETS`, and to `GROUPABLE`.
   - Depends on: E-03
   - Expected outcome: the dashboard's sidebar and split-by selectors offer Readiness.
   - Execution state: pending
 
-- [ ] E-05 Extend the fixture in `tests/test_run_analytics_review_cost.py`: `_review_run`'s `att(...)` gains a `readiness` parameter written as `review_readiness`, and the `AttemptQueryTests` setup gives some items `go` and leaves at least one run without the key (an older run). Add tests that (a) `query.run_query("experiment", ..., filters=["label=exp1"])` rows carry the expected `readiness` count maps, including `(not recorded)` for the older run's item; (b) `query.run_query("attempts", ..., group_by=["readiness"], metrics=["cost"], stat="count")` returns one row per readiness value; (c) the published `attempts.jsonl` header reports `"schema": 3`. Update `test_experiment_view` only where the new `readiness` key changes what it asserts.
+- [ ] E-05 Extend the fixture in `tests/test_run_analytics_review_cost.py`: `_review_run` gains a keyword `readiness` (default: a sentinel meaning "write no key") that its inner `att(...)` writes as `review_readiness` on the main attempt (a string, or `None` for the key-present-but-absent case). In `AttemptQueryTests.setUp`, give most of the 14 runs `readiness="go"`, give at least one run `readiness=None`, and leave at least one run without the key (an older run). Keep the existing 14-run, two-variant, two-model shape so every existing assertion (row counts, `n` values, medians) is unchanged. Add tests that (a) `query.run_query("experiment", repo=self.repo, filters=["label=exp1"])` rows carry the expected `readiness` count maps, including `go`, `absent`, and `(not recorded)`, with each map's counts summing to that row's `items`; (b) `query.run_query("attempts", repo=self.repo, group_by="readiness", metric="cost", stat="count")` returns one row per readiness label present in the fixture; (c) `query.run_query("attempts", repo=self.repo, filters=["readiness=go"], metric="cost", stat="count")` counts only the `go` main sessions; (d) the published `attempts.jsonl` header line reports `"schema": 3` and its row lines carry a `readiness` key; (e) `query.run_query("schema").payload["attempt_grain"]` lists `readiness` in both `filter_fields` and `group_by_fields`. Update `test_experiment_view` only where the new `readiness` key changes what it asserts. Assertions name the behavior (labels and counts derived from the fixture), not test-function names or collected counts.
   - Depends on: E-03
-  - Expected outcome: behavioral tests that run the real `run_analyze` leaf and `run_query` and assert on their output.
+  - Expected outcome: behavioral tests that run the real `run_analyze` leaf and `run_query` and assert on their output; every pre-existing test in the file still passes.
   - Execution state: pending
 
 ### Task group 3: document, report, and file the prompt
 
-- [ ] E-06 In `docs/run-analytics.md` section "Review cost: per-attempt analysis": add the row `| Review outcome (Readiness) per plan, variant and model | aw runs query experiment --filter label=<label> |` and the row `| Attempts by Readiness | aw runs query attempts --filter action=review --group-by readiness --metric cost,steps |` to the question table; replace the sentence "the plan's Readiness value is not recorded by the runners" with the new behavior and the from-commit caveat; and add a short subsection "What is not recorded yet" listing: review steps (Q9: needs a per-prompt `review_step` name and pass number on each step or each per-prompt session, which spec `k3yx72` Section 9.3 and Order 04 introduce), Antigravity cost (tokens only, no price table is applied), and Readiness on runs started before this change. No em or en dashes (user-facing prose).
+- [ ] E-06 In `docs/run-analytics.md` section "Review cost: per-attempt analysis": change the existing row `| Experiment comparison | aw runs query experiment --filter label=<label> |` to say it includes the review outcome (disposition and Readiness) per plan, variant and model, and add the row `| Attempts by Readiness | aw runs query attempts --filter action=review --group-by readiness --metric cost,steps |` to the question table (backticks as the existing rows use them); replace the sentence ending "the plan's Readiness value is not recorded by the runners." in the **Experiment** bullet with the new behavior: the `readiness` count map, what `absent` and `(not recorded)` mean, and the from-commit caveat; and add a short subsection "What is not recorded yet" listing: review steps (Q9: needs the review step, meaning which prompt of a multi-prompt review, and the pass number recorded for each prompt, which spec `k3yx72` Section 9.3 specifies and its Section 15 Order 04 builds), Antigravity cost (tokens only, no price table is applied), and Readiness on runs started before this change. No em or en dashes (user-facing prose).
   - Depends on: E-03
   - Expected outcome: every `okj4bg` Section 3 question maps to a command or to a named missing field in the docs.
   - Execution state: pending
@@ -70,19 +72,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: one added CHANGELOG line.
   - Execution state: pending
 
-- [ ] E-08 Create the prompt's Section 5 report with `aw research new --kind findings --set revcost --slug runs-analyze-review-cost-report --summary "okj4bg Section 5 report: review-cost questions, commands, missing data, corrected facts" --apply`, then fill it with: (1) each Section 3 question Q1 to Q9 with its exact `aw runs query` command (from the docs table); (2) the missing data (Q9 review steps; Antigravity cost; Readiness before this commit); (3) the Section 1 facts found wrong when checked against code (at minimum F-03 and F-04 below: `state.json` now carries a `git` block and `options.label`/`options.review_variant`; `defect-report-recorded` is not itself a redo, the re-ask it may trigger is counted through `defect_reasked`), and, if `.aw/records/runs/` exists in the executing workspace, a re-measurement of the Section 1 table through `aw runs analyze` and the commands above, or the line "run data not present in this workspace; facts checked against code only"; (4) the recording added (`review_readiness`, from this plan's commit); (5) the test command and its actual summary line. Run `aw research index`.
+- [ ] E-08 Create the prompt's Section 5 report with `aw research new --kind findings --set revcost --slug runs-analyze-review-cost-report --summary "okj4bg Section 5 report: review-cost questions, commands, missing data, corrected facts" --apply` (it mints the doc's own id6 and writes `.aw/records/research/<date>-revcost-<NN>-<id6>-runs-analyze-review-cost-report.findings.md`; a dry run at review previewed `20261023-revcost-01-<id6>-runs-analyze-review-cost-report.findings.md`), then fill it with five sections: (1) each Section 3 question Q1 to Q9 with its exact `aw runs query` command (from the docs table), Q9 answered as "not recorded" with a pointer to (2); (2) the missing data (Q9 review steps; Antigravity cost; Readiness before this commit); (3) the Section 1 facts found wrong when checked against code (at minimum F-03 and F-04 below: `state.json` now carries a `git` block and `options.label`/`options.review_variant`; `defect-report-recorded` is not itself a redo, the re-ask it may trigger is counted through `defect_reasked`), and, if `.aw/records/runs/` exists in the executing workspace, a re-measurement of the Section 1 table through `aw runs analyze` and the commands above, or the line "run data not present in this workspace; facts checked against code only"; (4) the recording added (`review_readiness`, from this plan's commit, on both hosts); (5) the test command and its actual summary line: run the E-10 named-file pytest command here, after E-02 to E-05 are in place, and paste its real summary line (E-10 re-runs it as the final gate). Then run `aw research set-outcome <findings-id6> --to adopted --consumed-by avg8qv --apply` so the report records that this plan used it, and `aw research index` (its `INDEX.json`/`INDEX.md` outputs are gitignored, so nothing from the index is committed).
   - Depends on: E-02, E-05, E-06
-  - Expected outcome: a tracked `*-revcost-*-runs-analyze-review-cost-report.findings.md` under `.aw/records/research/`.
+  - Expected outcome: a tracked `*-revcost-*-runs-analyze-review-cost-report.findings.md` under `.aw/records/research/`, matched by the `Scope-Paths` glob, whose front matter names `avg8qv` in `consumed-by`.
   - Execution state: pending
 
-- [ ] E-09 Transition the prompt with `aw prompts set executed okj4bg --message "Section 5 report filed as research <findings-id6> (plan avg8qv)" --yes`.
+- [ ] E-09 Transition the prompt with `aw prompts set executed okj4bg --message "Section 5 report filed as research <findings-id6> (plan avg8qv)" --yes --no-commit` (`--no-commit` because E-10's single path-scoped commit carries the move; without `--commit` a non-interactive call commits nothing anyway, per `cli._add_commit_flags`). The move leaves two tracked records citing the old `prompts/pending/` path in prose (backlog `i2i81x` and spec `k3yx72`); leave them unedited, since both are outside this plan's fence and the id6 `okj4bg` still resolves; E-08's report names the new path.
   - Depends on: E-08
-  - Expected outcome: the prompt file lives under `.aw/records/prompts/executed/`.
+  - Expected outcome: the prompt file lives under `.aw/records/prompts/executed/` and is no longer under `pending/`.
   - Execution state: pending
 
-- [ ] E-10 Run `python3 -m pytest -o addopts="" -q -n auto tests/test_run_analytics_review_cost.py tests/test_run_dashboard.py tests/test_rereview_reviewed_plan.py tests/test_defect_report.py`, then the bare core gate `python3 -m pytest`, then `aw check`; commit the declared paths through `aw commit avg8qv -- <paths>`. Never push.
-  - Depends on: E-02, E-04, E-05, E-06, E-07, E-09
-  - Expected outcome: all three pass; one path-scoped commit containing only declared paths.
+- [ ] E-10 Run `python3 -m pytest -o addopts="" -n auto tests/test_run_analytics_review_cost.py tests/test_run_dashboard.py tests/test_rereview_reviewed_plan.py tests/test_defect_report.py` (no `-q`, so the `N passed` summary line prints), then the bare core gate `python3 -m pytest`, then `aw check`. `aw check` passes when it reports zero `error` findings and no `warning` this plan introduced; at review it exited 1 on two pre-existing warnings (`check.system-layout-missing` on `.aw/system/layout.json`, `check.identity-absent-from-name` on spec `k3yx72`), which are not this plan's to fix, so compare against that baseline re-derived at execution rather than against exit 0. Commit through `aw commit avg8qv -- <paths>`, naming each changed file explicitly: the six code, docs and test files, the new findings document, and BOTH sides of the prompt move (the removed `pending/` path and the added `executed/` path). Never push.
+  - Depends on: E-02, E-04, E-05, E-06, E-07, E-08, E-09
+  - Expected outcome: both pytest runs report no failures; `aw check` reports no error and no new warning; one path-scoped commit containing only declared paths.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -107,6 +109,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-05 | `.aw/records/specs/reviewed/20261017-k3yx72-01-k3yx72-plan-review-redesign.spec.md` Sections 9.3, 13.4, 15 | Q9's review-step recording ("the last completed prompt" per step) is designed in `k3yx72` and assigned to its Order 04. Recording it here would preempt that design, so this plan lists it as missing data. |
 | F-06 | `run_analytics_pricing` module docstring: "THERE IS NO `cache_write` RATE COLUMN" | Cost share for cache writes cannot be computed from recorded cost splits; token share for `cache_write` is already reported by `summarize_group`'s `token_share`. No new price data is needed or invented. |
 | F-07 | `ls .aw/records/runs` in this authoring lane: absent | Run data is not present in a lane worktree, so Section 1 numbers cannot be re-measured here; E-08 makes the re-measurement conditional and says so explicitly when it cannot run. |
+| F-08 | `runner_shared.reconcile_disposition`, the `if item.get("rereview"):` branch refusing with code `rereview-no-fresh-review` when no `- Readiness:` line exists; review-time probe driving `oc_runipd.execute_item` with the `tests/test_rereview_reviewed_plan.py` harness | A FRESH review that writes `reviewed` with no Readiness ends `reviewed`; the same turn on a `rereview: True` item ends `fail-gate`. E-02 must therefore use a fresh review item, and `review_readiness: None` on a `reviewed` attempt is a reachable state worth reporting (`absent`). |
+| F-09 | `cli._add_commit_flags` docstring: "non-interactively it is a NO-OP (never commits silently)"; `.aw/.gitignore` entries `records/research/INDEX.json`, `records/research/INDEX.md` | `aw prompts set` commits nothing in an unattended turn unless `--commit` is passed, and the research index is not tracked; E-09 uses `--no-commit` and E-10 commits both sides of the prompt move. |
+| F-10 | `aw check --json` at review, base `623eb73cb`: 0 errors, 2 warnings (`check.system-layout-missing`, `check.identity-absent-from-name` on spec `k3yx72`) | `aw check` already exits 1 before this plan runs, so "passes" must mean "no error and no new warning", re-derived at execution. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -131,13 +136,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest -o addopts="" -q -n auto tests/test_run_analytics_review_cost.py tests/test_run_dashboard.py tests/test_rereview_reviewed_plan.py tests/test_defect_report.py`: all pass, summary line pasted (E-02, E-05, E-10).
+Invariants and the test that pins each:
+
+- A review attempt's disposition is unchanged by the new recording: E-02 asserts `item["status"] == "reviewed"` in both cases.
+- Readiness recorded on a plan-review attempt is the normalized field value, or `None` when absent: E-02 cases one and two.
+- Older runs (no key) stay queryable and report `(not recorded)`, distinct from `absent`: E-05 (a).
+- `aw runs query` stays allowlisted; `readiness` is accepted only because it is on the lists: E-05 (b), (c), (e), plus the existing `test_disallowed_fields_refused`.
+- Existing attempt-grain numbers are unchanged: every pre-existing test in `tests/test_run_analytics_review_cost.py` and `tests/test_run_dashboard.py` still passes.
+
+Commands:
+
+- `python3 -m pytest -o addopts="" -n auto tests/test_run_analytics_review_cost.py tests/test_run_dashboard.py tests/test_rereview_reviewed_plan.py tests/test_defect_report.py`: all pass, summary line pasted (E-02, E-05, E-10).
 - Bare `python3 -m pytest` summary line pasted (E-10).
-- `aw check` result pasted (E-10).
+- `aw check` result pasted, no error and no warning beyond the pre-existing baseline (E-10, F-10).
 
 ## Spec / documentation sync
 
-`docs/run-analytics.md` is updated (E-06). No spec describes the attempt-grain field or view tables (the only spec naming this work, `k3yx72`, lists it as a prerequisite in prose), so no `.spec.md` is declared in Scope-Paths.
+`docs/run-analytics.md` is updated (E-06). No spec describes the attempt-grain field or view tables (the only spec naming this work, `k3yx72`, lists it as a prerequisite in prose, Section 13.2), so no `.spec.md` is declared in Scope-Paths. The plan cites `k3yx72` as evidence only and graduated from backlog `i2i81x`, not from that spec, so it deliberately carries no `- From-Spec:`; the advisory `check.plan-spec-link-missing` (info) it raises is expected. The runner records the new attempt key on both hosts through the shared `execute_item_core`; no runner spec (`25kzda`) enumerates attempt-record keys, so none is amended.
 
 ## Open questions
 
@@ -160,17 +175,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the `git diff` hunk of `agent_workflows/runner_shared.py` showing the `review_readiness` write after `reconcile_disposition`, guarded by `is_review` and `queue_entry_type(item) == "ipd"`, with the exception fallback to `None`.
+  - Required evidence: paste the `git diff` hunk of `agent_workflows/runner_shared.py` showing the `review_readiness` write after the `reconcile_disposition(...plan_repo=...)` call in `execute_item_core`, guarded by `is_review` and `queue_entry_type(item) == "ipd"`, reading through `queue_artifact_path` on the `work_dir`-or-`repo` tree, with the `(OSError, UnicodeDecodeError, DriverError)` fallback to `None`, and no write to the plan file.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_run_analytics_review_cost.py -k ReviewReadinessRecording` output listing both cases PASSED (the observation is produced by `oc_runipd.execute_item` through `runner_shared.execute_item_core`).
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_run_analytics_review_cost.py -k ReviewReadinessRecording` output with every collected test PASSED and none skipped, and quote the asserting lines showing the two behaviors pinned: a `go-pending-approval` turn records `review_readiness == "go-pending-approval"`, a no-Readiness turn records the key present and `None`, and both end `item["status"] == "reviewed"` for an item with no `rereview` flag (the observation is produced by `oc_runipd.execute_item` through `runner_shared.execute_item_core`, reachable as demonstrated at review).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `git diff` hunks adding `readiness` to `run_dashboard.COLUMNS`, `run_dashboard.ATTEMPT_FACT_FIELDS`, `ATTEMPT_FACTS_SCHEMA_VERSION = 3`, `run_analytics_attempts.ATTEMPT_FILTER_FIELDS`, `ATTEMPT_GROUP_FIELDS`, and the `view_experiment` change including the replaced docstring sentence.
+  - Required evidence: paste the `git diff` hunks adding `readiness` to both `base` dicts in `run_dashboard.collect_rows` (with the value / `absent` / `""` mapping), `run_dashboard.COLUMNS`, `run_dashboard.ATTEMPT_FACT_FIELDS`, `ATTEMPT_FACTS_SCHEMA_VERSION = 3`, `run_analytics_attempts.ATTEMPT_FILTER_FIELDS`, `ATTEMPT_GROUP_FIELDS`, and the `view_experiment` change including the replaced docstring sentence.
   - Observed evidence:
   - Result: pending
 
@@ -180,12 +195,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_run_analytics_review_cost.py -k "experiment or readiness or bundle"` output with every listed test PASSED, including the new experiment-readiness, group-by-readiness and schema-3 tests.
+  - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_run_analytics_review_cost.py` output with every collected test PASSED (pre-existing ones included) and none failed or skipped, and quote the asserting lines that pin each of E-05's behaviors (a) to (e): experiment `readiness` maps with `go`, `absent` and `(not recorded)` summing to `items`; one group-by row per readiness label; the `readiness=go` filter count; the schema-3 header and `readiness` row key; and `readiness` in the schema view's attempt-grain fields.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: paste the `git diff` of `docs/run-analytics.md` showing the two new table rows, the replaced Readiness sentence, and the "What is not recorded yet" subsection naming review steps, Antigravity cost and pre-change Readiness; paste `grep -nP "[\x{2013}\x{2014}]"` over the added lines returning nothing.
+  - Required evidence: paste the `git diff` of `docs/run-analytics.md` showing the changed experiment row, the new "Attempts by Readiness" row, the replaced Readiness sentence (with `absent` and `(not recorded)` explained), and the "What is not recorded yet" subsection naming review steps, Antigravity cost and pre-change Readiness; paste `git diff -U0 docs/run-analytics.md | grep '^+' | grep -nP '[\x{2013}\x{2014}]'` returning nothing.
   - Observed evidence:
   - Result: pending
 
@@ -195,17 +210,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: paste the path of the new findings document and its five section headings, the Q1 to Q9 command lines, the corrected-facts list containing F-03 and F-04, and either the re-measurement output or the "run data not present in this workspace" line; paste `aw research index --check` output.
+  - Required evidence: paste the path of the new findings document, its front matter (showing `kind: findings`, `set: revcost`, and `consumed-by` naming `avg8qv`), its five section headings, the Q1 to Q9 command lines (Q9 as not recorded), the corrected-facts list containing F-03 and F-04, either the re-measurement output or the "run data not present in this workspace" line, and the pasted pytest summary line; paste the `aw research index` output and then `aw research find --id <findings-id6>` showing the new document in the manifest.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-09 validates E-09
-  - Required evidence: paste the `aw prompts set executed okj4bg ...` output and `ls .aw/records/prompts/executed/ | grep okj4bg` showing the file.
+  - Required evidence: paste the `aw prompts set executed okj4bg ...` output, `ls .aw/records/prompts/executed/ | grep okj4bg` showing the file, `ls .aw/records/prompts/pending/ | grep okj4bg` returning nothing, and the file's first line showing `Status: executed`.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-10 validates E-10
-  - Required evidence: paste the actual summary line of the named-file pytest run (no `failed`), the bare `python3 -m pytest` summary line (and any budget block verbatim), the `aw check` result, and `git show --stat HEAD` listing only paths declared in `- Scope-Paths:`.
+  - Required evidence: paste the actual summary line of the named-file pytest run (no `failed`, no `error`), the bare `python3 -m pytest` summary line (and any budget block verbatim), the `aw check` severity counts with every `error` and `warning` diagnostic listed and each warning shown to be pre-existing (present on the base commit) rather than introduced, and `git show --stat HEAD` listing only paths declared in `- Scope-Paths:`, including both the deleted `prompts/pending/` and added `prompts/executed/` prompt paths.
   - Observed evidence:
   - Result: pending
 
