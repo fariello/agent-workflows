@@ -88,8 +88,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Closing or annotating backlog `twz0tw` (a duplicate of this item, typed `followup`): it is a separate record outside this plan's Scope-Paths; the maintainer can close it citing this plan once executed.
+  - Carrier: twz0tw
 - The `_gate_env` fallback `tempfile.mkdtemp` directory is never removed. It leaks one empty temp dir per call when no `lock_dir` is passed; the three gate tests always pass one, so it has no user-perceptible effect. Not a flake cause; out of scope.
+  - Carrier-Declined: not owed; no user-perceptible effect, and the gate tests always pass lock_dir so the fallback is never hit by them.
 - Any production change to `suite_cache.suite_slot` (for example a shorter default slot timeout): the slot wait is correct behavior for real gate runs; only the tests were mis-isolated.
+  - Carrier-Declined: not owed; the slot wait is correct production behavior, so no production change is wanted.
 
 ## Scope check
 
