@@ -1,5 +1,5 @@
 - Id: l9ssp6
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Investigate probe applicability for benchmark_runners
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD rempo8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-37-rempo8-lock-trialresult-to-dict-and-runneradapter-adapter-digest-be.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-37-rempo8-lock-trialresult-to-dict-and-runneradapter-adapter-digest-be.ipd.md
 - 2026-10-24 graduated (aw backlog): graduated by run run-20261023T221924Z-2698768: rempo8
 - 2026-10-18 created (aw backlog): Investigate probe applicability for benchmark_runners
 
