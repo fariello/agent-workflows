@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: probe at execution HEAD
 
-- [ ] E-01 Before the first probe, record `git rev-parse HEAD` as `<base>`. Then run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_telemetry.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py` for each pair: `raise` with `ResourceSampler.__init__`, `ResourceSampler.start`, `ResourceSampler.stop`, `TelemetryCollector.__init__`; `return-none` with `SystemResourceProbeAdapter.accelerators`, `SystemResourceProbeAdapter.disk`, `TelemetryCollector._emit`, `TelemetryCollector._observe_accelerators`. `tools/mutation_probe.py` mutates inside its own detached worktree of committed `HEAD`, so the checkout's production code is never modified. Record each `head:`, `verdict:`, `baseline_failing:`, `mutant_failing:` and `newly_failing` list in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error` or `invalid`) is not a result: record it, fix the cause if it is in scope, and re-run.
+- [x] E-01 Before the first probe, record `git rev-parse HEAD` as `<base>`. Then run `python3 tools/mutation_probe.py --op <op> agent_workflows/run_analytics_telemetry.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py` for each pair: `raise` with `ResourceSampler.__init__`, `ResourceSampler.start`, `ResourceSampler.stop`, `TelemetryCollector.__init__`; `return-none` with `SystemResourceProbeAdapter.accelerators`, `SystemResourceProbeAdapter.disk`, `TelemetryCollector._emit`, `TelemetryCollector._observe_accelerators`. `tools/mutation_probe.py` mutates inside its own detached worktree of committed `HEAD`, so the checkout's production code is never modified. Record each `head:`, `verdict:`, `baseline_failing:`, `mutant_failing:` and `newly_failing` list in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error` or `invalid`) is not a result: record it, fix the cause if it is in scope, and re-run.
   - Depends on: none
   - Expected outcome: eight probe outputs recorded; at authoring all eight were `verdict: killed` (F-02).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: conditional restore
 
-- [ ] E-02 For every key E-01 reports `survived`, add one test to `tests/test_run_analytics_telemetry.py` in the class that already covers that function (`SamplerTests` for `ResourceSampler.*`; `ProbeAdapterTests` for `SystemResourceProbeAdapter.disk`; `AcceleratorProbeTests` for `SystemResourceProbeAdapter.accelerators` and `TelemetryCollector._observe_accelerators`; `CollectorLifecycleTests` for `TelemetryCollector.__init__` and `TelemetryCollector._emit`) and assert on the returned value, the raised error, or the JSONL events the collector writes; mine the body from `git show 19313eed^:tests/test_run_analytics_telemetry.py` where an equivalent test exists. Commit the test file through `aw commit bli2ba -- tests/test_run_analytics_telemetry.py` BEFORE re-running the E-01 probe for that key, because the probe sees only committed `HEAD`; then re-run it. If E-01 reported `killed` for all eight keys, make NO file change and record "no survivor; no edit" in Findings.
+- [x] E-02 For every key E-01 reports `survived`, add one test to `tests/test_run_analytics_telemetry.py` in the class that already covers that function (`SamplerTests` for `ResourceSampler.*`; `ProbeAdapterTests` for `SystemResourceProbeAdapter.disk`; `AcceleratorProbeTests` for `SystemResourceProbeAdapter.accelerators` and `TelemetryCollector._observe_accelerators`; `CollectorLifecycleTests` for `TelemetryCollector.__init__` and `TelemetryCollector._emit`) and assert on the returned value, the raised error, or the JSONL events the collector writes; mine the body from `git show 19313eed^:tests/test_run_analytics_telemetry.py` where an equivalent test exists. Commit the test file through `aw commit bli2ba -- tests/test_run_analytics_telemetry.py` BEFORE re-running the E-01 probe for that key, because the probe sees only committed `HEAD`; then re-run it. If E-01 reported `killed` for all eight keys, make NO file change and record "no survivor; no edit" in Findings.
   - Depends on: E-01
   - Expected outcome: either no diff to `tests/test_run_analytics_telemetry.py`, or a diff adding only tests, after which the re-probe of each previously surviving key (with `head:` at or after that commit) reports `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming the added test.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the routine bare gate `python3 -m pytest` and confirm it passes with `tests/test_run_analytics_telemetry.py` in the core selection. The conftest budget check (`conftest.pytest_sessionfinish`) sets exit 1 on a wall-time overrun only when enforced and otherwise prints a warning; the core tier already exceeded 30s on this host before this plan (sibling `qpmq2o` E-03 cites 34.68s measured by the `f6el0l` review). On a host with 12 or more CPUs and a 1-minute load average at or below the CPU count the overrun IS enforced, so the bare run can exit 1 with every test passing (review measured exactly that at `72da75876`, F-05). So paste any `CORE TIER BUDGET EXCEEDED` block verbatim and do not count it against this item unless E-02 added a test that is among the block's listed slowest tests.
+- [x] E-03 Run the routine bare gate `python3 -m pytest` and confirm it passes with `tests/test_run_analytics_telemetry.py` in the core selection. The conftest budget check (`conftest.pytest_sessionfinish`) sets exit 1 on a wall-time overrun only when enforced and otherwise prints a warning; the core tier already exceeded 30s on this host before this plan (sibling `qpmq2o` E-03 cites 34.68s measured by the `f6el0l` review). On a host with 12 or more CPUs and a 1-minute load average at or below the CPU count the overrun IS enforced, so the bare run can exit 1 with every test passing (review measured exactly that at `72da75876`, F-05). So paste any `CORE TIER BUDGET EXCEEDED` block verbatim and do not count it against this item unless E-02 added a test that is among the block's listed slowest tests.
   - Depends on: E-02
   - Expected outcome: the bare run's summary line shows `passed` with no `failed` or `error`, and it either exits 0 or exits 1 solely because of an enforced `CORE TIER BUDGET EXCEEDED` block (no `Core tier budget not enforced` line) whose listed slowest tests include no test added by E-02. Any other non-zero exit is a failure of this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -69,6 +69,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-03 | Same as F-02, `newly_failing` for `SystemResourceProbeAdapter.disk` | Killed by exactly two tests, `ProbeAdapterTests::test_a_denied_probe_degrades_to_a_structured_reason_rather_than_raising` and `ProbeAdapterTests::test_real_adapter_probes_this_machine_without_raising` (about 8s wall). It is the thinnest of the eight; E-02 is the remedy only if those tests are lost before execution. |
 | F-04 | `/plan-review` re-run of `tools/mutation_probe.py` at HEAD `72da75876`, same selection, for a sample of three keys | `SystemResourceProbeAdapter.disk` (`return-none`) killed, `mutant_failing: 2`; `TelemetryCollector._emit` (`return-none`) killed, 18; `ResourceSampler.stop` (`raise`) killed, 8; all `baseline_failing: 0`. F-02 reproduces for the sample; E-01 still re-probes all eight. |
 | F-05 | `/plan-review` bare `python3 -m pytest` at HEAD `72da75876`; `conftest.pytest_sessionfinish` (`not_enforced_reason` is set only for `AW_CORE_BUDGET_ENFORCE=0`, fewer than 12 CPUs, or load above CPU count, else `session.exitstatus = 1`) | `1675 passed, 11 warnings in 34.61s`, exit 1, with an enforced `CORE TIER BUDGET EXCEEDED` block ("Core tier wall time: 34.61s exceeded budget of 30.00s", load 5.88 on 12 CPUs, no "not enforced" line). The bare gate is already non-zero on this host before this plan, so an "exit 0" bar would be unsatisfiable for an out-of-scope reason. |
+| F-06 | `tools/mutation_probe.py` at execution HEAD `8592042ec4d1c24d2911cbe211b4be09ec60f251`, selection `-o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py` | All eight `verdict: killed`, `baseline_failing: 0`. `mutant_failing` under `raise`: `ResourceSampler.__init__` 13, `ResourceSampler.start` 6, `ResourceSampler.stop` 8, `TelemetryCollector.__init__` 30. Under `return-none`: `SystemResourceProbeAdapter.accelerators` 7, `SystemResourceProbeAdapter.disk` 2, `TelemetryCollector._emit` 18, `TelemetryCollector._observe_accelerators` 27. No survivor; no edit. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -110,20 +111,253 @@ N/A: tests only (at most); no behavior, CLI surface or spec-described contract c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full output of all eight `tools/mutation_probe.py` runs (produced by `tools/mutation_probe.py` itself, E-01), each showing `head:`, its operator, `selection:` containing `-m core tests/test_run_analytics_telemetry.py`, `baseline_failing: 0`, its `verdict:` line and its `newly_failing` list; paste `<base>` and `git diff --stat <base>..HEAD -- agent_workflows/` plus `git diff --stat -- agent_workflows/`, both showing no change.
   - Observed evidence:
-  - Result: pending
+    `<base>`: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    `git diff --stat 8592042ec4d1c24d2911cbe211b4be09ec60f251..HEAD -- agent_workflows/`:
+    (empty, no output)
+    `git diff --stat -- agent_workflows/`:
+    (empty, no output)
 
-- [ ] V-02 validates E-02
+    Probe 1:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::ResourceSampler.__init__
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 13
+    newly_failing (13 total):
+      tests.test_run_analytics_telemetry.NoRealIOTests::test_a_fake_adapter_run_performs_no_subprocess_no_sleep_and_no_network
+      tests.test_run_analytics_telemetry.OverheadTests::test_sampling_cadence_cannot_exceed_the_configured_rate
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_real_loop_runs_and_stops
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_run_skip_branch_deterministic
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_tick_failure_terminates_thread
+      tests.test_run_analytics_telemetry.SamplerTests::test_a_probe_slower_than_the_interval_skips_rather_than_accumulating
+      tests.test_run_analytics_telemetry.SamplerTests::test_an_overlapping_tick_is_skipped_and_counted_never_queued
+      tests.test_run_analytics_telemetry.SamplerTests::test_sampling_does_not_run_when_it_is_not_enabled
+      tests.test_run_analytics_telemetry.SamplerTests::test_stop_is_idempotent_and_safe_before_start
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_check_interval_is_clamped_against_the_interval
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_after_an_exception_inside_the_block
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_after_exit
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_by_a_signal_assisted_teardown
+    wall_s: 15.55
+    ```
+
+    Probe 2:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::ResourceSampler.start
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 6
+    newly_failing (6 total):
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_real_loop_runs_and_stops
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_run_skip_branch_deterministic
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_tick_failure_terminates_thread
+      tests.test_run_analytics_telemetry.SamplerTests::test_sampling_does_not_run_when_it_is_not_enabled
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_after_exit
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_by_a_signal_assisted_teardown
+    wall_s: 11.63
+    ```
+
+    Probe 3:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::ResourceSampler.stop
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 8
+    newly_failing (8 total):
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_real_loop_runs_and_stops
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_run_skip_branch_deterministic
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_tick_failure_terminates_thread
+      tests.test_run_analytics_telemetry.SamplerTests::test_sampling_does_not_run_when_it_is_not_enabled
+      tests.test_run_analytics_telemetry.SamplerTests::test_stop_is_idempotent_and_safe_before_start
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_after_an_exception_inside_the_block
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_after_exit
+      tests.test_run_analytics_telemetry.SamplerTests::test_the_thread_is_stopped_by_a_signal_assisted_teardown
+    wall_s: 12.48
+    ```
+
+    Probe 4:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::TelemetryCollector.__init__
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 30
+    newly_failing (30 total):
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_no_raw_tool_output_reaches_the_jsonl_on_any_failure_path
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_disabled_config_emits_nothing_at_all
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_close_is_a_no_op_and_emits_no_second_end
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_start_emits_nothing
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_wall_clock_stepping_backwards_cannot_produce_a_negative_duration
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_allowlisted_context_fields_are_carried_and_others_are_not
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_adapter_that_raises_is_isolated_to_a_warning
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_unwritable_stream_records_a_warning_and_never_ends_the_run
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_durations_derive_from_a_monotonic_clock_and_are_never_negative
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_one_execution_yields_exactly_one_start_and_one_end
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_each_degraded_case_completes_with_a_structured_warning
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_impossible_values_are_refused_rather_than_persisted
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_negative_and_absurd_resource_values_do_not_break_the_stream
+      tests.test_run_analytics_telemetry.NoRealIOTests::test_a_fake_adapter_run_performs_no_subprocess_no_sleep_and_no_network
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_sanitizer_scan_of_the_produced_telemetry_is_clean_with_a_control
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_the_raw_hostname_is_absent_from_the_produced_jsonl
+      tests.test_run_analytics_telemetry.OverheadTests::test_per_event_cost_against_the_real_append_jsonl_is_bounded
+      tests.test_run_analytics_telemetry.OverheadTests::test_sampling_cadence_cannot_exceed_the_configured_rate
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sample_returns_none_before_start_and_after_close
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_real_loop_runs_and_stops
+    wall_s: 14.61
+    ```
+
+    Probe 5:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.accelerators
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 7
+    newly_failing (7 total):
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_a_well_formed_reading_parses_to_numeric_and_categorical_fields
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_absent_tool_yields_unavailable
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_malformed_output_yields_parse_error_carrying_only_a_byte_length
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_no_raw_tool_output_reaches_the_jsonl_on_any_failure_path
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_timeout_yields_the_timeout_code
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_sanitizer_scan_of_the_produced_telemetry_is_clean_with_a_control
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_the_raw_hostname_is_absent_from_the_produced_jsonl
+    wall_s: 12.94
+    ```
+
+    Probe 6:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::SystemResourceProbeAdapter.disk
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_run_analytics_telemetry.ProbeAdapterTests::test_a_denied_probe_degrades_to_a_structured_reason_rather_than_raising
+      tests.test_run_analytics_telemetry.ProbeAdapterTests::test_real_adapter_probes_this_machine_without_raising
+    wall_s: 8.87
+    ```
+
+    Probe 7:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::TelemetryCollector._emit
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 18
+    newly_failing (18 total):
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_no_raw_tool_output_reaches_the_jsonl_on_any_failure_path
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_close_is_a_no_op_and_emits_no_second_end
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_start_emits_nothing
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_wall_clock_stepping_backwards_cannot_produce_a_negative_duration
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_allowlisted_context_fields_are_carried_and_others_are_not
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_adapter_that_raises_is_isolated_to_a_warning
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_unwritable_stream_records_a_warning_and_never_ends_the_run
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_durations_derive_from_a_monotonic_clock_and_are_never_negative
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_one_execution_yields_exactly_one_start_and_one_end
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_each_degraded_case_completes_with_a_structured_warning
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_impossible_values_are_refused_rather_than_persisted
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_negative_and_absurd_resource_values_do_not_break_the_stream
+      tests.test_run_analytics_telemetry.NoRealIOTests::test_a_fake_adapter_run_performs_no_subprocess_no_sleep_and_no_network
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_sanitizer_scan_of_the_produced_telemetry_is_clean_with_a_control
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_the_raw_hostname_is_absent_from_the_produced_jsonl
+      tests.test_run_analytics_telemetry.OverheadTests::test_per_event_cost_against_the_real_append_jsonl_is_bounded
+      tests.test_run_analytics_telemetry.SamplerTests::test_a_probe_slower_than_the_interval_skips_rather_than_accumulating
+      tests.test_run_analytics_telemetry.SamplerTests::test_an_overlapping_tick_is_skipped_and_counted_never_queued
+    wall_s: 12.44
+    ```
+
+    Probe 8:
+    ```
+    head: 8592042ec4d1c24d2911cbe211b4be09ec60f251
+    target: agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_accelerators
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_run_analytics_telemetry.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 27
+    newly_failing (27 total):
+      tests.test_run_analytics_telemetry.AcceleratorProbeTests::test_no_raw_tool_output_reaches_the_jsonl_on_any_failure_path
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_close_is_a_no_op_and_emits_no_second_end
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_second_start_emits_nothing
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_a_wall_clock_stepping_backwards_cannot_produce_a_negative_duration
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_allowlisted_context_fields_are_carried_and_others_are_not
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_adapter_that_raises_is_isolated_to_a_warning
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_an_unwritable_stream_records_a_warning_and_never_ends_the_run
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_durations_derive_from_a_monotonic_clock_and_are_never_negative
+      tests.test_run_analytics_telemetry.CollectorLifecycleTests::test_one_execution_yields_exactly_one_start_and_one_end
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_each_degraded_case_completes_with_a_structured_warning
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_impossible_values_are_refused_rather_than_persisted
+      tests.test_run_analytics_telemetry.DegradedSystemTests::test_negative_and_absurd_resource_values_do_not_break_the_stream
+      tests.test_run_analytics_telemetry.NoRealIOTests::test_a_fake_adapter_run_performs_no_subprocess_no_sleep_and_no_network
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_sanitizer_scan_of_the_produced_telemetry_is_clean_with_a_control
+      tests.test_run_analytics_telemetry.NodeIdentityTests::test_the_raw_hostname_is_absent_from_the_produced_jsonl
+      tests.test_run_analytics_telemetry.OverheadTests::test_per_event_cost_against_the_real_append_jsonl_is_bounded
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sample_returns_none_before_start_and_after_close
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_real_loop_runs_and_stops
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_run_skip_branch_deterministic
+      tests.test_run_analytics_telemetry.ResidualKeyBranchTests::test_sampler_tick_failure_terminates_thread
+    wall_s: 13.0
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: either paste `git diff --stat tests/test_run_analytics_telemetry.py` showing no change together with the Findings line "no survivor; no edit", or paste the diff adding only test functions, the `aw commit` output for it, and the re-probe output with a `head:` at or after that commit showing `baseline_failing: 0` and `verdict: killed` for each previously surviving key, with a `newly_failing` list naming the added test, and `python3 -m pytest -o addopts="" -v tests/test_run_analytics_telemetry.py` with every test PASSED.
   - Observed evidence:
-  - Result: pending
+    `git diff --stat tests/test_run_analytics_telemetry.py`:
+    (empty, no output)
+    Findings F-06:
+    no survivor; no edit
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the bare `python3 -m pytest` summary line showing `passed` and no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (including any "not enforced" reason). An exit status of 1 passes only when that block is present and enforced and none of its listed slowest tests was added by E-02; state that check explicitly.
   - Observed evidence:
-  - Result: pending
+    Exit status: 0
+    Summary line:
+    1684 passed, 11 warnings in 98.43s (0:01:38)
+
+    Verbatim CORE TIER BUDGET EXCEEDED block:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 98.43s exceeded budget of 30.00s.
+    Host 1-minute load average: 19.02 on 12 CPUs
+    Core tier budget not enforced: host oversubscribed (1-minute load average above the CPU count)
+    Top 10 slowest core tests:
+       1.  14.02s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       2.  13.60s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       3.  10.74s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       4.   8.91s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       5.   8.28s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       6.   6.58s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       7.   5.86s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       8.   5.00s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       9.   4.70s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   4.61s  tests/test_runner_shared.py::IntegrationDeferralLadderTests::test_retry_incomplete_and_dispatch_reaches_ladder
+    ===========================================================================================
+    ```
+
+    Verification check:
+    Bare pytest exited with code 0 and all 1684 tests passed. E-02 added no tests, so none of the listed slowest tests was added by E-02.
+  - Result: pass
 
 ## Approval and execution gate
 
