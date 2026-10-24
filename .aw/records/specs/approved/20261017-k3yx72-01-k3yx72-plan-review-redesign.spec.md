@@ -1,7 +1,7 @@
 # Spec: Runner-enforced, depth-scaled plan review
 
 - Date: 2026-10-17
-- Status: reviewed
+- Status: approved
 - Id: k3yx72
 - Author: aw specs new
 - Scope: Replace the single-turn plan review with a runner-driven sequence of review prompts whose number scales with the plan's review tier (simple, standard, complex); proofread first; re-review by an exact reply marker; split over-large plans; check code citations by symbol; retire plan-review-long; decide prompt grouping by a measured experiment
@@ -816,6 +816,7 @@ The recommendation labels in `.aw/system/workflows/askme/askme.md` change from t
 five of MD-9.
 
 ## Workflow history
+- 2026-10-24 approved (aw set, --by-human): status set to approved
 
 - 2026-10-24 note (aw specs): Maintainer ruling 2026-10-19: MD-1 revised; the runner forces no review tier. Section 5.2 replaced by five recorded tier questions with the former signals as facts and examples; tier and answers recorded for later analysis. OQ-08 resolved (no sensitive-path list).
 - 2026-10-19 note (aw specs): Post-review additions (no change to MD-1..MD-18): measured runner tier signals over 1,554 plans (5.2); step-file source map from plan-review.md (4.3); mid-review tier change rule (5.3); Step evidence line and re-ask wording (6); children-before-orchestrator for review is a queue-order change, not current behavior (5.1); Section 17 lists the exact amendments to 25kzda, 20260802-1904, the reviews README, and askme; tmp/ evidence replaced by prompt okj4bg and backlog items i2i81x and rsisop.

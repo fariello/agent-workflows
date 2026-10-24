@@ -1,7 +1,7 @@
 # Spec: Lifecycle automation policy: one configurable per-(type, transition) permission surface
 
 - Date: 2026-09-20
-- Status: reviewed
+- Status: approved
 - Id: llbr2b
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: rxya25
@@ -28,6 +28,7 @@
   policy's INVENTORY without weakening or re-deciding R-5.
 
 ## Workflow history
+- 2026-10-24 approved (aw set, --by-human): status set to approved
 
 - 2026-10-16 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; SR-001..SR-007; inventory extended with 3.10 (4 post-2c316ef0 advances), 6.4 re-keyed on target with wildcard source, D-1/D-2 recorded resolved, criteria 12-14 added, OQ-06 raised
 - 2026-10-16 reviewed (aw set): REVIEWED - OPEN QUESTIONS; SR-001..SR-007 (SR-001,002,003,005,006,007 FIXED; SR-004 OPEN as OQ-06, non-gating)
