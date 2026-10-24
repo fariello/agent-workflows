@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: add the behavioral test module
 
-- [ ] E-01 Before any edit, record `git rev-parse HEAD` as `<base>`. Create `tests/test_benchmark_manifest_digest.py` with `import pytest`, module-level `pytestmark = pytest.mark.core`, a module docstring naming backlog `g5ypvb` and findings `wo21z5`, and its own local `_ceilings(...)`/`_manifest(**overrides)` helpers built on `benchmark_manifest.make_ceilings` and `benchmark_manifest.build_manifest` (same keyword set as `tests/test_benchmark_corpus.py` `_sample_manifest`; do not import from that test module). Add these tests, each calling the public API and asserting on returned values: (a) `BenchmarkManifest.digest()` and `Ceilings.digest()` each return a `str` matching `^[0-9a-f]{64}$`; (b) two independently built manifests with identical arguments have equal digests, and the same for ceilings; (c) a manifest differing only in `trial` (and separately only in `reasoning_effort`) has a different `digest()`; (d) ceilings differing only in `trial_count` have a different `Ceilings.digest()`, and the manifest built on them has a different `digest()`; (e) a manifest round-tripped through `to_dict()` with only `usage["wall_time"]` changed and reloaded via `manifest_from_dict` keeps the same `digest()` (usage is a result, not identity, per the `BenchmarkManifest.digest` docstring "usage is a RESULT, not identity"); (f) `manifest.identity["ceilings_digest"]` equals `ceilings.digest()` and matches the 64-hex pattern. No test reads source, uses `inspect`/`ast`, or pins a literal digest value.
+- [x] E-01 Before any edit, record `git rev-parse HEAD` as `<base>`. Create `tests/test_benchmark_manifest_digest.py` with `import pytest`, module-level `pytestmark = pytest.mark.core`, a module docstring naming backlog `g5ypvb` and findings `wo21z5`, and its own local `_ceilings(...)`/`_manifest(**overrides)` helpers built on `benchmark_manifest.make_ceilings` and `benchmark_manifest.build_manifest` (same keyword set as `tests/test_benchmark_corpus.py` `_sample_manifest`; do not import from that test module). Add these tests, each calling the public API and asserting on returned values: (a) `BenchmarkManifest.digest()` and `Ceilings.digest()` each return a `str` matching `^[0-9a-f]{64}$`; (b) two independently built manifests with identical arguments have equal digests, and the same for ceilings; (c) a manifest differing only in `trial` (and separately only in `reasoning_effort`) has a different `digest()`; (d) ceilings differing only in `trial_count` have a different `Ceilings.digest()`, and the manifest built on them has a different `digest()`; (e) a manifest round-tripped through `to_dict()` with only `usage["wall_time"]` changed and reloaded via `manifest_from_dict` keeps the same `digest()` (usage is a result, not identity, per the `BenchmarkManifest.digest` docstring "usage is a RESULT, not identity"); (f) `manifest.identity["ceilings_digest"]` equals `ceilings.digest()` and matches the 64-hex pattern. No test reads source, uses `inspect`/`ast`, or pins a literal digest value.
   - Depends on: none
   - Expected outcome: the new module exists and `python3 -m pytest -o addopts="" -v tests/test_benchmark_manifest_digest.py` passes every test.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove the gap is closed
 
-- [ ] E-02 Run `python3 tools/mutation_probe.py --op return-none agent_workflows/benchmark_manifest.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py` for each `<key>` in `BenchmarkManifest.digest`, `Ceilings.digest`, `_digest`. `tools/mutation_probe.py` adds a detached worktree at committed `HEAD` (`git worktree add --detach <dir> HEAD`) and mutates there, so the checkout's production code is never modified but an UNCOMMITTED test module is invisible to it; therefore first commit E-01 through `aw commit ya0h23 -- tests/test_benchmark_manifest_digest.py`, then run the probes, and confirm each output's `head:` equals that commit. Record each `head:`, `selection:`, `verdict:`, `baseline_failing:` and `newly_failing` list in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. If the commit's mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites lines, `aw commit` re-stages and retries; record those hunks as hook churn in V-02. If a strengthened E-01 assertion needs a further commit, commit it the same way before re-probing. If any probe still reports `survived`, strengthen the E-01 assertion that should have caught it and re-run that probe; do not mark this item performed while any of the three survives.
+- [x] E-02 Run `python3 tools/mutation_probe.py --op return-none agent_workflows/benchmark_manifest.py::<key> -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py` for each `<key>` in `BenchmarkManifest.digest`, `Ceilings.digest`, `_digest`. `tools/mutation_probe.py` adds a detached worktree at committed `HEAD` (`git worktree add --detach <dir> HEAD`) and mutates there, so the checkout's production code is never modified but an UNCOMMITTED test module is invisible to it; therefore first commit E-01 through `aw commit ya0h23 -- tests/test_benchmark_manifest_digest.py`, then run the probes, and confirm each output's `head:` equals that commit. Record each `head:`, `selection:`, `verdict:`, `baseline_failing:` and `newly_failing` list in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. If the commit's mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites lines, `aw commit` re-stages and retries; record those hunks as hook churn in V-02. If a strengthened E-01 assertion needs a further commit, commit it the same way before re-probing. If any probe still reports `survived`, strengthen the E-01 assertion that should have caught it and re-run that probe; do not mark this item performed while any of the three survives.
   - Depends on: E-01
   - Expected outcome: three probe outputs, each with `head:` equal to the latest E-02 commit, `baseline_failing: 0` and `verdict: killed`, and a `newly_failing` list naming at least one test from `tests/test_benchmark_manifest_digest.py` (re-derive at execution; the count is not the bar). At review, `tests/test_benchmark_corpus.py` alone kills none of the three (F-06), so the kill must come from the new module.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run `python3 -m pytest -o addopts= --collect-only -q -m core tests/test_benchmark_manifest_digest.py` to confirm the new module is in the core tier, then run the routine bare gate `python3 -m pytest`. The conftest budget check (`conftest.pytest_sessionfinish`) prints a `CORE TIER BUDGET EXCEEDED` block on a wall-time overrun and fails the run only when enforced; the core tier already exceeded 30s on this host before this plan (sibling `s461lz` F-07: 34.93s). So paste any budget block verbatim and do not count it against this item unless a test from the new module is among its listed slowest tests.
+- [x] E-03 Run `python3 -m pytest -o addopts= --collect-only -q -m core tests/test_benchmark_manifest_digest.py` to confirm the new module is in the core tier, then run the routine bare gate `python3 -m pytest`. The conftest budget check (`conftest.pytest_sessionfinish`) prints a `CORE TIER BUDGET EXCEEDED` block on a wall-time overrun and fails the run only when enforced; the core tier already exceeded 30s on this host before this plan (sibling `s461lz` F-07: 34.93s). So paste any budget block verbatim and do not count it against this item unless a test from the new module is among its listed slowest tests.
   - Depends on: E-02
   - Expected outcome: the collect-only run lists the new module's tests as selected; the bare run exits 0 and its summary line shows `passed` with no `failed` or `error`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -70,6 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | In-process prototype at HEAD `db8853d1`: the E-01 (a)+(c)+(d) assertions evaluated against the real module, then with `benchmark_manifest._digest`, `Ceilings.digest`, `BenchmarkManifest.digest` each monkeypatched to return `None` | Real module: assertions hold (`True`); usage-only change keeps the digest; `identity["ceilings_digest"] == ceilings.digest()`. Each of the three `None` mutants: assertions fail (`False`). The proposed tests kill all three mutants. |
 | F-06 | review at HEAD `6b94e8d4a`: `tools/mutation_probe.py --op return-none` over `-o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py` for the three keys; in-process re-run of all six E-01 assertions (a)-(f) against the real module and against each `return None` monkeypatch | All three probes `survived`, `baseline_failing: 0`, `mutant_failing: 0` (F-02 reproduces). Real module: (a)-(f) all hold, including (e) via `manifest_from_dict` with `usage["wall_time"] = 12.5`. `_digest -> None` fails (a), (c), (d), (f); `Ceilings.digest -> None` fails (a), (d), (f); `BenchmarkManifest.digest -> None` fails (a), (c), (d). (b) and (e) are relation checks a constant satisfies, so they guard behavior but kill no mutant; F-04 reproduces. `make_usage(0.0)` keys: `wall_time`, `tokens`, `credits_or_quota`. |
 | F-05 | `agent_workflows/benchmark_reports.py` uses "t.manifest.digest()" in a run digest and `baseline.digest()`/`candidate.digest()` in comparisons | The digest is a load-bearing identity used to compare runs, so a constant digest would be a real defect; the gap is worth closing even at `chore`/`low`. |
+| F-07 | Execution at HEAD `fc24fc14c1c14a3a6c724cd4db4ed26c668c8b1c`: `tools/mutation_probe.py --op return-none` over `-o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py` for the three keys | All three keys `killed` (`baseline_failing: 0`): `BenchmarkManifest.digest` (mutant_failing: 3, newly_failing: `test_ceilings_and_manifest_digest_distinguish_trial_count`, `test_manifest_and_ceilings_digest_format`, `test_manifest_digest_distinguishes_trial_and_reasoning_effort`), `Ceilings.digest` (mutant_failing: 3, newly_failing: `test_ceilings_and_manifest_digest_distinguish_trial_count`, `test_manifest_and_ceilings_digest_format`, `test_manifest_identity_ceilings_digest_matches_ceilings`), `_digest` (mutant_failing: 4, newly_failing: `test_ceilings_and_manifest_digest_distinguish_trial_count`, `test_manifest_and_ceilings_digest_format`, `test_manifest_digest_distinguishes_trial_and_reasoning_effort`, `test_manifest_identity_ceilings_digest_matches_ceilings`). The gap is closed. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -120,20 +121,176 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_benchmark_manifest_digest.py` output listing every test PASSED, and paste `<base>` plus `git diff --stat -- agent_workflows/ tests/test_benchmark_corpus.py` showing no change.
   - Observed evidence:
-  - Result: pending
+    `<base>`: `786d1e266876eaa8dd535594f69c4ad83b243ac2`
 
-- [ ] V-02 validates E-02
+    ```
+    $ git diff --stat -- agent_workflows/ tests/test_benchmark_corpus.py
+    (empty)
+    ```
+
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_benchmark_manifest_digest.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2703373970
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
+
+    tests/test_benchmark_manifest_digest.py::test_manifest_and_ceilings_digest_format PASSED [ 16%]
+    tests/test_benchmark_manifest_digest.py::test_manifest_digest_unaffected_by_usage PASSED [ 33%]
+    tests/test_benchmark_manifest_digest.py::test_ceilings_and_manifest_digest_distinguish_trial_count PASSED [ 50%]
+    tests/test_benchmark_manifest_digest.py::test_manifest_digest_distinguishes_trial_and_reasoning_effort PASSED [ 66%]
+    tests/test_benchmark_manifest_digest.py::test_digest_deterministic_equality PASSED [ 83%]
+    tests/test_benchmark_manifest_digest.py::test_manifest_identity_ceilings_digest_matches_ceilings PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 0.19s ===============================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `aw commit` output naming the E-02 commit; paste the full output of all three `tools/mutation_probe.py --op return-none` runs (produced by `tools/mutation_probe.py` itself, E-02), each showing `head:` equal to that commit (or a later strengthening commit), `selection:` containing `-m core` and `tests/test_benchmark_manifest_digest.py`, `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming at least one test from `tests/test_benchmark_manifest_digest.py`; paste `git diff --stat <base>..HEAD -- agent_workflows/ tests/test_benchmark_corpus.py` showing no change.
   - Observed evidence:
-  - Result: pending
+    `aw commit` output:
+    ```
+    aw commit: committed 1 path(s): fc24fc14c1c14a3a6c724cd4db4ed26c668c8b1c
+    ```
 
-- [ ] V-03 validates E-03
+    Diff check:
+    ```
+    $ git diff --stat 786d1e266876eaa8dd535594f69c4ad83b243ac2..HEAD -- agent_workflows/ tests/test_benchmark_corpus.py
+    (empty)
+    ```
+
+    Probe 1 (`BenchmarkManifest.digest`):
+    ```
+    $ python3 tools/mutation_probe.py --op return-none agent_workflows/benchmark_manifest.py::BenchmarkManifest.digest -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    head: fc24fc14c1c14a3a6c724cd4db4ed26c668c8b1c
+    target: agent_workflows/benchmark_manifest.py::BenchmarkManifest.digest
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 3
+    newly_failing (3 total):
+      tests.test_benchmark_manifest_digest::test_ceilings_and_manifest_digest_distinguish_trial_count
+      tests.test_benchmark_manifest_digest::test_manifest_and_ceilings_digest_format
+      tests.test_benchmark_manifest_digest::test_manifest_digest_distinguishes_trial_and_reasoning_effort
+    wall_s: 4.51
+    ```
+
+    Probe 2 (`Ceilings.digest`):
+    ```
+    $ python3 tools/mutation_probe.py --op return-none agent_workflows/benchmark_manifest.py::Ceilings.digest -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    head: fc24fc14c1c14a3a6c724cd4db4ed26c668c8b1c
+    target: agent_workflows/benchmark_manifest.py::Ceilings.digest
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 3
+    newly_failing (3 total):
+      tests.test_benchmark_manifest_digest::test_ceilings_and_manifest_digest_distinguish_trial_count
+      tests.test_benchmark_manifest_digest::test_manifest_and_ceilings_digest_format
+      tests.test_benchmark_manifest_digest::test_manifest_identity_ceilings_digest_matches_ceilings
+    wall_s: 4.2
+    ```
+
+    Probe 3 (`_digest`):
+    ```
+    $ python3 tools/mutation_probe.py --op return-none agent_workflows/benchmark_manifest.py::_digest -- -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    head: fc24fc14c1c14a3a6c724cd4db4ed26c668c8b1c
+    target: agent_workflows/benchmark_manifest.py::_digest
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_benchmark_corpus.py tests/test_benchmark_manifest_digest.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 4
+    newly_failing (4 total):
+      tests.test_benchmark_manifest_digest::test_ceilings_and_manifest_digest_distinguish_trial_count
+      tests.test_benchmark_manifest_digest::test_manifest_and_ceilings_digest_format
+      tests.test_benchmark_manifest_digest::test_manifest_digest_distinguishes_trial_and_reasoning_effort
+      tests.test_benchmark_manifest_digest::test_manifest_identity_ceilings_digest_matches_ceilings
+    wall_s: 3.93
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `--collect-only -q -m core tests/test_benchmark_manifest_digest.py` output listing the new tests; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (including any "not enforced" reason).
   - Observed evidence:
-  - Result: pending
+    `--collect-only`:
+    ```
+    $ python3 -m pytest -o addopts= --collect-only -q -m core tests/test_benchmark_manifest_digest.py
+    tests/test_benchmark_manifest_digest.py::test_digest_deterministic_equality
+    tests/test_benchmark_manifest_digest.py::test_manifest_digest_unaffected_by_usage
+    tests/test_benchmark_manifest_digest.py::test_ceilings_and_manifest_digest_distinguish_trial_count
+    tests/test_benchmark_manifest_digest.py::test_manifest_and_ceilings_digest_format
+    tests/test_benchmark_manifest_digest.py::test_manifest_digest_distinguishes_trial_and_reasoning_effort
+    tests/test_benchmark_manifest_digest.py::test_manifest_identity_ceilings_digest_matches_ceilings
+
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    6 tests collected in 0.18s
+    ```
+
+    Bare `python3 -m pytest`:
+    Exit status: 1 (due to conftest core tier wall-time budget check on host; not due to test failures)
+    Summary line:
+    ```
+    1829 passed, 11 warnings in 51.01s
+    ```
+    Budget block verbatim:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 51.02s exceeded budget of 30.00s.
+    Host 1-minute load average: 6.95 on 12 CPUs
+    Top 10 slowest core tests:
+       1.   5.64s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       2.   4.82s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       3.   4.73s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       4.   3.80s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       5.   3.78s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       6.   3.35s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       7.   3.29s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       8.   2.93s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       9.   2.27s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   1.93s  tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_backlog_item_typed_and_untyped_spellings
+    ===========================================================================================
+    ```
+
+    Full suite run (`aw suite`, which executes with `AW_CORE_BUDGET_ENFORCE=0`):
+    Exit status: 0
+    Summary line:
+    ```
+    1829 passed, 11 warnings in 31.86s
+    ```
+    Budget block verbatim:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 31.86s exceeded budget of 30.00s.
+    Host 1-minute load average: 5.56 on 12 CPUs
+    Core tier budget not enforced: AW_CORE_BUDGET_ENFORCE=0
+    Top 10 slowest core tests:
+       1.   4.80s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       2.   4.80s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       3.   4.75s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       4.   3.77s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       5.   3.51s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       6.   3.30s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       7.   2.96s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       8.   2.80s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       9.   2.30s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   1.87s  tests/test_notify_telegram.py::test_end_to_end_scripted_run[oc]
+    ===========================================================================================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
