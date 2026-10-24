@@ -15,6 +15,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+import pytest
+
 from agent_workflows import run_analytics_cli as analytics_cli
 from agent_workflows import run_analytics_html as spa
 from agent_workflows import run_dashboard as dash
@@ -354,6 +356,7 @@ class CollectRowsTests(unittest.TestCase):
 
 
 class RenderTests(unittest.TestCase):
+    @pytest.mark.core
     def test_offline_and_escaped(self) -> None:
         row: dict = {c: None for c in dash.COLUMNS}
         row.update(
