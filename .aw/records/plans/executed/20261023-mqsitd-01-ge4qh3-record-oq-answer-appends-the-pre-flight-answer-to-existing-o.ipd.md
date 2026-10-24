@@ -6,7 +6,7 @@
 - Scope: Change only the existing-rationale branch of `runner_shared.record_oq_answer` so it appends `RESOLVED <date> by <who> via <channel>: <answer>` after the existing text (writing the `RESOLVED ...` text alone when the field is empty); update that function's docstring; add behavioral tests in `tests/test_question_preflight.py`. The status rewrite, hash refusal, Blocking/Owner invariance and the no-rationale-line insertion branch are unchanged.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_question_preflight.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: ge4qh3
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ge4qh3 verified (set mqsitd, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 - 2026-10-24 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified F-1 at the lane HEAD and demonstrated F-2 by direct call (`\1` raises `re.error`; `\n` becomes a newline).
 
