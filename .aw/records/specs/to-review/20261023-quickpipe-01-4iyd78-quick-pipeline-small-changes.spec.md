@@ -2,6 +2,7 @@
 
 - Date: 2026-10-23
 - Status: to-review
+- Blocks-Release: next
 - Id: 4iyd78
 - Author: aw specs new
 - From-Backlog: rsisop
@@ -17,6 +18,7 @@
   (`llbr2b`, `approved`), which owns the configurable per-(type, transition) permission surface.
 
 ## Workflow history
+- 2026-10-24 to-review (aw specs): Blocks release 2.0.0 (f33nrj, the planned release) per maintainer 2026-10-24
 
 - 2026-10-24 note (aw specs): Aligned with k3yx72 as of bbceabeb2: removed references to runner tier signals and review.sensitive_paths (k3yx72 MD-1 revised, OQ-08); the Section 3.2 rules are now this spec's own admission rules, with its own quickpipe.excluded_paths list; tier stays the review agent's choice. Maintainer decision 2026-10-24 (Option A): built in two parts; Part 1 (Orders 01, 02, Part 1 tests) needs no pilot; Part 2 (Order 03 auto-approval and its tests) depends on k3yx72 Order 09 recording BUILD THE REST (MD-20).
 - 2026-10-24 to-review (aw set): authored review-ready spec defining quick pipeline for small changes
