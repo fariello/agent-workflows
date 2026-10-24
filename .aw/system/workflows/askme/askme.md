@@ -26,9 +26,18 @@ Choose the scope from the user's request:
 4. **Use the current conversation.** With no arguments, ask the outstanding
    question in the current conversation, if there is one. Otherwise,
    examine unanswered questions in records you created or edited during
-   this session. In a shared checkout, confirm authorship before treating a
-   record or question as yours (`git log` and the record's `- Author:` line
-   settle it). Do not scan the entire repository by default.
+   this session. "Records this session created or edited" means records
+   whose edits appear in this conversation's own tool calls; establish them
+   from the conversation, not by searching. Do not scan the entire repository
+   by default: do not run `aw attention`, `aw find`, or any recursive search
+   (`grep -r`, `find`, `git log --all`) over `.aw/records` to discover
+   questions. A record found any other way is not this session's even if it
+   carries open questions. If both sources are empty, say so in one or two
+   sentences, list the three ways to point `/askme` at a subject (a question,
+   a record or set id, or an explicit request to scan), and stop without
+   asking a question. These limits apply only to the no-argument case: items 2
+   and 3 and an explicit user request to scan ("look through the repo for
+   open questions") are unaffected.
 
 Treat conversational arguments as instructions about the question, not
 automatically as a filename or identifier. If the reference is genuinely
