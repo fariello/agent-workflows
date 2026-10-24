@@ -6,7 +6,7 @@
 - Scope: Decide the contract as "seed directory name order" (OQ-01) and rewrite ONLY the `load_corpus` docstring in `agent_workflows/benchmark_corpus.py` to state it. EXCLUDES any change to the function body or to any other symbol, EXCLUDES any test file (`tests/test_benchmark_corpus.py` belongs to executed plan `78g6ic`; `tests/test_benchmark_corpus_restored_behavior.py` belongs to `btubm6`, whose E-02(e) already pins name order and therefore needs no edit under this decision), and EXCLUDES `tests/benchmark_fixtures/`.
 - Scope-Paths: agent_workflows/benchmark_corpus.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,8 +18,7 @@
 - Id: x8p9ek
 
 ## Workflow history
-
-- 2026-10-23 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate lacked lifecycle/finalize ownership), PR-002 (E-01 skip wording omitted non-directory children; E-02 direct call did not say what to print) fixed
+- 2026-10-24 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed
 - 2026-10-23 to-review (opencode): authored from backlog `qtd3lj`. Re-measured the order divergence by direct call at lane HEAD `503f15cbd` (F-01), enumerated every caller of `load_corpus` (F-02, F-03), and resolved the contract choice from repository evidence as docstring-fix (OQ-01).
 - 2026-10-23 draft (opencode): created.
 
