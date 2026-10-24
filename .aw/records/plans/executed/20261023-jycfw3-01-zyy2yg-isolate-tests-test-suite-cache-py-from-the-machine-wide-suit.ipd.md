@@ -6,7 +6,7 @@
 - Scope: Add one module-level autouse fixture in `tests/test_suite_cache.py` that sets `AW_SUITE_LOCK_DIR` to a per-test private directory under `tmp_path`, so every in-process call, every `_fixture_env()` copy and every `aw suite` subprocess in the module resolves a private slot directory; add one behavioral regression test that holds every slot of a contended ambient lock directory and asserts a `run_full_suite` call driven the way this module's tests drive it acquires a private slot promptly; mutation-check that test. Test-only; no production change, no change to slot semantics, slot counts, timeouts or the hang-guard ceiling.
 - Scope-Paths: tests/test_suite_cache.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: zyy2yg
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zyy2yg verified (set jycfw3, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 - 2026-10-24 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-02 serial argv, no 12-worker child), PR-002 (re-derived test-count bars), PR-003 (F-1 call-site count), PR-004 (V-03 diff bar, holder early stop) fixed; mechanism demonstrated at e9e14c28d
 
