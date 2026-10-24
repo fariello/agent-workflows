@@ -1493,7 +1493,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         'When requested to run one of these workflows (e.g. "run release-review", "assess <concern>", "run setup-repo", "run scaffold"):\n'
         f"1. Locate the workflow's entry file under `{workflows_dir}/` (referenced in `{index_file}`).\n"
         "2. Read and execute the instructions defined in that workflow file step-by-step.\n\n"
-        f'When the user says "use /askme", "/askme that question again", "ask that again using /askme", or invokes `/aw askme`, read and apply `{workflows_dir}/askme/askme.md`. A request to ask a question again means rewrite the indicated question with full context; it does not mean scan unrelated records or repeat the wording.\n\n'
+        f'When the user says "use /askme", "/askme that question again", "ask that again using /askme", or invokes `/aw askme`, read and apply `{workflows_dir}/askme/askme.md`. These phrases are commands, never answers, including when they arrive as the answer to a question you asked or as a custom answer inside a question tool. On receiving one, re-read and apply the workflow to the most recent question you asked, even if you already applied it earlier in this conversation; an earlier request for a terse or identifier-only question no longer applies. A request to ask a question again means rewrite the indicated question with full context; it does not mean scan unrelated records or repeat the wording.\n\n'
         "### Writing prompts for another AI (research/handoff prompts)\n"
         "When asked to write a prompt to give to another AI (e.g. a research prompt for an "
         "LLM with web search), the prompt you produce MUST be upload-ready:\n"

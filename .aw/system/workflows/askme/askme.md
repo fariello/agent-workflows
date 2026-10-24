@@ -44,6 +44,14 @@ automatically as a filename or identifier. If the reference is genuinely
 ambiguous, ask a short clarification that describes the candidate subjects
 in plain language. Do not make the user identify them from opaque codes.
 
+Askme requests such as "use /askme", "askme that", "/askme that question again",
+and "ask that again" are commands, never answers, including when they arrive
+as the answer to a question you asked or as a custom answer inside a question
+tool. On receiving one, re-read and apply this workflow to the most recent
+question you asked, even if you already applied askme earlier in the same
+conversation. An earlier request for a terse or identifier-only question
+no longer applies.
+
 ## Establish facts before asking
 
 Read the code, relevant records, established decisions, or other available
@@ -172,6 +180,8 @@ waiting. Continue independent work only when it does not presume an answer.
 If the user says they do not understand, rewrite the question from scratch
 with the missing context and clearer wording. A complaint or clarification
 request is not a decision. Apply this rule to free-text tool responses too.
+An answer that is an askme request is a rewrite request (the same treatment
+as "I don't understand").
 
 If the user both makes an unambiguous choice and criticizes the wording,
 record the choice and fix the wording. If the choice is uncertain, clarify

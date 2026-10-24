@@ -85,6 +85,10 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
         self.assertNotIn("keep it screen-sized", aw_prose)
         self.assertNotIn("keep it screen-sized", legacy_prose)
 
+        for prose in (aw_prose, legacy_prose):
+            self.assertIn("commands, never answers", prose)
+            self.assertIn("even if you already applied it", prose)
+
     @pytest.mark.slow
     def test_installer_delivers_and_preserves_askme_shims(self):
         """(c) Run installer and assert askme shims and reporting contract in AGENTS.md;
@@ -125,6 +129,20 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
                 ".aw/system/workflows/askme/askme.md",
                 agents_text,
                 "AGENTS.md must contain the modern askme workflow path",
+            )
+
+            # Assert installed workflow body contains the "commands, never answers" rule
+            installed_askme_body = (
+                repo / ".aw" / "system" / "workflows" / "askme" / "askme.md"
+            )
+            self.assertTrue(
+                installed_askme_body.is_file(),
+                "Installed askme workflow body must exist",
+            )
+            self.assertIn(
+                "commands, never answers",
+                installed_askme_body.read_text(encoding="utf-8"),
+                "Installed askme workflow body must contain commands, never answers rule",
             )
 
             # (d) Re-run the installer
