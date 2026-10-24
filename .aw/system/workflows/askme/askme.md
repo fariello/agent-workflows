@@ -61,6 +61,16 @@ For unanswered questions in records, distinguish:
 - **Answered by evidence:** Resolve it from the evidence and record why.
   Apply an existing decision rule when its conditions can be established.
   An author's preference is not the same as an approved decision rule.
+  An approved decision rule is one of: (a) an entry in `DECISIONS.md` that has
+  not been superseded, (b) an approved or implemented spec, (c) an earlier
+  open question that a human resolved (one an agent resolved "by evidence" is
+  not a rule, or one agent's guess would become the next agent's rule), or (d)
+  a decision the user gave in this session; and it applies only when it
+  addresses this question's choice and its conditions can be established.
+  A code comment or docstring, a function's default argument, the way the
+  code currently behaves, and consistency with another command are evidence;
+  put them in the question as facts and a recommendation; they never answer
+  a `Blocking: yes` question on their own.
 - **Requires the user:** Ask when the unresolved choice needs a preference,
   authority, or judgment that the available evidence does not settle.
   Honor decisions and authorization already given in this session.
@@ -72,9 +82,12 @@ When genuinely unsure whether a blocking question is yours, ask. A question
 marked `Blocking: yes` was judged load-bearing by its author; silently
 downgrading it to save a prompt is the failure this workflow exists to stop.
 
-Do not use this classification to ignore an explicit request to rewrite a
-question. If evidence already settles that question, explain the answer
-and its basis instead of asking the user to decide it again.
+Do not use this classification to ignore an explicit request to ask or rewrite a
+question. If the user asked you to ask or rewrite a specific question, do so.
+If an approved decision rule (as defined above) already settles it, say which
+rule and what it decides, and ask whether the user wants to reopen it. If only
+evidence that is not a rule bears on it, ask the question and give that
+evidence in it.
 
 In a shared checkout, establish which records belong to this session.
 Confirm authorship before treating a record or question as yours (`git log`
@@ -206,8 +219,10 @@ authorize those separate actions.
 Use this branch when the runner explicitly says that human input is
 unavailable. The presence or absence of a terminal is not the deciding test.
 
-Resolve questions the evidence settles. Leave genuine human decisions
-unanswered in their records. Keep blocking questions open and visibly
+Resolve questions the evidence settles. "Evidence" here means an approved
+decision rule as defined above; a code comment or default is not one, so a
+`Blocking: yes` question it would answer stays open. Leave genuine human
+decisions unanswered in their records. Keep blocking questions open and visibly
 blocking; do not relabel them as deferrable merely because nobody can answer.
 Create a blocked backlog item only if no existing record carries the decision.
 Do not ask, wait, guess an answer, or record your recommendation as consent.

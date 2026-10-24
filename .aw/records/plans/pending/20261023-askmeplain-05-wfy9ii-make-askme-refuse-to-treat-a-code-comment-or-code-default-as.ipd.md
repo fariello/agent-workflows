@@ -35,33 +35,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rule
 
-- [ ] E-01 In `.aw/system/workflows/askme/askme.md` `## Establish facts before asking`, after the bullet beginning "**Answered by evidence:**", add a short definition: an approved decision rule is one of (a) an entry in `DECISIONS.md` that has not been superseded, (b) an approved or implemented spec, (c) an earlier open question that a HUMAN resolved (one an agent resolved "by evidence" is not a rule, or one agent's guess would become the next agent's rule), (d) a decision the user gave in this session; and it applies only when it addresses this question's choice and its conditions can be established. Then state plainly: a code comment or docstring, a function's default argument, the way the code currently behaves, and consistency with another command are evidence; put them in the question as facts and a recommendation; they never answer a `Blocking: yes` question on their own. Then REPLACE the existing paragraph beginning "Do not use this classification to ignore an explicit request to rewrite a question." with one that covers both requests: if the user asked you to ask or rewrite a specific question, do so; if an approved decision rule (as just defined) already settles it, say which rule and what it decides, and ask whether the user wants to reopen it; if only evidence that is not a rule bears on it, ask the question and give that evidence in it. Keep the existing "Apply an existing decision rule when its conditions can be established." and "An author's preference is not the same as an approved decision rule." sentences.
+- [x] E-01 In `.aw/system/workflows/askme/askme.md` `## Establish facts before asking`, after the bullet beginning "**Answered by evidence:**", add a short definition: an approved decision rule is one of (a) an entry in `DECISIONS.md` that has not been superseded, (b) an approved or implemented spec, (c) an earlier open question that a HUMAN resolved (one an agent resolved "by evidence" is not a rule, or one agent's guess would become the next agent's rule), (d) a decision the user gave in this session; and it applies only when it addresses this question's choice and its conditions can be established. Then state plainly: a code comment or docstring, a function's default argument, the way the code currently behaves, and consistency with another command are evidence; put them in the question as facts and a recommendation; they never answer a `Blocking: yes` question on their own. Then REPLACE the existing paragraph beginning "Do not use this classification to ignore an explicit request to rewrite a question." with one that covers both requests: if the user asked you to ask or rewrite a specific question, do so; if an approved decision rule (as just defined) already settles it, say which rule and what it decides, and ask whether the user wants to reopen it; if only evidence that is not a rule bears on it, ask the question and give that evidence in it. Keep the existing "Apply an existing decision rule when its conditions can be established." and "An author's preference is not the same as an approved decision rule." sentences.
   - Depends on: none
   - Expected outcome: the four-source definition (with the human-resolved and non-superseded limits), the evidence-not-rule list, and the single reconciled explicit-request paragraph are present; the old paragraph no longer exists, so no sentence still says "explain the answer and its basis instead of asking" while another says "ask it, even if you believe the evidence settles it".
-  - Execution state: pending
-- [ ] E-02 In `## Explicitly noninteractive runs`, after "Resolve questions the evidence settles.", add: "Evidence" here means an approved decision rule as defined above; a code comment or default is not one, so a `Blocking: yes` question it would answer stays open.
+  - Execution state: performed
+- [x] E-02 In `## Explicitly noninteractive runs`, after "Resolve questions the evidence settles.", add: "Evidence" here means an approved decision rule as defined above; a code comment or default is not one, so a `Blocking: yes` question it would answer stays open.
   - Depends on: E-01
   - Expected outcome: the noninteractive sentence is present directly after "Resolve questions the evidence settles."; the rest of that section is unchanged.
-  - Execution state: pending
-- [ ] E-03 Add a new test method to `AskmeCommandDeliveryTests` in `tests/test_askme_command_delivery.py` that runs `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a fresh `tests.support.init_repo` temp repo and asserts the INSTALLED `<repo>/.aw/system/workflows/askme/askme.md` contains the approved-rule definition's four sources, the statement that a code comment or default is not a rule, the reconciled explicit-request paragraph and the noninteractive sentence, and no longer contains "explain the answer and its basis instead of asking the user to decide it again". Mark it `@pytest.mark.slow` like its installer sibling (one install takes about 5 s; `tests/slow_allowlist.txt` lists the sibling), so the bare core-tier run does not collect it.
+  - Execution state: performed
+- [x] E-03 Add a new test method to `AskmeCommandDeliveryTests` in `tests/test_askme_command_delivery.py` that runs `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a fresh `tests.support.init_repo` temp repo and asserts the INSTALLED `<repo>/.aw/system/workflows/askme/askme.md` contains the approved-rule definition's four sources, the statement that a code comment or default is not a rule, the reconciled explicit-request paragraph and the noninteractive sentence, and no longer contains "explain the answer and its basis instead of asking the user to decide it again". Mark it `@pytest.mark.slow` like its installer sibling (one install takes about 5 s; `tests/slow_allowlist.txt` lists the sibling), so the bare core-tier run does not collect it.
   - Depends on: E-01, E-02
   - Expected outcome: the test passes against the edited body and fails against the pre-change body.
-  - Execution state: pending
-- [ ] E-04 Run the test file with the marker filter cleared, `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` (clearing `addopts` drops `-m 'not slow ...'`, so the slow installer tests run), then the bare core-tier gate `python3 -m pytest`, which does not collect this file and is the regression gate for the rest of the repository.
+  - Execution state: performed
+- [x] E-04 Run the test file with the marker filter cleared, `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` (clearing `addopts` drops `-m 'not slow ...'`, so the slow installer tests run), then the bare core-tier gate `python3 -m pytest`, which does not collect this file and is the regression gate for the rest of the repository.
   - Depends on: E-03, E-05, E-06
   - Expected outcome: both runs report no failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: records
 
-- [ ] E-05 Mirror the E-01 and E-02 reasoning in `.aw/system/workflows/askme/rationale.md` in one paragraph citing `lkn1zt` findings `auwidn` D-4 (Claude Code T04 and T11, the `run_analytics_cli.parse_date_window` docstring) and the maintainer's 2026-10-23 ruling to keep the rule and enforce it.
+- [x] E-05 Mirror the E-01 and E-02 reasoning in `.aw/system/workflows/askme/rationale.md` in one paragraph citing `lkn1zt` findings `auwidn` D-4 (Claude Code T04 and T11, the `run_analytics_cli.parse_date_window` docstring) and the maintainer's 2026-10-23 ruling to keep the rule and enforce it.
   - Depends on: E-01, E-02
   - Expected outcome: one new paragraph in `rationale.md`; no existing paragraph changed.
-  - Execution state: pending
-- [ ] E-06 Add one CHANGELOG bullet under the topmost pending heading (`## 2.0.0 (pending)`, which holds the earlier `/askme` bullet beginning "- Changed: /askme is retained as a supported command alias"), with the section's `- Fixed: ` prefix, describing the user-visible change (`/askme` no longer closes a blocking decision on the strength of a code comment or default; it asks you). Plain language, no em or en dashes (user-facing prose).
+  - Execution state: performed
+- [x] E-06 Add one CHANGELOG bullet under the topmost pending heading (`## 2.0.0 (pending)`, which holds the earlier `/askme` bullet beginning "- Changed: /askme is retained as a supported command alias"), with the section's `- Fixed: ` prefix, describing the user-visible change (`/askme` no longer closes a blocking decision on the strength of a code comment or default; it asks you). Plain language, no em or en dashes (user-facing prose).
   - Depends on: E-01, E-02
   - Expected outcome: one bullet under `## 2.0.0 (pending)`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,30 +118,176 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff -- .aw/system/workflows/askme/askme.md` hunk showing the four-source definition with its human-resolved and non-superseded limits, the evidence-not-rule list, the old "Do not use this classification to ignore an explicit request" paragraph removed and the reconciled paragraph added, and the "Apply an existing decision rule" and "An author's preference" sentences kept.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```diff
+@@ -61,6 +61,16 @@ For unanswered questions in records, distinguish:
+ - **Answered by evidence:** Resolve it from the evidence and record why.
+   Apply an existing decision rule when its conditions can be established.
+   An author's preference is not the same as an approved decision rule.
++  An approved decision rule is one of: (a) an entry in `DECISIONS.md` that has
++  not been superseded, (b) an approved or implemented spec, (c) an earlier
++  open question that a human resolved (one an agent resolved "by evidence" is
++  not a rule, or one agent's guess would become the next agent's rule), or (d)
++  a decision the user gave in this session; and it applies only when it
++  addresses this question's choice and its conditions can be established.
++  A code comment or docstring, a function's default argument, the way the
++  code currently behaves, and consistency with another command are evidence;
++  put them in the question as facts and a recommendation; they never answer
++  a `Blocking: yes` question on their own.
+ - **Requires the user:** Ask when the unresolved choice needs a preference,
+   authority, or judgment that the available evidence does not settle.
+   Honor decisions and authorization already given in this session.
+@@ -72,9 +82,12 @@ When genuinely unsure whether a blocking question is yours, ask. A question
+ marked `Blocking: yes` was judged load-bearing by its author; silently
+ downgrading it to save a prompt is the failure this workflow exists to stop.
+
+-Do not use this classification to ignore an explicit request to rewrite a
+-question. If evidence already settles that question, explain the answer
+-and its basis instead of asking the user to decide it again.
++Do not use this classification to ignore an explicit request to ask or rewrite a
++question. If the user asked you to ask or rewrite a specific question, do so.
++If an approved decision rule (as defined above) already settles it, say which
++rule and what it decides, and ask whether the user wants to reopen it. If only
++evidence that is not a rule bears on it, ask the question and give that
++evidence in it.
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted diff hunk for the noninteractive sentence, showing no other line of `## Explicitly noninteractive runs` changed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+```diff
+@@ -206,8 +219,10 @@ authorize those separate actions.
+ Use this branch when the runner explicitly says that human input is
+ unavailable. The presence or absence of a terminal is not the deciding test.
+
+-Resolve questions the evidence settles. Leave genuine human decisions
+-unanswered in their records. Keep blocking questions open and visibly
++Resolve questions the evidence settles. "Evidence" here means an approved
+ decision rule as defined above; a code comment or default is not one, so a
+`Blocking: yes` question it would answer stays open. Leave genuine human
+decisions unanswered in their records. Keep blocking questions open and visibly
+ blocking; do not relabel them as deferrable merely because nobody can answer.
+ Create a blocked backlog item only if no existing record carries the decision.
+ Do not ask, wait, guess an answer, or record your recommendation as consent.
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` output with the new test passing; the test's `@pytest.mark.slow` line; and the same test failing against the pre-change body, produced WITHOUT `git stash` (shared-checkout rule): `cp .aw/system/workflows/askme/askme.md /tmp/opencode/askme.new && git show HEAD:.aw/system/workflows/askme/askme.md > .aw/system/workflows/askme/askme.md`, run the test, `cp /tmp/opencode/askme.new .aw/system/workflows/askme/askme.md`, then paste `git diff --stat -- .aw/system/workflows/askme/askme.md` proving the edit is restored.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Delivery test passing, slow marker verified, pre-change test failing, and restoration confirmed.
+    The test's `@pytest.mark.slow` line in `tests/test_askme_command_delivery.py`:
+```python
+    @pytest.mark.slow
+    def test_installer_delivers_askme_refuses_code_comments_as_decision_rules(self):
+```
+    Pasted passing run of `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v`:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=261200973
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/wfy9ii
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 7 items
+
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_askme_shims_rendered_from_manifest PASSED [ 14%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_recorded_answers_and_premise_rules PASSED [ 28%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_agents_pointer_prose_names_askme PASSED [ 42%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_write_before_ask_rule PASSED [ 57%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_and_preserves_askme_shims PASSED [ 71%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_no_scan_rule PASSED [ 85%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_refuses_code_comments_as_decision_rules PASSED [100%]
+============================== SLOW TESTS REPORT ===============================
+
+WARNING: 3 test(s) exceeded 2s and are not listed in tests/slow_allowlist.txt:
+    2.64s  tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_refuses_code_comments_as_decision_rules
+    2.48s  tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_recorded_answers_and_premise_rules
+    2.47s  tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_no_scan_rule
+============================== 7 passed in 13.64s ==============================
+```
+    Sensitivity test failure against pre-change body:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=145279377
+rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/wfy9ii
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 7 items / 6 deselected / 1 selected
+
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_refuses_code_comments_as_decision_rules FAILED [100%]
+
+=================================== FAILURES ===================================
+_ AskmeCommandDeliveryTests.test_installer_delivers_askme_refuses_code_comments_as_decision_rules _
+...
+            # Four sources of an approved decision rule
+            self.assertIn("DECISIONS.md", installed_words)
+>           self.assertIn("has not been superseded", installed_words)
+E           AssertionError: 'has not been superseded' not found in '# Workflow: askme ...
+tests/test_askme_command_delivery.py:333: AssertionError
+...
+=========================== short test summary info ============================
+FAILED tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_refuses_code_comments_as_decision_rules
+======================= 1 failed, 6 deselected in 3.55s ========================
+```
+    Restoration verified with `git diff --stat -- .aw/system/workflows/askme/askme.md`:
+```
+ .aw/system/workflows/askme/askme.md | 25 ++++++++++++++++++++-----
+ 1 file changed, 20 insertions(+), 5 deletions(-)
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted final summary lines of BOTH E-04 runs (`python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` and bare `python3 -m pytest`), each showing no failures.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Summary lines of both runs showing no failures.
+    Summary line of `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v`:
+```
+============================== 7 passed in 13.64s ==============================
+```
+    Summary line of bare `python3 -m pytest` / `aw suite`:
+```
+1764 passed, 11 warnings in 48.33s
+```
+    Both runs report 0 failures.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted `git diff -- .aw/system/workflows/askme/rationale.md` showing one added paragraph citing `auwidn` D-4 and the 2026-10-23 ruling, and no removed lines.
   - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+```diff
+diff --git a/.aw/system/workflows/askme/rationale.md b/.aw/system/workflows/askme/rationale.md
+index 014fab34f..0cfa31a7c 100644
+--- a/.aw/system/workflows/askme/rationale.md
++++ b/.aw/system/workflows/askme/rationale.md
+@@ -56,3 +56,7 @@ Live trials in plan `lkn1zt` (findings `auwidn`) showed that across most recordi
+
+ In a live trial on Claude Code with Sonnet 5 on 2026-10-20, an agent asked three open questions one at a time, but held all three answers in the conversation and wrote them to the plan only after the third ("All three open questions on plan `m4rcyy` are now answered. Recording the decisions in the plan now."). If the session had been interrupted after the first or second answer, those earlier decisions would have been lost. The same host wrote each answer first in another session, showing that the behavior was inconsistent. The workflow therefore requires persisting each definite answer to its record before composing or asking the next question.
+
++## Refusing code comments and defaults as decision rules
++
++Live trials in plan `lkn1zt` (findings `auwidn`, D-4; Claude Code trials T04 and T11) showed an agent closing `Blocking: yes` maintainer decisions by treating the docstring of `run_analytics_cli.parse_date_window` or a function's default argument as an approved decision rule. In T04 it closed decisions without asking while the human was present; in T11 (an explicit noninteractive run) it closed them against the rule to leave genuine human decisions unanswered. On 2026-10-23, the maintainer ruled to keep the rule and enforce it: asking stays mandatory for a blocking human decision unless an approved decision rule settles it. Code comments, docstrings, default arguments, and current behavior are evidence to include in a question as facts and recommendations, never approved decision rules that answer a blocking question on their own.
++
+```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted `git diff -- CHANGELOG.md` showing one `- Fixed: ` bullet under `## 2.0.0 (pending)`.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e1e3e3d8e..90139e2ac 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -25,6 +25,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+ Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+ - Fixed: /askme now writes each answer to its record before asking the next question.
++- Fixed: /askme no longer closes a blocking decision on the strength of a code comment or default; it asks you.
+ - Fixed: `aw partition -t plans` no longer refuses a batch because of a Set whose orchestrator has already been executed. Such a Set has nothing left to keep together, so its plans that match the selection are scheduled, its other plans are ignored instead of being reported as blocking, and its plans are balanced across shards like any others. Declared plan dependencies are still enforced.
+ - Added: Notification channels now show question groups. In full mode each distinct question appears once, with how many plans asked it and the group answer command, the `aw.notify/v1` JSON gains `distinct_count` and per-entry group fields, and one Telegram reply or button press answers every parked plan that asked the question. Terse text is unchanged.
+ - Added: `aw notify` command family (setup telegram, setup webhook, setup command, status, disable, test, listen) for configuring and managing outbound runner notifications and live command listening. Includes `docs/notifications.md` user guide.
+```
+  - Result: pass
 
 ## Approval and execution gate
 
