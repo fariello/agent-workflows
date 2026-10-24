@@ -35,34 +35,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the review-findings gate module
 
-- [ ] E-01 Create `tests/test_review_findings_gate.py` from `git show 19313eed^:tests/test_review_findings_gate.py`. Remove the whole `SourceInvariantTests` class (it slices production source text and asserts substrings, which `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE" forbids) and `SubjectFieldIndexTests.test_no_review_record_in_the_tree_carries_the_retired_field` (it reads this repository's live `.aw/records/reviews/` rather than a fixture, so it depends on live state). Remove any import left unused by those deletions. Two surviving strings name the removed live-corpus test as the guard that keeps the retired-field row hypothetical (the `_Case` "a review artifact carrying the RETIRED subject field" rationale, and the `SubjectFieldIndexTests` failure message "keep `test_no_review_record_in_the_tree_carries_the_retired_field` green"); reword each to say that corpus-level guard was not restored (plan `p79jts`, live-state read) instead of pointing at a test that no longer exists. Add a module docstring line naming backlog `lzg859`, findings `wo21z5`, plan `p79jts` and source `19313eed^`. Do NOT add a module-level `pytestmark`; the file stays in the thorough tier except as E-02 marks. Disposition rule if a recovered test fails at execution HEAD: record it in Findings, and if `git log -S` shows an intended behavior change adjust only that expectation and cite the commit; if it is a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it.
+- [x] E-01 Create `tests/test_review_findings_gate.py` from `git show 19313eed^:tests/test_review_findings_gate.py`. Remove the whole `SourceInvariantTests` class (it slices production source text and asserts substrings, which `AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE" forbids) and `SubjectFieldIndexTests.test_no_review_record_in_the_tree_carries_the_retired_field` (it reads this repository's live `.aw/records/reviews/` rather than a fixture, so it depends on live state). Remove any import left unused by those deletions. Two surviving strings name the removed live-corpus test as the guard that keeps the retired-field row hypothetical (the `_Case` "a review artifact carrying the RETIRED subject field" rationale, and the `SubjectFieldIndexTests` failure message "keep `test_no_review_record_in_the_tree_carries_the_retired_field` green"); reword each to say that corpus-level guard was not restored (plan `p79jts`, live-state read) instead of pointing at a test that no longer exists. Add a module docstring line naming backlog `lzg859`, findings `wo21z5`, plan `p79jts` and source `19313eed^`. Do NOT add a module-level `pytestmark`; the file stays in the thorough tier except as E-02 marks. Disposition rule if a recovered test fails at execution HEAD: record it in Findings, and if `git log -S` shows an intended behavior change adjust only that expectation and cite the commit; if it is a regression, file a `bug` backlog item with `aw backlog new ... --blocks-release next` (justified at finalize with `--scope-reason`) and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it.
   - Depends on: none
   - Expected outcome: the module exists and every remaining test passes under `-o addopts=""` (11 recovered tests passed at authoring before the two removals, F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Decorate the `GateOutcomeTests` class in `tests/test_review_findings_gate.py` with `@pytest.mark.core` (adding `import pytest`). Its single table test calls `check_engine.check_review_finding_unescalated` on isolated `tempfile` repos and asserts per row whether `check.review-finding-unescalated` fires, which path it names, and the `detail`/`required`/`recovery` substrings. It was one of the newly failing tests under BOTH the `check_review_finding_unescalated` and the `evaluate_review_finding_escalation` `return-none` mutants (F-03) and ran in 0.31s.
+- [x] E-02 Decorate the `GateOutcomeTests` class in `tests/test_review_findings_gate.py` with `@pytest.mark.core` (adding `import pytest`). Its single table test calls `check_engine.check_review_finding_unescalated` on isolated `tempfile` repos and asserts per row whether `check.review-finding-unescalated` fires, which path it names, and the `detail`/`required`/`recovery` substrings. It was one of the newly failing tests under BOTH the `check_review_finding_unescalated` and the `evaluate_review_finding_escalation` `return-none` mutants (F-03) and ran in 0.31s.
   - Depends on: E-01
   - Expected outcome: `GateOutcomeTests` is collected by a bare `python3 -m pytest`; the other classes are not.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: direct behavioral tests for the remaining survivors
 
-- [ ] E-03 Create `tests/test_check_engine_restored_behavior.py` with `pytestmark = pytest.mark.core`, a module docstring naming backlog `lzg859`, findings `wo21z5` and plan `p79jts`, and `from tests.test_plan_priority_required import _build_test_plan` as the plan-fixture builder (the existing helper `check_plan_priority_required`'s own unit tests use). Add `test_check_plan_priority_required_reports_only_approved_plans_missing_fields`: in a `tempfile.TemporaryDirectory()` repo with `.aw/records/plans/pending/` and `executed/`, write four pending plans built by `_build_test_plan`: `tst001` `status="approved"` with no Priority/Work-Kind; `tst002` `approved`, `priority="high"`, `work_kind="chore"`; `tst003` `to-review` with neither field; `tst004` `approved` with both set to `grandfathered`. Assert `[(Path(d.location).name, d.rule, d.recovery) for d in ce.check_plan_priority_required(repo)]` equals exactly `[("20260924-testset-01-tst001-a.ipd.md", "check.ipd-priority-required", "aw ipd set tst001 --priority <low|medium|high>"), ("20260924-testset-01-tst001-a.ipd.md", "check.ipd-work-kind-required", "aw ipd set tst001 --work-kind <bug|feature|chore|security|followup>")]` (measured by direct call, F-04).
+- [x] E-03 Create `tests/test_check_engine_restored_behavior.py` with `pytestmark = pytest.mark.core`, a module docstring naming backlog `lzg859`, findings `wo21z5` and plan `p79jts`, and `from tests.test_plan_priority_required import _build_test_plan` as the plan-fixture builder (the existing helper `check_plan_priority_required`'s own unit tests use). Add `test_check_plan_priority_required_reports_only_approved_plans_missing_fields`: in a `tempfile.TemporaryDirectory()` repo with `.aw/records/plans/pending/` and `executed/`, write four pending plans built by `_build_test_plan`: `tst001` `status="approved"` with no Priority/Work-Kind; `tst002` `approved`, `priority="high"`, `work_kind="chore"`; `tst003` `to-review` with neither field; `tst004` `approved` with both set to `grandfathered`. Assert `[(Path(d.location).name, d.rule, d.recovery) for d in ce.check_plan_priority_required(repo)]` equals exactly `[("20260924-testset-01-tst001-a.ipd.md", "check.ipd-priority-required", "aw ipd set tst001 --priority <low|medium|high>"), ("20260924-testset-01-tst001-a.ipd.md", "check.ipd-work-kind-required", "aw ipd set tst001 --work-kind <bug|feature|chore|security|followup>")]` (measured by direct call, F-04).
   - Depends on: none
   - Expected outcome: the module exists, is core-marked, and the test passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_check_engine_restored_behavior.py` add two more tests. (a) `test_plan_disposition_is_the_first_component_under_the_plans_dir`: for each `(rel, expected)` in `("executed/x.ipd.md", "executed")`, `("executed/202608/x.ipd.md", "executed")`, `("superseded/202601/x.ipd.md", "superseded")`, `("not-executed/202608/x.ipd.md", "not-executed")`, `("pending/202608/x.ipd.md", "pending")`, `("z.ipd.md", None)` (a file directly in the plans dir has no disposition), write the file under `<tmp>/.aw/records/plans/<rel>` and assert `ce._plan_disposition(repo, path) == expected`; also assert a file under `<tmp>/not-a-plan-dir/` yields `None`. This mirrors the deleted `test_check_engine_receipt_liveness.test_f_disposition_is_the_first_path_component` and `test_e_missing_plan_location_is_not_live` without their git-subprocess setup. (b) `test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft`: pending `tst001` `draft` with `priority="low"`, `work_kind="chore"`; pending `tst002` `draft` with both `unresolved` (a scaffold placeholder remains); pending `tst003` `to-review`; and `tst004` `draft` placed under `executed/`. Assert `[(Path(d.location).name, d.rule, d.recovery) for d in ce.check_ipd_draft_ready(repo)]` equals exactly `[("20260924-testset-01-tst001-a.ipd.md", "check.ipd-draft-ready-to-review", "aw ipd set to-review tst001")]` (F-04).
+- [x] E-04 In `tests/test_check_engine_restored_behavior.py` add two more tests. (a) `test_plan_disposition_is_the_first_component_under_the_plans_dir`: for each `(rel, expected)` in `("executed/x.ipd.md", "executed")`, `("executed/202608/x.ipd.md", "executed")`, `("superseded/202601/x.ipd.md", "superseded")`, `("not-executed/202608/x.ipd.md", "not-executed")`, `("pending/202608/x.ipd.md", "pending")`, `("z.ipd.md", None)` (a file directly in the plans dir has no disposition), write the file under `<tmp>/.aw/records/plans/<rel>` and assert `ce._plan_disposition(repo, path) == expected`; also assert a file under `<tmp>/not-a-plan-dir/` yields `None`. This mirrors the deleted `test_check_engine_receipt_liveness.test_f_disposition_is_the_first_path_component` and `test_e_missing_plan_location_is_not_live` without their git-subprocess setup. (b) `test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft`: pending `tst001` `draft` with `priority="low"`, `work_kind="chore"`; pending `tst002` `draft` with both `unresolved` (a scaffold placeholder remains); pending `tst003` `to-review`; and `tst004` `draft` placed under `executed/`. Assert `[(Path(d.location).name, d.rule, d.recovery) for d in ce.check_ipd_draft_ready(repo)]` equals exactly `[("20260924-testset-01-tst001-a.ipd.md", "check.ipd-draft-ready-to-review", "aw ipd set to-review tst001")]` (F-04).
   - Depends on: E-03
   - Expected outcome: both tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: put the existing spec-criteria guard in the core tier
 
-- [ ] E-05 In `tests/test_check_engine_spec_criteria.py`, add `import pytest` and decorate exactly two methods of `CheckEngineSpecCriteriaTests` with `@pytest.mark.core`: `test_clean_fixture_yields_zero_findings_and_exit_code_zero` and `test_positive_control_fires_when_criterion_missing`. Both call `check_engine.check_spec_criteria_uncovered` on a `TemporaryDirectory` fixture with no subprocess, and both were among the 10 newly failing tests under its `return-none` mutant (F-03). Change nothing else in the file. Then, with E-01 through E-05 done, commit the three files through `aw commit p79jts -- tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py` (the Required-tests mutation probes read committed HEAD and cannot see uncommitted tests). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites lines, `aw commit` re-stages and retries; record any hook churn in V-05 rather than editing it by hand.
+- [x] E-05 In `tests/test_check_engine_spec_criteria.py`, add `import pytest` and decorate exactly two methods of `CheckEngineSpecCriteriaTests` with `@pytest.mark.core`: `test_clean_fixture_yields_zero_findings_and_exit_code_zero` and `test_positive_control_fires_when_criterion_missing`. Both call `check_engine.check_spec_criteria_uncovered` on a `TemporaryDirectory` fixture with no subprocess, and both were among the 10 newly failing tests under its `return-none` mutant (F-03). Change nothing else in the file. Then, with E-01 through E-05 done, commit the three files through `aw commit p79jts -- tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py` (the Required-tests mutation probes read committed HEAD and cannot see uncommitted tests). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites lines, `aw commit` re-stages and retries; record any hook churn in V-05 rather than editing it by hand.
   - Depends on: E-02, E-04
   - Expected outcome: those two tests are collected by a bare `python3 -m pytest`; the rest of the file is not; the whole file still passes; one commit holds exactly the three Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,30 +133,216 @@ N/A: this plan adds and marks tests only and changes no behavior, CLI surface, o
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_review_findings_gate.py` with every test PASSED; paste `rg -n "class SourceInvariantTests|def test_no_review_record_in_the_tree_carries_the_retired_field|test_no_review_record_in_the_tree|inspect\.|getsource" tests/test_review_findings_gate.py` returning no match (exit 1; E-01 rewords the two string references to the removed test, F-06).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_review_findings_gate.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python>
+    cachedir: .pytest_cache
+    Using --randomly-seed=2557055660
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/p79jts
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 10 items
 
-- [ ] V-02 validates E-02
+    tests/test_review_findings_gate.py::FindingSubfieldStructureTests::test_convention_is_declared_in_the_schema PASSED [ 10%]
+    tests/test_review_findings_gate.py::FindingSubfieldStructureTests::test_the_finding_subfield_parses_and_adds_no_diagnostic PASSED [ 20%]
+    tests/test_review_findings_gate.py::GrandfatheringTests::test_many_plans_with_no_reviews_produce_no_findings PASSED [ 30%]
+    tests/test_review_findings_gate.py::EndToEndReuseChainTests::test_escalation_is_then_caught_by_the_preexisting_pre_execution_gate PASSED [ 40%]
+    tests/test_review_findings_gate.py::EndToEndReuseChainTests::test_the_loop_is_closable_by_resolving_the_question PASSED [ 50%]
+    tests/test_review_findings_gate.py::RuleRegistrationTests::test_rule_id_resolves_to_a_registered_rulespec PASSED [ 60%]
+    tests/test_review_findings_gate.py::GateOutcomeTests::test_the_gate_fires_exactly_when_it_should PASSED [ 70%]
+    tests/test_review_findings_gate.py::LintCheckpointTests::test_the_rule_gates_exactly_two_phases_on_the_file_route PASSED [ 80%]
+    tests/test_review_findings_gate.py::SubjectFieldIndexTests::test_the_index_and_the_gate_agree_on_the_subject_spelling PASSED [ 90%]
+    tests/test_review_findings_gate.py::GateReachTests::test_every_entry_point_reaches_the_rule_and_counts_it_once PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 10 passed in 3.06s ==============================
+
+    $ rg -n "class SourceInvariantTests|def test_no_review_record_in_the_tree_carries_the_retired_field|test_no_review_record_in_the_tree|inspect\.|getsource" tests/test_review_findings_gate.py
+    (no match, exit 1)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest --collect-only -q | rg test_review_findings_gate` showing only `GateOutcomeTests` items; paste the full `tools/mutation_probe.py` output for `check_review_finding_unescalated` and `evaluate_review_finding_escalation` (Required tests), each `verdict: killed` with `newly_failing` naming `GateOutcomeTests`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest --collect-only | rg test_review_findings_gate
+    tests/test_review_findings_gate.py::GateOutcomeTests::test_the_gate_fires_exactly_when_it_should
 
-- [ ] V-03 validates E-03
+    $ python3 -m pytest --collect-only -q | rg test_review_findings_gate
+    tests/test_review_findings_gate.py: 1
+    ```
+    Probe `check_review_finding_unescalated`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::check_review_finding_unescalated
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_review_findings_gate.GateOutcomeTests::test_the_gate_fires_exactly_when_it_should
+    wall_s: 7.98
+    ```
+    Probe `evaluate_review_finding_escalation`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::evaluate_review_finding_escalation
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_review_findings_gate.GateOutcomeTests::test_the_gate_fires_exactly_when_it_should
+    wall_s: 8.67
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_check_engine_restored_behavior.py` with the priority test PASSED; paste `python3 -m pytest --collect-only -q | rg -c test_check_engine_restored_behavior` (nonzero); paste the full `tools/mutation_probe.py` output for `check_plan_priority_required` (Required tests), `verdict: killed` with `newly_failing` naming the E-03 test.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_check_engine_restored_behavior.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <python>
+    cachedir: .pytest_cache
+    Using --randomly-seed=1318480527
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/p79jts
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 3 items
 
-- [ ] V-04 validates E-04
+    tests/test_check_engine_restored_behavior.py::test_plan_disposition_is_the_first_component_under_the_plans_dir PASSED [ 33%]
+    tests/test_check_engine_restored_behavior.py::test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft PASSED [ 66%]
+    tests/test_check_engine_restored_behavior.py::test_check_plan_priority_required_reports_only_approved_plans_missing_fields PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 3 passed in 0.41s ===============================
+
+    $ python3 -m pytest --collect-only -q | rg -c test_check_engine_restored_behavior
+    1
+    ```
+    Probe `check_plan_priority_required`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::check_plan_priority_required
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_check_engine_restored_behavior::test_check_plan_priority_required_reports_only_approved_plans_missing_fields
+    wall_s: 8.82
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` lines showing both E-04 tests PASSED; paste the full `tools/mutation_probe.py` output for `_plan_disposition` and `check_ipd_draft_ready` (Required tests), each `verdict: killed` with `newly_failing` naming the matching E-04 test.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_check_engine_restored_behavior.py::test_plan_disposition_is_the_first_component_under_the_plans_dir PASSED [ 33%]
+    tests/test_check_engine_restored_behavior.py::test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft PASSED [ 66%]
+    ```
+    Probe `_plan_disposition`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::_plan_disposition
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_check_engine_restored_behavior::test_plan_disposition_is_the_first_component_under_the_plans_dir
+    wall_s: 7.98
+    ```
+    Probe `check_ipd_draft_ready`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::check_ipd_draft_ready
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_check_engine_restored_behavior::test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft
+    wall_s: 7.29
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest --collect-only -q | rg test_check_engine_spec_criteria` showing exactly the two marked tests; paste `python3 -m pytest -o addopts="" -q tests/test_check_engine_spec_criteria.py` all passing; paste the full `tools/mutation_probe.py` output for `check_spec_criteria_uncovered` (Required tests), `verdict: killed` with `newly_failing` naming at least one of the two E-05 tests; paste the bare `python3 -m pytest` summary line and `--durations` for the newly core items; paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty, and `git diff --stat <base>..HEAD` listing only the three Scope-Paths (plus this plan).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest --collect-only | rg test_check_engine_spec_criteria
+    tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_clean_fixture_yields_zero_findings_and_exit_code_zero
+    tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_positive_control_fires_when_criterion_missing
+
+    $ python3 -m pytest --collect-only -q | rg test_check_engine_spec_criteria
+    tests/test_check_engine_spec_criteria.py: 2
+
+    $ python3 -m pytest -o addopts="" -q tests/test_check_engine_spec_criteria.py
+    ...............                                                          [100%]
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    15 passed in 1.27s
+    ```
+    Probe `check_spec_criteria_uncovered`:
+    ```
+    head: ec70d5f522621b05248750f87d21226be5558979
+    target: agent_workflows/check_engine.py::check_spec_criteria_uncovered
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests::test_clean_fixture_yields_zero_findings_and_exit_code_zero
+      tests.test_check_engine_spec_criteria.CheckEngineSpecCriteriaTests::test_positive_control_fires_when_criterion_missing
+    wall_s: 6.52
+    ```
+    Bare test suite summary:
+    ```
+    1746 passed, 11 warnings in 49.19s
+    ```
+    Durations for newly core items:
+    ```
+    $ python3 -m pytest -o addopts="" -m core --durations=0 tests/test_review_findings_gate.py tests/test_check_engine_restored_behavior.py tests/test_check_engine_spec_criteria.py
+    ============================== slowest durations ===============================
+    0.42s call     tests/test_review_findings_gate.py::GateOutcomeTests::test_the_gate_fires_exactly_when_it_should
+    0.03s call     tests/test_check_engine_restored_behavior.py::test_plan_disposition_is_the_first_component_under_the_plans_dir
+    0.01s call     tests/test_check_engine_restored_behavior.py::test_check_plan_priority_required_reports_only_approved_plans_missing_fields
+    0.01s call     tests/test_check_engine_restored_behavior.py::test_check_ipd_draft_ready_nudges_only_a_finished_pending_draft
+    0.01s call     tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_clean_fixture_yields_zero_findings_and_exit_code_zero
+    0.01s call     tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_positive_control_fires_when_criterion_missing
+    ======================= 6 passed, 22 deselected in 1.23s =======================
+    ```
+    Diff checks (<base> = d9896125a4693123b3c3a34df9ea3274bebaf552):
+    ```
+    $ git diff --stat d9896125a4693123b3c3a34df9ea3274bebaf552..HEAD -- agent_workflows/
+    (empty)
+
+    $ git diff --stat -- agent_workflows/
+    (empty)
+
+    $ git diff --stat d9896125a4693123b3c3a34df9ea3274bebaf552..HEAD
+     tests/test_check_engine_restored_behavior.py |  143 +++
+     tests/test_check_engine_spec_criteria.py     |    4 +
+     tests/test_review_findings_gate.py           | 1227 ++++++++++++++++++++++++++
+     3 files changed, 1374 insertions(+)
+    ```
+    Hook churn: none observed during `aw commit`.
+  - Result: pass
 
 ## Approval and execution gate
 
