@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_benchmark_runner_payloads.py`, that drives the two keys through their public objects (`RunnerAdapter`, `RunnerDouble.run_trial`, `TrialResult`) and asserts on the returned digest and dict, then probes each key with `tools/mutation_probe.py` under a `-m core` selection to prove the routine gate now kills the mutants. EXCLUDES any production-code change; EXCLUDES other `benchmark_runners.py` keys (`TrialResult.is_success`, `is_pending`, `is_completed`, `get_adapter`, `RunnerAdapter.build_rerun_command`, the `__init__` keys) which are not in this item; EXCLUDES the sibling benchmark keys owned by plans `1z19cn` (`cell_key`, `MetricSummary.to_dict`, `GateEvaluationResult.to_dict`) and `ya0h23` (manifest digests); EXCLUDES restoring deleted tests verbatim from `19313eed^`.
 - Scope-Paths: tests/test_benchmark_runner_payloads.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: rempo8
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-24 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002. Re-verified F-01 at HEAD `fa3959eaf` (`adapter_digest` return-none still `survived`, `mutant_failing: 0`) and every F-03 value by direct call.
 
 - 2026-10-23 to-review (opencode): authored from backlog `l9ssp6` (group 13). Re-probed both keys at HEAD `9f9c6d625` against both benchmark-runner test files (both `survived`, `mutant_failing: 0`) and measured the concrete values the new tests assert on before writing expected outcomes.
