@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the minimal core-tier module
 
-- [ ] E-01 Create `tests/test_ipd_lifecycle_restored_behavior.py` with a provenance docstring naming backlog `gcpj15`, plan `2qlg0w`, source `19313eed^` and the three control files; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); the helper imports the control files used from `tests.test_ipd_lifecycle_cli` (`_init_git`, `_commit_all`, `_ready_plan_text`, `_completed_plan_text`, `_write_plan`); and the three fixture base classes copied from `19313eed^`: `_Fixture` plus its `_git` helper and `IN_SCOPE` constant from `tests/test_begin_dirty_gate_scope.py`, `_ScopeOwnershipBase` plus `_commit_paths`/`_git_out` from `tests/test_finalize_scope_ownership.py`, and `_ExactAttributionBase` plus its `_commit_paths` from `tests/test_finalize_exact_attribution.py`. Rename colliding module-level helpers or constants (`_commit_paths`, `ACTOR`, `SCOPE`) with a per-source prefix only where the two sources differ; do not change any helper's behavior. Measured at review: `ACTOR = "opencode/test"` and `SCOPE = "agent_workflows/demo.py, tests/test_demo.py"` are identical in both finalize sources (define once), while `_commit_paths` differs (the exact-attribution copy returns the sha, the scope-ownership copy returns `None`), so keep both as `_ea_commit_paths` and `_so_commit_paths` and update only the call sites inside the copied bases and tests. Module imports are exactly what the copied code uses: `json`, `subprocess`, `tempfile`, `unittest`, `pathlib.Path`, `pytest`, `from agent_workflows import ipd_lifecycle as LC`, and the five `tests.test_ipd_lifecycle_cli` helpers. Do NOT copy `from agent_workflows import oc_runipd as OC` (used only by the excluded `RunnerDeclaresTheExecutionBaselineTests`) or `inspect`: the pre-commit `ruff --fix` hook (`.pre-commit-config.yaml` `id: ruff`) would rewrite an unused import and reject the commit. Before creating the file, record `git rev-parse HEAD` as `<base>` in this item's evidence; V-03 and the no-production-change check diff against it.
+- [x] E-01 Create `tests/test_ipd_lifecycle_restored_behavior.py` with a provenance docstring naming backlog `gcpj15`, plan `2qlg0w`, source `19313eed^` and the three control files; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); the helper imports the control files used from `tests.test_ipd_lifecycle_cli` (`_init_git`, `_commit_all`, `_ready_plan_text`, `_completed_plan_text`, `_write_plan`); and the three fixture base classes copied from `19313eed^`: `_Fixture` plus its `_git` helper and `IN_SCOPE` constant from `tests/test_begin_dirty_gate_scope.py`, `_ScopeOwnershipBase` plus `_commit_paths`/`_git_out` from `tests/test_finalize_scope_ownership.py`, and `_ExactAttributionBase` plus its `_commit_paths` from `tests/test_finalize_exact_attribution.py`. Rename colliding module-level helpers or constants (`_commit_paths`, `ACTOR`, `SCOPE`) with a per-source prefix only where the two sources differ; do not change any helper's behavior. Measured at review: `ACTOR = "opencode/test"` and `SCOPE = "agent_workflows/demo.py, tests/test_demo.py"` are identical in both finalize sources (define once), while `_commit_paths` differs (the exact-attribution copy returns the sha, the scope-ownership copy returns `None`), so keep both as `_ea_commit_paths` and `_so_commit_paths` and update only the call sites inside the copied bases and tests. Module imports are exactly what the copied code uses: `json`, `subprocess`, `tempfile`, `unittest`, `pathlib.Path`, `pytest`, `from agent_workflows import ipd_lifecycle as LC`, and the five `tests.test_ipd_lifecycle_cli` helpers. Do NOT copy `from agent_workflows import oc_runipd as OC` (used only by the excluded `RunnerDeclaresTheExecutionBaselineTests`) or `inspect`: the pre-commit `ruff --fix` hook (`.pre-commit-config.yaml` `id: ruff`) would rewrite an unused import and reject the commit. Before creating the file, record `git rev-parse HEAD` as `<base>` in this item's evidence; V-03 and the no-production-change check diff against it.
   - Depends on: none
   - Expected outcome: the module imports cleanly, `ruff check` and `ruff format --check` on it are clean, and it defines the three fixture bases with no test methods yet; `<base>` recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add these eight test methods, bodies copied verbatim from `19313eed^` except for renamed helper references, each in a subclass of its source fixture base: `begin` = `IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn` and `NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline`; `_baseline_ambiguity` = `IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo` and `IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated`; `_execution_cohesive_committed_paths` = `NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set` and `NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position`; `finalize_precheck` = `FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly` and `ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded`. Every test calls `ipd_lifecycle` functions and asserts on exit codes, receipts, returned attribution objects or finalize output; none reads source. Disposition rule if a copied test fails at execution HEAD (none did at review, F-08): do not mark this item performed until it is dispositioned. Record the failure in Findings; for an intended behavior change cite the commit `git log -S` finds and adjust only that expectation; for a regression file a `bug` backlog item with `aw backlog new ... --blocks-release next` and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it.
+- [x] E-02 Add these eight test methods, bodies copied verbatim from `19313eed^` except for renamed helper references, each in a subclass of its source fixture base: `begin` = `IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn` and `NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline`; `_baseline_ambiguity` = `IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo` and `IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated`; `_execution_cohesive_committed_paths` = `NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set` and `NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position`; `finalize_precheck` = `FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly` and `ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded`. Every test calls `ipd_lifecycle` functions and asserts on exit codes, receipts, returned attribution objects or finalize output; none reads source. Disposition rule if a copied test fails at execution HEAD (none did at review, F-08): do not mark this item performed until it is dispositioned. Record the failure in Findings; for an intended behavior change cite the commit `git log -S` finds and adjust only that expectation; for a regression file a `bug` backlog item with `aw backlog new ... --blocks-release next` and mark the test `@pytest.mark.xfail(strict=True, reason="<bug id6>")` rather than deleting it.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py` reports every collected test PASSED with none failed, skipped, xfailed or errored, and the collected set covers all four keys (the binding proof that each key is guarded is the E-03 probe, not the count).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove the mutants die in the core tier
 
-- [ ] E-03 For each key K in (`begin`, `_baseline_ambiguity`, `_execution_cohesive_committed_paths`, `finalize_precheck`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/ipd_lifecycle.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in its own isolated worktree cut from HEAD, so the new file must be COMMITTED first (E-04) and the probe run afterwards; do not use `--extra-test` for it (that flag reads `COMMIT^:PATH`, the parent of the named commit, and exists to resurrect deleted files, not to inject an uncommitted one). Record each `verdict:` and `mutant_failing:` line in Findings. If any key reports `survived`, add the next killing test for that key from its control file (the `newly_failing` lists in F-04's sources) and re-probe.
+- [x] E-03 For each key K in (`begin`, `_baseline_ambiguity`, `_execution_cohesive_committed_paths`, `finalize_precheck`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/ipd_lifecycle.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in its own isolated worktree cut from HEAD, so the new file must be COMMITTED first (E-04) and the probe run afterwards; do not use `--extra-test` for it (that flag reads `COMMIT^:PATH`, the parent of the named commit, and exists to resurrect deleted files, not to inject an uncommitted one). Record each `verdict:` and `mutant_failing:` line in Findings. If any key reports `survived`, add the next killing test for that key from its control file (the `newly_failing` lists in F-04's sources) and re-probe.
   - Depends on: E-04
   - Expected outcome: four `verdict: killed` lines under the full core selection.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Commit `tests/test_ipd_lifecycle_restored_behavior.py` with `aw commit 2qlg0w -- tests/test_ipd_lifecycle_restored_behavior.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, with the new module's own durations from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_ipd_lifecycle_restored_behavior.py`.
+- [x] E-04 Commit `tests/test_ipd_lifecycle_restored_behavior.py` with `aw commit 2qlg0w -- tests/test_ipd_lifecycle_restored_behavior.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, with the new module's own durations from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_ipd_lifecycle_restored_behavior.py`.
   - Depends on: E-02
   - Expected outcome: bare run shows no test failures and its `passed` count grew by the new module's collected tests relative to `<base>`; the new module's summed call time is a few seconds at most (F-05 measured per-test calls of about 0.5s to 0.7s; F-08 measured 3.82s total serial for the eight). A `CORE TIER BUDGET EXCEEDED` block is recorded, not treated as a failure of this item, when it was already firing at `<base>` (F-05); if it fires ONLY with the new module, record both wall times and the module's share.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -132,25 +132,212 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the head of `tests/test_ipd_lifecycle_restored_behavior.py` showing the provenance docstring (naming `gcpj15`, `2qlg0w`, `19313eed^`) and `pytestmark = pytest.mark.core`; paste `grep -nE "inspect|getsource|ast\." tests/test_ipd_lifecycle_restored_behavior.py` returning nothing; paste clean `ruff check` and `ruff format --check` output for the file; paste the recorded `<base>` sha.
   - Observed evidence:
-  - Result: pending
+    Head of `tests/test_ipd_lifecycle_restored_behavior.py`:
+    ```python
+    """Restored behavioral tests for agent_workflows/ipd_lifecycle.py begin, _baseline_ambiguity,
+    _execution_cohesive_committed_paths, and finalize_precheck.
 
-- [ ] V-02 validates E-02
+    Restores core-tier behavioral coverage for four production keys recorded in backlog item gcpj15
+    and IPD 2qlg0w, whose control files were deleted at 19313eed^:
+    - tests/test_begin_dirty_gate_scope.py
+    - tests/test_finalize_exact_attribution.py
+    - tests/test_finalize_scope_ownership.py
+    """
+
+    from __future__ import annotations
+
+    import json
+    import subprocess
+    import tempfile
+    import unittest
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import ipd_lifecycle as LC
+    from tests.test_ipd_lifecycle_cli import (
+        _commit_all,
+        _completed_plan_text,
+        _init_git,
+        _ready_plan_text,
+        _write_plan,
+    )
+
+    pytestmark = pytest.mark.core
+    ```
+    No ast/inspect/getsource references:
+    ```
+    $ grep -nE "inspect|getsource|ast\." tests/test_ipd_lifecycle_restored_behavior.py
+    (empty, exit 1)
+    ```
+    Clean ruff check and format:
+    ```
+    $ ruff check tests/test_ipd_lifecycle_restored_behavior.py && ruff format --check tests/test_ipd_lifecycle_restored_behavior.py
+    All checks passed!
+    1 file already formatted
+    ```
+    Recorded `<base>` sha:
+    ```
+    45f067269c849f8004d48d6fc8d233dc77b77835
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py` (re-run at execution) showing every collected test PASSED and a summary line with no `failed`, `skipped`, `xfailed` or `error`, and the collected tests covering the E-02 behaviors of all four keys (the E-02 names are pointers, not the bar); paste `python3 -m pytest --collect-only -q 2>&1 | grep test_ipd_lifecycle_restored_behavior` showing the module is collected by the BARE core selection.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_ipd_lifecycle_restored_behavior.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=860840240
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/2qlg0w
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 8 items
 
-- [ ] V-03 validates E-03
+    tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo PASSED [ 12%]
+    tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated PASSED [ 25%]
+    tests/test_ipd_lifecycle_restored_behavior.py::ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded PASSED [ 37%]
+    tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn PASSED [ 50%]
+    tests/test_ipd_lifecycle_restored_behavior.py::NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set PASSED [ 62%]
+    tests/test_ipd_lifecycle_restored_behavior.py::NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position PASSED [ 75%]
+    tests/test_ipd_lifecycle_restored_behavior.py::FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly PASSED [ 87%]
+    tests/test_ipd_lifecycle_restored_behavior.py::NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    WARNING: 1 test(s) exceeded 2s and are not listed in tests/slow_allowlist.txt:
+        2.48s  tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated
+    ============================== 8 passed in 5.17s ===============================
+    ```
+    Bare collect-only:
+    ```
+    $ python3 -m pytest --collect-only -q 2>&1 | grep test_ipd_lifecycle_restored_behavior
+    tests/test_ipd_lifecycle_restored_behavior.py: 8
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full output of the four `tools/mutation_probe.py` runs (produced by the tool itself, E-03), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-04 commit or later, `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming at least one test from `tests/test_ipd_lifecycle_restored_behavior.py` (so the kill is attributable to the new module rather than to an unrelated core test); paste `git diff --stat <base>..HEAD -- agent_workflows/` (the E-01 `<base>`) showing no change.
   - Observed evidence:
-  - Result: pending
+    Probe 1 (`begin`):
+    ```
+    head: f76b44cee1fecbdd11c8637ef32e6ac77d66c478
+    target: agent_workflows/ipd_lifecycle.py::begin
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 7
+    newly_failing (7 total):
+      tests.test_ipd_lifecycle_restored_behavior.ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded
+      tests.test_ipd_lifecycle_restored_behavior.FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly
+      tests.test_ipd_lifecycle_restored_behavior.IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn
+      tests.test_ipd_lifecycle_restored_behavior.IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated
+      tests.test_ipd_lifecycle_restored_behavior.NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set
+    wall_s: 554.61
+    ```
+    Probe 2 (`_baseline_ambiguity`):
+    ```
+    head: f76b44cee1fecbdd11c8637ef32e6ac77d66c478
+    target: agent_workflows/ipd_lifecycle.py::_baseline_ambiguity
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 7
+    newly_failing (7 total):
+      tests.test_ipd_lifecycle_restored_behavior.ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded
+      tests.test_ipd_lifecycle_restored_behavior.FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly
+      tests.test_ipd_lifecycle_restored_behavior.IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn
+      tests.test_ipd_lifecycle_restored_behavior.IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo
+      tests.test_ipd_lifecycle_restored_behavior.NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set
+    wall_s: 507.46
+    ```
+    Probe 3 (`_execution_cohesive_committed_paths`):
+    ```
+    head: f76b44cee1fecbdd11c8637ef32e6ac77d66c478
+    target: agent_workflows/ipd_lifecycle.py::_execution_cohesive_committed_paths
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 3
+    newly_failing (3 total):
+      tests.test_ipd_lifecycle_restored_behavior.FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position
+      tests.test_ipd_lifecycle_restored_behavior.NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set
+    wall_s: 499.37
+    ```
+    Probe 4 (`finalize_precheck`):
+    ```
+    head: f76b44cee1fecbdd11c8637ef32e6ac77d66c478
+    target: agent_workflows/ipd_lifecycle.py::finalize_precheck
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_ipd_lifecycle_restored_behavior.ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded
+      tests.test_ipd_lifecycle_restored_behavior.FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly
+    wall_s: 443.15
+    ```
+    Zero production code changes check:
+    ```
+    $ git diff --stat 45f067269c849f8004d48d6fc8d233dc77b77835..HEAD -- agent_workflows/
+    (empty, 0 files changed)
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `git show --stat HEAD` (or the `aw commit` output) showing only `tests/test_ipd_lifecycle_restored_behavior.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim, and the `--durations=0` output for the new module.
   - Observed evidence:
-  - Result: pending
+    `git show --stat f76b44cee1fecbdd11c8637ef32e6ac77d66c478`:
+    ```
+    commit f76b44cee1fecbdd11c8637ef32e6ac77d66c478 (HEAD -> aw/lane/2qlg0w)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 23 21:51:26 2026 -0400
+
+        Restore core-tier behavioral coverage for ipd_lifecycle keys (E-01, E-02)
+
+        AW-Run: run-20261024T014612Z-3125888
+        AW-Item: 2qlg0w
+        AW-Runner: aw agy run
+
+     tests/test_ipd_lifecycle_restored_behavior.py | 408 ++++++++++++++++++++++++++
+     1 file changed, 408 insertions(+)
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    1683 passed, 11 warnings in 100.24s (0:01:40)
+    ```
+    (No `CORE TIER BUDGET EXCEEDED` block emitted; passed count grew by 8 from 1675 at `<base>`)
+    `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_ipd_lifecycle_restored_behavior.py`:
+    ```
+    ============================== slowest durations ===============================
+    0.35s call     tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated
+    0.33s call     tests/test_ipd_lifecycle_restored_behavior.py::ExactSourceWinsTests::test_the_plans_own_out_of_scope_path_is_still_demanded
+    0.32s call     tests/test_ipd_lifecycle_restored_behavior.py::FallBackWhenAbsentTests::test_no_corpus_reproduces_the_cohesion_result_exactly
+    0.24s call     tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn
+    0.19s call     tests/test_ipd_lifecycle_restored_behavior.py::NothingElseMovedTests::test_cohesion_reports_UNANCHORED_rather_than_an_empty_set
+    0.18s call     tests/test_ipd_lifecycle_restored_behavior.py::NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline
+    0.14s call     tests/test_ipd_lifecycle_restored_behavior.py::NothingElseMovedTests::test_cohesion_groups_paths_by_commit_not_by_position
+    0.06s call     tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo
+    0.01s teardown tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_unreadable_base_commit_is_still_refused_when_isolated
+    0.01s setup    tests/test_ipd_lifecycle_restored_behavior.py::IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo
+
+    (14 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 8 passed in 2.79s ===============================
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
