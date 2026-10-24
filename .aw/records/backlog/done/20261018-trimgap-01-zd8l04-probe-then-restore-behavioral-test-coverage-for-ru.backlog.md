@@ -1,5 +1,5 @@
 - Id: zd8l04
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for run_analytics_telemetry
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD bli2ba executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-35-bli2ba-verify-and-lock-behavioral-coverage-for-run-analytics-teleme.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-35-bli2ba-verify-and-lock-behavioral-coverage-for-run-analytics-teleme.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: bli2ba
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for run_analytics_telemetry
 
