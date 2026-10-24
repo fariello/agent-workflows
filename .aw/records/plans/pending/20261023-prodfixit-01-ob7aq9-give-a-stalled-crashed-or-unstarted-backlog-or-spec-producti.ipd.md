@@ -6,7 +6,7 @@
 - Scope: IN: make a production turn (`is_spec_production` or `is_backlog_production`) that ends in a stall, a turn-limit expiry, a nonzero exit with no outcome, or a spawn failure reach `handle_turn_failure_retry` under the existing frozen `--retry-budget` and the global fix-it caps; on the resulting recovery dispatch, re-adopt the failed attempt's own production lane and resume its own session when both are safe (the `ytas91` E-05 predicate: worktree exists, registered, `worktree_lease.lane_is_safe_to_adopt`, prior `session_id` present), else fall back to today's fresh lane and fresh session and record which branch was taken in `attempt["fix_it_lane"]`; keep a lane that is awaiting a fix-it turn (production or execute, since the reclaim loop is shared) out of the run-end and interrupt reclaim; persist the FIRST attempt's production baseline (`baseline_plan_ids`, `continued_plan_ids`) on the item so a resumed attempt does not mistake its own earlier uncommitted plans for pre-existing ones; render the correction notice into the production prompt on a recovery dispatch; clear the `preserved_*` record when a lane is reclaimed so the report stops listing a destroyed lane; tests on both hosts; spec `25kzda` Section 5.5 amendment. EXCLUDES review turns (they share one sweep session and one sweep lane across every review, and their recovery is owned by the integration deferral ladder per the `retrywire` comment above the post-turn call); EXCLUDES changing the budget, the caps, `turn_failure_is_retryable`, `turn_retry_decision` or `turn_correction_packet`; EXCLUDES the Set-level production correction loop (`production_set_retry_decision`, plan `nnsa2o`), which keeps its own counter; EXCLUDES the first-dispatch fresh-session rule (`lanesess` `xd9sll`); EXCLUDES the stall cause itself (a host that goes silent between tool calls; cause unknown). ALSO IN (added at review, F-13): a stall of a Set-level production CORRECTION turn, which today re-raises out of `execute_item_core` and lands in the host loop's generic `except DriverError` as `failed-safely` with no fix-it turn (E-14). ALSO IN (F-12): the persisted baseline covers a fix-it attempt in the SHARED tree (`--no-isolate-worktree`), where the failed attempt's uncommitted plans are otherwise dropped as pre-dirty and reported out-of-scope.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_production_fix_it.py, tests/test_turn_fix_it.py, tests/test_production_correction_turn.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 14
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ob7aq9
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-24 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 all FIXED (2 HIGH: Set-correction-turn stall added as E-14; explicit live-attempt admission at post-turn site). Review record .aw/records/reviews/20261023-prodfixit-01-ob7aq9-give-a-stalled-crashed-or-unstarted-backlog-or-spec-producti.review.md
 - 2026-10-24 to-review (aw set): authored from maintainer request 2026-10-23 after run-20261023T221924Z-2698768 (l9ssp6 stall)
 
