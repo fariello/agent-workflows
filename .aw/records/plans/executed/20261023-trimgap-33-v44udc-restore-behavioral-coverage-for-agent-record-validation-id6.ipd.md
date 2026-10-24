@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_record_residual_helpers.py`, with direct behavioral tests of the three keys and of their observable effect through their public callers (`agent_schema.is_valid_agent_record`, `doctor.build_remediation`), asserting on returned error lists, id sets and remediation text (values measured at F-03); then probe all three under the core selection. EXCLUDES any production-code change and any change to existing tests.
 - Scope-Paths: tests/test_record_residual_helpers.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: v44udc
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: v44udc verified (set trimgap, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (uncollectable ...Tests class names -> plain Test* classes), PR-002 (run module before commit), PR-003 (execution contract), PR-004 (budget-only overrun, grep bounds) fixed; F-03 values re-measured at 503f15cbd
 
