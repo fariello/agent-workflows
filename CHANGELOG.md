@@ -25,6 +25,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
 - Fixed: /askme now writes each answer to its record before asking the next question.
+- Fixed: /askme no longer closes a blocking decision on the strength of a code comment or default; it asks you.
 - Fixed: `aw partition -t plans` no longer refuses a batch because of a Set whose orchestrator has already been executed. Such a Set has nothing left to keep together, so its plans that match the selection are scheduled, its other plans are ignored instead of being reported as blocking, and its plans are balanced across shards like any others. Declared plan dependencies are still enforced.
 - Added: Notification channels now show question groups. In full mode each distinct question appears once, with how many plans asked it and the group answer command, the `aw.notify/v1` JSON gains `distinct_count` and per-entry group fields, and one Telegram reply or button press answers every parked plan that asked the question. Terse text is unchanged.
 - Added: `aw notify` command family (setup telegram, setup webhook, setup command, status, disable, test, listen) for configuring and managing outbound runner notifications and live command listening. Includes `docs/notifications.md` user guide.

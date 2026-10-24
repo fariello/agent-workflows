@@ -307,6 +307,80 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
                 section,
             )
 
+    @pytest.mark.slow
+    def test_installer_delivers_askme_refuses_code_comments_as_decision_rules(self):
+        """Assert installer delivers askme.md with approved decision rule definition and comment refusal."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td) / "target")
+
+            with redirect_stdout(io.StringIO()):
+                engine.install_into_repo(
+                    repo, SOURCE_WORKFLOWS, yes=True, no_color=True
+                )
+
+            installed_askme = (
+                repo / ".aw" / "system" / "workflows" / "askme" / "askme.md"
+            )
+            self.assertTrue(
+                installed_askme.is_file(),
+                "Installed askme workflow body must exist",
+            )
+            installed_text = installed_askme.read_text(encoding="utf-8")
+            installed_words = " ".join(installed_text.split())
+
+            # Four sources of an approved decision rule
+            self.assertIn("DECISIONS.md", installed_words)
+            self.assertIn("has not been superseded", installed_words)
+            self.assertIn("approved or implemented spec", installed_words)
+            self.assertIn(
+                "earlier open question that a human resolved", installed_words
+            )
+            self.assertIn(
+                'one an agent resolved "by evidence" is not a rule',
+                installed_words,
+            )
+            self.assertIn("decision the user gave in this session", installed_words)
+
+            # Statement that code comment or default is not a rule
+            self.assertIn(
+                "A code comment or docstring, a function's default argument, the way the code currently behaves, and consistency with another command are evidence",
+                installed_words,
+            )
+            self.assertIn(
+                "they never answer a `Blocking: yes` question on their own",
+                installed_words,
+            )
+
+            # Reconciled explicit-request paragraph
+            self.assertIn(
+                "Do not use this classification to ignore an explicit request to ask or rewrite a question.",
+                installed_words,
+            )
+            self.assertIn(
+                "If the user asked you to ask or rewrite a specific question, do so.",
+                installed_words,
+            )
+            self.assertIn(
+                "If an approved decision rule (as defined above) already settles it, say which rule and what it decides, and ask whether the user wants to reopen it.",
+                installed_words,
+            )
+            self.assertIn(
+                "If only evidence that is not a rule bears on it, ask the question and give that evidence in it.",
+                installed_words,
+            )
+
+            # Noninteractive sentence
+            self.assertIn(
+                '"Evidence" here means an approved decision rule as defined above; a code comment or default is not one, so a `Blocking: yes` question it would answer stays open.',
+                installed_words,
+            )
+
+            # Old contradictory sentence is removed
+            self.assertNotIn(
+                "explain the answer and its basis instead of asking the user to decide it again",
+                installed_text,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
