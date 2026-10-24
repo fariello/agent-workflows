@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: add the core-tier module
 
-- [ ] E-01 Create `tests/test_config_review_findings_gate.py` with a provenance docstring naming backlog `yvmxs9`, plan `f6el0l`, findings `wo21z5` and the control file `tests/test_plan_readiness_recheck.py`; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); a helper that builds an isolated `tempfile.TemporaryDirectory` repo with `.aw/config/project.json` holding a given payload (or no file at all), cleaned up per test. Add these `unittest.TestCase` tests, each calling the function and asserting on its return value: (a) `read_review_findings_gate` returns the object unchanged for `{"review_findings_gate": {"block_at": "medium"}}`; (b) it normalizes a bare string `"  off "` to `{"block_at": "off"}`; (c) it returns None for a missing file, unparseable JSON, a non-object top level, and an absent key; (d) `findings_gate_threshold` returns, row by row with the row in the failure message: `medium` for `block_at: medium`, `blocker` for `" BLOCKER "`, `off` for `off`, `medium` for the bare-string form, and the fail-closed `high` for an absent file, an absent key, a typo `hgih`, and a non-string value `3`. Never read this repository's live `.aw/config/project.json`. Note for case (c) "missing file": `project_context.project_config_dir` falls back to `<AW_HOME>/projects/<id>/config/project.json` when the temp repo has no in-tree config, so the test relies on the root `conftest.py` home-isolation fixture ("Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test"); do not set `AW_HOME` to a real home. All listed return values were re-measured by direct call at review HEAD `306ad1182` (F-07).
+- [x] E-01 Create `tests/test_config_review_findings_gate.py` with a provenance docstring naming backlog `yvmxs9`, plan `f6el0l`, findings `wo21z5` and the control file `tests/test_plan_readiness_recheck.py`; `import pytest` and module-level `pytestmark = pytest.mark.core` (the pattern of `tests/test_engine_restored_behavior.py`); a helper that builds an isolated `tempfile.TemporaryDirectory` repo with `.aw/config/project.json` holding a given payload (or no file at all), cleaned up per test. Add these `unittest.TestCase` tests, each calling the function and asserting on its return value: (a) `read_review_findings_gate` returns the object unchanged for `{"review_findings_gate": {"block_at": "medium"}}`; (b) it normalizes a bare string `"  off "` to `{"block_at": "off"}`; (c) it returns None for a missing file, unparseable JSON, a non-object top level, and an absent key; (d) `findings_gate_threshold` returns, row by row with the row in the failure message: `medium` for `block_at: medium`, `blocker` for `" BLOCKER "`, `off` for `off`, `medium` for the bare-string form, and the fail-closed `high` for an absent file, an absent key, a typo `hgih`, and a non-string value `3`. Never read this repository's live `.aw/config/project.json`. Note for case (c) "missing file": `project_context.project_config_dir` falls back to `<AW_HOME>/projects/<id>/config/project.json` when the temp repo has no in-tree config, so the test relies on the root `conftest.py` home-isolation fixture ("Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test"); do not set `AW_HOME` to a real home. All listed return values were re-measured by direct call at review HEAD `306ad1182` (F-07).
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_config_review_findings_gate.py` reports every test PASSED in well under a second (F-04 prototype: `4 passed in 0.23s`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: commit and prove the mutants die in the core tier
 
-- [ ] E-02 Commit the module with `aw commit f6el0l -- tests/test_config_review_findings_gate.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, plus the module's own cost from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_config_review_findings_gate.py`.
+- [x] E-02 Commit the module with `aw commit f6el0l -- tests/test_config_review_findings_gate.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, plus the module's own cost from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_config_review_findings_gate.py`.
   - Depends on: E-01
   - Expected outcome: bare run reports no failed tests and includes the new tests; the new module's summed call time is well under one second. A core-tier wall-time overrun is recorded verbatim, not treated as a failure of this plan: the bare run already measured `1675 passed, 11 warnings in 34.68s` (over the 30s budget) at HEAD `16d8abbb8` before this plan (F-07).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 For each key K in (`read_review_findings_gate`, `findings_gate_threshold`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/config.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so it only sees the committed module (that is why E-02 commits first). Record each `head:`, `verdict:`, `baseline_failing:`, `mutant_failing:` and `newly_failing` block in Findings. If a key reports `survived`, add the missing assertion to the module for that key, re-commit through `aw commit f6el0l`, and re-probe.
+- [x] E-03 For each key K in (`read_review_findings_gate`, `findings_gate_threshold`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/config.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/`. `tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so it only sees the committed module (that is why E-02 commits first). Record each `head:`, `verdict:`, `baseline_failing:`, `mutant_failing:` and `newly_failing` block in Findings. If a key reports `survived`, add the missing assertion to the module for that key, re-commit through `aw commit f6el0l`, and re-probe.
   - Depends on: E-02
   - Expected outcome: two `verdict: killed` lines under the full core selection, each with `head:` at or after the E-02 commit and a `newly_failing` list that includes at least one test id from `tests/test_config_review_findings_gate.py` (so the kill is attributable to this module, not only to another core test such as a sibling's; re-derive at execution, the count is not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -72,6 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-05 | `.aw/records/plans/pending/20261023-trimgap-27-p79jts-*.ipd.md` | Sibling `p79jts` (backlog `lzg859`) restores `tests/test_review_findings_gate.py` with `GateOutcomeTests` core-marked; its threshold rows also exercise `findings_gate_threshold` end to end. It is pending, not executed, and does not target either config key, so this plan does not depend on it and does not touch its file. The overlap is two independent guards at different layers (pure config reader here, rule wiring there). |
 | F-06 | `wo21z5` `## Budget probe results` rows for both keys | Both rows: `budget-exhausted`, "budget exhausted at 10845.88s", wall 0.00; the verdicts in F-01 are the first actual measurement. |
 | F-07 | review at HEAD `306ad1182`: direct calls of `config.read_review_findings_gate` / `config.findings_gate_threshold` on temp repos; `project_context.project_config_dir` rules; bare `python3 -m pytest` at `16d8abbb8` | Every E-01 row reproduces: object -> unchanged/`medium`; `"  off "` -> `{'block_at': 'off'}`/`off`; missing file, `{not json`, `[1]`, `{}` -> `None`/`high`; `" BLOCKER "` -> `blocker`; `hgih` and `3` -> `high`; bare `"medium"` -> `medium`. No test calls either function directly (F-03 holds). Missing in-tree config falls back to the AW_HOME home config, which the root `conftest.py` sandboxes. Bare run: `1675 passed, 11 warnings in 34.68s`. |
+| F-08 | `python3 tools/mutation_probe.py --op return-none agent_workflows/config.py::<K> -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` at committed HEAD `162ff71c1677baa99ccd74131fb4e89e0d89c722` | Both keys report `verdict: killed` with 0 baseline failures and newly failing tests in `tests/test_config_review_findings_gate.py`. `read_review_findings_gate`: mutant_failing 3, newly_failing `test_findings_gate_threshold_matrix`, `test_read_review_findings_gate_bare_string`, `test_read_review_findings_gate_object` (wall 272.07s). `findings_gate_threshold`: mutant_failing 1, newly_failing `test_findings_gate_threshold_matrix` (wall 283.77s). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -122,20 +123,169 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the head of `tests/test_config_review_findings_gate.py` showing the provenance docstring (naming `yvmxs9`, `f6el0l`) and `pytestmark = pytest.mark.core`; paste `grep -nE "inspect|getsource|ast\." tests/test_config_review_findings_gate.py` returning nothing; paste `python3 -m pytest -o addopts="" -v tests/test_config_review_findings_gate.py` listing every test PASSED and the summary line.
   - Observed evidence:
-  - Result: pending
+    Head of `tests/test_config_review_findings_gate.py`:
+    ```python
+    """Direct behavioral test coverage for config review-findings gate readers.
 
-- [ ] V-02 validates E-02
+    Restores core-tier behavioral coverage for backlog item yvmxs9 (plan f6el0l),
+    covering the two review_findings_gate keys identified in findings wo21z5:
+    config.read_review_findings_gate and config.findings_gate_threshold.
+
+    The control file tests/test_plan_readiness_recheck.py exercised threshold
+    fallback but could not kill read_review_findings_gate because its fixture value
+    matched the fail-closed default. These tests call the readers directly against
+    isolated temporary project configs.
+    """
+
+    from __future__ import annotations
+
+    import json
+    from pathlib import Path
+    import tempfile
+    from typing import Any
+    import unittest
+
+    import pytest
+
+    from agent_workflows import config
+
+    pytestmark = pytest.mark.core
+    ```
+    No inspection/code pinning check:
+    ```
+    $ grep -nE "inspect|getsource|ast\." tests/test_config_review_findings_gate.py
+    (exit code 1, no matches)
+    ```
+    Direct test execution:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_config_review_findings_gate.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2216135330
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/f6el0l
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_config_review_findings_gate.py::TestConfigReviewFindingsGate::test_read_review_findings_gate_bare_string PASSED [ 25%]
+    tests/test_config_review_findings_gate.py::TestConfigReviewFindingsGate::test_read_review_findings_gate_object PASSED [ 50%]
+    tests/test_config_review_findings_gate.py::TestConfigReviewFindingsGate::test_read_review_findings_gate_none_cases PASSED [ 75%]
+    tests/test_config_review_findings_gate.py::TestConfigReviewFindingsGate::test_findings_gate_threshold_matrix PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 4 passed in 0.20s ===============================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `aw commit` output or `git show --stat HEAD` showing only `tests/test_config_review_findings_gate.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim (reported, not a failure of this plan), and the `--durations=0` output for the new module.
   - Observed evidence:
-  - Result: pending
+    Commit confirmation:
+    ```
+    aw commit: committed 1 path(s): 162ff71c1677baa99ccd74131fb4e89e0d89c722
 
-- [ ] V-03 validates E-03
+    $ git show --stat HEAD
+    commit 162ff71c1677baa99ccd74131fb4e89e0d89c722 (HEAD -> aw/lane/f6el0l)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 23 22:56:53 2026 -0400
+
+        work(f6el0l): Probe then restore core-tier behavioral coverage for config review-findings gate readers
+
+        AW-Run: run-20261024T014601Z-3125847
+        AW-Item: f6el0l
+        AW-Runner: aw agy run
+
+     tests/test_config_review_findings_gate.py | 103 ++++++++++++++++++++++++++++++
+     1 file changed, 103 insertions(+)
+    ```
+    Module duration measurement:
+    ```
+    $ python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_config_review_findings_gate.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=303699227
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/f6el0l
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_config_review_findings_gate.py ....                           [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== slowest durations ===============================
+    0.01s call     tests/test_config_review_findings_gate.py::TestConfigReviewFindingsGate::test_read_review_findings_gate_bare_string
+
+    (11 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 4 passed in 0.28s ===============================
+    ```
+    Bare test suite run summary and budget block:
+    ```
+    $ python3 -m pytest
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 90.05s exceeded budget of 30.00s.
+    Host 1-minute load average: 17.66 on 12 CPUs
+    Core tier budget not enforced: host oversubscribed (1-minute load average above the CPU count)
+    Top 10 slowest core tests:
+       1.  13.21s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       2.  10.81s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       3.  10.75s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       4.   7.77s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       5.   7.43s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       6.   7.43s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       7.   5.63s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       8.   5.15s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+       9.   4.92s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+      10.   4.68s  tests/test_ipd_lint.py::ReadinessAttestationTests::test_every_readiness_carrying_plan_in_the_tree_is_attested
+    ===========================================================================================
+    1698 passed, 11 warnings in 90.06s (0:01:30)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the full output of the two `tools/mutation_probe.py` runs (produced by the tool itself in E-03), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-02 commit or later, `verdict: killed`, and a `newly_failing` list including at least one `tests/test_config_review_findings_gate.py` test id; paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
-  - Result: pending
+    Probe 1: `read_review_findings_gate`:
+    ```
+    head: 162ff71c1677baa99ccd74131fb4e89e0d89c722
+    target: agent_workflows/config.py::read_review_findings_gate
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 3
+    newly_failing (3 total):
+      tests.test_config_review_findings_gate.TestConfigReviewFindingsGate::test_findings_gate_threshold_matrix
+      tests.test_config_review_findings_gate.TestConfigReviewFindingsGate::test_read_review_findings_gate_bare_string
+      tests.test_config_review_findings_gate.TestConfigReviewFindingsGate::test_read_review_findings_gate_object
+    wall_s: 272.07
+    ```
+    Probe 2: `findings_gate_threshold`:
+    ```
+    head: 162ff71c1677baa99ccd74131fb4e89e0d89c722
+    target: agent_workflows/config.py::findings_gate_threshold
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_config_review_findings_gate.TestConfigReviewFindingsGate::test_findings_gate_threshold_matrix
+    wall_s: 283.77
+    ```
+    Production code diff check (<base> = 6b4719c2f07bf2aa2f56779ec2ba681ba59a86c0):
+    ```
+    $ git diff --stat 6b4719c2f07bf2aa2f56779ec2ba681ba59a86c0..HEAD -- agent_workflows/
+    (empty)
+    $ git diff --stat -- agent_workflows/
+    (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
