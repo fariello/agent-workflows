@@ -49,3 +49,27 @@ marked blocking.
 | D-2 | Default `review_variant` before the experiment concludes | `single-12` | `grouped-6` | Maintainer: prefer single-12 on a tie for per-step information | yes |
 | D-3 | Treat a malformed `AW-MATERIAL:` after one re-ask as | `yes` (re-review) | `no` | Missed re-review costs more than an unneeded one | yes |
 | D-4 | Enforcement of the pre-S7 verdict-output guard | detect-and-restore, recorded as OQ-11 for Order 04 | permission denial | Non-goal N2; host-neutral | yes |
+
+## Round 2
+
+Interactive follow-up on 2026-10-24 at HEAD `8d34ad2c1`, after the maintainer had approved the spec
+and recorded OQ-07, OQ-09, and OQ-11. The spec stays `approved`; this round records spec edits made
+at the maintainer's direction (MD-19, MD-20), not a new approval. `aw specs check` conformed after the
+edits. Measured for the discussion: of 1,114 non-orchestrator plans dated on or after 2026-09-01, 170
+declare a spec edit and 68 touch the former sensitive-path candidates (222, 20 percent, would have met
+a former forced-`complex` signal; MD-1 as revised forces none), and 0 exceed the size limits.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-011 | MEDIUM | UNDER-SCOPE | 13 | spec Section 13.1 question 1 compared only `grouped-6` with `single-12` | The experiment never compared the proposed review with the current `/plan-review`, so it could not show the redesign saves anything. The recorded 1,396 reviews are not a substitute: different plans, no quality scores, one host. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | MD-19: 9 plans (3 per tier) x current vs proposed (and both groupings for `complex`) x 3 models, 21 repeat runs, 3 averaged blind judges; 84 reviews, 252 judge runs; AC-17 rewritten. |
+| SR-012 | MEDIUM | IN-SCOPE | 15 | spec Section 15, Order 09 last, after Orders 03 and 06 | Every Order was built before the cost assumption was tested, although Orders 03, 06, 07, and 08 do not affect cost. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | MD-20: Stage 1 (01, 02, 04, minimal 05, 09) then a pilot gate (13.5) before Stage 2; Order 04 no longer depends on 03; R1 works without the resolver. |
+| SR-013 | LOW | UNDER-SCOPE | 13.4, Order 01 | spec Section 1 (`bash` 71 percent of tool-output bytes); MD-6 one session | The largest measured cost driver, tool output re-sent on every later step, was neither measured nor limited. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Tool-output bytes added to 13.4 measures; Order 01 step files limit command output. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | Test `/plan-review-long` in the pilot | no | keep it (about 27 more reviews) | Maintainer accepted the medium-strength recommendation: on one plan it runs the same review as `/plan-review`, and MD-4 retires it | yes |
+| D-6 | Default `review_variant` while only the pilot has run | `single-12` unless the pilot shows a large difference | `grouped-6` | MD-17 tie rule | yes |

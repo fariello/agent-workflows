@@ -96,6 +96,8 @@ Non-goals:
 | MD-15 | The verdict outputs are written exactly once per review invocation, after the re-review loop has ended (marker `AW-REVIEW: DONE` and no runner trigger). They are written by S7, which is its own final prompt. Progress that no gate reads as a verdict (review-record `### Step` and `### Pass` subsections, and history entries with no verdict token) may be written at any time and as often as useful. (Spec review 2026-10-18, SR-001.) |
 | MD-16 | A review that ends `no-go` leaves the plan at `reviewed` with `- Readiness: no-go`, as today. Only an exhausted orchestrator repair loop leaves the plan at `to-review` with `- Readiness:` absent. Answering a blocking question clears `no-go` without a re-review unless the answer changes the plan (Section 9.4). (Spec review 2026-10-18, SR-002.) |
 | MD-17 | The grouping experiment is a pilot followed by a sized run under a human-set dollar cap, scored with a quality rubric as well as cost. On a result that is not shown different, `single-12` is the default (Section 13). (Spec review 2026-10-18, SR-003.) |
+| MD-19 | The pilot compares the proposed review with the CURRENT `/plan-review` on the same plans, not only the two `complex` groupings with each other. It uses 3 plans per tier (`simple`, `standard`, `complex`), 3 models, repeat runs to measure noise, and 3 judge models whose scores are averaged (Section 13.3). `/plan-review-long` is not tested: on a single plan it runs the same review as `/plan-review`, and MD-4 retires it. (Maintainer ruling 2026-10-24.) |
+| MD-20 | Build only what the pilot needs first (Orders 01, 02, 04, a minimal 05), run the pilot (Order 09), and build the rest (Orders 03, 06, 07, 08, and the full 05) only if the pilot shows the proposed review is no more expensive at equal or better quality, or better at a cost the maintainer accepts (Section 15). Reason: the cost saving is the assumption the whole design rests on, and the deferred Orders do not affect cost. (Maintainer ruling 2026-10-24.) |
 | MD-18 | The quoted-text citation form is `` `path` "text" `` (Section 11.1). (Spec review 2026-10-18, closes OQ-02.) |
 
 ## 4. Review sequence
@@ -132,7 +134,7 @@ more checks, depending on the tier and the grouping variant (Section 5.3).
 | P Proofread | Apply the proofreading instructions to the plan. Record material changes and unresolved ambiguities in the review record's `### Proofreading` subsection (Section 7.1). |
 | T Tier | Rate the tier, give the reason, and end the reply with `AW-TIER: <simple\|standard\|complex>` on its own last line. |
 | Q Quick risk | Answer: what could this change break, and what existing behavior does something else depend on? Record any finding. |
-| R1 References | Fix or record every citation the resolver reported (Section 11.2). |
+| R1 References | Fix or record every citation the resolver reported (Section 11.2). Until the resolver exists (Stage 2, MD-20), the agent checks the plan's citations itself, locating each by symbol, heading, or quoted text. |
 | R2 Executability | Check the E/V bijection, scope (`- Scope-Paths:`), dependencies (`- Item-Dependencies:`), that every `V-*` item demands concrete evidence, and that no item hardcodes a count of a mutable record tree. |
 | R3 Security | Short form: secrets, input from outside the trust boundary, and destructive or irreversible actions. Full form: all of rubric section B in `plan-review.md`. |
 | R4 Engineering | Rubric sections A and C to G in `plan-review.md`: correctness and data integrity, architecture and operability, invariants, testing (including the ban on code-pinning tests), simplicity, executability (including overloaded items), and the truthfulness of `## Spec / documentation sync`. |
@@ -586,39 +588,57 @@ This spec is written in terms of fields and events, so it works under either sto
 Whichever ships first, the implementing plans must declare which format they target. If this spec's
 plans run first, the `4sd62s` migration must carry `Review-Depth` like any other field.
 
-## 13. Experiment: prompt grouping
+## 13. Experiment: proposed review versus current review, and prompt grouping
 
 ### 13.1 Questions
 
-1. For `complex` plans, does `grouped-6` cost less than `single-12` without lower review quality
-   (Section 13.4 rubric)?
-2. How does each model respond to each grouping: cost, steps, re-asks, and quality score?
-3. (Optional, second round) Does a new session per review cost more or less than reusing the
-   previous plan's session?
+1. Per tier, does the proposed review cost less than the current `/plan-review` without lower review
+   quality (Section 13.4 rubric)? This is the question that decides whether Orders 03, 06, 07, and 08
+   are built (MD-20).
+2. For `complex` plans, does `grouped-6` cost less than `single-12` without lower review quality?
+3. How does each model respond to each method: cost, steps, tool-output bytes, re-asks, and quality
+   score?
+4. (Optional, later round) Does a new session per review cost more or less than continuing the
+   previous plan's session (OQ-07 already sets the default)?
+
+Why a fresh baseline instead of the recorded reviews: the 1,396 recorded OpenCode review attempts
+(OQ-07 data) give today's cost and its spread, and are used to plan the budget. They cannot be the
+comparison, because they ran on different plans (cost depends on the plan), have no quality scores,
+and cover one host with mixed model versions.
 
 ### 13.2 Prerequisites
 
 - The analytics changes of backlog item `i2i81x` (request text: prompt `okj4bg`): token types, steps and context size, session reuse, tool use, run commit and
   label, model, and redo counts.
 - Runs record a label, the git commit, the review variant, and the model on every attempt.
-- The step files and both groupings exist (Section 15 Orders 01 and 04).
+- The step files and both groupings exist on both hosts (Section 15 Orders 01, 02, 04, and the
+  minimal 05).
 
 ### 13.3 Design
 
 | Variable | Values |
 | --- | --- |
-| V1 Plans | 3 pending plans: 1 `standard`, 2 `complex`. For each, a copy with planted defects: a `V-*` item that asks for no evidence, a wrong file path, and a changed CLI option that another command reads. |
-| V2 Grouping | `standard`: the single 5-prompt variant. `complex`: `grouped-6` and `single-12`. |
-| V3 Models | Opus 5.5 High (OpenCode) and Gemini 3.8 Flash High (Antigravity) (OQ-09). |
-| V4 Session | Pilot and sized run: fixed (new session per review). A later round may compare new versus reused sessions with the chosen grouping. |
+| V1 Plans | 9 plans: 3 the author expects to be `simple`, 3 `standard`, 3 `complex`. Each is a copy with planted defects: a `V-*` item that asks for no evidence, a wrong file path, and a changed CLI option that another command reads. The tier the agent actually assigns is recorded, so a plan that lands in a different tier is reported, not silently re-binned. |
+| V2 Method | `simple` and `standard`: current `/plan-review` and the proposed review. `complex`: current `/plan-review`, proposed `grouped-6`, proposed `single-12`. |
+| V3 Models | Opus 5.5 High and GPT-6.1 Sol High on OpenCode; Gemini 3.8 Flash High on Antigravity (OQ-09, as amended 2026-10-24). |
+| V4 Session | Fixed: a new session per review. |
+| V5 Repeats | One plan per tier is reviewed a second time under every method and model, to measure run-to-run noise. |
+| V6 Judges | Every review is scored by all three models (Opus 5.5 High, GPT-6.1 Sol High, Gemini 3.8 Flash High); the score is the average of the three. |
 
-Each review runs in its own worktree from the same commit with a run label. The experiment has two
-stages (MD-17):
+Count: `simple` 3 plans x 2 methods x 3 models = 18, plus 6 repeats = 24; `standard` 24 by the same
+arithmetic; `complex` 3 x 3 x 3 = 27, plus 9 repeats = 36. Total 84 reviews and 252 judge runs.
+Planning estimate: about $1,000 to $1,800, from the $7.83 median of today's reviews; weak, because
+`complex`-tier and Antigravity costs are not measured.
 
-1. **Pilot.** Each combination runs twice: about 24 reviews. Purpose: measure the real
-   review-to-review variation in cost and in quality score, and calibrate the rubric (Section 13.4)
-   by checking that two scorers agree on the same reviews. The pilot alone never chooses a variant.
-2. **Sized run.** From the pilot's measured variation, compute the number of paired reviews needed
+Each review runs in its own worktree from the same commit with a run label, and every review
+records its tool-output bytes (Section 13.4). The experiment has two stages (MD-17):
+
+1. **Pilot (the design above).** Purpose: answer questions 1 and 2 for large differences (it can
+   resolve roughly 20 to 30 percent or more, not the margins of OQ-10), measure the real
+   review-to-review variation in cost and quality score from the repeats, and measure judge
+   agreement. The pilot decides MD-20's build-the-rest gate. It does not by itself settle the
+   `complex` default when the two groupings differ by less than it can resolve.
+2. **Sized run (optional; only if the maintainer asks for it after the pilot).** From the pilot's measured variation, compute the number of paired reviews needed
    for the test in Section 13.5 at the margins set in OQ-10, and record that number and its
    projected cost in the research report BEFORE running it. The run proceeds only up to the dollar
    cap a human sets in OQ-10.
@@ -631,20 +651,39 @@ reviews; a 10 percent margin needs about a quarter of that.
 ### 13.4 Measures and quality rubric
 
 Per review: tokens by type (new input, cache read, cache write, output, reasoning), model steps,
-context size per step, wall time, cost where recorded (tokens otherwise; Antigravity records no
-cost), re-asks and failed postconditions, re-review passes, verdict, and a quality score.
+context size per step, tool-output bytes by tool, wall time, cost where recorded (tokens otherwise;
+Antigravity records no cost), re-asks and failed postconditions, re-review passes, verdict, assigned
+tier, and a quality score.
+
+Tool-output bytes are measured because every model step re-sends the whole session, so a large
+command output is paid for again on every later step; in the recorded reviews `bash` produced 71
+percent of tool-output bytes (Section 1). Splitting a review into prompts does not shrink this,
+because all prompts share one session (MD-6).
 
 Quality is scored per review against a written rubric, not by planted-defect count alone, because a
 review that finds every planted defect may still leave a worse design. The rubric scores at least:
 planted defects found (each weighted by the harm it would cause if executed, not counted equally),
 false findings raised, correctness of the edits the review made, and the design quality of the
-reviewed plan afterwards. Scoring is done by a scorer that does not know which variant produced the
-review. The weights and the scoring procedure are decided in OQ-10 before the sized run, so they
-cannot be tuned to the result.
+reviewed plan afterwards. Each review is scored by the three judge models of V6, and the score is
+their average. Judges are not told which method or model produced the review. Reported with the
+result: how often the judges disagree, and each judge's scores on reviews by its own model compared
+with its scores on the others, because a model may favor its own output. The pilot's weights are
+fixed before its reviews are scored; the weights and the scoring procedure for the sized run are
+decided in OQ-10 before it starts, so neither can be tuned to the result.
 
 ### 13.5 Decision rule
 
-The sized run uses a paired equivalence test (two one-sided tests) on cost and on quality score,
+Pilot gate (MD-20), per tier, comparing the proposed review with the current `/plan-review`:
+
+- BUILD THE REST when, in every tier, the proposed review costs no more than the current review and
+  its average quality score is no lower by more than the run-to-run spread measured from the repeats;
+  or when it scores higher in some tier at an extra cost the maintainer accepts.
+- STOP when, in every tier, it costs more at no better quality. The step files (Order 01) may still be
+  kept for `/plan-review` itself; the runner work stays unused.
+- OTHERWISE (mixed or within noise) the maintainer decides, from the recorded report, whether to
+  build the rest, stop, or run the sized run first.
+
+The sized run, when it is run, uses a paired equivalence test (two one-sided tests) on cost and on quality score,
 at the confidence and margins set in OQ-10 (at least 95 percent; 99 percent preferred).
 
 - If one variant is shown better on quality, choose it, even at higher cost, unless the cost
@@ -707,24 +746,35 @@ its evidence is pasted test output that names the fixture and the observed resul
   shown by an install into a scratch repository. (MD-4)
 - AC-16: Every check P run proofreads the plan, shown by a non-empty `### Proofreading` subsection in
   each fixture's review record. (G3)
-- AC-17: The experiment in Section 13 has run through the pilot, the recorded sample-size calculation,
-  and the sized run or the cap, and its research report records the decision under the Section 13.5
-  rule. Evidence: the research report's path and decision line. (G4)
+- AC-17: The pilot of Section 13.3 has run (84 reviews, 252 judge runs, or a recorded reason for any
+  missing cell), and its research report records per-tier cost, tool-output bytes, average quality
+  score, run-to-run spread, judge disagreement and self-scoring, and the MD-20 gate decision under
+  Section 13.5. If the sized run is run, the report also records its sample-size calculation and
+  result. Evidence: the research report's path and decision lines. (G4)
 
 ## 15. Work breakdown (proposed Set `revsteps`)
 
 | Order | Work | Depends on |
 | --- | --- | --- |
+Build order (MD-20). Stage 1 is Orders 01, 02, 04, the minimal 05 (the `AW-REVIEW` marker and the
+loop only), and 09 (the pilot). Stage 2 is Orders 03, 06, 07, 08, and the rest of 05 (the Section 9.4
+no-go clearing path), and is authored only after Order 09 records a BUILD THE REST decision, or the
+maintainer decides to proceed under Section 13.5's OTHERWISE case. Stage 2 plans therefore cite
+`executed:<Order 09 id6>` in `- Item-Dependencies:`. Order 04 consequently does not depend on
+Order 03: the R1 check runs without the resolver's report until Order 03 lands.
+
+| Order | Work | Depends on |
+| --- | --- | --- |
 | 00 | Orchestrator. Child tracking only. | All children |
-| 01 | Step files under `.aw/system/workflows/plan-review/steps/`, the `/plan-review` checklist, the proofreading adaptation, the review record layout (Section 7.1) and its README amendment, and the five-level recommendation strength in `/plan-review` and `/askme`. | Spec approval |
+| 01 | Step files under `.aw/system/workflows/plan-review/steps/`, the `/plan-review` checklist, the proofreading adaptation, the review record layout (Section 7.1) and its README amendment, and the five-level recommendation strength in `/plan-review` and `/askme`. Each step file limits command output (for example `rg -l` or `rg -c` before a full match listing, `head` on long output, a named test selection rather than the whole suite) so that output re-sent on every later step stays small (Section 13.4). | Spec approval |
 | 02 | `Review-Depth` field, the pre-pass tier facts (Section 4.1 item 4), and recording the tier and the tier answers in run state. | Spec approval |
-| 03 | Citation resolver, its review and `aw ipd begin` integration, and the `20260802-1904` Section 10.2 amendment. | Spec approval |
-| 04 | Runner multi-prompt review for both hosts: prompt lists per tier and `review_variant`, postconditions (including the verdict-output guard of MD-15), re-ask, structural preservation check, outcomes, session handling, resume. | 01, 02, 03 |
-| 05 | Re-review marker, runner triggers, the loop, and the no-go clearing path of Section 9.4 (`AW-MATERIAL` marker, reviewed-contract hash test, `recheck-readiness` or targeted re-review). | 04 |
-| 06 | Split step, including the graph changes and the `RETIRED` header on retirement through `aw ipd set superseded`. | 04 |
-| 07 | Retire `/plan-review-long` (workflow, shims, index, installer entries, current docs, tests). | 01, 04 |
-| 08 | Records README and `AGENTS.md` pointers: read a tree's README before editing an artifact in it. | 01, 03 |
-| 09 | Run the experiment (Section 13: pilot, sample-size calculation, sized run under the cap) and set the default `review_variant`. Its plan carries OQ-10 as `Blocking: yes` until a human answers it. | 04, 05, analytics backlog item |
+| 03 | (Stage 2) Citation resolver, its review and `aw ipd begin` integration, and the `20260802-1904` Section 10.2 amendment. | 09 |
+| 04 | Runner multi-prompt review for both hosts: prompt lists per tier and `review_variant`, postconditions (including the verdict-output guard of MD-15), re-ask, structural preservation check, outcomes, session handling, resume. | 01, 02 |
+| 05 | Stage 1: re-review marker, runner triggers, and the loop. Stage 2: the no-go clearing path of Section 9.4 (`AW-MATERIAL` marker, reviewed-contract hash test, `recheck-readiness` or targeted re-review). May be two plans. | 04 (Stage 2 part also 09) |
+| 06 | (Stage 2) Split step, including the graph changes and the `RETIRED` header on retirement through `aw ipd set superseded`. | 04, 09 |
+| 07 | (Stage 2) Retire `/plan-review-long` (workflow, shims, index, installer entries, current docs, tests). | 01, 04, 09 |
+| 08 | (Stage 2) Records README and `AGENTS.md` pointers: read a tree's README before editing an artifact in it. | 01, 03 |
+| 09 | Run the pilot (Section 13.3), record the MD-20 gate decision, and set the default `review_variant`; run the sized run only if the maintainer asks for it, with OQ-10 carried as `Blocking: yes` in that plan until answered. | 04, 05 (Stage 1), analytics backlog item `i2i81x` |
 
 Separately filed backlog items (not part of this Set):
 
@@ -769,11 +819,11 @@ spec review (SR-005); the numbers are otherwise unchanged.
 - Status: resolved
 - Owner: maintainer
 - Question: Should the experiment include GPT-6.1 Sol? The runners do not drive Codex today.
-- Resolution or deferral rationale: Resolved 2026-10-24 by the maintainer: no. The experiment uses the two runner hosts only (Opus 5.5 High on OpenCode, Gemini 3.8 Flash High on Antigravity), so every review is driven, checked, and measured the same way.
+- Resolution or deferral rationale: Resolved 2026-10-24 by the maintainer: no Codex host; the experiment uses the two runner hosts only, so every review is driven, checked, and measured the same way. AMENDED later on 2026-10-24 by the maintainer (MD-19): GPT-6.1 Sol High is included, run on OpenCode, not Codex. Models: Opus 5.5 High and GPT-6.1 Sol High on OpenCode, Gemini 3.8 Flash High on Antigravity.
 
 ### OQ-10: Experiment margins, confidence, quality rubric, and dollar cap
 
-- Blocking: no (at spec level; Order 09's plan must carry it as `Blocking: yes`, so the sized run cannot start before it is answered)
+- Blocking: no (at spec level; the pilot does not need it, and a sized-run plan must carry it as `Blocking: yes`, so the sized run cannot start before it is answered)
 - Status: open
 - Owner: maintainer
 - Question: For Section 13.5: the cost-equivalence margin and the quality-equivalence margin (for example cost within 5 percent with quality within 1 percent, or 10 percent with 3 percent); the confidence (95 or 99 percent); the largest extra cost accepted for a variant shown better on quality; the rubric weights of Section 13.4; and the dollar cap for the sized run.
@@ -822,6 +872,7 @@ five of MD-9.
 
 ## Workflow history
 
+- 2026-10-24 note (aw specs): /spec-review round 2 follow-up (opencode/its_direct/pt3-claude-opus-5.5-1m-us), maintainer rulings 2026-10-24: MD-19 pilot compares the proposed review with current /plan-review (9 plans, 3 models incl. GPT-6.1 Sol High on OpenCode, 21 repeats, 3 averaged blind judges; 84 reviews, 252 judge runs; /plan-review-long not tested); MD-20 build Stage 1 (01, 02, 04, minimal 05, 09), then the 13.5 pilot gate before Stage 2 (03, 06, 07, 08, rest of 05). OQ-09 amended. SR-011..SR-013 FIXED. Status unchanged (approved).
 - 2026-10-24 note (aw specs): Maintainer answer 2026-10-24 recorded: OQ-07 resolved. A review continues the previous review's session only when the plan is in the same Set; otherwise a new session; at most 4 per session. Measured basis in OQ-07. Sections 9.2 and 17.1 item 4 updated.
 - 2026-10-24 note (aw specs): Maintainer answers 2026-10-24 recorded: OQ-09 resolved (no Codex; two runner hosts), OQ-11 resolved (detect-and-restore only). Both match the recommendations already in the approved text; no design change.
 - 2026-10-24 approved (aw set, --by-human): status set to approved
