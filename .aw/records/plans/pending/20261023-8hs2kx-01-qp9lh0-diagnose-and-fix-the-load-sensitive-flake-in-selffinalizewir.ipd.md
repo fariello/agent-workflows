@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reproduce and make the failure self-diagnosing
 
-- [ ] E-01 Attempt a bounded reproduction under load and capture the full failure output. Run the same 7-module set `h8peam` E-05 ran (`tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`) with the default `addopts` (xdist + pytest-randomly) and `-p randomly --randomly-seed=<n>` for at least 5 distinct seeds, plus at least 50 isolated iterations of the single node in a shell loop while that module set runs concurrently in a second process to supply load. Record every seed and outcome, and for any failure save the complete assertion message, traceback AND pytest's "Captured stderr call" section (`execute_item_core` prints each gate's refusal, for example "begin refused (no execution authority); not launching", to stderr, so that section may name the cause even before E-02 lands); `-o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` keeps the summary line visible. Also record, once per session, the ambient `AW_*` environment (`env | grep '^AW_'`) and `uptime` load average, since F-4 names ambient environment and load as candidate causes. Write the raw logs under `/tmp/opencode/qp9lh0/` (never committed). Bound: stop after the attempts above (5 seeded module-set runs plus 50 loaded single-node iterations) or at the first reproduction, whichever comes first; do not extend the hunt beyond that without recording why.
+- [x] E-01 Attempt a bounded reproduction under load and capture the full failure output. Run the same 7-module set `h8peam` E-05 ran (`tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`) with the default `addopts` (xdist + pytest-randomly) and `-p randomly --randomly-seed=<n>` for at least 5 distinct seeds, plus at least 50 isolated iterations of the single node in a shell loop while that module set runs concurrently in a second process to supply load. Record every seed and outcome, and for any failure save the complete assertion message, traceback AND pytest's "Captured stderr call" section (`execute_item_core` prints each gate's refusal, for example "begin refused (no execution authority); not launching", to stderr, so that section may name the cause even before E-02 lands); `-o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` keeps the summary line visible. Also record, once per session, the ambient `AW_*` environment (`env | grep '^AW_'`) and `uptime` load average, since F-4 names ambient environment and load as candidate causes. Write the raw logs under `/tmp/opencode/qp9lh0/` (never committed). Bound: stop after the attempts above (5 seeded module-set runs plus 50 loaded single-node iterations) or at the first reproduction, whichever comes first; do not extend the hunt beyond that without recording why.
   - Depends on: none
   - Expected outcome: a table of attempts (seed, command, result) and either the captured traceback of at least one reproduction or an explicit "not reproduced in N attempts" statement.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `tests/test_oc_runipd.py` `SelfFinalizeWiringTests.test_begin_precedes_run_opencode_on_success`, replace the bare `self.assertEqual(order[:2], ["begin", "run"])` with the same equality assertion carrying a `msg=` that reports the observed `order` list, `item["status"]`, the last attempt's `disposition`, any refusal/gate field present on the item (`begin_refusal`, `clean_base_refusal`, `scope_target_refusal`, `refusal`, `worktree_error`), the last attempt dict's gate keys (`host_capability_unavailable`, `scope_target_refused`, `clean_base_refused`, `begin_refused`), and the last few `event` names from `run_dir / "events.jsonl"` when that file exists (the gates append `ipd-begin-refused` and similar records there). Build the message in a small local helper inside the test so a missing key or file reads as absent rather than raising. A tool-identity mismatch (`runner_shared.assert_child_tool_identity` raising `ToolIdentityError`) propagates out of `driver.execute_item` as an exception with its own traceback, so it needs no message field. The asserted property is unchanged; only the failure message gains the state that explains which gate in `runner_shared.execute_item_core` stopped the turn before `run_opencode`.
+- [x] E-02 In `tests/test_oc_runipd.py` `SelfFinalizeWiringTests.test_begin_precedes_run_opencode_on_success`, replace the bare `self.assertEqual(order[:2], ["begin", "run"])` with the same equality assertion carrying a `msg=` that reports the observed `order` list, `item["status"]`, the last attempt's `disposition`, any refusal/gate field present on the item (`begin_refusal`, `clean_base_refusal`, `scope_target_refusal`, `refusal`, `worktree_error`), the last attempt dict's gate keys (`host_capability_unavailable`, `scope_target_refused`, `clean_base_refused`, `begin_refused`), and the last few `event` names from `run_dir / "events.jsonl"` when that file exists (the gates append `ipd-begin-refused` and similar records there). Build the message in a small local helper inside the test so a missing key or file reads as absent rather than raising. A tool-identity mismatch (`runner_shared.assert_child_tool_identity` raising `ToolIdentityError`) propagates out of `driver.execute_item` as an exception with its own traceback, so it needs no message field. The asserted property is unchanged; only the failure message gains the state that explains which gate in `runner_shared.execute_item_core` stopped the turn before `run_opencode`.
   - Depends on: E-01
   - Expected outcome: the test still passes, and a deliberately injected refusal (for example a temporary local patch making the patched `driver_begin` return `(1, "x")`, NOT committed) produces a failure message naming the status and refusal field.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Resolve the root cause. If E-01 reproduced the failure, fix the cause it identifies with the smallest change that preserves the test's behavioral assertion (for a test-side cause, in `tests/test_oc_runipd.py`, for example an unpatched gate or shared module state leaking between tests; for a production cause, in the module the traceback names, recorded as an out-of-scope path with its reason per the Scope check). If the reproduction shows several sibling tests in `SelfFinalizeWiringTests` share the cause, apply the same fix to them here. If E-01 did not reproduce, record in Findings that the cause remains unknown, that E-02 is the shipped mitigation, and do not invent a mechanism.
+- [x] E-03 Resolve the root cause. If E-01 reproduced the failure, fix the cause it identifies with the smallest change that preserves the test's behavioral assertion (for a test-side cause, in `tests/test_oc_runipd.py`, for example an unpatched gate or shared module state leaking between tests; for a production cause, in the module the traceback names, recorded as an out-of-scope path with its reason per the Scope check). If the reproduction shows several sibling tests in `SelfFinalizeWiringTests` share the cause, apply the same fix to them here. If E-01 did not reproduce, record in Findings that the cause remains unknown, that E-02 is the shipped mitigation, and do not invent a mechanism.
   - Depends on: E-01, E-02
   - Expected outcome: either a diff fixing the identified cause with a written cause statement, or a written "cause unknown, not reproduced in N attempts" finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Validation runs
 
-- [ ] E-04 Run the validation set: the `SelfFinalizeWiringTests` class; `tests/test_oc_runipd.py` under seeds 1, 2 and 3 (`-p randomly --randomly-seed=<n>`), plus any seed that reproduced the failure in E-01; the 7-module set from E-01 three times; the bare core suite `python3 -m pytest`; and `aw sanitize --agent`.
+- [x] E-04 Run the validation set: the `SelfFinalizeWiringTests` class; `tests/test_oc_runipd.py` under seeds 1, 2 and 3 (`-p randomly --randomly-seed=<n>`), plus any seed that reproduced the failure in E-01; the 7-module set from E-01 three times; the bare core suite `python3 -m pytest`; and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: every run reports zero failures and zero errors; sanitizer exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -73,6 +73,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-2 | Not reproduced at authoring: single node `1 passed in 4.97s`; whole file under `--randomly-seed` 1, 2, 3: `177 passed in 32.38s`, `177 passed in 29.52s`, `177 passed in 30.66s`; class with `AW_EXECUTION_ROLE=worker`: `6 passed in 7.50s`. | measured 2026-10-23 in this lane |
 | F-3 | The test asserts only `order[:2] == ["begin", "run"]`. A failure therefore means `run_opencode` was not reached (or `driver_begin` was not called first); the assertion message would show only the list, not WHY. In `runner_shared.execute_item_core`, several gates can return before the spawn: the stale Scope-Paths check (`scope_target_refused`), the host-capability preflight (`preflight_host_capabilities`), the clean-base check (`evaluate_clean_base_for_launch` / `clean_base_launch_decision`), `assert_child_tool_identity` (which runs a subprocess probe once per process, cached in `_TOOL_IDENTITY_VERIFIED`), and the begin refusal. Which, if any, fired is unknown. | `agent_workflows/runner_shared.py` `execute_item_core`, `assert_child_tool_identity`; test body |
 | F-4 | Several gates in that path read process-wide or environment state (`_TOOL_IDENTITY_VERIFIED`, ambient `AW_*` environment such as `AW_EXECUTION_ROLE`, git status of the temp repo). Under xdist with randomized order, a sibling test mutating such state is one plausible class of cause; load-dependent timing is another. Neither is established. | `tests/test_tool_identity_item_failure.py` clears and restores `runner_shared._TOOL_IDENTITY_VERIFIED`; `SelfFinalizeHelperTests.setUp` calls `support.declare_execution_role` while `SelfFinalizeWiringTests` does not |
+| F-5 | Cause unknown, not reproduced in 55 attempts (5 seeded 7-module runs with seeds 101-105 plus 50 isolated iterations under concurrent test load). E-02 provides self-diagnosing message for any future failure. | E-01 / V-01 reproduction attempts |
 
 ## Proposed changes (ordered, validatable)
 
@@ -115,25 +116,150 @@ N/A: the change is test-only (or, per Scope check, a production fix that changes
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the attempt table (seed, exact command, pytest summary line for each run, loop iteration count and pass/fail tally), the recorded `AW_*` environment and load average, and, if any run failed, the complete pasted assertion message, traceback and "Captured stderr call" section; otherwise the literal statement "not reproduced in N attempts" with N.
   - Observed evidence:
-  - Result: pending
+    Attempt table:
+    | Seed / Run | Exact Command | Result Summary Line |
+    |---|---|---|
+    | Seed 101 | `python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -p randomly --randomly-seed=101 -o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` | `============================= 386 passed in 33.28s =============================` |
+    | Seed 102 | `python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -p randomly --randomly-seed=102 -o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` | `============================= 386 passed in 29.19s =============================` |
+    | Seed 103 | `python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -p randomly --randomly-seed=103 -o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` | `============================= 386 passed in 31.83s =============================` |
+    | Seed 104 | `python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -p randomly --randomly-seed=104 -o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` | `============================= 386 passed in 32.58s =============================` |
+    | Seed 105 | `python3 -m pytest tests/test_unmeasured_refusal_console.py tests/test_budget_only_combined_red_e2e.py tests/test_runner_shared.py tests/test_forkresid_shared_shells.py tests/test_deferred_reattempt_revalidation.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -p randomly --randomly-seed=105 -o addopts="-n auto --dist=worksteal -m 'not slow and not livecorpus'" -rA --tb=long` | `============================= 386 passed in 35.67s =============================` |
+    | Single-node 50-iteration loop under load | `for i in $(seq 1 50); do python3 -m pytest -o addopts="" -rA --tb=long "tests/test_oc_runipd.py::SelfFinalizeWiringTests::test_begin_precedes_run_opencode_on_success"; done` (with concurrent background 7-module test execution) | 50 iterations: 50 passed, 0 failed |
 
-- [ ] V-02 validates E-02
+    Ambient `AW_*` environment:
+    ```
+    AW_RUN_ID=run-20261024T014611Z-3126016
+    AW_DRIVER_RESTART=3
+    AW_HOME=/mnt/md1/VC/agent-workflows/.aw/records/runs/run-20261024T014611Z-3126016/agent-aw-home/06-qp9lh0-attempt-1
+    AW_CONFIG_DIR=/mnt/md1/VC/agent-workflows/.aw/records/runs/run-20261024T014611Z-3126016/agent-user-config/06-qp9lh0-attempt-1
+    AW_PIN_KEEP_ROOT=/mnt/md1/VC/agent-workflows
+    AW_EXECUTION_ROLE=worker
+    AW_ITEM_ID6=qp9lh0
+    AW_RUNNER=aw agy run
+    AW_AGENT_MODEL=Gemini 3.8 Flash High
+    ```
+    Load average: `1.41, 0.66, 0.55` before run; `15.63, 9.74, 4.57` during/after concurrent load.
+
+    Statement: not reproduced in 55 attempts.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff tests/test_oc_runipd.py` hunk showing the assertion still compares `order[:2]` to `["begin", "run"]` and now carries a `msg=` with order, status, disposition and refusal fields; paste the failure output from the temporary injected-refusal run (produced by E-02's uncommitted local patch) showing the message names `fail-begin`, `begin_refusal` and the `ipd-begin-refused` event; paste `git diff --stat` after reverting that patch showing only the intended hunk remains.
   - Observed evidence:
-  - Result: pending
+    `git diff tests/test_oc_runipd.py` hunk:
+    ```diff
+    diff --git a/tests/test_oc_runipd.py b/tests/test_oc_runipd.py
+    index 4ae5b7c20..a5e6a1817 100644
+    --- a/tests/test_oc_runipd.py
+    +++ b/tests/test_oc_runipd.py
+    @@ -3153,7 +3153,53 @@ class SelfFinalizeWiringTests(unittest.TestCase):
+                     )
+                     driver.execute_item(run_dir, state, item, recovery=False)
 
-- [ ] V-03 validates E-03
+    -            self.assertEqual(order[:2], ["begin", "run"])
+    +            def _diagnostic_msg() -> str:
+    +                attempts = item.get("attempts") or []
+    +                last_attempt = (
+    +                    attempts[-1] if (attempts and isinstance(attempts[-1], dict)) else {}
+    +                )
+    +                item_refusals = {
+    +                    k: item[k]
+    +                    for k in (
+    +                        "begin_refusal",
+    +                        "clean_base_refusal",
+    +                        "scope_target_refusal",
+    +                        "refusal",
+    +                        "worktree_error",
+    +                    )
+    +                    if k in item
+    +                }
+    +                attempt_gates = {
+    +                    k: last_attempt[k]
+    +                    for k in (
+    +                        "host_capability_unavailable",
+    +                        "scope_target_refused",
+    +                        "clean_base_refused",
+    +                        "begin_refused",
+    +                    )
+    +                    if k in last_attempt
+    +                }
+    +                events: list[str] = []
+    +                events_path = run_dir / "events.jsonl"
+    +                if events_path.is_file():
+    +                    try:
+    +                        for line in events_path.read_text(encoding="utf-8").splitlines():
+    +                            line = line.strip()
+    +                            if line:
+    +                                ev = json.loads(line)
+    +                                if isinstance(ev, dict) and "event" in ev:
+    +                                    events.append(str(ev["event"]))
+    +                    except Exception:
+    +                        pass
+    +                return (
+    +                    f"order={order!r}, status={item.get('status')!r}, "
+    +                    f"disposition={last_attempt.get('disposition')!r}, "
+    +                    f"item_refusals={item_refusals!r}, "
+    +                    f"attempt_gate_keys={attempt_gates!r}, "
+    +                    f"events={events[-5:]!r}"
+    +                )
+    +
+    +            self.assertEqual(order[:2], ["begin", "run"], msg=_diagnostic_msg())
+    ```
+    Failure output from temporary injected refusal (`lambda r, i, a: order.append("begin") or (1, "x")`):
+    ```
+    =================================== FAILURES ===================================
+    _____ SelfFinalizeWiringTests.test_begin_precedes_run_opencode_on_success ______
+
+    self = <tests.test_oc_runipd.SelfFinalizeWiringTests testMethod=test_begin_precedes_run_opencode_on_success>
+    ...
+    >           self.assertEqual(order[:2], ["begin", "run"], msg=_diagnostic_msg())
+    E           AssertionError: Lists differ: ['begin'] != ['begin', 'run']
+    E
+    E           Second list contains 1 additional elements.
+    E           First extra element 1:
+    E           'run'
+    E
+    E           - ['begin']
+    E           + ['begin', 'run'] : order=['begin'], status='fail-begin', disposition='fail-begin', item_refusals={'begin_refusal': 'x'}, attempt_gate_keys={'begin_refused': 'x'}, events=['ipd-started', 'tool-identity-verified', 'ipd-begin-refused']
+    ...
+    ----------------------------- Captured stderr call -----------------------------
+    ✗ IPD 01/1 wir001 begin refused (no execution authority); not launching. x
+    =========================== short test summary info ============================
+    FAILED tests/test_oc_runipd.py::SelfFinalizeWiringTests::test_begin_precedes_run_opencode_on_success
+    ============================== 1 failed in 0.97s ===============================
+    ```
+    `git diff --stat` after reverting patch:
+    ```
+     tests/test_oc_runipd.py | 48 +++++++++++++++++++++++++++++++++++++++++++++++-
+     1 file changed, 47 insertions(+), 1 deletion(-)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: either (a) the fix diff plus a one-paragraph cause statement tied to the E-01 traceback, and a re-run of the E-01 reproduction command that previously failed now passing (pasted summary line); or (b) the Findings row recording "cause unknown, not reproduced in N attempts" with the N from V-01.
   - Observed evidence:
-  - Result: pending
+    Findings row F-5 recorded:
+    ```markdown
+    | F-5 | Cause unknown, not reproduced in 55 attempts (5 seeded 7-module runs with seeds 101-105 plus 50 isolated iterations under concurrent test load). E-02 provides self-diagnosing message for any future failure. | E-01 / V-01 reproduction attempts |
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the summary line of each run: the class run, the 3 seeded whole-file runs, the 3 seven-module runs, bare `python3 -m pytest`, and the `aw sanitize --agent` result record with exit code; each shows zero failures/errors and exit 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All validation runs passed with zero failures/errors and exit 0.
+    Class run: `============================== 6 passed in 5.51s ===============================`
+    Whole-file seed 1: `177 passed in 19.93s`
+    Whole-file seed 2: `177 passed in 21.99s`
+    Whole-file seed 3: `177 passed in 20.88s`
+    7-module run 1 (seed 201): `386 passed in 30.90s`
+    7-module run 2 (seed 202): `386 passed in 29.64s`
+    7-module run 3 (seed 203): `386 passed in 30.41s`
+    Bare core suite: `1810 passed, 11 warnings in 73.63s (0:01:13)`
+    Sanitizer: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6071,"findings":0,"evidence":["leak-scan"],"next":null}` (exit 0)
+  - Result: pass
 
 ## Approval and execution gate
 
