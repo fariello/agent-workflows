@@ -6,7 +6,7 @@
 - Scope: Re-run the three `wo21z5` mutation probes (plus the opposite-polarity `return-none` probe of `assert_no_causal_language`) against `tests/test_run_analytics_findings.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_findings.py` that calls the surviving function and asserts on its returned value or raised `FindingRefusal`. EXCLUDES any production-code change; EXCLUDES other `run_analytics_findings.py` keys (`format_findings_report`, `price_era_paradox_finding`, `detect_pooled_era_comparison` are owned by executed `ivap17`); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_findings.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 92tzo6
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 92tzo6 verified (set trimgap, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_analytics_findings.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (1 declared path(s) unmodified; work may have landed before the begin baseline or not at all): tests/test_run_analytics_findings.py]
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (commit-before-reprobe, baseline_failing and base sha, real class names, satisfiable budget bar, execution contract); four probes re-run killed at 2aa1e2fd3 (F-04)
 
