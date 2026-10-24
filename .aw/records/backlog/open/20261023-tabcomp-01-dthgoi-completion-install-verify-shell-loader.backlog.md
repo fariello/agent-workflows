@@ -1,11 +1,13 @@
 - Id: dthgoi
 - Status: open
+- Blocks-Release: next
 - Set: tabcomp
 - Priority: high
 - Work-Kind: bug
 - Summary: aw completion install: verify shell loader prerequisites and guide activation
 
 ## Workflow history
+- 2026-10-24 open (aw set): status set to open
 - 2026-10-23 created (aw backlog): aw completion install: verify shell loader prerequisites and guide activation
 
 ### Problem Statement
