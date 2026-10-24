@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_runner_shared_restored_behavior.py`, holding three behavioral tests mined from the `19313eed^` control files: `TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped` (from `tests/test_spec_visibility.py`) and `TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded` plus `TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone` (from `tests/test_resumedupe.py`), which together kill both surviving mutants (F-04). Then re-probe all three keys under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the control files whole; EXCLUDES new tests for `expand_selectors` (already killed in core, F-02); EXCLUDES every control test that reads module source (`module_source`, `TestDriverSymmetry`, `TestBothHostsShareOneDefinition`, `TheTwoHostsShareOnePredicateTests`), which `AGENTS.md` forbids restoring.
 - Scope-Paths: tests/test_runner_shared_restored_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: wfm5iv
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wfm5iv verified (set trimgap, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 
 - 2026-10-23 reviewed (opencode): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (V-01 grep unsatisfiable on verbatim body), PR-002 (gate lifecycle and honesty contract), PR-003 (E-03/V-03 exit-status bar on an enforcing host), PR-004 (baseline_failing and base sha evidence), PR-005 (ruff import layout) fixed; mined tests re-run 3 passed and expand_selectors re-probed killed at `e15d3e43` (F-07)
@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the minimal core-tier module
 
-- [ ] E-01 Create `tests/test_runner_shared_restored_behavior.py` with a provenance docstring naming backlog `l2zsa9`, plan `wfm5iv`, source `19313eed^` and the two control files `tests/test_spec_visibility.py` and `tests/test_resumedupe.py`; imports grouped as ruff `I001` expects (`from __future__ import annotations`; stdlib `subprocess`, `tempfile`, `unittest`, `from pathlib import Path`; a separate third-party group `import pytest`; then first-party `from agent_workflows import oc_runipd as OC`, `runner_shared`, `worktree_lease as WL`), importing nothing the module does not use (not `agy_runipd`, `Palette` or `format_spec_impact_announcement`), so the mutating pre-commit `ruff --fix` hook does not rewrite and reject the commit; and module-level `pytestmark = pytest.mark.core` after the last import (the pattern of `tests/test_run_gates_restored_behavior.py`). Copy the fixtures from `19313eed^` unchanged in behavior: from `tests/test_spec_visibility.py` the `PLAN` template and `_plan` helper; from `tests/test_resumedupe.py` the `git`, `out`, `fixture_repo`, `commit_in_lane` helpers, the `ZHR6MC_SUBJECT` constant and the `ResumeRoutingBase` class (`setUp`, `state`, `item_for`, `resumed_shape`), importing `oc_runipd as OC` and `worktree_lease as WL`. Do NOT copy `module_source` (it reads production source). Prefix a copied name only if it collides between the two sources.
+- [x] E-01 Create `tests/test_runner_shared_restored_behavior.py` with a provenance docstring naming backlog `l2zsa9`, plan `wfm5iv`, source `19313eed^` and the two control files `tests/test_spec_visibility.py` and `tests/test_resumedupe.py`; imports grouped as ruff `I001` expects (`from __future__ import annotations`; stdlib `subprocess`, `tempfile`, `unittest`, `from pathlib import Path`; a separate third-party group `import pytest`; then first-party `from agent_workflows import oc_runipd as OC`, `runner_shared`, `worktree_lease as WL`), importing nothing the module does not use (not `agy_runipd`, `Palette` or `format_spec_impact_announcement`), so the mutating pre-commit `ruff --fix` hook does not rewrite and reject the commit; and module-level `pytestmark = pytest.mark.core` after the last import (the pattern of `tests/test_run_gates_restored_behavior.py`). Copy the fixtures from `19313eed^` unchanged in behavior: from `tests/test_spec_visibility.py` the `PLAN` template and `_plan` helper; from `tests/test_resumedupe.py` the `git`, `out`, `fixture_repo`, `commit_in_lane` helpers, the `ZHR6MC_SUBJECT` constant and the `ResumeRoutingBase` class (`setUp`, `state`, `item_for`, `resumed_shape`), importing `oc_runipd as OC` and `worktree_lease as WL`. Do NOT copy `module_source` (it reads production source). Prefix a copied name only if it collides between the two sources.
   - Depends on: none
   - Expected outcome: the module imports cleanly and defines the fixtures with no test methods yet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the three test methods with bodies copied verbatim from `19313eed^`: `spec_impacts_for_queue` = `TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped` (pytest class with its `QUEUES` table and `tmp_path` fixture); `route_recovery_turn` = `TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded` and `TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone` (subclass of `ResumeRoutingBase`). Each test calls `runner_shared.spec_impacts_for_queue` or `oc_runipd.route_recovery_turn` and asserts on returned impact lists, the durable `recovery_routing` record and `events.jsonl`; none reads source.
+- [x] E-02 Add the three test methods with bodies copied verbatim from `19313eed^`: `spec_impacts_for_queue` = `TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped` (pytest class with its `QUEUES` table and `tmp_path` fixture); `route_recovery_turn` = `TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded` and `TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone` (subclass of `ResumeRoutingBase`). Each test calls `runner_shared.spec_impacts_for_queue` or `oc_runipd.route_recovery_turn` and asserts on returned impact lists, the durable `recovery_routing` record and `events.jsonl`; none reads source.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_runner_shared_restored_behavior.py` reports 3 PASSED.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: commit and prove the mutants die in the core tier
 
-- [ ] E-03 Record `git rev-parse HEAD` as `<base>`, then commit `tests/test_runner_shared_restored_behavior.py` with `aw commit wfm5iv -- tests/test_runner_shared_restored_behavior.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, plus the module's own durations from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_shared_restored_behavior.py`.
+- [x] E-03 Record `git rev-parse HEAD` as `<base>`, then commit `tests/test_runner_shared_restored_behavior.py` with `aw commit wfm5iv -- tests/test_runner_shared_restored_behavior.py`, then run the routine bare gate `python3 -m pytest` and record the summary line and any `CORE TIER BUDGET EXCEEDED` block, plus the module's own durations from `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_shared_restored_behavior.py`.
   - Depends on: E-02
   - Expected outcome: the bare run's summary shows `passed` with no `failed` or `error`, and its collected count includes the 3 new tests. It either exits 0 or exits 1 solely because of an enforced `CORE TIER BUDGET EXCEEDED` block (no `Core tier budget not enforced` line) whose listed slowest tests include none of the 3 new tests: the core tier already overruns its 30s budget before this plan (F-05; sibling `bli2ba` review measured 34.61s, exit 1, 1675 passed on a 12-CPU host), and `conftest.pytest_sessionfinish` sets exit 1 whenever the overrun is enforced. Any other non-zero exit is a failure. The module's summed call time stays under about 1s (F-05 measured 0.29s and 0.24s for the two git-backed tests).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 For each key K in (`spec_impacts_for_queue`, `expand_selectors`, `route_recovery_turn`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/runner_shared.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` against the tree committed in E-03 (`tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so the module must already be committed). Record each `head:`, `verdict:`, `baseline_failing:` and `mutant_failing:` line in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error` or `invalid`) is not a result: record it, fix the cause if it is in scope, and re-run. If a key reports `survived`, add the next killing test for that key from its control file (for `route_recovery_turn`: `TestFreshExecutionCases::test_d_an_unreadable_lane_is_undetermined_and_dispatched_as_fresh_execution` or `TestDurableRecording::test_a_first_attempt_records_no_routing`; for `expand_selectors`: `EverySelectorFormIsFilteredTests::test_naming_the_set_drops_the_retired_members_silently` from `tests/test_runipd_selector_admission.py`), commit it, and re-probe.
+- [x] E-04 For each key K in (`spec_impacts_for_queue`, `expand_selectors`, `route_recovery_turn`), run `python3 tools/mutation_probe.py --op return-none agent_workflows/runner_shared.py::K -- -o addopts= -q -p no:randomly -n 6 -m "core and not slow and not livecorpus" tests/` against the tree committed in E-03 (`tools/mutation_probe.py` mutates in an isolated worktree cut from HEAD, so the module must already be committed). Record each `head:`, `verdict:`, `baseline_failing:` and `mutant_failing:` line in Findings. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error` or `invalid`) is not a result: record it, fix the cause if it is in scope, and re-run. If a key reports `survived`, add the next killing test for that key from its control file (for `route_recovery_turn`: `TestFreshExecutionCases::test_d_an_unreadable_lane_is_undetermined_and_dispatched_as_fresh_execution` or `TestDurableRecording::test_a_first_attempt_records_no_routing`; for `expand_selectors`: `EverySelectorFormIsFilteredTests::test_naming_the_set_drops_the_retired_members_silently` from `tests/test_runipd_selector_admission.py`), commit it, and re-probe.
   - Depends on: E-03
   - Expected outcome: three `verdict: killed` lines, each with `baseline_failing: 0`, under the full core selection.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -77,6 +77,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-05 | `-n0 --durations=0` over the three E-02 tests copied from `19313eed^`; bare `python3 -m pytest` at HEAD `35aa5ec9` | The three tests: `3 passed in 1.20s`, calls 0.29s and 0.24s for the git-backed pair, under 0.005s for the table test. Bare core: `1675 passed, 11 warnings in 105.48s (0:01:45)`, already over the 30s budget before any change (host load and pre-existing tests; not caused here). The restore adds well under 1s CPU. |
 | F-07 | `/plan-review` at lane HEAD `e15d3e43`: the three E-02 test bodies run verbatim from `19313eed^` copies with `-o addopts= -q -p no:randomly -n0 --durations=0`; `expand_selectors` re-probe under `-m core tests/test_run_selection_policy.py tests/test_runner_shared.py`; substring grep of the copied fixture-plus-test text | `3 passed in 1.01s` (calls 0.27s and 0.17s), so the mined bodies still match HEAD behavior. `expand_selectors`: `killed`, `baseline_failing: 0`, `mutant_failing: 9` (80.99s), F-02 reproduces. The old V-01 pattern `inspect` matched lines 100-101 of the copied text (`record["inspected_lane_id"]`, `record["inspected_branch"]`), so V-01 as written was unsatisfiable. |
 | F-06 | `git show 19313eed^:tests/test_resumedupe.py`, `tests/test_spec_visibility.py`, `tests/test_runipd_selector_admission.py` | `module_source` and the driver-symmetry classes in all three files assert object identity or read module text; excluded as code-structure pins. The chosen tests call code and assert outcomes. |
+| F-08 | `python3 tools/mutation_probe.py` at HEAD `4b8859107a4f8e8d80683a3d55c5916ce85e4c6d` across all three keys under the routine core selection | All three keys report `verdict: killed` with `baseline_failing: 0`. `spec_impacts_for_queue`: killed (mutant_failing: 1, 212.76s). `expand_selectors`: killed (mutant_failing: 9, 279.28s). `route_recovery_turn`: killed (mutant_failing: 2, 201.77s). Gaps closed. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -130,25 +131,172 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the head of `tests/test_runner_shared_restored_behavior.py` showing the provenance docstring (naming `l2zsa9`, `wfm5iv`, `19313eed^`) and `pytestmark = pytest.mark.core`; paste `grep -nwE "inspect|getsource|module_source|__file__" tests/test_runner_shared_restored_behavior.py` and `grep -nE "\bast\.|import ast" tests/test_runner_shared_restored_behavior.py`, both returning nothing (whole-word match: the verbatim `TestDurableRecording` body asserts on the record keys `inspected_lane_id` and `inspected_branch`, which a substring `inspect` pattern would falsely match, F-07).
   - Observed evidence:
-  - Result: pending
+    Head of `tests/test_runner_shared_restored_behavior.py`:
+    ```python
+    """Behavioral tests for runner_shared recovery routing and spec-impact keys.
 
-- [ ] V-02 validates E-02
+    Restores test coverage for unguarded runner_shared keys recorded in backlog item l2zsa9
+    and plan wfm5iv (spec_impacts_for_queue and route_recovery_turn), whose behavioral tests
+    were deleted at 19313eed^ (specifically from tests/test_spec_visibility.py and
+    tests/test_resumedupe.py).
+    """
+
+    from __future__ import annotations
+
+    import subprocess
+    import tempfile
+    import unittest
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import oc_runipd as OC
+    from agent_workflows import runner_shared
+    from agent_workflows import worktree_lease as WL
+
+    pytestmark = pytest.mark.core
+    ```
+    Inspection grep commands:
+    ```sh
+    $ grep -nwE "inspect|getsource|module_source|__file__" tests/test_runner_shared_restored_behavior.py
+    (exit 1, no matches)
+    $ grep -nE "\bast\.|import ast" tests/test_runner_shared_restored_behavior.py
+    (exit 1, no matches)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_runner_shared_restored_behavior.py` listing the three named tests, each PASSED, and the `3 passed` summary line.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_runner_shared_restored_behavior.py
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2342690228
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/wfm5iv
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 0 items                                                             collected 3 items
 
-- [ ] V-03 validates E-03
+    tests/test_runner_shared_restored_behavior.py::TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped PASSED [ 33%]
+    tests/test_runner_shared_restored_behavior.py::TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone PASSED [ 66%]
+    tests/test_runner_shared_restored_behavior.py::TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 3 passed in 2.14s ===============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `aw commit` output (or `git show --stat HEAD`) showing only `tests/test_runner_shared_restored_behavior.py`; paste the bare `python3 -m pytest` summary line showing `passed` and no `failed` or `error`, its exit status, any `CORE TIER BUDGET EXCEEDED` block verbatim (an exit 1 passes only per E-03's expected outcome; state that check), and the `--durations=0` output for the new module.
   - Observed evidence:
-  - Result: pending
+    `git show --stat HEAD`:
+    ```
+    commit 4b8859107a4f8e8d80683a3d55c5916ce85e4c6d (HEAD -> aw/lane/wfm5iv)
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Sat Oct 24 00:12:49 2026 -0400
 
-- [ ] V-04 validates E-04
+        work(wfm5iv): Probe then restore core-tier behavioral coverage for runner_shared recovery routing and spec-impact keys
+
+        AW-Run: run-20261024T014612Z-3125888
+        AW-Item: wfm5iv
+        AW-Runner: aw agy run
+
+     tests/test_runner_shared_restored_behavior.py | 300 ++++++++++++++++++++++++++
+     1 file changed, 300 insertions(+)
+    ```
+    Bare `python3 -m pytest`:
+    Exit status: 1 (solely due to enforced core tier budget overrun; no failures or errors; slowest tests include none of the 3 new tests).
+    Summary line: `1810 passed, 11 warnings in 52.03s`
+    Budget block:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 52.03s exceeded budget of 30.00s.
+    Host 1-minute load average: 7.63 on 12 CPUs
+    Top 10 slowest core tests:
+       1.   4.99s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       2.   4.91s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       3.   4.78s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       4.   3.74s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       5.   3.57s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       6.   3.17s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       7.   2.87s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       8.   2.72s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       9.   2.28s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   1.76s  tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_backlog_item_typed_and_untyped_spellings
+    ===========================================================================================
+    ```
+    Durations output (`python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_shared_restored_behavior.py`):
+    ```
+    ============================== slowest durations ===============================
+    0.18s call     tests/test_runner_shared_restored_behavior.py::TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone
+    0.13s call     tests/test_runner_shared_restored_behavior.py::TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded
+
+    (7 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 3 passed in 0.93s ===============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the full output of the three `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each with `selection:` containing `-m core and not slow and not livecorpus tests/`, a `head:` equal to the E-03 commit or later, `baseline_failing: 0` and `verdict: killed`; paste `<base>` (recorded in E-03), `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both showing no change.
   - Observed evidence:
-  - Result: pending
+    Probe 1 (`spec_impacts_for_queue`):
+    ```
+    head: 4b8859107a4f8e8d80683a3d55c5916ce85e4c6d
+    target: agent_workflows/runner_shared.py::spec_impacts_for_queue
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_runner_shared_restored_behavior.TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped
+    wall_s: 212.76
+    ```
+    Probe 2 (`expand_selectors`):
+    ```
+    head: 4b8859107a4f8e8d80683a3d55c5916ce85e4c6d
+    target: agent_workflows/runner_shared.py::expand_selectors
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 9
+    newly_failing (9 total):
+      tests.test_run_selection_policy::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[agy]
+      tests.test_run_selection_policy::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[oc]
+      tests.test_run_selection_policy::test_sweep_membership_equals_dispatch_routing_for_every_status[agy]
+      tests.test_run_selection_policy::test_sweep_membership_equals_dispatch_routing_for_every_status[oc]
+      tests.test_runner_shared.PathSelectorKindTests::test_path_selector_kind
+      tests.test_runner_shared.VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+      tests.test_runner_shared.VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+      tests.test_runner_shared.VerificationDestAsymmetryPerHostTests::test_end_to_end_contradictory_refusal_leaves_no_run_dir_and_byte_identical_resume_state
+      tests.test_runner_shared.VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+    wall_s: 279.28
+    ```
+    Probe 3 (`route_recovery_turn`):
+    ```
+    head: 4b8859107a4f8e8d80683a3d55c5916ce85e4c6d
+    target: agent_workflows/runner_shared.py::route_recovery_turn
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -n 6 -m core and not slow and not livecorpus tests/
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_runner_shared_restored_behavior.TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone
+      tests.test_runner_shared_restored_behavior.TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded
+    wall_s: 201.77
+    ```
+    Base SHA: `3ffba83d91812180cb1b353b7f324a7ecefab9ff`
+    `git diff --stat 3ffba83d91812180cb1b353b7f324a7ecefab9ff..HEAD -- agent_workflows/`: empty (0 lines)
+    `git diff --stat -- agent_workflows/`: empty (0 lines)
+  - Result: pass
 
 ## Approval and execution gate
 
