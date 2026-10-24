@@ -40,3 +40,7 @@ When a user reports incomprehension ("I have zero context here", "what is X?", "
 
 Live trials in plan `lkn1zt` (findings `auwidn`, trial T05) showed that invoking `/askme` without arguments led multiple host and model combinations to scan the repository using `aw attention`, recursive `grep`, and `find` when no conversational question was pending. In a shared checkout, this caused agents to discover and ask open questions from plans authored by other agents or humans without confirming authorship. The no-argument scope rule therefore restricts candidate records strictly to those whose edits appear in the current conversation's own tool calls, explicitly forbids repository-wide discovery searches, and requires stopping with instructions when both conversational and session sources are empty.
 
+## Writing each answer before the next question
+
+In a live trial on Claude Code with Sonnet 5 on 2026-10-20, an agent asked three open questions one at a time, but held all three answers in the conversation and wrote them to the plan only after the third ("All three open questions on plan `m4rcyy` are now answered. Recording the decisions in the plan now."). If the session had been interrupted after the first or second answer, those earlier decisions would have been lost. The same host wrote each answer first in another session, showing that the behavior was inconsistent. The workflow therefore requires persisting each definite answer to its record before composing or asking the next question.
+

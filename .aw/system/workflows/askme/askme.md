@@ -158,6 +158,11 @@ If the user both makes an unambiguous choice and criticizes the wording,
 record the choice and fix the wording. If the choice is uncertain, clarify
 it before recording a resolution. Do not invent a reason the user did not give.
 
+Write each definite answer to its record before you compose or ask the next question.
+Do not hold answers in the conversation to write together later, because an
+interrupted session would lose earlier decisions. See "Record project decisions"
+below for how to write each answer to the record.
+
 ## Record project decisions
 
 For a question raised in a record's `## Open questions` section:
@@ -203,8 +208,9 @@ For a single conversational question, ask it directly without a preliminary
 inventory report. For a collection of project questions, give a short count
 only if it helps the user understand the scope.
 
-After the answers are recorded, report the decisions and any work still
-blocked. Show the list of evidence-based resolutions you decided alone,
-with hard-to-reverse ones flagged, so nothing was chosen silently. Identify
+Each answer was already written to its record when it was given; this final
+report only summarizes those records and identifies any work still blocked.
+Show the list of evidence-based resolutions you decided alone, with
+hard-to-reverse ones flagged, so nothing was chosen silently. Identify
 evidence-based resolutions separately from user choices. Do not report
 completion while required human answers are still missing.

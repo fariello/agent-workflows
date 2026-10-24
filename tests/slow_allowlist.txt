@@ -20,6 +20,7 @@ tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_emits_aw_rou
 tests/test_agy_skill_install.py::AgySkillInstallTests::test_install_idempotence	Full repo install/uninstall filesystem fixture tree lifecycle
 tests/test_agy_skill_install.py::AgySkillInstallTests::test_router_lists_every_non_catalog_verb	Full repo install/uninstall filesystem fixture tree lifecycle
 tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_and_preserves_askme_shims	Full repo install/uninstall filesystem fixture tree lifecycle
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_write_before_ask_rule	Full repo install/uninstall filesystem fixture tree lifecycle
 tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_1_oc_host_integrated_isolated_turn	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_attempt_lane_facts.py::AttemptLaneFactsTests::test_case_2_oc_host_refused_isolated_turn	Subprocess CLI execution and isolated worktree integration boundary
 tests/test_attention.py::NameGrammarAgreesWithTheNamingAuthorityTests::test_name_grammar_agrees_with_naming_authority	Repository diagnostics and check engine evaluation across fixture

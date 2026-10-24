@@ -226,6 +226,38 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
                 item_4_text,
             )
 
+    @pytest.mark.slow
+    def test_installer_delivers_askme_write_before_ask_rule(self):
+        """Assert installer delivers askme.md with write-each-answer-before-next-question rule in ## Ask and wait."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td) / "target")
+
+            with redirect_stdout(io.StringIO()):
+                engine.install_into_repo(
+                    repo, SOURCE_WORKFLOWS, yes=True, no_color=True
+                )
+
+            installed_askme = (
+                repo / ".aw" / "system" / "workflows" / "askme" / "askme.md"
+            )
+            self.assertTrue(
+                installed_askme.is_file(),
+                "Installed askme workflow body must exist",
+            )
+            installed_text = installed_askme.read_text(encoding="utf-8")
+            start_idx = installed_text.find("## Ask and wait")
+            self.assertNotEqual(start_idx, -1, "## Ask and wait heading must exist")
+            end_idx = installed_text.find("\n## ", start_idx + len("## Ask and wait"))
+            section = (
+                installed_text[start_idx:end_idx]
+                if end_idx != -1
+                else installed_text[start_idx:]
+            )
+            self.assertIn(
+                "Write each definite answer to its record before you compose or ask the next question.",
+                section,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
