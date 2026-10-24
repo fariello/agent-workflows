@@ -10,6 +10,7 @@
 ## Workflow history
 
 - 2026-10-24 created (aw specs): Configurable single-agent and multi-agent spec and research synthesis
+- 2026-10-24 updated: incorporate decision D177 naming, intermediate candidate staging in draft/intermediate/<setid>/, and attention board pipeline rollup
 
 ---
 
@@ -24,7 +25,7 @@ Authoring high-stakes software specifications and deep research findings current
 2. The operator manually dispatches these prompts across disparate Agent Communication Environments (ACEs) and LLM hosts (such as OpenCode, Antigravity, or Codex), manually tracking sessions, context limits, and model parameters.
 3. The operator evaluates feedback loops by hand, making ad-hoc judgments about when improvements have plateaued or when cost/turn caps have been exceeded.
 4. Competing candidates must be manually compared. Operators struggle to reconcile divergent architectural choices without either producing an incoherent union of contradictory ideas or losing valuable minority insights.
-5. Intermediate artifacts (prompts, raw drafts, iteration findings, matrices) are scattered across untracked scratch directories, destroying traceability and violating repository naming, set-grouping, and provenance standards.
+5. Intermediate artifacts (prompts, raw drafts, iteration findings, matrices) are scattered across untracked scratch directories, destroying traceability and violating repository naming, set-grouping, and provenance standards. If intermediate files are hidden in deep subdirectories without cross-tree tracking, work-in-progress drafts can easily be forgotten or lost to time.
 
 ### 1.3 Target Actors
 - **The Maintainer / Human Architect**: Initiates workflows from a brief or existing document, configures participant preferences, reviews convergence metrics and comparison matrices, resolves irreconcilable architectural tradeoffs, and performs formal human review/approval.
@@ -38,7 +39,8 @@ Authoring high-stakes software specifications and deep research findings current
 - **Controlled, Bounded Refinement**: Provide iterative critique loops governed by stable finding identifiers, objective stopping rules ("no material improvements"), and explicit iteration/cost caps.
 - **Traceable Synthesis with Accountability**: Synthesize competing candidates into a single coherent design, producing an explicit Similarities and Differences Matrix, logging contribution provenance for all requirements, and preventing silent consensus fabrication.
 - **Research Parity**: Support research formulation, independent evidence gathering, contradiction tracking, and reconciliation into durable research records without borrowing inapplicable spec approval semantics.
-- **Normalized Artifact Grammar and Set Clustered Identity**: Strictly adhere to the repository's normalized artifact naming grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>[.<facets>].md`), ensuring stable `id6` identity, immutable Set grouping, and clean separation between durable records and disposable state.
+- **Normalized Artifact Grammar and Set Clustered Identity**: Strictly adhere to repository decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), ensuring stable `id6` identity, immutable Set grouping, and clean separation between durable records and disposable state.
+- **Zero-Lost-Work Attention Surfacing**: Ensure that intermediate candidates staging in `draft/intermediate/<setid>/` are permanently surfaced on the daily cross-tree attention view (`aw attention` and `aw todo`) via Set pipeline rollups and dedicated reminder banners so work is never hidden or lost to time.
 - **Deterministic CLI & Agent Protocol**: Provide ergonomic human CLI commands alongside strict non-interactive, machine-readable output conforming to `aw.agent/v1` JSONL.
 
 ### 1.5 Non-Goals
@@ -54,25 +56,27 @@ Authoring high-stakes software specifications and deep research findings current
   - Input from a local Markdown brief file, existing spec path, or research question.
   - Participant roster resolution via `runner-profiles.json` and explicit CLI overrides.
   - OpenCode (`oc`) and Antigravity (`agy`) execution drivers for generation, refinement, and synthesis.
-  - OpenCode-hosted execution for GPT-6.1 Sol Medium when native Codex runner is absent.
+  - OpenCode-hosted execution for GPT-6.1 Sol Medium via profile `sol` (confirmed by operator ruling; standalone Codex runner deferred).
+  - Intermediate candidate staging under `.aw/records/specs/draft/intermediate/<setid>/`.
+  - Set-level pipeline state rollup in `aw attention` (`aw todo`) and persistent footer reminder banner.
   - Execution modes: Quick (`--mode quick`) and Thorough (`--mode thorough`).
   - Iteration loops with configurable caps (`--refine-cap`, `--synth-refine-cap`) and convergence detection.
   - Production of the Similarities and Differences Matrix and requirement provenance tags.
-  - Normalized artifact emission under `.aw/records/specs/`, `.aw/records/research/`, and `.aw/records/prompts/`.
+  - Full adherence to Decision D177 type-last filename grammar.
   - Machine-readable `--agent` (`aw.agent/v1`) and `--json` outputs.
-  - Resume from interrupted or capped runs via `--resume <run-id6>`.
+  - Resume from interrupted or capped runs via `aw specs flow resume <run-id6>`.
 - **Deferred to Subsequent Releases (Phase 2 & 3)**:
-  - Native standalone `codex exec` background runner driver (use OpenCode adapter in Phase 1).
-  - Multi-document large spec chunking and assembly pipeline (supported by manual part definitions in Phase 1, automated chunking in Phase 2).
-  - Dynamic cost-tracking telemetry based on live token billing APIs (Phase 1 tracks turn counts, wall latency, and character volumes).
-  - Interactive terminal dashboard / curses wizard for live multi-agent watching.
+  - Native standalone `codex exec` background runner profile row in `runner_profiles.py` (Phase 2).
+  - Multi-document large spec chunking and assembly pipeline (Phase 2).
+  - Live token billing API telemetry integration (Phase 3).
+  - Interactive terminal curses dashboard for multi-agent watching (Phase 3).
 
 ---
 
 ## 2. Repository Findings and Integration Seams
 
 ### 2.1 Codebase Inspection Baseline
-- **Inspected Commit**: `14e7b4970826b28dd15a263b50dad8546ca55215` (branch `specflow-candidate` / `main`).
+- **Inspected Commit**: `6f430cefd88a4b2ecca9e67548ec340e2911683c` (branch `specflow-intermediate-design` / `main`).
 - **Inspection Date**: 2026-10-24.
 
 ### 2.2 Integration Seams and Findings
@@ -81,16 +85,17 @@ Authoring high-stakes software specifications and deep research findings current
 | --- | --- | --- | --- |
 | **CLI Architecture & Dispatch** | `agent_workflows/cli.py`<br>`agent_workflows/result_types.py` | Top-level commands are artifact-noun oriented (`aw specs`, `aw research`, `aw ipd`, `aw backlog`, `aw prompts`). Subcommands are structured via `add_subparsers`. `OutputMode` follows `explicit > --agent > human`. | Add `flow` subcommands to `specs` and `research` (`aw specs flow`, `aw research flow`). Maintain `CommandResult` envelope and exit codes (0 clean, 1 findings/drift, 2 usage error). |
 | **Runner Profiles & Launch Resolution** | `agent_workflows/runner_profiles.py`<br>`docs/runner-profiles.md` | Stored in `<config_dir>/runner-profiles.json`. Schema version 2. Precedence: explicit caller > named profile > runner default > host default. Registers `oc` (supports variant/agent) and `agy` (no variant/agent in registry). `roles` map exists but is currently inert. | Extend role vocabulary or map flow roles (`flow-generate`, `flow-refine`, `flow-synthesize`) to profile references. Add validation for flow participant rosters. Support profile references in workflow config. |
-| **Host Capabilities & Adapters** | `agent_workflows/host_adapters.py`<br>`agent_workflows/host_capability_registry.py` | `V1_HOSTS` includes `opencode`, `codex`, `antigravity`. Codex has `HOST_NONINTERACTIVE_RUNTIME = "codex exec"`, but no active runner profile row in `runner_profiles.py`. | In Phase 1, route Sol slot (`gpt-6.1-sol-medium`) through OpenCode profile. Declare Codex runner adapter as deferred or provide headless subprocess bridge. |
+| **Host Capabilities & Adapters** | `agent_workflows/host_adapters.py`<br>`agent_workflows/host_capability_registry.py` | `V1_HOSTS` includes `opencode`, `codex`, `antigravity`. Codex has `HOST_NONINTERACTIVE_RUNTIME = "codex exec"`, but no active runner profile row in `runner_profiles.py`. | Per maintainer instruction, route Sol slot (`gpt-6.1-sol-medium`) through OpenCode profile `sol` with OpenAI provider model and `variant=medium`. Standalone Codex runner deferred to Phase 2. |
 | **Machine Protocol & Output** | `docs/cli-output-contract.md`<br>`docs/cli-agent-protocol.md` | `aw.agent/v1` JSONL protocol with typed events (`result`, `diagnostic`, `change`, `evidence`). Redacts local home paths. Strict anti-greenwashing rules. | Emit `flow` status events via `aw.agent/v1`. Distinguish `clean` (converged without findings), `findings` (capped with unresolved issues), and `fail`. |
 | **Spec Lifecycle & Validation** | `agent_workflows/specs.py`<br>`agent_workflows/specs_cli.py`<br>`.aw/records/specs/README.md` | Specs have closed status enum: `draft`, `to-review`, `reviewed`, `approved`, `implementing`, `implemented`, `deferred`, `parked`, `superseded`. Location matches status directory. Tool-owned minting via `aw specs new`. | Flow finalization writes candidate to `draft/` or `to-review/`. Must never forge review attestations or set `approved`. Links to `/spec-review`. |
+| **Attention Board & Cross-Tree View** | `agent_workflows/attention.py`<br>`agent_workflows/attention_contract.py` | `aw attention` (and `aw todo`) maps tracked artifacts to 5 classes: `ready`, `active`, `blocked`, `done`, `parked`. Research prompts use `_PROMPT_PIPELINE_MAP` (`unrun` -> `ready`, `partial` -> `active`, `synthesized` -> `done`). | Add spec flow Set pipeline position mapping (`awaiting-synthesis` -> `ready`, `refining` -> `active`, `synthesized` -> `done`). Add footer reminder banner for unmerged intermediate candidate sets. |
 | **Research Contracts & Index** | `agent_workflows/research_contract.py`<br>`agent_workflows/research_cmd.py`<br>`.aw/records/research/README.md` | Naming: `YYYYMMDD-<set>-<NN>-<id6>-<slug>[.<model>].<kind>.md`. Kinds: `research-prompt`, `research-report`, `reconciliation-report`. `reconciliation` denotes multi-author synthesis. Sharded by weekly directories for `reference` and `archive`. | Reuse research kinds and index generators. Multi-agent research outputs write `research-report` per model and `reconciliation-report` for the synthesized report. |
-| **Artifact Naming & Identity Authority** | `agent_workflows/artifact_naming.py`<br>`agent_workflows/artifact_core.py` | Unified clustered grammar `YYYYMMDD-<setid>-<NN>-<id6>-<slug>[.<facet>].md`. Setid length <= 14 preferred, > 14 warns, > 24 refused. Minting done via `artifact_core.mint_id6()`. | Emit normalized intermediate filenames: `.<type>.<ace>.<model>-<variant>.md`. Support multi-author facet `reconciliation` or omit model facet on synthesis. |
-| **Storage Root Resolution** | `agent_workflows/project_context.py` | `project_records_dir(repo_root)` resolves physical location for `.aw/records/`, including external companion and home placement. Never hard-code `.aw/records/` as a static string. | Route all artifact writes through `project_records_dir()`. Support separate session state directory in `.aw/runs/` or runtime scratch root. |
+| **Artifact Naming & Authority** | `agent_workflows/artifact_naming.py`<br>`DECISIONS.md` (Decision D177) | Clustered grammar: `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`. The type is ALWAYS the last facet before `.md`. Model tokens are dot-free model-plus-effort tokens (e.g. `opus55high`, `gemini38flashhigh`, `gpt61solmedium`). | Extend `artifact_naming` to parse and emit optional `[.<ace>][.<model>]` segments preceding the closed `<type>` facet. |
+| **Storage Root Resolution** | `agent_workflows/project_context.py` | `project_records_dir(repo_root)` resolves physical location for `.aw/records/`, including external companion and home placement. Never hard-code `.aw/records/` as a static string. | Route all artifact writes through `project_records_dir()`. Stage intermediate candidates under `project_records_dir() / "specs" / "draft" / "intermediate" / setid`. |
 
 ---
 
-## 3. CLI Design, Alternatives, and Command Matrix
+## 3. CLI Design, Intermediate Placement Architecture, and Command Matrix
 
 ### 3.1 Evaluation of CLI Grammar Families
 
@@ -129,16 +134,50 @@ The canonical primary grammar is **Family A**:
 
 Convenience aliases: `aw specs synth` is an alias for `aw specs flow`; `aw research synth` is an alias for `aw research flow`.
 
-### 3.3 Command Matrix
+### 3.3 Evaluation of Intermediate Artifact Placement and Attention Surfacing
+
+A critical architectural decision is where intermediate candidate specs, reviews, and matrices live, and how they surface on the daily attention view (`aw attention` and `aw todo`) so work is never lost to time. Three distinct solutions were analyzed:
+
+#### Solution 1: Subdirectory Staging with Set Pipeline Rollup (Selected Best Solution)
+- **Directory Path**: `.aw/records/specs/draft/intermediate/<setid>/`
+- **Design**:
+  - All intermediate candidates, iteration critiques, and matrices for a given Set are grouped under `draft/intermediate/<setid>/`.
+  - The path sits *inside* `draft/`, which preserves the `draft` lifecycle bucket in `agent_workflows/lifecycle_dirs.py` and passes `check.lifecycle-directory-drift` with zero schema violations.
+  - Keeps top-level `.aw/records/specs/draft/` clean, holding only consolidated/authoritative drafts.
+- **Attention Surfacing**:
+  - `aw attention` maps the Set's pipeline position into a single consolidated row:
+    - While refining: under `## active`: `- [specs] <setid>: N candidate(s) in draft/intermediate/ [active: candidate-refinement]`.
+    - When paused, capped, or awaiting synthesis: under `## ready`: `- [specs] <setid>: N candidate(s) in draft/intermediate/ (awaiting synthesis) [next: aw specs flow merge <setid>]`.
+    - When final spec is written to `to-review/` or `draft/`: transitions to `DONE` (hidden from default board).
+  - Emits a persistent reminder banner in the `aw attention` footer:
+    `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/. Run 'aw specs flow merge <setid> --apply' to synthesize.`
+- **Verdict**: Adopted. Combines directory cleanliness, zero board clutter, and guaranteed visibility.
+
+#### Solution 2: Flat Direct Placement in `draft/` (Evaluated & Rejected)
+- **Design**: All candidate specs live directly in `.aw/records/specs/draft/`.
+- **Evaluation**:
+  - With 3 models over 2 iterations, 6-10 separate files appear in `draft/`.
+  - The `aw attention` board is flooded with duplicate candidate rows for a single feature, creating operator confusion over which file is the authoritative draft.
+  - When synthesis completes, old candidate drafts must be manually culled or moved to `superseded/`.
+- **Verdict**: Rejected due to high noise and board pollution.
+
+#### Solution 3: Dedicated Top-Level `candidates/` Lifecycle Tree (Evaluated & Rejected)
+- **Design**: Create a new top-level tree `.aw/records/candidates/` with custom lifecycle states (`generated`, `refining`, `synthesized`).
+- **Evaluation**:
+  - Candidate specs are transient materials leading to a specification, not a permanent new documentation class.
+  - Proliferating top-level lifecycle trees causes high churn across `layout.py`, `lifecycle_dirs.py`, `attention_contract.py`, and `check_engine.py`.
+- **Verdict**: Rejected as unnecessary over-engineering.
+
+### 3.4 Command Matrix
 
 | Canonical Command | Mode & Rigor | Arguments & Options | Result & Side Effects | Exit Codes |
 | --- | --- | --- | --- | --- |
-| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate specs across roster, executes refinement loops, synthesizes merged design, and writes final candidate to `.aw/records/specs/draft/` or `to-review/`. | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--objective <str>` (focus area)<br>`--apply` | Reads existing spec as baseline, gathers independent alternative revisions across roster, refines, and synthesizes into a successor or updated candidate spec. | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow merge` | Synthesis Only | `<candidate-paths...>`<br>`--set <setid>`<br>`--slug <slug>`<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>`<br>`--apply` | Takes previously generated candidate spec files, skips initial generation, builds Similarities/Differences Matrix, executes synthesis refinement, and finalizes. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow new` | Quick or Thorough | `--brief <path>` (required or stdin)<br>`--title <str>`<br>`--slug <slug>` (optional)<br>`--set <setid>` (optional)<br>`--mode quick\|thorough` (default: `thorough`)<br>`--roster <roster-spec>` (optional)<br>`--refine-cap <int>` (default: 3 thorough, 1 quick)<br>`--synth-refine-cap <int>` (default: 2 thorough, 0 quick)<br>`--apply` (default: preview only)<br>`--agent` / `--json` | Generates candidate specs in `draft/intermediate/<setid>/`, executes refinement, synthesizes merged design, and writes final candidate to `.aw/records/specs/to-review/` (or `draft/`). | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow from-spec` | Quick or Thorough | `<spec-selector>` (id6, setid, or path)<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--objective <str>` (focus area)<br>`--apply` | Reads existing spec as baseline, gathers independent alternative revisions across roster in `draft/intermediate/<setid>/`, refines, and synthesizes into a successor candidate spec. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>')<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>`<br>`--apply` | Takes candidates from `draft/intermediate/<setid>/`, compiles Similarities/Differences Matrix, executes synthesis refinement, and finalizes to `to-review/`. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose` | Displays live or completed execution status: participant stage progress, iteration counts, active findings, cap warnings, token metrics. | 0: clean<br>1: findings/active<br>2: usage error |
 | `aw specs flow resume` | Recovery | `<flow-run-id6>`<br>`--refine-cap <int>` (optional new cap)<br>`--apply` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
-| `aw specs flow finalize` | Finalization | `<flow-run-id6>`<br>`--status to-review\|draft` (default: `to-review`)<br>`--allow-unresolved-minor` (flag)<br>`--apply` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory, and outputs `/spec-review` command. | 0: clean<br>1: blocked/findings<br>2: usage error |
+| `aw specs flow finalize` | Finalization | `<flow-run-id6>`<br>`--status to-review\|draft` (default: `to-review`)<br>`--allow-unresolved-minor` (flag)<br>`--apply` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory, marks intermediates as `synthesized`, and outputs `/spec-review` command. | 0: clean<br>1: blocked/findings<br>2: usage error |
 | `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--apply` | Formulates research prompt, collects independent evidence reports across roster, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report`. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw specs flow config` | Read-Only / Mutate | `show` \| `set-roster` \| `set-defaults`<br>`--roster <roster-spec>`<br>`--profile <name>` | Displays resolved configuration hierarchy or writes user-local flow defaults to `<config_dir>/flow-preferences.json`. | 0: clean<br>2: usage error |
 
@@ -187,11 +226,19 @@ Convenience aliases: `aw specs synth` is an alias for `aw specs flow`; `aw resea
 - **FR-17 (Non-Corroboration Invariant)**: Identical claims made by multiple LLM participants MUST NOT be treated as corroborating evidence if they cite the same underlying source or cite no source.
 - **FR-18 (Contradiction Preservation)**: When participants discover conflicting evidence or draw incompatible conclusions, the reconciliation report (`.reconciliation-report.md`) MUST explicitly document the conflict under a dedicated `## Contradictions and Discrepancies` section, rather than smoothing over disagreements.
 
-### 4.6 Artifact Lifecycle and Hand-off
+### 4.6 Intermediate Staging and Attention Surfacing
 - **FR-19 (Tool-Owned Identity)**: All generated specs, research docs, prompts, and reviews MUST receive a tool-minted `id6` via `agent_workflows.artifact_core.mint_id6()`. Hand-minted IDs are strictly prohibited.
 - **FR-20 (Lifecycle Status Integrity)**: Final candidate specifications MUST be written with status `to-review` (or `draft` if minor findings remain). The workflow engine MUST NEVER write status `reviewed` or `approved`.
 - **FR-21 (Clean Review Handoff)**: Upon successful finalization, the command MUST output the exact next-action command for human review:
   `aw specs check <spec-id6>` followed by `/spec-review .aw/records/specs/to-review/<filename>`.
+- **FR-22 (Intermediate Staging Isolation)**: All intermediate candidate specifications, iteration reviews, and matrices MUST stage in `.aw/records/specs/draft/intermediate/<setid>/`. Staging directly in the top-level `draft/` root is forbidden.
+- **FR-23 (Set Pipeline Attention Rollup)**: The cross-tree attention view (`aw attention` and `aw todo`) MUST scan `.aw/records/specs/draft/intermediate/` and roll up active candidate sets into a single consolidated row:
+  - If a runner session is active: classified as `ACTIVE` (surfaced under `## active`).
+  - If paused, capped, or awaiting synthesis without a final spec: classified as `READY` (surfaced under `## ready`).
+  - If a final spec exists in `to-review/` or `draft/`: classified as `DONE` (hidden from the default board).
+- **FR-24 (Persistent Attention Footer Banner)**: Whenever any candidate set in `draft/intermediate/` is in an unmerged or capped state, `aw attention` MUST append a dedicated reminder banner in its footer:
+  `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/. Run 'aw specs flow merge <setid> --apply' to synthesize.`
+- **FR-25 (Attributed Naming Conformance)**: Attributed intermediate filenames MUST strictly follow Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type token as the final facet before `.md` and dot-free model tokens from `research-models.toml`.
 
 ---
 
@@ -270,7 +317,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
 | --- | --- | --- | --- | --- |
 | **Participant 1** | OpenCode (`oc`) | Claude Opus 5.5 | `high` | Fully supported. `runner_profiles.py` registers `oc` with `supports_variant=True`. Launched via `oc run --model anthropic/claude-3-opus --variant high`. |
 | **Participant 2** | Antigravity (`agy`) | Gemini 3.8 Flash | `high` | Partial support gap: `runner_profiles.py` registers `agy` with `supports_variant=False` (driver takes `--model` only). Resolution: Flow engine passes exact model string `google/gemini-3.8-flash`. Variant `high` is injected into the prompt system banner as instruction-level reasoning guidance. |
-| **Participant 3** | Codex or OpenCode | GPT-6.1 Sol | `medium` | Capability decision: `runner_profiles.py` has no active runner profile row for Codex (`codex exec` is in `host_adapters.py` but has no managed runner driver). Resolution: Route Sol slot to OpenCode (`oc`) using profile `sol` with `--model openai/gpt-6.1 --variant medium`. Never fail silently; announce OpenCode routing in execution plan. |
+| **Participant 3** | Codex or OpenCode | GPT-6.1 Sol | `medium` | Operator confirmed ruling: OpenCode (`oc`) is sufficient for Phase 1. Route Sol slot to OpenCode profile `sol` with `--model openai/gpt-6.1 --variant medium`. Native standalone Codex runner driver is deferred to Phase 2. |
 
 ---
 
@@ -357,24 +404,25 @@ erDiagram
     }
 ```
 
-### 6.2 Artifact Naming and Placement Matrix
+### 6.2 Artifact Naming and Placement Matrix (conforming to Decision D177)
 
-All files conform to the target uniform grammar:
-- Attributed intermediate form: `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.<ace>.<model>-<variant>.md`
-- Multi-author or final form: `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`
+All files conform to the decided uniform grammar:
+- Attributed form: `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`
+- Multi-author synthesis: uses model facet `reconciliation` and no ACE: `YYYYMMDD-<setid>-NN-<id6>-<slug>.reconciliation.<type>.md`
+- Finalized authoritative form: `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`
 
 | Stage | Artifact Purpose | Type Facet | Target Filename Pattern | Resolved Directory Location | Retention & Lifecycle |
 | --- | --- | --- | --- | --- | --- |
-| **0. Input** | Frozen brief & scope | `brief` | `YYYYMMDD-<setid>-00-<id6>-<slug>.brief.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
-| **1. Gen Prompt** | Rendered prompt for participant | `prompt` | `YYYYMMDD-<setid>-01-<id6>-gen.prompt.<ace>.<model>-<variant>.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
-| **2. Candidate** | Independent raw candidate spec | `spec` | `YYYYMMDD-<setid>-10-<id6>-cand.spec.<ace>.<model>-<variant>.md` | `.aw/records/specs/draft/` | Retained in `draft/` as historical candidate |
-| **2. Candidate (Research)** | Independent research report | `research-report` | `YYYYMMDD-<setid>-10-<id6>-cand.<kind>.<ace>.<model>-<variant>.md` | `.aw/records/research/todo/` | Retained as model-specific report |
-| **3. Findings** | Per-iteration review critique | `review` | `YYYYMMDD-<setid>-11-<id6>-iter1.review.<ace>.<model>-<variant>.md` | `.aw/records/specs/draft/` | Retained for audit trails |
-| **4. Revised Candidate** | Iteration 2 revised candidate | `spec` | `YYYYMMDD-<setid>-12-<id6>-cand-i2.spec.<ace>.<model>-<variant>.md` | `.aw/records/specs/draft/` | Retained in `draft/` |
-| **5. Merge Matrix** | Similarities/Differences Matrix | `review` | `YYYYMMDD-<setid>-50-<id6>-matrix.review.md` | `.aw/records/specs/draft/` | Retained; accompanies final spec |
-| **6. Synthesis** | Initial synthesized spec | `spec` | `YYYYMMDD-<setid>-80-<id6>-synth-i0.spec.md` | `.aw/records/specs/draft/` | Retained in `draft/` |
+| **0. Input** | Frozen brief & scope | `prompt` | `YYYYMMDD-<setid>-00-<id6>-<slug>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
+| **1. Gen Prompt** | Rendered prompt for participant | `prompt` | `YYYYMMDD-<setid>-01-<id6>-gen.<ace>.<model>.prompt.md` | `.aw/records/prompts/pending/` | Committed; permanent audit provenance |
+| **2. Candidate** | Independent raw candidate spec | `spec` | `YYYYMMDD-<setid>-10-<id6>-cand.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/`; rolled up in `aw attention` |
+| **2. Candidate (Research)** | Independent research report | `research-report` | `YYYYMMDD-<setid>-10-<id6>-cand.<model>.research-report.md` | `.aw/records/research/todo/` | Retained as model-specific report |
+| **3. Findings** | Per-iteration review critique | `review` | `YYYYMMDD-<setid>-11-<id6>-iter1.<ace>.<model>.review.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
+| **4. Revised Candidate** | Iteration 2 revised candidate | `spec` | `YYYYMMDD-<setid>-12-<id6>-cand-i2.<ace>.<model>.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
+| **5. Merge Matrix** | Similarities/Differences Matrix | `review` | `YYYYMMDD-<setid>-50-<id6>-matrix.reconciliation.review.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Accompanies synthesis; permanent record |
+| **6. Synthesis** | Initial synthesized spec | `spec` | `YYYYMMDD-<setid>-80-<id6>-synth-i0.reconciliation.spec.md` | `.aw/records/specs/draft/intermediate/<setid>/` | Staged in `intermediate/<setid>/` |
 | **7. Final Candidate Spec** | Final candidate ready for review | `spec` | `YYYYMMDD-<setid>-01-<id6>-<slug>.spec.md` | `.aw/records/specs/to-review/` | Authoritative spec; advances through spec lifecycle |
-| **7. Final Research** | Final reconciled research report | `reconciliation-report` | `YYYYMMDD-<setid>-01-<id6>-<slug>.reconciliation-report.md` | `.aw/records/research/` | Authoritative research record; indexed in research catalog |
+| **7. Final Research** | Final reconciled research report | `reconciliation-report` | `YYYYMMDD-<setid>-01-<id6>-<slug>.reconciliation.reconciliation-report.md` | `.aw/records/research/` | Authoritative research record; indexed in research catalog |
 
 ### 6.3 Setid, Date, NN, and Id6 Governance Rules
 - **Setid**: Shared across all intermediate and final artifacts for a given flow run. MUST NOT exceed 14 characters (catalog invariant I-17). Examples: `specflow`, `authv2`, `synthrsc`.
@@ -393,29 +441,29 @@ All files conform to the target uniform grammar:
 Assume Set: `specflow`, Date: `20261024`, Slug: `auth-synth`. Sample IDs are fictional (`f1...`, `f2...`).
 
 1. Frozen Brief:
-   `.aw/records/prompts/pending/20261024-specflow-00-f1a001-auth-synth.brief.md`
+   `.aw/records/prompts/pending/20261024-specflow-00-f1a001-auth-synth.prompt.md`
 2. Rendered Prompts (Stage 1):
-   - Participant 1 (Opus): `.aw/records/prompts/pending/20261024-specflow-01-f1p001-gen.prompt.oc.opus-high.md`
-   - Participant 2 (Gemini): `.aw/records/prompts/pending/20261024-specflow-02-f1p002-gen.prompt.agy.gemini38flash-high.md`
-   - Participant 3 (Sol): `.aw/records/prompts/pending/20261024-specflow-03-f1p003-gen.prompt.oc.gpt61sol-medium.md`
-3. Initial Candidate Specs (Stage 2):
-   - Participant 1: `.aw/records/specs/draft/20261024-specflow-10-f1c001-cand.spec.oc.opus-high.md`
-   - Participant 2: `.aw/records/specs/draft/20261024-specflow-20-f1c002-cand.spec.agy.gemini38flash-high.md`
-   - Participant 3: `.aw/records/specs/draft/20261024-specflow-30-f1c003-cand.spec.oc.gpt61sol-medium.md`
+   - Participant 1 (Opus): `.aw/records/prompts/pending/20261024-specflow-01-f1p001-gen.opencode.opus55high.prompt.md`
+   - Participant 2 (Gemini): `.aw/records/prompts/pending/20261024-specflow-02-f1p002-gen.agy.gemini38flashhigh.prompt.md`
+   - Participant 3 (Sol): `.aw/records/prompts/pending/20261024-specflow-03-f1p003-gen.opencode.gpt61solmedium.prompt.md`
+3. Initial Candidate Specs in `draft/intermediate/specflow/` (Stage 2):
+   - Participant 1: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-f1c001-cand.opencode.opus55high.spec.md`
+   - Participant 2: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-f1c002-cand.agy.gemini38flashhigh.spec.md`
+   - Participant 3: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-f1c003-cand.opencode.gpt61solmedium.spec.md`
 4. Iteration 1 Findings & Revised Candidates (Stage 3):
-   - Findings P1: `.aw/records/specs/draft/20261024-specflow-11-f1r001-iter1.review.oc.opus-high.md`
-   - Revised P1: `.aw/records/specs/draft/20261024-specflow-12-f1c004-cand-i2.spec.oc.opus-high.md`
-   - Findings P2: `.aw/records/specs/draft/20261024-specflow-21-f1r002-iter1.review.agy.gemini38flash-high.md`
-   - Revised P2: `.aw/records/specs/draft/20261024-specflow-22-f1c005-cand-i2.spec.agy.gemini38flash-high.md`
-   - Findings P3: `.aw/records/specs/draft/20261024-specflow-31-f1r003-iter1.review.oc.gpt61sol-medium.md`
-   - Revised P3: `.aw/records/specs/draft/20261024-specflow-32-f1c006-cand-i2.spec.oc.gpt61sol-medium.md`
+   - Findings P1: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-11-f1r001-iter1.opencode.opus55high.review.md`
+   - Revised P1: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-12-f1c004-cand-i2.opencode.opus55high.spec.md`
+   - Findings P2: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-21-f1r002-iter1.agy.gemini38flashhigh.review.md`
+   - Revised P2: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-22-f1c005-cand-i2.agy.gemini38flashhigh.spec.md`
+   - Findings P3: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-31-f1r003-iter1.opencode.gpt61solmedium.review.md`
+   - Revised P3: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-32-f1c006-cand-i2.opencode.gpt61solmedium.spec.md`
 5. Similarities & Differences Matrix:
-   `.aw/records/specs/draft/20261024-specflow-50-f1m001-matrix.review.md`
+   `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-50-f1m001-matrix.reconciliation.review.md`
 6. Synthesis Iterations:
-   - Initial Synthesis: `.aw/records/specs/draft/20261024-specflow-80-f1s001-synth-i0.spec.md`
-   - Synthesis Critique: `.aw/records/specs/draft/20261024-specflow-81-f1r004-synth-iter1.review.md`
-   - Refined Synthesis: `.aw/records/specs/draft/20261024-specflow-82-f1s002-synth-i1.spec.md`
-7. Authoritative Final Candidate:
+   - Initial Synthesis: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-80-f1s001-synth-i0.reconciliation.spec.md`
+   - Synthesis Critique: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-81-f1r004-synth-iter1.reconciliation.review.md`
+   - Refined Synthesis: `.aw/records/specs/draft/intermediate/specflow/20261024-specflow-82-f1s002-synth-i1.reconciliation.spec.md`
+7. Authoritative Final Candidate (moved to `to-review/`):
    `.aw/records/specs/to-review/20261024-specflow-01-f1f001-auth-synth.spec.md`
 
 ---
@@ -431,7 +479,7 @@ flowchart TD
     C --> D[Render Frozen Prompts]
     D --> E[Parallel Independent Generation]
 
-    subgraph Independent Generation Phase
+    subgraph Independent Generation Phase: draft/intermediate/setid/
         E --> E1[Candidate 1: Opus High]
         E --> E2[Candidate 2: Gemini 3.8 Flash High]
         E --> E3[Candidate 3: Sol Medium]
@@ -466,7 +514,7 @@ flowchart TD
         L --> M{Synth Converged or Cap?}
         M -- No --> L
         M -- Yes --> N[Coverage & Integrity Verification Pass]
-        N --> O[Write Final Candidate Spec: to-review]
+        N --> O[Write Final Candidate Spec to to-review/]
     end
 
     O --> P[Output /spec-review Handoff Command]
@@ -514,7 +562,7 @@ stateDiagram-v2
     BaselineFrozen --> Dispatching: Prompts Rendered
     Dispatching --> Generating: Sessions Spawned
 
-    Generating --> CandidateRefining: Initial Candidates Emitted
+    Generating --> CandidateRefining: Initial Candidates in draft/intermediate/
     Generating --> Failed: Host Crash / Auth Error (Exit 2)
 
     CandidateRefining --> CandidateRefining: Iteration (Finding Fixed)
@@ -584,6 +632,8 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-09** | FR-16, FR-18 | Run `aw research flow new` with contradictory evidence. | Reconciliation report contains `## Contradictions and Discrepancies` detailing both sides. | Pass if conflicting claims are preserved with citations. |
 | **AT-10** | FR-19, FR-20 | Finalize spec and inspect metadata. | Filename matches `YYYYMMDD-<set>-01-<id6>-<slug>.spec.md`. Status is `to-review`. Review attestation is absent. | Pass if status is `to-review` and `aw specs check` succeeds. |
 | **AT-11** | FR-21 | Execute `aw specs flow finalize <run-id6> --apply`. | Output terminal displays `/spec-review .aw/records/specs/to-review/...`. | Pass if handoff command is printed verbatim. |
+| **AT-12** | FR-22 | Check location of generated candidates during flow run. | Files exist under `.aw/records/specs/draft/intermediate/<setid>/`. No candidates exist in top-level `draft/`. | Pass if intermediate files are staged under `intermediate/<setid>/`. |
+| **AT-13** | FR-23, FR-24 | Run `aw attention` while a spec flow has unmerged candidates in `draft/intermediate/`. | Board displays Set under `## ready` (or `## active`), and footer prints `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/`. | Pass if board and footer surface pending intermediate work. |
 
 ---
 
@@ -596,11 +646,14 @@ Every functional requirement is mapped to an observable behavioral acceptance te
   - *Mitigation*: Mandatory coverage verification check (FR-15) and structured Similarities/Differences Matrix (FR-13).
 - **Risk 3: Model Hallucination in Research Citations**: LLMs frequently invent URLs or paper citations.
   - *Mitigation*: Citation verification pass requiring local repository verification or validated web links; unverified claims are segregated into an `Unverified Claims` appendix.
+- **Risk 4: Work Lost to Time in Subdirectories**: Intermediate candidates staged in `draft/intermediate/<setid>/` could be overlooked if the workflow pauses.
+  - *Mitigation*: Mandatory Set pipeline position rollup in `aw attention` (`aw todo`) and persistent footer reminder banner (FR-23, FR-24).
 
 ### 10.2 Alternatives Rejected
-- **Rejected Alternative 1: Git-Branch-Per-Candidate Architecture**: Storing each candidate on a separate git branch. Rejected because switching branches during multi-agent synthesis creates race conditions in shared checkouts and makes local file diffing difficult. All candidates are maintained in the same Set within the worktree.
-- **Rejected Alternative 2: Free-Form Prose Review Feedback**: Allowing models to critique in arbitrary paragraph prose. Rejected because automated convergence checking and oscillation detection require structured finding records (`F-01..F-NN`).
-- **Rejected Alternative 3: Automated Human Approval Simulation**: Allowing an agent to mark a spec as `approved`. Rejected; repository security invariants require explicit human attestation for `approved` status.
+- **Rejected Alternative 1: Flat Direct Placement in `draft/`**: Placing all candidate files directly in `.aw/records/specs/draft/`. Rejected because 3 models x 2 iterations floods the directory with 6-10 files per feature, causing severe clutter and confusing which file is the active draft.
+- **Rejected Alternative 2: Dedicated Top-Level `candidates/` Lifecycle Tree**: Creating `.aw/records/candidates/`. Rejected as unnecessary schema proliferation; candidate specs are transient stages leading to a spec and belong inside `draft/intermediate/<setid>/`.
+- **Rejected Alternative 3: Git-Branch-Per-Candidate Architecture**: Storing each candidate on a separate git branch. Rejected because switching branches during multi-agent synthesis creates race conditions in shared checkouts and makes local file diffing difficult.
+- **Rejected Alternative 4: Free-Form Prose Review Feedback**: Allowing models to critique in arbitrary paragraph prose. Rejected because automated convergence checking and oscillation detection require structured finding records (`F-01..F-NN`).
 
 ### 10.3 Assumptions
 - Host runners (`opencode` and `antigravity`) are locally installed and authenticated on the target development machine.
@@ -608,8 +661,9 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 
 ### 10.4 Decision Log
 - **Decision 01 (Setid Length)**: The Setid for spec and research flows MUST NOT exceed 14 characters, adhering strictly to catalog invariant I-17. Recommended Set: `specflow`.
-- **Decision 02 (Sol Slot Runner Binding)**: OpenCode (`oc`) is selected as the default runner for the GPT-6.1 Sol Medium slot in Phase 1 due to native variant flag support and absence of a standalone Codex runner profile row.
-- **Decision 03 (Attributed Intermediate Filenames)**: Intermediate candidates and reviews MUST adopt the attributed facet grammar (`.<type>.<ace>.<model>-<variant>.md`) to ensure full auditability before merging.
+- **Decision 02 (Sol Slot Runner Binding)**: OpenCode (`oc`) is selected as the default runner for the GPT-6.1 Sol Medium slot in Phase 1 due to native variant flag support and absence of a standalone Codex runner profile row. Confirmed by operator instruction.
+- **Decision 03 (Decision D177 Naming Grammar)**: Attributed intermediate filenames strictly adhere to Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type facet as the final component before `.md`.
+- **Decision 04 (Subdirectory Staging with Set Rollup)**: Intermediate candidate specs and reviews MUST stage in `.aw/records/specs/draft/intermediate/<setid>/`. The daily attention view (`aw attention` / `aw todo`) surfaces the Set as a single rollup row under `## ready` / `## active` and prints a persistent footer reminder banner until synthesis finalizes.
 
 ---
 
@@ -626,6 +680,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - Add CLI subcommands in `agent_workflows/cli.py` and `specs_cli.py`:
   - `aw specs flow [new|from-spec|merge|status|resume|finalize]`
   - `aw research flow [new|status|resume]`
+- Extend `agent_workflows/attention.py` to support spec flow Set rollups and `TODO:` footer banners for `draft/intermediate/<setid>/`.
 - Unit and integration tests in `tests/test_specflow_*.py`.
 
 ### Phase 2: Autonomous Codex Runner and Large Document Chunking
@@ -641,11 +696,14 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 ## 12. Source Inventory, Self-Check, and Worked Transcripts
 
 ### 12.1 Source Inventory
-- Inspected repository baseline commit: `14e7b4970826b28dd15a263b50dad8546ca55215`
+- Inspected repository baseline commit: `6f430cefd88a4b2ecca9e67548ec340e2911683c`
 - Primary files cited:
+  - `DECISIONS.md` (Decision D177: Attributed artifact filenames)
   - `agent_workflows/cli.py` (CLI parser and subcommand registration)
   - `agent_workflows/runner_profiles.py` (Profile schemas, launch resolution, `RUNNER_REGISTRY`)
   - `agent_workflows/host_adapters.py` (Host capabilities, `V1_HOSTS`)
+  - `agent_workflows/attention.py` (Cross-tree board, pipeline mapping, attention footer)
+  - `agent_workflows/attention_contract.py` (Tree policies, class mappings)
   - `agent_workflows/research_contract.py` (Research kinds, naming, and reconciliation rules)
   - `agent_workflows/artifact_naming.py` (Clustered artifact naming authority)
   - `agent_workflows/project_context.py` (Project roots, records placement resolution)
@@ -656,11 +714,12 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - [x] Summary, problem, actors, goals, non-goals, and first-release boundary clearly defined.
 - [x] Repository findings table with accurate, revision-pinned citations.
 - [x] Three CLI families evaluated; canonical grammar justified with command matrix.
-- [x] Stable functional requirements (`FR-01`..`FR-21`) with observable pass/fail conditions.
+- [x] Three intermediate placement architectures evaluated; recommended Solution 1 justified.
+- [x] Stable functional requirements (`FR-01`..`FR-25`) with observable pass/fail conditions.
 - [x] Schema for configuration and participant roster provided.
 - [x] Mandatory Mermaid diagrams: ERD, Spec Flow, Research Flow, State/Recovery Flow.
-- [x] Worked filename inventories for 3-participant, 1-participant, and resumed runs.
-- [x] Acceptance test matrix (`AT-01`..`AT-11`).
+- [x] Worked filename inventories for 3-participant, 1-participant, and resumed runs adhering to D177.
+- [x] Acceptance test matrix (`AT-01`..`AT-13`).
 - [x] Zero em or en dashes throughout the document.
 - [x] Zero file URI schemes and zero absolute home directory paths.
 
@@ -671,23 +730,24 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 ### 13.1 Worked Transcript: Single-Participant Quick Spec Run
 
 ```text
-$ aw specs flow new --brief .aw/records/prompts/pending/auth-brief.md --roster "gem" --mode quick --apply
+$ aw specs flow new --brief .aw/records/prompts/pending/auth-brief.prompt.md --roster "gem" --mode quick --apply
 
 [FLOW-INIT] Starting specification flow (run id: qk91a2, set: specflow)
-[FLOW-INIT] Baseline git commit: 14e7b4970826 (clean)
+[FLOW-INIT] Baseline git commit: 6f430cefd88a (clean)
 [FLOW-ROSTER] Resolved 1 participant:
   - Slot 'gem': Antigravity (model: google/gemini-3.8-flash, variant: high)
 [FLOW-STAGE-1] Dispatching independent candidate generation...
-  - Dispatching to agy [google/gemini-3.8-flash] -> .aw/records/specs/draft/20261024-specflow-10-qk91c1-cand.spec.agy.gemini38flash-high.md
+  - Dispatching to agy [google/gemini-3.8-flash] -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-qk91c1-cand.agy.gemini38flashhigh.spec.md
   - agy completed in 14.2s (18,410 chars)
 [FLOW-STAGE-2] Executing Quick Mode quality review pass (iteration 1/1)...
   - Review finding: F-01 (minor, clarity): Clarify token expiration edge case in Section 4.2
-  - Quick refinement revision applied -> .aw/records/specs/draft/20261024-specflow-12-qk91c2-cand-i2.spec.agy.gemini38flash-high.md
+  - Quick refinement revision applied -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-12-qk91c2-cand-i2.agy.gemini38flashhigh.spec.md
 [FLOW-STAGE-3] Single-participant run: bypassing multi-candidate synthesis matrix.
 [FLOW-FINAL] Candidate finalized:
   - Destination: .aw/records/specs/to-review/20261024-specflow-01-qk91f1-auth-brief.spec.md
   - Lifecycle Status: to-review
   - Discovered Findings: 0 critical, 0 major, 1 minor (resolved)
+  - Intermediate candidates in draft/intermediate/specflow/ transitioned to synthesized.
 [FLOW-HANDOFF] Next action for human maintainer:
   aw specs check qk91f1
   /spec-review .aw/records/specs/to-review/20261024-specflow-01-qk91f1-auth-brief.spec.md
@@ -698,18 +758,18 @@ Exit code: 0
 ### 13.2 Worked Transcript: Configured Multi-Model Thorough Spec Run
 
 ```text
-$ aw specs flow new --brief .aw/records/prompts/pending/storage-v2.brief.md --mode thorough --apply
+$ aw specs flow new --brief .aw/records/prompts/pending/storage-v2.prompt.md --mode thorough --apply
 
 [FLOW-INIT] Starting specification flow (run id: th48x1, set: specflow)
-[FLOW-INIT] Baseline git commit: 14e7b4970826 (clean)
+[FLOW-INIT] Baseline git commit: 6f430cefd88a (clean)
 [FLOW-ROSTER] Resolved 3 participants from preferred roster:
   - Slot 'opus': OpenCode (model: anthropic/claude-3-opus, variant: high)
   - Slot 'gemini': Antigravity (model: google/gemini-3.8-flash, variant: high)
   - Slot 'sol': OpenCode (model: openai/gpt-6.1, variant: medium)
 [FLOW-STAGE-1] Dispatching parallel independent candidate generation (3 workers)...
-  [worker-1] OpenCode (opus) completed in 42.1s -> ...-10-th48c1-cand.spec.oc.opus-high.md
-  [worker-2] Antigravity (gemini) completed in 18.4s -> ...-20-th48c2-cand.spec.agy.gemini38flash-high.md
-  [worker-3] OpenCode (sol) completed in 31.0s -> ...-30-th48c3-cand.spec.oc.gpt61sol-medium.md
+  [worker-1] OpenCode (opus) completed in 42.1s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md
+  [worker-2] Antigravity (gemini) completed in 18.4s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md
+  [worker-3] OpenCode (sol) completed in 31.0s -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md
 [FLOW-STAGE-2] Iterative candidate refinement (cap: 3 iterations)...
   - Iteration 1:
     - Candidate 1 (opus): 1 major finding fixed. Converged.
@@ -721,65 +781,49 @@ $ aw specs flow new --brief .aw/records/prompts/pending/storage-v2.brief.md --mo
     - Consensus items: 14 requirements
     - Divergent architectures: 2 (cache invalidation protocol, schema migration)
     - Minority contribution adopted: Sol's lockless ring buffer design
-  - Matrix saved -> .aw/records/specs/draft/20261024-specflow-50-th48m1-matrix.review.md
-  - Initial synthesis emitted -> .aw/records/specs/draft/20261024-specflow-80-th48s1-synth-i0.spec.md
+  - Matrix saved -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-50-th48m1-matrix.reconciliation.review.md
+  - Initial synthesis emitted -> .aw/records/specs/draft/intermediate/specflow/20261024-specflow-80-th48s1-synth-i0.reconciliation.spec.md
 [FLOW-STAGE-4] Synthesis refinement (iteration 1/2)...
   - Review pass: 0 critical, 0 major findings.
   - Coverage verification: 100% of brief requirements preserved.
 [FLOW-FINAL] Final candidate specification ready:
   - Spec: .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md
   - Status: to-review
+  - Intermediate candidates in draft/intermediate/specflow/ transitioned to synthesized.
 [FLOW-HANDOFF] Next action:
   /spec-review .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md
 
 Exit code: 0
 ```
 
-### 13.3 Worked Transcript: Research Run with Contradictory Evidence
+### 13.3 Worked Transcript: Interrupted or Capped Run with Attention Board Surfacing
 
 ```text
-$ aw research flow new --question "Evaluate memory overhead of concurrent ring buffers vs linked channels in Python 3.14" --set memrsch --apply
-
-[RESEARCH-INIT] Starting research synthesis flow (run id: rs82k4, set: memrsch)
-[RESEARCH-ROSTER] Dispatching independent investigation across 2 models:
-  - Participant 1: OpenCode [anthropic/claude-3-opus]
-  - Participant 2: Antigravity [google/gemini-3.8-flash]
-[RESEARCH-STAGE-1] Gathering independent empirical evidence...
-  - Report 1 (opus) emitted -> .aw/records/research/todo/20261024-memrsch-10-rs82c1-cand.research-report.oc.opus-high.md
-  - Report 2 (gemini) emitted -> .aw/records/research/todo/20261024-memrsch-20-rs82c2-cand.research-report.agy.gemini38flash-high.md
-[RESEARCH-STAGE-2] Citation verification & contradiction analysis...
-  - Citation check: 12 primary sources verified; 1 unverified citation quarantined.
-  - CONTRADICTION DETECTED:
-    - Report 1 claims ring buffers yield 40% lower allocation overhead (cites python/cpython issue #1042).
-    - Report 2 claims linked channels have lower memory footprint under low contention (cites real benchmark script).
-  - Preserving contradiction in reconciliation report.
-[RESEARCH-STAGE-3] Compiling reconciliation report...
-  - Emitted: .aw/records/research/20261024-memrsch-01-rs82f1-ring-vs-channel.reconciliation-report.md
-  - Contradiction section documented in Section 3.4.
-[RESEARCH-INDEX] Updated research manifest via 'aw research index'.
-
-Exit code: 0
-```
-
-### 13.4 Worked Transcript: Interrupted or Capped Run with Resume
-
-```text
-$ aw specs flow new --brief network-mesh.brief.md --refine-cap 1 --apply
+$ aw specs flow new --brief network-mesh.prompt.md --refine-cap 1 --apply
 
 [FLOW-INIT] Starting specification flow (run id: cp73m9, set: specflow)
-[FLOW-STAGE-1] Independent candidates generated (3 candidates).
+[FLOW-STAGE-1] Independent candidates generated (3 candidates in draft/intermediate/specflow/).
 [FLOW-STAGE-2] Candidate refinement iteration 1 reached refine-cap!
   - Candidate 2 (gemini) has 1 UNRESOLVED MAJOR FINDING:
     - F-02 (major, security): Missing replay attack protection in packet header.
 WARNING: [FLOW-CAP-REACHED] Refinement cap reached with unresolved major findings.
 State checkpointed to run ledger: cp73m9 (status: capped_with_findings).
-Artifacts preserved in .aw/records/specs/draft/.
+Artifacts preserved in .aw/records/specs/draft/intermediate/specflow/.
 Exit code: 1
+
+$ aw attention --tree specs
+
+## ready (12)
+- [specs] specflow: 3 candidate(s) in draft/intermediate/ (awaiting synthesis) [next: aw specs flow resume cp73m9]
+- [specs] .aw/records/specs/approved/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md (approved)
+...
+Checkup 2 commits ago: CI PASSING; spec pointers: 0 stale
+TODO: Spec flow 'specflow' has 3 candidates waiting in draft/intermediate/. Run 'aw specs flow resume cp73m9 --apply' to proceed.
 
 $ aw specs flow resume cp73m9 --refine-cap 2 --apply
 
 [FLOW-RESUME] Resuming workflow run cp73m9 from checkpoint...
-[FLOW-RESUME] Loaded 3 completed candidates. Skipping Stage 1 generation.
+[FLOW-RESUME] Loaded 3 completed candidates from draft/intermediate/specflow/. Skipping Stage 1.
 [FLOW-STAGE-2] Resuming refinement (iteration 2/2)...
   - Candidate 2 (gemini): Resolved F-02 (replay attack protection added).
   - All candidates converged.
@@ -788,16 +832,16 @@ $ aw specs flow resume cp73m9 --refine-cap 2 --apply
 Exit code: 0
 ```
 
-### 13.5 Machine Protocol Output: `aw.agent/v1` JSONL Stream
+### 13.4 Machine Protocol Output: `aw.agent/v1` JSONL Stream
 
 When invoked with `--agent`, output is emitted as strictly structured JSONL records conforming to `aw.agent/v1`:
 
 ```json
 {"event": "start", "protocol": "aw.agent/v1", "command": "specs flow new", "run_id": "th48x1", "timestamp": "2026-10-24T15:45:00Z"}
-{"event": "progress", "stage": "baseline", "status": "captured", "commit": "14e7b4970826", "dirty": false}
-{"event": "progress", "stage": "generation", "participant": "opus", "status": "completed", "artifact": ".aw/records/specs/draft/20261024-specflow-10-th48c1-cand.spec.oc.opus-high.md"}
-{"event": "progress", "stage": "generation", "participant": "gemini", "status": "completed", "artifact": ".aw/records/specs/draft/20261024-specflow-20-th48c2-cand.spec.agy.gemini38flash-high.md"}
-{"event": "progress", "stage": "generation", "participant": "sol", "status": "completed", "artifact": ".aw/records/specs/draft/20261024-specflow-30-th48c3-cand.spec.oc.gpt61sol-medium.md"}
-{"event": "progress", "stage": "synthesis", "status": "matrix_compiled", "artifact": ".aw/records/specs/draft/20261024-specflow-50-th48m1-matrix.review.md"}
+{"event": "progress", "stage": "baseline", "status": "captured", "commit": "6f430cefd88a", "dirty": false}
+{"event": "progress", "stage": "generation", "participant": "opus", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md"}
+{"event": "progress", "stage": "generation", "participant": "gemini", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md"}
+{"event": "progress", "stage": "generation", "participant": "sol", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md"}
+{"event": "progress", "stage": "synthesis", "status": "matrix_compiled", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-50-th48m1-matrix.reconciliation.review.md"}
 {"event": "result", "status": "clean", "exit_code": 0, "summary": "Specification synthesized cleanly and moved to to-review", "target": ".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md", "diagnostics": [], "next_actions": [{"command": "aw specs check th48f1", "description": "Verify spec contract"}, {"command": "/spec-review .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md", "description": "Initiate peer review"}]}
 ```
