@@ -608,7 +608,7 @@ plans run first, the `4sd62s` migration must carry `Review-Depth` like any other
 | --- | --- |
 | V1 Plans | 3 pending plans: 1 `standard`, 2 `complex`. For each, a copy with planted defects: a `V-*` item that asks for no evidence, a wrong file path, and a changed CLI option that another command reads. |
 | V2 Grouping | `standard`: the single 5-prompt variant. `complex`: `grouped-6` and `single-12`. |
-| V3 Models | Opus 5.5 High (OpenCode) and Gemini 3.8 Flash High (Antigravity). GPT-6.1 Sol only if a Codex host exists or by hand. |
+| V3 Models | Opus 5.5 High (OpenCode) and Gemini 3.8 Flash High (Antigravity) (OQ-09). |
 | V4 Session | Pilot and sized run: fixed (new session per review). A later round may compare new versus reused sessions with the chosen grouping. |
 
 Each review runs in its own worktree from the same commit with a run label. The experiment has two
@@ -764,9 +764,10 @@ spec review (SR-005); the numbers are otherwise unchanged.
 ### OQ-09: Codex host for the experiment
 
 - Blocking: no
-- Status: open
+- Status: resolved
+- Owner: maintainer
 - Question: Should the experiment include GPT-6.1 Sol? The runners do not drive Codex today.
-- Recommendation: run the pilot with the two runner hosts and add Codex by hand only if the two disagree. Strength: weak.
+- Resolution or deferral rationale: Resolved 2026-10-24 by the maintainer: no. The experiment uses the two runner hosts only (Opus 5.5 High on OpenCode, Gemini 3.8 Flash High on Antigravity), so every review is driven, checked, and measured the same way.
 
 ### OQ-10: Experiment margins, confidence, quality rubric, and dollar cap
 
@@ -780,10 +781,10 @@ spec review (SR-005); the numbers are otherwise unchanged.
 ### OQ-11: Who enforces the verdict-output guard between prompts
 
 - Blocking: no
-- Status: open
-- Owner: Order 04 author
-- Question: MD-15 forbids writing the verdict outputs before S7, and Section 6 makes the runner restore them if an earlier prompt changes them. Should the runner instead strip write permission for those fields (for example by denying the setter in non-S7 prompts), or is detect-and-restore enough?
-- Recommendation: detect-and-restore. Non-goal N2 says runner checks catch forgotten or skipped work, not a hostile agent, and detect-and-restore is host-neutral. Strength: medium.
+- Status: resolved
+- Owner: maintainer
+- Question: Should the runner block the status setter in prompts before S7, or is detect-and-restore enough?
+- Resolution or deferral rationale: Resolved 2026-10-24 by the maintainer: detect-and-restore only (Section 6). No per-host permission rules.
 
 ## 17. Amendments to other specs
 
@@ -816,6 +817,8 @@ The recommendation labels in `.aw/system/workflows/askme/askme.md` change from t
 five of MD-9.
 
 ## Workflow history
+
+- 2026-10-24 note (aw specs): Maintainer answers 2026-10-24 recorded: OQ-09 resolved (no Codex; two runner hosts), OQ-11 resolved (detect-and-restore only). Both match the recommendations already in the approved text; no design change.
 - 2026-10-24 approved (aw set, --by-human): status set to approved
 
 - 2026-10-24 note (aw specs): Maintainer ruling 2026-10-19: MD-1 revised; the runner forces no review tier. Section 5.2 replaced by five recorded tier questions with the former signals as facts and examples; tier and answers recorded for later analysis. OQ-08 resolved (no sensitive-path list).
