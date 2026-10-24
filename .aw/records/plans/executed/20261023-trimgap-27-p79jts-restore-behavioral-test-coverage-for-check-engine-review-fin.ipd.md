@@ -6,7 +6,7 @@
 - Scope: (1) Restore `tests/test_review_findings_gate.py` from `19313eed^` (minus its source-reading `SourceInvariantTests` class and its live-corpus test), with `@pytest.mark.core` on `GateOutcomeTests` only, which alone kills both review-finding survivors. (2) Add a core-marked `tests/test_check_engine_restored_behavior.py` with direct behavioral tests for `check_plan_priority_required`, `_plan_disposition`, and (thin-guard reinforcement, F-04) `check_ipd_draft_ready`. (3) Add `@pytest.mark.core` to two existing cheap tests in `tests/test_check_engine_spec_criteria.py` that already kill the `check_spec_criteria_uncovered` survivor but are not in the core tier. EXCLUDES any production-code change; EXCLUDES new tests for the other four keys killed at HEAD (F-02, F-04); EXCLUDES restoring `tests/test_bug_gate_default.py`, `tests/test_prompt_id6_filenames.py`, `tests/test_work_commit.py` and `tests/test_check_engine_receipt_liveness.py` wholesale (F-05).
 - Scope-Paths: tests/test_review_findings_gate.py, tests/test_check_engine_restored_behavior.py, tests/test_check_engine_spec_criteria.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: p79jts
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p79jts verified (set trimgap, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (hand-edit production spot-checks replaced by mutation_probe after a commit step), PR-002 (V-01 rg would match two surviving string references; E-01 rewords them), PR-003 (scope-fence wording, diff checks) fixed; F-03/F-04 reproduced at 49e83b75a (F-06)
 
