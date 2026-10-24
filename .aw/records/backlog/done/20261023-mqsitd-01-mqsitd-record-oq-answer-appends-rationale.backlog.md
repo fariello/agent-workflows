@@ -1,5 +1,5 @@
 - Id: mqsitd
-- Status: graduated
+- Status: done
 - Graduated-To: mqsitd
 - Blocks-Release: next
 - Set: mqsitd
@@ -8,6 +8,7 @@
 - Summary: runner_shared.record_oq_answer replaces an OQ's existing rationale text instead of appending the pre-flight answer
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD ge4qh3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-mqsitd-01-ge4qh3-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md); evidence .aw/records/plans/executed/20261023-mqsitd-01-ge4qh3-record-oq-answer-appends-the-pre-flight-answer-to-existing-o.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T221913Z-2698148: ge4qh3
 - 2026-10-23 created (aw backlog): Filed from lf4j52 OQ-01 (plan-review 2026-10-23) so the obligation has a durable carrier
 - 2026-10-23 decision (maintainer via /askme): confirmed. Change the runner to append; keep as a release-blocking bug.
