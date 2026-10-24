@@ -34,17 +34,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Docstring reconciliation
 
-- [ ] E-01 Replace the sentence "Returns tasks sorted by (task_class, seed_id) for determinism." in the `benchmark_corpus.load_corpus` docstring with wording stating that tasks are returned in ascending order of their seed DIRECTORY NAME (the child name under `corpus_root`) for determinism, that this is not `(task_class, seed_id)` order, and that the two coincide only when each seed directory is named after its class (as in the checked-in fixture corpus). Keep the existing first sentences ("Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed (each with a task.json).") and also state the already-true behaviors that a non-directory root raises `CorpusError`, that non-directory children and subdirectories without a `task.json` are skipped, and that a malformed seed's `CorpusError` propagates. Change no line outside the docstring.
+- [x] E-01 Replace the sentence "Returns tasks sorted by (task_class, seed_id) for determinism." in the `benchmark_corpus.load_corpus` docstring with wording stating that tasks are returned in ascending order of their seed DIRECTORY NAME (the child name under `corpus_root`) for determinism, that this is not `(task_class, seed_id)` order, and that the two coincide only when each seed directory is named after its class (as in the checked-in fixture corpus). Keep the existing first sentences ("Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed (each with a task.json).") and also state the already-true behaviors that a non-directory root raises `CorpusError`, that non-directory children and subdirectories without a `task.json` are skipped, and that a malformed seed's `CorpusError` propagates. Change no line outside the docstring.
   - Depends on: none
   - Expected outcome: `git diff agent_workflows/benchmark_corpus.py` shows changed lines only inside the `load_corpus` docstring; `help(benchmark_corpus.load_corpus)` prints the new wording naming directory-name order.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavior unchanged
 
-- [ ] E-02 Re-run the direct order measurement and the benchmark corpus test modules after the edit, to show the documented order is the observed order and nothing regressed: copy fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` into a temp root, call `load_corpus` on it, and print `[t.seed_path.name for t in tasks]` and `[t.task_class for t in tasks]`; then run `tests/test_benchmark_corpus.py`, `tests/test_benchmark_runners_reports.py`, and (if `btubm6` has executed and it exists) `tests/test_benchmark_corpus_restored_behavior.py`; then the bare routine gate.
+- [x] E-02 Re-run the direct order measurement and the benchmark corpus test modules after the edit, to show the documented order is the observed order and nothing regressed: copy fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` into a temp root, call `load_corpus` on it, and print `[t.seed_path.name for t in tasks]` and `[t.task_class for t in tasks]`; then run `tests/test_benchmark_corpus.py`, `tests/test_benchmark_runners_reports.py`, and (if `btubm6` has executed and it exists) `tests/test_benchmark_corpus_restored_behavior.py`; then the bare routine gate.
   - Depends on: E-01
   - Expected outcome: the direct call prints `['a_dir', 'b_dir'] ['simple_commands', 'migration']` (name order, matching the new docstring); all named modules pass; bare `python3 -m pytest` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,15 +104,75 @@ N/A: no spec or user-facing document describes `load_corpus` ordering (F-02); th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff agent_workflows/benchmark_corpus.py` showing every changed line lies inside the `load_corpus` docstring and the new text names seed directory name order; paste `python3 -c "from agent_workflows import benchmark_corpus as c; print(c.load_corpus.__doc__)"` output; paste `git status --short` showing no other modified path besides this plan.
   - Observed evidence:
-  - Result: pending
+```diff
+diff --git a/agent_workflows/benchmark_corpus.py b/agent_workflows/benchmark_corpus.py
+index 056539f86..49f8caa91 100644
+--- a/agent_workflows/benchmark_corpus.py
++++ b/agent_workflows/benchmark_corpus.py
+@@ -142,7 +142,17 @@ def load_task(seed_path: Path) -> SeededTask:
 
-- [ ] V-02 validates E-02
+ def load_corpus(corpus_root: Path) -> List[SeededTask]:
+     """Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed
+-    (each with a task.json). Returns tasks sorted by (task_class, seed_id) for determinism."""
++    (each with a task.json).
++
++    Returns tasks sorted in ascending order of their seed directory name (the child name under
++    ``corpus_root``) for determinism. This is directory name order, not ``(task_class, seed_id)``
++    order; the two coincide only when each seed directory is named after its class (as in the
++    checked-in fixture corpus).
++
++    Raises :class:`CorpusError` if ``corpus_root`` is not a directory, or if any seed subdirectory
++    is malformed (errors from :func:`load_task` propagate). Non-directory children and subdirectories
++    without a ``task.json`` are skipped.
++    """
+     corpus_root = Path(corpus_root)
+     if not corpus_root.is_dir():
+         raise CorpusError("corpus root is not a directory: {0}".format(corpus_root))
+```
+
+```
+Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed
+(each with a task.json).
+
+Returns tasks sorted in ascending order of their seed directory name (the child name under
+``corpus_root``) for determinism. This is directory name order, not ``(task_class, seed_id)``
+order; the two coincide only when each seed directory is named after its class (as in the
+checked-in fixture corpus).
+
+Raises :class:`CorpusError` if ``corpus_root`` is not a directory, or if any seed subdirectory
+is malformed (errors from :func:`load_task` propagate). Non-directory children and subdirectories
+without a ``task.json`` are skipped.
+```
+
+```
+ M .aw/records/plans/pending/20261023-trimgap-36-x8p9ek-reconcile-load-corpus-docstring-with-its-seed-directory-name.ipd.md
+ M agent_workflows/benchmark_corpus.py
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the direct-call output (produced by `benchmark_corpus.load_corpus`, created in E-02) reading `['a_dir', 'b_dir'] ['simple_commands', 'migration']`; paste the pytest summary line for the named benchmark modules with zero failures; paste the bare `python3 -m pytest` summary line with zero failures.
   - Observed evidence:
-  - Result: pending
+    Direct-call output:
+    ```
+    ['a_dir', 'b_dir'] ['simple_commands', 'migration']
+    ```
+
+    Named benchmark modules test run:
+    ```
+    54 passed in 0.64s
+    ```
+    (`python3 -m pytest -o addopts="" -q tests/test_benchmark_corpus.py tests/test_benchmark_runners_reports.py tests/test_benchmark_corpus_restored_behavior.py`)
+
+    Bare pytest test run:
+    ```
+    1777 passed, 11 warnings in 32.13s
+    ```
+    (`aw suite`: cached result for tree 077be9a26991: 1777 passed, 11 warnings in 32.13s; bare `python3 -m pytest`: 1777 passed, 11 warnings in 34.74s)
+  - Result: pass
 
 ## Approval and execution gate
 
