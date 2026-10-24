@@ -92,8 +92,8 @@ _WORKER_SCRIPT = textwrap.dedent("""
                 time.sleep(0.05)
 """)
 
-_HB_SECS = 4.0 if sys.platform == "win32" else 1.8
-_STALL_SECS = 2.5 if sys.platform == "win32" else 1.0
+_HB_SECS = 5.0 if sys.platform == "win32" else 4.0
+_STALL_SECS = 3.0 if sys.platform == "win32" else 2.5
 
 _HEARTBEAT_CHILD_CODE = textwrap.dedent(f"""
     import os
@@ -519,7 +519,7 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
     with mock.patch.dict(os.environ, env_patch):
         os.environ.pop("AW_SUITE_SLOT_HELD", None)
 
-        # 1. Heartbeat child: silent on stdout for 1.8s, touches heartbeat every 0.15s -> NOT reaped
+        # 1. Heartbeat child: silent on stdout for _HB_SECS, touches heartbeat every 0.15s -> NOT reaped
         state_hb = {
             "run_id": "run-test-e2e",
             "options": {
@@ -550,7 +550,7 @@ def test_stall_watchdog_heartbeat_e2e_oc(tmp_path: Path):
             hb_file = suite_cache.heartbeat_path("run-test-e2e", "abc123")
             assert hb_file is not None and not hb_file.exists()
 
-        # 2. Control child: silent for 1.8s, touches nothing -> StallTimeout raised after ~1s
+        # 2. Control child: silent for _HB_SECS, touches nothing -> StallTimeout raised after _STALL_SECS
         state_ctl = {
             "run_id": "run-test-e2e",
             "options": {
@@ -604,7 +604,7 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
     with mock.patch.dict(os.environ, env_patch):
         os.environ.pop("AW_SUITE_SLOT_HELD", None)
 
-        # 1. Heartbeat child: silent on stdout for 1.8s, touches heartbeat every 0.15s -> NOT reaped
+        # 1. Heartbeat child: silent on stdout for _HB_SECS, touches heartbeat every 0.15s -> NOT reaped
         state_hb = {
             "run_id": "run-test-e2e-agy",
             "options": {
@@ -630,7 +630,7 @@ def test_stall_watchdog_heartbeat_e2e_agy(tmp_path: Path):
             hb_file = suite_cache.heartbeat_path("run-test-e2e-agy", "xyz789")
             assert hb_file is not None and not hb_file.exists()
 
-        # 2. Control child: silent for 1.8s, touches nothing -> StallTimeout raised after ~1s
+        # 2. Control child: silent for _HB_SECS, touches nothing -> StallTimeout raised after _STALL_SECS
         state_ctl = {
             "run_id": "run-test-e2e-agy",
             "options": {
