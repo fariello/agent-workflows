@@ -1,5 +1,5 @@
 - Id: l2zsa9
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for runner_shared
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD wfm5iv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-29-wfm5iv-probe-then-restore-core-tier-behavioral-coverage-for-runner.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-29-wfm5iv-probe-then-restore-core-tier-behavioral-coverage-for-runner.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175028Z-1384849: wfm5iv
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for runner_shared
 
