@@ -13,6 +13,7 @@
 - 2026-10-24 updated: incorporate decision D177 naming, intermediate candidate staging in draft/intermediate/<setid>/, and attention board pipeline rollup
 - 2026-10-24 refined (vprs7o): address adversarial review findings F-01 through F-07 (review tree separation, work arithmetic bounds, prepare-only entry point, complete worked inventories, ERD persistence classification, research flow modes, and model-specific context budgets)
 - 2026-10-24 refined (v5fjwb): address adversarial review findings F-08 through F-16 (aw.agent/v1 machine protocol envelope, run ledger path resolution, reviewer topology and session isolation, partial roster resilience, output truncation guard, matrix and disposition schemas, model token normalization algorithm, diagram branches, and epistemic research taxonomy)
+- 2026-10-24 refined (7h0wag): address adversarial review findings F-17 through F-22 (resume baseline verification guard, dangling profile validation, acceptance test traceability AT-16..AT-22, research CLI symmetry, visual refinement loop alignment, and auditability vs bit-for-bit determinism disclaimer)
 
 ---
 
@@ -184,6 +185,8 @@ A critical architectural decision is where intermediate candidate specs, reviews
 | `aw specs flow resume` | Recovery | `<flow-run-id6>`<br>`--refine-cap <int>` (optional new cap)<br>`--apply` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow finalize` | Finalization | `<flow-run-id6>`<br>`--status to-review\|draft` (default: `to-review`)<br>`--allow-unresolved-minor` (flag)<br>`--apply` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory, marks intermediates as `synthesized`, and outputs `/spec-review` command. | 0: clean<br>1: blocked/findings<br>2: usage error |
 | `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--prepare-only`<br>`--apply` | Formulates research prompt, collects independent evidence reports across roster, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose` | Displays live or completed research execution status: participant progress, citation verification count, contradiction count, and report paths. | 0: clean<br>1: findings/active<br>2: usage error |
+| `aw research flow resume` | Recovery | `<flow-run-id6>`<br>`--apply` | Resumes an interrupted, failed, or capped research run from its frozen state without re-running completed participant investigation turns. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw specs flow config` | Read-Only / Mutate | `show` \| `set-roster` \| `set-defaults`<br>`--roster <roster-spec>`<br>`--profile <name>` | Displays resolved configuration hierarchy or writes user-local flow defaults to `<config_dir>/flow-preferences.json`. | 0: clean<br>2: usage error |
 
 ---
@@ -194,6 +197,7 @@ A critical architectural decision is where intermediate candidate specs, reviews
 - **FR-01 (Frozen Baseline Snapshot)**: The workflow engine MUST capture and hash the source repository baseline (git commit SHA, dirty state summary, and referenced file content hashes) at turn start. All participants in the generation phase MUST receive identical frozen baselines.
 - **FR-02 (Input Brief Validation)**: The workflow MUST accept an input brief via file path (`--brief <path>`), literal argument, or standard input (`--brief -`). If the brief is empty, contains unresolved template markers (e.g. `<TODO>`), or exceeds 250,000 characters without chunking instructions, the command MUST refuse execution with exit code 2.
 - **FR-03 (Standard Objectives Injection)**: The engine MUST automatically prepend non-negotiable repository objectives to every generated prompt: security, remote SSH safety (no file URI schemes, no absolute machine home paths), prose style (no em or en dashes in user-facing text), and testability (outcomes, not code structure).
+- **FR-03A (Auditable Process Replay vs Non-Deterministic Sampling)**: Tracked prompt artifacts (`.prompt.md`) and frozen commit baselines guarantee auditable provenance and structured replay capability. Due to non-zero sampling temperatures in underlying LLM hosts, prompt replays provide auditable semantic equivalence rather than bit-for-bit identical token outputs.
 
 ### 4.2 Independent Candidate Generation
 - **FR-04 (Zero Cross-Contamination)**: During initial candidate generation, no participant session MAY receive, read, or be informed of the output, intermediate tokens, or identity of any peer participant.
@@ -219,6 +223,8 @@ A critical architectural decision is where intermediate candidate specs, reviews
 - **FR-30 (Partial Participation and Fallback Policy)**: If a participant in a multi-model roster permanently fails after exhausting `--max-retries`:
   - If surviving valid candidates >= 1: in interactive mode, prompts operator; in non-interactive agent mode, requires `--allow-partial-roster` to proceed to synthesis with surviving candidates. If `--allow-partial-roster` is omitted, halts and checkpoints state in the run ledger with outcome `partial` (exit 1).
   - If surviving valid candidates == 0: halts immediately with outcome `fail` (exit 1).
+- **FR-31 (Resume Baseline Verification Guard)**: When `aw specs flow resume` or `aw research flow resume` is invoked, the engine MUST re-verify the input brief file's SHA-256 hash and git commit SHA against the `FROZEN_BASELINE` recorded in `FLOW_RUN`. If the input brief or git working tree has mutated since the initial run was frozen, the command MUST refuse execution with exit code 2 (`refusal: input brief has mutated since baseline was frozen; start a new flow via 'aw specs flow new' or pass '--force-stale-resume'`).
+- **FR-32 (Dangling Profile Validation and Identity Recording)**: Prior to dispatching execution, the profile resolver MUST verify that every profile named in the participant roster exists in `runner-profiles.json`. If a referenced profile is missing or dangling, the command MUST refuse execution with exit code 2. Every generated artifact front matter MUST explicitly record both `- Requested-Model:` (user-configured string) and `- Resolved-Model:` (actual host/model identifier dispatched).
 
 #### 4.3.1 Mathematical Proof of Execution Bounds and Work Arithmetic
 To guarantee that no nested retry or refinement loop escapes its bounds, the maximum possible dispatched turns across all roles is governed by a strict closed mathematical ceiling:
@@ -614,17 +620,23 @@ flowchart TD
     E2 --> F2[Refinement Loop Candidate 2]
     E3 --> F3[Refinement Loop Candidate 3]
 
-    subgraph Candidate Refinement Phase: reviews/
-        F1 --> G1{Converged or Cap?}
-        G1 -- No --> F1
+    subgraph Candidate Refinement Phase: reviews/ and draft/intermediate/
+        F1 --> R1[Adversarial Review Turn: reviews/]
+        R1 --> V1[Candidate Revision Turn: draft/intermediate/]
+        V1 --> G1{Converged or Cap?}
+        G1 -- No --> R1
         G1 -- Yes --> H1[Candidate 1 Ready]
 
-        F2 --> G2{Converged or Cap?}
-        G2 -- No --> F2
+        F2 --> R2[Adversarial Review Turn: reviews/]
+        R2 --> V2[Candidate Revision Turn: draft/intermediate/]
+        V2 --> G2{Converged or Cap?}
+        G2 -- No --> R2
         G2 -- Yes --> H2[Candidate 2 Ready]
 
-        F3 --> G3{Converged or Cap?}
-        G3 -- No --> F3
+        F3 --> R3[Adversarial Review Turn: reviews/]
+        R3 --> V3[Candidate Revision Turn: draft/intermediate/]
+        V3 --> G3{Converged or Cap?}
+        G3 -- No --> R3
         G3 -- Yes --> H3[Candidate 3 Ready]
     end
 
@@ -767,6 +779,13 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-13** | FR-23, FR-24 | Run `aw attention` while a spec flow has unmerged candidates in `draft/intermediate/`. | Board displays Set under `## ready` (or `## active`), and footer prints `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/`. | Pass if board and footer surface pending intermediate work. |
 | **AT-14** | FR-26 | Execute `aw specs flow new --brief valid.md --prepare-only --apply`. | Renders prompt files under `.aw/records/prompts/pending/` and prints execution bounds. Exits 0 without launching agent sessions. | Pass if prompts are written and zero agent turns are dispatched. |
 | **AT-15** | FR-11, Sec 4.3.1 | Simulate a workflow exceeding `--budget 10`. | Dispatches halt precisely when turn count reaches 10. Ledger is checkpointed with `budget_exhausted`. Exits 1. | Pass if turn count ceiling is strictly enforced. |
+| **AT-16** | FR-18C | Run `aw research flow new` and inspect output reports. | Every factual statement carries an `as_of` date tag. Unverified statements are classified under `## Unverified Claims`. | Pass if taxonomy tags and temporal anchors exist. |
+| **AT-17** | FR-27 | Mock participant turn emitting output without `<!-- end-of-artifact -->`. | Engine flags output as `truncated`, triggers isolated retry, and does not forward draft to review. | Pass if truncation detected and retried. |
+| **AT-18** | FR-28 | Execute `aw specs flow new --brief valid.md --agent`. | All emitted stdout records conform to `aw.agent/v1` envelope schema with zero ANSI escapes and zero home path leaks. | Pass if `agent_schema.validate_agent_record` succeeds on all lines. |
+| **AT-19** | FR-29 | Trace execution session parameters during multi-model candidate refinement. | Reviewer turns execute in clean worker sessions containing only the frozen brief and candidate draft, with zero conversation memory from generation. | Pass if reviewer sessions are isolated and cross-peer assigned. |
+| **AT-20** | FR-30 | Simulate permanent failure of Participant 3 in a 3-model run without `--allow-partial-roster` in agent mode. | Process checkpoints state with outcome `partial` and exits with code 1. | Pass if exit code 1 and machine state is `partial`. |
+| **AT-21** | FR-31 | Execute `aw specs flow resume <run-id6>` after editing the input brief. | Process refuses execution with exit code 2 and outputs `refusal: input brief has mutated`. | Pass if exit code 2 and mutated brief refused. |
+| **AT-22** | FR-32 | Execute `aw specs flow new` with a roster referencing non-existent profile `"fake-prof"`. | Process refuses execution at baseline freeze with exit code 2. | Pass if exit code 2 and error identifies dangling profile. |
 
 ---
 
