@@ -1,5 +1,5 @@
 - Id: i2g20d
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for run_evidence
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD s461lz executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-26-s461lz-restore-behavioral-test-coverage-for-the-run-evidence-git-pr.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-26-s461lz-restore-behavioral-test-coverage-for-the-run-evidence-git-pr.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175028Z-1384849: s461lz
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for run_evidence
 
