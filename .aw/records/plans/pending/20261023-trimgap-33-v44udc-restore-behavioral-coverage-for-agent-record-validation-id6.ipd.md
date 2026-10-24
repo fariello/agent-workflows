@@ -35,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the new core-tier module
 
-- [ ] E-01 Create `tests/test_record_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `v44udc` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and a `TestValidateAgentRecord` class. All three classes in this module are PLAIN pytest classes whose names start with `Test` (no `unittest.TestCase` base): `pyproject.toml` `[tool.pytest.ini_options]` sets no `python_classes`, so pytest's default `Test*` prefix applies and a class named `...Tests` without a `TestCase` base is silently NOT collected, while a `TestCase` subclass cannot receive the `tmp_path` fixture E-02 and E-03 need (both demonstrated at review, record `v44udc` Round 1). With `good = {"schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": "x", "exit": 0, "outcome": "ok", "verified": True, "complete": True}`, assert: `validate_agent_record(good) == []` and `is_valid_agent_record(good)` is True; `validate_agent_record(dict(good, exit=7)) == ["Field 'exit' must be an integer in (0, 1, 2), got '7'"]`; `validate_agent_record({})` contains the three errors `"Invalid schema: expected 'aw.agent/v1', got 'None'"`, `"Invalid kind: 'None' must be one of ('result', 'summary', 'item', 'error')"` and `"Field 'cmd' must be a non-empty string"`, and `is_valid_agent_record({})` is False; a result record without `verified`/`complete` reports `"Result record missing boolean 'verified' field"` and `"Result record missing boolean 'complete' field"`.
+- [x] E-01 Create `tests/test_record_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `v44udc` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and a `TestValidateAgentRecord` class. All three classes in this module are PLAIN pytest classes whose names start with `Test` (no `unittest.TestCase` base): `pyproject.toml` `[tool.pytest.ini_options]` sets no `python_classes`, so pytest's default `Test*` prefix applies and a class named `...Tests` without a `TestCase` base is silently NOT collected, while a `TestCase` subclass cannot receive the `tmp_path` fixture E-02 and E-03 need (both demonstrated at review, record `v44udc` Round 1). With `good = {"schema": agent_schema.SCHEMA_VERSION, "kind": "result", "cmd": "x", "exit": 0, "outcome": "ok", "verified": True, "complete": True}`, assert: `validate_agent_record(good) == []` and `is_valid_agent_record(good)` is True; `validate_agent_record(dict(good, exit=7)) == ["Field 'exit' must be an integer in (0, 1, 2), got '7'"]`; `validate_agent_record({})` contains the three errors `"Invalid schema: expected 'aw.agent/v1', got 'None'"`, `"Invalid kind: 'None' must be one of ('result', 'summary', 'item', 'error')"` and `"Field 'cmd' must be a non-empty string"`, and `is_valid_agent_record({})` is False; a result record without `verified`/`complete` reports `"Result record missing boolean 'verified' field"` and `"Result record missing boolean 'complete' field"`.
   - Depends on: none
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add an `TestExistingTypeId6s` class using `tmp_path` (git-initialized with `git init -q`): write `.aw/records/plans/pending/20261001-sx-01-abc123-x.ipd.md` containing `- Id: abc123` and `.aw/records/plans/pending/legacy.md` containing `- Id: zzz999`, and assert `artifact_rename._existing_type_id6s(tmp_path, "plans") == {"abc123", "zzz999"}` (both the clustered filename id6 and a legacy file's `- Id:` line are collected, which is what keeps a fresh mint from colliding); and an empty git-initialized repo returns `set()`.
+- [x] E-02 Add an `TestExistingTypeId6s` class using `tmp_path` (git-initialized with `git init -q`): write `.aw/records/plans/pending/20261001-sx-01-abc123-x.ipd.md` containing `- Id: abc123` and `.aw/records/plans/pending/legacy.md` containing `- Id: zzz999`, and assert `artifact_rename._existing_type_id6s(tmp_path, "plans") == {"abc123", "zzz999"}` (both the clustered filename id6 and a legacy file's `- Id:` line are collected, which is what keeps a fresh mint from colliding); and an empty git-initialized repo returns `set()`.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add an `TestInferArtifactType` class: `doctor._infer_artifact_type` returns `None` for `""` and `"README.md"`; `"plans"` for `".aw/records/plans/pending/a.ipd.md"`; `"specs"` for `"x.spec.md"`; `"prompts"` for `".agents/prompts/a"`; `"backlog"` for `"x.backlog.md"`; `"research"` for `".aw/records/research/x"`; `"walkthroughs"` for `"x.walkthrough.md"`; `"comms"` for `".aw/records/comms/a"`; `"releases"` for `"x.release.md"`. Then assert the observable effect through `doctor.build_remediation(artifact_core.Drift(loc, "check.name-nonconformant", "d"), tmp_path)`: for `loc = ".aw/records/specs/20261001-abc123-01-abc123-x.spec.md"` the `summary_fix` contains `aw rename specs abc123`, and for `loc = ".aw/records/backlog/open/20261001-sx-01-abc123-x.backlog.md"` it contains `aw rename backlog abc123` (a mutant would route both to `plans`).
+- [x] E-03 Add an `TestInferArtifactType` class: `doctor._infer_artifact_type` returns `None` for `""` and `"README.md"`; `"plans"` for `".aw/records/plans/pending/a.ipd.md"`; `"specs"` for `"x.spec.md"`; `"prompts"` for `".agents/prompts/a"`; `"backlog"` for `"x.backlog.md"`; `"research"` for `".aw/records/research/x"`; `"walkthroughs"` for `"x.walkthrough.md"`; `"comms"` for `".aw/records/comms/a"`; `"releases"` for `"x.release.md"`. Then assert the observable effect through `doctor.build_remediation(artifact_core.Drift(loc, "check.name-nonconformant", "d"), tmp_path)`: for `loc = ".aw/records/specs/20261001-abc123-01-abc123-x.spec.md"` the `summary_fix` contains `aw rename specs abc123`, and for `loc = ".aw/records/backlog/open/20261001-sx-01-abc123-x.backlog.md"` it contains `aw rename backlog abc123` (a mutant would route both to `plans`).
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: commit and prove the mutants die in core
 
-- [ ] E-04 First run `python3 -m pytest -o addopts="" -v -n0 tests/test_record_residual_helpers.py` and confirm every test PASSED (this is the V-01..V-03 evidence; fix the module before committing, never commit a red module). Then verify `git diff --cached --name-only` lists only that path, commit the module with `aw commit v44udc -- tests/test_record_residual_helpers.py` (the probe in E-05 reads committed HEAD, which is why the commit precedes it), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_record_residual_helpers.py`.
+- [x] E-04 First run `python3 -m pytest -o addopts="" -v -n0 tests/test_record_residual_helpers.py` and confirm every test PASSED (this is the V-01..V-03 evidence; fix the module before committing, never commit a red module). Then verify `git diff --cached --name-only` lists only that path, commit the module with `aw commit v44udc -- tests/test_record_residual_helpers.py` (the probe in E-05 reads committed HEAD, which is why the commit precedes it), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_record_residual_helpers.py`.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: bare run shows no failures and includes the new tests; the module costs well under one second serial. A `CORE TIER BUDGET EXCEEDED` block with zero failing tests is a pre-existing, load-dependent host condition: record it verbatim and do not count it as a failure of this plan; any failing test IS a failure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 For each key K in (`agent_workflows/agent_schema.py::validate_agent_record`, `agent_workflows/artifact_rename.py::_existing_type_id6s`, `agent_workflows/doctor.py::_infer_artifact_type`), run `python3 tools/mutation_probe.py --op return-none --format json K -- -o addopts= -q -p no:randomly -n0 -m core tests/test_record_residual_helpers.py`, after E-04's commit. A kill under this core-marked subset is a kill under the full core tier, a superset. Record each `verdict`, `baseline_failing` and `mutant_failing`; if any key survives, add the missing assertion, commit the same way, and re-probe.
+- [x] E-05 For each key K in (`agent_workflows/agent_schema.py::validate_agent_record`, `agent_workflows/artifact_rename.py::_existing_type_id6s`, `agent_workflows/doctor.py::_infer_artifact_type`), run `python3 tools/mutation_probe.py --op return-none --format json K -- -o addopts= -q -p no:randomly -n0 -m core tests/test_record_residual_helpers.py`, after E-04's commit. A kill under this core-marked subset is a kill under the full core tier, a superset. Record each `verdict`, `baseline_failing` and `mutant_failing`; if any key survives, add the missing assertion, commit the same way, and re-probe.
   - Depends on: E-04
   - Expected outcome: three `verdict: killed`, each `baseline_failing: 0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -122,30 +122,150 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the head of `tests/test_record_residual_helpers.py` showing the provenance docstring (naming `nzc6dm`, `v44udc`, `wo21z5`) and `pytestmark = pytest.mark.core`; the `-v` lines for every `TestValidateAgentRecord` test, each PASSED; and `grep -nE "\binspect\b|getsource|\bast\." tests/test_record_residual_helpers.py` returning nothing; and the `-v` output's collected count for the module is non-zero for each of the three classes (no class silently uncollected).
   - Observed evidence:
-  - Result: pending
+    Head of `tests/test_record_residual_helpers.py`:
+    ```python
+    """Direct behavioral tests for agent record validation, id6 collision sets, and artifact type inference.
 
-- [ ] V-02 validates E-02
+    Restores core-tier behavioral coverage for record-handling residual helpers recorded in
+    backlog item nzc6dm, plan v44udc, and findings wo21z5:
+    - agent_schema.validate_agent_record (group 22)
+    - artifact_rename._existing_type_id6s (group 23)
+    - doctor._infer_artifact_type (group 34)
+    """
+
+    from __future__ import annotations
+
+    import subprocess
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import agent_schema, artifact_core, artifact_rename, doctor
+
+    pytestmark = pytest.mark.core
+    ```
+    `-v` lines for `TestValidateAgentRecord`:
+    ```
+    tests/test_record_residual_helpers.py::TestValidateAgentRecord::test_validate_agent_record_invalid_exit_code PASSED [ 62%]
+    tests/test_record_residual_helpers.py::TestValidateAgentRecord::test_validate_agent_record_missing_verified_and_complete PASSED [ 75%]
+    tests/test_record_residual_helpers.py::TestValidateAgentRecord::test_validate_agent_record_empty_record PASSED [ 87%]
+    tests/test_record_residual_helpers.py::TestValidateAgentRecord::test_validate_agent_record_valid_record PASSED [100%]
+    ```
+    `grep -nE "\binspect\b|getsource|\bast\." tests/test_record_residual_helpers.py` output:
+    ```
+    (exit code 1, empty output)
+    ```
+    Collected counts per class:
+    Collected 8 items across all 3 classes (TestValidateAgentRecord: 4, TestExistingTypeId6s: 2, TestInferArtifactType: 2; all non-zero).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` lines for every `TestExistingTypeId6s` test, each PASSED.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_record_residual_helpers.py::TestExistingTypeId6s::test_existing_type_id6s_empty_repo PASSED [ 37%]
+    tests/test_record_residual_helpers.py::TestExistingTypeId6s::test_existing_type_id6s_collects_clustered_and_legacy_ids PASSED [ 50%]
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` lines for every `TestInferArtifactType` test, each PASSED, including the `build_remediation` assertions.
   - Observed evidence:
-  - Result: pending
+    ```
+    tests/test_record_residual_helpers.py::TestInferArtifactType::test_infer_artifact_type_mappings PASSED [ 12%]
+    tests/test_record_residual_helpers.py::TestInferArtifactType::test_build_remediation_summary_fix_routes_to_inferred_type PASSED [ 25%]
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `aw commit` output (or `git show --stat HEAD`) naming only `tests/test_record_residual_helpers.py`; the bare `python3 -m pytest` summary line with no `failed` (a budget-only overrun is recorded, not failed, per E-04), any `CORE TIER BUDGET EXCEEDED` block verbatim, and the module's `--durations=0` output.
   - Observed evidence:
-  - Result: pending
+    `aw commit` output:
+    ```
+    aw: invoked in checkout /mnt/md1/VC/agent-workflows/.aw/worktrees/v44udc but imported agent_workflows from /mnt/md1/VC/agent-workflows; re-running with /mnt/md1/VC/agent-workflows/.aw/worktrees/v44udc's package (set AW_NO_REEXEC=1 to disable)
+    aw commit: committed 1 path(s): 03c9e50e50e17441dd2d774788b0869c54b071d1
+    ```
+    `git show --stat 03c9e50e50e17441dd2d774788b0869c54b071d1`:
+    ```
+    commit 03c9e50e50e17441dd2d774788b0869c54b071d1
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Sat Oct 24 09:42:18 2026 -0400
 
-- [ ] V-05 validates E-05
+        work(v44udc): Restore behavioral coverage for agent record validation, id6 collision set and artifact type inference
+
+        AW-Run: run-20261024T014611Z-3126016
+        AW-Item: v44udc
+        AW-Runner: aw agy run
+
+     tests/test_record_residual_helpers.py | 128 ++++++++++++++++++++++++++++++++++
+     1 file changed, 128 insertions(+)
+    ```
+    Bare `python3 -m pytest` summary line and `CORE TIER BUDGET EXCEEDED` block:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 69.39s exceeded budget of 30.00s.
+    Host 1-minute load average: 13.90 on 12 CPUs
+    Core tier budget not enforced: host oversubscribed (1-minute load average above the CPU count)
+    Top 10 slowest core tests:
+       1.   8.48s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       2.   7.41s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       3.   6.42s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       4.   5.61s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       5.   5.10s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       6.   4.44s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       7.   4.36s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       8.   3.98s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       9.   3.40s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   2.96s  tests/test_ipd_lint.py::ReadinessAttestationTests::test_every_readiness_carrying_plan_in_the_tree_is_attested
+    ===========================================================================================
+
+    1823 passed, 11 warnings in 69.38s (0:01:09)
+    ```
+    Module `--durations=0` output (`python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_record_residual_helpers.py`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4273098010
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/v44udc
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 8 items
+
+    tests/test_record_residual_helpers.py ........                           [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== slowest durations ===============================
+    0.01s call     tests/test_record_residual_helpers.py::TestExistingTypeId6s::test_existing_type_id6s_collects_clustered_and_legacy_ids
+    0.01s call     tests/test_record_residual_helpers.py::TestExistingTypeId6s::test_existing_type_id6s_empty_repo
+
+    (22 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 8 passed in 0.52s ===============================
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the three JSON outputs produced by `tools/mutation_probe.py` (E-05), each with `head` equal to the E-04 commit or later, a selection containing `-m core tests/test_record_residual_helpers.py`, `verdict: killed` and `baseline_failing: 0`; and `git diff --stat <E-04 parent>..HEAD -- agent_workflows/` showing no change.
   - Observed evidence:
-  - Result: pending
+    Target 1: `agent_workflows/agent_schema.py::validate_agent_record`
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "03c9e50e50e17441dd2d774788b0869c54b071d1", "mutant_failing": 4, "newly_failing": ["tests.test_record_residual_helpers.TestValidateAgentRecord::test_validate_agent_record_empty_record", "tests.test_record_residual_helpers.TestValidateAgentRecord::test_validate_agent_record_invalid_exit_code", "tests.test_record_residual_helpers.TestValidateAgentRecord::test_validate_agent_record_missing_verified_and_complete", "tests.test_record_residual_helpers.TestValidateAgentRecord::test_validate_agent_record_valid_record"], "newly_failing_total": 4, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_record_residual_helpers.py"], "target": "agent_workflows/agent_schema.py::validate_agent_record", "verdict": "killed", "wall_s": 5.95}
+    ```
+    Target 2: `agent_workflows/artifact_rename.py::_existing_type_id6s`
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "03c9e50e50e17441dd2d774788b0869c54b071d1", "mutant_failing": 2, "newly_failing": ["tests.test_record_residual_helpers.TestExistingTypeId6s::test_existing_type_id6s_collects_clustered_and_legacy_ids", "tests.test_record_residual_helpers.TestExistingTypeId6s::test_existing_type_id6s_empty_repo"], "newly_failing_total": 2, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_record_residual_helpers.py"], "target": "agent_workflows/artifact_rename.py::_existing_type_id6s", "verdict": "killed", "wall_s": 6.25}
+    ```
+    Target 3: `agent_workflows/doctor.py::_infer_artifact_type`
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "03c9e50e50e17441dd2d774788b0869c54b071d1", "mutant_failing": 2, "newly_failing": ["tests.test_record_residual_helpers.TestInferArtifactType::test_build_remediation_summary_fix_routes_to_inferred_type", "tests.test_record_residual_helpers.TestInferArtifactType::test_infer_artifact_type_mappings"], "newly_failing_total": 2, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_record_residual_helpers.py"], "target": "agent_workflows/doctor.py::_infer_artifact_type", "verdict": "killed", "wall_s": 5.06}
+    ```
+    Diff check:
+    `<E-04 parent>` is `6057fe9e73b0f9b98ce13bc00ceea047cc4ddde8`.
+    `git diff --stat 6057fe9e73b0f9b98ce13bc00ceea047cc4ddde8..HEAD -- agent_workflows/` is empty (no change).
+  - Result: pass
 
 ## Approval and execution gate
 
