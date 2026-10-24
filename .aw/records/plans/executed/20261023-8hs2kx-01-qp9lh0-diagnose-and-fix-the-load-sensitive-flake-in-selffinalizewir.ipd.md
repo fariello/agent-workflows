@@ -6,7 +6,7 @@
 - Scope: Reproduce the failure under load and capture its full traceback; make the test's ordering assertion self-diagnosing so any future failure records WHY `run_opencode` was not reached; fix the root cause if the reproduction identifies one. Edits are confined to `tests/test_oc_runipd.py` unless the reproduction proves a production defect (see Scope check).
 - Scope-Paths: tests/test_oc_runipd.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: qp9lh0
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qp9lh0 verified (set 8hs2kx, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004
 
