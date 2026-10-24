@@ -1,7 +1,7 @@
 ---
 id: x96s18
 created: 20261014
-set: testmon-selection-measurement
+set: testmonsel
 order: 01
 topic: [testing, suite-efficiency, testmon, test-selection]
 model: 

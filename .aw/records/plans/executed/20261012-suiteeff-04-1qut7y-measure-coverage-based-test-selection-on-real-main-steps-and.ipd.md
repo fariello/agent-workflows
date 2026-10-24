@@ -249,7 +249,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: the research artifact path, its pasted threshold lines (all three criteria), the failing-step count and vacuity note where it applies, its `Decision:` line, and the pasted `aw research index --check` output.
   - Observed evidence:
     Research artifact path:
-    `.aw/records/research/20261014-testmon-selection-measurement-01-x96s18-testmon-selection-measurement.findings.md`
+    `.aw/records/research/20261014-testmonsel-01-x96s18-testmon-selection-measurement.findings.md`
 
     Pasted threshold lines:
     ```
