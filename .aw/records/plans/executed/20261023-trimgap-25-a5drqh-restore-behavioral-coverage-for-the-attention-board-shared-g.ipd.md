@@ -6,7 +6,7 @@
 - Scope: Restore the deleted `tests/test_attention_priority_blocker.py` from `19313eed^` as a `core`-marked behavioral module, adapting the one test that no longer matches HEAD (`test_schema_version_and_json_keys` pins `SCHEMA_VERSION == 4`; HEAD is 5) to assert the observable payload contract instead of a hard-coded number, and add direct behavioral tests of `attention._shared_gate_ref` covering every return branch (shared, single, distinct, mixed, empty, and `long` compaction). Record `render_table` and `_render_table_row` as guarded with re-run probe evidence; no new tests are owed for them. EXCLUDES any change to `agent_workflows/attention.py` or any other production file, and EXCLUDES `_gate_ref_display`, which belongs to the residual rollup backlog item `nzc6dm`.
 - Scope-Paths: tests/test_attention_priority_blocker.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: a5drqh
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: a5drqh verified (set trimgap, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (ruff-safe import placement, hand-edit mutation replaced by mutation_probe after commit, bare-tier collection proof, satisfiable budget bar, count bars and restored-test disposition, execution contract); F-02/F-05 reproduced at 389409d8c (F-06)
 - 2026-10-23 to-review (aw set): authored from backlog 1n4qco; probed all three keys at HEAD 390d90f07 (F-01..F-05) before writing expected outcomes
