@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/benchmark_corpus.py
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: qtd3lj
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-23 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate lacked lifecycle/finalize ownership), PR-002 (E-01 skip wording omitted non-directory children; E-02 direct call did not say what to print) fixed
 - 2026-10-23 to-review (opencode): authored from backlog `qtd3lj`. Re-measured the order divergence by direct call at lane HEAD `503f15cbd` (F-01), enumerated every caller of `load_corpus` (F-02, F-03), and resolved the contract choice from repository evidence as docstring-fix (OQ-01).
 - 2026-10-23 draft (opencode): created.
 
@@ -31,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Docstring reconciliation
 
-- [ ] E-01 Replace the sentence "Returns tasks sorted by (task_class, seed_id) for determinism." in the `benchmark_corpus.load_corpus` docstring with wording stating that tasks are returned in ascending order of their seed DIRECTORY NAME (the child name under `corpus_root`) for determinism, that this is not `(task_class, seed_id)` order, and that the two coincide only when each seed directory is named after its class (as in the checked-in fixture corpus). Keep the existing first sentences ("Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed (each with a task.json).") and also state the already-true behaviors that a non-directory root raises `CorpusError`, that children without `task.json` are skipped, and that a malformed seed's `CorpusError` propagates. Change no line outside the docstring.
+- [ ] E-01 Replace the sentence "Returns tasks sorted by (task_class, seed_id) for determinism." in the `benchmark_corpus.load_corpus` docstring with wording stating that tasks are returned in ascending order of their seed DIRECTORY NAME (the child name under `corpus_root`) for determinism, that this is not `(task_class, seed_id)` order, and that the two coincide only when each seed directory is named after its class (as in the checked-in fixture corpus). Keep the existing first sentences ("Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed (each with a task.json).") and also state the already-true behaviors that a non-directory root raises `CorpusError`, that non-directory children and subdirectories without a `task.json` are skipped, and that a malformed seed's `CorpusError` propagates. Change no line outside the docstring.
   - Depends on: none
   - Expected outcome: `git diff agent_workflows/benchmark_corpus.py` shows changed lines only inside the `load_corpus` docstring; `help(benchmark_corpus.load_corpus)` prints the new wording naming directory-name order.
   - Execution state: pending
 
 ### Task group 2: Behavior unchanged
 
-- [ ] E-02 Re-run the direct order measurement and the benchmark corpus test modules after the edit, to show the documented order is the observed order and nothing regressed: copy fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` into a temp root and call `load_corpus`; then run `tests/test_benchmark_corpus.py`, `tests/test_benchmark_runners_reports.py`, and (if `btubm6` has executed and it exists) `tests/test_benchmark_corpus_restored_behavior.py`; then the bare routine gate.
+- [ ] E-02 Re-run the direct order measurement and the benchmark corpus test modules after the edit, to show the documented order is the observed order and nothing regressed: copy fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` into a temp root, call `load_corpus` on it, and print `[t.seed_path.name for t in tasks]` and `[t.task_class for t in tasks]`; then run `tests/test_benchmark_corpus.py`, `tests/test_benchmark_runners_reports.py`, and (if `btubm6` has executed and it exists) `tests/test_benchmark_corpus_restored_behavior.py`; then the bare routine gate.
   - Depends on: E-01
   - Expected outcome: the direct call prints `['a_dir', 'b_dir'] ['simple_commands', 'migration']` (name order, matching the new docstring); all named modules pass; bare `python3 -m pytest` passes.
   - Execution state: pending
@@ -120,6 +122,7 @@ Execute only after explicit human approval (`Status: approved`).
 
 Execution contract:
 - All open questions are resolved (OQ-01).
-- Scope fence: `agent_workflows/benchmark_corpus.py` is the only declared path, and only its `load_corpus` docstring may change.
+- Scope fence: `agent_workflows/benchmark_corpus.py` is the only declared path, and only its `load_corpus` docstring is intended to change; an out-of-scope edit is justified at finalize (`--scope-reason`).
 - Paste ACTUAL command output into each V-item's Observed evidence; never claim a result you did not run.
 - Commit only through `aw commit x8p9ek -- agent_workflows/benchmark_corpus.py <this plan>`, verify `git diff --cached --name-only`, and never push.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner performs `aw ipd finalize`; by hand, run `aw ipd lint --phase pre-transition` to conforming with every V-item at `Result: pass`, then `aw ipd finalize`. Never `git mv` the plan to `executed/` by hand.
