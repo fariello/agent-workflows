@@ -432,8 +432,9 @@ or when the pass limit is reached. Only then does the runner send S7 (MD-15).
   prompt. If no id was captured, it starts a new session (MD-13).
 - Session rotation (`max_items_per_session`) never happens between prompts of one review
   invocation. One review invocation counts as one item toward that limit.
-- Whether each review invocation should start a new session or reuse the previous plan's session is
-  not decided. Measured data is mixed (OQ-07, and Section 13 variable V4).
+- A review invocation continues the previous review's session only when its plan is in the same Set
+  as the previous plan; otherwise it starts a new session. At most 4 review invocations share a
+  session (OQ-07).
 
 ### 9.3 Interruption and resume
 
@@ -748,10 +749,11 @@ spec review (SR-005); the numbers are otherwise unchanged.
 ### OQ-07: Session per review
 
 - Blocking: no
-- Status: open
+- Status: resolved
+- Owner: maintainer
 - Question: Should each review invocation start a new session, or reuse the previous plan's session?
-- Data: of 1,311 review attempts, 404 in a session new to the run had a median 36,000-token first context, 81 steps, and $9.21 cost; 907 in a reused session had 229,000, 43 steps, and $6.78. The groups differ in period, plans, and models, so the comparison is not controlled.
-- Recommendation: decide by Section 13 variable V4. Until then, keep today's behavior. Strength: medium.
+- Data (measured 2026-10-24 over 1,396 OpenCode review attempts, 2026-08-24 to 2026-10-23, median cost per review): own session $8.40 (434); continued after a plan in the same Set $3.09 (288); continued after a plan in a different Set $8.87 (674). By plan size (execution items), own / same Set / other Set: 0-5 items $4.49 / $1.51 / $9.80; 6-9 items $11.35 / $5.63 / $12.06; 10+ items $12.18 / $7.81 / $12.06. Not a controlled comparison: item counts are from current plan files, and the runs span two model versions.
+- Resolution or deferral rationale: Resolved 2026-10-24 by the maintainer: continue the previous review's session only when the next plan is in the same Set; start a new session for a plan in a different Set. The limit of 4 review invocations per session still applies. Section 13 variable V4 may test this later.
 
 ### OQ-08: Sensitive-path list for this repository
 
@@ -800,7 +802,9 @@ Each implementing plan lists the spec it amends in its `- Scope-Paths:`.
    children whose action is also `review`, as it already is for action `orchestrate`.
 4. Sessions: all prompts of one review invocation run in one session; rotation by
    `max_items_per_session` happens only between review invocations, and one invocation counts as one
-   item; a review never uses Antigravity's `--continue` fallback (MD-6, MD-13).
+   item; a review invocation continues the previous review's session only when its plan is in the
+   same Set, otherwise it starts a new session (OQ-07); a review never uses Antigravity's
+   `--continue` fallback (MD-6, MD-13).
 5. Section 2.6 is unchanged: plans created by a split never join the current run.
 
 ### 17.2 IPD structure-and-linting spec `20260802-1904` (Order 03)
@@ -818,6 +822,7 @@ five of MD-9.
 
 ## Workflow history
 
+- 2026-10-24 note (aw specs): Maintainer answer 2026-10-24 recorded: OQ-07 resolved. A review continues the previous review's session only when the plan is in the same Set; otherwise a new session; at most 4 per session. Measured basis in OQ-07. Sections 9.2 and 17.1 item 4 updated.
 - 2026-10-24 note (aw specs): Maintainer answers 2026-10-24 recorded: OQ-09 resolved (no Codex; two runner hosts), OQ-11 resolved (detect-and-restore only). Both match the recommendations already in the approved text; no design change.
 - 2026-10-24 approved (aw set, --by-human): status set to approved
 
