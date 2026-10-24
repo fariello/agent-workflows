@@ -1,5 +1,5 @@
 - Id: rsisop
-- Status: graduated
+- Status: done
 - Graduated-To: quickpipe
 - Set: revsteps
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Shorter pipeline for small changes: go from plan to review to execution without the backlog draft/open/graduate steps
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD e41qgx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.ipd.md); evidence .aw/records/plans/executed/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175028Z-1384849: e41qgx
 - 2026-10-19 created (aw backlog): Shorter pipeline for small changes: go from plan to review to execution without the backlog draft/open/graduate steps
 
