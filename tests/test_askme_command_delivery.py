@@ -227,6 +227,55 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
             )
 
     @pytest.mark.slow
+    def test_installer_delivers_askme_recorded_answers_and_premise_rules(self):
+        """Assert installer delivers askme.md with answer recording rules and premise check."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td) / "target")
+
+            with redirect_stdout(io.StringIO()):
+                engine.install_into_repo(
+                    repo, SOURCE_WORKFLOWS, yes=True, no_color=True
+                )
+
+            installed_askme = (
+                repo / ".aw" / "system" / "workflows" / "askme" / "askme.md"
+            )
+            self.assertTrue(
+                installed_askme.is_file(),
+                "Installed askme workflow body must exist",
+            )
+            installed_text = installed_askme.read_text(encoding="utf-8")
+            installed_words = " ".join(installed_text.split())
+
+            # E-01: No reason was given phrase
+            self.assertIn("No reason was given.", installed_text)
+            self.assertIn(
+                "Choosing an option is not giving a reason",
+                installed_words,
+            )
+
+            # E-02: Append shape including via /askme
+            self.assertIn("via /askme", installed_text)
+            self.assertIn(
+                '<existing text> RESOLVED <YYYY-MM-DD> by <the user | evidence> via /askme: <decision>. <reason as given, or "No reason was given.">',
+                installed_text,
+            )
+            self.assertIn(
+                "When the field is empty, write the `RESOLVED ...` text alone.",
+                installed_words,
+            )
+
+            # E-03: Premise-check rule
+            self.assertIn(
+                "never repeat an unchecked premise",
+                installed_words,
+            )
+            self.assertIn(
+                "check it against the repository",
+                installed_words,
+            )
+
+    @pytest.mark.slow
     def test_installer_delivers_askme_write_before_ask_rule(self):
         """Assert installer delivers askme.md with write-each-answer-before-next-question rule in ## Ask and wait."""
         with tempfile.TemporaryDirectory() as td:
