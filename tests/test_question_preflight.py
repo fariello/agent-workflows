@@ -47,6 +47,8 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import pytest
+
 
 from agent_workflows import (
     agy_runipd,
@@ -391,6 +393,193 @@ def test_stale_artifact_refusal(tmp_path: Path):
     # Verify content was untouched
     text = plan_path.read_text(encoding="utf-8")
     assert "- Status: open" in text
+
+
+@pytest.mark.core
+def test_record_oq_answer_appends_to_existing_rationale(tmp_path: Path):
+    """E-02 / mqsitd: record_oq_answer appends answer to existing rationale text."""
+    repo = _create_test_repo(tmp_path)
+    plan_path = _create_plan_with_oqs(
+        repo,
+        "app001",
+        oqs=[
+            {
+                "id": "OQ-01",
+                "title": "Database schema choice",
+                "blocking": True,
+                "status": "open",
+                "rationale": "Original question context: SQLite or Postgres?",
+            }
+        ],
+    )
+    orig_hash = runner_shared.sha256_file(plan_path)
+
+    recorded = runner_shared.record_oq_answer(
+        repo,
+        plan_path.relative_to(repo),
+        "OQ-01",
+        answer="Use PostgreSQL 16 JSONB",
+        who="developer",
+        channel="aw oc run pre-flight",
+        date="2026-10-17",
+        expected_hash=orig_hash,
+    )
+    assert recorded is True
+
+    text = plan_path.read_text(encoding="utf-8")
+    assert "Original question context: SQLite or Postgres?" in text
+    assert (
+        "- Resolution or deferral rationale: Original question context: SQLite or Postgres? RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+        in text
+    )
+    assert "- Status: resolved" in text
+    assert "- Blocking: yes" in text
+    assert "- Owner: test author" in text
+
+
+@pytest.mark.core
+def test_record_oq_answer_appends_with_indented_continuation_rationale(tmp_path: Path):
+    """E-02 / mqsitd: record_oq_answer preserves indented continuation lines and appends RESOLVED once."""
+    repo = _create_test_repo(tmp_path)
+    plan_path = _create_plan_with_oqs(
+        repo,
+        "app002",
+        oqs=[
+            {
+                "id": "OQ-01",
+                "title": "Database schema choice",
+                "blocking": True,
+                "status": "open",
+            }
+        ],
+    )
+    # Write continuation line directly into the fixture file
+    content = plan_path.read_text(encoding="utf-8")
+    content = content.replace(
+        "- Owner: test author\n",
+        "- Owner: test author\n- Resolution or deferral rationale: First line context\n    Indented continuation line\n",
+    )
+    plan_path.write_text(content, encoding="utf-8")
+    orig_hash = runner_shared.sha256_file(plan_path)
+
+    recorded = runner_shared.record_oq_answer(
+        repo,
+        plan_path.relative_to(repo),
+        "OQ-01",
+        answer="Use PostgreSQL 16 JSONB",
+        who="developer",
+        channel="aw oc run pre-flight",
+        date="2026-10-17",
+        expected_hash=orig_hash,
+    )
+    assert recorded is True
+
+    text = plan_path.read_text(encoding="utf-8")
+    assert "First line context" in text
+    assert "    Indented continuation line" in text
+    assert (
+        "- Resolution or deferral rationale: First line context\n    Indented continuation line RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+        in text
+    )
+    assert (
+        text.count(
+            "RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+        )
+        == 1
+    )
+    assert "- Status: resolved" in text
+    assert "- Blocking: yes" in text
+    assert "- Owner: test author" in text
+
+
+@pytest.mark.core
+def test_record_oq_answer_preserves_backslash_answer_rationale(tmp_path: Path):
+    """E-02 / mqsitd: record_oq_answer handles answers with backslashes without raising re.error."""
+    repo = _create_test_repo(tmp_path)
+    plan_path = _create_plan_with_oqs(
+        repo,
+        "app003",
+        oqs=[
+            {
+                "id": "OQ-01",
+                "title": "Path choice",
+                "blocking": True,
+                "status": "open",
+                "rationale": "Pending path decision.",
+            }
+        ],
+    )
+    orig_hash = runner_shared.sha256_file(plan_path)
+
+    recorded = runner_shared.record_oq_answer(
+        repo,
+        plan_path.relative_to(repo),
+        "OQ-01",
+        answer=r"C:\new\1",
+        who="developer",
+        channel="aw oc run pre-flight",
+        date="2026-10-17",
+        expected_hash=orig_hash,
+    )
+    assert recorded is True
+
+    text = plan_path.read_text(encoding="utf-8")
+    assert "- Status: resolved" in text
+    rationale_lines = [
+        line
+        for line in text.splitlines()
+        if "- Resolution or deferral rationale:" in line
+    ]
+    assert len(rationale_lines) == 1
+    assert rationale_lines[0].endswith(r": C:\new\1")
+    assert (
+        "- Resolution or deferral rationale: Pending path decision. RESOLVED 2026-10-17 by developer via aw oc run pre-flight: C:\\new\\1"
+        in text
+    )
+
+
+@pytest.mark.core
+def test_record_oq_answer_empty_field_rationale(tmp_path: Path):
+    """E-02 / mqsitd: record_oq_answer on present-but-empty rationale field emits RESOLVED line cleanly."""
+    repo = _create_test_repo(tmp_path)
+    plan_path = _create_plan_with_oqs(
+        repo,
+        "app004",
+        oqs=[
+            {
+                "id": "OQ-01",
+                "title": "Empty rationale choice",
+                "blocking": True,
+                "status": "open",
+            }
+        ],
+    )
+    content = plan_path.read_text(encoding="utf-8")
+    content = content.replace(
+        "- Owner: test author\n",
+        "- Owner: test author\n- Resolution or deferral rationale:\n",
+    )
+    plan_path.write_text(content, encoding="utf-8")
+    orig_hash = runner_shared.sha256_file(plan_path)
+
+    recorded = runner_shared.record_oq_answer(
+        repo,
+        plan_path.relative_to(repo),
+        "OQ-01",
+        answer="Use PostgreSQL 16 JSONB",
+        who="developer",
+        channel="aw oc run pre-flight",
+        date="2026-10-17",
+        expected_hash=orig_hash,
+    )
+    assert recorded is True
+
+    text = plan_path.read_text(encoding="utf-8")
+    assert "- Status: resolved" in text
+    assert (
+        "- Resolution or deferral rationale: RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+        in text
+    )
 
 
 def test_a18_and_a28_sweep_sitting_and_events(tmp_path: Path):
