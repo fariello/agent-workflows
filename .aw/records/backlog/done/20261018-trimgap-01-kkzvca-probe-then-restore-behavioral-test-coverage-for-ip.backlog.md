@@ -1,5 +1,5 @@
 - Id: kkzvca
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for ipd_lint
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD 3wkrng executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-28-3wkrng-lock-ipd-lint-lint-file-and-check-item-dependencies-dependen.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-28-3wkrng-lock-ipd-lint-lint-file-and-check-item-dependencies-dependen.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: 3wkrng
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for ipd_lint
 

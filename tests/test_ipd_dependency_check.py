@@ -657,6 +657,7 @@ class PhasedLintTests(unittest.TestCase):
         ),
     )
 
+    @pytest.mark.core
     def test_the_pure_syntax_check_assigns_the_right_severity_at_every_phase(self):
         wrong = []
         positive_rows_broken = 0
@@ -770,6 +771,7 @@ class PhasedLintTests(unittest.TestCase):
         ),
     )
 
+    @pytest.mark.core
     def test_lint_file_resolves_the_repo_aware_rules_at_a_blocking_phase(self):
         wrong = []
         positive_rows_broken = 0
