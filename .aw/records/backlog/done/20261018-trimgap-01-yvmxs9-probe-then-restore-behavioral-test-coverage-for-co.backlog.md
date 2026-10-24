@@ -1,5 +1,5 @@
 - Id: yvmxs9
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for config
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD f6el0l executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-29-f6el0l-probe-then-restore-core-tier-behavioral-coverage-for-config.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-29-f6el0l-probe-then-restore-core-tier-behavioral-coverage-for-config.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T174955Z-1383559: f6el0l
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for config
 
