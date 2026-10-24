@@ -6,7 +6,7 @@
 - Scope: Re-probe the 24 keys at execution HEAD under a `-m core` selection and record every verdict; for any key that no longer reports `killed`, add a behavioral test to one new core-marked module `tests/test_residual_guard_fallback.py`, and only then. EXCLUDES any production-code change; EXCLUDES the 19 keys owned by the five sibling plans; EXCLUDES changes to existing test files.
 - Scope-Paths: tests/test_residual_guard_fallback.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: e6lq6y
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, <execution base> recorded at E-01, non-killed verdicts enumerated and Goal aligned with the E-05 restore path); all 24 operators re-applied and F-03 carrier assignments verified at e19e6895b
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm`. Measured core reach of all 43 keys at HEAD `6c0a6b72a` and probed the 32 core-reached keys against their core-reaching files (24 `killed`, 8 `survived`); the 8 survivors and the 11 unreached keys are assigned to five sibling plans.

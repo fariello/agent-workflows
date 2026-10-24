@@ -6,7 +6,7 @@
 - Scope: Run the eight `tools/mutation_probe.py` probes (the backlog item's operators) against `tests/test_run_analytics_telemetry.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_telemetry.py` that calls the surviving function (directly or through its public caller) and asserts on its returned value, raised error, or written telemetry. EXCLUDES any production-code change; EXCLUDES other `run_analytics_telemetry.py` keys (owned by executed `8bhcd3`, pending `qpmq2o`, or other `trimgap` items); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_telemetry.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: bli2ba
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 
 - 2026-10-23 reviewed (opencode): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (unsatisfiable exit-0 bar in E-03/V-03 on an enforcing host, F-05) and PR-002 (F-02 operator grouping) fixed; three probes re-run killed at `72da75876` (F-04)
 - 2026-10-23 to-review (opencode): authored from backlog `zd8l04`. Confirmed `8bhcd3` restored the control file after the `wo21z5` baseline (`git merge-base --is-ancestor cbf70e39a f3afece925` exits 1), then ran `tools/mutation_probe.py` for all eight keys at HEAD `bc36f0175`; every mutant was killed (F-02). The plan is therefore verification-first with a conditional restore step, following siblings `qpmq2o` and `92tzo6`.

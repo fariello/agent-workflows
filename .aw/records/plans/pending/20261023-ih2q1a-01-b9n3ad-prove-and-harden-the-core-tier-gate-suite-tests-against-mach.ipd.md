@@ -6,7 +6,7 @@
 - Scope: tests/test_core_tier_selection.py (regression test proving slot isolation, plus load-repeat evidence); no production code change expected
 - Scope-Paths: tests/test_core_tier_selection.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: b9n3ad
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (dup guard vs f4txy2), PR-002 (setup order, AW_SUITE_SLOTS=1, chmod), PR-003 (bounded real-slot holder), PR-004 (bounded load harness, loadavg ramp), PR-005 (twz0tw path drift), PR-006 (behavioral V bars, budget-only overrun) fixed; mechanism demonstrated at 72da75876
 
 - 2026-10-23 draft (opencode): created.

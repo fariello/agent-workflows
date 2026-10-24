@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_render_residual_helpers.py`, with direct behavioral tests of the five keys asserting on their returned strings, tuples and lines (values measured at F-03), mining the two behavioral assertions of the deleted `tests/test_lifecycle_palette_singleness.py` that kill the `render_stream` keys (F-04); then probe all five under the core selection. EXCLUDES restoring `tests/test_lifecycle_palette_singleness.py` whole (its A17 helper walks production source with `ast` and `pathlib`, which `AGENTS.md` forbids, F-04); EXCLUDES any production-code change; EXCLUDES `attention._shared_gate_ref`, `render_table` and `_render_table_row` (owned by plan `a5drqh`).
 - Scope-Paths: tests/test_render_residual_helpers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode
 - Id: j77z5h
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 
 - 2026-10-23 reviewed (opencode): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (test classes must subclass unittest.TestCase or pytest never collects them, F-06), PR-002 (gate lifecycle and honesty contract), PR-003 (E-05/V-05 exit-status bar on an enforcing host), PR-004 (stale a5drqh status) fixed; F-03 values and two survivals re-measured (F-07)
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 18, 24, 39, 41). Measured core reach at HEAD `6c0a6b72a`, probed each key against its surviving files and against the deleted control files, and measured every asserted return value before writing expected outcomes.

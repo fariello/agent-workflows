@@ -6,7 +6,7 @@
 - Scope: Restore the two control files from `19313eed^` at their original paths, verbatim except for a provenance docstring line and a module-level `pytestmark = pytest.mark.core`, then probe the three keys under the core selection. EXCLUDES any production-code change and any change to other test files.
 - Scope-Paths: tests/test_commit_refusal_diagnosis.py, tests/test_awcmdsurf_mutation_verbs.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: qx3ppg
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (existing docstring, import placement verified with pinned ruff), PR-002 (core membership proved with -m core; explicit-path collect-only bypasses the core filter), PR-003 (pre-existing budget overrun not a failure), PR-004 (execution contract), PR-005 (counts re-derived from the 19313eed^ blobs) fixed. Kills reproduced at 3969bf382 (F-07); review record .aw/records/reviews/20261023-trimgap-30-qx3ppg-restore-the-commit-refusal-diagnosis-and-mutation-verb-contr.review.md
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 17, 37). Measured core reach at HEAD `6c0a6b72a`, probed the three keys against surviving files, and ran and probed both deleted control files from `19313eed^` before writing expected outcomes.

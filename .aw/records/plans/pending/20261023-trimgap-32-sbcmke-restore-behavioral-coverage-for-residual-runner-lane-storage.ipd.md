@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_runner_residual_helpers.py`, with direct behavioral tests of the five keys (through `hooks.prepush_authorization_gate.check` for the push gate, through `TelemetryCollector.start` for the tool-version observation, and directly for the other three), asserting on returned tuples, strings, exit codes and emitted events (values measured at F-03); then probe all five under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the deleted control files whole (`tests/test_gate_answer_propagation.py` is 1290 lines and 46 tests; `tests/test_resumedupe.py` 675 lines; `tests/test_phase4_hooks.py` patches the very rule it would guard), and EXCLUDES the other `runner_shared` keys owned by backlog `l2zsa9`.
 - Scope-Paths: tests/test_runner_residual_helpers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: sbcmke
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, E-06 commit/parent recorded, hermetic git fixture in E-03); F-03 values, operator applicability and F-04 control facts reproduced at f76595a5a
 
 - 2026-10-23 to-review (opencode): authored from backlog `nzc6dm` (groups 31, 46, 48, 50, 52). Measured core reach at HEAD `6c0a6b72a`, probed each key against its core-reaching or surviving files, and measured every asserted return value before writing expected outcomes.

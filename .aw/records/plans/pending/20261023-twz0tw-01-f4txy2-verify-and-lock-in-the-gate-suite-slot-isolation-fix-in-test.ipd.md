@@ -6,7 +6,7 @@
 - Scope: Re-verify the existing fix under simulated full-slot contention; add one behavioral regression test in `tests/test_core_tier_selection.py` that holds every slot of a contended lock dir set in the ambient environment and asserts that `run_full_suite` driven with `_gate_env(...)` acquires a private slot promptly. Test-only; no production change.
 - Scope-Paths: tests/test_core_tier_selection.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 03
 - Author: OpenCode Claude Opus
 - Id: f4txy2
+- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (vacuous res.stderr assertion -> capfd), PR-002 (dup guard vs b9n3ad), PR-003 (setup order), PR-004 (execution contract), PR-005 (bounded real-slot holder), PR-006 (re-derived V bars, budget-only overrun) fixed; mechanism demonstrated at 891f9124a
 
 - 2026-10-23 draft (OpenCode Claude Opus): created.
