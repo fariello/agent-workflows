@@ -3153,7 +3153,57 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 )
                 driver.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(order[:2], ["begin", "run"])
+            def _diagnostic_msg() -> str:
+                attempts = item.get("attempts") or []
+                last_attempt = (
+                    attempts[-1]
+                    if (attempts and isinstance(attempts[-1], dict))
+                    else {}
+                )
+                item_refusals = {
+                    k: item[k]
+                    for k in (
+                        "begin_refusal",
+                        "clean_base_refusal",
+                        "scope_target_refusal",
+                        "refusal",
+                        "worktree_error",
+                    )
+                    if k in item
+                }
+                attempt_gates = {
+                    k: last_attempt[k]
+                    for k in (
+                        "host_capability_unavailable",
+                        "scope_target_refused",
+                        "clean_base_refused",
+                        "begin_refused",
+                    )
+                    if k in last_attempt
+                }
+                events: list[str] = []
+                events_path = run_dir / "events.jsonl"
+                if events_path.is_file():
+                    try:
+                        for line in events_path.read_text(
+                            encoding="utf-8"
+                        ).splitlines():
+                            line = line.strip()
+                            if line:
+                                ev = json.loads(line)
+                                if isinstance(ev, dict) and "event" in ev:
+                                    events.append(str(ev["event"]))
+                    except Exception:
+                        pass
+                return (
+                    f"order={order!r}, status={item.get('status')!r}, "
+                    f"disposition={last_attempt.get('disposition')!r}, "
+                    f"item_refusals={item_refusals!r}, "
+                    f"attempt_gate_keys={attempt_gates!r}, "
+                    f"events={events[-5:]!r}"
+                )
+
+            self.assertEqual(order[:2], ["begin", "run"], msg=_diagnostic_msg())
 
     def test_finalize_fires_on_verified_substantially_complete_and_marks_executed(self):
         with tempfile.TemporaryDirectory() as temp:
