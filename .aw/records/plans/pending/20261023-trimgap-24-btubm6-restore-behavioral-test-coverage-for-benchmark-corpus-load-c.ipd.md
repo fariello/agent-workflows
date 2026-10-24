@@ -35,20 +35,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: new behavioral test module
 
-- [ ] E-01 Create `tests/test_benchmark_corpus_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.benchmark_corpus as corpus`, with a module docstring naming backlog `3hurk1`, findings `wo21z5` group 12, and sibling plan `78g6ic`. Define `FIXTURE_CORPUS = Path(__file__).resolve().parent / "benchmark_fixtures" / "corpus"` and a helper `_copy_seed(name, dest)` that `shutil.copytree`s one fixture seed directory into `dest`. Use `tmp_path` only; spawn no subprocess.
+- [x] E-01 Create `tests/test_benchmark_corpus_restored_behavior.py` with `pytestmark = pytest.mark.core`, importing `agent_workflows.benchmark_corpus as corpus`, with a module docstring naming backlog `3hurk1`, findings `wo21z5` group 12, and sibling plan `78g6ic`. Define `FIXTURE_CORPUS = Path(__file__).resolve().parent / "benchmark_fixtures" / "corpus"` and a helper `_copy_seed(name, dest)` that `shutil.copytree`s one fixture seed directory into `dest`. Use `tmp_path` only; spawn no subprocess.
   - Depends on: none
   - Expected outcome: the file exists, imports cleanly, and is collected by a bare `python3 -m pytest` (it carries the `core` marker).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `load_corpus` behavioral tests (F-03), each asserting a real return value or raised exception: (a) a nonexistent root and (b) a regular FILE passed as the root each raise `corpus.CorpusError` whose message contains `corpus root is not a directory`; (c) an empty directory returns `[]`; (d) a root holding only a subdirectory WITHOUT `task.json` and a loose top-level `loose.json` file returns `[]` (non-seed children skipped); (e) a root holding copies of fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` returns exactly two `SeededTask`s whose `seed_path.name` list is `["a_dir", "b_dir"]` and whose `task_class` list is `["simple_commands", "migration"]`, proving order is by seed directory NAME and NOT by `task_class` (the class order would be `["migration", "simple_commands"]`, so the seeds are deliberately named against class order; F-05). This is a CHARACTERIZATION of the current code, which contradicts the function's docstring; the test's own docstring or comment cites backlog `qtd3lj`, which owns deciding the intended contract; (f) the same root with an added `zz_bad/task.json` of `{"task_class": "nope", "seed_id": "x"}` raises `corpus.CorpusError` whose message contains `unknown task_class 'nope'` (a malformed seed is propagated, not skipped); (g) `load_corpus(str(FIXTURE_CORPUS))` (a `str`, not a `Path`) returns 7 tasks whose `task_class` set equals `set(corpus.TASK_CLASSES)` and whose every `seed_path` is a `Path`.
+- [x] E-02 Add `load_corpus` behavioral tests (F-03), each asserting a real return value or raised exception: (a) a nonexistent root and (b) a regular FILE passed as the root each raise `corpus.CorpusError` whose message contains `corpus root is not a directory`; (c) an empty directory returns `[]`; (d) a root holding only a subdirectory WITHOUT `task.json` and a loose top-level `loose.json` file returns `[]` (non-seed children skipped); (e) a root holding copies of fixture seeds `simple_commands` as `a_dir` and `migration` as `b_dir` returns exactly two `SeededTask`s whose `seed_path.name` list is `["a_dir", "b_dir"]` and whose `task_class` list is `["simple_commands", "migration"]`, proving order is by seed directory NAME and NOT by `task_class` (the class order would be `["migration", "simple_commands"]`, so the seeds are deliberately named against class order; F-05). This is a CHARACTERIZATION of the current code, which contradicts the function's docstring; the test's own docstring or comment cites backlog `qtd3lj`, which owns deciding the intended contract; (f) the same root with an added `zz_bad/task.json` of `{"task_class": "nope", "seed_id": "x"}` raises `corpus.CorpusError` whose message contains `unknown task_class 'nope'` (a malformed seed is propagated, not skipped); (g) `load_corpus(str(FIXTURE_CORPUS))` (a `str`, not a `Path`) returns 7 tasks whose `task_class` set equals `set(corpus.TASK_CLASSES)` and whose every `seed_path` is a `Path`.
   - Depends on: E-01
   - Expected outcome: all seven `load_corpus` cases pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `SeededTask.workspace_seed_path` tests (F-04): for every task from `corpus.load_corpus(FIXTURE_CORPUS)`, `t.workspace_seed_path() == t.seed_path / corpus.WORKSPACE_DIRNAME`, it `is_dir()`, it differs from `t.seed_path`, `list(t.workspace_seed_path().rglob(corpus.GROUND_TRUTH_FILENAME)) == []` (the hidden truth sits beside, not anywhere inside, it), and `(t.seed_path / corpus.GROUND_TRUTH_FILENAME).is_file()` (the truth file really exists beside it, so the absence check is not vacuous); and for a hand-built `corpus.SeededTask("simple_commands", "s", {}, tmp_path / "seed")` whose directory does not exist, `workspace_seed_path()` still returns `tmp_path / "seed" / "workspace"` (a pure path computation that does not touch the filesystem).
+- [x] E-03 Add `SeededTask.workspace_seed_path` tests (F-04): for every task from `corpus.load_corpus(FIXTURE_CORPUS)`, `t.workspace_seed_path() == t.seed_path / corpus.WORKSPACE_DIRNAME`, it `is_dir()`, it differs from `t.seed_path`, `list(t.workspace_seed_path().rglob(corpus.GROUND_TRUTH_FILENAME)) == []` (the hidden truth sits beside, not anywhere inside, it), and `(t.seed_path / corpus.GROUND_TRUTH_FILENAME).is_file()` (the truth file really exists beside it, so the absence check is not vacuous); and for a hand-built `corpus.SeededTask("simple_commands", "s", {}, tmp_path / "seed")` whose directory does not exist, `workspace_seed_path()` still returns `tmp_path / "seed" / "workspace"` (a pure path computation that does not touch the filesystem).
   - Depends on: E-01
   - Expected outcome: the per-seed path, existence, and pure-computation assertions pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,20 +111,80 @@ N/A: this plan adds tests only and changes no behavior, CLI surface, or contract
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short` showing only `?? tests/test_benchmark_corpus_restored_behavior.py` (plus this plan's own lifecycle edit); paste `python3 -m pytest --collect-only -q | rg -c test_benchmark_corpus_restored_behavior` (nonzero); paste the bare `python3 -m pytest` summary line with every test passed; paste `python3 -m pytest tests/test_benchmark_corpus_restored_behavior.py -o addopts="" -q` showing the module's runtime under 1s.
   - Observed evidence:
-  - Result: pending
+```
+$ git status --short
+?? tests/test_benchmark_corpus_restored_behavior.py
 
-- [ ] V-02 validates E-02
+$ python3 -m pytest --collect-only -q | rg -c test_benchmark_corpus_restored_behavior
+1
+
+$ python3 -m pytest
+1731 passed, 11 warnings in 65.28s (0:01:05)
+
+$ python3 -m pytest tests/test_benchmark_corpus_restored_behavior.py -o addopts="" -q
+9 passed in 0.51s
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` output listing each of the seven `load_corpus` cases (a) through (g) as PASSED, and the pasted failure output of mutation spot-checks (2), (3), (4a), (4b) and (5) from `## Required tests / validation`, each run against the new module only and reverted afterwards.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_benchmark_corpus_restored_behavior.py -o addopts="" -v
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_b_file_root_raises PASSED [ 11%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_f_propagates_malformed_seed_error PASSED [ 22%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_a_nonexistent_root_raises PASSED [ 33%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_c_empty_directory_returns_empty PASSED [ 44%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_e_name_ordered_characterization_qtd3lj PASSED [ 55%]
+tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_pure_computation_nonexistent_dir PASSED [ 66%]
+tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_fixture_tasks PASSED [ 77%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_d_skips_non_seed_children PASSED [ 88%]
+tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_g_str_root_fixture_corpus PASSED [100%]
+9 passed in 0.46s
 
-- [ ] V-03 validates E-03
+Mutation (2) - drop is_dir() refusal (return [] for non-directory):
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_a_nonexistent_root_raises
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_b_file_root_raises
+Failed: DID NOT RAISE <class 'agent_workflows.benchmark_corpus.CorpusError'>
+
+Mutation (3) - drop (child / TASK_FILENAME).is_file() filter:
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_d_skips_non_seed_children
+agent_workflows.benchmark_corpus.CorpusError: seed missing task.json: .../corpus_with_non_seeds/subdir_without_task
+
+Mutation (4a) - sort iterdir() by name reversed:
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_e_name_ordered_characterization_qtd3lj
+AssertionError: assert ['b_dir', 'a_dir'] == ['a_dir', 'b_dir']
+
+Mutation (4b) - sort load_corpus result by (task_class, seed_id):
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_e_name_ordered_characterization_qtd3lj
+AssertionError: assert ['b_dir', 'a_dir'] == ['a_dir', 'b_dir']
+
+Mutation (5) - wrap load_task in try/except CorpusError: continue:
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_load_corpus_case_f_propagates_malformed_seed_error
+Failed: DID NOT RAISE <class 'agent_workflows.benchmark_corpus.CorpusError'>
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` output listing the `workspace_seed_path` tests as PASSED; the pasted failure output of mutation spot-check (1) (`workspace_seed_path` returns `self.seed_path`), reverted afterwards; and a final empty `git diff agent_workflows/`.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_benchmark_corpus_restored_behavior.py -o addopts="" -v
+tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_pure_computation_nonexistent_dir PASSED
+tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_fixture_tasks PASSED
+
+Mutation (1) - workspace_seed_path returns self.seed_path:
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_pure_computation_nonexistent_dir
+FAILED tests/test_benchmark_corpus_restored_behavior.py::test_workspace_seed_path_fixture_tasks
+AssertionError: assert PosixPath('.../nonexistent_seed') == (PosixPath('.../nonexistent_seed') / 'workspace')
+
+$ git diff agent_workflows/
+(empty)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
