@@ -360,3 +360,93 @@ def test_gate_suite_honors_explicit_enforce(
     )
     assert not res.passed
     assert res.exit_code == 1
+
+
+@pytest.mark.parametrize("launch_shape", ["subprocess", "run-evidence", "explicit-env"])
+def test_gate_suite_ignores_saturated_ambient_slots(
+    temp_project: Path,
+    tmp_path: Path,
+    launch_shape: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate_suite tests must isolate their slot directory from ambient slot contention."""
+    from agent_workflows import platform_lock, suite_cache
+
+    ambient = tmp_path / "ambient-locks"
+    ambient.mkdir(parents=True, exist_ok=True)
+    os.chmod(ambient, 0o700)
+
+    monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(ambient))
+    monkeypatch.setenv("AW_SUITE_SLOTS", "1")
+    monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")
+    monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+
+    handle = platform_lock.acquire(ambient / "suite-slot-0.lock", blocking=False)
+    try:
+        if launch_shape == "subprocess":
+            for k, v in _gate_env(temp_project / ".suite-locks").items():
+                monkeypatch.setenv(k, v)
+            monkeypatch.delenv("AW_CORE_BUDGET_ENFORCE", raising=False)
+            monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+            res = suite_cache.run_full_suite(
+                temp_project,
+                argv=[
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-o",
+                    "addopts=",
+                    "-n",
+                    "0",
+                ],
+                use_cache=False,
+            )
+        elif launch_shape == "run-evidence":
+            for k, v in _gate_env(temp_project / ".suite-locks").items():
+                monkeypatch.setenv(k, v)
+            monkeypatch.delenv("AW_CORE_BUDGET_ENFORCE", raising=False)
+            monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+            monkeypatch.chdir(temp_project)
+            res = suite_cache.run_full_suite(
+                temp_project,
+                argv=[
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-o",
+                    "addopts=",
+                    "-n",
+                    "0",
+                ],
+                use_cache=False,
+                run_id="run-20261017T000000Z-1",
+            )
+        elif launch_shape == "explicit-env":
+            res = suite_cache.run_full_suite(
+                temp_project,
+                argv=[
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-o",
+                    "addopts=",
+                    "-n",
+                    "0",
+                ],
+                use_cache=False,
+                env=_gate_env(
+                    temp_project / ".suite-locks", AW_CORE_BUDGET_ENFORCE="0"
+                ),
+            )
+        else:
+            raise AssertionError(f"Unknown launch shape {launch_shape}")
+
+        assert res.passed
+        assert res.exit_code == 0
+        assert res.slot["slot_acquired"] is True
+        assert res.slot["waited_seconds"] < 2.0
+    finally:
+        handle.release()
