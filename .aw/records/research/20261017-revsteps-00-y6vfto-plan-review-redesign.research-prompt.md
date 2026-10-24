@@ -39,7 +39,7 @@ before a human approves it for execution.
 Read both documents in full before you write anything.
 
 1. **The design (the subject of the review):** spec `k3yx72`, "Runner-enforced, depth-scaled plan
-   review", at `.aw/records/specs/draft/20261017-k3yx72-01-k3yx72-plan-review-redesign.spec.md`. It is a draft design summary, not yet a full normative spec. Its Section 3
+   review", at `.aw/records/specs/draft/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md`. It is a draft design summary, not yet a full normative spec. Its Section 3
    lists fixed decisions and its Section 14 lists open questions.
 2. **The proofreading instructions that the design adopts as review step S-02:** prompt `wcisgc`,
    "Proofread Technical Artifacts", at `.aw/records/prompts/reusable/20261017-revsteps-01-wcisgc-technical-artifact-proofreading.prompt.md`.

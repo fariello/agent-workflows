@@ -22,7 +22,7 @@ consumed-by: []
 
 - Date: 2026-10-17
 - Reviewer: Gemini 4 Argon (Medium) (`gemini4argonmedium`)
-- Design reviewed: `.aw/records/specs/draft/20261017-k3yx72-01-k3yx72-plan-review-redesign.spec.md`
+- Design reviewed: `.aw/records/specs/draft/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md`
 - Overall verdict: `needs-revision`
 
 ## Top issues
