@@ -102,6 +102,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no work is owed; its other tests pin source structure (F-04), which `AGENTS.md` forbids restoring, and its two behavioral kills are mined into E-01.
 - `attention._shared_gate_ref`, `render_table`, `_render_table_row`.
   - Carrier: a5drqh
+  - Carrier-Evidence: .aw/records/plans/executed/20261023-trimgap-25-a5drqh-restore-behavioral-coverage-for-the-attention-board-shared-g.ipd.md
 
 ## Scope check
 

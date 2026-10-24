@@ -1,5 +1,5 @@
 - Id: 1n4qco
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for attention
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD a5drqh executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-25-a5drqh-restore-behavioral-coverage-for-the-attention-board-shared-g.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-25-a5drqh-restore-behavioral-coverage-for-the-attention-board-shared-g.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: a5drqh
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for attention
 
