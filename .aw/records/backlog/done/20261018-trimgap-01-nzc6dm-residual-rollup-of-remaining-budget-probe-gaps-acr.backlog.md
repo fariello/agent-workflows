@@ -1,5 +1,5 @@
 - Id: nzc6dm
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Residual rollup of remaining budget probe gaps across 37 module groups
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD v44udc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-29-1z19cn-restore-behavioral-coverage-for-benchmark-ablation-cell-key.ipd.md, .aw/records/plans/executed/20261023-trimgap-33-v44udc-restore-behavioral-coverage-for-agent-record-validation-id6.ipd.md, .aw/records/plans/executed/20261023-trimgap-34-e6lq6y-verify-and-record-the-core-tier-guard-for-the-24-residual-ke.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-29-1z19cn-restore-behavioral-coverage-for-benchmark-ablation-cell-key.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: 1z19cn, e6lq6y, j77z5h, qx3ppg, sbcmke, v44udc
 - 2026-10-18 created (aw backlog): Residual rollup of remaining budget probe gaps across 37 module groups
 
