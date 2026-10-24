@@ -35,28 +35,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Isolate the module
 
-- [ ] E-01 Add a module-level `@pytest.fixture(autouse=True)` named `_private_suite_lock_dir(tmp_path, monkeypatch)` near the top of `tests/test_suite_cache.py` (after `REPO_ROOT`) that calls `monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(tmp_path / ".suite-locks"))` and yields that path. Carry a short comment naming the cause (machine-wide slot wait vs the 240s hang guard, backlog `jycfw3`, same fix as `twz0tw` / `548fa71da`). Do NOT touch `AW_SUITE_SLOT_HELD` (keep current nested-guard behavior), and do NOT change `_fixture_env`, `_run_aw_suite`, or any test body: because the fixture mutates `os.environ` before each test body runs, `_fixture_env()` (which copies `os.environ`), the `aw suite` subprocesses (which inherit it), the `mock.patch.dict(os.environ, _fixture_env())` seam block, and the env-less `run_full_suite` calls in `test_runner_seams_cache_hit_miss_and_failure_rerun` all resolve the private directory. `AW_SUITE_LOCK_DIR` is not in `suite_cache.SUITE_KEY_ENV_VARS`, so cache keys and every digest assertion are unaffected. The two budget tests that pass an explicit `_gate_env(tmp_path / ".suite-locks", ...)` keep working (explicit env wins, same path).
+- [x] E-01 Add a module-level `@pytest.fixture(autouse=True)` named `_private_suite_lock_dir(tmp_path, monkeypatch)` near the top of `tests/test_suite_cache.py` (after `REPO_ROOT`) that calls `monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(tmp_path / ".suite-locks"))` and yields that path. Carry a short comment naming the cause (machine-wide slot wait vs the 240s hang guard, backlog `jycfw3`, same fix as `twz0tw` / `548fa71da`). Do NOT touch `AW_SUITE_SLOT_HELD` (keep current nested-guard behavior), and do NOT change `_fixture_env`, `_run_aw_suite`, or any test body: because the fixture mutates `os.environ` before each test body runs, `_fixture_env()` (which copies `os.environ`), the `aw suite` subprocesses (which inherit it), the `mock.patch.dict(os.environ, _fixture_env())` seam block, and the env-less `run_full_suite` calls in `test_runner_seams_cache_hit_miss_and_failure_rerun` all resolve the private directory. `AW_SUITE_LOCK_DIR` is not in `suite_cache.SUITE_KEY_ENV_VARS`, so cache keys and every digest assertion are unaffected. The two budget tests that pass an explicit `_gate_env(tmp_path / ".suite-locks", ...)` keep working (explicit env wins, same path).
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -p no:cacheprovider tests/test_suite_cache.py -n 4` reports zero failed and zero errors, with the passed count equal to the file's collected count re-derived at execution (`--collect-only -q`; 17 at authoring, F-5, context only), and only the fixture added to the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral regression test
 
-- [ ] E-02 Add `test_module_suite_runs_ignore_a_contended_ambient_slot_dir(tmp_path, monkeypatch, capfd)` to `tests/test_suite_cache.py`. Set up contention in the AMBIENT environment that the fixture is supposed to shadow: create `tmp_path / "xdg"` and `tmp_path / "xdg" / "agent-workflows"` with mode `0o700`, `monkeypatch.setenv("XDG_RUNTIME_DIR", <xdg>)`, `monkeypatch.setenv("AW_SUITE_SLOTS", "1")`, `monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")` (a regression then fails in about 5s instead of hanging), and `monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)` (otherwise `suite_slot` short-circuits and nothing is tested). Build a fixture repo with `_init_fixture_repo(tmp_path / "repo")`, then, while holding `<xdg>/agent-workflows/suite-slot-0.lock` via `platform_lock.held(...)`, call `suite_cache.run_full_suite(repo, argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"], use_cache=False, stream=False, env=_fixture_env())` (explicit serial argv, the same shape the module's two budget tests use: with the default `SUITE_CHECK_ARGV`, `build_suite_child_env` appends `-n <workers>` and the child spawned 12 xdist workers on the review host for a one-test fixture repo; the slot path under test is identical either way). Assert on observable outputs only: `res.passed is True`, `res.slot["acquired"] is True`, `res.slot["slot_index"] == 0`, `res.slot["waited_seconds"] < 2.0`, and that `capfd.readouterr().err` (the PARENT process's stderr, where `suite_slot` prints) does not contain `waiting for a test-suite slot`. Do NOT assert on `res.stderr` (child pytest's stderr; vacuous, per plan `f4txy2` review PR-001). Do NOT inspect the fixture or `os.environ["AW_SUITE_LOCK_DIR"]`; the assertion is on slot acquisition behavior.
+- [x] E-02 Add `test_module_suite_runs_ignore_a_contended_ambient_slot_dir(tmp_path, monkeypatch, capfd)` to `tests/test_suite_cache.py`. Set up contention in the AMBIENT environment that the fixture is supposed to shadow: create `tmp_path / "xdg"` and `tmp_path / "xdg" / "agent-workflows"` with mode `0o700`, `monkeypatch.setenv("XDG_RUNTIME_DIR", <xdg>)`, `monkeypatch.setenv("AW_SUITE_SLOTS", "1")`, `monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")` (a regression then fails in about 5s instead of hanging), and `monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)` (otherwise `suite_slot` short-circuits and nothing is tested). Build a fixture repo with `_init_fixture_repo(tmp_path / "repo")`, then, while holding `<xdg>/agent-workflows/suite-slot-0.lock` via `platform_lock.held(...)`, call `suite_cache.run_full_suite(repo, argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"], use_cache=False, stream=False, env=_fixture_env())` (explicit serial argv, the same shape the module's two budget tests use: with the default `SUITE_CHECK_ARGV`, `build_suite_child_env` appends `-n <workers>` and the child spawned 12 xdist workers on the review host for a one-test fixture repo; the slot path under test is identical either way). Assert on observable outputs only: `res.passed is True`, `res.slot["acquired"] is True`, `res.slot["slot_index"] == 0`, `res.slot["waited_seconds"] < 2.0`, and that `capfd.readouterr().err` (the PARENT process's stderr, where `suite_slot` prints) does not contain `waiting for a test-suite slot`. Do NOT assert on `res.stderr` (child pytest's stderr; vacuous, per plan `f4txy2` review PR-001). Do NOT inspect the fixture or `os.environ["AW_SUITE_LOCK_DIR"]`; the assertion is on slot acquisition behavior.
   - Depends on: E-01
   - Expected outcome: the new test passes in a few seconds. Mechanism measured at authoring (F-4): with the contended ambient slot held in-process, a `suite_slot` call resolving the ambient dir returned `slot_acquired: False, waited_seconds: 2.002` at a 2s bound; with a private `AW_SUITE_LOCK_DIR` it returned `slot_acquired: True, slot_index: 0, waited_seconds: 0.001`. Re-demonstrated at review (F-8) with this exact test shape: green in 1.25s with isolation, red without it.
-  - Execution state: pending
-- [ ] E-03 Prove the new test detects the regression it guards. Temporarily (uncommitted, reverted afterwards) remove the `monkeypatch.setenv("AW_SUITE_LOCK_DIR", ...)` line from the E-01 fixture (leave the fixture yielding), run the E-02 test with `AW_SUITE_LOCK_DIR` cleared from the invoking shell (`env -u AW_SUITE_LOCK_DIR python3 -m pytest -o addopts="" -p no:cacheprovider "tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir"`) and confirm it FAILS on the slot assertion after about the 5s slot timeout; restore the line and confirm it passes. `git diff tests/test_suite_cache.py` after restoration must show only the E-01 fixture and the E-02 test.
+  - Execution state: performed
+- [x] E-03 Prove the new test detects the regression it guards. Temporarily (uncommitted, reverted afterwards) remove the `monkeypatch.setenv("AW_SUITE_LOCK_DIR", ...)` line from the E-01 fixture (leave the fixture yielding), run the E-02 test with `AW_SUITE_LOCK_DIR` cleared from the invoking shell (`env -u AW_SUITE_LOCK_DIR python3 -m pytest -o addopts="" -p no:cacheprovider "tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir"`) and confirm it FAILS on the slot assertion after about the 5s slot timeout; restore the line and confirm it passes. `git diff tests/test_suite_cache.py` after restoration must show only the E-01 fixture and the E-02 test.
   - Depends on: E-02
   - Expected outcome: red with the isolation removed (at review the first failing assertion was `res.slot["acquired"] is True`, with `waited_seconds` about 5.0 and the waiting line present in parent stderr, F-8), green with it restored; final diff contains only the E-01 and E-02 additions.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Validation runs
 
-- [ ] E-04 Run the validation set: `tests/test_suite_cache.py` in full three times (`python3 -m pytest -o addopts="" -p no:cacheprovider tests/test_suite_cache.py -n 4 -p randomly --randomly-seed=<n>` for seeds 1, 2, 3); the same file once while every REAL machine-wide slot is held by a bounded background holder (scratch script under `/tmp/opencode/zyy2yg/`, never committed, that resolves the real dir with `suite_cache.resolve_suite_lock_dir()` and count with `suite_cache.resolve_suite_slots()`, holds every free `suite-slot-<k>.lock` via `platform_lock.acquire(path, blocking=False)`, prints the dir and held indices, and releases on its own after at most 180s so a crashed executor cannot starve peer drivers; terminate it as soon as the contended run finishes rather than waiting out the bound; if a slot is already held by a peer, hold only the free ones and record that); the bare routine gate `python3 -m pytest`; and `aw sanitize --agent`.
+- [x] E-04 Run the validation set: `tests/test_suite_cache.py` in full three times (`python3 -m pytest -o addopts="" -p no:cacheprovider tests/test_suite_cache.py -n 4 -p randomly --randomly-seed=<n>` for seeds 1, 2, 3); the same file once while every REAL machine-wide slot is held by a bounded background holder (scratch script under `/tmp/opencode/zyy2yg/`, never committed, that resolves the real dir with `suite_cache.resolve_suite_lock_dir()` and count with `suite_cache.resolve_suite_slots()`, holds every free `suite-slot-<k>.lock` via `platform_lock.acquire(path, blocking=False)`, prints the dir and held indices, and releases on its own after at most 180s so a crashed executor cannot starve peer drivers; terminate it as soon as the contended run finishes rather than waiting out the bound; if a slot is already held by a peer, hold only the free ones and record that); the bare routine gate `python3 -m pytest`; and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: every run reports zero failures and zero errors; the contended run completes well under 240s per test with no `waiting for a test-suite slot` line attributable to this module; sanitizer exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,25 +124,218 @@ N/A: test-only change; no spec or user-facing doc describes test-suite slot isol
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff tests/test_suite_cache.py` hunk showing the autouse fixture setting `AW_SUITE_LOCK_DIR` under `tmp_path` and no change to `_fixture_env`, `_run_aw_suite` or any existing test body; paste the `--collect-only -q` count line and the pytest summary line of the full-file run (before E-02 is added) showing the passed count equal to that collected count with zero failed and zero errors.
   - Observed evidence:
-  - Result: pending
+    - `git diff tests/test_suite_cache.py` hunk:
+      ```diff
+      @@ -14,6 +14,7 @@ import stat
+       import subprocess
+       import sys
+       import time
+      +from collections.abc import Iterator
+       from pathlib import Path
+       from unittest import mock
 
-- [ ] V-02 validates E-02
+      @@ -24,6 +25,18 @@ from agent_workflows import runner_shared, suite_cache
+       REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+      +@pytest.fixture(autouse=True)
+      +def _private_suite_lock_dir(
+      +    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+      +) -> Iterator[Path]:
+      +    # Point AW_SUITE_LOCK_DIR at a private per-test directory so this module never waits
+      +    # on machine-wide suite slots held by enclosing runs or peer drivers (backlog jycfw3,
+      +    # avoiding the 240s hang guard ceiling; same mechanism as twz0tw / 548fa71da).
+      +    lock_dir = tmp_path / ".suite-locks"
+      +    monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(lock_dir))
+      +    yield lock_dir
+      +
+      +
+       def _fixture_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+           env = dict(os.environ)
+           env["AW_NO_REEXEC"] = "1"
+      ```
+    - `--collect-only -q`:
+      `17 tests collected in 0.46s`
+    - pytest summary line of full-file run (before E-02 added):
+      `============================= 17 passed in 30.38s ==============================`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunk of the new test showing ambient `XDG_RUNTIME_DIR`/`AW_SUITE_SLOTS`/`AW_SUITE_SLOT_TIMEOUT` set and `AW_SUITE_SLOT_HELD` deleted before `_fixture_env()` is called, the lock held via `platform_lock.held`, the explicit serial `argv`, and the assertions on `res.slot` and `capfd` (not `res.stderr`); paste `python3 -m pytest -o addopts="" -p no:cacheprovider "tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir" -v` output showing `PASSED` with its duration.
   - Observed evidence:
-  - Result: pending
+    - `git diff tests/test_suite_cache.py` hunk:
+      ```diff
+      @@ -813,3 +826,37 @@ def test_run_full_suite_budget_control_with_failing_test(tmp_path: Path) -> None
+           assert res.exit_code != 0
+           assert len(res.failures) > 0
+           assert "wall-time budget" not in res.reason
+      +
+      +
+      +def test_module_suite_runs_ignore_a_contended_ambient_slot_dir(
+      +    tmp_path: Path,
+      +    monkeypatch: pytest.MonkeyPatch,
+      +    capfd: pytest.CaptureFixture[str],
+      +) -> None:
+      +    xdg = tmp_path / "xdg"
+      +    ambient_dir = xdg / "agent-workflows"
+      +    ambient_dir.mkdir(parents=True, exist_ok=True)
+      +    xdg.chmod(0o700)
+      +    ambient_dir.chmod(0o700)
+      +
+      +    monkeypatch.setenv("XDG_RUNTIME_DIR", str(xdg))
+      +    monkeypatch.setenv("AW_SUITE_SLOTS", "1")
+      +    monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")
+      +    monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+      +
+      +    repo = _init_fixture_repo(tmp_path / "repo")
+      +    with platform_lock.held(ambient_dir / "suite-slot-0.lock"):
+      +        res = suite_cache.run_full_suite(
+      +            repo,
+      +            argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+      +            use_cache=False,
+      +            stream=False,
+      +            env=_fixture_env(),
+      +        )
+      +
+      +    assert res.passed is True
+      +    assert res.slot["acquired"] is True
+      +    assert res.slot["slot_index"] == 0
+      +    assert res.slot["waited_seconds"] < 2.0
+      +    assert "waiting for a test-suite slot" not in capfd.readouterr().err
+      ```
+    - `python3 -m pytest -o addopts="" -p no:cacheprovider "tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir" -v` output:
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+      Using --randomly-seed=2536932028
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/zyy2yg
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 1 item
 
-- [ ] V-03 validates E-03
+      tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir PASSED [100%]
+      ============================== SLOW TESTS REPORT ===============================
+
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      ============================== 1 passed in 1.18s ===============================
+      ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the failing output of the new test with the fixture's `setenv` line removed (showing the failed assertion on `slot`/`waited_seconds`, after about 5s), the passing output after restoration, and `git diff --stat` showing no changed path other than `tests/test_suite_cache.py` and this plan file (evidence recording).
   - Observed evidence:
-  - Result: pending
+    - Failing output with fixture setenv removed (`env -u AW_SUITE_LOCK_DIR python3 -m pytest -o addopts="" -p no:cacheprovider "tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir"`):
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+      Using --randomly-seed=2743600541
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/zyy2yg
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 1 item
 
-- [ ] V-04 validates E-04
+      tests/test_suite_cache.py F                                              [100%]
+
+      =================================== FAILURES ===================================
+      __________ test_module_suite_runs_ignore_a_contended_ambient_slot_dir __________
+
+      tmp_path = PosixPath('/tmp/pytest-of-<user>/pytest-21905/test_module_suite_runs_ignore_0')
+      monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x777c704a9f30>
+      capfd = <_pytest.capture.CaptureFixture object at 0x777c704b5940>
+
+          def test_module_suite_runs_ignore_a_contended_ambient_slot_dir(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+              capfd: pytest.CaptureFixture[str],
+          ) -> None:
+              xdg = tmp_path / "xdg"
+              ambient_dir = xdg / "agent-workflows"
+              ambient_dir.mkdir(parents=True, exist_ok=True)
+              xdg.chmod(0o700)
+              ambient_dir.chmod(0o700)
+
+              monkeypatch.setenv("XDG_RUNTIME_DIR", str(xdg))
+              monkeypatch.setenv("AW_SUITE_SLOTS", "1")
+              monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")
+              monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+
+              repo = _init_fixture_repo(tmp_path / "repo")
+              with platform_lock.held(ambient_dir / "suite-slot-0.lock"):
+                  res = suite_cache.run_full_suite(
+                      repo,
+                      argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+                      use_cache=False,
+                      stream=False,
+                      env=_fixture_env(),
+                  )
+
+              assert res.passed is True
+      >       assert res.slot["acquired"] is True
+      E       assert False is True
+
+      tests/test_suite_cache.py:858: AssertionError
+      ----------------------------- Captured stderr call -----------------------------
+      aw suite: waiting for a test-suite slot (1 of 1 held: unknown holder); waited 0s
+      aw suite: timed out waiting for test-suite slot after 5s (bound 5s); running anyway without a slot
+      ============================== SLOW TESTS REPORT ===============================
+      WARNING: 1 test(s) exceeded 2s and are not listed in tests/slow_allowlist.txt:
+          5.83s  tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir
+      =========================== short test summary info ============================
+      FAILED tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir
+      ============================== 1 failed in 6.22s ===============================
+      ```
+    - Passing output after restoration:
+      ```
+      ============================= test session starts ==============================
+      platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+      Using --randomly-seed=1219794295
+      rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/zyy2yg
+      configfile: pyproject.toml
+      plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+      collecting ... collected 1 item
+
+      tests/test_suite_cache.py::test_module_suite_runs_ignore_a_contended_ambient_slot_dir PASSED [100%]
+      ============================== SLOW TESTS REPORT ===============================
+
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      ============================== 1 passed in 1.14s ===============================
+      ```
+    - `git diff --stat`:
+      `tests/test_suite_cache.py | 49 ++++++++++++++++++++++++++++++++++++++++++++++-`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `--collect-only -q` count line and the summary line of each seeded full-file run (seeds 1, 2, 3; passed equals collected, including the E-02 test, with 0 failed and 0 errors each); the scratch holder's output naming the real lock dir and the slot indices it held, plus the summary line and wall time of the full-file run made while they were held (observation produced by E-04's holder process plus `suite_cache.suite_slot`); the bare `python3 -m pytest` summary line; and the `aw sanitize --agent` result record with its exit code.
   - Observed evidence:
-  - Result: pending
+    - `--collect-only -q`:
+      `18 tests collected in 0.26s`
+    - Seed 1 summary (`--randomly-seed=1`):
+      `============================= 18 passed in 27.68s ==============================`
+    - Seed 2 summary (`--randomly-seed=2`):
+      `============================= 18 passed in 28.36s ==============================`
+    - Seed 3 summary (`--randomly-seed=3`):
+      `============================= 18 passed in 27.22s ==============================`
+    - Scratch holder output:
+      ```
+      REAL_LOCK_DIR: /run/user/1000/agent-workflows
+      HELD_SLOTS: [0, 1]
+      ```
+    - Full-file run under real slot contention summary line and wall time:
+      `============================= 18 passed in 25.40s ==============================`
+      (zero failed, zero errors, well under 240s per-test ceiling and no slot-waiting lines attributable to this module)
+    - Bare `python3 -m pytest` summary line (run 1: load-dependent budget overrun recorded verbatim; run 2: passed with 0 failing):
+      Run 1: `1810 passed, 11 warnings in 47.11s` (`CORE TIER BUDGET EXCEEDED: Core tier wall time: 47.11s exceeded budget of 30.00s. Host 1-minute load average: 8.08 on 12 CPUs`)
+      Run 2: `1810 passed, 11 warnings in 32.73s` (`CORE TIER BUDGET EXCEEDED: Core tier wall time: 32.73s exceeded budget of 30.00s. Host 1-minute load average: 6.83 on 12 CPUs`)
+      In both runs: 1810 passed, 0 failed, 0 errors.
+    - `aw sanitize --agent`:
+      Exit 0:
+      ```json
+      {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":6071,"findings":0,"evidence":["leak-scan"],"next":null}
+      ```
+  - Result: pass
 
 ## Approval and execution gate
 

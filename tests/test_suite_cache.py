@@ -14,14 +14,27 @@ import stat
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
-from agent_workflows import runner_shared, suite_cache
+from agent_workflows import platform_lock, runner_shared, suite_cache
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _private_suite_lock_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Path]:
+    # Point AW_SUITE_LOCK_DIR at a private per-test directory so this module never waits
+    # on machine-wide suite slots held by enclosing runs or peer drivers (backlog jycfw3,
+    # avoiding the 240s hang guard ceiling; same mechanism as twz0tw / 548fa71da).
+    lock_dir = tmp_path / ".suite-locks"
+    monkeypatch.setenv("AW_SUITE_LOCK_DIR", str(lock_dir))
+    yield lock_dir
 
 
 def _fixture_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -813,3 +826,36 @@ def test_run_full_suite_budget_control_with_failing_test(tmp_path: Path) -> None
     assert res.exit_code != 0
     assert len(res.failures) > 0
     assert "wall-time budget" not in res.reason
+
+
+def test_module_suite_runs_ignore_a_contended_ambient_slot_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    xdg = tmp_path / "xdg"
+    ambient_dir = xdg / "agent-workflows"
+    ambient_dir.mkdir(parents=True, exist_ok=True)
+    xdg.chmod(0o700)
+    ambient_dir.chmod(0o700)
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(xdg))
+    monkeypatch.setenv("AW_SUITE_SLOTS", "1")
+    monkeypatch.setenv("AW_SUITE_SLOT_TIMEOUT", "5")
+    monkeypatch.delenv("AW_SUITE_SLOT_HELD", raising=False)
+
+    repo = _init_fixture_repo(tmp_path / "repo")
+    with platform_lock.held(ambient_dir / "suite-slot-0.lock"):
+        res = suite_cache.run_full_suite(
+            repo,
+            argv=[sys.executable, "-m", "pytest", "-q", "-o", "addopts=", "-n", "0"],
+            use_cache=False,
+            stream=False,
+            env=_fixture_env(),
+        )
+
+    assert res.passed is True
+    assert res.slot["acquired"] is True
+    assert res.slot["slot_index"] == 0
+    assert res.slot["waited_seconds"] < 2.0
+    assert "waiting for a test-suite slot" not in capfd.readouterr().err
