@@ -164,6 +164,68 @@ class AskmeCommandDeliveryTests(unittest.TestCase):
                 "Warning: .claude/commands/askme.md has manual modifications", out2
             )
 
+    @pytest.mark.slow
+    def test_installer_delivers_askme_no_scan_rule(self):
+        """Assert installer delivers askme.md with no-scan rule and without replaced authorship sentence."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = init_repo(Path(td) / "target")
+
+            with redirect_stdout(io.StringIO()):
+                engine.install_into_repo(
+                    repo, SOURCE_WORKFLOWS, yes=True, no_color=True
+                )
+
+            installed_askme = (
+                repo / ".aw" / "system" / "workflows" / "askme" / "askme.md"
+            )
+            self.assertTrue(
+                installed_askme.is_file(),
+                "Installed askme workflow body must exist",
+            )
+            installed_text = installed_askme.read_text(encoding="utf-8")
+            installed_words = " ".join(installed_text.split())
+
+            # Conversation-only source of (a)
+            self.assertIn(
+                "whose edits appear in this conversation's own tool calls",
+                installed_words,
+            )
+            self.assertIn(
+                "establish them from the conversation, not by searching",
+                installed_words,
+            )
+
+            # Prohibition on aw attention and recursive search of (b)
+            self.assertIn("aw attention", installed_words)
+            self.assertIn("aw find", installed_words)
+            self.assertIn("grep -r", installed_words)
+
+            # Empty-scope stop of (c)
+            self.assertIn(
+                "stop without asking a question",
+                installed_words,
+            )
+            self.assertIn(
+                "list the three ways to point `/askme` at a subject",
+                installed_words,
+            )
+
+            # Replaced git log authorship sentence of (e) is absent
+            self.assertNotIn(
+                "In a shared checkout, confirm authorship before treating a record or question as yours",
+                installed_words,
+            )
+
+            # Item 4 specifically does not contain the replaced authorship sentence
+            self.assertIn("4. **Use the current conversation.**", installed_text)
+            item_4_text = installed_text.split("4. **Use the current conversation.**")[
+                1
+            ].split("\n\n")[0]
+            self.assertNotIn(
+                "`git log` and the record's `- Author:` line settle it",
+                item_4_text,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

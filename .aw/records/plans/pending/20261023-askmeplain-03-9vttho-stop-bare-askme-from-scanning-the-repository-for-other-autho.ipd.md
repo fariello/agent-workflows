@@ -35,22 +35,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rule
 
-- [ ] E-01 Rewrite item 4 of `## Recognize the request` in `.aw/system/workflows/askme/askme.md` (the paragraph beginning "**Use the current conversation.**"). Keep its two permitted sources (the outstanding question in this conversation; unanswered questions in records this session created or edited), and add, in direct language: (a) "records this session created or edited" means records whose edits appear in this conversation's own tool calls; establish them from the conversation, not by searching; (b) do not run `aw attention`, `aw find`, or any recursive search (`grep -r`, `find`, `git log --all`) over `.aw/records` to discover questions; (c) if both sources are empty, say so in one or two sentences, list the three ways to point `/askme` at a subject (a question, a record or set id, or an explicit request to scan), and stop without asking a question; (d) a record found any other way is not this session's even if it carries open questions. (e) these limits apply only to the no-argument case: items 2 and 3 and an explicit user request to scan ("look through the repo for open questions") are unaffected. Replace item 4's current sentence "In a shared checkout, confirm authorship before treating a record or question as yours (`git log` and the record's `- Author:` line settle it)." because in the no-argument case the session's own edits are known from the conversation and a `git log` search is exactly what (b) forbids; leave the separate shared-checkout paragraph in `## Establish facts before asking` unchanged, since it still governs records reached through item 3. Keep the existing "Do not scan the entire repository by default" sentence or fold it into (b). Mirror the reasoning in `.aw/system/workflows/askme/rationale.md` in one short paragraph citing `lkn1zt` T05.
+- [x] E-01 Rewrite item 4 of `## Recognize the request` in `.aw/system/workflows/askme/askme.md` (the paragraph beginning "**Use the current conversation.**"). Keep its two permitted sources (the outstanding question in this conversation; unanswered questions in records this session created or edited), and add, in direct language: (a) "records this session created or edited" means records whose edits appear in this conversation's own tool calls; establish them from the conversation, not by searching; (b) do not run `aw attention`, `aw find`, or any recursive search (`grep -r`, `find`, `git log --all`) over `.aw/records` to discover questions; (c) if both sources are empty, say so in one or two sentences, list the three ways to point `/askme` at a subject (a question, a record or set id, or an explicit request to scan), and stop without asking a question; (d) a record found any other way is not this session's even if it carries open questions. (e) these limits apply only to the no-argument case: items 2 and 3 and an explicit user request to scan ("look through the repo for open questions") are unaffected. Replace item 4's current sentence "In a shared checkout, confirm authorship before treating a record or question as yours (`git log` and the record's `- Author:` line settle it)." because in the no-argument case the session's own edits are known from the conversation and a `git log` search is exactly what (b) forbids; leave the separate shared-checkout paragraph in `## Establish facts before asking` unchanged, since it still governs records reached through item 3. Keep the existing "Do not scan the entire repository by default" sentence or fold it into (b). Mirror the reasoning in `.aw/system/workflows/askme/rationale.md` in one short paragraph citing `lkn1zt` T05.
   - Depends on: none
   - Expected outcome: item 4 states (a) to (e) and no longer tells the agent to run `git log` to find its own records; `rationale.md` gains one paragraph explaining why; no other section of `askme.md` changes.
-  - Execution state: pending
-- [ ] E-02 Add a new test method to `AskmeCommandDeliveryTests` in `tests/test_askme_command_delivery.py` that runs `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a fresh `tests.support.init_repo` temp repo (the `test_installer_delivers_and_preserves_askme_shims` pattern) and asserts that the INSTALLED `<repo>/.aw/system/workflows/askme/askme.md` contains the no-scan rule's operative phrases: the conversation-only source of (a), the prohibition on `aw attention` and recursive search of (b), and the empty-scope stop of (c); and that it no longer contains the replaced `git log` authorship sentence of (e). Assert on the installed file's text as delivered output, not on the source file in the repository. Mark it `@pytest.mark.slow`, like its installer sibling: one install takes about 5 s (measured at review: the file's 3 tests ran in `5.60s`), so it belongs to the thorough tier and is not collected by the bare core-tier run.
+  - Execution state: performed
+- [x] E-02 Add a new test method to `AskmeCommandDeliveryTests` in `tests/test_askme_command_delivery.py` that runs `engine.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)` into a fresh `tests.support.init_repo` temp repo (the `test_installer_delivers_and_preserves_askme_shims` pattern) and asserts that the INSTALLED `<repo>/.aw/system/workflows/askme/askme.md` contains the no-scan rule's operative phrases: the conversation-only source of (a), the prohibition on `aw attention` and recursive search of (b), and the empty-scope stop of (c); and that it no longer contains the replaced `git log` authorship sentence of (e). Assert on the installed file's text as delivered output, not on the source file in the repository. Mark it `@pytest.mark.slow`, like its installer sibling: one install takes about 5 s (measured at review: the file's 3 tests ran in `5.60s`), so it belongs to the thorough tier and is not collected by the bare core-tier run.
   - Depends on: E-01
   - Expected outcome: the test passes against the edited body and fails against the pre-E-01 body.
-  - Execution state: pending
-- [ ] E-03 Add a CHANGELOG entry under the topmost pending release section (`## 2.0.0 (pending)`, which already holds the earlier `/askme` bullet beginning "- Changed: /askme is retained as a supported command alias") describing the user-visible change (bare `/askme` no longer searches the repository and says there is nothing to ask). Use the section's `- Fixed: ` prefix convention. Plain language, no em or en dashes (user-facing prose).
+  - Execution state: performed
+- [x] E-03 Add a CHANGELOG entry under the topmost pending release section (`## 2.0.0 (pending)`, which already holds the earlier `/askme` bullet beginning "- Changed: /askme is retained as a supported command alias") describing the user-visible change (bare `/askme` no longer searches the repository and says there is nothing to ask). Use the section's `- Fixed: ` prefix convention. Plain language, no em or en dashes (user-facing prose).
   - Depends on: E-01
   - Expected outcome: one bullet under the topmost `## ... (pending)` heading.
-  - Execution state: pending
-- [ ] E-04 Run the new test file with the marker filter cleared, `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` (clearing `addopts` drops `-m 'not slow ...'`, so the slow installer tests run), then the bare core-tier gate `python3 -m pytest`. The bare run does not collect this file (measured at review: 0 of its tests in `python3 -m pytest --co`), so it is the regression gate for the rest of the repository, not evidence for the new test.
+  - Execution state: performed
+- [x] E-04 Run the new test file with the marker filter cleared, `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` (clearing `addopts` drops `-m 'not slow ...'`, so the slow installer tests run), then the bare core-tier gate `python3 -m pytest`. The bare run does not collect this file (measured at review: 0 of its tests in `python3 -m pytest --co`), so it is the regression gate for the rest of the repository, not evidence for the new test.
   - Depends on: E-02, E-03
   - Expected outcome: both runs report no failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,22 +104,129 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git diff -- .aw/system/workflows/askme/askme.md .aw/system/workflows/askme/rationale.md` showing item 4 with (a) to (d) and the rationale paragraph, and no other section of `askme.md` changed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+```diff
+diff --git a/.aw/system/workflows/askme/askme.md b/.aw/system/workflows/askme/askme.md
+index cc70dfd0c..8b47517ca 100644
+--- a/.aw/system/workflows/askme/askme.md
++++ b/.aw/system/workflows/askme/askme.md
+@@ -26,9 +26,18 @@ Choose the scope from the user's request:
+ 4. **Use the current conversation.** With no arguments, ask the outstanding
+    question in the current conversation, if there is one. Otherwise,
+    examine unanswered questions in records you created or edited during
+-   this session. In a shared checkout, confirm authorship before treating a
+-   record or question as yours (`git log` and the record's `- Author:` line
+-   settle it). Do not scan the entire repository by default.
++   this session. "Records this session created or edited" means records
++   whose edits appear in this conversation's own tool calls; establish them
++   from the conversation, not by searching. Do not scan the entire repository
++   by default: do not run `aw attention`, `aw find`, or any recursive search
++   (`grep -r`, `find`, `git log --all`) over `.aw/records` to discover
++   questions. A record found any other way is not this session's even if it
++   carries open questions. If both sources are empty, say so in one or two
++   sentences, list the three ways to point `/askme` at a subject (a question,
++   a record or set id, or an explicit request to scan), and stop without
++   asking a question. These limits apply only to the no-argument case: items 2
++   and 3 and an explicit user request to scan ("look through the repo for
++   open questions") are unaffected.
+
+ Treat conversational arguments as instructions about the question, not
+ automatically as a filename or identifier. If the reference is genuinely
+diff --git a/.aw/system/workflows/askme/rationale.md b/.aw/system/workflows/askme/rationale.md
+index 1aa0ddfb6..bb948068b 100644
+--- a/.aw/system/workflows/askme/rationale.md
++++ b/.aw/system/workflows/askme/rationale.md
+@@ -35,3 +35,8 @@ If the choice depends on a quantity (e.g. how many files or plans are affected),
+ ## Incomprehension reports and free-text responses
+
+ When a user reports incomprehension ("I have zero context here", "what is X?", "I did not understand a single word of that"), the prompt was defective. On 2026-09-08, the maintainer used the free-text option of the question tool to reply: "I wanted to pick write your own and say I did not understand a single word of your explanation." A report of incomprehension is not a decision, and recording it as a user resolution would misrepresent confusion as consent.
++
++## Repository scans on bare /askme
++
++Live trials in plan `lkn1zt` (findings `auwidn`, trial T05) showed that invoking `/askme` without arguments led multiple host and model combinations to scan the repository using `aw attention`, recursive `grep`, and `find` when no conversational question was pending. In a shared checkout, this caused agents to discover and ask open questions from plans authored by other agents or humans without confirming authorship. The no-argument scope rule therefore restricts candidate records strictly to those whose edits appear in the current conversation's own tool calls, explicitly forbids repository-wide discovery searches, and requires stopping with instructions when both conversational and session sources are empty.
+```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output of `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` showing the new test passing, and pasted output of the same test run against the pre-E-01 body (e.g. `git stash` of only `askme.md`, or a temporary revert) showing it failing. Produce the pre-change run WITHOUT `git stash` (shared-checkout rule): `cp .aw/system/workflows/askme/askme.md /tmp/opencode/askme.new && git show HEAD:.aw/system/workflows/askme/askme.md > .aw/system/workflows/askme/askme.md`, run the test, then `cp /tmp/opencode/askme.new .aw/system/workflows/askme/askme.md` and paste `git diff --stat -- .aw/system/workflows/askme/askme.md` proving the edit is restored. Also paste the test's `@pytest.mark.slow` line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verified new test passes with restored askme.md and fails against pre-E-01 body.
+    1. Passing run: `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v`
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=2670875251
+rootdir: <repo_root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 4 items
+
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_agents_pointer_prose_names_askme PASSED [ 25%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_and_preserves_askme_shims PASSED [ 50%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_askme_shims_rendered_from_manifest PASSED [ 75%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_no_scan_rule PASSED [100%]
+============================== 4 passed in 13.04s ==============================
+```
+    2. Failing run against pre-E-01 body:
+```
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_agents_pointer_prose_names_askme PASSED [ 25%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_and_preserves_askme_shims PASSED [ 50%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_installer_delivers_askme_no_scan_rule FAILED [ 75%]
+tests/test_askme_command_delivery.py::AskmeCommandDeliveryTests::test_askme_shims_rendered_from_manifest PASSED [100%]
+
+=================================== FAILURES ===================================
+_____ AskmeCommandDeliveryTests.test_installer_delivers_askme_no_scan_rule _____
+
+self = <tests.test_askme_command_delivery.AskmeCommandDeliveryTests testMethod=test_installer_delivers_askme_no_scan_rule>
+...
+>           self.assertIn(
+                "whose edits appear in this conversation's own tool calls",
+                installed_words,
+            )
+E           AssertionError: "whose edits appear in this conversation's own tool calls" not found in ...
+========================= 1 failed, 3 passed in 13.00s =========================
+```
+    3. Restored edit check:
+```
+$ git diff --stat -- .aw/system/workflows/askme/askme.md
+ .aw/system/workflows/askme/askme.md | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+```
+    4. `@pytest.mark.slow` line in `tests/test_askme_command_delivery.py`:
+```python
+    @pytest.mark.slow
+    def test_installer_delivers_askme_no_scan_rule(self):
+```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `git diff -- CHANGELOG.md` showing the bullet under the topmost pending heading.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+```diff
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ce696905a..ee219af1c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -92,6 +92,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+ - Changed: `aw reviews decisions`, `aw record-history`, and `aw graduation` now refuse at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact in any tracked tree, while keeping legitimate empty answers at exit 0. `aw ipd recheck-readiness` moves from exit 1 to exit 2 for unresolved or non-plan selectors and now refuses a mixed invocation before re-checking or writing anything. Standing vocabulary queries remain exempt at exit 0 across all four verbs.
+ - Changed: `aw show <ref>` now refuses at exit 2 with an `aw.agent/v1` cannot-run outcome a selector naming no artifact anywhere in the repository, answers exit 0 when a standing-status token or a real but non-displayed artifact has nothing to show, and no longer exits 1.
+ - Changed: /askme is retained as a supported command alias instead of carrying a deprecation notice; its workflow is rewritten as a procedure-only runbook recognizing four request scopes (rewrite previous question, ask supplied question, examine specified records, use current conversation) with history moved to rationale.md; and plain-language communication requirements are installed as a shared default across all authored documents via reporting_contract and AGENTS.md.
++- Fixed: bare /askme no longer searches the repository or asks other authors' open questions when no conversational question is pending. It now limits candidate records to those edited in the current conversation, and explains how to point /askme at a subject when both conversational and session sources are empty.
+ - Added: every commit and merge created by `aw` now keeps the user as author and records `AW Agent (<model>) <local+aw@domain>` as committer (or `local+tag-aw@domain` when already tagged), stamps `AW-Runner` (`aw oc run`, `aw agy run`, or `aw commit`) alongside `AW-Run` and `AW-Item` when known, exports the agent committer identity and `AW_RUNNER` into runner agent turns, and preserves commit signing by supplying `user.signingkey` from the author identity when `commit.gpgsign` is enabled with no explicit key (see `docs/commit-identity.md`).
+```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted final summary lines of BOTH E-04 runs (`python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v` and bare `python3 -m pytest`), each showing no failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both test runs completed with zero failures.
+    1. Final summary line of `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py -v`:
+```
+============================== 4 passed in 15.49s ==============================
+```
+    2. Final summary line of bare `python3 -m pytest`:
+```
+1681 passed, 11 warnings in 144.22s (0:02:24)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
