@@ -1,5 +1,5 @@
 - Id: gmfupc
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Restore behavioral test coverage for run_analytics_telemetry
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD qpmq2o executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-25-qpmq2o-verify-and-lock-behavioral-coverage-for-run-analytics-teleme.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-25-qpmq2o-verify-and-lock-behavioral-coverage-for-run-analytics-teleme.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T174955Z-1383559: qpmq2o
 - 2026-10-18 created (aw backlog): Restore behavioral test coverage for run_analytics_telemetry
 
