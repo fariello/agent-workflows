@@ -1,0 +1,244 @@
+# IPD: Give a stalled, crashed or unstarted backlog or spec production turn a fix-it turn in its own lane and session
+
+- Date: 2026-10-23
+- Kind: child
+- Concern: A backlog or spec PRODUCTION turn (queue action `plan`: an agent graduating a backlog item or a spec into plans) that stalls, crashes or fails to spawn gets NO fix-it turn. Executed plan `ytas91` (Set `fixfirst`, Order 04) built exactly that recovery for EXECUTE turns: mark the failure kind, re-queue under the frozen `--retry-budget`, re-enter the failed attempt's own lane, resume its own session, and tell the agent what happened. But all three of its retry sites in `runner_shared.execute_item_core` are guarded `if not is_review and not is_production:` (the `StallTimeout` arm, the spawn-failure arm, and the post-turn `handle_turn_failure_retry` call), and the lane re-adoption block that reads `is_fix_it_recovery` sits inside the execute-only `if self_finalize and not is_review and not is_production:` branch. Measured on run `run-20261023T221924Z-2698768` (backlog `l9ssp6`, action `plan`): the agent ran normally for about two minutes, then the host emitted nothing for 1800s; the watchdog killed the turn; the attempt recorded `turn_failure_kind: stall` and a non-null `session_id` (so `ytas91` E-07 worked) but carried no `turn_retry_skipped` and no `turn_correction` key, proving `handle_turn_failure_retry` never ran; the item ended `interrupted`; the run-end reclaim tore the empty lane down (`lane-reclaimed-at-run-end`, `state: EMPTY`); $0.40 of work, including two recorded mutation-probe verdicts, was left only in the session log. Recovery is then a full restart in a fresh session. Separately, the run's `execution-report.md` still listed that lane under "Preserved lanes (NOT torn down)" after the reclaim removed it, because `lane_containment.format_preserved_lanes` renders from the item's `preserved_*` fields and the reclaim never clears them. Nothing records WHY production turns were excluded: the `is_production` half of the guard arrived with commit `45fbdb53d` (plan `aeq7f8`, spec production dispatch), and neither `aeq7f8` nor `ytas91` discusses it, while spec `25kzda` Section 5.5 group (a) lists "host spawn failure", "nonzero exit or no outcome file" and "stall or turn-limit expiry" as fix-it classes with no action restriction.
+- Scope: IN: make a production turn (`is_spec_production` or `is_backlog_production`) that ends in a stall, a turn-limit expiry, a nonzero exit with no outcome, or a spawn failure reach `handle_turn_failure_retry` under the existing frozen `--retry-budget` and the global fix-it caps; on the resulting recovery dispatch, re-adopt the failed attempt's own production lane and resume its own session when both are safe (the `ytas91` E-05 predicate: worktree exists, registered, `worktree_lease.lane_is_safe_to_adopt`, prior `session_id` present), else fall back to today's fresh lane and fresh session and record which branch was taken in `attempt["fix_it_lane"]`; keep a production lane that is awaiting a fix-it turn out of the run-end reclaim; persist the FIRST attempt's production baseline (`baseline_plan_ids`, `continued_plan_ids`) on the item so a resumed attempt does not mistake its own earlier uncommitted plans for pre-existing ones; render the correction notice into the production prompt on a recovery dispatch; clear the `preserved_*` record when a lane is reclaimed so the report stops listing a destroyed lane; tests on both hosts; spec `25kzda` Section 5.5 amendment. EXCLUDES review turns (they share one sweep session and one sweep lane across every review, and their recovery is owned by the integration deferral ladder per the `retrywire` comment above the post-turn call); EXCLUDES changing the budget, the caps, `turn_failure_is_retryable`, `turn_retry_decision` or `turn_correction_packet`; EXCLUDES the Set-level production correction loop (`production_set_retry_decision`, plan `nnsa2o`), which keeps its own counter; EXCLUDES the first-dispatch fresh-session rule (`lanesess` `xd9sll`); EXCLUDES the stall cause itself (a host that goes silent between tool calls; cause unknown).
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_production_fix_it.py, tests/test_turn_fix_it.py, tests/test_production_correction_turn.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: bug
+- Priority: high
+- Blocks-Release: f33nrj
+- From-Spec: 25kzda
+- Set: prodfixit
+- Order: 1
+- Highest E allocated: 13
+- Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
+- Id: ob7aq9
+
+## Workflow history
+- 2026-10-24 to-review (aw set): authored from maintainer request 2026-10-23 after run-20261023T221924Z-2698768 (l9ssp6 stall)
+
+- 2026-10-24 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
+
+## Goal
+
+When a backlog or spec production turn stalls, crashes or never starts, the runner hands it back to the same agent, in the same lane and the same session where that is safe, with a message saying what happened, instead of marking it `interrupted` and discarding the lane.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: baseline before any edit
+
+- [ ] E-02 RE-DERIVE at execution HEAD, before editing, and record the HEAD sha. (1) Confirm the three `if not is_review and not is_production:` guards in `runner_shared.execute_item_core` that precede `handle_turn_failure_retry(` (the `except StallTimeout as stall_exc:` arm, the spawn-failure `except (FileNotFoundError, PermissionError, OSError, HostSpawnError)` arm, and the post-turn call under the `retrywire (`xipfy1`)` comment) and that the `elif is_fix_it_recovery and prev_attempt is not None:` lane re-adoption block is reachable only inside `if self_finalize and not is_review and not is_production:`. (2) Reproduce the defect with a scripted host on BOTH hosts: a backlog production item (action `plan`, isolated lane) whose first turn raises `StallTimeout(..., session_id="ses-p1")` ends `interrupted`, its attempt carries `turn_failure_kind: stall` and `session_id: ses-p1`, and carries NEITHER `turn_retry_skipped` NOR `turn_correction`; paste that attempt record. (3) Run `python3 -m pytest -o addopts="" tests/test_turn_fix_it.py tests/test_production_correction_turn.py tests/test_production_resume_handoff.py tests/test_spec_production.py -q` and record the counts. If any fact differs, record CORRECTED with the measured value and adjust the later items before editing.
+  - Depends on: none
+  - Expected outcome: the defect is reproduced on both hosts at execution HEAD and the baseline counts are recorded.
+  - Execution state: pending
+
+### Task group 2: route a failed production turn to the fix-it decision
+
+- [ ] E-03 In `runner_shared.execute_item_core`, widen the three retry guards from `if not is_review and not is_production:` to `if not is_review:` so a spec or backlog production turn reaches `handle_turn_failure_retry` on a stall, a turn-limit expiry, a nonzero exit, a missing outcome, or a spawn failure. Keep review turns excluded and update the `retrywire` comment above the post-turn call to say why reviews stay out and why production is in (spec `25kzda` 5.5 group (a) has no action restriction; the production Set correction loop keys on Set findings, a different class, so the two cannot double-count). AT THE POST-TURN SITE, ADMIT ONLY A TURN WHOSE ATTEMPT CARRIES `turn_failure_kind`: a production turn that exited 0 and was refused by a Set or count finding (`BACKLOG-GRADUATE-SET`, `BACKLOG-GRADUATE-COUNT`, `SPEC-PLAN-*`) is `fail-gate`, which is already outside `TURN_RETRYABLE_DISPOSITIONS`, and must stay owned by `production_set_retry_decision`. Do not edit `turn_failure_is_retryable` or `turn_retry_decision`.
+  - Depends on: E-02
+  - Expected outcome: a stalled, crashed or unstarted production turn records a `turn_correction` packet and `turn_retry_attempts == 1`, or is `failed-safely` with a `turn-retry` refusal when the budget is 0; a production `fail-gate` from Set findings records `turn_retry_skipped` and is otherwise unchanged.
+  - Execution state: pending
+
+- [ ] E-04 Mark a production turn's nonzero exit with the same failure kind an execute turn gets. The post-turn block that sets `attempt["turn_failure_kind"]` to `turn-limit`, `no-outcome` or `nonzero-exit` already runs for every action; verify by the E-02 scripted host that a production turn returning exit code 1 records `no-outcome` (production turns write no outcome file), and that the `BACKLOG-PRODUCTION-FAILED` / `SPEC-PRODUCTION-FAILED` finding it also produces does not route the item into `production_set_retry_decision` (it is not in `PRODUCTION_SET_RETRYABLE_FINDING_CODES`). If either does not hold, make it hold without changing the finding codes.
+  - Depends on: E-03
+  - Expected outcome: a crashed production turn reaches the turn fix-it decision exactly once and the Set correction loop not at all.
+  - Execution state: pending
+
+### Task group 3: resume in the failed lane and session
+
+- [ ] E-05 Re-adopt the failed production lane and resume its session on a fix-it dispatch. In the `if (is_spec_production or is_backlog_production) and isolate:` allocation block, detect a fix-it recovery exactly as the execute branch does (`recovery` is true and the previous attempt carries `turn_failure_kind` and `turn_correction`) and, when the prior worktree exists, is registered (`worktree_lease.inspect_lane(...).worktree_registered`), is safe to adopt (`worktree_lease.lane_is_safe_to_adopt`), and the prior attempt carries a `session_id`, use that worktree with `disposition="adopted"`, write the lane owner, set `session_id` to the prior session and `use_continue = False`, and record `attempt["fix_it_lane"] = "resumed"`; otherwise allocate as today with a fresh session and record `attempt["fix_it_lane"] = "fresh: <reason>"`. EXTRACT the execute branch's predicate and adoption body into one shared helper called from both branches rather than copying it, so the two cannot drift. A FIRST dispatch is unchanged (fresh lane, fresh session).
+  - Depends on: E-03
+  - Expected outcome: the recovery attempt of a stalled production item runs in the same worktree path as the failed attempt with the failed attempt's session id passed to the launcher (`resume_session` on oc, `session_id` with `use_continue=False` on agy), or records a `fresh:` fallback reason.
+  - Execution state: pending
+
+- [ ] E-06 Keep a lane that is awaiting its fix-it turn. A preservation RECORD does not protect a lane: on the measured run the stall arm called `lane_containment.record_lane_preserved` (`retention_reasons: ["stall-timeout"]`) and one second later `runner_shared.reclaim_lanes_on_interrupt` (mode `run-end`) tore the same lane down as provably EMPTY, because its loop decides on the lane's classified state (`LANE_EMPTY`, `reclaimable`) and never on the item. Inside one live run this does not bite, since the recovery dispatch runs before run end; it bites when the run is stopped, interrupted or exits between the failed attempt and its fix-it dispatch, which then strands the item with no lane to re-enter. So: in `reclaim_lanes_on_interrupt`, before any teardown branch, skip a lane whose owning item (`interrupt_lane_item_record`) is `queued` with `recovery_next` and whose last attempt carries `turn_correction` and names that lane as its `worktree`; record `lane["action"] = "kept-for-fix-it"` and emit a `lane-kept-for-fix-it` event naming the item. This applies to execute and production lanes alike (an execute fix-it lane has the same hole). It never destroys anything and only declines a removal, so it needs no inventory gate. Also confirm the stall arm's existing `worktree_lease.snapshot_lane_dirty_work` call commits a stalled attempt's uncommitted plan file onto the lane branch.
+  - Depends on: E-05
+  - Expected outcome: a lane whose item is queued for a fix-it turn survives a run-end or interrupt reclaim, and the next `aw oc run resume <run-id>` re-adopts it.
+  - Execution state: pending
+
+- [ ] E-07 Persist the production baseline across attempts. `baseline_plan_ids` and `continued_plan_ids` are computed from the lane at the START of each attempt and feed `commit_backlog_production_output` / `commit_spec_production_output` and `production_checks.backlog_graduate_count`, which treat a plan id in the baseline as PRE-EXISTING. On a resumed lane the failed attempt's own uncommitted or snapshot-committed plans would land in the baseline and be classified out-of-scope or not-new. Record the first attempt's two sets on the item (for example `item["production_baseline"] = {"plan_ids": [...], "continued_ids": [...]}`) and, on a `fix_it_lane == "resumed"` attempt, use the recorded sets instead of recomputing; a fresh-lane fallback recomputes as today.
+  - Depends on: E-05
+  - Expected outcome: a plan the failed attempt wrote and the resumed attempt finishes is committed by the driver as new output and counted by `BACKLOG-GRADUATE-COUNT`, not reported out-of-scope.
+  - Execution state: pending
+
+- [ ] E-08 Deliver the correction to the production agent. `build_spec_production_prompt` and `build_backlog_production_prompt` are called without the recovery notice the execute prompt gets through `build_prompt`. On a recovery dispatch whose previous attempt carries `turn_correction`, prepend `build_correction_notice(item, recovery=True)` to the production prompt text (the same rendered packet: failure kind, exit code, stall timeout, lane heads and status, log path). When the session is resumed, the notice is the whole prompt body's lead, so a resumed agent reads "you stalled after N seconds; the lane is as you left it; finish" before anything else. A first attempt's prompt is byte-identical to today.
+  - Depends on: E-03
+  - Expected outcome: the recovery prompt file under `prompts/` for a production fix-it attempt begins with the correction notice naming `Failure kind: stall`, and a first-attempt prompt contains no such notice.
+  - Execution state: pending
+
+### Task group 4: report a reclaimed lane honestly
+
+- [ ] E-09 Clear the preservation record when a lane is reclaimed. In `runner_shared.reclaim_lanes_on_interrupt`, on every `decision.torn_down` branch (the recovered branch and the run-end branch), clear that item's `preserved_worktree`, `preserved_branch`, `preserved_lane_id`, `preserved_base`, `preserved_reason` and `preserved_retention_reasons` (one helper in `lane_containment`, beside `record_preserved_lane_state`) and save state before the report is written, so `format_preserved_lanes` no longer lists a lane that no longer exists. Leave the `lane-reclaimed-*` event as the durable record that it existed.
+  - Depends on: E-02
+  - Expected outcome: a run whose stalled lane is reclaimed at run end writes an `execution-report.md` with no "Preserved lanes (NOT torn down)" entry for it; a lane that is preserved still appears.
+  - Execution state: pending
+
+### Task group 5: tests, spec and changelog
+
+- [ ] E-10 Add `tests/test_production_fix_it.py`, driving the real `run_queue` on BOTH hosts with a scripted launcher (the `_patch_host_agent` / `initialize_run` pattern in `tests/test_production_correction_turn.py`, with an isolated lane), and asserting on state, events, prompt files and the worktree list: (1) backlog production stall then success: attempt 1 `turn_failure_kind: stall`, attempt 2 `fix_it_lane: resumed`, same worktree path, launcher received the stalled session id, item ends `executed`, backlog item `graduated`, `turn_retry_attempts == 1`; (2) the stalled attempt wrote one child plan before stalling and the resumed attempt writes the orchestrator: both plans are committed as new output and no `backlog-production-out-of-scope-paths` event names them (E-07); (3) spec production nonzero exit then success; (4) spawn failure exhausts the budget, item `failed-safely` with a `turn-retry` refusal, the next queued item still runs; (5) budget 0: no fix-it turn, item `failed-safely`; (6) fallback: prior lane removed between attempts gives `fix_it_lane` starting `fresh:` and a fresh session; (7) a Set-finding refusal on an exit-0 turn is still corrected by `production_set_retry_decision` and records `turn_retry_skipped` (no double count); (8) the recovery prompt file starts with the correction notice and the first-attempt prompt does not; (9) run stopped after the stall and before the retry (a stop at the checkpoint between items): the lane survives the run-end reclaim with a `lane-kept-for-fix-it` event, and a following `resume` of the same run dispatches attempt 2 with `fix_it_lane: resumed` in that lane; (10) a review item that stalls still ends `interrupted` with no `turn_correction`. Extend `tests/test_turn_fix_it.py` or `tests/test_production_correction_turn.py` only if an existing case asserts the old production behavior. No source introspection.
+  - Depends on: E-03, E-04, E-05, E-06, E-07, E-08
+  - Expected outcome: all ten cases pass on both hosts and the E-02 baseline modules still pass.
+  - Execution state: pending
+
+- [ ] E-11 Add a test for E-09: a run whose stalled production lane is reclaimed at run end (budget 0, so no fix-it turn and nothing kept for one) produces an `execution-report.md` with no `## Preserved lanes (NOT torn down)` section, and a run whose lane is preserved (a lane holding unmerged commits) still shows it. Put it in `tests/test_production_fix_it.py`.
+  - Depends on: E-09
+  - Expected outcome: the report reflects what is on disk in both cases.
+  - Execution state: pending
+
+- [ ] E-12 Amend spec `25kzda` Section 5.5: state in the group (a) prose that the host-failure fix-it classes apply to execute AND production (spec and backlog) turns and not to review turns, with the reason (a review turn shares the sweep session and sweep lane, and its recovery is the integration deferral ladder); update the "stall or turn-limit expiry" row's Notes to name this plan; record that a production fix-it turn re-adopts its own lane and resumes its own session as an execute fix-it turn does. Record the amendment with `aw specs note` on the spec. Add one CHANGELOG `Fixed:` line in plain user-facing language with no em or en dashes: a backlog or spec planning turn that stalls, crashes or fails to start is now handed back to the same agent session to finish, and the run report no longer lists a removed lane as preserved.
+  - Depends on: E-10
+  - Expected outcome: the spec and the code agree on which actions get host-failure fix-it turns; the CHANGELOG names the user-visible change.
+  - Execution state: pending
+
+- [ ] E-13 Run the bare routine gate `python3 -m pytest`, `make test-all`, and `aw sanitize --agent`, and paste the summary lines. If the core-tier budget check prints `CORE TIER BUDGET EXCEEDED`, paste the block verbatim; it is not counted against this plan unless a test this plan added is among the listed slowest tests.
+  - Depends on: E-10, E-11, E-12
+  - Expected outcome: both suites pass and the sanitizer reports no leak.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- `runner_shutdown.KNOWN_ITEM_STATUSES` and both drivers' `TERMINAL_STATES` are closed vocabularies: this plan adds attempt and item FIELDS (`fix_it_lane`, `production_baseline`) and a retention reason code, never a status.
+- `queued` plus `recovery_next` is the established re-dispatch pattern, written by `handle_turn_failure_retry`; this plan reuses it unchanged.
+- Each send-back owns its own counter (`TURN_RETRY_COUNT_KEY`, `PRODUCTION_SET_RETRY_COUNT_KEY`, `FINALIZE_RETRY_COUNT_KEY`, the verification key). A class owned by one must not be charged to another; E-03 and E-04 keep the turn counter off Set findings.
+- Sessions never cross worktrees (`lanesess` `xd9sll`, executed `r0iob3`); a resume is legal only in the lane the session ran in, which is what `ytas91` E-05 enforces and what E-05 reuses.
+- Every lane removal goes through the R5.5 inventory gate (`reclaim_lane_through_gate`); E-06 prevents a removal, and E-09 only clears a record after a removal the gate already approved.
+- Tests drive `run_queue` with a scripted launcher (`tests/test_turn_fix_it.py`, `tests/test_production_correction_turn.py`), never source reads (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | All three turn-failure retry sites exclude production turns. | `runner_shared.execute_item_core`: `if not is_review and not is_production:` precedes each `handle_turn_failure_retry(` call (spawn-failure arm, `except StallTimeout as stall_exc:` arm, post-turn call under the `retrywire (`xipfy1`)` comment); `is_production = action == "plan"`. |
+| F-02 | The lane and session resume for a fix-it turn exists but only on the execute branch. | The `elif is_fix_it_recovery and prev_attempt is not None:` block (sets `attempt["fix_it_lane"] = "resumed"`, `session_id = prior_session_id`, `use_continue = False`) is nested in `if self_finalize and not is_review and not is_production:`; the production branch `if (is_spec_production or is_backlog_production) and isolate:` always calls `allocate_isolation_worktree` and sets `session_id = None`. |
+| F-03 | The stalled production attempt already records what a resume needs. | Run `run-20261023T221924Z-2698768` `state.json`, `l9ssp6` attempt 1: `"turn_failure_kind": "stall"`, a non-null `"session_id"`, `"worktree": ".../.aw/worktrees/l9ssp6"`, `"interrupt_reason": "stall_timeout"`; no `turn_retry_skipped`, no `turn_correction`. |
+| F-04 | The stalled lane is torn down at run end, so even a manual resume has nothing to re-enter. | Same run `events.jsonl`: `worktree-preserved` (`retention_reasons: ["stall-timeout"]`) at 22:51:47, then `lane-reclaimed-at-run-end` (`state: EMPTY`) at 22:51:48; `git worktree list` shows no `l9ssp6` lane afterwards. |
+| F-04b | A preservation record does not stop the reclaim. | Same run: the stall arm's `record_lane_preserved` wrote `worktree-preserved` and the item's `preserved_*` fields, yet `reclaim_lanes_on_interrupt` (mode `run-end`) reclaimed the lane one second later; its loop branches on `lane["state"]`, `reclaimable` and `holds_work` from `describe_lane_with_recovery`, and reads the item only through `interrupt_lane_item_record` for the R5.5 receipt lookup. |
+| F-05 | The run report lists the reclaimed lane as preserved. | Same run `execution-report.md`: "## Preserved lanes (NOT torn down)" names `l9ssp6` at `.aw/worktrees/l9ssp6`; `lane_containment.format_preserved_lanes` renders from `item["preserved_worktree"]`, which `record_preserved_lane_state` writes and nothing clears on reclaim. |
+| F-06 | A resumed production lane would misclassify the failed attempt's own plans as pre-existing. | `baseline_plan_ids` is filled from `_ce._iter_plan_ipds(baseline_tree)` at each attempt's start; `commit_backlog_production_output` commits a pending plan only when `p_id not in baseline_plan_ids` (or it is a continued plan) and otherwise appends it to `out_of_scope`. |
+| F-07 | The production prompt never carries the correction notice. | `execute_item_core` calls `build_spec_production_prompt(...)` / `build_backlog_production_prompt(...)` with no `recovery`; `build_correction_notice` is rendered only through `build_prompt`; and the post-launch `if work_dir and not is_review and not is_production:` prompt rebuild skips production. |
+| F-08 | Production turns already resume their own session for a different failure class. | The Set correction loop (`production_set_retry_decision`, plan `nnsa2o`) resumes with `corr_session = attempt.get("session_id")` via `resume_via_launcher` (`resume_session=` on oc, `session_id=` + `use_continue=False` on agy) in the same `work_dir`. Same-session resume of a production turn is therefore established practice, not new risk. |
+| F-09 | The spec puts host failures in the fix-it group with no action restriction. | Spec `25kzda` 5.5 group (a): "host spawn failure; nonzero exit or no outcome file; stall or turn-limit expiry"; the mapping table row "stall or turn-limit expiry ... Shipped (Order 04, `ytas91`)". |
+| F-10 | No record explains the production exclusion. | `git log -S "if not is_review and not is_production:"` earliest hit is `45fbdb53d` "work(aeq7f8): Dispatch an approved spec as a report-only production action"; `ytas91`'s plan text never mentions production or review turns. |
+| F-11 | Reviews have a real reason to stay excluded. | `retrywire` comment above the post-turn call: "EXECUTE TURNS ONLY. A review turn's dispositions mean something different ... its refused-integration recovery is owned by the integration deferral ladder"; reviews run in one shared sweep session and lane (`turn_runs_in_review_sweep_lane`, `REVIEW_SWEEP_SESSION_KEY`). |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-derive the defect and baseline at HEAD (E-02).
+2. Let production turns reach the turn fix-it decision, admitting only host failures (E-03, E-04).
+3. Resume the failed production lane and session, keep that lane alive until the retry, carry the baseline across attempts, and deliver the correction notice (E-05 to E-08).
+4. Stop the report from listing reclaimed lanes as preserved (E-09).
+5. Tests, spec amendment, changelog, full suites (E-10 to E-13).
+
+## Deferred / out of scope (with reason)
+
+- Review turns stay excluded: they share one session and one lane across the whole sweep, and their recovery is the integration deferral ladder (F-11). Widening them would charge the turn budget for a class another mechanism owns.
+  - Carrier-Declined: no work is owed; the exclusion is correct and E-12 records it in the spec.
+- The cause of the host going silent between tool calls (F-03) is unknown and is a host behavior, not a runner defect; this plan recovers from it rather than preventing it.
+  - Carrier-Declined: no actionable evidence yet; a recurrence with host logs is the trigger for filing.
+- An operator-facing `aw oc run resume --reattach` for a stalled turn outside the automatic budget is not built; once E-06 keeps the lane, `aw oc run resume <run-id>` reaches the same fix-it path.
+  - Carrier-Declined: covered by E-06 plus the existing `resume` verb.
+
+## Scope check
+
+- Over-scope: none. `runner_shared.py` E-03 to E-09; `runner_shared.reclaim_lanes_on_interrupt` E-06; `lane_containment.py` E-09 (clear helper); `tests/test_production_fix_it.py` E-10 and E-11; `tests/test_turn_fix_it.py` and `tests/test_production_correction_turn.py` only if an existing case asserts the old production behavior (E-10); spec `25kzda` and `CHANGELOG.md` E-12.
+- Under-scope: `agy_runipd.py` and `oc_runipd.py` are not listed because every site is in the shared `execute_item_core` and the launchers already accept the resume arguments (F-08); if E-05 finds a host-specific gap, edit that host and justify it at finalize.
+
+## Required tests / validation
+
+- `python3 -m pytest -o addopts="" tests/test_production_fix_it.py tests/test_turn_fix_it.py tests/test_production_correction_turn.py tests/test_production_resume_handoff.py tests/test_spec_production.py -v`.
+- Bare `python3 -m pytest` and `make test-all`, baselines re-derived in the lane before any edit (E-02).
+- `aw sanitize --agent`.
+
+## Spec / documentation sync
+
+Spec `25kzda` Section 5.5 is amended (E-12) because this plan changes which actions receive the group (a) host-failure fix-it turns, which is the contract every runner plan is reviewed against; the spec path is in `- Scope-Paths:` so `aw oc run` / `aw agy run` announce the edit. `CHANGELOG.md` gets one `Fixed:` line. No README change: no command or flag changes.
+
+## Open questions
+
+### OQ-01: Should a production fix-it turn resume the failed session, or start fresh in the preserved lane?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: Resume the failed session when the lane is safe to adopt, else fall back to fresh. The maintainer asked for exactly this ("send back to the same agent in the same session and just say ... This timed out. Resume please.", session 2026-10-23). It is safe for the reason `ytas91` OQ-02 records: the session is resumed in the same tree it ran in, so `xd9sll`'s cross-tree hazard does not arise, and the production Set correction loop already resumes production sessions (F-08).
+
+### OQ-02: Could a resumed session hang again in the same way?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan-author
+- Resolution or deferral rationale: Possibly, since the stall cause is unknown (F-03). That case is bounded: the resumed turn is under the same stall watchdog, a second stall spends a second budget unit, and the item ends `failed-safely` when the frozen budget (default 2) or a global fix-it cap is reached. The fallback branch also allows a fresh session when the prior one cannot be resumed.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+- [ ] V-02 validates E-02
+  - Required evidence: the execution HEAD sha; the stalled production attempt record from BOTH hosts (scripted host, before any edit) showing `turn_failure_kind: stall`, the session id, and the ABSENCE of `turn_retry_skipped` and `turn_correction`; the pasted pass/fail counts of the four baseline modules; and CONFIRMED or CORRECTED for each of the fact checks in E-02 (1).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: the `git diff` of the three widened guards and the updated `retrywire` comment; and, from a scripted run on both hosts, the stalled production attempt now carrying `turn_correction` with `turn_retry_attempts: 1`, plus an exit-0 production turn refused by a Set finding showing `turn_retry_skipped` and an unchanged `production_set_retry_attempts`.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: a scripted production turn on both hosts returning exit 1 with its attempt record showing `turn_failure_kind: no-outcome`, its `BACKLOG-PRODUCTION-FAILED` (or `SPEC-PRODUCTION-FAILED`) refusal, and `production_set_retry_attempts == 0` and `turn_retry_attempts == 1` on the item; plus the diff if any code change was needed (or the statement that none was).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: the `git diff` showing ONE shared adoption helper called from both the execute and the production branches; and, from a scripted stall-then-success run on both hosts, attempt 2 showing `fix_it_lane: resumed` and the same `worktree` path as attempt 1, with the launcher-recorded session argument equal to attempt 1's `session_id`; plus a first-dispatch attempt showing a fresh session (no session argument).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: from a scripted run on both hosts that stalls a turn and is then stopped before the fix-it dispatch: the `lane-kept-for-fix-it` event, NO `lane-reclaimed-*` event for that lane, `git worktree list` still listing it, and the lane branch log showing the snapshot commit of the stalled attempt's uncommitted plan file; then the resumed run's attempt 2 record showing `fix_it_lane: resumed` in that worktree.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: the item's recorded `production_baseline` from a scripted run on both hosts, and the `backlog-production-output-committed` event of the resumed attempt naming BOTH the plan the stalled attempt wrote and the plan the resumed attempt wrote, with no `backlog-production-out-of-scope-paths` event naming either.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08
+  - Required evidence: the first lines of the recovery prompt file under the run's `prompts/` directory for a production fix-it attempt, showing the correction notice with `Failure kind: stall`; and a first-attempt production prompt shown to contain no correction notice (pasted grep output with zero matches).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-09 validates E-09
+  - Required evidence: the `git diff` of the clear helper and its two call sites; and `execution-report.md` from a scripted run whose stalled production lane is reclaimed at run end, showing no `Preserved lanes (NOT torn down)` entry for it, alongside a run with a preserved unmerged lane that still lists it.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-10 validates E-10
+  - Required evidence: the pasted `python3 -m pytest -o addopts="" tests/test_production_fix_it.py -v` output showing all ten named cases passing on both hosts, and the four E-02 baseline modules re-run with counts at least equal to the baseline.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-11 validates E-11
+  - Required evidence: the pasted `-v` output of the E-11 report test(s) passing.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-12 validates E-12
+  - Required evidence: the `git diff` of spec `25kzda` Section 5.5 and its `## Workflow history` note, and the `git diff` of the CHANGELOG `Fixed:` line; plus `rg -n '\u2014|\u2013'` over the CHANGELOG diff returning nothing.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-13 validates E-13
+  - Required evidence: the pasted final summary lines of bare `python3 -m pytest` and of `make test-all` (passed counts, no failures), any `CORE TIER BUDGET EXCEEDED` block verbatim, and the `aw sanitize --agent` result record showing `pass`.
+  - Observed evidence:
+  - Result: pending
+
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Requires explicit human approval before execution. No dependency: `ytas91`, `nnsa2o` and `aeq7f8`, whose code this plan extends, are executed.
+
+Execution contract:
+- All open questions are resolved.
+- Scope fence: `- Scope-Paths:` is a declaration, not a stop condition; an out-of-scope edit that proves necessary is made and justified at finalize (`--scope-reason`).
+- Tests assert observable behavior (state, events, prompt files, worktree list, report text), never production source read with `inspect`, `ast` or regex.
+- You MUST paste the ACTUAL command output into each V-item's Observed evidence; never claim a result you did not run.
+- Commit only through `aw commit ob7aq9 -- <paths>`, verify `git diff --cached --name-only` lists only your paths, and never push or tag.
+- Lifecycle: under `aw oc run` / `aw agy run` the runner performs `aw ipd finalize`; when executing by hand, run `aw ipd lint --phase pre-transition` to conforming and then `aw ipd finalize ob7aq9 --actor <agent/model> --message <summary> --apply` yourself. Never `git mv` the plan to `executed/` by hand.
