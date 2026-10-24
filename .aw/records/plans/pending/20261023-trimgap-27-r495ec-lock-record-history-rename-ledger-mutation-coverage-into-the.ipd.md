@@ -35,27 +35,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: disposition of already-guarded keys
 
-- [ ] E-01 At execution HEAD, first record `git rev-parse HEAD` as `<base>`, then run `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and record in Findings that `append_rename` is guarded by the core tier and owes no restored tests. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. If the verdict is `survived` (meaning the existing core-marked `test_synthetic_key_only_via_case3_path` changed), record it as a DEFERRED gap and file a new backlog item rather than widening this plan.
+- [x] E-01 At execution HEAD, first record `git rev-parse HEAD` as `<base>`, then run `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and record in Findings that `append_rename` is guarded by the core tier and owes no restored tests. A probe with `baseline_failing` above 0 or a `verdict:` other than `killed`/`survived` (for example `error`) is not a result: record it, fix the cause if in scope, and re-run. If the verdict is `survived` (meaning the existing core-marked `test_synthetic_key_only_via_case3_path` changed), record it as a DEFERRED gap and file a new backlog item rather than widening this plan.
   - Depends on: none
   - Expected outcome: `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming a core-marked test (re-derive at execution; the count is not the bar); disposition line written in Findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: lock _endpoint_id6 and record_rename into the core tier
 
-- [ ] E-02 Add `@pytest.mark.core` to `RecordRenameCaseTests.test_case1_id6_to_id6` in `tests/test_rename_ledger.py`. The file already imports `pytest` and already uses method-level `@pytest.mark.core` (on `test_synthetic_key_only_via_case3_path` and `test_synthetic_key_deterministic_derivation`). Make no other change.
+- [x] E-02 Add `@pytest.mark.core` to `RecordRenameCaseTests.test_case1_id6_to_id6` in `tests/test_rename_ledger.py`. The file already imports `pytest` and already uses method-level `@pytest.mark.core` (on `test_synthetic_key_only_via_case3_path` and `test_synthetic_key_deterministic_derivation`). Make no other change.
   - Depends on: none
   - Expected outcome: `git diff tests/test_rename_ledger.py` shows one added decorator line above `def test_case1_id6_to_id6`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `@pytest.mark.core` to `RecordRenameCaseTests.test_case2_id6less_to_id6_keys_on_new_id6` in `tests/test_rename_ledger.py`. Make no other change.
+- [x] E-03 Add `@pytest.mark.core` to `RecordRenameCaseTests.test_case2_id6less_to_id6_keys_on_new_id6` in `tests/test_rename_ledger.py`. Make no other change.
   - Depends on: none
   - Expected outcome: `git diff tests/test_rename_ledger.py` shows one added decorator line above `def test_case2_id6less_to_id6_keys_on_new_id6`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 First commit the two decorator edits through `aw commit r495ec -- tests/test_rename_ledger.py` (`tools/mutation_probe.py` checks out committed `HEAD` into its own worktree via `git worktree add --detach <dir> HEAD`, so an uncommitted decorator is invisible to it and the probe would report `survived`; F-06). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites unrelated lines, `aw commit` re-stages and retries; record the extra hunks in V-04 as hook churn. Then run `python3 tools/mutation_probe.py --op return-none agent_workflows/record_history.py::_endpoint_id6 -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::record_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py`, then run the bare routine gate `python3 -m pytest`. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified; never hand-edit `agent_workflows/`.
+- [x] E-04 First commit the two decorator edits through `aw commit r495ec -- tests/test_rename_ledger.py` (`tools/mutation_probe.py` checks out committed `HEAD` into its own worktree via `git worktree add --detach <dir> HEAD`, so an uncommitted decorator is invisible to it and the probe would report `survived`; F-06). If the mutating `ruff --fix`/`ruff-format` pre-commit hook rewrites unrelated lines, `aw commit` re-stages and retries; record the extra hunks in V-04 as hook churn. Then run `python3 tools/mutation_probe.py --op return-none agent_workflows/record_history.py::_endpoint_id6 -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` and `python3 tools/mutation_probe.py --op raise agent_workflows/record_history.py::record_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py`, then run the bare routine gate `python3 -m pytest`. `tools/mutation_probe.py` mutates in its own isolated worktree, so production code in the checkout is never modified; never hand-edit `agent_workflows/`.
   - Depends on: E-02, E-03
   - Expected outcome: both probes print a `head:` equal to the E-04 commit, `baseline_failing: 0` and `verdict: killed`, with `newly_failing` naming both `test_case1_id6_to_id6` and `test_case2_id6less_to_id6_keys_on_new_id6` (each kills both mutants alone, F-04, F-06). The bare gate exits 0 with no failures. A core-tier wall-time overrun is reported verbatim, not a pass/fail bar for this plan, because the bare run already exceeded 30s on this host before this change (sibling `di5puw` F-04: 34.68s at `16d8abbb8`); it counts against this plan only if one of the two marked tests is among the printed slowest tests (F-04: the whole class runs in 0.23s).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -77,6 +77,7 @@ All probes run at HEAD `303cd2fd1` with `tools/mutation_probe.py`, baseline_fail
 | F-04 | Probes of each op over only `RecordRenameCaseTests::test_case1_id6_to_id6` and only `::test_case2_id6less_to_id6_keys_on_new_id6`: `_endpoint_id6 return-none` killed (`mutant_failing: 1`) and `record_rename raise` killed (`mutant_failing: 1`) for each test; the whole `RecordRenameCaseTests` class runs `6 passed in 0.23s`, with no call above 0.03s | Each of the two chosen tests kills both mutants by itself, so marking both gives redundancy at negligible core-budget cost. |
 | F-06 | review at HEAD `520f5006e`, `tools/mutation_probe.py` (source: `git worktree add --detach ... HEAD`) | Probe reads committed HEAD only, so E-04 must follow a commit. Re-probes, all `baseline_failing: 0`: `_endpoint_id6 return-none -m core tests/test_rename_ledger.py` `survived` (0); `append_rename raise` same selection `killed` (1, `AppendRenameUnitTests::test_synthetic_key_only_via_case3_path`); `record_rename raise` same selection `survived` (0); `_endpoint_id6 return-none` and `record_rename raise` over only the two chosen test ids: each `killed`, `newly_failing` both tests. F-01 (file-level), F-02, F-03 (file-level) and F-04 reproduce; the whole-tier runs (about 7 min each) were not re-run. |
 | F-05 | `git show 19313eed^:tests/test_rename_ledger.py` test names (`test_write_and_read_back` through `test_dry_run_appends_nothing`) all exist in today's `tests/test_rename_ledger.py` | No deleted rename-ledger test remains to mine; the "restore" half of the remedy has nothing to restore. |
+| F-07 | execution at HEAD `7c0f11007`: `tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py` (`baseline_failing: 0`, `verdict: killed`, `mutant_failing: 1`, `newly_failing` `tests.test_rename_ledger.AppendRenameUnitTests::test_synthetic_key_only_via_case3_path`) | `append_rename` is guarded by the core tier and owes no restored tests |
 
 ## Proposed changes (ordered, validatable)
 
@@ -124,25 +125,134 @@ N/A: test tier markers only; no behavior, CLI surface, or spec-described contrac
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full E-01 `tools/mutation_probe.py` output (produced by the tool in E-01) showing `head:`, `selection:` containing `-m core`, `baseline_failing: 0`, `verdict: killed`, and a `newly_failing` list naming a core-marked test (at authoring and review, `test_synthetic_key_only_via_case3_path`); paste the Findings disposition line for `append_rename`.
   - Observed evidence:
-  - Result: pending
+    Full E-01 `tools/mutation_probe.py` output:
+    ```text
+    head: 7c0f11007a074abd5b3b09798f4f0fc3c0c4239b
+    target: agent_workflows/record_history.py::append_rename
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 1
+    newly_failing (1 total):
+      tests.test_rename_ledger.AppendRenameUnitTests::test_synthetic_key_only_via_case3_path
+    wall_s: 6.22
+    ```
+    Findings row F-07 disposition line:
+    `| F-07 | execution at HEAD 7c0f11007: tools/mutation_probe.py --op raise agent_workflows/record_history.py::append_rename -- -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py (baseline_failing: 0, verdict: killed, mutant_failing: 1, newly_failing tests.test_rename_ledger.AppendRenameUnitTests::test_synthetic_key_only_via_case3_path) | append_rename is guarded by the core tier and owes no restored tests |`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff tests/test_rename_ledger.py` showing an added `@pytest.mark.core` line directly above `def test_case1_id6_to_id6`, and paste `python3 -m pytest -o addopts= -q -p no:randomly -m core --collect-only tests/test_rename_ledger.py` output listing `RecordRenameCaseTests::test_case1_id6_to_id6`.
   - Observed evidence:
-  - Result: pending
+    `git show bc585293ddfb1426f16cda84fac53f9c72a1480f -- tests/test_rename_ledger.py`:
+    ```diff
+    @@ -120,6 +120,7 @@ class RecordRenameCaseTests(unittest.TestCase):
+         def tearDown(self) -> None:
+             self._tmp.cleanup()
 
-- [ ] V-03 validates E-03
+    +    @pytest.mark.core
+         def test_case1_id6_to_id6(self) -> None:
+             RH.record_rename(
+                 self.root,
+    ```
+    `python3 -m pytest -o addopts= -q -p no:randomly -m core --collect-only tests/test_rename_ledger.py`:
+    ```text
+    tests/test_rename_ledger.py::AppendRenameUnitTests::test_synthetic_key_only_via_case3_path
+    tests/test_rename_ledger.py::RecordRenameCaseTests::test_case1_id6_to_id6
+    tests/test_rename_ledger.py::RecordRenameCaseTests::test_case2_id6less_to_id6_keys_on_new_id6
+    tests/test_rename_ledger.py::SyntheticKeyTests::test_synthetic_key_deterministic_derivation
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff tests/test_rename_ledger.py` showing an added `@pytest.mark.core` line directly above `def test_case2_id6less_to_id6_keys_on_new_id6`, and paste the same `--collect-only -m core` output listing `RecordRenameCaseTests::test_case2_id6less_to_id6_keys_on_new_id6`.
   - Observed evidence:
-  - Result: pending
+    `git show bc585293ddfb1426f16cda84fac53f9c72a1480f -- tests/test_rename_ledger.py`:
+    ```diff
+    @@ -133,6 +134,7 @@ class RecordRenameCaseTests(unittest.TestCase):
+             self.assertEqual(len(recs), 1)
+             self.assertEqual(recs[0].get("key_kind", "id6"), "id6")
 
-- [ ] V-04 validates E-04
+    +    @pytest.mark.core
+         def test_case2_id6less_to_id6_keys_on_new_id6(self) -> None:
+             # V-03: a legacy id6-less name migrated INTO the grammar records under the NEW id6.
+             RH.record_rename(
+    ```
+    `python3 -m pytest -o addopts= -q -p no:randomly -m core --collect-only tests/test_rename_ledger.py`:
+    ```text
+    tests/test_rename_ledger.py::AppendRenameUnitTests::test_synthetic_key_only_via_case3_path
+    tests/test_rename_ledger.py::RecordRenameCaseTests::test_case1_id6_to_id6
+    tests/test_rename_ledger.py::RecordRenameCaseTests::test_case2_id6less_to_id6_keys_on_new_id6
+    tests/test_rename_ledger.py::SyntheticKeyTests::test_synthetic_key_deterministic_derivation
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the E-04 commit hash (`aw commit` output); paste the full output of both E-04 `tools/mutation_probe.py` runs (produced by the tool itself in E-04), each showing `head:` equal to that commit, a `selection:` containing `-m core`, `baseline_failing: 0`, and `verdict: killed` with both newly marked tests in `newly_failing`; paste the bare `python3 -m pytest` summary line showing `passed` with no `failed` or `error`, its exit status, and any `CORE TIER BUDGET EXCEEDED` block verbatim (an overrun not attributable to the two marked tests is reported, not failed); paste `git diff --stat <base>..HEAD -- agent_workflows/` and `git diff --stat -- agent_workflows/`, both empty.
   - Observed evidence:
-  - Result: pending
+    E-04 commit hash: `bc585293ddfb1426f16cda84fac53f9c72a1480f`
+
+    First probe output:
+    ```text
+    head: bc585293ddfb1426f16cda84fac53f9c72a1480f
+    target: agent_workflows/record_history.py::_endpoint_id6
+    operator: return-none
+    selection: -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_rename_ledger.RecordRenameCaseTests::test_case1_id6_to_id6
+      tests.test_rename_ledger.RecordRenameCaseTests::test_case2_id6less_to_id6_keys_on_new_id6
+    wall_s: 4.55
+    ```
+
+    Second probe output:
+    ```text
+    head: bc585293ddfb1426f16cda84fac53f9c72a1480f
+    target: agent_workflows/record_history.py::record_rename
+    operator: raise
+    selection: -o addopts= -q -p no:randomly -m core tests/test_rename_ledger.py
+    verdict: killed
+    baseline_failing: 0
+    mutant_failing: 2
+    newly_failing (2 total):
+      tests.test_rename_ledger.RecordRenameCaseTests::test_case1_id6_to_id6
+      tests.test_rename_ledger.RecordRenameCaseTests::test_case2_id6less_to_id6_keys_on_new_id6
+    wall_s: 6.01
+    ```
+
+    Bare `python3 -m pytest` summary line:
+    `1748 passed, 11 warnings in 53.76s`
+    Exit status: `1` (wall-time check under high host load: 10.94 on 12 CPUs)
+    `CORE TIER BUDGET EXCEEDED` block:
+    ```text
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 53.76s exceeded budget of 30.00s.
+    Host 1-minute load average: 10.94 on 12 CPUs
+    Top 10 slowest core tests:
+       1.   5.37s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       2.   5.32s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       3.   5.13s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       4.   4.03s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       5.   3.80s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       6.   3.72s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       7.   3.55s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       8.   2.82s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       9.   2.39s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   2.05s  tests/test_check_engine.py::LifecyclePlacementTests::test_six_row_regression_table
+    ===========================================================================================
+    ```
+    Neither marked test appears in the slowest tests (the full `RecordRenameCaseTests` class runs in ~0.23s). In addition, `aw suite` passed cleanly with exit status 0 (`1748 passed, 11 warnings in 33.27s`).
+
+    Diff checks:
+    `git diff --stat 7c0f11007a074abd5b3b09798f4f0fc3c0c4239b..HEAD -- agent_workflows/`: empty
+    `git diff --stat -- agent_workflows/`: empty
+  - Result: pass
 
 ## Approval and execution gate
 
