@@ -79,7 +79,7 @@ Non-goals:
 
 | ID | Decision |
 | --- | --- |
-| MD-1 | The review agent rates the review tier. The runner raises the tier only for a few signals that are almost never wrong (Section 5.2). The agent may raise the tier freely and may lower it below a runner signal only with a recorded reason. (Revised 2026-10-17: option B.) |
+| MD-1 | The review agent rates the review tier, after answering and recording the tier questions of Section 5.2. The runner forces no tier; it records each review's tier and answers so later analysis can compare tiers with execution outcomes. Orchestrators keep their fixed profile (Section 5.1), which is a structural fact, not a judgement. (Revised 2026-10-17 to option B; revised again 2026-10-19: no runner tier gates, because no evidence shows agents under-rate and hard gates have repeatedly cost more than they caught.) |
 | MD-2 | A plan that should be a Set is split in a separate split step after a `no-go` verdict, without human approval (Section 10). |
 | MD-3 | The agent signals a re-review with an exact last-line marker: `AW-REVIEW: AGAIN` or `AW-REVIEW: DONE` (Section 8). |
 | MD-4 | `/plan-review-long` is retired. |
@@ -114,7 +114,8 @@ The runner:
    `plan-review:`.
 2. Runs `aw ipd lint --phase author` and, for an orchestrator, `aw ipd coverage <id6>`.
 3. Runs the citation resolver (Section 11.2) on the plan.
-4. Computes the runner tier signals (Section 5.2).
+4. Collects the facts the tier questions ask about (Section 5.2): whether `- Scope-Paths:` names a
+   `.spec.md` file, the execution-item and task-group counts, and the `- Scope-Paths:` list.
 5. Records the plan-file hash and the reviewed-contract hash (Section 0) as the review baseline.
 6. Puts the results of items 2 to 4 into the first prompt, so the agent does not re-derive them.
 
@@ -181,7 +182,7 @@ whole 48 KB file.
 
 | Tier | Intended plans | Checks |
 | --- | --- | --- |
-| `simple` | Very low risk: typically a few lines of code, such as a small bug fix or one new CLI option. | P, T, Q, S5, S6, S7. R3 short form only when a runner signal names a sensitive path. |
+| `simple` | Very low risk: typically a few lines of code, such as a small bug fix or one new CLI option. | P, T, Q, S5, S6, S7. R3 short form when the agent's tier answers say the plan touches code that guards private data, commits, worktree isolation, or the sandbox. |
 | `standard` | Most medium plans. | P, T, R1, R2, R3 (full), R4, S5, S6, S7. |
 | `complex` | Large, cross-cutting, or contract-changing plans. | P, T, R1, R2, R3 (full), R4, R5, R6, R7 (Sets), S5, S6, S7. |
 | `orchestrator` | Every Order-00 orchestrator, whatever its size. Not rated by T. | P, R1, R2 (child table, coverage, ordering), R7 across the Set, S5, S6, S7. Never R5 or R6. |
@@ -193,37 +194,38 @@ reviewed children. This is a CHANGE to queue ordering: today
 only when the orchestrator's action is `orchestrate`, not when it is `review`. Order 04 extends that
 rule to `review` (Section 17.1).
 
-### 5.2 Runner tier signals
+### 5.2 Tier questions
 
-The runner raises the tier to `complex` when at least one of the following is true:
+Check T asks the agent to answer each question below in the review record's `### Step T`
+subsection, one line each, before it gives the tier. The runner supplies the facts it collected in
+the pre-pass (Section 4.1, item 4), so the agent does not search for them.
 
-1. `- Scope-Paths:` names a `.spec.md` file.
-2. The plan exceeds the existing size-lint limits in `agent_workflows/ipd_schema.py`
-   (`MAX_E_LEAVES` = 18 execution items, or `MAX_TASK_GROUPS` = 5 task groups).
-3. `- Scope-Paths:` matches a path in the configured sensitive-path list
-   `review.sensitive_paths` in `.aw/config/project.json`. The package default is an empty list;
-   this repository seeds its own list.
+1. Does the plan change a spec, a public interface (CLI option, output format, file format,
+   configuration key), or another contract that other code or other plans rely on?
+2. Does the plan touch code that guards private data, commits, worktree isolation, merges to main,
+   or the sandbox? Examples in this repository: `agent_workflows/leak_sanitizer.py`,
+   `agent_workflows/local_leaks.py`, `agent_workflows/git_commit_helper.py`,
+   `agent_workflows/commit_lock.py`, `agent_workflows/lane_containment.py`,
+   `agent_workflows/egress_policy.py`, `agent_workflows/host_sandbox_profile.py`.
+3. Is the plan large or cross-cutting: many execution items, several task groups, or changes in
+   several unrelated modules?
+4. Does the plan list the files it changes (`- Scope-Paths:`)? If not, what does the review know
+   about its reach?
+5. Could a mistake in this change lose data, break existing behavior that other code depends on, or
+   be hard to undo?
 
-The runner raises the tier to `standard` when `- Scope-Paths:` is `grandfathered` (the plan does not
-declare what it changes).
+Guidance in the step file, not a rule: a "yes" to question 1, 2, or 5 usually means `standard` or
+`complex`; `simple` fits a change where every answer is "no" and the change is small.
 
-Measured 2026-10-18 over the 1,554 non-orchestrator plans dated 2026 in this repository (all
-lifecycle directories), using each plan's `- Scope-Paths:` line and the OQ-08 candidate modules as
-the sensitive list:
+The runner forces no tier. It records the tier and the five answers in run state, so the analytics
+(backlog `i2i81x`) can later compare tiers with execution outcomes. A hard gate is added only if that
+comparison shows agents under-rating plans.
 
-| Runner tier | Plans | Share | Cause |
-| --- | --- | --- | --- |
-| `complex` | 228 | 15% | 167 name a `.spec.md` file; 61 touch a sensitive module; 1 also exceeds the size limits |
-| `standard` | 290 | 19% | `- Scope-Paths:` missing or `grandfathered` (all dated before the Scope-Paths cutover) |
-| no runner signal (the agent decides) | 1,036 | 67% | - |
+For reference, measured 2026-10-18 over the 1,554 non-orchestrator plans dated 2026 in this
+repository: 167 edit a `.spec.md` file, 61 touch one of the question 2 example modules, 1 exceeds the
+size limits, and 290 (all dated before the `- Scope-Paths:` requirement) do not list their files.
 
-Of the 923 plans dated 2026-09-20 or later, 184 (20 percent) get a runner signal and none is
-`grandfathered`. The signals therefore leave the tier to the agent for about 4 plans in 5. The size
-signal almost never fires because lint already keeps plans under the size limits.
-
-The agent's tier T is final when it is at or above the runner's tier. A lower tier requires a
-recorded reason, and the runner accepts it. If review edits make a signal true that was false at
-the pre-pass, the runner raises the tier and sends the newly required checks before S5.
+The agent may raise the tier at any later check when review edits change an answer.
 
 ### 5.3 Prompt grouping
 
@@ -243,9 +245,8 @@ variants use the same step files and differ only in grouping. Until Section 13 h
 result, the default is `single-12` (MD-17).
 
 Prompt 1 always contains P and T (P alone for an orchestrator), whatever tier is later chosen, so
-prompt 1 is the same for every tier. The runner fixes the tier after prompt 1, from T's marker and
-the runner signals, and sends the rest of that tier's prompt list from prompt 2. Checks are
-identified by name, not by position: when the tier is raised later (Section 5.2, last paragraph),
+prompt 1 is the same for every tier. The runner fixes the tier after prompt 1, from T's marker, and sends the rest of that tier's prompt list from prompt 2. Checks are
+identified by name, not by position: when the agent raises the tier later (Section 5.2, last paragraph),
 the runner sends, before S5, one prompt per group of the new tier's list that contains a check not
 yet run, with only those checks. Checks already run are not repeated. A tier is never lowered after
 prompt 1.
@@ -257,7 +258,7 @@ The runner checks these after each prompt. A check that fails triggers one re-as
 | Check | Postcondition |
 | --- | --- |
 | P | The structural preservation check passes (Section 6.1). The `### Proofreading` subsection exists in the current round. |
-| T | The last non-empty line of the reply is exactly `AW-TIER: simple`, `AW-TIER: standard`, or `AW-TIER: complex`. A tier below the runner's tier has a recorded reason. |
+| T | The last non-empty line of the reply is exactly `AW-TIER: simple`, `AW-TIER: standard`, or `AW-TIER: complex`. The `### Step T` subsection answers all five tier questions of Section 5.2. |
 | Q, R1 to R7 | The current round has a `### Step <check>` subsection for each check in the prompt (for example `### Step R4`). Findings, if any, are rows in the round's single `### Findings` table (Section 7.1). R1 additionally: the runner re-runs the resolver and the agent addressed every result it reported. |
 | S5 | Every open question has `Blocking:` and `Status:`. Every `Blocking: no` added or changed in this review has a rationale. `check.review-finding-unescalated` passes. |
 | S6 | The marker rules in Section 8.1 are met. |
@@ -682,8 +683,9 @@ its evidence is pasted test output that names the fixture and the observed resul
 - AC-07: A fixture whose agent writes `- Readiness:` in an S6 prompt has that write reverted by the
   runner and is re-asked; and a fixture interrupted after pass 1 leaves the plan at `to-review` with
   no new `- Readiness:`. (MD-15)
-- AC-08: Runner signals raise the tier for a plan that edits a `.spec.md` file, and the review records
-  the agent's reason when it rates lower. (T, Section 5.2)
+- AC-08: Check T records an answer to each of the five tier questions and the chosen tier, and the
+  runner stores both in run state; the runner does not change the tier the agent chose. (T,
+  Section 5.2)
 - AC-09: A review ending `no-go` leaves the plan at `reviewed` + `- Readiness: no-go`, and a later run
   over `reviews` does not dispatch it for review. (MD-16)
 - AC-10: Answering the only blocking question on a `reviewed` + `no-go` fixture with no contract edit
@@ -714,7 +716,7 @@ its evidence is pasted test output that names the fixture and the observed resul
 | --- | --- | --- |
 | 00 | Orchestrator. Child tracking only. | All children |
 | 01 | Step files under `.aw/system/workflows/plan-review/steps/`, the `/plan-review` checklist, the proofreading adaptation, the review record layout (Section 7.1) and its README amendment, and the five-level recommendation strength in `/plan-review` and `/askme`. | Spec approval |
-| 02 | `Review-Depth` field, runner tier signals, and the `review.sensitive_paths` setting. | Spec approval |
+| 02 | `Review-Depth` field, the pre-pass tier facts (Section 4.1 item 4), and recording the tier and the tier answers in run state. | Spec approval |
 | 03 | Citation resolver, its review and `aw ipd begin` integration, and the `20260802-1904` Section 10.2 amendment. | Spec approval |
 | 04 | Runner multi-prompt review for both hosts: prompt lists per tier and `review_variant`, postconditions (including the verdict-output guard of MD-15), re-ask, structural preservation check, outcomes, session handling, resume. | 01, 02, 03 |
 | 05 | Re-review marker, runner triggers, the loop, and the no-go clearing path of Section 9.4 (`AW-MATERIAL` marker, reviewed-contract hash test, `recheck-readiness` or targeted re-review). | 04 |
@@ -754,10 +756,10 @@ spec review (SR-005); the numbers are otherwise unchanged.
 ### OQ-08: Sensitive-path list for this repository
 
 - Blocking: no
-- Status: open
-- Question: Which paths in this repository go into `review.sensitive_paths`?
-- Candidates (modules verified present at spec review): `agent_workflows/leak_sanitizer.py`, `agent_workflows/leak_sanitizer_config.py`, `agent_workflows/local_leaks.py`, `agent_workflows/git_commit_helper.py`, `agent_workflows/lane_containment.py`, `agent_workflows/egress_policy.py`, `agent_workflows/host_sandbox_profile.py`, and the integration-lock code (no module of that name exists; Order 02 must locate it).
-- Recommendation: start with those and add paths when a `simple` review misses a problem there. Strength: weak.
+- Status: resolved
+- Owner: maintainer
+- Question: Which paths in this repository go into a `review.sensitive_paths` list that forces the `complex` tier?
+- Resolution or deferral rationale: Resolved 2026-10-19 by the maintainer: no such list. The runner forces no tier (MD-1 as revised); the candidate modules became examples in tier question 2 (Section 5.2), which the agent answers.
 
 ### OQ-09: Codex host for the experiment
 
@@ -815,6 +817,7 @@ five of MD-9.
 
 ## Workflow history
 
+- 2026-10-24 note (aw specs): Maintainer ruling 2026-10-19: MD-1 revised; the runner forces no review tier. Section 5.2 replaced by five recorded tier questions with the former signals as facts and examples; tier and answers recorded for later analysis. OQ-08 resolved (no sensitive-path list).
 - 2026-10-19 note (aw specs): Post-review additions (no change to MD-1..MD-18): measured runner tier signals over 1,554 plans (5.2); step-file source map from plan-review.md (4.3); mid-review tier change rule (5.3); Step evidence line and re-ask wording (6); children-before-orchestrator for review is a queue-order change, not current behavior (5.1); Section 17 lists the exact amendments to 25kzda, 20260802-1904, the reviews README, and askme; tmp/ evidence replaced by prompt okj4bg and backlog items i2i81x and rsisop.
 - 2026-10-19 note (aw specs): /spec-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 FIXED. Maintainer rulings MD-15 (verdict outputs once at loop end, S7 own prompt), MD-16 (no-go stays reviewed; 9.4 clearing path), MD-17 (pilot + sized experiment, single-12 default), MD-18 (quoted-text form). OQ-02 resolved; OQ-10 and OQ-11 added, non-blocking at spec level.
 - 2026-10-19 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-010 all FIXED; record .aw/records/reviews/20261017-k3yx72-01-k3yx72-plan-review-redesign.review.md
