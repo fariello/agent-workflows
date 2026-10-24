@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_runner_shared_restored_behavior.py`, holding three behavioral tests mined from the `19313eed^` control files: `TestSpecImpactsForQueue::test_impacts_are_collected_across_the_queue_and_bad_items_are_skipped` (from `tests/test_spec_visibility.py`) and `TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded` plus `TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone` (from `tests/test_resumedupe.py`), which together kill both surviving mutants (F-04). Then re-probe all three keys under the core selection. EXCLUDES any production-code change; EXCLUDES restoring the control files whole; EXCLUDES new tests for `expand_selectors` (already killed in core, F-02); EXCLUDES every control test that reads module source (`module_source`, `TestDriverSymmetry`, `TestBothHostsShareOneDefinition`, `TheTwoHostsShareOnePredicateTests`), which `AGENTS.md` forbids restoring.
 - Scope-Paths: tests/test_runner_shared_restored_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: wfm5iv
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: wfm5iv verified (set trimgap, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 
 - 2026-10-23 reviewed (opencode): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (V-01 grep unsatisfiable on verbatim body), PR-002 (gate lifecycle and honesty contract), PR-003 (E-03/V-03 exit-status bar on an enforcing host), PR-004 (baseline_failing and base sha evidence), PR-005 (ruff import layout) fixed; mined tests re-run 3 passed and expand_selectors re-probed killed at `e15d3e43` (F-07)
