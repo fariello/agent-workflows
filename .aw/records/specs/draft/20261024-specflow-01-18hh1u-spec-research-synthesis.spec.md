@@ -12,6 +12,7 @@
 - 2026-10-24 created (aw specs): Configurable single-agent and multi-agent spec and research synthesis
 - 2026-10-24 updated: incorporate decision D177 naming, intermediate candidate staging in draft/intermediate/<setid>/, and attention board pipeline rollup
 - 2026-10-24 refined (vprs7o): address adversarial review findings F-01 through F-07 (review tree separation, work arithmetic bounds, prepare-only entry point, complete worked inventories, ERD persistence classification, research flow modes, and model-specific context budgets)
+- 2026-10-24 refined (v5fjwb): address adversarial review findings F-08 through F-16 (aw.agent/v1 machine protocol envelope, run ledger path resolution, reviewer topology and session isolation, partial roster resilience, output truncation guard, matrix and disposition schemas, model token normalization algorithm, diagram branches, and epistemic research taxonomy)
 
 ---
 
@@ -200,7 +201,7 @@ A critical architectural decision is where intermediate candidate specs, reviews
 - **FR-06 (Single-Participant Graceful Degradation)**: When the roster contains exactly one participant, the generation phase MUST execute once for that participant. Synthesis machinery MUST bypass multi-candidate diffing and route directly to single-candidate refinement and finalization without fabricating consensus.
 
 ### 4.3 Controlled Iterative Refinement and Execution Bounds
-- **FR-07 (Structured Finding Schema)**: Review and refinement turns MUST classify critique items using stable structured identifiers (`F-01`, `F-02`, etc.) with required fields: Severity (`critical`, `major`, `minor`), Category (`correctness`, `contract`, `security`, `completeness`, `consistency`, `clarity`), Requirement Reference, Concrete Evidence, Suggested Remedy, and Disposition.
+- **FR-07 (Structured Finding Schema and Severity Decoupling)**: Review and refinement turns MUST classify critique items using stable structured identifiers (`F-01`, `F-02`, etc.) with required fields: Severity (`critical`, `major`, `minor`, `cosmetic`), Category (`correctness`, `contract`, `security`, `completeness`, `consistency`, `clarity`, `style`), Requirement Reference, Concrete Evidence, Suggested Remedy, and Disposition. Disposition values are restricted to a closed enum: `pending`, `fixed`, `rejected-with-rationale`, `reopened`, `duplicate`. Findings with Category `style` or Severity `cosmetic` are advisory-only: they MUST NOT block convergence, and MUST NOT advance iteration caps.
 - **FR-08 (Iteration Accounting)**: The iteration counter MUST increment only upon completion of a full review-and-revision cycle. Host failures, transport timeouts, or transient API errors MUST trigger isolated retries (up to `--max-retries`, default 2) and MUST NOT increment the quality iteration counter.
 - **FR-09 (Convergence Detection)**: An iteration loop MUST declare convergence ("no material improvements") when a review pass yields zero `critical` and zero `major` findings, and all previous findings are either verified as fixed or formally accepted with rationale. Rising numerical self-scores (e.g. "9/10") MUST NOT be used as a convergence signal.
 - **FR-10 (Design Oscillation Guard)**: If a finding's proposed remedy directly reverses an architectural decision adopted in the immediately preceding iteration, the engine MUST flag an oscillation warning, halt automated refinement, and prompt the operator or mark the finding as `unresolved-oscillation`.
@@ -210,6 +211,14 @@ A critical architectural decision is where intermediate candidate specs, reviews
   3. Output a prominent human warning listing all unresolved finding IDs and affected sections.
   4. Write the machine-readable state `capped_with_findings`.
   5. NEVER mark the artifact as clean or approved.
+- **FR-27 (Output Truncation & Completeness Guard)**: All generated candidate specs and synthesis drafts MUST terminate with an explicit completion marker comment `<!-- end-of-artifact -->`. The engine MUST inspect outputs for this terminal marker, verified balanced Markdown code fences, and clean driver exit codes. If an output is detected as truncated or incomplete, the engine MUST mark the attempt `truncated`, discard the partial output, trigger an isolated retry (up to `--max-retries`), and NEVER forward a truncated candidate to review or synthesis.
+- **FR-29 (Reviewer Session Topology and Isolation)**: Review turns MUST execute in clean, isolated worker sessions with zero prior conversation memory, receiving only the frozen baseline brief and candidate file. Reviewer assignment modes:
+  - `cross-peer` (default when participant count N > 1): participant `(i+1) % N` acts as the adversarial reviewer for candidate `i`.
+  - `self-adversarial` (default when participant count N = 1): the single participant is launched in a fresh, isolated reviewer session with an adversarial critique brief.
+  - `designated-reviewer`: a specific assigned profile from `roles.reviewer`.
+- **FR-30 (Partial Participation and Fallback Policy)**: If a participant in a multi-model roster permanently fails after exhausting `--max-retries`:
+  - If surviving valid candidates >= 1: in interactive mode, prompts operator; in non-interactive agent mode, requires `--allow-partial-roster` to proceed to synthesis with surviving candidates. If `--allow-partial-roster` is omitted, halts and checkpoints state in the run ledger with outcome `partial` (exit 1).
+  - If surviving valid candidates == 0: halts immediately with outcome `fail` (exit 1).
 
 #### 4.3.1 Mathematical Proof of Execution Bounds and Work Arithmetic
 To guarantee that no nested retry or refinement loop escapes its bounds, the maximum possible dispatched turns across all roles is governed by a strict closed mathematical ceiling:
@@ -246,6 +255,14 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configur
   - Divergent Elements: Alternative approaches proposed for the same requirement.
   - Unique Contributions: Novel features or constraints proposed by a single candidate.
   - Selected Resolution: The chosen approach with explicit architectural rationale.
+
+  The matrix MUST conform to this normative table schema:
+
+  ```markdown
+  | Requirement ID | Brief Requirement | Candidate Proposals (by slot) | Classification (Consensus / Divergent / Unique) | Resolution & Architectural Rationale | Provenance Tag |
+  | --- | --- | --- | --- | --- | --- |
+  | REQ-01 | Secure credential handling | P1: Keyring; P2: Env; P3: Keyring | Divergent | Adopt OS keyring with env fallback | [Adapted: P1 + P2] |
+  ```
 - **FR-14 (Fine-Grained Provenance Tagging)**: The synthesized document MUST carry provenance tags on every major section or requirement:
   - `[Adopted: <candidate-id6> (<model>)]`: Unchanged adoption of a candidate proposal.
   - `[Adapted: <candidate-id6-A> + <candidate-id6-B>]`: Synthesis combining multiple proposals.
@@ -261,8 +278,13 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configur
   - *Mode A (Parallel Identical Investigation)*: All roster participants investigate the identical research prompt. Used to verify claim reproducibility, unearth blind spots, and detect contradictory evidence.
   - *Mode B (Complementary Sub-Question Decomposition)*: The prompt planner partitions a broad research objective into discrete, non-overlapping sub-topics (e.g. participant 1 benchmarks disk latency, participant 2 audits memory layout). The reconciliation report synthesizes these into a cohesive composite report while preserving individual model report links.
 - **FR-18B (Research Completion & Cataloging)**: Finalized research reports are written to `.aw/records/research/` as `reconciliation-report` and indexed directly via `aw research index` with lifecycle status `reference` (or `active`). Research reports are durable reference documents and MUST NOT require `/spec-review` approval or IPD graduation.
+- **FR-18C (Epistemic Claim Classification & Temporal Anchoring)**: Every factual statement in a research report MUST be classified under an explicit epistemic taxonomy:
+  - `fact`: Verified statement supported by a direct, accessible primary source citation.
+  - `inference`: Deductive conclusion logically derived from verified facts.
+  - `hypothesis` / `conjecture`: Extrapolation or unverified proposition.
+  Every factual claim MUST include a temporal anchor (`as_of: YYYY-MM-DD`). Inaccessible citations or broken URLs MUST be classified as `inaccessible-evidence` and quarantined to an appendix rather than cited as fact.
 
-### 4.6 Intermediate Staging and Attention Surfacing
+### 4.6 Intermediate Staging, Attention Surfacing, and Protocol Parity
 - **FR-19 (Tool-Owned Identity)**: All generated specs, research docs, prompts, and reviews MUST receive a tool-minted `id6` via `agent_workflows.artifact_core.mint_id6()`. Hand-minted IDs are strictly prohibited.
 - **FR-20 (Lifecycle Status Integrity)**: Final candidate specifications MUST be written with status `to-review` (or `draft` if minor findings remain). The workflow engine MUST NEVER write status `reviewed` or `approved`.
 - **FR-21 (Clean Review Handoff)**: Upon successful finalization, the command MUST output the exact next-action command for human review:
@@ -276,6 +298,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configur
   `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/. Run 'aw specs flow merge <setid> --apply' to synthesize.`
 - **FR-25 (Attributed Naming Conformance)**: Attributed intermediate filenames MUST strictly follow Decision D177 (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<ace>][.<model>].<type>.md`), with the type token as the final facet before `.md` and dot-free model tokens from `research-models.toml`.
 - **FR-26 (Prepare-Only Prompt Staging)**: When `--prepare-only` is passed, the engine MUST freeze the baseline, validate inputs, write rendered prompt files to `.aw/records/prompts/pending/`, display the planned execution bounds and turn count, and terminate with exit code 0 without launching agent sessions.
+- **FR-28 (Dual-Audience Machine Protocol Parity)**: Invocations with `--agent` MUST emit valid JSONL records strictly conforming to `SCHEMA_VERSION = "aw.agent/v1"`. Streaming stages emit `kind: "item"` records terminated by a single `kind: "summary"` record (or a single `kind: "result"` record for single-shot commands). Envelope fields (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) MUST enforce strict exit code parity (exit 0 with `clean`/`ok`, exit 1 with `findings`/`fail`/`partial`, exit 2 with `error`/`cannot-run`). Machine-readable payloads MUST redact local home directories and user identifiers.
 
 ---
 
@@ -379,6 +402,7 @@ erDiagram
     FLOW_RUN ||--o{ CANDIDATE_ARTIFACT : produces
     CANDIDATE_ARTIFACT ||--o{ ITERATION_FINDING : generates
     FLOW_RUN ||--o| SIMILARITIES_DIFFERENCES_MATRIX : compiles
+    SIMILARITIES_DIFFERENCES_MATRIX }|--|{ CANDIDATE_ARTIFACT : compares
     FLOW_RUN ||--o| SYNTHESIS_ARTIFACT : creates
     SYNTHESIS_ARTIFACT ||--o{ ITERATION_FINDING : evaluates
     FLOW_RUN ||--|| FINAL_SPEC_OR_REPORT : finalizes
@@ -454,7 +478,7 @@ erDiagram
 
 | Entity | Persistence Classification | Storage Location & File Format | Lifecycle Owner |
 | --- | --- | --- | --- |
-| **FLOW_RUN** | Transient-Persisted | `.aw/runs/flow-<run-id6>.json` (JSON) | Flow Engine (`agent_workflows.specflow`) |
+| **FLOW_RUN** | Transient-Persisted | `.aw/records/runs/flow-<run-id6>.json` (JSON, resolved via `project_records_dir() / "runs"`) | Flow Engine (`agent_workflows.specflow`) |
 | **FROZEN_BASELINE** | Derived-Runtime | Computed SHA-256 in memory; serialized in `FLOW_RUN` ledger | Baseline Capture Module |
 | **PARTICIPANT_SLOT** | Derived-Runtime | Resolved in memory from `flow-preferences.json` and CLI flags | Profile Resolver |
 | **PROMPT_ARTIFACT** | Durable-Persisted | `.aw/records/prompts/pending/*.prompt.md` (Markdown) | Prompt Manager (`aw prompts`) |
@@ -505,6 +529,11 @@ Currently, `agent_workflows.artifact_naming._CLUSTERED_RE` accepts only a single
   - `80`..`98`: Synthesis and synthesis-refinement iterations.
   - `01` (in final directory): Authoritative final candidate spec (matches `aw specs new` convention).
 - **Id6**: Every artifact receives an independent, globally unique 6-character alphanumeric ID minted by `artifact_core.mint_id6()`. An updated iteration receives a NEW id6 and references its parent id6 in front matter via `- Prior-Id: <id6>`.
+- **Model Token Normalization Algorithm**: Attributed filename middle segments require dot-free model tokens. The engine normalizes model identifiers deterministically:
+  1. If the model is registered in `agent_workflows/data/research-models.toml`, its canonical table token (e.g. `opus55high`, `gemini38flashhigh`, `gpt61solmedium`) MUST be used.
+  2. For unregistered or custom provider models, strip the provider prefix (`provider/model` -> `model`), strip all punctuation, dots, and hyphens, lowercase all letters, and concatenate with the sanitized variant (`re.sub(r'[^a-z0-9]', '', model) + re.sub(r'[^a-z0-9]', '', variant)`).
+  3. If the resulting string is empty, fallback to `custom`.
+  4. The raw, provider-qualified model string and variant are ALWAYS preserved intact in the artifact's front matter YAML (`- Model-Id:`, `- Model-Variant:`).
 
 ### 6.4 Worked Filename Inventories
 
@@ -551,7 +580,7 @@ Assume Set: `quickauth`, Date: `20261024`, Slug: `token-auth`, Participant: `gem
 #### Inventory 3: Resumed Run After Refinement Cap
 Assume Set: `storv2`, Date: `20261024`, Run Id: `cp73m9`.
 1. Frozen Run Ledger:
-   - `.aw/runs/flow-cp73m9.json` (checkpointed with state `capped_with_findings`)
+   - `.aw/records/runs/flow-cp73m9.json` (checkpointed with state `capped_with_findings`, resolved via `project_records_dir() / "runs"`)
 2. Existing Retained Candidates in `draft/intermediate/storv2/`:
    - `...-10-c1a001-cand.opencode.opus55high.spec.md`
    - `...-20-c1a002-cand.agy.gemini38flashhigh.spec.md` (carried unresolved finding `F-02`)
@@ -656,6 +685,8 @@ stateDiagram-v2
     Initialized --> Refused: Validation Error (Exit 2)
 
     BaselineFrozen --> Dispatching: Prompts Rendered
+    BaselineFrozen --> PromptsPrepared: --prepare-only (Exit 0)
+    PromptsPrepared --> [*]
     Dispatching --> Generating: Sessions Spawned
 
     Generating --> CandidateRefining: Initial Candidates in draft/intermediate/
@@ -943,14 +974,13 @@ Exit code: 0
 
 ### 13.4 Machine Protocol Output: `aw.agent/v1` JSONL Stream
 
-When invoked with `--agent`, output is emitted as strictly structured JSONL records conforming to `aw.agent/v1`:
+When invoked with `--agent`, output is emitted as strictly structured JSONL records conforming to `SCHEMA_VERSION = "aw.agent/v1"` (streaming `item` records terminated by a single `summary` record, or a single `result` record):
 
 ```json
-{"event": "start", "protocol": "aw.agent/v1", "command": "specs flow new", "run_id": "th48x1", "timestamp": "2026-10-24T15:45:00Z"}
-{"event": "progress", "stage": "baseline", "status": "captured", "commit": "6f430cefd88a", "dirty": false}
-{"event": "progress", "stage": "generation", "participant": "opus", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md"}
-{"event": "progress", "stage": "generation", "participant": "gemini", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md"}
-{"event": "progress", "stage": "generation", "participant": "sol", "status": "completed", "artifact": ".aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md"}
-{"event": "progress", "stage": "synthesis", "status": "matrix_compiled", "artifact": ".aw/records/reviews/20261024-specflow-50-th48m1-matrix.reconciliation.review.md"}
-{"event": "result", "status": "clean", "exit_code": 0, "summary": "Specification synthesized cleanly and moved to to-review", "target": ".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md", "diagnostics": [], "next_actions": [{"command": "aw specs check th48f1", "description": "Verify spec contract"}, {"command": "/spec-review .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md", "description": "Initiate peer review"}]}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"baseline","commit":"6f430cefd88a","dirty":false}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"opus","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-10-th48c1-cand.opencode.opus55high.spec.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"gemini","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"sol","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md"}
+{"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"synthesis","artifact":".aw/records/reviews/20261024-specflow-50-th48m1-matrix.reconciliation.review.md"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"specs flow new","exit":0,"outcome":"clean","verified":true,"complete":true,"total":5,"emitted":5,"omitted":0,"target":".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md","findings":0,"evidence":["brief-coverage","matrix-reconciliation"],"next":"aw specs check th48f1"}
 ```
