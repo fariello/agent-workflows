@@ -1,4 +1,4 @@
-<!-- aw-prompt: Kind: run-once | Id: okj4bg | Set: revsteps | Status: pending | Created: 2026-10-18 | Author: opencode (pt3-claude-opus-5.5) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+<!-- aw-prompt: Kind: run-once | Id: okj4bg | Set: revsteps | Status: executed | Created: 2026-10-18 | Author: opencode (pt3-claude-opus-5.5) . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 # Add review-cost and experiment breakdowns to `aw runs analyze`
 
 ## Purpose
@@ -139,3 +139,5 @@ End with a short report that states:
 3. Every fact in Section 1 that you found to be wrong.
 4. Any recording you added, and from which commit runs carry it.
 5. The test command you ran and its actual output.
+## Workflow history
+- 2026-10-24 executed (aw set): Section 5 report filed as research gczlvd (plan avg8qv)

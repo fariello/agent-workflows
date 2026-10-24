@@ -171,7 +171,8 @@ By default the views count only each queue attempt's MAIN session. Add `--filter
 | By toolkit commit or run label | `aw runs query attempts --group-by code_commit` (or `label`, `review_variant`, `repo_commit`) |
 | Model, and where the model id came from | `aw runs query attempts --group-by phase,model_source --metric steps --stat count` |
 | Redo counts per model | `aw runs query attempts --group-by model --metric redo_total,turn_retries,refusals,reasks --stat sum` |
-| Experiment comparison | `aw runs query experiment --filter label=<label>` |
+| Experiment comparison: review outcome (disposition and Readiness) per plan, variant and model | `aw runs query experiment --filter label=<label>` |
+| Attempts by Readiness | `aw runs query attempts --filter action=review --group-by readiness --metric cost,steps` |
 
 What the fields mean:
 
@@ -194,11 +195,19 @@ What the fields mean:
   same in every worktree. A path outside the repository keeps only its last two parts.
 - **Experiment** gives one row per plan, review variant and model. Each row covers every attempt
   of that plan, and the verifier sessions that checked them. Where no cost was recorded it reports
-  tokens. The outcome is the final disposition (`reviewed`, `approved`, `fail-gate`); the plan's
-  Readiness value is not recorded by the runners.
+  tokens. The outcome is the final disposition (`reviewed`, `approved`, `fail-gate`). The `readiness`
+  count map tallies the normalized `- Readiness:` value (`go`, `go-pending-approval`, `no-go`) recorded
+  on review attempts from this plan's commit onward; `absent` means the review wrote no valid value,
+  and `(not recorded)` means the run predates the recording.
 
 A group smaller than the shared minimum sample (12) keeps its counts and totals, but its medians and
 percentiles are withheld and the row says so.
+
+### What is not recorded yet
+
+- **Review steps** (question Q9): requires recording which prompt of a multi-prompt review ran and the pass number for each prompt, specified in spec `k3yx72` Section 9.3 and built by its Section 15 Order 04.
+- **Antigravity cost**: tokens are reported; no dollar price table is applied.
+- **Readiness on older runs**: runs started before this change do not carry `review_readiness` on their review attempts, so they report `(not recorded)`.
 
 ### Labeling runs for an experiment
 

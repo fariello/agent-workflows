@@ -1,5 +1,5 @@
 - Id: i2i81x
-- Status: graduated
+- Status: done
 - Graduated-To: revcost
 - Set: revsteps
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw runs analyze: break review cost down by token type, steps, context, session reuse, tool use, run commit and label, model, and redo counts
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD avg8qv executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-revcost-01-avg8qv-record-review-readiness-on-review-attempts-and-close-the-okj.ipd.md); evidence .aw/records/plans/executed/20261023-revcost-01-avg8qv-record-review-readiness-on-review-attempts-and-close-the-okj.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175005Z-1383890: avg8qv
 - 2026-10-19 created (aw backlog): aw runs analyze: break review cost down by token type, steps, context, session reuse, tool use, run commit and label, model, and redo counts
 

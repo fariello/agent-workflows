@@ -42454,6 +42454,19 @@ def execute_item_core(
             plan_repo=Path(work_dir) if work_dir else None,
         )
 
+        if is_review and queue_entry_type(item) == "ipd":
+            from agent_workflows import ipd_schema as _schema
+
+            try:
+                _plan_p = queue_artifact_path(
+                    Path(work_dir) if work_dir else repo, item
+                )
+                attempt["review_readiness"] = _schema.read_readiness(
+                    _plan_p.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeDecodeError, DriverError):
+                attempt["review_readiness"] = None
+
         verify_disp = None
 
         # qchan-01 (0jooqz) E-06: Driver intake for questions

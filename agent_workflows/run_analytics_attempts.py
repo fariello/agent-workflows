@@ -73,6 +73,7 @@ ATTEMPT_FILTER_FIELDS: tuple[str, ...] = (
     "step_bucket",
     "outcome",
     "disposition",
+    "readiness",
     "date",
     "cost_split",
     "token_source",
@@ -95,6 +96,7 @@ ATTEMPT_GROUP_FIELDS: tuple[str, ...] = (
     "step_bucket",
     "outcome",
     "disposition",
+    "readiness",
     "set",
     "id6",
     "attempt",
@@ -489,8 +491,10 @@ def view_experiment(
     Each queue attempt is one main session; its verifier and corrective sessions are folded in as
     the same item's spend, so the row prices the whole review of that plan under that variant and
     model. Rows with no recorded cost report tokens (``cost`` stays null, ``with_cost`` says so).
-    ``outcome`` lists the distinct final dispositions (``reviewed``, ``approved``, ``fail-gate``);
-    the plan's Readiness value is not recorded by the runners, so it is not reported.
+    ``outcome`` lists the distinct final dispositions (``reviewed``, ``approved``, ``fail-gate``).
+    ``readiness`` comes from the attempt's ``review_readiness``, recorded from this plan's commit
+    onward, with ``absent`` meaning the review wrote no valid value and ``(not recorded)`` meaning
+    the run predates the recording.
     """
 
     keys = tuple(group_by) or ("id6", "review_variant", "model")
@@ -513,6 +517,7 @@ def view_experiment(
     for key, items in sorted(groups.items(), key=lambda kv: kv[0]):
         costs, tokens, steps, walls, redos, attempts = [], [], [], [], [], []
         outcomes: dict[str, int] = {}
+        readiness_counts: dict[str, int] = {}
         priced = 0
         for members, mains in items:
             c_vals = [_value(m, "cost") for m in members]
@@ -527,6 +532,8 @@ def view_experiment(
             last = max(mains, key=lambda m: (m.get("attempt") or 0))
             disp = str(last.get("disposition") or "(none)")
             outcomes[disp] = outcomes.get(disp, 0) + 1
+            r_label = _label(last, "readiness")
+            readiness_counts[r_label] = readiness_counts.get(r_label, 0) + 1
         row: dict[str, Any] = dict(zip(keys, key))
         row.update(
             {
@@ -542,6 +549,7 @@ def view_experiment(
                 "wall_median": _round(_stat(walls, "median")),
                 "redos": int(sum(redos)),
                 "outcome": dict(sorted(outcomes.items())),
+                "readiness": dict(sorted(readiness_counts.items())),
             }
         )
         out.append(row)

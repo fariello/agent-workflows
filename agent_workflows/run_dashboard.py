@@ -1487,6 +1487,13 @@ def collect_rows(
                 disposition = att.get("disposition")
                 verification = att.get("verification") or att.get("verification_status")
                 main_model, main_model_source = _row_model(att, "main")
+                if "review_readiness" in att:
+                    raw_rr = att.get("review_readiness")
+                    att_readiness = (
+                        raw_rr if (isinstance(raw_rr, str) and raw_rr) else "absent"
+                    )
+                else:
+                    att_readiness = ""
                 base = {
                     "run": run_id,
                     "set": str(item.get("setid") or ""),
@@ -1499,6 +1506,7 @@ def collect_rows(
                     "recovery": bool(att.get("recovery")),
                     "disposition": str(disposition or "(none)"),
                     "verification": str(verification or ""),
+                    "readiness": att_readiness,
                     "item_status": str(item.get("status") or ""),
                     "item_end": item_end_state(item.get("status")),
                     "host": host,
@@ -1583,6 +1591,7 @@ def collect_rows(
                     "recovery": False,
                     "disposition": "(none)",
                     "verification": "",
+                    "readiness": "",
                     "item_status": "",
                     "item_end": "not-completed",
                     "host": host,
@@ -1669,6 +1678,7 @@ COLUMNS: tuple[str, ...] = (
         "disposition",
         "outcome",
         "verification",
+        "readiness",
         "item_status",
         "item_end",
         "host",
@@ -1814,6 +1824,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
     "disposition",
     "outcome",
     "verification",
+    "readiness",
     "item_status",
     "item_end",
     "host",
@@ -1868,7 +1879,7 @@ ATTEMPT_FACT_FIELDS: tuple[str, ...] = (
 )
 ATTEMPT_FACT_MAPS: tuple[str, ...] = ("tools", "tool_bytes", "families", "read_counts")
 ATTEMPT_FACTS_FILENAME = "attempts.jsonl"
-ATTEMPT_FACTS_SCHEMA_VERSION = 2
+ATTEMPT_FACTS_SCHEMA_VERSION = 3
 
 
 def attempt_facts_jsonl(
