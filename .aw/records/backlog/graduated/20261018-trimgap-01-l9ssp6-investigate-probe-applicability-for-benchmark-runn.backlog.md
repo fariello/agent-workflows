@@ -1,11 +1,13 @@
 - Id: l9ssp6
-- Status: open
+- Status: graduated
+- Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
 - Work-Kind: chore
 - Summary: Investigate probe applicability for benchmark_runners
 
 ## Workflow history
+- 2026-10-24 graduated (aw backlog): graduated by run run-20261023T221924Z-2698768: rempo8
 - 2026-10-18 created (aw backlog): Investigate probe applicability for benchmark_runners
 
 Carries 2 candidate production keys for agent_workflows/benchmark_runners.py with remedy shape 'investigate probe'.
