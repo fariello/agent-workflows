@@ -35,42 +35,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the new core-tier module
 
-- [ ] E-01 Create `tests/test_runner_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `sbcmke` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and an `AttributedAwayFailureIdsTests` class. With `K = runner_shared.GATE_ANSWER_RECORD_KEY`, assert: `{K: {"answer": "not-mine", "usable": True, "failing_tests": ["FAILED tests/test_a.py::T::test_x - boom", "FAILED tests/test_b.py::test_y", "FAILED tests/test_a.py::T::test_x - again", "garbage line ???"]}}` returns exactly `("FAILED tests/test_a.py::T::test_x", "FAILED tests/test_b.py::test_y")` (normalized, de-duplicated in order, the unparseable line dropped); the same record with `"answer": "mine"` returns `()`; with `"usable": False` returns `()`; with `failing_tests` a bare string returns `()`; an item with no record (`{}`) returns `()`.
+- [x] E-01 Create `tests/test_runner_residual_helpers.py` with a provenance docstring naming backlog `nzc6dm`, plan `sbcmke` and findings `wo21z5`; `import pytest`; module-level `pytestmark = pytest.mark.core`; and an `AttributedAwayFailureIdsTests` class. With `K = runner_shared.GATE_ANSWER_RECORD_KEY`, assert: `{K: {"answer": "not-mine", "usable": True, "failing_tests": ["FAILED tests/test_a.py::T::test_x - boom", "FAILED tests/test_b.py::test_y", "FAILED tests/test_a.py::T::test_x - again", "garbage line ???"]}}` returns exactly `("FAILED tests/test_a.py::T::test_x", "FAILED tests/test_b.py::test_y")` (normalized, de-duplicated in order, the unparseable line dropped); the same record with `"answer": "mine"` returns `()`; with `"usable": False` returns `()`; with `failing_tests` a bare string returns `()`; an item with no record (`{}`) returns `()`.
   - Depends on: none
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a `LaneIdFromBranchTests` class: `worktree_lease.lane_id_from_branch("aw/lane/ntf6sx") == "ntf6sx"`, `("aw/lane/abc123_attempt2") == "abc123_attempt2"`, and `None` for `"aw/lane/"`, `"main"` and `""`.
+- [x] E-02 Add a `LaneIdFromBranchTests` class: `worktree_lease.lane_id_from_branch("aw/lane/ntf6sx") == "ntf6sx"`, `("aw/lane/abc123_attempt2") == "abc123_attempt2"`, and `None` for `"aw/lane/"`, `"main"` and `""`.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a `GitCommonDirTests` class using `tmp_path`: init a git repo `r` (`git init -q -b main`, set `user.email`/`user.name` and `commit.gpgsign false` locally so a host-level signing config cannot fail the commit, the pattern of `tests/support.py`, commit one file) and add a linked worktree `wt` with `git worktree add -q`. Assert `storage.get_git_common_dir(r)` and `storage.get_git_common_dir(wt)` are both equal to `os.path.realpath(r / ".git")` (a linked worktree resolves to the MAIN repository's git dir, which is the property the function exists for), and `storage.get_git_common_dir(<a plain non-git tmp dir>)` is `None`.
+- [x] E-03 Add a `GitCommonDirTests` class using `tmp_path`: init a git repo `r` (`git init -q -b main`, set `user.email`/`user.name` and `commit.gpgsign false` locally so a host-level signing config cannot fail the commit, the pattern of `tests/support.py`, commit one file) and add a linked worktree `wt` with `git worktree add -q`. Assert `storage.get_git_common_dir(r)` and `storage.get_git_common_dir(wt)` are both equal to `os.path.realpath(r / ".git")` (a linked worktree resolves to the MAIN repository's git dir, which is the property the function exists for), and `storage.get_git_common_dir(<a plain non-git tmp dir>)` is `None`.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (behavior measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a `TelemetryToolVersionsTests` class: build `run_analytics_telemetry.TelemetryCollector(tmp_path / "s.jsonl", execution_id="e1", salt="s", adapter=run_analytics_telemetry.FakeResourceProbeAdapter(tool_versions=run_analytics_telemetry.ProbeOutcome("ok", {"python": "3.14.0"})))`, call `start()` and assert the returned event has `event_kind == "start"` and `tool_versions == {"python": "3.14.0"}`; then call `close()`. A second collector whose adapter returns `ProbeOutcome("unavailable")` emits a start event with no `tool_versions` key; a third whose adapter subclass raises from `tool_versions()` also emits a start event with no `tool_versions` key (the probe failure does not take the run down).
+- [x] E-04 Add a `TelemetryToolVersionsTests` class: build `run_analytics_telemetry.TelemetryCollector(tmp_path / "s.jsonl", execution_id="e1", salt="s", adapter=run_analytics_telemetry.FakeResourceProbeAdapter(tool_versions=run_analytics_telemetry.ProbeOutcome("ok", {"python": "3.14.0"})))`, call `start()` and assert the returned event has `event_kind == "start"` and `tool_versions == {"python": "3.14.0"}`; then call `close()`. A second collector whose adapter returns `ProbeOutcome("unavailable")` emits a start event with no `tool_versions` key; a third whose adapter subclass raises from `tool_versions()` also emits a start event with no `tool_versions` key (the probe failure does not take the run down).
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (behavior measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a `PushAuthorizationGateTests` class driving the hook `agent_workflows.hooks.prepush_authorization_gate.check(tmp_path)` with `monkeypatch` controlling `AW_PUSH_AUTHORIZED` (`check_engine.PUSH_ACK_ENV`): unset -> returns exit `1` with exactly one message containing `check.push-unauthorized` and `AW_PUSH_AUTHORIZED=1`; set to `1` -> returns `(0, [])`. Also call `check_engine.check_push_authorization(tmp_path, ack=False)` directly and assert one `Drift` with `rule == "check.push-unauthorized"` and `location == "<push>"`, and `ack=True` returns `[]`. Do NOT patch `check_push_authorization`: the point is to exercise the real rule.
+- [x] E-05 Add a `PushAuthorizationGateTests` class driving the hook `agent_workflows.hooks.prepush_authorization_gate.check(tmp_path)` with `monkeypatch` controlling `AW_PUSH_AUTHORIZED` (`check_engine.PUSH_ACK_ENV`): unset -> returns exit `1` with exactly one message containing `check.push-unauthorized` and `AW_PUSH_AUTHORIZED=1`; set to `1` -> returns `(0, [])`. Also call `check_engine.check_push_authorization(tmp_path, ack=False)` directly and assert one `Drift` with `rule == "check.push-unauthorized"` and `location == "<push>"`, and `ack=True` returns `[]`. Do NOT patch `check_push_authorization`: the point is to exercise the real rule.
   - Depends on: E-01
   - Expected outcome: the class's tests PASS at HEAD (values measured at F-03).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: commit and prove the mutants die in core
 
-- [ ] E-06 Commit the module with `aw commit sbcmke -- tests/test_runner_residual_helpers.py` and record the resulting commit hash as `<E-06 commit>` (its parent is `<E-06 parent>`, used by V-07 and Required tests), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_residual_helpers.py`.
+- [x] E-06 Commit the module with `aw commit sbcmke -- tests/test_runner_residual_helpers.py` and record the resulting commit hash as `<E-06 commit>` (its parent is `<E-06 parent>`, used by V-07 and Required tests), then run the routine bare gate `python3 -m pytest` and record its summary line and any `CORE TIER BUDGET EXCEEDED` block verbatim, plus `python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_residual_helpers.py`.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: bare run shows no failures and includes the new tests; the module costs about one second serial (one throwaway git repo plus worktree; everything else in memory).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 For each key K in (`agent_workflows/runner_shared.py::attributed_away_failure_ids`, `agent_workflows/worktree_lease.py::lane_id_from_branch`, `agent_workflows/storage.py::get_git_common_dir`, `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions`, `agent_workflows/check_engine.py::check_push_authorization`), run `python3 tools/mutation_probe.py --op return-none --format json K -- -o addopts= -q -p no:randomly -n0 -m core tests/test_runner_residual_helpers.py`, after E-06's commit. A kill under this core-marked subset is a kill under the full core tier, a superset. Record each `verdict`, `baseline_failing` and `mutant_failing`; if any key survives, add the missing assertion, commit the same way, and re-probe.
+- [x] E-07 For each key K in (`agent_workflows/runner_shared.py::attributed_away_failure_ids`, `agent_workflows/worktree_lease.py::lane_id_from_branch`, `agent_workflows/storage.py::get_git_common_dir`, `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions`, `agent_workflows/check_engine.py::check_push_authorization`), run `python3 tools/mutation_probe.py --op return-none --format json K -- -o addopts= -q -p no:randomly -n0 -m core tests/test_runner_residual_helpers.py`, after E-06's commit. A kill under this core-marked subset is a kill under the full core tier, a superset. Record each `verdict`, `baseline_failing` and `mutant_failing`; if any key survives, add the missing assertion, commit the same way, and re-probe.
   - Depends on: E-06
   - Expected outcome: five `verdict: killed`, each `baseline_failing: 0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -136,40 +136,189 @@ N/A: tests only; no behavior, CLI surface or spec-described contract changes. No
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the head of `tests/test_runner_residual_helpers.py` showing the provenance docstring (naming `nzc6dm`, `sbcmke`, `wo21z5`) and `pytestmark = pytest.mark.core`; the `-v` lines for every `AttributedAwayFailureIdsTests` test, each PASSED; and `grep -nE "inspect|getsource|ast\." tests/test_runner_residual_helpers.py` returning nothing.
   - Observed evidence:
-  - Result: pending
+    Head of `tests/test_runner_residual_helpers.py`:
+    ```python
+    """Behavioral tests for residual runner, lane, storage, telemetry, and push-gate helpers.
 
-- [ ] V-02 validates E-02
+    Provenance:
+    - Backlog item: nzc6dm
+    - Plan: sbcmke
+    - Findings: wo21z5
+
+    Direct behavioral coverage for:
+    - runner_shared.attributed_away_failure_ids
+    - worktree_lease.lane_id_from_branch
+    - storage.get_git_common_dir
+    - run_analytics_telemetry.TelemetryCollector._observe_tool_versions
+    - check_engine.check_push_authorization / hooks.prepush_authorization_gate.check
+    """
+
+    from __future__ import annotations
+
+    import os
+    import subprocess
+    from pathlib import Path
+
+    import pytest
+
+    from agent_workflows import (
+        check_engine,
+        run_analytics_telemetry,
+        runner_shared,
+        storage,
+        worktree_lease,
+    )
+    from agent_workflows.hooks import prepush_authorization_gate
+
+    pytestmark = pytest.mark.core
+    ```
+    Pytest `-v` lines:
+    ```
+    tests/test_runner_residual_helpers.py::AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_missing_record PASSED [ 69%]
+    tests/test_runner_residual_helpers.py::AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_bare_string PASSED [ 76%]
+    tests/test_runner_residual_helpers.py::AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_unusable PASSED [ 84%]
+    tests/test_runner_residual_helpers.py::AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_usable_not_mine PASSED [ 92%]
+    tests/test_runner_residual_helpers.py::AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_mine PASSED [100%]
+    ```
+    Grep output:
+    `grep -nE "inspect|getsource|ast\." tests/test_runner_residual_helpers.py` returned exit code 1 (0 matches).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `-v` lines for every `LaneIdFromBranchTests` test, each PASSED.
   - Observed evidence:
-  - Result: pending
+    Pytest `-v` lines:
+    ```
+    tests/test_runner_residual_helpers.py::LaneIdFromBranchTests::test_lane_id_from_branch PASSED [ 61%]
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `-v` lines for every `GitCommonDirTests` test, each PASSED.
   - Observed evidence:
-  - Result: pending
+    Pytest `-v` lines:
+    ```
+    tests/test_runner_residual_helpers.py::GitCommonDirTests::test_git_common_dir PASSED [ 53%]
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `-v` lines for every `TelemetryToolVersionsTests` test, each PASSED.
   - Observed evidence:
-  - Result: pending
+    Pytest `-v` lines:
+    ```
+    tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_observed_in_start_event PASSED [  7%]
+    tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_unavailable PASSED [ 15%]
+    tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_probe_raises PASSED [ 23%]
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `-v` lines for every `PushAuthorizationGateTests` test, each PASSED, and `grep -n "mock\|patch" tests/test_runner_residual_helpers.py` showing no patch of `check_push_authorization`.
   - Observed evidence:
-  - Result: pending
+    Pytest `-v` lines:
+    ```
+    tests/test_runner_residual_helpers.py::PushAuthorizationGateTests::test_prepush_gate_check_unauthorized PASSED [ 30%]
+    tests/test_runner_residual_helpers.py::PushAuthorizationGateTests::test_check_push_authorization_direct PASSED [ 38%]
+    tests/test_runner_residual_helpers.py::PushAuthorizationGateTests::test_prepush_gate_check_authorized PASSED [ 46%]
+    ```
+    Grep output (`grep -n "mock\|patch" tests/test_runner_residual_helpers.py`):
+    ```
+    183:    def test_prepush_gate_check_unauthorized(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    184:        monkeypatch.delenv(check_engine.PUSH_ACK_ENV, raising=False)
+    191:    def test_prepush_gate_check_authorized(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    192:        monkeypatch.setenv(check_engine.PUSH_ACK_ENV, "1")
+    ```
+    No mocking or patching of `check_push_authorization` is present; monkeypatch is used solely to configure environment variables.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the `aw commit` output (or `git show --stat HEAD`) naming only `tests/test_runner_residual_helpers.py`; the bare `python3 -m pytest` summary line with no `failed`, any `CORE TIER BUDGET EXCEEDED` block verbatim, and the module's `--durations=0` output.
   - Observed evidence:
-  - Result: pending
+    `git show --stat 30e27bc48ae539a93bf7e7535e6401cc88262af3`:
+    ```
+    commit 30e27bc48ae539a93bf7e7535e6401cc88262af3
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Fri Oct 23 23:59:01 2026 -0400
 
-- [ ] V-07 validates E-07
+        work(sbcmke): Restore behavioral coverage for residual runner, lane, storage, telemetry and push-gate helpers
+
+        AW-Run: run-20261024T014601Z-3125800
+        AW-Item: sbcmke
+        AW-Runner: aw agy run
+
+     tests/test_runner_residual_helpers.py | 236 ++++++++++++++++++++++++++++++++++
+     1 file changed, 236 insertions(+)
+    ```
+    Bare `python3 -m pytest` summary line:
+    ```
+    1777 passed, 11 warnings in 66.86s (0:01:06)
+    ```
+    `CORE TIER BUDGET EXCEEDED` block verbatim:
+    ```
+    ================================ CORE TIER BUDGET EXCEEDED ================================
+    Core tier wall time: 66.86s exceeded budget of 30.00s.
+    Host 1-minute load average: 10.70 on 12 CPUs
+    Top 10 slowest core tests:
+       1.   8.13s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_human_unchanged
+       2.   7.58s  tests/test_json_and_exitcodes.py::JsonAndExitCodesTests::test_status_json_is_valid
+       3.   7.08s  tests/test_runner_shared.py::VerificationPolarityTests::test_verification_polarity_matrix_and_agreement
+       4.   5.42s  tests/test_check_engine.py::CollisionTests::test_one_pass_reports_exactly_the_collisions_present
+       5.   5.01s  tests/test_ipd_schema.py::DensityHeuristicTests::test_executed_conforming_corpus_low_overfire_rate
+       6.   4.99s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tiers_1_through_4_precedence
+       7.   4.09s  tests/test_notify_cli.py::test_listen_lifecycle_and_answering
+       8.   4.04s  tests/test_runner_shared.py::VerificationChainFrozenStateTests::test_verification_tristate_and_provenance_recording
+       9.   3.32s  tests/test_local_leaks.py::ThisRepoTests::test_this_repo_working_tree_is_clean
+      10.   2.91s  tests/test_ipd_lint.py::ReadinessAttestationTests::test_every_readiness_carrying_plan_in_the_tree_is_attested
+    ===========================================================================================
+    ```
+    Module durations output (`python3 -m pytest -o addopts="" --durations=0 -n0 tests/test_runner_residual_helpers.py`):
+    ```
+    ============================== slowest durations ===============================
+    0.03s call     tests/test_runner_residual_helpers.py::GitCommonDirTests::test_git_common_dir
+    0.01s call     tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_probe_raises
+    0.01s call     tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_unavailable
+    0.01s call     tests/test_runner_residual_helpers.py::TelemetryToolVersionsTests::test_telemetry_tool_versions_observed_in_start_event
+
+    (35 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 13 passed in 0.53s ==============================
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the recorded `<E-06 commit>` and `<E-06 parent>` hashes; paste the five JSON outputs produced by `tools/mutation_probe.py` (E-07), each with `head` equal to the E-06 commit or later, a selection containing `-m core tests/test_runner_residual_helpers.py`, `verdict: killed` and `baseline_failing: 0`; and `git diff --stat <E-06 parent>..HEAD -- agent_workflows/` showing no change.
   - Observed evidence:
-  - Result: pending
+    <E-06 commit>: `30e27bc48ae539a93bf7e7535e6401cc88262af3`
+    <E-06 parent>: `b38fcceb7c08a9b27f69dfa7a85bbff75bb63ca3`
+
+    Mutation probe outputs:
+    1. Key `agent_workflows/runner_shared.py::attributed_away_failure_ids`:
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "30e27bc48ae539a93bf7e7535e6401cc88262af3", "mutant_failing": 5, "newly_failing": ["tests.test_runner_residual_helpers.AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_bare_string", "tests.test_runner_residual_helpers.AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_mine", "tests.test_runner_residual_helpers.AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_missing_record", "tests.test_runner_residual_helpers.AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_unusable", "tests.test_runner_residual_helpers.AttributedAwayFailureIdsTests::test_attributed_away_failure_ids_usable_not_mine"], "newly_failing_total": 5, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_runner_residual_helpers.py"], "target": "agent_workflows/runner_shared.py::attributed_away_failure_ids", "verdict": "killed", "wall_s": 11.0}
+    ```
+    2. Key `agent_workflows/worktree_lease.py::lane_id_from_branch`:
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "30e27bc48ae539a93bf7e7535e6401cc88262af3", "mutant_failing": 1, "newly_failing": ["tests.test_runner_residual_helpers.LaneIdFromBranchTests::test_lane_id_from_branch"], "newly_failing_total": 1, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_runner_residual_helpers.py"], "target": "agent_workflows/worktree_lease.py::lane_id_from_branch", "verdict": "killed", "wall_s": 9.41}
+    ```
+    3. Key `agent_workflows/storage.py::get_git_common_dir`:
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "30e27bc48ae539a93bf7e7535e6401cc88262af3", "mutant_failing": 1, "newly_failing": ["tests.test_runner_residual_helpers.GitCommonDirTests::test_git_common_dir"], "newly_failing_total": 1, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_runner_residual_helpers.py"], "target": "agent_workflows/storage.py::get_git_common_dir", "verdict": "killed", "wall_s": 7.76}
+    ```
+    4. Key `agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions`:
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "30e27bc48ae539a93bf7e7535e6401cc88262af3", "mutant_failing": 1, "newly_failing": ["tests.test_runner_residual_helpers.TelemetryToolVersionsTests::test_telemetry_tool_versions_observed_in_start_event"], "newly_failing_total": 1, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_runner_residual_helpers.py"], "target": "agent_workflows/run_analytics_telemetry.py::TelemetryCollector._observe_tool_versions", "verdict": "killed", "wall_s": 9.09}
+    ```
+    5. Key `agent_workflows/check_engine.py::check_push_authorization`:
+    ```json
+    {"baseline_failing": 0, "checkout_status_changed": [], "extra_tests_overwrote": [], "flaky": [], "head": "30e27bc48ae539a93bf7e7535e6401cc88262af3", "mutant_failing": 2, "newly_failing": ["tests.test_runner_residual_helpers.PushAuthorizationGateTests::test_check_push_authorization_direct", "tests.test_runner_residual_helpers.PushAuthorizationGateTests::test_prepush_gate_check_unauthorized"], "newly_failing_total": 2, "operator": "return-none", "reason": null, "selection": ["-o", "addopts=", "-q", "-p", "no:randomly", "-n0", "-m", "core", "tests/test_runner_residual_helpers.py"], "target": "agent_workflows/check_engine.py::check_push_authorization", "verdict": "killed", "wall_s": 8.82}
+    ```
+
+    `git diff --stat b38fcceb7c08a9b27f69dfa7a85bbff75bb63ca3..HEAD -- agent_workflows/` output:
+    (empty, no changes to production code)
+  - Result: pass
 
 ## Approval and execution gate
 
