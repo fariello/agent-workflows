@@ -10,12 +10,15 @@
 - Set: quickpipe
 - Scope: One shortened pipeline for small changes from plan straight to review and execution. Specification only; authorizes no code change.
 - Constrained-by: `.aw/records/specs/approved/20261017-revsteps-01-k3yx72-plan-review-redesign.spec.md`
-  (`k3yx72`, `approved`), which defines the `simple` review tier and its runner signals, and excludes
-  the rest of the pipeline as non-goal N4.
+  (`k3yx72`, `approved`), which defines the `simple` review tier and the five tier questions the
+  review agent answers to choose it, and excludes the rest of the pipeline as non-goal N4. Under its
+  MD-20 the `simple` tier is built in Stage 1 and kept only if its pilot (Order 09) passes.
 - Constrained-by: `.aw/records/specs/approved/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md`
   (`llbr2b`, `approved`), which owns the configurable per-(type, transition) permission surface.
 
 ## Workflow history
+
+- 2026-10-24 note (aw specs): Aligned with k3yx72 as of bbceabeb2: removed references to runner tier signals and review.sensitive_paths (k3yx72 MD-1 revised, OQ-08); the Section 3.2 rules are now this spec's own admission rules, with its own quickpipe.excluded_paths list; tier stays the review agent's choice. Maintainer decision 2026-10-24 (Option A): built in two parts; Part 1 (Orders 01, 02, Part 1 tests) needs no pilot; Part 2 (Order 03 auto-approval and its tests) depends on k3yx72 Order 09 recording BUILD THE REST (MD-20).
 - 2026-10-24 to-review (aw set): authored review-ready spec defining quick pipeline for small changes
 
 - 2026-10-24 created (aw specs): Specify the quick pipeline for small changes from plan straight to review and execution
@@ -219,16 +222,23 @@ backlog and multi-turn staging exceeds the risk of the change itself.
 Spec `k3yx72` Section 5.1 defines the `simple` review tier as:
 > "Very low risk: typically a few lines of code, such as a small bug fix or one new CLI option."
 
-Section 5.2 of `k3yx72` establishes runner signals that raise the tier away from `simple`:
-- Modifying a spec file (`.spec.md` in `- Scope-Paths:`).
-- Touching sensitive modules in `review.sensitive_paths` (security, leak sanitation, git commit helpers, worktree isolation, sandbox profiles).
-- Exceeding size limits (`ipd_schema.MAX_E_LEAVES`, `ipd_schema.MAX_TASK_GROUPS`).
-- Grandfathered scope (plans omitting `- Scope-Paths:`).
+Spec `k3yx72` Section 5.2 has the review agent choose the tier after answering five recorded
+questions: whether the plan changes a spec or other contract; whether it touches code that guards
+private data, commits, worktree isolation, merges to main, or the sandbox; whether it is large or
+cross-cutting; whether it lists the files it changes; and whether a mistake could lose data, break
+dependent behavior, or be hard to undo. Under `k3yx72` MD-1 (revised 2026-10-19) the runner forces no
+tier: it records the tier and the answers. `k3yx72` defines no runner signals and no
+`review.sensitive_paths` setting (its OQ-08 was resolved as "no such list").
+
+The quick pipeline therefore adds its OWN admission rules (Section 3.2). They decide whether a plan
+may use the quick pipeline; they do not change the review tier, which stays the review agent's
+choice.
 
 ### 3.2 Stricter mechanical bounds for the quick pipeline
 
-The quick pipeline adopts all disqualifiers from `k3yx72` Section 5.2 and imposes stricter limits
-grounded in Section 1's empirical findings:
+The quick pipeline admits a plan only when all of the following hold. These are admission rules of
+this spec, checked by the quick-pipeline code (Section 7.1) and the runner (Section 7.2 Order 03); they
+are grounded in Section 1's measurements:
 
 1. **Orchestrator exclusion** (`- Kind: orchestrator`): Disqualified mechanically. Orchestrators
    coordinate child plans, manage rollup retirement, and never execute small self-contained edits.
@@ -239,17 +249,23 @@ grounded in Section 1's empirical findings:
    `ipd_schema.META_ATTENDED`. Unattended quick execution cannot run interactive turns.
 4. **Spec modification** (`.spec.md` in `- Scope-Paths:`): Disqualified mechanically. Changing
    specifications alters system invariants and requires standard or complex review.
-5. **Sensitive paths** (`review.sensitive_paths`): Disqualified mechanically. Touching security,
-   credentials, leak sanitizer, sandbox, or worktree isolation modules requires full scrutiny.
+5. **Guarded code**: Disqualified mechanically when `- Scope-Paths:` names a path on this spec's own
+   list `quickpipe.excluded_paths` in `.aw/config/project.json` (package default: empty). This
+   repository seeds it with the modules `k3yx72` Section 5.2 question 2 names as examples:
+   `agent_workflows/leak_sanitizer.py`, `agent_workflows/local_leaks.py`,
+   `agent_workflows/git_commit_helper.py`, `agent_workflows/commit_lock.py`,
+   `agent_workflows/lane_containment.py`, `agent_workflows/egress_policy.py`,
+   `agent_workflows/host_sandbox_profile.py`. The list limits only the quick pipeline; it does not
+   force a review tier.
 6. **Grandfathered scope** (missing `- Scope-Paths:`): Disqualified mechanically. Scope must be
    explicitly bounded.
 7. **Strict item count**: At most 2 `E-*` items and at most 1 task group. While `k3yx72` permits up to
    18 `E-*` items for standard plans, the quick path strictly requires `<= 2` `E-*` items.
 8. **Strict path count**: At most 3 distinct files declared in `- Scope-Paths:`. Prevents wide or
    cross-cutting edits.
-9. **Reviewer risk judgement**: Step T review questions in `/plan-review`. If the review agent answers
-   "yes" to any question regarding interface breakage, data loss risk, or subtle regressions, the tier
-   is raised.
+9. **Reviewer judgement**: the review agent rates the plan `simple` after answering the five tier
+   questions of `k3yx72` Section 5.2 (check T). Any other tier disqualifies the plan from the quick
+   pipeline.
 
 | Criterion | Type | Source / Enforcement |
 |---|---|---|
@@ -257,29 +273,30 @@ grounded in Section 1's empirical findings:
 | No open blocking questions | Mechanical | `plan_readiness.has_unresolved_blocking_question` |
 | Attended not required | Mechanical | `ipd_schema.META_ATTENDED` != "required" |
 | No spec files modified | Mechanical | `- Scope-Paths:` contains no `.spec.md` |
-| No sensitive paths touched | Mechanical | `- Scope-Paths:` matches no `review.sensitive_paths` |
+| No guarded code touched | Mechanical | `- Scope-Paths:` matches no `quickpipe.excluded_paths` entry |
 | Explicit scope paths | Mechanical | `- Scope-Paths:` is non-empty |
 | Small execution size | Mechanical | Count of `E-*` items <= 2, Task Groups <= 1 |
 | Small path footprint | Mechanical | Count of declared paths in `- Scope-Paths:` <= 3 |
-| Review risk assessment | Judgement | Review agent Step T questions (spec `k3yx72` 5.2) |
+| Review tier is `simple` | Judgement | Review agent check T, five tier questions (spec `k3yx72` 5.2) |
 
 ## 4. Deciding role and disagreement fallback
 
 ### 4.1 Consistency with `k3yx72` MD-1
 
-Spec `k3yx72` MD-1 dictates:
-> "The review agent rates the tier; the runner only raises it."
+Spec `k3yx72` MD-1 (revised 2026-10-19) says the review agent rates the tier after answering the five
+tier questions, and the runner forces no tier.
 
-The quick pipeline respects this invariant. An author cannot unilaterally force quick execution,
-and the runner never lowers a tier assigned by review.
+The quick pipeline respects this. An author cannot force quick execution, the runner never changes
+the tier the review assigned, and the admission rules of Section 3.2 only decide whether a plan the
+review rated `simple` may take the quick path.
 
 ### 4.2 Deciding options considered
 
 1. **Option A (Author proposal with Review confirmation)**: The author indicates quick pipeline intent
    via front matter (`- Pipeline: quick`). The review agent evaluates Check T. If Check T confirms
-   `simple` tier and all runner mechanical signals pass, the quick pipeline proceeds.
+   `simple` tier and every admission rule of Section 3.2 passes, the quick pipeline proceeds.
 2. **Option B (Implicit tier derivation)**: No front-matter field. The quick path is entered purely if
-   the review agent assigns `simple` and runner signals pass.
+   the review agent assigns `simple` and every admission rule of Section 3.2 passes.
 3. **Option C (CLI creation flag only)**: A human flag on creation dictates the pipeline.
 
 **Recommendation**: Option A (Recommendation strength: Strong).
@@ -389,7 +406,7 @@ This command:
 - Writes `- Pipeline: quick` into front matter.
 - Sets `- Work-Kind:` and `- Priority:`.
 - Automatically assigns `- Blocks-Release: next` if `work-kind` is `bug`.
-- Validates that declared scope paths do not touch `review.sensitive_paths` or `.spec.md`.
+- Validates that declared scope paths name no `.spec.md` file and no `quickpipe.excluded_paths` entry.
 
 Code surfaces extended by the implementing Set:
 - `agent_workflows/cli.py`: Register `quick` subparser in `ipd_sub`.
@@ -406,8 +423,22 @@ Code surfaces extended by the implementing Set:
 | 00 | Orchestrator: Child tracking and rollup. | All children | None |
 | 01 | Plan schema and authoring entry point: Register `Pipeline` in `ipd_schema.META_RECOGNIZED`, implement `aw ipd quick`, and apply `backlog.decide_gate_default`. | Spec approval | `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`, `.aw/records/plans/README.md` |
 | 02 | Release gate integrity: Implement plan-side bug gate in `check_engine.py` ensuring active bug plans require `- Blocks-Release:`. | Order 01 | `docs/artifact-lifecycles.md` |
-| 03 | Runner integration: Connect `k3yx72` Order 02 `Review-Depth` signals to `auto-approved` transition under `llbr2b` policy; support contiguous turn dispatch. | Order 01, `k3yx72` Order 02, `llbr2b` | `docs/artifact-lifecycles.md` |
-| 04 | Verification and regression tests: CLI tests, qualification rejection tests, and runner simulation. | Orders 02, 03 | None |
+| 03 | (Part 2) Runner integration: read the `- Review-Depth:` tier that `k3yx72` Order 02 records; when it is `simple` and every Section 3.2 admission rule passes, take the `auto-approved` transition under `llbr2b` policy; support contiguous turn dispatch. | Order 01, `k3yx72` Order 09 executed with a BUILD THE REST decision (MD-20), `llbr2b` | `docs/artifact-lifecycles.md` |
+| 04 | Verification and regression tests. Part 1: CLI tests and admission-rule rejection tests (with Orders 01 and 02). Part 2: runner simulation (with Order 03). May be two plans. | Orders 01, 02; Part 2 also 03 | None |
+
+Build parts (maintainer decision 2026-10-24, Option A). The quick pipeline is built in two parts so
+that nothing waits on the `k3yx72` pilot except what depends on its result:
+
+- **Part 1 (build after this spec is approved):** Orders 01 and 02, and the Part 1 tests of Order 04.
+  These give `aw ipd quick`, the `- Pipeline:` field, the admission rules, and the plan-side release
+  gate for bug plans, and they let a small plan skip the backlog item. A Part 1 quick plan still goes
+  through the normal review and approval path.
+- **Part 2 (build only after the `k3yx72` pilot passes):** Order 03 and the Part 2 tests of Order 04,
+  the automatic approval of a plan the review rated `simple`. Under `k3yx72` MD-20 the `simple` tier
+  is built in its Stage 1 and kept only if the pilot (`k3yx72` Order 09) records a BUILD THE REST
+  decision. Each Part 2 plan therefore lists `executed:<k3yx72 Order 09 id6>` in
+  `- Item-Dependencies:`, and is authored only after that decision is recorded. If the pilot records
+  STOP, Part 2 is not built, and quick plans keep using the normal approval path.
 
 ### 7.3 Open questions for the maintainer
 
@@ -425,7 +456,7 @@ Code surfaces extended by the implementing Set:
 - Blocking: no
 - Status: open
 - Owner: maintainer
-- Question: Should plans declare `- Pipeline: quick` in front matter, or should the runner infer quick handling solely from `simple` review tier and runner signals?
+- Question: Should plans declare `- Pipeline: quick` in front matter, or should the runner infer quick handling solely from a `simple` review tier and the Section 3.2 admission rules?
 - Recommendation: Explicit `- Pipeline: quick` field.
 - Recommendation strength: Moderate. Explicit declaration makes author intent unambiguous and allows upfront linting.
 
@@ -456,12 +487,12 @@ elaborate them.
 |---|---|---|
 | R-01 | The quick pipeline authorizes no code change until an approved implementing plan executes. | 0, 7.2 |
 | R-02 | Quick plans are created directly without requiring a backlog item or backlog graduation turn. | 1.1, 2.2, 6.1 |
-| R-03 | A plan must satisfy all mechanical disqualifiers (no orchestrators, no open blocking questions, no attended requirement, no spec edits, no sensitive paths, bounded size <= 2 E items and <= 3 paths) to qualify. | 3.2 |
-| R-04 | Review agent Step T questions govern review tier assignment; the runner may raise the tier but never lowers it. | 3.2, 4.1 |
+| R-03 | A plan must satisfy every admission rule (not an orchestrator, no open blocking questions, no attended requirement, no spec edits, no `quickpipe.excluded_paths` entry, explicit `- Scope-Paths:`, at most 2 E items, 1 task group, and 3 paths) to qualify. | 3.2 |
+| R-04 | The review agent assigns the tier from the five tier questions of `k3yx72` Section 5.2; the runner never changes it. The Section 3.2 admission rules decide only whether a `simple` plan may use the quick pipeline. | 3.1, 3.2, 4.1 |
 | R-05 | A plan failing any qualification criterion or rated above `simple` falls back cleanly to the standard pipeline. | 4.3 |
 | R-06 | Author intent is recorded via `- Pipeline: quick` in front matter, registered in `ipd_schema.META_RECOGNIZED`. | 4.2, 7.1 |
 | R-07 | Human approval `->approved` remains an attested human act; automated clearance sets `auto-approved` exclusively. | 5.1 |
-| R-08 | Automated clearance to `auto-approved` requires an approving review readiness verdict (`is_plan_review_approved`) and compliance with `llbr2b` policy. | 5.1, 5.2 |
+| R-08 | Automated clearance to `auto-approved` requires an approving review readiness verdict (`is_plan_review_approved`) and compliance with `llbr2b` policy. It is built only in Part 2, after the `k3yx72` pilot records BUILD THE REST. | 5.1, 5.2, 7.2 |
 | R-09 | Authoring, review, and execution operate in separate turns and isolated worktree sessions. | 5.3 |
 | R-10 | Plan files, history records, and E/V evidence are preserved; walkthroughs are dropped for quick changes. | 6.1 |
 | R-11 | Bug fixes created via the quick pipeline automatically inherit release gating (`- Blocks-Release: next`) and are policed by plan-side release checks. | 6.2 |
@@ -472,9 +503,9 @@ elaborate them.
 | ID | Covers | Criterion | Evidence |
 |---|---|---|---|
 | AC-01 | R-02, R-06, R-12 | `aw ipd quick` scaffolds an IPD with `- Pipeline: quick`, valid `- Status: draft`, and no backlog dependency. | CLI execution output and generated plan file. |
-| AC-02 | R-03, R-06 | Scaffolding or linting a quick plan exceeding 2 `E-*` items, exceeding 3 paths, or touching sensitive paths fails validation. | Lint refusal diagnostics and test assertions. |
-| AC-03 | R-04, R-05 | A quick plan rated `standard` by `/plan-review` rejoins the standard pipeline without error or record loss. | Runner execution ledger and plan workflow history. |
-| AC-04 | R-07, R-08 | Runner advances a passing `simple` plan to `auto-approved` under `--full-auto`, while rejecting unreviewed auto-approval. | Transition event logs and status checks. |
+| AC-02 | R-03, R-06 | Scaffolding or linting a quick plan exceeding 2 `E-*` items, exceeding 3 paths, or naming a `quickpipe.excluded_paths` entry fails validation. | Lint refusal diagnostics and test assertions. |
+| AC-03 | R-04, R-05 | A quick plan rated `standard` by `/plan-review` rejoins the standard pipeline without error or record loss, and the runner leaves the recorded tier unchanged. | Runner execution ledger and plan workflow history. |
+| AC-04 | R-07, R-08 | (Part 2) Runner advances a passing `simple` plan to `auto-approved` under `--full-auto`, while rejecting unreviewed auto-approval. | Transition event logs and status checks. |
 | AC-05 | R-07 | Transitioning a plan to `approved` without `--by-human` is refused by `aw ipd set`. | Command error output and exit code. |
 | AC-06 | R-09 | Authoring, review, and execution run in separate isolated turns within the runner. | Run trace demonstrating distinct turn sessions. |
 | AC-07 | R-10 | Executed quick plans retain full `E-*`/`V-*` evidence and workflow history in `executed/` without a walkthrough file. | File presence check in `.aw/records/plans/executed/`. |
