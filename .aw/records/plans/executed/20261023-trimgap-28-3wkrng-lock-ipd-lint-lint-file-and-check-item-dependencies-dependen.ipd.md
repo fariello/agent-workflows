@@ -6,7 +6,7 @@
 - Scope: Add `@pytest.mark.core` to exactly the two `tests/test_ipd_dependency_check.py` tests that assert that behavior and that the explicit-path probe showed kill both mutants: `PhasedLintTests.test_the_pure_syntax_check_assigns_the_right_severity_at_every_phase` and `PhasedLintTests.test_lint_file_resolves_the_repo_aware_rules_at_a_blocking_phase`. Then re-probe both keys under `-m core` against the control file alone and record `killed`. EXCLUDES any production-code change; EXCLUDES any change to test bodies or tables (the file's docstring states `EvaluatorRuleMatrixTests` is left byte-unchanged deliberately, and the PhasedLint tables are already the behavior oracle); EXCLUDES other `ipd_lint.py` keys and other test files; EXCLUDES `FromSpecSchemaRecognitionTests.test_from_spec_does_not_raise_unknown_field` (it also kills both mutants, but asserts a metadata-recognition property, not dependency-rule behavior, so it adds no coverage of these keys beyond the two PhasedLint tests).
 - Scope-Paths: tests/test_ipd_dependency_check.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 3wkrng
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3wkrng verified (set trimgap, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (E-03 budget bar made satisfiable, collect-count bar replaced by before/after diff, baseline_failing and E-01 sha recorded, execution contract); probes re-run at 6d63e108a (F-06)
 
