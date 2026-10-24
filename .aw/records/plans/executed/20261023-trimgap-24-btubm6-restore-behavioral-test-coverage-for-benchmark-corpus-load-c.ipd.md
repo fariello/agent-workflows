@@ -6,7 +6,7 @@
 - Scope: Add ONE new behavioral test module, `tests/test_benchmark_corpus_restored_behavior.py`, marked `core`, that drives `benchmark_corpus.load_corpus` against `tmp_path` corpus roots built by copying seeds from `tests/benchmark_fixtures/corpus/`, and asserts `SeededTask.workspace_seed_path` returns `seed_path / "workspace"`, an existing directory, for every fixture seed. EXCLUDES any change to `agent_workflows/benchmark_corpus.py` or any other production file, EXCLUDES editing `tests/test_benchmark_corpus.py` (owned by executed plan `78g6ic`), and EXCLUDES any change under `tests/benchmark_fixtures/`.
 - Scope-Paths: tests/test_benchmark_corpus_restored_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: btubm6
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: btubm6 verified (set trimgap, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-02(e) seeds named against class order, docstring/code order contradiction filed as qtd3lj, mutation (4b) added), PR-002 (E-03 ground-truth absence made recursive and non-vacuous) fixed
 
