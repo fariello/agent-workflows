@@ -6,7 +6,7 @@
 - Scope: Produce the SPEC, not the engine. Measure what the current pipeline costs a small change, inventory which stages are already optional in code, and write one spec (created with `aw specs new`, taken to `to-review`, carrying `- From-Backlog: rsisop`) that answers the item's three questions (which changes qualify, who decides, which records are still written) plus the entry-point, approval-authority and release-gate questions those answers depend on, and proposes the implementing Set's work breakdown. NO verb, runner, schema or workflow behavior changes in this plan.
 - Scope-Paths: .aw/records/specs/draft/**, .aw/records/specs/to-review/**, .aw/records/plans/**/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.ipd.md
 - Item-Dependencies: exists:spec:k3yx72, exists:spec:llbr2b
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 10
 - Author: opencode
 - Id: e41qgx
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e41qgx verified (set quickpipe, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/draft/**: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (spec created first, baseline captured; split into E-08/E-10), PR-002 (E-09 TRACE ids for post-cutover spec), PR-003 (plan approval is not gated by TRANSITION_AUTHORITY; premise corrected), PR-004 (execution contract), PR-005 (live counts re-derived), PR-006 (F-4 miscount), PR-007 (execute_item_core named) fixed. Reviewed at HEAD `72da75876`; review record `.aw/records/reviews/20261023-quickpipe-01-e41qgx-specify-the-quick-pipeline-for-small-changes-before-any-verb.review.md`.
 - 2026-10-23 to-review (opencode): authored review-ready spec-first plan graduating backlog rsisop (the item says it needs its own spec before any code)
