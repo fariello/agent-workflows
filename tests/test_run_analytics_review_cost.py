@@ -108,6 +108,9 @@ def _oc_review_session(
     _jl(path, objs)
 
 
+_NO_READINESS = object()
+
+
 def _review_run(
     runs: Path,
     run_id: str,
@@ -115,6 +118,7 @@ def _review_run(
     label: str = "",
     variant: str = "",
     model: str = "uri/m-a",
+    readiness: object = _NO_READINESS,
 ) -> Path:
     """A two-item review run: item A in a NEW session, item B REUSING A's session, plus a verifier."""
 
@@ -156,6 +160,8 @@ def _review_run(
             "ended_at": start.replace(":00:00", ":05:00"),
             "model": model,
         }
+        if readiness is not _NO_READINESS:
+            a["review_readiness"] = readiness
         if verify:
             a["verify_log"] = str(sess / "01-aaaaaa-attempt-1-verify.jsonl")
             a["verification"] = "verified"
@@ -355,12 +361,19 @@ class AttemptQueryTests(unittest.TestCase):
         for i in range(14):
             variant = "grouped-6" if i % 2 else "single-12"
             model = "uri/m-a" if i < 7 else "uri/m-b"
+            if i == 0:
+                run_readiness = _NO_READINESS
+            elif i == 1:
+                run_readiness = None
+            else:
+                run_readiness = "go"
             _review_run(
                 runs,
                 f"run-20260910T{i:02d}0000Z-{i}",
                 label="exp1",
                 variant=variant,
                 model=model,
+                readiness=run_readiness,
             )
         args = argparse.Namespace(
             dir=str(self.repo),
@@ -496,6 +509,7 @@ class AttemptQueryTests(unittest.TestCase):
         self.assertEqual(r["items"], 4)
         self.assertEqual(r["attempts"], 4)
         self.assertEqual(r["outcome"], {"reviewed": 4})
+        self.assertEqual(r["readiness"], {"(not recorded)": 1, "go": 3})
 
         # The verifier's cost is folded into the item it verified: item A's three steps plus the
         # verifier's one step, each priced at the era-b rates used by the fixture.
@@ -504,6 +518,61 @@ class AttemptQueryTests(unittest.TestCase):
 
         expected = step(30000, 0) + step(100, 40000) + step(200, 60000) + step(1000, 0)
         self.assertAlmostEqual(r["cost_median"], round(expected, 4), places=4)
+
+    def test_experiment_view_readiness_maps(self) -> None:
+        """(a) experiment rows carry readiness count maps summing to items, including go, absent, (not recorded)."""
+        res = query.run_query("experiment", repo=self.repo, filters=["label=exp1"])
+        all_labels: set[str] = set()
+        for r in res.rows:
+            self.assertIn("readiness", r)
+            self.assertEqual(sum(r["readiness"].values()), r["items"])
+            all_labels.update(r["readiness"].keys())
+        self.assertIn("go", all_labels)
+        self.assertIn("absent", all_labels)
+        self.assertIn("(not recorded)", all_labels)
+
+    def test_attempts_group_by_readiness(self) -> None:
+        """(b) group-by readiness returns one row per readiness label present in the fixture."""
+        res = query.run_query(
+            "attempts",
+            repo=self.repo,
+            group_by="readiness",
+            metric="cost",
+            stat="count",
+        )
+        labels = {r["readiness"] for r in res.rows}
+        self.assertEqual(labels, {"go", "absent", "(not recorded)"})
+
+    def test_attempts_filter_readiness_go(self) -> None:
+        """(c) filters readiness=go counts only the go main sessions."""
+        res = query.run_query(
+            "attempts",
+            repo=self.repo,
+            filters=["readiness=go"],
+            metric="cost",
+            stat="count",
+        )
+        self.assertEqual(len(res.rows), 1)
+        self.assertEqual(res.rows[0]["n"], 24)
+        self.assertEqual(res.rows[0]["cost"], 24)
+
+    def test_attempts_jsonl_schema_version_and_readiness_key(self) -> None:
+        """(d) published attempts.jsonl header line reports schema: 3 and rows carry readiness."""
+        latest = self.repo / ".aw" / "records" / "runs" / "analytics" / "latest"
+        lines = (latest / dash.ATTEMPT_FACTS_FILENAME).read_text().splitlines()
+        header = json.loads(lines[0])
+        self.assertEqual(header["record"], "header")
+        self.assertEqual(header["schema"], 3)
+        row = json.loads(lines[1])
+        self.assertEqual(row["record"], "row")
+        self.assertIn("readiness", row)
+
+    def test_schema_view_lists_readiness(self) -> None:
+        """(e) schema view attempt_grain lists readiness in filter_fields and group_by_fields."""
+        payload = query.run_query("schema").payload
+        attempt_grain = payload["attempt_grain"]
+        self.assertIn("readiness", attempt_grain["filter_fields"])
+        self.assertIn("readiness", attempt_grain["group_by_fields"])
 
     def test_disallowed_fields_refused(self) -> None:
         for kw in (
@@ -816,3 +885,137 @@ class AntigravityThinkingTests(unittest.TestCase):
             self.assertEqual(st["reasoning"], 200)
             # input + visible output + thinking == the host's own total_tokens (cache aside).
             self.assertEqual(st["input"] + st["output"] + st["reasoning"], 1300)
+
+
+class ReviewReadinessRecordingTests(unittest.TestCase):
+    """Behavioral tests verifying execute_item records review_readiness on the attempt."""
+
+    def _setup_repo_and_plan(self, td: str) -> tuple[Path, Path, dict, dict]:
+        repo = Path(td)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
+        )
+        subprocess.run(["git", "config", "user.name", "Tester"], cwd=repo, check=True)
+
+        plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        plan_path = plan_dir / "20261015-revcost-01-rev001-test-plan.ipd.md"
+        plan_path.write_text(
+            """# IPD: Test Plan rev001
+
+- Date: 2026-10-15
+- Id: rev001
+- Set: revcost
+- Order: 1
+- Status: to-review
+- Kind: child
+- Concern: Test concern.
+- Scope: Test scope.
+- Scope-Paths: none
+- Priority: medium
+- Work-Kind: feature
+- Author: test
+- Highest E allocated: 01
+- Item-Dependencies: none
+
+## Workflow history
+
+- 2026-10-15 to-review (test): authored
+- 2026-10-15 draft (test): created
+
+## Goal
+
+A test goal.
+
+## Detailed Implementation Checklist (TODO)
+
+- [ ] E-01 Test action item
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+""",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "add plan"], cwd=repo, check=True)
+
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test-readiness"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        item = {
+            "position": 1,
+            "id6": "rev001",
+            "setid": "revcost",
+            "configured_file": str(plan_path.relative_to(repo)),
+            "artifact_type": "ipd",
+            "action": "review",
+            "status": "queued",
+            "review_handler": "plan-review",
+            "attempts": [],
+        }
+        state = {
+            "run_id": "run-test-readiness",
+            "repo": str(repo),
+            "options": {
+                "action": "review",
+                "isolate_worktree": False,
+                "full_auto": False,
+            },
+            "queue": [item],
+        }
+        return repo, run_dir, state, item
+
+    def test_review_turn_with_readiness_records_readiness_value(self) -> None:
+        """Case one: fake turn adds - Readiness: go-pending-approval; review_readiness is recorded."""
+        with tempfile.TemporaryDirectory() as td:
+            repo, run_dir, state, item = self._setup_repo_and_plan(td)
+
+            def fake_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
+                curr_plan = Path(st["repo"]) / it["configured_file"]
+                text = curr_plan.read_text(encoding="utf-8")
+                updated = text.replace(
+                    "- Status: to-review",
+                    "- Status: reviewed\n- Readiness: go-pending-approval",
+                )
+                updated = updated.replace(
+                    "## Workflow history\n",
+                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                )
+                curr_plan.write_text(updated, encoding="utf-8")
+                return 0, "ses1", str(rd / "log"), ["oc"]
+
+            with mock.patch.object(oc_runipd, "run_opencode", fake_run):
+                oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "reviewed")
+            self.assertEqual(
+                item["attempts"][-1]["review_readiness"], "go-pending-approval"
+            )
+
+    def test_review_turn_without_readiness_records_none(self) -> None:
+        """Case two: fake turn sets reviewed with no Readiness; review_readiness is None."""
+        with tempfile.TemporaryDirectory() as td:
+            repo, run_dir, state, item = self._setup_repo_and_plan(td)
+
+            def fake_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
+                curr_plan = Path(st["repo"]) / it["configured_file"]
+                text = curr_plan.read_text(encoding="utf-8")
+                updated = text.replace("- Status: to-review", "- Status: reviewed")
+                updated = updated.replace(
+                    "## Workflow history\n",
+                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                )
+                curr_plan.write_text(updated, encoding="utf-8")
+                return 0, "ses1", str(rd / "log"), ["oc"]
+
+            with mock.patch.object(oc_runipd, "run_opencode", fake_run):
+                oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "reviewed")
+            self.assertIn("review_readiness", item["attempts"][-1])
+            self.assertIsNone(item["attempts"][-1]["review_readiness"])
