@@ -6,7 +6,7 @@
 - Scope: Add ONE new core-marked test module, `tests/test_benchmark_residual_payloads.py`, that calls the three keys through their public objects (`AblationScheduler.generate_schedule` and `AblationTrialSpec`, `compute_aggregate_metrics`, `GateEvaluationResult`) and asserts on the returned tuple and dicts, then probes each key under the core selection. EXCLUDES any production-code change; EXCLUDES the other benchmark keys owned by sibling items (`BenchmarkManifest.to_dict` is guarded by core, F-01 of plan `e6lq6y`; the digest keys are owned by plan `ya0h23`; `TrialResult.to_dict` and `RunnerAdapter.adapter_digest` belong to backlog `l9ssp6`).
 - Scope-Paths: tests/test_benchmark_residual_payloads.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 1z19cn
-- Approval: 2026-10-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1z19cn verified (set trimgap, attempt 1).
 - 2026-10-24 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed (execution contract, E-04 commit/parent recorded, two-architectures-per-cell assertion); F-03/F-04 reproduced at 72da75876
 
