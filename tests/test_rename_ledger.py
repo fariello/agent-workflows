@@ -120,6 +120,7 @@ class RecordRenameCaseTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
+    @pytest.mark.core
     def test_case1_id6_to_id6(self) -> None:
         RH.record_rename(
             self.root,
@@ -133,6 +134,7 @@ class RecordRenameCaseTests(unittest.TestCase):
         self.assertEqual(len(recs), 1)
         self.assertEqual(recs[0].get("key_kind", "id6"), "id6")
 
+    @pytest.mark.core
     def test_case2_id6less_to_id6_keys_on_new_id6(self) -> None:
         # V-03: a legacy id6-less name migrated INTO the grammar records under the NEW id6.
         RH.record_rename(
