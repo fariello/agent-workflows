@@ -487,6 +487,7 @@ class OfflineReportTests(unittest.TestCase):
             "the bundle carries a network reference",
         )
 
+    @pytest.mark.core
     def test_the_offline_harness_FAILS_when_a_network_reference_is_introduced(self):
         """THE CONTROL. Without it, "zero references" and "the scanner never ran" agree."""
 

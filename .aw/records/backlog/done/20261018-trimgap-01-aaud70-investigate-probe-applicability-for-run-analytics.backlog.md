@@ -1,5 +1,5 @@
 - Id: aaud70
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Investigate probe applicability for run_analytics_spa
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD di5puw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-26-di5puw-resolve-probe-applicability-for-run-analytics-spa-keys-and-l.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-26-di5puw-resolve-probe-applicability-for-run-analytics-spa-keys-and-l.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175032Z-1384916: di5puw
 - 2026-10-18 created (aw backlog): Investigate probe applicability for run_analytics_spa
 
