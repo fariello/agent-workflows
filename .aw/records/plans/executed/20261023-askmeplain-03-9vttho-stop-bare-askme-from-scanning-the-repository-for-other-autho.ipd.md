@@ -6,7 +6,7 @@
 - Scope: IN: rewrite the no-argument scope rule in `askme.md` so the permitted search is defined positively and narrowly (this conversation; records this session created or edited, identified by this session's own edits, not by searching), name the forbidden actions concretely (running `aw attention`, recursive grep or find over `.aw/records`, reading records the session did not touch), and state the required output when both scopes are empty (say so, offer the three ways to point at a subject, and stop); mirror the rule in `rationale.md`; add a behavioral test that the installed workflow body carries the rule (the generated shims only point at that body via `engine.shim_body` and need no change). OUT: changes to any host's tool permissions; a runtime enforcement layer (research `y0vcm9`: "Start with these source and instruction changes before adding a new enforcement service"); the other defects found by `lkn1zt` (separate plans `lf4j52`, `wfy9ii`, `l5f2hg`, `pkz19w`).
 - Scope-Paths: .aw/system/workflows/askme/askme.md, .aw/system/workflows/askme/rationale.md, tests/test_askme_command_delivery.py, CHANGELOG.md
 - Item-Dependencies: executed:lkn1zt
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Blocks-Release: next
 - Work-Kind: bug
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9vttho
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9vttho verified (set askmeplain, attempt 1).
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006
 - 2026-10-23 to-review (aw set): authored review-ready from lkn1zt findings auwidn (D-8)
