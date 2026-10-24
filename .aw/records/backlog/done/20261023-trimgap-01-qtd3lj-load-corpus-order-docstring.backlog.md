@@ -1,5 +1,5 @@
 - Id: qtd3lj
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Reconcile benchmark_corpus.load_corpus docstring (claims task_class, seed_id order) with its seed-directory-name order
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD x8p9ek executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-36-x8p9ek-reconcile-load-corpus-docstring-with-its-seed-directory-name.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-36-x8p9ek-reconcile-load-corpus-docstring-with-its-seed-directory-name.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T221840Z-2696450: x8p9ek
 - 2026-10-23 created (aw backlog): filed by /plan-review of btubm6
 

@@ -142,7 +142,17 @@ def load_task(seed_path: Path) -> SeededTask:
 
 def load_corpus(corpus_root: Path) -> List[SeededTask]:
     """Load every seeded task under a corpus root. A corpus root contains one subdirectory per seed
-    (each with a task.json). Returns tasks sorted by (task_class, seed_id) for determinism."""
+    (each with a task.json).
+
+    Returns tasks sorted in ascending order of their seed directory name (the child name under
+    ``corpus_root``) for determinism. This is directory name order, not ``(task_class, seed_id)``
+    order; the two coincide only when each seed directory is named after its class (as in the
+    checked-in fixture corpus).
+
+    Raises :class:`CorpusError` if ``corpus_root`` is not a directory, or if any seed subdirectory
+    is malformed (errors from :func:`load_task` propagate). Non-directory children and subdirectories
+    without a ``task.json`` are skipped.
+    """
     corpus_root = Path(corpus_root)
     if not corpus_root.is_dir():
         raise CorpusError("corpus root is not a directory: {0}".format(corpus_root))
