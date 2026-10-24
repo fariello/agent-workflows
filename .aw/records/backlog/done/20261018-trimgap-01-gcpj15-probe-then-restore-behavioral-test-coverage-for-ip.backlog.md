@@ -1,5 +1,5 @@
 - Id: gcpj15
-- Status: graduated
+- Status: done
 - Graduated-To: trimgap
 - Set: trimgap
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Probe then restore behavioral test coverage for ipd_lifecycle
 
 ## Workflow history
+- 2026-10-24 done (aw backlog): closed by aw agy run: IPD 2qlg0w executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261023-trimgap-25-2qlg0w-probe-then-restore-core-tier-behavioral-coverage-for-ipd-lif.ipd.md); evidence .aw/records/plans/executed/20261023-trimgap-25-2qlg0w-probe-then-restore-core-tier-behavioral-coverage-for-ipd-lif.ipd.md
 - 2026-10-23 graduated (aw backlog): graduated by run run-20261023T175005Z-1383890: 2qlg0w
 - 2026-10-18 created (aw backlog): Probe then restore behavioral test coverage for ipd_lifecycle
 
