@@ -16,6 +16,7 @@
 - 2026-10-24 refined (7h0wag): address adversarial review findings F-17 through F-22 (resume baseline verification guard, dangling profile validation, acceptance test traceability AT-16..AT-22, research CLI symmetry, visual refinement loop alignment, and auditability vs bit-for-bit determinism disclaimer)
 - 2026-10-24 refined (rrk3l6): address adversarial review findings F-23 through F-25 (reviewer role in configuration schema, artifact placement matrix rows for ledger and split chunks, and decisions 07-09 in decision log)
 - 2026-10-24 refined (l870sr): address adversarial review findings F-26 and F-27 (synchronize CLI table arguments for partial roster and stale resume flags, and update self-check requirement and test counters)
+- 2026-10-24 refined (5rr01t): address adversarial review findings F-28 through F-36 (canonical specs check path handoff, cancellation and signal trapping contract FR-33, research CLI command symmetry, research_contract D177 parser gap documentation, global turn budget headroom, hierarchical synthesizer context overflow protection FR-34, review scope certification requirement in FR-09, chunking phasing clarification, NN slot-block formula, and front matter YAML schemas)
 
 ---
 
@@ -71,9 +72,10 @@ Authoring high-stakes software specifications and deep research findings current
   - Full adherence to Decision D177 type-last filename grammar.
   - Machine-readable `--agent` (`aw.agent/v1`) and `--json` outputs.
   - Resume from interrupted or capped runs via `aw specs flow resume <run-id6>`.
+  - Modular brief partitioning and chunked generation for context-constrained models (e.g. Gemini 3.8 Flash High with `modular-chunks`).
 - **Deferred to Subsequent Releases (Phase 2 & 3)**:
   - Native standalone `codex exec` background runner profile row in `runner_profiles.py` (Phase 2).
-  - Automated multi-document large spec chunking and assembly pipeline (Phase 2).
+  - Automated arbitrary recursive multi-document large spec chunking and assembly pipeline for monolithic legacy specifications (Phase 2).
   - Live token billing API telemetry integration (Phase 3).
   - Interactive terminal curses dashboard for multi-agent watching (Phase 3).
 
@@ -185,10 +187,14 @@ A critical architectural decision is where intermediate candidate specs, reviews
 | `aw specs flow merge` | Synthesis Only | `<setid>` (or `<candidate-paths...>')<br>`--synthesizer <profile>` (default: roster verifier)<br>`--synth-refine-cap <int>`<br>`--apply` | Takes candidates from `draft/intermediate/<setid>/`, compiles Similarities/Differences Matrix in `.aw/records/reviews/`, executes synthesis refinement, and finalizes to `to-review/`. | 0: clean<br>1: findings/cap<br>2: usage error |
 | `aw specs flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose` | Displays live or completed execution status: participant stage progress, iteration counts, active findings, cap warnings, token metrics. | 0: clean<br>1: findings/active<br>2: usage error |
 | `aw specs flow resume` | Recovery | `<flow-run-id6>`<br>`--refine-cap <int>` (optional new cap)<br>`--force-stale-resume` (flag: bypass brief mutation check)<br>`--apply` | Resumes an interrupted, failed, or capped run from its frozen state without re-running completed participant turns. | 0: clean<br>1: findings/cap<br>2: usage error |
+| `aw specs flow cancel` | Abort & Cleanup | `<flow-run-id6>`<br>`--apply` | Cancels an active or interrupted flow run, terminates all spawned child worker subprocesses to prevent runaway background execution and billing, marks the run ledger status as `cancelled`, and updates attention pipeline position. | 0: clean<br>1: not-active<br>2: usage error |
 | `aw specs flow finalize` | Finalization | `<flow-run-id6>`<br>`--status to-review\|draft` (default: `to-review`)<br>`--allow-unresolved-minor` (flag)<br>`--apply` | Validates final candidate against spec checklist, formats workflow history, moves spec to destination lifecycle directory, marks intermediates as `synthesized`, and outputs `/spec-review` command. | 0: clean<br>1: blocked/findings<br>2: usage error |
-| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--prepare-only`<br>`--apply` | Formulates research prompt, collects independent evidence reports across roster, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow new` | Quick or Thorough | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--mode quick\|thorough`<br>`--roster <roster-spec>`<br>`--topic <str>`<br>`--prepare-only`<br>`--apply` | Formulates research prompt, collects independent evidence reports across roster, cross-verifies citations, reconciles contradictions, and emits `reconciliation-report` to `.aw/records/research/`. If `--prepare-only`, writes rendered prompts to `.aw/records/prompts/pending/` without dispatching execution. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow prepare` | Prompt Prep Only | `--question <str>` (or `--brief <path>`)<br>`--slug <slug>`<br>`--set <setid>`<br>`--roster <roster-spec>`<br>`--apply` | Freezes baseline commit, validates research brief, renders all initial investigation prompt artifacts to `.aw/records/prompts/pending/`, and displays the execution plan without dispatching execution. | 0: clean<br>2: usage error |
+| `aw research flow reconcile` | Synthesis Only | `<setid>` (or `<report-paths...>')<br>`--reconciler <profile>` (default: roster verifier)<br>`--apply` | Takes candidate research reports from `.aw/records/research/todo/`, cross-verifies citations, identifies direct contradictions, drafts reconciled synthesis, and writes `reconciliation-report` to `.aw/records/research/reference/<YYYY-Www>/`. Alias: `aw research flow merge`. | 0: clean<br>1: findings/unverified<br>2: usage error |
 | `aw research flow status` | Read-Only | `<flow-run-id6>` (or latest if omitted)<br>`--verbose` | Displays live or completed research execution status: participant progress, citation verification count, contradiction count, and report paths. | 0: clean<br>1: findings/active<br>2: usage error |
 | `aw research flow resume` | Recovery | `<flow-run-id6>`<br>`--apply` | Resumes an interrupted, failed, or capped research run from its frozen state without re-running completed participant investigation turns. | 0: clean<br>1: findings/unverified<br>2: usage error |
+| `aw research flow cancel` | Abort & Cleanup | `<flow-run-id6>`<br>`--apply` | Cancels an active or interrupted research flow run, terminates all spawned child worker subprocesses, marks the run ledger status as `cancelled`, and updates research catalog tracking. | 0: clean<br>1: not-active<br>2: usage error |
 | `aw specs flow config` | Read-Only / Mutate | `show` \| `set-roster` \| `set-defaults`<br>`--roster <roster-spec>`<br>`--profile <name>` | Displays resolved configuration hierarchy or writes user-local flow defaults to `<config_dir>/flow-preferences.json`. | 0: clean<br>2: usage error |
 
 ---
@@ -209,7 +215,7 @@ A critical architectural decision is where intermediate candidate specs, reviews
 ### 4.3 Controlled Iterative Refinement and Execution Bounds
 - **FR-07 (Structured Finding Schema and Severity Decoupling)**: Review and refinement turns MUST classify critique items using stable structured identifiers (`F-01`, `F-02`, etc.) with required fields: Severity (`critical`, `major`, `minor`, `cosmetic`), Category (`correctness`, `contract`, `security`, `completeness`, `consistency`, `clarity`, `style`), Requirement Reference, Concrete Evidence, Suggested Remedy, and Disposition. Disposition values are restricted to a closed enum: `pending`, `fixed`, `rejected-with-rationale`, `reopened`, `duplicate`. Findings with Category `style` or Severity `cosmetic` are advisory-only: they MUST NOT block convergence, and MUST NOT advance iteration caps.
 - **FR-08 (Iteration Accounting)**: The iteration counter MUST increment only upon completion of a full review-and-revision cycle. Host failures, transport timeouts, or transient API errors MUST trigger isolated retries (up to `--max-retries`, default 2) and MUST NOT increment the quality iteration counter.
-- **FR-09 (Convergence Detection)**: An iteration loop MUST declare convergence ("no material improvements") when a review pass yields zero `critical` and zero `major` findings, and all previous findings are either verified as fixed or formally accepted with rationale. Rising numerical self-scores (e.g. "9/10") MUST NOT be used as a convergence signal.
+- **FR-09 (Convergence Detection)**: An iteration loop MUST declare convergence ("no material improvements") when a review pass yields zero `critical` and zero `major` findings, all previous findings are either verified as fixed or formally accepted with rationale, and the review record (`.review.md`) includes an explicit audited scope census certifying that all candidate sections, requirement tables, and architectural constraints were evaluated. A cursory or empty review lacking this scope certification MUST NOT trigger convergence. Rising numerical self-scores (e.g. "9/10") MUST NOT be used as a convergence signal.
 - **FR-10 (Design Oscillation Guard)**: If a finding's proposed remedy directly reverses an architectural decision adopted in the immediately preceding iteration, the engine MUST flag an oscillation warning, halt automated refinement, and prompt the operator or mark the finding as `unresolved-oscillation`.
 - **FR-11 (Honest Cap Enforcement)**: If `--refine-cap` or `--synth-refine-cap` is reached while `critical` or `major` findings remain unresolved, the command MUST:
   1. Halt further automated refinement.
@@ -227,6 +233,11 @@ A critical architectural decision is where intermediate candidate specs, reviews
   - If surviving valid candidates == 0: halts immediately with outcome `fail` (exit 1).
 - **FR-31 (Resume Baseline Verification Guard)**: When `aw specs flow resume` or `aw research flow resume` is invoked, the engine MUST re-verify the input brief file's SHA-256 hash and git commit SHA against the `FROZEN_BASELINE` recorded in `FLOW_RUN`. If the input brief or git working tree has mutated since the initial run was frozen, the command MUST refuse execution with exit code 2 (`refusal: input brief has mutated since baseline was frozen; start a new flow via 'aw specs flow new' or pass '--force-stale-resume'`).
 - **FR-32 (Dangling Profile Validation and Identity Recording)**: Prior to dispatching execution, the profile resolver MUST verify that every profile named in the participant roster exists in `runner-profiles.json`. If a referenced profile is missing or dangling, the command MUST refuse execution with exit code 2. Every generated artifact front matter MUST explicitly record both `- Requested-Model:` (user-configured string) and `- Resolved-Model:` (actual host/model identifier dispatched).
+- **FR-33 (Graceful Cancellation, Signal Trapping, and Subprocess Termination)**: The workflow engine MUST install signal handlers for `SIGINT` (Ctrl+C) and `SIGTERM`. Upon receiving an interrupt signal, or upon invocation of `aw specs flow cancel <run-id6>` or `aw research flow cancel <run-id6>`:
+  1. The engine MUST immediately issue termination signals (`SIGTERM` followed by `SIGKILL` after a 3-second grace period) to all spawned runner child worker subprocesses (e.g. `opencode run`, `agy run`), preventing orphaned background processes, runaway token billing, and uncoordinated writes.
+  2. The active run state in `.aw/records/runs/flow-<run-id6>.json` MUST be checkpointed with status `interrupted` (if signal-interrupted) or `cancelled` (if CLI-cancelled), recording the exact stage, completed candidate artifacts, and exit code 1.
+  3. All generated intermediate candidate artifacts in `.aw/records/specs/draft/intermediate/<setid>/` and critiques in `.aw/records/reviews/` MUST remain preserved on disk.
+  4. The attention board pipeline state for `<setid>` MUST transition to `READY` with next-action pointer `aw specs flow resume <run-id6>` for interrupted runs, or `DONE` for cancelled runs, eliminating orphaned active indicators.
 
 #### 4.3.1 Mathematical Proof of Execution Bounds and Work Arithmetic
 To guarantee that no nested retry or refinement loop escapes its bounds, the maximum possible dispatched turns across all roles is governed by a strict closed mathematical ceiling:
@@ -253,8 +264,13 @@ Where:
 - Configuration: `N = 1`, `Refine_Cap = 1`, `Synth_Refine_Cap = 0`, `Max_Retries = 0`.
 - Dispatched turns: `[1 * 1] + [1 * 1 * 2] + 0 (synthesis skipped) + 0 = 3 turns`.
 
+**Worked Example 3: Standard 3-Participant Thorough Mode with Transient Retries**
+- Configuration: `N = 3`, `Refine_Cap = 3`, `Synth_Refine_Cap = 2`, `Max_Retries = 2`.
+- Worst-case mathematical limit: `[3 * 3] + [3 * 3 * 2 * 3] + [1 * 3] + [2 * 2 * 3] = 9 + 54 + 3 + 12 = 78 turns`.
+- Happy-path base is 26 turns. With a conservative retry rate (e.g. 1 transient timeout or schema retry across 3 participants), execution requires 27-28 turns. Setting the default budget ceiling to 40 turns provides robust headroom for isolated transient retries without allowing unbounded runaway loops.
+
 **Global Budget Hard Enforcement**:
-If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configurable via `--budget`), the engine unconditionally halts further dispatch, serializes active state to the run ledger, emits a `budget_exhausted` warning, and exits with code 1. No recursive loop can bypass this ceiling.
+If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 40 model turns in Thorough mode, 10 in Quick mode, configurable via `--budget`), the engine unconditionally halts further dispatch, serializes active state to the run ledger, emits a `budget_exhausted` warning, and exits with code 1. No recursive loop can bypass this ceiling.
 
 ### 4.4 Synthesis and Accountable Provenance
 - **FR-12 (Non-Voting Architectural Synthesis)**: Synthesis MUST evaluate proposals on technical merit, constraint satisfaction, and repository consistency. It MUST NOT adopt features based on majority voting or model popularity. Valuable minority proposals MUST remain eligible for adoption.
@@ -277,6 +293,9 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configur
   - `[Synthesizer-Novel: <rationale>]`: Necessary structural or reconciling design introduced during synthesis.
   - `[Rejected: <candidate-id6> (<model>) - <reason>]`: Explicit exclusion recorded in the matrix.
 - **FR-15 (Coverage Verification Check)**: Following synthesis, the engine MUST run a deterministic lint pass verifying that every functional requirement present in the original brief is addressed in the synthesis. Any dropped requirement MUST fail the synthesis stage.
+- **FR-34 (Synthesizer Context Overflow Protection)**: When the combined character volume of all candidate specifications, matrices, and brief context exceeds 80% of the assigned synthesizer model's context budget (`context_budget_chars`), the engine MUST execute a two-pass hierarchical synthesis strategy rather than a monolithic single prompt:
+  1. *Pass 1 (Comparative Matrix Compilation)*: The synthesizer extracts and reconciles requirements cluster-by-cluster, compiling the Similarities and Differences Matrix (`.review.md`) and recording adopted/adapted/rejected dispositions.
+  2. *Pass 2 (Modular Section Authoring)*: The engine dispatches partitioned drafting turns guided by the compiled matrix and targeted candidate sections, assembling the complete synthesized specification without truncating technical substance or dropping requirement tables.
 
 ### 4.5 Research Reconciliation and Evidence
 - **FR-16 (Citation Traceability)**: Every factual claim in a research report MUST be tethered to a resolvable primary citation (repository file/line, commit SHA, official documentation URL, or dated publication).
@@ -296,7 +315,7 @@ If `Total_Dispatched_Turns >= Budget_Ceiling` (default: 30 model turns, configur
 - **FR-19 (Tool-Owned Identity)**: All generated specs, research docs, prompts, and reviews MUST receive a tool-minted `id6` via `agent_workflows.artifact_core.mint_id6()`. Hand-minted IDs are strictly prohibited.
 - **FR-20 (Lifecycle Status Integrity)**: Final candidate specifications MUST be written with status `to-review` (or `draft` if minor findings remain). The workflow engine MUST NEVER write status `reviewed` or `approved`.
 - **FR-21 (Clean Review Handoff)**: Upon successful finalization, the command MUST output the exact next-action command for human review:
-  `aw specs check <spec-id6>` followed by `/spec-review .aw/records/specs/to-review/<filename>`.
+  `aw specs check .aw/records/specs/to-review/<filename>` followed by `/spec-review .aw/records/specs/to-review/<filename>`.
 - **FR-22 (Intermediate Staging Isolation)**: All intermediate candidate specifications (`.spec.md`) MUST stage in `.aw/records/specs/draft/intermediate/<setid>/`. Review critiques and matrices (`.review.md`) MUST stage in `.aw/records/reviews/`. Staging candidate files directly in the top-level `draft/` root is forbidden.
 - **FR-23 (Set Pipeline Attention Rollup)**: The cross-tree attention view (`aw attention` and `aw todo`) MUST scan `.aw/records/specs/draft/intermediate/` and roll up active candidate sets into a single consolidated row:
   - If a runner session is active: classified as `ACTIVE` (surfaced under `## active`).
@@ -333,7 +352,7 @@ The configuration schema integrates directly with `agent_workflows.runner_profil
     "quick_synth_refine_cap": 0,
     "max_retries_per_turn": 2,
     "turn_timeout_seconds": 600,
-    "global_turn_budget": 30
+    "global_turn_budget": 40
   },
   "rosters": {
     "preferred-three": [
@@ -527,7 +546,8 @@ Currently, `agent_workflows.artifact_naming._CLUSTERED_RE` accepts only a single
    r"(?:\.(?P<ace>[a-z0-9-]+))?(?:\.(?P<model>[a-z0-9-]+))?\.(?P<type>" + _FACET_ALT + r")\.md\Z"
    ```
 2. Update `artifact_naming.build_clustered_name` to accept optional `ace: Optional[str]` and `model: Optional[str]` parameters.
-3. Until this plan executes, `check.name-nonconformant` will report warnings on D177 filenames outside research; these warnings are grandfathered by D177.
+3. Update `agent_workflows.research_contract.parse_name` and `ResearchName`: currently, `parse_name` strictly allows only zero or one middle segment (`[.<model>]`) before `<kind>`, refusing two segments (`<ace>.<model>.<kind>`) with `'name has too many dotted segments'`. Extending `ResearchName` to include an optional `ace: Optional[str] = None` field and adjusting dotted segment splitting will align research contract parsing with D177.
+4. Until this plan executes, `check.name-nonconformant` will report warnings on D177 filenames outside research; these warnings are grandfathered by D177.
 
 ### 6.3 Setid, Date, NN, and Id6 Governance Rules
 - **Setid**: Shared across all intermediate and final artifacts for a given flow run. MUST NOT exceed 14 characters (catalog invariant I-17). Examples: `specflow`, `authv2`, `synthrsc`.
@@ -539,12 +559,50 @@ Currently, `agent_workflows.artifact_naming._CLUSTERED_RE` accepts only a single
   - `50`..`79`: Cross-candidate comparison matrices and reconciliation tables.
   - `80`..`98`: Synthesis and synthesis-refinement iterations.
   - `01` (in final directory): Authoritative final candidate spec (matches `aw specs new` convention).
+- **NN Slot-Block Allocation Formula**: To guarantee collision-free concurrent ordering across parallel participants and iterative refinement turns, NN is computed deterministically:
+  `NN = 10 + (participant_slot_index * 10) + step`
+  Where `participant_slot_index` is 0-indexed (0 for Participant 1, 1 for Participant 2, etc.), and `step` tracks local progression within that slot (even numbers for candidate drafts, odd numbers for review critiques). Synthesis matrices and merged candidates occupy the fixed reserved block `50`..`98`.
 - **Id6**: Every artifact receives an independent, globally unique 6-character alphanumeric ID minted by `artifact_core.mint_id6()`. An updated iteration receives a NEW id6 and references its parent id6 in front matter via `- Prior-Id: <id6>`.
 - **Model Token Normalization Algorithm**: Attributed filename middle segments require dot-free model tokens. The engine normalizes model identifiers deterministically:
   1. If the model is registered in `agent_workflows/data/research-models.toml`, its canonical table token (e.g. `opus55high`, `gemini38flashhigh`, `gpt61solmedium`) MUST be used.
   2. For unregistered or custom provider models, strip the provider prefix (`provider/model` -> `model`), strip all punctuation, dots, and hyphens, lowercase all letters, and concatenate with the sanitized variant (`re.sub(r'[^a-z0-9]', '', model) + re.sub(r'[^a-z0-9]', '', variant)`).
   3. If the resulting string is empty, fallback to `custom`.
   4. The raw, provider-qualified model string and variant are ALWAYS preserved intact in the artifact's front matter YAML (`- Model-Id:`, `- Model-Variant:`).
+
+#### Front Matter Metadata Schemas for Intermediate and Synthesis Artifacts
+Intermediate artifacts carry explicit machine-readable metadata in their front matter YAML:
+- **Intermediate Candidate Specification (`.spec.md`)**:
+  ```yaml
+  - Date: YYYY-MM-DD
+  - Status: draft
+  - Id: <id6>
+  - Prior-Id: <prior-id6>
+  - Slot: <slot_name>
+  - ACE: <ace_token>
+  - Requested-Model: <configured_model_string>
+  - Resolved-Model: <actual_dispatched_model>
+  - Variant: <variant_string>
+  - Iteration: <int>
+  - Set: <setid>
+  ```
+- **Review Critique Record (`.review.md`)**:
+  ```yaml
+  - Subject-Id: <target_candidate_id6>
+  - Subject-Type: spec
+  - Reviewed-At: YYYY-MM-DD
+  - Reviewer: <ace_token>/<model_token>
+  - Verdict: REVIEWED - MATERIAL CHANGES APPLIED | NO MATERIAL IMPROVEMENTS FOUND
+  - Audited-Scope: [FR-01..FR-34, AT-01..AT-24, Decisions 01..10]
+  ```
+- **Synthesized Specification (`.spec.md`)**:
+  ```yaml
+  - Date: YYYY-MM-DD
+  - Status: draft
+  - Id: <id6>
+  - Contributors: [<id6_1> (<model_1>), <id6_2> (<model_2>), ...]
+  - Matrix-Ref: <matrix_id6>
+  - Set: <setid>
+  ```
 
 ### 6.4 Worked Filename Inventories
 
@@ -613,7 +671,16 @@ flowchart TD
     A[Start: aw specs flow new] --> B[Capture Baseline & Hash Brief]
     B --> C[Resolve Roster & Verify Host Capabilities]
     C --> D[Render Frozen Prompts: prompts/pending/]
-    D --> E[Parallel Independent Generation]
+    D --> DP{--prepare-only?}
+    DP -- Yes --> DStop[Stop: Prompts Written, Exit 0]
+    DP -- No --> DR{Roster Size?}
+
+    DR -- N = 1 --> E_solo[Single Candidate Generation]
+    E_solo --> F_solo[Refinement Loop: reviews/ and intermediate/]
+    F_solo --> H_solo[Single Candidate Ready]
+    H_solo --> O[Write Final Candidate Spec to to-review/]
+
+    DR -- N > 1 --> E[Parallel Independent Generation]
 
     subgraph Independent Generation Phase: draft/intermediate/setid/
         E --> E1[Candidate 1: Opus High]
@@ -656,10 +723,10 @@ flowchart TD
         L --> M{Synth Converged or Cap?}
         M -- No --> L
         M -- Yes --> N[Coverage & Integrity Verification Pass]
-        N --> O[Write Final Candidate Spec to to-review/]
+        N --> O
     end
 
-    O --> P[Output /spec-review Handoff Command]
+    O --> P[Output /spec-review and specs check Handoff Command]
     P --> Q[End: Exit 0 clean or 1 findings]
 ```
 
@@ -708,17 +775,26 @@ stateDiagram-v2
 
     Generating --> CandidateRefining: Initial Candidates in draft/intermediate/
     Generating --> Failed: Host Crash / Auth Error (Exit 2)
+    Generating --> Interrupted: SIGINT / SIGTERM Trapped
+    Generating --> Cancelled: aw specs flow cancel
 
     CandidateRefining --> CandidateRefining: Iteration (Finding Fixed)
     CandidateRefining --> Synthesizing: All Candidates Converged
     CandidateRefining --> CappedCandidate: Refine Cap Reached
+    CandidateRefining --> Interrupted: SIGINT / SIGTERM Trapped
+    CandidateRefining --> Cancelled: aw specs flow cancel
 
     CappedCandidate --> Synthesizing: Proceed with Warnings
 
     Synthesizing --> SynthesisRefining: Matrix & Merged Draft Written
+    Synthesizing --> Interrupted: SIGINT / SIGTERM Trapped
+    Synthesizing --> Cancelled: aw specs flow cancel
+
     SynthesisRefining --> SynthesisRefining: Polish Iteration
     SynthesisRefining --> Finalizing: Synthesis Converged
     SynthesisRefining --> CappedSynthesis: Synth Cap Reached
+    SynthesisRefining --> Interrupted: SIGINT / SIGTERM Trapped
+    SynthesisRefining --> Cancelled: aw specs flow cancel
 
     CappedSynthesis --> Finalizing: Proceed with Prominent Warnings
 
@@ -727,6 +803,7 @@ stateDiagram-v2
 
     Failed --> Interrupted: Ledger Checkpointed
     Interrupted --> Dispatching: aw specs flow resume
+    Cancelled --> [*]: Process Terminated & Ledger Finalized (Exit 1)
 ```
 
 ### 7.4 Context Window Management and Task Chunking
@@ -741,6 +818,12 @@ To prevent quality degradation observed when smaller context models encounter ov
    - Candidates are generated per part with shared interface contracts.
    - Cross-chunk integration review is executed as a dedicated synthesis step before final assembly.
 4. **Lossy Summary Prohibition**: An agent MUST NOT replace detailed requirement tables with prose summaries during iterative refinement; every requirement ID must remain tracked.
+5. **Synthesizer Context Overflow Protection (Two-Pass Hierarchical Synthesis)**:
+   When multi-candidate specifications, matrix comparisons, and background context collectively exceed 80% of the assigned synthesizer's context ceiling (e.g. > 64,000 characters for an 80,000 character budget):
+   - The engine disallows a monolithic prompt that dumps all candidate texts simultaneously.
+   - *Pass 1*: The synthesizer receives structured requirement tables and section outlines extracted from each candidate, generating the Similarities and Differences Matrix (`.review.md`) with explicit requirement-level dispositions.
+   - *Pass 2*: The engine dispatches partitioned drafting turns for individual spec sections (e.g. CLI & Architecture, Functional Requirements, Schemas & Lifecycle), providing the synthesizer with the approved matrix dispositions and only the relevant candidate passages for that section.
+   - This ensures full technical depth is preserved without context truncation or loss of critical edge case requirements.
 
 ---
 
@@ -779,7 +862,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-08** | FR-15 | Synthesize candidates where Candidate A dropped Requirement 3 from the brief. | Synthesis verification rejects the omission. Synthesis re-integrates Requirement 3. | Pass if final synthesis contains all brief requirements. |
 | **AT-09** | FR-16, FR-18 | Run `aw research flow new` with contradictory evidence. | Reconciliation report contains `## Contradictions and Discrepancies` detailing both sides. | Pass if conflicting claims are preserved with citations. |
 | **AT-10** | FR-19, FR-20 | Finalize spec and inspect metadata. | Filename matches `YYYYMMDD-<set>-01-<id6>-<slug>.spec.md`. Status is `to-review`. Review attestation is absent. | Pass if status is `to-review` and `aw specs check` succeeds. |
-| **AT-11** | FR-21 | Execute `aw specs flow finalize <run-id6> --apply`. | Output terminal displays `/spec-review .aw/records/specs/to-review/...`. | Pass if handoff command is printed verbatim. |
+| **AT-11** | FR-21 | Execute `aw specs flow finalize <run-id6> --apply`. | Output terminal displays `aw specs check .aw/records/specs/to-review/...` followed by `/spec-review .aw/records/specs/to-review/...`. | Pass if handoff commands are printed verbatim with valid spec file path. |
 | **AT-12** | FR-22 | Check location of generated candidates during flow run. | Files exist under `.aw/records/specs/draft/intermediate/<setid>/`. No candidates exist in top-level `draft/`. Review records exist under `.aw/records/reviews/`. | Pass if candidate specs are staged under `intermediate/<setid>/` and reviews under `reviews/`. |
 | **AT-13** | FR-23, FR-24 | Run `aw attention` while a spec flow has unmerged candidates in `draft/intermediate/`. | Board displays Set under `## ready` (or `## active`), and footer prints `TODO: Spec flow '<setid>' has N candidate(s) waiting in draft/intermediate/`. | Pass if board and footer surface pending intermediate work. |
 | **AT-14** | FR-26 | Execute `aw specs flow new --brief valid.md --prepare-only --apply`. | Renders prompt files under `.aw/records/prompts/pending/` and prints execution bounds. Exits 0 without launching agent sessions. | Pass if prompts are written and zero agent turns are dispatched. |
@@ -791,6 +874,8 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 | **AT-20** | FR-30 | Simulate permanent failure of Participant 3 in a 3-model run without `--allow-partial-roster` in agent mode. | Process checkpoints state with outcome `partial` and exits with code 1. | Pass if exit code 1 and machine state is `partial`. |
 | **AT-21** | FR-31 | Execute `aw specs flow resume <run-id6>` after editing the input brief. | Process refuses execution with exit code 2 and outputs `refusal: input brief has mutated`. | Pass if exit code 2 and mutated brief refused. |
 | **AT-22** | FR-32 | Execute `aw specs flow new` with a roster referencing non-existent profile `"fake-prof"`. | Process refuses execution at baseline freeze with exit code 2. | Pass if exit code 2 and error identifies dangling profile. |
+| **AT-23** | FR-33 | Send SIGINT or execute `aw specs flow cancel <run-id6>` during active candidate generation. | Child worker subprocesses terminate within 3s, ledger is checkpointed with status `cancelled` or `interrupted`, intermediates preserved, and exit code is 1. | Pass if runner processes are terminated and ledger updated. |
+| **AT-24** | FR-34 | Synthesize candidates whose combined length exceeds 80% of synthesizer context budget. | Engine engages two-pass hierarchical synthesis, emitting Similarities/Differences Matrix in pass 1 and partitioned section drafts in pass 2 without context truncation. | Pass if matrix and full spec are produced with all requirements tracked. |
 
 ---
 
@@ -826,6 +911,7 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - **Decision 07 (Reviewer Session Isolation and Topology)**: Candidate refinement review turns execute in fresh, isolated worker sessions with zero prior conversation memory. Reviewer assignment defaults to `cross-peer` for multi-model rosters and `self-adversarial` in an isolated session for single-model rosters.
 - **Decision 08 (Run Ledger Resolution via project_records_dir())**: Flow execution ledgers reside at `.aw/records/runs/flow-<run-id6>.json` to ensure compatibility with companion and home directory record placements.
 - **Decision 09 (Resume Input Mutation Refusal)**: Resuming a flow requires an unmutated input brief hash and git commit SHA against `FROZEN_BASELINE`, preventing silent mixing of stale candidate drafts with altered requirements.
+- **Decision 10 (Graceful Cancellation and Subprocess Cleanup Invariant)**: When an active flow is interrupted (via SIGINT/SIGTERM) or cancelled (via `aw specs flow cancel` or `aw research flow cancel`), the engine guarantees immediate, non-orphaned termination of all spawned child runner processes (`oc`/`agy`) and checkpoints the run ledger with status `interrupted` or `cancelled`. This prevents unmonitored background token consumption and ensures clean, reproducible state recovery.
 
 ---
 
@@ -840,8 +926,8 @@ Every functional requirement is mapped to an observable behavioral acceptance te
   - `flow_refine.py`: Finding parser, iteration counter, and convergence checker.
   - `flow_synth.py`: Matrix generator and provenance tagger.
 - Add CLI subcommands in `agent_workflows/cli.py` and `specs_cli.py`:
-  - `aw specs flow [new|prepare|from-spec|merge|status|resume|finalize]`
-  - `aw research flow [new|status|resume]`
+  - `aw specs flow [new|prepare|from-spec|merge|status|resume|cancel|finalize]`
+  - `aw research flow [new|prepare|reconcile|status|resume|cancel]`
 - Extend `agent_workflows/attention.py` to support spec flow Set rollups and `TODO:` footer banners for `draft/intermediate/<setid>/`.
 - Unit and integration tests in `tests/test_specflow_*.py`.
 
@@ -878,13 +964,13 @@ Every functional requirement is mapped to an observable behavioral acceptance te
 - [x] Repository findings table with accurate, revision-pinned citations.
 - [x] Three CLI families evaluated; canonical grammar justified with command matrix.
 - [x] Three intermediate placement architectures evaluated; recommended Solution 1 justified.
-- [x] Stable functional requirements (`FR-01`..`FR-32`) with observable pass/fail conditions.
+- [x] Stable functional requirements (`FR-01`..`FR-34`) with observable pass/fail conditions.
 - [x] Closed mathematical formulas proving finite work bounds (Section 4.3.1).
 - [x] Schema for configuration and participant roster provided with model context ceilings.
 - [x] Mandatory Mermaid diagrams: ERD, Spec Flow, Research Flow, State/Recovery Flow.
 - [x] Persistence classification table accompanying ERD.
 - [x] Worked filename inventories for 3-participant chunked, 1-participant quick, and resumed runs adhering to D177.
-- [x] Acceptance test matrix (`AT-01`..`AT-22`).
+- [x] Acceptance test matrix (`AT-01`..`AT-24`).
 - [x] Zero em or en dashes throughout the document.
 - [x] Zero file URI schemes and zero absolute home directory paths.
 
@@ -915,7 +1001,7 @@ $ aw specs flow new --brief .aw/records/prompts/pending/auth-brief.prompt.md --r
   - Discovered Findings: 0 critical, 0 major, 1 minor (resolved)
   - Intermediate candidates in draft/intermediate/specflow/ transitioned to synthesized.
 [FLOW-HANDOFF] Next action for human maintainer:
-  aw specs check qk91f1
+  aw specs check .aw/records/specs/to-review/20261024-specflow-01-qk91f1-auth-brief.spec.md
   /spec-review .aw/records/specs/to-review/20261024-specflow-01-qk91f1-auth-brief.spec.md
 
 Exit code: 0
@@ -1009,5 +1095,5 @@ When invoked with `--agent`, output is emitted as strictly structured JSONL reco
 {"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"gemini","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-20-th48c2-cand.agy.gemini38flashhigh.spec.md"}
 {"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"generation","slot":"sol","artifact":".aw/records/specs/draft/intermediate/specflow/20261024-specflow-30-th48c3-cand.opencode.gpt61solmedium.spec.md"}
 {"schema":"aw.agent/v1","kind":"item","cmd":"specs flow new","stage":"synthesis","artifact":".aw/records/reviews/20261024-specflow-50-th48m1-matrix.reconciliation.review.md"}
-{"schema":"aw.agent/v1","kind":"summary","cmd":"specs flow new","exit":0,"outcome":"clean","verified":true,"complete":true,"total":5,"emitted":5,"omitted":0,"target":".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md","findings":0,"evidence":["brief-coverage","matrix-reconciliation"],"next":"aw specs check th48f1"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"specs flow new","exit":0,"outcome":"clean","verified":true,"complete":true,"total":5,"emitted":5,"omitted":0,"target":".aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md","findings":0,"evidence":["brief-coverage","matrix-reconciliation"],"next":"aw specs check .aw/records/specs/to-review/20261024-specflow-01-th48f1-storage-v2.spec.md"}
 ```
