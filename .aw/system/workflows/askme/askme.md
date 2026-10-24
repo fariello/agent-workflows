@@ -50,6 +50,12 @@ Read the code, relevant records, established decisions, or other available
 evidence needed to describe the subject correctly. Measure any quantity
 that could affect the choice and can reasonably be measured.
 
+Before using a factual statement from the record (a count, a list of which
+record types have a field, a claim about current behavior) in a prompt, an
+option, or the resolution you write back, check it against the repository.
+If it is false, state the corrected fact in the prompt and say the record
+was wrong; never repeat an unchecked premise.
+
 For unanswered questions in records, distinguish:
 
 - **Answered by evidence:** Resolve it from the evidence and record why.
@@ -165,7 +171,14 @@ For a question raised in a record's `## Open questions` section:
 - Set `- Status: resolved` only after a definite answer or evidence-based
   resolution.
 - Update `- Resolution or deferral rationale:` with the decision, its source
-  (the user or evidence), the date, and any reason actually supplied.
+  (the user or evidence), the date, and any reason actually supplied. Choosing
+  an option is not giving a reason; an option's description is your argument,
+  not the user's. Record the chosen option and only reasons the user typed;
+  when the user typed none, write the literal sentence "No reason was given."
+  Never label your own argument as "supplied", "the user's reason", or similar.
+- Append the resolution after the existing rationale text, never delete or
+  rewrite it, using the shape `<existing text> RESOLVED <YYYY-MM-DD> by <the user | evidence> via /askme: <decision>. <reason as given, or "No reason was given.">`.
+  When the field is empty, write the `RESOLVED ...` text alone.
 - Preserve the original `- Blocking:` value.
 - Record the answer before asking the next question.
 
