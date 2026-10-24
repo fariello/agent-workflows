@@ -15,7 +15,6 @@ Direct behavioral coverage for:
 
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
@@ -140,7 +139,7 @@ class GitCommonDirTests:
         non_git_dir = tmp_path / "nongit"
         non_git_dir.mkdir()
 
-        expected = os.path.realpath(repo_dir / ".git")
+        expected = storage._canonical_path(repo_dir / ".git")
         assert storage.get_git_common_dir(repo_dir) == expected
         assert storage.get_git_common_dir(wt_dir) == expected
         assert storage.get_git_common_dir(non_git_dir) is None

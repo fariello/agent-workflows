@@ -3,8 +3,7 @@ run the suite in the COORDINATOR role so a runner-launched turn measures the sam
 tree a human does (backlog `1uq1cu`).
 
 The release suite is large and IO/subprocess bound; running it serially costs multiples of
-the wall time, so `-n auto` (pytest-xdist, capped at half of available CPUs up to six workers,
-minimum 1) is the default in
+the wall time, so `-n auto` (pytest-xdist, using all CPUs up to 4, and max(4, cpus // 2) above 4) is the default in
 `[tool.pytest.ini_options] addopts` in pyproject.toml. That default hard-requires the
 xdist plugin: without it, pytest aborts with `unrecognized arguments: -n` before any
 test runs.
@@ -103,24 +102,26 @@ def _available_cpus() -> int:
 def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
     """Resolve -n auto worker count.
 
-    Use at most half the available CPUs and never more than six workers (minimum 1).
-    An explicit PYTEST_XDIST_AUTO_NUM_WORKERS can lower the count, but cannot
-    exceed the same limit.
+    If CPUs <= 4, use all available CPUs (minimum 1).
+    If CPUs > 4, use max(4, cpus // 2).
+    Respects PYTEST_XDIST_AUTO_NUM_WORKERS if explicitly set in the environment.
 
     Declared with optionalhook=True because pytest_xdist_auto_num_workers is an
     xdist.newhooks hookspec loaded only when xdist.plugin is active; without
     optionalhook=True, running pytest under -p no:xdist raises PluginValidationError
     during PytestPluginManager.check_pending() (backlog `6ljil4`).
     """
-    cpus = _available_cpus()
-    limit = min(6, max(1, cpus // 2))
     env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
     if env_var:
         try:
-            return min(limit, max(1, int(env_var)))
+            return max(1, int(env_var))
         except ValueError:
             pass
-    return limit
+
+    cpus = _available_cpus()
+    if cpus <= 4:
+        return max(1, cpus)
+    return max(4, cpus // 2)
 
 
 # --------------------------------------------------------------------------------------

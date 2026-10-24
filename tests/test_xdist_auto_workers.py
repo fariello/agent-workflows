@@ -89,7 +89,7 @@ class XdistAutoWorkersTests(unittest.TestCase):
                 self.assertEqual(conftest.pytest_xdist_auto_num_workers(config), 6)
 
     def test_auto_num_workers_scaling_and_floors(self) -> None:
-        """The default stays within six workers and half of available CPUs."""
+        """Verify worker counts: cpus if <= 4, otherwise max(4, cpus // 2)."""
         config = MagicMock()
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("PYTEST_XDIST_AUTO_NUM_WORKERS", None)
@@ -97,38 +97,50 @@ class XdistAutoWorkersTests(unittest.TestCase):
             os.environ.pop("CI", None)
             cases = [
                 (1, 1),
-                (2, 1),
-                (3, 1),
-                (4, 2),
-                (6, 3),
+                (2, 2),
+                (3, 3),
+                (4, 4),
+                (5, 4),
+                (6, 4),
                 (8, 4),
+                (10, 5),
                 (12, 6),
-                (16, 6),
-                (32, 6),
-                (64, 6),
+                (16, 8),
+                (32, 16),
+                (64, 32),
             ]
             for cpus, expected_workers in cases:
                 with patch.object(conftest, "_available_cpus", return_value=cpus):
                     actual = conftest.pytest_xdist_auto_num_workers(config)
-                    self.assertEqual(actual, expected_workers)
+                    self.assertEqual(
+                        actual,
+                        expected_workers,
+                        f"For {cpus} CPUs, expected {expected_workers} workers, got {actual}",
+                    )
 
     def test_auto_num_workers_ci_mode(self) -> None:
-        """CI uses the same six-worker and half-CPU limits."""
+        """CI uses the same policy: cpus if <= 4, otherwise max(4, cpus // 2)."""
         config = MagicMock()
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("PYTEST_XDIST_AUTO_NUM_WORKERS", None)
             cases = [
                 (1, 1),
-                (2, 1),
-                (3, 1),
-                (4, 2),
+                (2, 2),
+                (3, 3),
+                (4, 4),
+                (6, 4),
                 (8, 4),
-                (16, 6),
+                (12, 6),
+                (16, 8),
             ]
             for cpus, expected_workers in cases:
                 with patch.object(conftest, "_available_cpus", return_value=cpus):
                     actual = conftest.pytest_xdist_auto_num_workers(config)
-                    self.assertEqual(actual, expected_workers)
+                    self.assertEqual(
+                        actual,
+                        expected_workers,
+                        f"For {cpus} CPUs in CI, expected {expected_workers} workers, got {actual}",
+                    )
 
     def test_auto_num_workers_honors_env_override(self) -> None:
         """PYTEST_XDIST_AUTO_NUM_WORKERS explicitly overrides the auto calculation."""
@@ -137,12 +149,12 @@ class XdistAutoWorkersTests(unittest.TestCase):
             with patch.object(conftest, "_available_cpus", return_value=12):
                 self.assertEqual(conftest.pytest_xdist_auto_num_workers(config), 3)
 
-    def test_auto_num_workers_caps_env_override(self) -> None:
-        """PYTEST_XDIST_AUTO_NUM_WORKERS exceeding the max cap is bounded."""
+    def test_auto_num_workers_env_override_unbounded(self) -> None:
+        """PYTEST_XDIST_AUTO_NUM_WORKERS explicitly overrides auto calculation above cpu count."""
         config = MagicMock()
         with patch.dict(os.environ, {"PYTEST_XDIST_AUTO_NUM_WORKERS": "12"}):
-            with patch.object(conftest, "_available_cpus", return_value=12):
-                self.assertEqual(conftest.pytest_xdist_auto_num_workers(config), 6)
+            with patch.object(conftest, "_available_cpus", return_value=4):
+                self.assertEqual(conftest.pytest_xdist_auto_num_workers(config), 12)
 
     def test_auto_num_workers_env_override_floors_at_one(self) -> None:
         """PYTEST_XDIST_AUTO_NUM_WORKERS <= 0 is floored at 1."""

@@ -26,19 +26,21 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 def _available_workers() -> int:
     """Determine xdist worker count matching conftest pytest_xdist_auto_num_workers."""
+    env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
+    if env_var:
+        try:
+            return max(1, int(env_var))
+        except ValueError:
+            pass
+
     cpus = (
         len(os.sched_getaffinity(0))
         if hasattr(os, "sched_getaffinity")
         else (os.cpu_count() or 2)
     )
-    limit = min(6, max(1, cpus // 2))
-    env_var = os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS")
-    if env_var:
-        try:
-            return min(limit, max(1, int(env_var)))
-        except ValueError:
-            pass
-    return limit
+    if cpus <= 4:
+        return max(1, cpus)
+    return max(4, cpus // 2)
 
 
 def _extract_failing_nodeids(junit_path: Path, stdout_text: str) -> list[str]:
