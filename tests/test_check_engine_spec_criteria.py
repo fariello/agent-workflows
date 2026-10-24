@@ -26,6 +26,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+import pytest
+
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
 from agent_workflows import ipd_lint
@@ -169,6 +171,7 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
         criteria = check_engine.parse_spec_acceptance_criteria(spec_text)
         self.assertEqual(criteria, ["A12b", "A5", "AC-1", "A1"])
 
+    @pytest.mark.core
     def test_clean_fixture_yields_zero_findings_and_exit_code_zero(self) -> None:
         """E-06(a): Clean fixture yields 0 findings and drift_exit_code == 0."""
         with TemporaryDirectory() as tmp:
@@ -184,6 +187,7 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
             self.assertEqual(findings, [])
             self.assertEqual(_core.drift_exit_code(findings), 0)
 
+    @pytest.mark.core
     def test_positive_control_fires_when_criterion_missing(self) -> None:
         """E-06(b): Positive control fires when a criterion is missing (3 declared, 2 named)."""
         with TemporaryDirectory() as tmp:
