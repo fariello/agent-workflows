@@ -5082,6 +5082,11 @@ def _build_parser() -> argparse.ArgumentParser:
             ),
         )
         _p.add_argument(
+            "--date",
+            default=None,
+            help="Date (YYYYMMDD; default preserves existing date or today).",
+        )
+        _p.add_argument(
             "--rename",
             action="store_true",
             help="group: also re-cluster the filename to the new Set.",

@@ -260,6 +260,9 @@ def plan_mv(
     slug: Optional[str] = None,
     kind: Optional[str] = None,
     model: Optional[str] = None,
+    set_id: Optional[str] = None,
+    order: Optional[int] = None,
+    date: Optional[str] = None,
     *,
     repo_root: Optional[Path] = None,
 ) -> Tuple[Optional[RenamePlan], Optional[str]]:
@@ -278,6 +281,12 @@ def plan_mv(
             None,
             f"file '{src.name}' is not a conformant research document: {parse_err}",
         )
+    if date is not None:
+        date_err = _rcmd._refuse_unsafe_date("aw rename research", date)
+        if date_err:
+            return None, date_err
+    if order is not None and not (0 <= order <= 99):
+        return None, f"order must be between 0 and 99 (got {order})"
     new_kind = parsed.kind
     if kind is not None:
         kr = R.normalize_kind(kind)
@@ -291,11 +300,14 @@ def plan_mv(
             return None, mr.message
         new_model = mr.value
     new_slug = R.kebab(slug) if slug else parsed.slug
+    new_set = R.kebab(set_id) if set_id else parsed.set_id
+    new_order = f"{order:02d}" if order is not None else parsed.order
+    new_date = date if date else parsed.date
     new_name = R.format_name(
         R.ResearchName(
-            date=parsed.date,
-            set_id=parsed.set_id,
-            order=parsed.order,
+            date=new_date,
+            set_id=new_set,
+            order=new_order,
             id6=parsed.id6,
             slug=new_slug,
             model=new_model,
@@ -817,12 +829,47 @@ def run_mv(
         emit_human = not (getattr(args, "agent", False) or getattr(args, "json", False))
     repo_root = _write_repo_root(args)
     research_root = R.resolve_research_root(repo_root)
+
+    set_arg = getattr(args, "set", None)
+    notes_from_run: List[str] = []
+    if set_arg:
+        from agent_workflows import config as _config
+
+        _setid_err, _setid_warn = _config.validate_setid_length_for_authoring(
+            repo_root,
+            R.kebab(set_arg),
+            verb="aw rename research",
+        )
+        if _setid_err:
+            msg = f"error: {_setid_err}"
+            if emit_human:
+                print(msg)
+            return MutationResult(
+                2,
+                diagnostics=(
+                    MutationDiagnostic(
+                        location="set",
+                        rule="setid-length-error",
+                        detail=msg,
+                        severity="error",
+                    ),
+                ),
+            )
+        if _setid_warn:
+            msg = f"note: {_setid_warn}"
+            if emit_human:
+                print(msg)
+            notes_from_run.append(msg)
+
     plan, err = plan_mv(
         research_root,
         getattr(args, "id", "") or "",
         slug=getattr(args, "slug", None),
         kind=getattr(args, "kind", None),
         model=getattr(args, "model", None),
+        set_id=set_arg,
+        order=getattr(args, "order", None),
+        date=getattr(args, "date", None),
         repo_root=repo_root,
     )
     if err:
@@ -846,6 +893,7 @@ def run_mv(
         getattr(args, "apply", False),
         verb="rename",
         yes=bool(getattr(args, "yes", False)),
+        notes=tuple(notes_from_run),
         emit_human=emit_human,
     )
     if res is None:

@@ -554,7 +554,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         legacy_flags=(
             "--slug",
+            "--set",
             "--order",
+            "--date",
             "--apply",
             "--no-refs",
             "--allow-invalid-order",
@@ -573,6 +575,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=(
             "--set",
             "--order",
+            "--date",
             "--rename",
             "--apply",
             "--no-refs",

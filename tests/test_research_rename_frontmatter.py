@@ -276,6 +276,88 @@ def test_alternate_spelling_rename_research(temp_git_repo: Path):
     assert fm["order"] == "01"
 
 
+def test_rename_research_with_set(temp_git_repo: Path):
+    """aw rename research <id6> --set updates set in name and frontmatter, preserving date and order."""
+    _seed_research_doc(
+        temp_git_repo,
+        "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
+        set_id="oldsetid",
+        order="01",
+    )
+    rc, out, err = _run_cli(
+        [
+            "rename",
+            "research",
+            "k7m2xq",
+            "--set",
+            "testmonsel",
+            "--apply",
+            "--dir",
+            str(temp_git_repo),
+        ]
+    )
+    assert rc == 0, f"rename research failed: {out}\n{err}"
+    dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
+    assert dst.name == "20261014-testmonsel-01-k7m2xq-a-demo-doc.notes.md"
+    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
+    assert fm is not None
+    assert fm["set"] == "testmonsel"
+    assert fm["order"] == "01"
+
+
+def test_rename_research_with_set_and_slug(temp_git_repo: Path):
+    """aw rename research <id6> --set and --slug updates both while preserving date and order."""
+    _seed_research_doc(
+        temp_git_repo,
+        "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
+        set_id="oldsetid",
+        order="01",
+    )
+    rc, out, err = _run_cli(
+        [
+            "rename",
+            "research",
+            "k7m2xq",
+            "--set",
+            "testmonsel",
+            "--slug",
+            "new-demo-slug",
+            "--apply",
+            "--dir",
+            str(temp_git_repo),
+        ]
+    )
+    assert rc == 0, f"rename research failed: {out}\n{err}"
+    dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
+    assert dst.name == "20261014-testmonsel-01-k7m2xq-new-demo-slug.notes.md"
+    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
+    assert fm is not None
+    assert fm["set"] == "testmonsel"
+
+
+def test_rename_research_refuses_too_long_setid(temp_git_repo: Path):
+    """aw rename research <id6> --set refuses setid > 24 characters."""
+    _seed_research_doc(
+        temp_git_repo,
+        "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
+        set_id="oldsetid",
+        order="01",
+    )
+    rc, out, err = _run_cli(
+        [
+            "rename",
+            "research",
+            "k7m2xq",
+            "--set",
+            "this-set-id-is-way-too-long-to-be-allowed",
+            "--apply",
+            "--dir",
+            str(temp_git_repo),
+        ]
+    )
+    assert rc == 2
+
+
 def test_body_preservation_with_literal_frontmatter_keys(temp_git_repo: Path):
     """E-05(a): Body containing literal set:, order:, model:, kind: lines is byte-preserved."""
     body_text = (
