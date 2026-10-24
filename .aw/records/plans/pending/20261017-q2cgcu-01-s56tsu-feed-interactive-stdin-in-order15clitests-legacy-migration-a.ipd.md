@@ -35,14 +35,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Test update and unquarantine
 
-- [ ] E-01 In `tests/test_cli.py` within `Order15CliTests.test_install_legacy_repo_interactive_accept_migrates_to_aw`, remove the `@pytest.mark.xfail(strict=False, reason="flaky: q2cgcu - prompts on captured stdin under xdist")` decorator and replace `with mock.patch("sys.stdin.isatty", return_value=True):` with `with mock.patch("sys.stdin", io.StringIO("\n\n")):` so that all interactive prompts in `_run(["install", str(repo)])` (`collect_policy_interactive` and `_confirm_install`) receive predetermined newline answers from the in-memory string stream without prompting on captured stdin. No new imports are needed (`io` and `mock` are already imported at module top, lines 14 and 22; the local `from unittest import mock` may stay or go). Also add `self.assertEqual(code, 0, out)` after the `_run` call and `self.assertFalse((repo / ".agents" / "workflows").exists())` beside the existing `.aw/system` assertions, keeping the existing `mock_ask` and `.aw/system` assertions unchanged.
+- [x] E-01 In `tests/test_cli.py` within `Order15CliTests.test_install_legacy_repo_interactive_accept_migrates_to_aw`, remove the `@pytest.mark.xfail(strict=False, reason="flaky: q2cgcu - prompts on captured stdin under xdist")` decorator and replace `with mock.patch("sys.stdin.isatty", return_value=True):` with `with mock.patch("sys.stdin", io.StringIO("\n\n")):` so that all interactive prompts in `_run(["install", str(repo)])` (`collect_policy_interactive` and `_confirm_install`) receive predetermined newline answers from the in-memory string stream without prompting on captured stdin. No new imports are needed (`io` and `mock` are already imported at module top, lines 14 and 22; the local `from unittest import mock` may stay or go). Also add `self.assertEqual(code, 0, out)` after the `_run` call and `self.assertFalse((repo / ".agents" / "workflows").exists())` beside the existing `.aw/system` assertions, keeping the existing `mock_ask` and `.aw/system` assertions unchanged.
   - Depends on: none
   - Expected outcome: the test owns its stdin (the StringIO path makes `_ask_policy`/`collect_policy_interactive`/`_confirm_install` treat the run as attended via their `isinstance(sys.stdin, io.StringIO)` checks, while `term.is_interactive()` stays False so the engine commit prompt is not reached); the install exits 0, `.aw/system/workflows/index.md` and `.aw/system/VERSION` exist, `.agents/workflows` is gone; the quarantine decorator is removed.
-  - Execution state: pending
-- [ ] E-02 Run: (a) `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k test_install_legacy_repo_interactive_accept_migrates_to_aw`; (b) five repeated concurrent runs `for i in 1 2 3 4 5; do python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests; done` (pytest-randomly stays enabled, so seeds vary); (c) the routine gate bare `python3 -m pytest`. Note: `tests/test_cli.py` carries module-level `pytestmark = pytest.mark.slow` (line 29), so (c) never collects this test and is a no-regression gate only; (a) and (b) are the evidence.
+  - Execution state: performed
+- [x] E-02 Run: (a) `python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k test_install_legacy_repo_interactive_accept_migrates_to_aw`; (b) five repeated concurrent runs `for i in 1 2 3 4 5; do python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests; done` (pytest-randomly stays enabled, so seeds vary); (c) the routine gate bare `python3 -m pytest`. Note: `tests/test_cli.py` carries module-level `pytestmark = pytest.mark.slow` (line 29), so (c) never collects this test and is a no-regression gate only; (a) and (b) are the evidence.
   - Depends on: E-01
   - Expected outcome: the target test reports PASSED (never XPASS/XFAIL) in (a) and in every (b) run, no (b) run reports a failure or hang (the sibling `zcouni` test may still report XPASS/XFAIL; it is out of scope), and (c) exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -99,14 +99,177 @@ N/A: no specification or documentation changes are required; this change adjusts
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff tests/test_cli.py` showing removal of the `@pytest.mark.xfail` quarantine decorator, replacement of `mock.patch("sys.stdin.isatty", return_value=True)` with `mock.patch("sys.stdin", io.StringIO("\n\n"))`, and the added `assertEqual(code, 0, out)` and `.agents/workflows` absence assertions; plus pasted `ruff check tests/test_cli.py` output with no findings.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Git diff shows removal of `@pytest.mark.xfail`, replacement of `sys.stdin.isatty` mock with `sys.stdin` StringIO, and addition of exit code and legacy directory removal assertions. Ruff check reports clean.
+    ```diff
+    diff --git a/tests/test_cli.py b/tests/test_cli.py
+    index 64842af0e..6894341b9 100644
+    --- a/tests/test_cli.py
+    +++ b/tests/test_cli.py
+    @@ -723,10 +723,6 @@ class Order15CliTests(CliTestBase):
+             self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
+             self.assertFalse((repo / ".agents" / "workflows" / "index.md").exists())
+
+    -    @pytest.mark.xfail(
+    -        strict=False,
+    -        reason="flaky: q2cgcu - prompts on captured stdin under xdist",
+    -    )
+         def test_install_legacy_repo_interactive_accept_migrates_to_aw(self):
+             from unittest import mock
+
+    @@ -735,16 +731,18 @@ class Order15CliTests(CliTestBase):
+             (repo / ".agents" / "workflows" / "VERSION").write_text(
+                 "0.1.0\n", encoding="utf-8"
+             )
+    -        with mock.patch("sys.stdin.isatty", return_value=True):
+    +        with mock.patch("sys.stdin", io.StringIO("\n\n")):
+                 with mock.patch(
+                     "agent_workflows.cli._ask_policy", return_value=True
+                 ) as mock_ask:
+                     code, out = _run(["install", str(repo)])
+    +        self.assertEqual(code, 0, out)
+             mock_ask.assert_called_once()
+             self.assertEqual(mock_ask.call_args[1]["key"], "migrate_layout")
+             self.assertEqual(mock_ask.call_args[1]["builtin_default"], True)
+             self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
+             self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
+    +        self.assertFalse((repo / ".agents" / "workflows").exists())
+
+
+     class Order16MigrateLayoutCliTests(CliTestBase):
+    ```
+    Ruff check output:
+    ```
+    $ ruff check tests/test_cli.py
+    All checks passed!
+    $ pre-commit run ruff --files tests/test_cli.py
+    ruff.....................................................................Passed
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of (a) the `-rA` target run showing `PASSED tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_accept_migrates_to_aw` and no XPASS; (b) all five `-n 4 -rxX` class runs, each summary showing zero failed and no XPASS/XFAIL line naming the target test; (c) the bare `python3 -m pytest` summary with exit 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Target test passed cleanly; all 5 concurrent class runs under xdist passed with 6 passed each; routine gate / aw suite passed with 1762 passed and exit code 0.
+    (a) Target test run:
+    ```
+    $ python3 -m pytest -o addopts="" -rA -m "slow or not slow" tests/test_cli.py -k test_install_legacy_repo_interactive_accept_migrates_to_aw
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1245488847
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 65 items / 64 deselected / 1 selected
+
+    tests/test_cli.py .                                                      [100%]
+
+    ==================================== PASSES ====================================
+    NOTE: 64 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    =========================== short test summary info ============================
+    PASSED tests/test_cli.py::Order15CliTests::test_install_legacy_repo_interactive_accept_migrates_to_aw
+    ======================= 1 passed, 64 deselected in 3.38s =======================
+    ```
+
+    (b) 5 concurrent class runs under -n 4:
+    Run 1:
+    ```
+    $ python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3890279018
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 4/4 workers
+    4 workers [6 items]
+    ......                                                                   [100%]
+    NOTE: 59 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 6.01s ===============================
+    ```
+    Run 2:
+    ```
+    $ python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3059972656
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 4/4 workers
+    4 workers [6 items]
+    ......                                                                   [100%]
+    NOTE: 59 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 6.11s ===============================
+    ```
+    Run 3:
+    ```
+    $ python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1590857179
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 4/4 workers
+    4 workers [6 items]
+    ......                                                                   [100%]
+    NOTE: 59 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 6.67s ===============================
+    ```
+    Run 4:
+    ```
+    $ python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=229030906
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 4/4 workers
+    4 workers [6 items]
+    ......                                                                   [100%]
+    NOTE: 59 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 6.23s ===============================
+    ```
+    Run 5:
+    ```
+    $ python3 -m pytest -o addopts="" -n 4 -rxX -m "slow or not slow" tests/test_cli.py -k Order15CliTests
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3203271897
+    rootdir: /mnt/md1/VC/agent-workflows/.aw/worktrees/s56tsu
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    created: 4/4 workers
+    4 workers [6 items]
+    ......                                                                   [100%]
+    NOTE: 59 tests were deselected by -m/-k and did not run (filtered by marker expression: 'slow or not slow', and -k/--deselect also contributed)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 6.19s ===============================
+    ```
+
+    (c) Full suite / routine gate:
+    ```
+    $ aw suite
+    1762 passed, 11 warnings in 62.71s (0:01:02)
+    [Exit code: 0]
+
+    $ AW_CORE_BUDGET_ENFORCE=0 python3 -m pytest
+    1762 passed, 11 warnings in 46.36s
+    [Exit code: 0]
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

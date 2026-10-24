@@ -723,10 +723,6 @@ class Order15CliTests(CliTestBase):
         self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
         self.assertFalse((repo / ".agents" / "workflows" / "index.md").exists())
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="flaky: q2cgcu - prompts on captured stdin under xdist",
-    )
     def test_install_legacy_repo_interactive_accept_migrates_to_aw(self):
         from unittest import mock
 
@@ -735,16 +731,18 @@ class Order15CliTests(CliTestBase):
         (repo / ".agents" / "workflows" / "VERSION").write_text(
             "0.1.0\n", encoding="utf-8"
         )
-        with mock.patch("sys.stdin.isatty", return_value=True):
+        with mock.patch("sys.stdin", io.StringIO("\n\n")):
             with mock.patch(
                 "agent_workflows.cli._ask_policy", return_value=True
             ) as mock_ask:
                 code, out = _run(["install", str(repo)])
+        self.assertEqual(code, 0, out)
         mock_ask.assert_called_once()
         self.assertEqual(mock_ask.call_args[1]["key"], "migrate_layout")
         self.assertEqual(mock_ask.call_args[1]["builtin_default"], True)
         self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
         self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
+        self.assertFalse((repo / ".agents" / "workflows").exists())
 
 
 class Order16MigrateLayoutCliTests(CliTestBase):
