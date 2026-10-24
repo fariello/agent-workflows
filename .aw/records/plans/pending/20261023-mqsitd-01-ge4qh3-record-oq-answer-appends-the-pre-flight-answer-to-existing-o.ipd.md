@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Append instead of replace
 
-- [ ] E-01 In `runner_shared.record_oq_answer`, replace the `rationale_pattern.sub(rationale_line, new_block, count=1)` call in the `if rationale_pattern.search(new_block):` branch with an append: keep the matched field text (first line plus any indented continuation lines) verbatim and strip trailing whitespace from the last line of the field and add ` RESOLVED {date} by {who} via {channel}: {answer}` (one separating space) at its end; when the existing field value is empty or whitespace only, emit `- Resolution or deferral rationale: RESOLVED {date} by {who} via {channel}: {answer}` exactly as today. Use a replacement function (not a replacement string) so backslashes or group references in the answer or existing text are written literally; today an answer containing `\1` makes `re.sub` raise `re.error` (invalid group reference), which propagates out of `record_oq_answer` uncaught at both call sites, and `\n` in an answer is written as a real newline (F-2). Leave the no-rationale-line insertion branch, the status rewrite, the hash refusal, and the Blocking/Owner invariance checks untouched. Update the docstring bullet `- Resolution or deferral rationale: RESOLVED ...` to say the text is appended to any existing rationale.
+- [x] E-01 In `runner_shared.record_oq_answer`, replace the `rationale_pattern.sub(rationale_line, new_block, count=1)` call in the `if rationale_pattern.search(new_block):` branch with an append: keep the matched field text (first line plus any indented continuation lines) verbatim and strip trailing whitespace from the last line of the field and add ` RESOLVED {date} by {who} via {channel}: {answer}` (one separating space) at its end; when the existing field value is empty or whitespace only, emit `- Resolution or deferral rationale: RESOLVED {date} by {who} via {channel}: {answer}` exactly as today. Use a replacement function (not a replacement string) so backslashes or group references in the answer or existing text are written literally; today an answer containing `\1` makes `re.sub` raise `re.error` (invalid group reference), which propagates out of `record_oq_answer` uncaught at both call sites, and `\n` in an answer is written as a real newline (F-2). Leave the no-rationale-line insertion branch, the status rewrite, the hash refusal, and the Blocking/Owner invariance checks untouched. Update the docstring bullet `- Resolution or deferral rationale: RESOLVED ...` to say the text is appended to any existing rationale.
   - Depends on: none
   - Expected outcome: `record_oq_answer` on a block whose rationale reads `Pending: depends on vendor reply.` produces `- Resolution or deferral rationale: Pending: depends on vendor reply. RESOLVED <date> by <who> via <channel>: <answer>`; on a present-but-empty rationale field (`- Resolution or deferral rationale:` with nothing after it) it produces exactly `- Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer>` (no double space), the same line it produces today; an answer containing `C:\new\1` is written literally and raises nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral tests
 
-- [ ] E-02 Add a test to `tests/test_question_preflight.py` that builds a plan via `_create_plan_with_oqs` with an OQ carrying `"rationale": "Original question context: SQLite or Postgres?"`, calls `runner_shared.record_oq_answer` with a matching `expected_hash`, and asserts it returns True, the file still contains the original rationale text, the line reads `- Resolution or deferral rationale: Original question context: SQLite or Postgres? RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB`, `- Status: resolved` is present, and `- Blocking: yes` / `- Owner: test author` are unchanged. Add a second case where the existing rationale has an indented continuation line (written directly into the fixture file) and assert both the first line and the continuation line survive and the `RESOLVED ...` text appears once, after them. Add a third case whose answer is `C:\new\1` and assert the call returns True without raising and the written rationale line ends with the literal `: C:\new\1`. Add a fourth case whose fixture carries a present-but-empty field (`- Resolution or deferral rationale:` written directly into the fixture file) and assert the line reads exactly `- Resolution or deferral rationale: RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB`. Mark each new test `@pytest.mark.core` (the module carries no core marker, so without it the bare routine gate never runs them; each takes about 0.03 s, measured at review on the existing A40 test).
+- [x] E-02 Add a test to `tests/test_question_preflight.py` that builds a plan via `_create_plan_with_oqs` with an OQ carrying `"rationale": "Original question context: SQLite or Postgres?"`, calls `runner_shared.record_oq_answer` with a matching `expected_hash`, and asserts it returns True, the file still contains the original rationale text, the line reads `- Resolution or deferral rationale: Original question context: SQLite or Postgres? RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB`, `- Status: resolved` is present, and `- Blocking: yes` / `- Owner: test author` are unchanged. Add a second case where the existing rationale has an indented continuation line (written directly into the fixture file) and assert both the first line and the continuation line survive and the `RESOLVED ...` text appears once, after them. Add a third case whose answer is `C:\new\1` and assert the call returns True without raising and the written rationale line ends with the literal `: C:\new\1`. Add a fourth case whose fixture carries a present-but-empty field (`- Resolution or deferral rationale:` written directly into the fixture file) and assert the line reads exactly `- Resolution or deferral rationale: RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB`. Mark each new test `@pytest.mark.core` (the module carries no core marker, so without it the bare routine gate never runs them; each takes about 0.03 s, measured at review on the existing A40 test).
   - Depends on: E-01
   - Expected outcome: four new core-marked tests; against the unmodified function the first two fail (original text lost) and the third errors with `re.error`, while the fourth passes before and after (it pins the empty-field shape); all four pass after E-01.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Run the existing preflight tests unchanged, including `test_a40_durable_artifact_write_back` (its fixture writes no prior rationale, so it exercises the insertion branch and its exact-line assertion must still hold) and `test_stale_artifact_refusal`, then the routine core gate `python3 -m pytest`. Note the module is otherwise not core-marked, so the bare gate runs only the four new tests from this file; the explicit-path run is what exercises the rest of the file.
+- [x] E-03 Run the existing preflight tests unchanged, including `test_a40_durable_artifact_write_back` (its fixture writes no prior rationale, so it exercises the insertion branch and its exact-line assertion must still hold) and `test_stale_artifact_refusal`, then the routine core gate `python3 -m pytest`. Note the module is otherwise not core-marked, so the bare gate runs only the four new tests from this file; the explicit-path run is what exercises the rest of the file.
   - Depends on: E-02
   - Expected outcome: `tests/test_question_preflight.py` fully passes and the core gate reports no failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -105,20 +105,293 @@ None. The one design question (append vs replace) was decided by the maintainer 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` of `agent_workflows/runner_shared.py` showing the existing-rationale branch now appends via a replacement function, the empty-field case still emits the bare `RESOLVED ...` line, the docstring updated, and no other hunks in that file.
   - Observed evidence:
-  - Result: pending
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 46b0ae8e0..b45485639 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -19586,7 +19586,7 @@ def record_oq_answer(
+         """Rewrite only the specified open question block in the artifact durably (spec 6kwd2e R1.5, R1.7, 4kkcex E-03).
 
-- [ ] V-02 validates E-02
+         - Status: open -> - Status: resolved
+    -    - Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer>
+    +    - Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer> (appended to any existing rationale)
+         - Blocking: and - Owner: unchanged
+         Refuses and leaves file untouched if artifact hash differs from expected hash or block is not open.
+         """
+    @@ -19642,7 +19642,15 @@ def record_oq_answer(
+             r"(?m)^-[ \t]+Resolution or deferral rationale:[^\n]*(?:\n[ \t]+[^\n]*)*"
+         )
+         if rationale_pattern.search(new_block):
+    -        new_block = rationale_pattern.sub(rationale_line, new_block, count=1)
+    +        def _append_rationale(m: re.Match[str]) -> str:
+    +            matched = m.group(0)
+    +            colon_idx = matched.find(":")
+    +            existing_val = matched[colon_idx + 1 :] if colon_idx != -1 else ""
+    +            if not existing_val.strip():
+    +                return rationale_line
+    +            return f"{matched.rstrip()} RESOLVED {date} by {who} via {channel}: {answer}"
+    +
+    +        new_block = rationale_pattern.sub(_append_rationale, new_block, count=1)
+         else:
+             bullets = list(re.finditer(r"(?m)^-[ \t]+[^\n]*", new_block))
+             if bullets:
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of `python3 -m pytest -o addopts="" tests/test_question_preflight.py -v -k "rationale"` (or the new tests' names) showing each of the four new tests PASSED, plus the `git diff` of `tests/test_question_preflight.py` showing the `@pytest.mark.core` markers and the assertions on preserved original text, preserved continuation line, single `RESOLVED` occurrence, literal backslash answer with no exception, and the exact empty-field line.
   - Observed evidence:
-  - Result: pending
+    Actual output of `python3 -m pytest -o addopts="" tests/test_question_preflight.py -v -k "rationale"`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=977996967
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 15 items                                                            collected 15 items / 11 deselected / 4 selected
 
-- [ ] V-03 validates E-03
+    tests/test_question_preflight.py::test_record_oq_answer_empty_field_rationale PASSED [ 25%]
+    tests/test_question_preflight.py::test_record_oq_answer_preserves_backslash_answer_rationale PASSED [ 50%]
+    tests/test_question_preflight.py::test_record_oq_answer_appends_to_existing_rationale PASSED [ 75%]
+    tests/test_question_preflight.py::test_record_oq_answer_appends_with_indented_continuation_rationale PASSED [100%]
+
+    NOTE: 11 tests were deselected by -m/-k and did not run (no marker filter was active; deselected by -k/--deselect)
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ======================= 4 passed, 11 deselected in 1.65s =======================
+    ```
+    Plus `git diff` of `tests/test_question_preflight.py`:
+    ```diff
+    diff --git a/tests/test_question_preflight.py b/tests/test_question_preflight.py
+    index 782fb7bb3..10bb901d8 100644
+    --- a/tests/test_question_preflight.py
+    +++ b/tests/test_question_preflight.py
+    @@ -47,6 +47,8 @@ from pathlib import Path
+     from typing import Any
+     from unittest import mock
+
+    +import pytest
+    +
+
+     from agent_workflows import (
+         agy_runipd,
+    @@ -393,6 +395,193 @@ def test_stale_artifact_refusal(tmp_path: Path):
+         assert "- Status: open" in text
+
+
+    +@pytest.mark.core
+    +def test_record_oq_answer_appends_to_existing_rationale(tmp_path: Path):
+    +    """E-02 / mqsitd: record_oq_answer appends answer to existing rationale text."""
+    +    repo = _create_test_repo(tmp_path)
+    +    plan_path = _create_plan_with_oqs(
+    +        repo,
+    +        "app001",
+    +        oqs=[
+    +            {
+    +                "id": "OQ-01",
+    +                "title": "Database schema choice",
+    +                "blocking": True,
+    +                "status": "open",
+    +                "rationale": "Original question context: SQLite or Postgres?",
+    +            }
+    +        ],
+    +    )
+    +    orig_hash = runner_shared.sha256_file(plan_path)
+    +
+    +    recorded = runner_shared.record_oq_answer(
+    +        repo,
+    +        plan_path.relative_to(repo),
+    +        "OQ-01",
+    +        answer="Use PostgreSQL 16 JSONB",
+    +        who="developer",
+    +        channel="aw oc run pre-flight",
+    +        date="2026-10-17",
+    +        expected_hash=orig_hash,
+    +    )
+    +    assert recorded is True
+    +
+    +    text = plan_path.read_text(encoding="utf-8")
+    +    assert "Original question context: SQLite or Postgres?" in text
+    +    assert (
+    +        "- Resolution or deferral rationale: Original question context: SQLite or Postgres? RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+    +        in text
+    +    )
+    +    assert "- Status: resolved" in text
+    +    assert "- Blocking: yes" in text
+    +    assert "- Owner: test author" in text
+    +
+    +
+    +@pytest.mark.core
+    +def test_record_oq_answer_appends_with_indented_continuation_rationale(tmp_path: Path):
+    +    """E-02 / mqsitd: record_oq_answer preserves indented continuation lines and appends RESOLVED once."""
+    +    repo = _create_test_repo(tmp_path)
+    +    plan_path = _create_plan_with_oqs(
+    +        repo,
+    +        "app002",
+    +        oqs=[
+    +            {
+    +                "id": "OQ-01",
+    +                "title": "Database schema choice",
+    +                "blocking": True,
+    +                "status": "open",
+    +            }
+    +        ],
+    +    )
+    +    # Write continuation line directly into the fixture file
+    +    content = plan_path.read_text(encoding="utf-8")
+    +    content = content.replace(
+    +        "- Owner: test author\n",
+    +        "- Owner: test author\n- Resolution or deferral rationale: First line context\n    Indented continuation line\n",
+    +    )
+    +    plan_path.write_text(content, encoding="utf-8")
+    +    orig_hash = runner_shared.sha256_file(plan_path)
+    +
+    +    recorded = runner_shared.record_oq_answer(
+    +        repo,
+    +        plan_path.relative_to(repo),
+    +        "OQ-01",
+    +        answer="Use PostgreSQL 16 JSONB",
+    +        who="developer",
+    +        channel="aw oc run pre-flight",
+    +        date="2026-10-17",
+    +        expected_hash=orig_hash,
+    +    )
+    +    assert recorded is True
+    +
+    +    text = plan_path.read_text(encoding="utf-8")
+    +    assert "First line context" in text
+    +    assert "    Indented continuation line" in text
+    +    assert (
+    +        "- Resolution or deferral rationale: First line context\n    Indented continuation line RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+    +        in text
+    +    )
+    +    assert (
+    +        text.count(
+    +            "RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+    +        )
+    +        == 1
+    +    )
+    +    assert "- Status: resolved" in text
+    +    assert "- Blocking: yes" in text
+    +    assert "- Owner: test author" in text
+    +
+    +
+    +@pytest.mark.core
+    +def test_record_oq_answer_preserves_backslash_answer_rationale(tmp_path: Path):
+    +    """E-02 / mqsitd: record_oq_answer handles answers with backslashes without raising re.error."""
+    +    repo = _create_test_repo(tmp_path)
+    +    plan_path = _create_plan_with_oqs(
+    +        repo,
+    +        "app003",
+    +        oqs=[
+    +            {
+    +                "id": "OQ-01",
+    +                "title": "Path choice",
+    +                "blocking": True,
+    +                "status": "open",
+    +                "rationale": "Pending path decision.",
+    +            }
+    +        ],
+    +    )
+    +    orig_hash = runner_shared.sha256_file(plan_path)
+    +
+    +    recorded = runner_shared.record_oq_answer(
+    +        repo,
+    +        plan_path.relative_to(repo),
+    +        "OQ-01",
+    +        answer=r"C:\new\1",
+    +        who="developer",
+    +        channel="aw oc run pre-flight",
+    +        date="2026-10-17",
+    +        expected_hash=orig_hash,
+    +    )
+    +    assert recorded is True
+    +
+    +    text = plan_path.read_text(encoding="utf-8")
+    +    assert "- Status: resolved" in text
+    +    rationale_lines = [
+    +        line
+    +        for line in text.splitlines()
+    +        if "- Resolution or deferral rationale:" in line
+    +    ]
+    +    assert len(rationale_lines) == 1
+    +    assert rationale_lines[0].endswith(r": C:\new\1")
+    +    assert (
+        "- Resolution or deferral rationale: Pending path decision. RESOLVED 2026-10-17 by developer via aw oc run pre-flight: C:\\new\\1"
+        in text
+    )
+    +
+    +
+    +@pytest.mark.core
+    +def test_record_oq_answer_empty_field_rationale(tmp_path: Path):
+    +    """E-02 / mqsitd: record_oq_answer on present-but-empty rationale field emits RESOLVED line cleanly."""
+    +    repo = _create_test_repo(tmp_path)
+    +    plan_path = _create_plan_with_oqs(
+    +        repo,
+    +        "app004",
+    +        oqs=[
+    +            {
+    +                "id": "OQ-01",
+    +                "title": "Empty rationale choice",
+    +                "blocking": True,
+    +                "status": "open",
+    +            }
+    +        ],
+    +    )
+    +    content = plan_path.read_text(encoding="utf-8")
+    +    content = content.replace(
+    +        "- Owner: test author\n",
+    +        "- Owner: test author\n- Resolution or deferral rationale:\n",
+    +    )
+    +    plan_path.write_text(content, encoding="utf-8")
+    +    orig_hash = runner_shared.sha256_file(plan_path)
+    +
+    +    recorded = runner_shared.record_oq_answer(
+    +        repo,
+    +        plan_path.relative_to(repo),
+    +        "OQ-01",
+    +        answer="Use PostgreSQL 16 JSONB",
+    +        who="developer",
+    +        channel="aw oc run pre-flight",
+    +        date="2026-10-17",
+    +        expected_hash=orig_hash,
+    +    )
+    +    assert recorded is True
+    +
+    +    text = plan_path.read_text(encoding="utf-8")
+    +    assert "- Status: resolved" in text
+    +    assert (
+    +        "- Resolution or deferral rationale: RESOLVED 2026-10-17 by developer via aw oc run pre-flight: Use PostgreSQL 16 JSONB"
+    +        in text
+    +    )
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the actual summary line of `python3 -m pytest -o addopts="" tests/test_question_preflight.py` showing all tests passed including `test_a40_durable_artifact_write_back` and `test_stale_artifact_refusal`, and the actual `N passed` summary line of the bare `python3 -m pytest` core gate with zero failures.
   - Observed evidence:
-  - Result: pending
+    Actual summary line of `python3 -m pytest -o addopts="" tests/test_question_preflight.py`:
+    ```
+    tests/test_question_preflight.py ...............                         [100%]
+    ============================== 15 passed in 3.72s ==============================
+    ```
+    Verbose run confirmed passing of `test_a40_durable_artifact_write_back` and `test_stale_artifact_refusal`:
+    ```
+    tests/test_question_preflight.py::test_a40_durable_artifact_write_back PASSED [ 26%]
+    tests/test_question_preflight.py::test_stale_artifact_refusal PASSED     [ 66%]
+    ```
+    Actual `N passed` summary line of bare `python3 -m pytest` core gate:
+    ```
+    1833 passed, 11 warnings in 56.04s
+    ```
+    (and under `aw suite`: `1833 passed, 11 warnings in 38.97s`).
+  - Result: pass
 
 ## Approval and execution gate
 

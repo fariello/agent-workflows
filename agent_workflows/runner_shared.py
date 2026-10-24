@@ -19586,7 +19586,7 @@ def record_oq_answer(
     """Rewrite only the specified open question block in the artifact durably (spec 6kwd2e R1.5, R1.7, 4kkcex E-03).
 
     - Status: open -> - Status: resolved
-    - Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer>
+    - Resolution or deferral rationale: RESOLVED <date> by <who> via <channel>: <answer> (appended to any existing rationale)
     - Blocking: and - Owner: unchanged
     Refuses and leaves file untouched if artifact hash differs from expected hash or block is not open.
     """
@@ -19642,7 +19642,18 @@ def record_oq_answer(
         r"(?m)^-[ \t]+Resolution or deferral rationale:[^\n]*(?:\n[ \t]+[^\n]*)*"
     )
     if rationale_pattern.search(new_block):
-        new_block = rationale_pattern.sub(rationale_line, new_block, count=1)
+
+        def _append_rationale(m: re.Match[str]) -> str:
+            matched = m.group(0)
+            colon_idx = matched.find(":")
+            existing_val = matched[colon_idx + 1 :] if colon_idx != -1 else ""
+            if not existing_val.strip():
+                return rationale_line
+            return (
+                f"{matched.rstrip()} RESOLVED {date} by {who} via {channel}: {answer}"
+            )
+
+        new_block = rationale_pattern.sub(_append_rationale, new_block, count=1)
     else:
         bullets = list(re.finditer(r"(?m)^-[ \t]+[^\n]*", new_block))
         if bullets:
