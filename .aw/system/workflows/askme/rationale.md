@@ -40,3 +40,15 @@ When a user reports incomprehension ("I have zero context here", "what is X?", "
 
 Live trials in plan `lkn1zt` (findings `auwidn`, trial T05) showed that invoking `/askme` without arguments led multiple host and model combinations to scan the repository using `aw attention`, recursive `grep`, and `find` when no conversational question was pending. In a shared checkout, this caused agents to discover and ask open questions from plans authored by other agents or humans without confirming authorship. The no-argument scope rule therefore restricts candidate records strictly to those whose edits appear in the current conversation's own tool calls, explicitly forbids repository-wide discovery searches, and requires stopping with instructions when both conversational and session sources are empty.
 
+## Recording only reasons the user gave
+
+Live trials in plan `lkn1zt` (findings `auwidn`, Claude Code trial T09) showed that when a user chose an option by typing only "Creation date. And that question was way too long-winded.", the agent copied the option's argument text into `- Resolution or deferral rationale:` as the user's reason ("Reason: the filename date is present on effectively every tracked artifact [...]"). Choosing an option is not adopting its argument as a reason; the workflow requires recording the chosen option and only reasons the user actually typed, using the literal phrase "No reason was given." when none was typed, and never labeling an agent's argument as the user's reason.
+
+## Checking premises before asking
+
+Live trials in plan `lkn1zt` (findings `auwidn`, trials on Claude Code, Antigravity, and OpenCode + gemini) showed agents repeating unchecked factual premises from the record, such as the false claim that "only plans and specs carry a history", when 1,104 backlog items also carry one as OpenCode + opus measured. A prompt, an option, or a recorded resolution must never repeat an unchecked premise from a record: any factual statement from the record must be checked against the repository first, and corrected in the prompt if false.
+
+## Preserving original question text
+
+Live trials in plan `lkn1zt` (findings `auwidn`) showed that across most recording rows on multiple hosts, agents deleted the original question text in `- Resolution or deferral rationale:` and replaced it with only the answer, destroying what was asked. The workflow requires appending the resolution after existing rationale text rather than overwriting it, preserving the original question for future readers.
+
