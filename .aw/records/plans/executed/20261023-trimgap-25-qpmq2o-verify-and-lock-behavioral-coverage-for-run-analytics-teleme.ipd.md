@@ -6,7 +6,7 @@
 - Scope: Re-run the four `wo21z5` `return-none` mutation probes against `tests/test_run_analytics_telemetry.py` under the routine `core` selection at execution HEAD, and record the verdicts in this plan. ONLY IF a probe SURVIVES at execution HEAD, add one behavioral test to `tests/test_run_analytics_telemetry.py` that calls the surviving function and asserts on its returned value or raised error. EXCLUDES any production-code change; EXCLUDES other `run_analytics_telemetry.py` keys (owned by executed `8bhcd3` or other `trimgap` items); EXCLUDES other test files.
 - Scope-Paths: tests/test_run_analytics_telemetry.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: qpmq2o
-- Approval: 2026-10-23, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-24 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: qpmq2o verified (set trimgap, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_analytics_telemetry.py: declared-but-unmodified (auto-acknowledged by aw agy run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (1 declared path(s) unmodified; work may have landed before the begin baseline or not at all): tests/test_run_analytics_telemetry.py]
 - 2026-10-23 approved (aw set): status set to approved
 - 2026-10-23 reviewed (aw set): /plan-review (opencode/uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (commit-before-reprobe, head/baseline_failing/newly_failing evidence and base sha, satisfiable budget bar, execution contract, target classes); four probes re-run killed at f1dbef8a7 (F-04)
 
