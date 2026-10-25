@@ -150,3 +150,46 @@ Iteration-1 findings `RF-01` to `RF-22`: rechecked, none reopened.
 
 Material changes made; rerun warranted. Three `high` findings (RF-23 to RF-25) were found that iteration 1 missed,
 so this self-review loop is still finding defects; a review by a different model is the more useful next step.
+
+## Iteration 3
+
+| Field | Value |
+| --- | --- |
+| Prompt | `khjc70`, run again by the operator |
+| Reviewer | OpenCode, same model and conversation as the author and iterations 1 and 2 (self-review; not independent evidence) |
+| Baseline | HEAD `e19492246`; spec sha256 `7f1b94dca3e313d5...`, 1694 lines, 103 requirement ids, 86 acceptance ids |
+| Code drift since `766875058` | none in `agent_workflows/` or `docs/` |
+| Result | 4 ids added (`R-97`, `AC-44c`, `AC-47b`, `AC-51c`), 0 removed |
+
+Iteration 1 and 2 findings (`RF-01` to `RF-34`): rechecked, none reopened.
+
+| ID | Severity | Area | Defect and evidence | Correction | Blocks handoff |
+| --- | --- | --- | --- | --- | --- |
+| RF-35 | high | Attention, pipeline position | The brief is a statusless research prompt, which attention classifies by set pipeline position. `research_index.derive_pipeline_positions` marks a set `synthesized` (attention `done`) as soon as a `reconciliation-report` member has a body. Verified by calling it: with the matrix body present it returned `synthesized`, with front matter only `partial`. So a run waiting on a maintainer decision would have shown as done in `aw attention`. | New R-97 and Section 6.6.2b: the matrix and research working `findings` records are published front matter only; live bodies stay in the brief companion until finalize (or cancel). Matrix table, decide row, and matrix description updated. AC-51c. | yes |
+| RF-36 | high | Concurrency vs cancel, R-85 vs R-07 | R-85 refused every second process on a live run with `run-locked`, so `aw synth cancel` from another terminal could never reach a running run; and nothing said a run releases its lock at `waiting-for-human`, which `accept` and `decide` need. | R-85: read verbs take no lock; `cancel` writes a request file and signals the holder; `accept`, `reject`, `decide` act on stopped runs. R-03: every stopping state ends the process and releases the lock. AC-47b. | yes |
+| RF-37 | medium | Worktree cleanup, R-81 | Nothing removed synth worktrees, and `aw lanes prune` will not: `aw lanes list` classifies non-lane directories under the worktree root as `other: not a lane` (four such directories exist today). | R-81 requires `git worktree remove` after each stage, on cancel, finalize, prune, and stale cleanup on resume. AC-44c. | no |
+| RF-38 | medium | Timeouts | `--dispatch-timeout` defaulted to 60 min with no link to Antigravity's `--print-timeout` (a Go duration needing a unit, `runner_shared.probe_argv` comment) or to the 8 h ceiling; 60 min is short for a three-candidate synthesis. | Per-stage defaults (90 min generate and synthesize, 45 min otherwise), passed as `--print-timeout` with a unit for `agy`, capped at `MAX_TURN_TIMEOUT`, labelled as estimates. `--stall-timeout` added to the grammar. | no |
+| RF-39 | medium | Import parsing, R-06 | `--candidate <label>=<file>@<ace>/<token>` had no split rule for paths containing `=` or `@`, and no validation of the ACE or token. | Split at first `=` and last `@`; ACE from the closed list; token from the vocabulary; `@<token>` alone allowed. | no |
+| RF-40 | low | Usability, 8.3 | The one TTY confirmation was described without its prompt text or the flag that skips it, and `--yes` was not in the grammar. | Prompt text and `--yes`/`--no-interactive` behaviour stated; `--yes` defined as never consent for `--by-human`. | no |
+| RF-41 | low | Baseline, Section 0 | Section 0 did not record iteration 3. | Updated. | no |
+
+Checked and found sound this iteration (no change): companion files are excluded from id6 scans
+(`check_engine._iter_type_files` skips companion directories, and `artifact_adopt.repository_id6s` uses it), so
+revision copies holding `id:` or `- Id:` lines cannot create id6 collisions; `From-Spec` on a spec record is a
+supported field checked by `check.from-spec-dangling` on both plans and specs.
+
+### Iteration 3 validation actually performed
+
+- `aw specs check <spec>`: conforms.
+- Ids: 0 removed, 4 added; every `R-` and `AC-` reference resolves; every requirement has an acceptance criterion.
+- All four Mermaid diagrams rendered with `mmdc` 12.0.0.
+- Every `aw.agent/v1` example validated with `agent_schema.validate_agent_record` (0 errors).
+- `research_index.derive_pipeline_positions` called with constructed entries to confirm the RF-35 mechanism and its fix.
+- Every flag newly mentioned is declared in Section 3.2 or is an existing host flag (`--print-timeout`, `--force` on `git worktree remove`).
+
+### Iteration 3 stopping result
+
+Material changes made; rerun warranted. Two `high` findings were still found on the third self-review, in areas
+(attention integration, process and lock lifetime) the earlier iterations did not walk. The finding rate is falling
+(22, 12, 7), but it has not reached zero, and further self-review by the same model has diminishing value
+compared with an independent review.
