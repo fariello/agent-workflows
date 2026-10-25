@@ -1,7 +1,7 @@
 # Spec: Setid as a shared cross-type topic label, with type-scoped resolution
 
 - Date: 2026-09-10
-- Status: approved
+- Status: implemented
 - Id: 2lcqno
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 4w7d6s
@@ -327,6 +327,8 @@ requires is only that the two surfaces AGREE and that the choice be stated.
   unchanged, so nothing here turns on the exact figure.)
 
 ## Workflow history
+- 2026-10-25 implemented (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Set setidfix (216rgg, w2y5ac) executed; 205 targeted tests passed.
+- 2026-10-25 implementing (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Advancing to implemented.
 
 - 2026-10-01 note (aw specs): IPD jw6cm3 E-06: Document two independent narrowing sites in N3 and correct criterion 5 to require regression tests for both sites
 - 2026-09-13 approved (aw set, --by-human): status set to approved

@@ -1,7 +1,7 @@
 # Spec: Cross-artifact lifecycle symbols and ANSI status styling
 
 - Date: 2026-09-13
-- Status: approved
+- Status: implemented
 - Priority: high
 - Blocks-Release: next
 - Id: uonrjg
@@ -9,6 +9,8 @@
 - Scope: A single accessible glyph and ANSI vocabulary for artifact statuses, artifact id6s, and live runner activity across human terminal views.
 
 ## Workflow history
+- 2026-10-25 implemented (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Set lifeglyph executed; 59 targeted tests passed; A21 full suite green. OQ-02 remains open and non-blocking (not this spec's to decide).
+- 2026-10-25 implementing (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Advancing to implemented.
 
 - 2026-10-14 note (aw specs): Add distinct queued (⇪) and interrupted (↯) lifecycle stages and glyphs to Section 5 and Section 7.2.
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.

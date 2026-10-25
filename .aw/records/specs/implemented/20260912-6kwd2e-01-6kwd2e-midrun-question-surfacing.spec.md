@@ -1,13 +1,15 @@
 # Spec: Surfacing a mid-run question to the human without stopping the queue
 
 - Date: 2026-09-12
-- Status: approved
+- Status: implemented
 - Id: 6kwd2e
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Work-Kind: feature
 - Scope: How a review or execute turn under `aw oc run` / `aw agy run` asks the human a question that did not exist before the turn: park the item, keep the queue moving, ask in bulk at the drain, and resume without discarding work.
 
 ## Workflow history
+- 2026-10-25 implemented (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Set qchan 00-12 executed; 174 targeted tests passed. Known text drift: A27 'assert statically' half conflicts with no-code-pinning rule (to amend); live Telegram hand checklist not recorded.
+- 2026-10-25 implementing (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Advancing to implemented.
 
 - 2026-10-17 note (aw specs): AMENDED 2026-10-17 (maintainer-directed): added R9 (answering while the run is live: per-run questions/answers inbox, one shared answer writer, checkpoint consumption, same-session resume, aw runs answer, terminal surfaces, unattended runs still accept answers) and R10 (notification and chat channels: adapter interface, user-level secrets, sanitized and terse outbound text, sender verification, one runner-attached receiver per channel identity, Telegram stdlib two-way, generic webhook/command hook, aw notify setup, Signal deferred) with criteria A42-A55; Goal 6 and the remote-surface non-goal amended to match. Sources: findings xjsc9k; reports kdg4uz, cpcn9k, 49sv63, js5p5k answering prompt bao493.
 - 2026-10-16 note (aw specs): Relocation note (er11a0): rules cited as askme Step 1 (three-way sort), Step 3/Step 4 (record before the next question, durable recording) and Step 5 (runner branch) now live in 'Establish facts before asking', 'Ask and wait', 'Record project decisions' and 'Explicitly noninteractive runs' sections; askme.md line citations predate the rewrite.

@@ -1,7 +1,7 @@
 # Spec: external / out-of-repo delivery and host-native skills for agent-workflows
 
 - Date: 2026-07-25
-- Status: parked
+- Status: superseded
 - Id: lz6bem
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Sources: research `.agents/docs/research/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md` and `.agents/docs/research/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md`
@@ -101,6 +101,7 @@ This protocol is run by a human or a host-with-access operator, NOT by the IPD. 
 3. A `SKILL.md` mapping IPD for the skill-eligible set, reconciled with the T2 outcome.
 
 ## Workflow history
+- 2026-10-25 superseded (aw set): Audit 2026-10-25: superseded by spec or061f, which states it supersedes and extends lz6bem and owns the remaining need (user-scope/out-of-repo skill discovery, backlog m15n3k). Host-native SKILL.md emission to .agents/skills shipped via plans bmd1ur and rldro6/kvfsak.
 - 2026-10-15 parked (aw set): status set to parked
 
 - 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated); produced by IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`)

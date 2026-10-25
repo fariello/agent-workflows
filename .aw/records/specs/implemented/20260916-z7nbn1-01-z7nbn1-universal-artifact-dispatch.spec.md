@@ -1,7 +1,7 @@
 # Spec: Universal artifact dispatch: one selector, one action table, one conformance gate for every runner and reader
 
 - Date: 2026-09-16
-- Status: implementing
+- Status: implemented
 - Graduated-To: artdispatch
 - Blocks-Release: next
 - Id: z7nbn1
@@ -10,6 +10,7 @@
 - Scope: Every tool that looks at or acts on artifacts resolves them through one selector, decides what to do through one action table, and refuses clearly on anything it cannot classify; executing a spec or backlog item PRODUCES plans or backlog items rather than doing work itself.
 
 ## Workflow history
+- 2026-10-25 implemented (aw set): Audit 2026-10-25: all criteria 5.1-5.9 verified at HEAD 5db4791c1 (artdispatch 01-06 + mxzogk executed; 115 targeted tests passed; full core suite 1834 passed).
 
 - 2026-10-13 note (aw specs): CORRECTION (79d4ix / o58r3r): the 2026-09-25 statusvocab note's 'no longer written by the runner' does not hold for failed-safely, which the runner still writes for contained host/driver failures by design; see spec 25kzda Section 5.5 'Live legacy-spelled token: failed-safely'.
 - 2026-09-27 note (aw specs): 5.6 wording amended by artdispatch 7icz68: AST/grep check replaced by behavioral runner-vs-table equality (maintainer ruling 2026-09-26, no structure tests)

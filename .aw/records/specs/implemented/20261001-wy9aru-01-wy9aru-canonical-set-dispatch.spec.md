@@ -1,7 +1,7 @@
 # Spec: Canonical status-setter dispatch: one engine per set verb
 
 - Date: 2026-10-01
-- Status: approved
+- Status: implemented
 - Id: wy9aru
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: fcnz1r
@@ -31,6 +31,8 @@
   Section 6 records.
 
 ## Workflow history
+- 2026-10-25 implemented (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Set setdisp executed (set-level audit 7zb4ny); 169 targeted tests passed. Follow-up: section 6 amendment note on spec 0151-01 still missing.
+- 2026-10-25 implementing (aw set): Audit 2026-10-25 at HEAD 5db4791c1: every acceptance criterion verified in current code and tests; full core suite 1834 passed. Advancing to implemented.
 - 2026-10-09 approved (aw set, --by-human): status set to approved
 - 2026-10-09 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 FIXED; OQ-1 (keep sidecar, type-conditional) and OQ-2 (widen selectors) resolved by the maintainer
 
