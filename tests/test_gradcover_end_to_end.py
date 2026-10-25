@@ -162,6 +162,7 @@ Execution-state rule: mark performed only after doing it.
 
 ## Deferred / out of scope (with reason)
 - None.
+  - Carrier-Declined: none
 
 ## Scope check
 - None.
@@ -246,6 +247,7 @@ Execution-state rule: mark performed only after doing it.
 
 ## Deferred / out of scope (with reason)
 - None.
+  - Carrier-Declined: none
 
 ## Scope check
 - None.

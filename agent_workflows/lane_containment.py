@@ -4060,6 +4060,20 @@ def record_preserved_lane_state(
     item["preserved_retention_reasons"] = list(reason_codes)
 
 
+def clear_preserved_lane_state(item: dict[str, Any]) -> None:
+    """Clear durable `preserved_*` fields written by record_preserved_lane_state (ob7aq9 E-09)."""
+    for key in (
+        "preserved_worktree",
+        "preserved_branch",
+        "preserved_lane_id",
+        "preserved_base",
+        "preserved_disposition",
+        "preserved_reason",
+        "preserved_retention_reasons",
+    ):
+        item.pop(key, None)
+
+
 def record_lane_preserved(
     *,
     run_dir: Path,
